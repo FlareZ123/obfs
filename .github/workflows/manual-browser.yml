@@ -33,6 +33,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/heldout-browser-integration.js
+      - name: Compare imported constant-key ownership under real browser CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/imported-constant-key-browser.js
       - name: Execute real server-private SCO before-and-after example in Chromium
         env:
           CHROMIUM_BIN: google-chrome
