@@ -39,6 +39,8 @@ jobs:
         run: node --test test/sco-sync-search.test.js
       - name: Print live authenticated SCO sync-word discovery evidence
         run: node sims/sco-discovered-oracle-run.js
+      - name: Publish bounded sync-word search false-positive counts
+        run: node sims/sco-sync-search-falsification.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
