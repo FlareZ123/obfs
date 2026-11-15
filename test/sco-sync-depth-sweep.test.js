@@ -24,3 +24,14 @@ test('longer public future-observation probes expose their oracle query cost',as
     assert.ok(rows[1].steps<rows[2].steps);
   }
 });
+
+test('independently seeded holdout reports bounded SCO depth changes without private-model hints',async()=>{
+  const result=await runDepthSweep(100,true);
+  assert.equal(result.records.length,18);
+  assert.deepEqual([...new Set(result.records.map(record=>record.seedBase))],
+    ['0x6ca2de94','0x13579bdf']);
+  for(const record of result.records){
+    assert.equal(record.candidates,record.observableContinuation+record.falseContinuation);
+    assert.ok(record.physical<=record.observableContinuation);
+  }
+});
