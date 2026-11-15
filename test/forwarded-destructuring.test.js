@@ -60,6 +60,16 @@ test('nested immutable forwarders can feed a destructuring declaration',()=>{
     'module.exports=read;',1);
 });
 
+test('private captured zero-argument getter may be destructured directly',()=>{
+  preserve(own+'const get=()=>root;'+
+    'const {secretField:read}=get();module.exports=read;',1);
+});
+
+test('escaped zero-argument getter cannot justify returned owner destructuring',()=>{
+  preserve(own+'const get=()=>root;const exposed=get;'+
+    'const {secretField:read}=get();module.exports=[read,exposed===get];',0);
+});
+
 test('destructuring rest key exposure must decline',()=>{
   preserve(own+'const identity=value=>value;'+
     'const {secretField,...rest}=identity(root);'+
