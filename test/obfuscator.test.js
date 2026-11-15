@@ -318,6 +318,7 @@ test('closed-world refuses opaque consumers in mixed source groups',()=>{
 });
 
 test('closed-world inline HTML module consumer is refused as source-bearing markup',()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const sources=[
     {path:'state.mjs',code:'export const state={secret:19};'},
     {path:'index.html',sourceType:'asset',
