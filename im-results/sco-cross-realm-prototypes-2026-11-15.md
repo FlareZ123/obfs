@@ -108,6 +108,41 @@ JSDoc and the new test passed. This expands supported **refusal evidence**,
 not evidence of application-level deobfuscation resistance. The full
 integrated-suite validation is tracked separately.
 
+## Mutation-matrix and browser-private ambient follow-up
+
+The static mutation witness was expanded to 32 mutation spellings:
+eight native objects and constructors (`Object`, `Array`, `Math`, `JSON`,
+`Error`, `RegExp`, `Intl`, `Promise`) by four direct and
+locally aliased write forms. A read-only `Math.PI` and
+`Number.MAX_SAFE_INTEGER` public control remained accepted. The
+[Ubuntu/Windows focused run 43772074557](https://github.com/FlareZ123/obfs/actions/runs/43772074557)
+passed with this matrix at `a3697506b7f051dd396321c566e46542b3c78e7c`.
+
+A distinct deployment hazard is private code that reads browser-only state.
+The test builds a browser-like Node VM context exposing
+`window.externalBridge.value=41` and a server-like VM context with no
+`window`. The expression succeeds in the browser context and throws
+`ReferenceError` on the server. The selective compiler had previously
+admitted such a private export when no public export used ambient state,
+despite the private operation becoming non-executable after relocation.
+The admission guard now declines obvious browser globals (e.g.
+`window`, `document`, `navigator`, `location`, browser storage),
+direct `globalThis` members, simple global-object aliases and
+destructuring. Negative examples retain ordinary browser-side public
+exports. The targeted
+[Ubuntu/Windows run 43772338478](https://github.com/FlareZ123/obfs/actions/runs/43772338478)
+at `a6ceb7482f174a475f9f7dd7c5e4836fc5b903de` passed direct ambient
+cases. A follow-up alias/destructuring matrix passed in
+[Ubuntu/Windows run 43772538549](https://github.com/FlareZ123/obfs/actions/runs/43772538549)
+at `bbf1c7467d660512168a91daaced1627277ebfbc`.
+
+The wider [manual full-suite 43771808471](https://github.com/FlareZ123/obfs/actions/runs/43771808471)
+was green on both platforms at `9e70a1dc7840a4c3077e005d827b9066384cf3c6`,
+covering source changes through the intrinsic-state refusal and broader
+suite/benchmark/browser gates. The subsequent browser-ambient admission
+change was validated by the targeted SCO workflow only. All claims are
+pinned to the tested commit, rather than projected onto future HEAD.
+
 ## Limits and follow-up
 
 The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
