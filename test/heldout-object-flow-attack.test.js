@@ -12,7 +12,9 @@ test('held-out ESM object flow: covered private keys, refusals and source-only a
   assert.equal(result.candidatePrivateFields,60);
   assert.equal(result.renamedPrivateFields,18);
   assert.ok(result.recoveredLabels>=18);
-  assert.equal(result.outputMatches,30);
-  assert.equal(result.normalizedMatches,30);
+  assert.equal(result.apiConfigurations,2);
+  assert.equal(result.observations,60);
+  assert.equal(result.outputMatches,60);
+  assert.equal(result.normalizedMatches,60);
   assert.equal(Object.keys(result.refusalKinds).length,7);
 });
