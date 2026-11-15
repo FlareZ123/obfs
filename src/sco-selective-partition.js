@@ -377,13 +377,27 @@ function partitionScoSelectedAsyncExports(file,options) {
   // Server and client load different function objects. Private code that reads
   // or mutates a public export can observe the wrong copy after partitioning.
   const publicBindings=new Set([...publicNames,...publicHelperNames]);
+  const browserOnlyRoots=new Set(['window','document','navigator','location',
+    'localStorage','sessionStorage','indexedDB','self','history','screen',
+    'customElements','DOMParser','XMLHttpRequest']);
   for(const body of privateBodies){
     const realmEffect=realmStateObservation(body);
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
     }
     walk(body,(node,parent,key)=>{
+      if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+         node.object.name==='globalThis'){
+        const member=node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null;
+        if(browserOnlyRoots.has(member??'')){
+          throw new TypeError('Private SCO export uses browser-only ambient state: '+member);
+        }
+      }
       if(node.type!=='Identifier'||isStaticKey(parent,key))return;
+      if(browserOnlyRoots.has(node.name)){
+        throw new TypeError('Private SCO export uses browser-only ambient state: '+node.name);
+      }
       if(publicBindings.has(node.name)){
         throw new TypeError('Private SCO export references a separated public binding: '+node.name);
       }
