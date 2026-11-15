@@ -27,7 +27,7 @@ test('SCO private initialization opt-in retains server imports and secrets exclu
   assert.throws(()=>partitionScoAsyncModule({path:'protected.mjs',code}),/only direct exported/);
   assert.throws(()=>partitionScoAsyncModule({
     path:'protected.mjs',code:code+'\nexport const accidentallyPublished=privateKey;'
-  },{serverOnlyInitialization:true}),/only direct exported/);
+  },{serverOnlyInitialization:true}),/RPC partition requires/);
 
   const partition=partitionScoAsyncModule({
     path:'protected.mjs',sourceType:'module',code
