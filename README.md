@@ -42,6 +42,8 @@ The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createS
 - Optional browser hostname check. It is a convenience restriction against accidental reuse, and **cannot withstand a client that can modify code**. Host-locked ESM files with static imports or reexports are refused, because those dependencies would execute before the guard. Use server-side authorization to protect such graphs.
 - SNO local integrity check against incidental file corruption. Since the modeled adversary controls the server's files and runtime, this cannot establish a cryptographic trust boundary.
 
+**Source-map disclosure:** COO, SCO, and SNO refuse `.map` sidecar assets and real JavaScript `sourceMappingURL` directives, including inline `data:` maps. Remove those artifacts before obfuscation. A source map can contain the original program in `sourcesContent`; see `docs/SECURITY.md` for the policy, compatibility consequences, and remaining asset-disclosure gaps.
+
 ## Important limitations
 
 This prototype does not implement general closure or arbitrary cross-file property-flow reconstruction, encrypted remote execution, Wasm lowering, VM virtualization, general lexical identifier mangling, or runtime anti-instrumentation. Dynamic tooling, modified runtimes, and complete client visibility can extract code and bypass local checks. Direct source-introspection checks remain syntactic; implicit coercion, dynamic builtin aliases, and external observers can still expose transformed source. It cannot guarantee 2.5x speed for arbitrary inputs. The benchmark is a limited sample, not a performance proof. Breaking API contracts through obfuscation is a correctness failure; ambiguous cases intentionally remain unchanged.
