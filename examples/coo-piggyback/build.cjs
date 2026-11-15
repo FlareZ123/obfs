@@ -7,15 +7,15 @@ const {piggybackShards}=require('../../workplace/coo-piggyback-shards');
 function buildSample(check=true){
   const root=__dirname;
   /** @type {{path:string,code:string,sourceType:'module'}} */
-  const consumer={path:'app.mjs',sourceType:'module',code:fs.readFileSync(path.join(root,'before/app.mjs'),'utf8')};
+  const consumer={path:'app.mjs',sourceType:'module',code:fs.readFileSync(path.join(root,'before/app.mjs'),'utf8').replace(/\r\n?/gu,'\n')};
   /** @type {{path:string,code:string,sourceType:'module'}} */
-  const donor={path:'constants.mjs',sourceType:'module',code:fs.readFileSync(path.join(root,'before/constants.mjs'),'utf8')};
+  const donor={path:'constants.mjs',sourceType:'module',code:fs.readFileSync(path.join(root,'before/constants.mjs'),'utf8').replace(/\r\n?/gu,'\n')};
   const result=piggybackShards({consumer,donor},{seed:'piggyback-public-sample-v1',functionName:'message',closedWorld:true});
   if(!result.transformed)throw new Error(result.reason);
   for(const file of result.files){
     const target=path.join(root,'after',file.path);
     if(check){
-      if(fs.readFileSync(target,'utf8')!==file.code)throw new Error('Generated snapshot mismatch: '+file.path);
+      if(fs.readFileSync(target,'utf8').replace(/\r\n?/gu,'\n')!==file.code)throw new Error('Generated snapshot mismatch: '+file.path);
       continue;
     }
     fs.mkdirSync(path.dirname(target),{recursive:true});
