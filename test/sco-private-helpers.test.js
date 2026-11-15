@@ -43,6 +43,7 @@ test('private synchronous helper call graph stays off the public ESM facade',asy
 test('private helpers fail closed on cross-boundary references and stateful identities',()=>{
   const exported='export async function secret(){return helper();}'+
     'export function local(){return 7;}';
+  /** @type {[string,RegExp][]} */
   const invalid=[
     ['function helper(){return 1;}'+
        'export async function secret(){return helper;}export function local(){return 7;}',
@@ -62,6 +63,12 @@ test('private helpers fail closed on cross-boundary references and stateful iden
     ['async function helper(){return 1;}'+exported,
       /synchronous private helper/u],
     ['function* helper(){yield 1;}'+exported,
+      /synchronous private helper/u],
+    ['function helper(value=local()){return value;}'+exported,
+      /synchronous private helper/u],
+    ['function helper({value}){return value;}'+exported,
+      /synchronous private helper/u],
+    ['function helper(...values){return values.length;}'+exported,
       /synchronous private helper/u],
     ['const helper=()=>1;'+exported,
       /primitive literal/u]
