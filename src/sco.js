@@ -10,7 +10,9 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
 /** @typedef {import('./core').SourceFile} SourceFile */
 /**
  * @typedef {Object} ScoOptions
- * @property {string[]} [allowedHosts]
+ * @property {string[]} [allowedHosts] HTTP Host-header routing filter only; a
+ *   requester can forge this header, so it is not an authorization boundary.
+ *   Use authorizeRead, authorizeRpc and authorizeOperation for server policy.
  * @property {string} [routePrefix]
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
