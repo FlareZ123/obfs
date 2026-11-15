@@ -8,14 +8,15 @@ const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
+const {flattenBranchBlocks} = require('./branch-blocks');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,branchFunctions?:number,branchBlocks?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>}} ObfuscationOptions
  */
 
 /**
@@ -358,6 +359,18 @@ function obfuscateFiles(files, options = {}) {
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
+    const branchNames=options.experimentalBranchBlocks?.[filename]??[];
+    let branchFunctions=0,branchBlocks=0;
+    if(branchNames.length) {
+      if(sourceType==='script'||remoteSourceObserver) {
+        throw new TypeError('Branch blocks require a module/CommonJS without cross-file source observation');
+      }
+      const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames});
+      code=flattened.code;
+      branchFunctions=flattened.functions;
+      branchBlocks=flattened.blocks;
+      ast=parse(code,sourceType);
+    }
     let objects = 0;
     let properties = 0;
     if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
@@ -393,6 +406,10 @@ function obfuscateFiles(files, options = {}) {
     if(vmNames.length) {
       metrics.vmFunctions=vmFunctions;
       metrics.vmInstructions=vmInstructions;
+    }
+    if(branchNames.length) {
+      metrics.branchFunctions=branchFunctions;
+      metrics.branchBlocks=branchBlocks;
     }
     return {path:filename,code,sourceType,metrics};
   });
