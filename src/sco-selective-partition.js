@@ -127,6 +127,15 @@ function realmStateObservation(body){
         add(globalNames,node.left.name);
       }
       if(node.type!=='VariableDeclarator'||!node.init)return;
+      // Object, Array, primitive wrappers and functions expose their realm's
+      // constructor through an inherited `constructor` key. Unknown owner
+      // provenance must not silently turn that key into a harmless local.
+      if(node.id.type==='ObjectPattern'){
+        for(const property of node.id.properties){
+          if(property.type==='Property'&&keyName(property)==='constructor'&&
+             property.value.type==='Identifier')add(intrinsicNames,property.value.name);
+        }
+      }
       if(node.id.type==='ObjectPattern'&&node.init.type==='Identifier'&&
          globalNames.has(node.init.name)){
         for(const property of node.id.properties){
@@ -164,8 +173,9 @@ function realmStateObservation(body){
         const kind=direct?intrinsicKinds.get(node.init.name):keyName(node.init);
         if(kind&&!intrinsicKinds.has(node.id.name))intrinsicKinds.set(node.id.name,kind);
       }
-      if(node.init.type==='MemberExpression'&&isIntrinsic(node.init.object)&&
-         !isImmutableNumericMember(node.init))add(intrinsicNames,node.id.name);
+      if(node.init.type==='MemberExpression'&&
+         (keyName(node.init)==='constructor'||isIntrinsic(node.init.object)&&
+          !isImmutableNumericMember(node.init)))add(intrinsicNames,node.id.name);
       const regexpDirect=node.init.type==='Identifier'&&regexpNames.has(node.init.name);
       const regexpGlobal=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
@@ -195,7 +205,7 @@ function realmStateObservation(body){
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function rootedInIntrinsic(node){
     return isIntrinsic(node)||node.type==='MemberExpression'&&
-      rootedInIntrinsic(node.object);
+      (keyName(node)==='constructor'||rootedInIntrinsic(node.object));
   }
   /** @param {import('./ast').AstNode} member @returns {boolean} */
   function writesIntrinsic(member){
@@ -248,6 +258,10 @@ function realmStateObservation(body){
     // function, object, or prototype from the global object. Flat simple
     // aliases are tracked above, but deep patterns need a real provenance
     // analysis before we could safely admit them.
+    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+       node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+         property.type==='Property'&&keyName(property)==='constructor'&&
+         property.value.type!=='Identifier'))intrinsicTouched=true;
     if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
        node.init?.type==='Identifier'&&globalNames.has(node.init.name)){
       for(const property of node.id.properties){
