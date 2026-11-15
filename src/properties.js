@@ -51,6 +51,17 @@ function staticName(node) {
 }
 
 /**
+ * Primitive literals and recursively literal-only arrays carry no receiver
+ * binding and cannot infer a function name from the enclosing object key.
+ * @param {AstNode} node
+ * @returns {boolean}
+ */
+function isLiteralValue(node) {
+  return node.type==='Literal' || node.type==='ArrayExpression' &&
+    node.elements.every(element=>element && isLiteralValue(element));
+}
+
+/**
  * Each simple binding's visible lexical region. A unique name alone cannot
  * prove that a same-spelled free reference outside the region is the binding.
  * Derived from Agent 2's lexical-containment counterexample and implementation.
@@ -345,7 +356,7 @@ function renameLocalProperties(source, ast, options) {
     /** @type {AstNode[]} */
     const properties = node.properties;
     if (!properties.length || properties.some(p => p.type !== 'Property' || p.computed || p.method || p.shorthand || p.kind !== 'init' ||
-          staticName(p.key) === null || ['__proto__','prototype','constructor'].includes(String(staticName(p.key))) || p.value.type !== 'Literal')) return;
+          staticName(p.key) === null || ['__proto__','prototype','constructor'].includes(String(staticName(p.key))) || !isLiteralValue(p.value))) return;
     const names = properties.map(p=>staticName(p.key));
     if (new Set(names).size !== names.length) return;
     candidates.push({node,name:parent.id.name,properties});
@@ -384,4 +395,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue};
