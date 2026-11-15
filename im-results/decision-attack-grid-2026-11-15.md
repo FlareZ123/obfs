@@ -38,6 +38,36 @@ The independently runnable `sims/sco-oracle-exhaustion.js` was validated on Ubun
 
 The independent native Node attacker in `sims/sno-self-hash-bypass.js` was validated in manual cross-platform [run #43691613602](https://github.com/FlareZ123/obfs/actions/runs/43691613602). A modified SNO entry correctly failed with the unmodified launcher's stored SHA-256 digest, but succeeded after the local filesystem owner replaced the digest in the launcher. This directly demonstrates that co-located self-hashes do not authenticate code to an attacker who owns the files. Reproduction details appear in `im-results/sno-owner-self-hash-bypass-2026-11-15.md`.
 
+## Follow-up SCO cross-realm admission limits
+
+The SCO recommendation above assumes a deliberately server-resident, reviewed
+private operation, rather than arbitrary browser JavaScript migration. The
+selected export compiler had previously admitted hidden shared runtime state
+between server and browser realms. Differential Node `vm.createContext`
+witnesses showed:
+
+- Private `Object.prototype.canary=41` followed by public
+  `({}).canary` observes 41 in the original single realm and no value
+  in a distinct realm.
+- Private regular-expression matching leaves legacy `RegExp.$1`
+  updated in its own realm; the browser realm's match state is unchanged.
+- Writes to `Math`, `JSON`, and `Error.stackTraceLimit` affect
+  separate intrinsic instances in separate realms.
+- Browser `window.externalBridge.value` can return 41 in its native
+  context and throw on an unconfigured Node server.
+
+Bounded admission refusals, local alias controls and 32 mutation spellings
+are now tested in `test/sco-intrinsic-realm.test.js`, with implementation
+in `src/sco-selective-partition.js`. Focused
+[Ubuntu/Windows run 43772538549](https://github.com/FlareZ123/obfs/actions/runs/43772538549)
+passed at `bbf1c7467d660512168a91daaced1627277ebfbc`. The prior
+full integrated [run 43771808471](https://github.com/FlareZ123/obfs/actions/runs/43771808471)
+passed at an earlier SHA. Evidence and precise remaining incompleteness
+are in `im-results/sco-cross-realm-prototypes-2026-11-15.md`.
+These results narrow the valid **compatibility admission** contract.
+They do not harden public code against dynamic inspection or overcome
+unlimited legitimate queries to the private server.
+
 ## Decision
 
 **Keep** the conservative main compiler and experimental TypeScript checker for their limited, reproducible compatibility coverage. **Do not deploy** the public postfix VM on a hot function under the specified 2.5x budget. Source-only extraction of the protected numeric expression succeeds without knowing a seed, so measured complexity provides no demonstrated attack-cost benefit. **Prefer** SCO server-resident partitioning for secrets that must remain outside client-delivered source, provided a real server authorization policy, meaningful high-entropy private computation and measured network overhead fit the workload.
