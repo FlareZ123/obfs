@@ -2,6 +2,9 @@
 
 const acorn = require('acorn');
 
+/** @type {WeakMap<object,boolean>} */
+const sourceObservationCache=new WeakMap();
+
 /**
  * @typedef {{[key:string]:any,type: string, start: number, end: number}} AstNode
  * @typedef {{ start: number, end: number, text: string }} Edit
@@ -80,6 +83,8 @@ function applyEdits(source, edits) {
  * @returns {boolean}
  */
 function observesFunctionSource(ast) {
+  const cached=sourceObservationCache.get(ast);
+  if(cached!==undefined) return cached;
   let observed=false;
   walk(ast,node=>{
     if(node.type==='MemberExpression') {
@@ -97,6 +102,7 @@ function observesFunctionSource(ast) {
           !(argument.type==='TemplateLiteral' && argument.expressions.length===0)) observed=true;
     }
   });
+  sourceObservationCache.set(ast,observed);
   return observed;
 }
 
