@@ -55,9 +55,19 @@ function renameCrossFileProperties(files,seed) {
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
   // Node builtins cannot resolve to an input module under the default loader.
+  // Dynamic source generation can hide additional consumers of an otherwise
+  // statically closed ESM module graph. Even a constructor held as an alias
+  // must make the property-renaming proof decline the whole graph.
+  const dynamicCompilerNames=new Set(['eval','Function','AsyncFunction','GeneratorFunction','AsyncGeneratorFunction']);
   for(const module of modules.values()) {
     let ambiguous=false;
     walk(module.ast,node=>{
+      if (node.type==='Identifier' && dynamicCompilerNames.has(node.name)) ambiguous=true;
+      if (node.type==='MemberExpression') {
+        const name=node.computed ? (node.property.type==='Literal' ? node.property.value : null) :
+          staticName(node.property);
+        if (typeof name==='string' && dynamicCompilerNames.has(name)) ambiguous=true;
+      }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
       // way to read an exported object's original keys, so the proof must
