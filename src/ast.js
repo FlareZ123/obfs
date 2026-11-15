@@ -101,11 +101,16 @@ function staticString(node,depth=0){
  * This is a conservative opt-out for known direct operations; arbitrary
  * coercion or reflective indirection still requires a richer proof.
  * @param {AstNode} ast
+ * @param {Map<string,string>} [importedStrings] Proven direct ESM string imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast) {
-  const cached=sourceObservationCache.get(ast);
-  if(cached!==undefined) return cached;
+function observesFunctionSource(ast,importedStrings=new Map()) {
+  // A cached opaque-import result does not apply when imported keys have
+  // been independently verified against the supplied ESM files.
+  if(!importedStrings.size) {
+    const cached=sourceObservationCache.get(ast);
+    if(cached!==undefined)return cached;
+  }
   // Aliased string prefixes and aliased String constructors can coerce
   // functions to their exact source text without a literal at the use site.
   const strings=new Set();
@@ -145,6 +150,7 @@ function observesFunctionSource(ast) {
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isFunctionValue(node) {
     return Boolean(node && (node.type==='Identifier'&&
+        !importedStrings.has(node.name) &&
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
       node.type==='MemberExpression' &&
@@ -424,7 +430,8 @@ function observesFunctionSource(ast) {
     if(!node||depth>32)return false;
     if(node.type==='Literal')return node.regex===undefined &&
       (node.value===null||['string','number','boolean','bigint'].includes(typeof node.value));
-    if(node.type==='Identifier')return primitives.has(node.name);
+    if(node.type==='Identifier')return primitives.has(node.name) ||
+      !dynamicScope && importedStrings.has(node.name);
     if(node.type==='TemplateLiteral')return node.expressions.every(
       (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
     if(node.type==='UnaryExpression') {
@@ -474,7 +481,9 @@ function observesFunctionSource(ast) {
     if(literal!==null)return literal;
     if(node.type==='Identifier' && !dynamicScope &&
        bindingCounts.get(node.name)===1) {
-      return sourceStringKey(primitiveCandidates.get(node.name),depth+1);
+      const imported=importedStrings.get(node.name);
+       if(imported!==undefined)return imported;
+       return sourceStringKey(primitiveCandidates.get(node.name),depth+1);
     }
     if(node.type==='BinaryExpression' && node.operator==='+') {
       const left=sourceStringKey(node.left,depth+1);
@@ -691,7 +700,7 @@ function observesFunctionSource(ast) {
       if(argument && !isDefinitelyPrimitive(argument)) observed=true;
     }
   });
-  sourceObservationCache.set(ast,observed);
+  if(!importedStrings.size)sourceObservationCache.set(ast,observed);
   return observed;
 }
 
