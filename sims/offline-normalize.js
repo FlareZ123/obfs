@@ -25,7 +25,8 @@ function neutralizeHashedNames(input) {
 
   /** @param {string} name @returns {string|null} */
   function label(name) {
-    if(/^_p[a-f0-9]{10}$/.test(name)) {
+    // Local keys use 10 hex digits; closed-world ESM keys use 12.
+    if(/^_p[a-f0-9]{10}(?:[a-f0-9]{2})?$/.test(name)) {
       if(!properties.has(name)) properties.set(name,`reconstructedProperty_${properties.size}`);
       return properties.get(name)??null;
     }
