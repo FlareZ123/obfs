@@ -29,3 +29,27 @@ A real local TLS handshake has measurable cost even with zero injected wait. In 
 SCO withholding of server code/keys is a valid static delivery boundary if its trusted host is maintained. The published obfuscator's [authorized online relay challenge](sco-large-domain-prf-2026-11-15.md) separately shows that a legitimate user with unlimited allowed requests can reproduce held-out results by forwarding through their own server. HTTPS and bearer authentication do not remove that attacker capability. These measurements do not show tamper-resistance or anti-cloning, and should not be extrapolated to arbitrary applications.
 
 **Operational research priority:** combine a compiler-generated SCO facade and trusted authorization with measured physical Internet RTT/TLS on separate hosts, then compare representative whole-session workloads and attacker-operated authorized relays. Keep startup and repeated per-operation latency distinct. The public test certificate and key in `sims/fixtures` are intentionally insecure *local testing fixtures*, never deployment material.
+
+## Subsequent independent GitHub Actions replication
+
+The existing manual profile gained a Linux/Windows matrix without an additional workflow file. Cross-platform strict JSDoc, functional assertions, TLS denial controls and the 45 paired workloads passed at exact `47b87e6c2b8332bb606160aee47a4f3a2994f585` ([workflow 43760696299](https://github.com/FlareZ123/obfs/actions/runs/43760696299)), then again with the actually generated SCO facade and authorized relay at `987b51ae2d7a55e8de6f6fc53a78fa5b991988a6` ([workflow 43761362939](https://github.com/FlareZ123/obfs/actions/runs/43761362939)). All nine test cells per platform were measured with five paired samples. Later [successful artifact-preserving workflow 43761958407](https://github.com/FlareZ123/obfs/actions/runs/43761958407) at source `416e1b2fd26be0ef5afac628918520d967ccb267` saved raw result arrays in [Ubuntu artifact 14180337389](https://github.com/FlareZ123/obfs/actions/runs/43761958407/artifacts/14180337389) and [Windows artifact 14180581603](https://github.com/FlareZ123/obfs/actions/runs/43761958407/artifacts/14180581603). The per-platform artifact also includes generated-facade relay output; the original SCO RPC profile is separately preserved.
+
+For one representative cross-platform run (`43761362939`), these are the median slowdown ratios versus direct native HMAC on each runner:
+
+| Artificial wait | HMAC rounds | Ubuntu: reused/fresh TLS | Windows: reused/fresh TLS |
+|---:|---:|---:|---:|
+| 0 ms | 1,000 | 2.56× / 3.28× | 1.57× / 3.11× |
+| 0 ms | 20,000 | 1.07× / 1.13× | 1.03× / 1.14× |
+| 0 ms | 100,000 | 1.00× / 1.00× | 1.01× / 1.03× |
+| 25 ms | 1,000 | 21.20× / 24.01× | 14.24× / 15.24× |
+| 25 ms | 20,000 | 1.76× / 1.82× | 1.80× / 1.81× |
+| 25 ms | 100,000 | 1.15× / 1.16× | 1.13× / 1.15× |
+| 100 ms | 1,000 | 79.05× / 81.82× | 48.58× / 50.74× |
+| 100 ms | 20,000 | 4.21× / 4.32× | 3.51× / 3.77× |
+| 100 ms | 100,000 | 1.56× / 1.56× | 1.50× / 1.49× |
+
+**Reproducibility qualification:** The initial two local runs reported above showed 0 ms / 1,000 rounds / reused TLS **below** 2.5× (1.69× and 2.11×), while this later Ubuntu runner measured **2.56×**, just above the cutoff. Different machines, V8 CPU/JIT conditions and finite median samples can change near-threshold decisions. This variation is direct evidence against reporting one particular passing sample as a universal steady-state bound. One computational kernel and local socket topology remain the only tested behavior.
+
+## Companion compiled-source attack
+
+The [generated ESM facade over TLS](sco-tls-generated-facade-relay-2026-11-15.md) establishes that a real partitioned SCO module can pass 12/12 native comparisons and deny an unauthenticated RPC while a separate legitimate-token online relay reproduces 32/32 never-queried outputs. Its pinned Ubuntu/Windows 2.5× performance results apply only to a coarse 8 MiB HMAC workload. Both reports explicitly separate transport and trusted implementation confidentiality from functional anti-cloning.
