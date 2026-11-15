@@ -79,7 +79,7 @@ async function listen(handler,secure=false) {
   const server=secure
     ? https.createServer({cert:certificate,key:tlsKey,minVersion:'TLSv1.3'},handler)
     : http.createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   return {server,url:(secure?'https':'http')+'://127.0.0.1:'+address.port};
@@ -112,7 +112,7 @@ function createAttackRelay(rpcUrl,session) {
       const upstream=await trustedFetch(rpcUrl,{
         method:'POST',
         headers:{'content-type':'application/json','x-session':session},
-        body:Buffer.concat(data)
+        body:Buffer.concat(data).toString('utf8')
       });
       const content=await upstream.text();
       response.writeHead(upstream.status,{'content-type':'application/json','cache-control':'no-store'});
