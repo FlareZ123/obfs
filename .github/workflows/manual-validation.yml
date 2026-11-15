@@ -1,0 +1,25 @@
+name: Manual obfuscator validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  node22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Behavioral and adversarial suites
+        run: npm test
+      - name: JSDoc type safety
+        run: npm run typecheck
+      - name: Performance sample
+        run: npm run benchmark
