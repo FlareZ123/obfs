@@ -117,7 +117,9 @@ function obfuscateFiles(files, options = {}) {
       ast=parse(code,sourceType);
     }
     let literals = 0;
-    if (options.strings !== false) {
+    // Startup decoding counts toward SCO/COO client runtime. These modes
+    // require explicit opt-in for eager string encoding; SNO can amortize init.
+    if (options.strings === true || (options.strings === undefined && mode === 'sno')) {
       const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength});
       code = modified.code;
       literals = modified.count;
