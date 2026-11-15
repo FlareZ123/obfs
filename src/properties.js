@@ -179,7 +179,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map()) {
-  if(observesFunctionSource(ast)) return null;
+  if(observesFunctionSource(ast,importedConstantKeys)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   /** @type {Map<string,AstNode[]>} */
