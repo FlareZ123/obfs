@@ -34,6 +34,20 @@ The input fraction represented by a 12-item oracle table is only `12/2^128 ≈ 3
 
 The local baseline and remote test each invoke the same server-resident HMAC implementation for equal inputs, so their ratio isolates loopback HTTP/proxy/serialization overhead **at this coarse work granularity**. The result is sensitive to CPU, Node runtime, workload, sample size and network RTT. Initialization, key generation, file writes and server startup are excluded from the measured hot loop. No browser, Internet path, TLS, database session lookup, persistent deployment, concurrency isolation, side-channel attack or cache-invalidation scenario was exercised.
 
+## Confirmed green Linux/Windows integration
+
+The subsequent manual-only [run 43716510228](https://github.com/FlareZ123/obfs/actions/runs/43716510228) **passed on Linux and Windows** at pinned commit `5adf943d28489e1053112e63effbdd58df7c6947`, including the same experiment, the existing SCO oracle attack suite, `npx tsc -p jsconfig.sco-oracles.json` and `npm run typecheck`. The JSDoc callback defects from the initial run are fixed.
+
+| Green-run observation | Ubuntu Linux | Windows |
+| --- | ---: | ---: |
+| Authenticated training queries / exact trained outputs | 12 / 12 | 12 / 12 |
+| Independent held-out table/default matches | 0 / 24 | 0 / 24 |
+| Median local / RPC for 3 calls, milliseconds | 78.965216 / 75.857036 | 128.245500 / 131.851700 |
+| RPC/local median ratio | **0.96064×** | **1.02812×** |
+| 2.5× budget on that measured workload | passed | passed |
+
+The Linux ratio below 1× reflects run-order / CPU variability, not an algorithmic speedup from HTTP. The experiment runs local then remote in each of five pairs; more repetitions with randomized order and recorded CPU conditions would provide a stronger estimate. On these two successful runs, the security canaries and 403 checks passed exactly as in the earlier failed typecheck run. The pinned workflow is a passing **focused SCO attack and JSDoc gate**, not a full release validation across every project test or browser.
+
 ## Security boundaries and decision
 
 - **Static source and key confidentiality:** Under the assumed trusted SCO server, sampled public source and RPC responses contained neither the random key nor the server-only HMAC implementation. The client receives the usable facade and can call it. Source-hiding is a real separation of deployed bytes from trusted bytes, within that narrow model.
