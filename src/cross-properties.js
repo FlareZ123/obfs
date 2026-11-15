@@ -30,10 +30,16 @@ function resolveImport(from,specifier) {
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
 function renameCrossFileProperties(files,seed) {
-  // Without a proof for other language/runtime boundaries, inline scripts,
-  // assets, and CommonJS code are potential consumers of any ESM export.
-  // Decline the entire closed-world property pass for mixed-format projects.
-  if (files.some(file => (file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script')) !== 'module')) {
+  // Other executable formats and executable/unknown assets can hide ESM
+  // consumers outside this proof. Inert styles, raster images, and font files
+  // cannot themselves execute JavaScript and need not disable this pass.
+  const inertAssetExtensions=new Set(['.css','.png','.jpg','.jpeg','.gif',
+    '.webp','.ico','.woff','.woff2','.ttf','.otf']);
+  if (files.some(file => {
+    const type=file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script');
+    return type!=='module' && !(type==='asset' &&
+      inertAssetExtensions.has(path.posix.extname(file.path).toLowerCase()));
+  })) {
     return {files,objects:0,properties:0};
   }
   /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
