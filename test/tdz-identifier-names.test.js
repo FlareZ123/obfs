@@ -66,3 +66,14 @@ test('a later default parameter referenced before initialization retains its nam
     let result;try{read();}catch(error){result=error.message;}
     module.exports=result;`,['b']);
 });
+
+test('a preceding static object key is not a lexical TDZ reference',()=>{
+  const source=`'use strict';const container={visibleKey:2};const visibleKey=18;
+    module.exports=visibleKey+container.visibleKey;`;
+  const result=obfuscateFiles([{path:'test.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sno',seed:'static-key-not-tdz',properties:false,strings:false
+  }).files[0];
+  assert.equal(evaluate(result.code),evaluate(source));
+  assert.ok(result.metrics.bindings>=2,result.code);
+  assert.match(result.code,/visibleKey:2/);
+});
