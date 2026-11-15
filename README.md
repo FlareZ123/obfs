@@ -29,7 +29,7 @@ node bin/sco.js --root .\examples\browser --entry index.mjs --port 8080 --closed
 
 For browser module graphs that use `.js` rather than `.mjs` extensions, add `--js-module` to the COO or SCO CLI invocation. This explicitly treats every input `.js` file as an ES module; do not enable it for mixed classic-script or CommonJS `.js` trees. The flag is rejected in SNO. `.mjs` is recognized as a module without the flag. The SNO CLI detects explicit nested Node `package.json` module scopes for `.js` dependencies, allowing a CommonJS entry to dynamically import ESM modules.
 
-The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, and `createScoRpcClientSource`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
+The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, and `createScoBatchMethod`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
 ## Implemented transformations
 
@@ -44,7 +44,7 @@ The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createS
 
 This prototype does not implement arbitrary closure or cross-file property-flow reconstruction, encrypted remote execution, Wasm lowering, VM virtualization, general lexical identifier mangling, or runtime anti-instrumentation. Dynamic tooling, modified runtimes, and complete client visibility can extract code and bypass local checks. It cannot guarantee 2.5x speed for arbitrary inputs. The benchmark is a limited sample, not a performance proof. Breaking API contracts through obfuscation is a correctness failure; ambiguous cases intentionally remain unchanged.
 
-For SCO, the server can retain secrets that are never sent to the client. A programmatic `createScoHandler` accepts `remoteMethods`, `authorizeRpc`, and `maxRpcBytes` to keep sensitive computation on a trusted server via authenticated JSON POST `/obfs/rpc`. `createScoRpcClientSource` generates a same-origin browser ESM facade for named RPC methods, keeping their implementations server-side; see `docs/SCO_AUTHORIZATION.md` for usage and limits. This API does not automatically rewrite ordinary JS into remote calls. Browser-delivered JS remains extractable. The `Host` header may be forged by HTTP clients; enforce real authorization on the server for privileged operations.
+For SCO, the server can retain secrets that are never sent to the client. A programmatic `createScoHandler` accepts `remoteMethods`, `authorizeRpc`, and `maxRpcBytes` to keep sensitive computation on a trusted server via authenticated JSON POST `/obfs/rpc`. `createScoRpcClientSource` generates a same-origin browser ESM facade for named RPC methods, keeping their implementations server-side; see `docs/SCO_AUTHORIZATION.md` for usage and limits. Optional `createScoBatchMethod` groups explicitly named operations into one bounded authenticated RPC request, executing them sequentially to reduce transport overhead. See `im-results/sco-rpc-cost-2026-11-15.md` for measured budget tradeoffs and remaining failures. This API does not automatically rewrite ordinary JS into remote calls. Browser-delivered JS remains extractable. The `Host` header may be forged by HTTP clients; enforce real authorization on the server for privileged operations.
 
 ## Repository organization
 
