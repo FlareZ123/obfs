@@ -102,3 +102,9 @@ test('SCO hides rejected inner-operation policy errors and preserves state',asyn
     await close(server);
   }
 });
+
+test('SCO rejects a nested recognized batch even under a disguised registry key',()=>{
+  const inner=createScoBatchMethod({privateOp:()=>17});
+  assert.throws(()=>createScoBatchMethod({nested:inner}),/nested batch/i);
+  assert.throws(()=>createScoBatchMethod({batch:inner}),/nested batch/i);
+});
