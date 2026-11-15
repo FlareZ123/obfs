@@ -23,5 +23,7 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Source observation, ambient intrinsic and property semantics
         run: node --test test/ambient-string-alias.test.js test/ambient-string-intrinsic.test.js test/source-introspection-safety.test.js test/cross-file-source-introspection.test.js test/cross-file-source-observer-global.test.js test/sco-source-observation.test.js test/semantic-boundaries.test.js test/property-reflection.test.js test/string-shadowing.test.js test/source-observer-coverage.test.js test/interfile-api-fuzz.test.js test/interfile-normalization-attack.test.js
+      - name: Report exact observer-driven property-coverage counts
+        run: node sims/source-observer-coverage.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
