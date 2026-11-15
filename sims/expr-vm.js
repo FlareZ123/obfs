@@ -78,27 +78,35 @@ function assignOpcodes(seed,operationNames) {
 /**
  * Generate a declaration-scoped VM interpreter. It is intentionally
  * module-private, so it never adds a classic-script global binding.
+ * A first-call bytecode cache avoids rebuilding nested instruction arrays
+ * on every invocation; native indexed stacks avoid overridable Array methods.
  * @param {string} helper
  * @param {Map<string,number>} codes
+ * @param {(number|string|boolean|null)[][][]} programs
  * @returns {string}
  */
-function interpreterSource(helper,codes) {
+function interpreterSource(helper,codes,programs) {
   const cases=[];
   for(const [name,id] of codes) {
     if(name==='param'){
-      cases.push('case '+id+':stack.push(args[inst[1]]);break;');
+      cases.push('case '+id+':stack[sp++]=args[inst[1]];break;');
     }else if(name==='literal'){
-      cases.push('case '+id+':stack.push(inst[1]);break;');
+      cases.push('case '+id+':stack[sp++]=inst[1];break;');
     }else if(name.startsWith('binary:')){
       const op=name.slice('binary:'.length);
-      cases.push('case '+id+':{const b=stack.pop();const a=stack.pop();stack.push(a '+op+' b);break;}');
+      cases.push('case '+id+':{const b=stack[--sp];const a=stack[--sp];stack[sp++]=a '+op+' b;break;}');
     }else if(name.startsWith('unary:')){
       const op=name.slice('unary:'.length);
-      cases.push('case '+id+':{const a=stack.pop();stack.push('+op+(op==='typeof'||op==='void'?' ':'')+'a);break;}');
+      cases.push('case '+id+':{const a=stack[--sp];stack[sp++]='+op+
+        (op==='typeof'||op==='void'?' ':'')+'a;break;}');
     }
   }
-  return '\nfunction '+helper+'(program,args){const stack=[];for(const inst of program){switch(inst[0]){'+
-    cases.join('')+'}}return stack.pop();}\n';
+  // The hoisted var and function declaration can be used before their textual
+  // occurrence. Lazy cache initialization preserves early function calls.
+  return '\nvar '+helper+'Cache;function '+helper+'(index,args){const programs='+
+    helper+'Cache||('+helper+'Cache='+JSON.stringify(programs)+');const program=programs[index];'+
+    'const stack=[];let sp=0;for(let pc=0;pc<program.length;pc++){const inst=program[pc];switch(inst[0]){'+
+    cases.join('')+'}}return stack[sp-1];}\n';
 }
 
 /**
@@ -161,15 +169,17 @@ function virtualizeExpressionFunctions(source,sourceType,options) {
   }
   if(!accepted.length)return {code:source,functions:0,instructions:0,declined};
   let helper='_vm_'+createHash('sha256').update(options.seed+'/'+source).digest('hex').slice(0,16);
-  for(let index=1;allNames.has(helper);index++)helper='_vm_'+
+  for(let index=1;allNames.has(helper)||allNames.has(helper+'Cache');index++)helper='_vm_'+
     createHash('sha256').update(options.seed+'/'+source+'/'+index).digest('hex').slice(0,16);
   const operations=[...new Set(accepted.flatMap(item=>item.program.map(inst=>inst.op)))].sort();
   const codes=assignOpcodes(options.seed+'/'+helper,operations);
-  const edits=accepted.map(item=>{
-    const program=item.program.map(inst=>inst.arg===undefined?[codes.get(inst.op)]:[codes.get(inst.op),inst.arg]);
-    return {start:item.start,end:item.end,text:helper+'('+JSON.stringify(program)+',['+item.params.join(',')+'])'};
-  });
-  const transformed=applyEdits(source,edits)+interpreterSource(helper,codes);
+  const compiledPrograms=accepted.map(item=>item.program.map(inst=>
+    inst.arg===undefined ? [/** @type {number} */ (codes.get(inst.op))] :
+      [/** @type {number} */ (codes.get(inst.op)),inst.arg]));
+  const edits=accepted.map((item,index)=>({
+    start:item.start,end:item.end,text:helper+'('+index+',arguments)'
+  }));
+  const transformed=applyEdits(source,edits)+interpreterSource(helper,codes,compiledPrograms);
   parse(transformed,sourceType);
   return {code:transformed,functions:accepted.length,
     instructions:accepted.reduce((n,item)=>n+item.program.length,0),declined};
