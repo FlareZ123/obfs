@@ -58,7 +58,7 @@ async function main() {
       'Content-Security-Policy':csp,'Cache-Control':'no-store'});
     response.end(selected.body);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   try {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
