@@ -1,6 +1,6 @@
 'use strict';
 
-const {parse,walk}=require('./ast');
+const {parse,walk,staticString}=require('./ast');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
@@ -42,29 +42,67 @@ function isServerEnvironmentRead(expression){
 }
 
 /**
- * A split client/server module runs in separate JavaScript realms. Access to
- * a prototype reachable from ambient constructors may mutate or observe
- * state that the other side can no longer share. Without a whole-program
- * alias proof, decline explicit prototype access in either half.
- *
- * Also refuse direct reflective prototype retrieval/replacement. This is a
- * conservative syntactic guard; aliases produced by arbitrary functions or
- * dynamic property keys remain outside its proof.
+ * Refuse known cross-realm prototype access in split SCO public and private
+ * functions. Intrinsic prototypes belong to their JavaScript realm, so
+ * partitioning code that mutates them can silently change observations.
+ * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
  * @returns {boolean}
  */
 function touchesRealmPrototype(body){
+  const intrinsicNames=new Set(['Object','Array','Function','String','Number',
+    'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
+    'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView',
+    'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
+    'Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array',
+    'BigUint64Array']);
+  /** @param {import('./ast').AstNode} node */
+  function isIntrinsic(node){
+    return node.type==='Identifier'&&intrinsicNames.has(node.name);
+  }
+  /** @param {import('./ast').AstNode} node @returns {string|null} */
+  function keyName(node){
+    if(node.type==='MemberExpression'){
+      return node.computed ? staticString(node.property) :
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    if(node.type==='Property'){
+      return node.computed ? staticString(node.key) :
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+    }
+    return null;
+  }
+  /** @param {import('./ast').AstNode} pattern @returns {boolean} */
+  function patternReadsPrototype(pattern){
+    return pattern.type==='ObjectPattern'&&pattern.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>
+        property.type==='RestElement'||keyName(property)===null||
+        keyName(property)==='prototype'||keyName(property)==='__proto__');
+  }
   let touched=false;
   walk(body,node=>{
-    if(node.type!=='MemberExpression')return;
-    const key=node.computed ?
-      (node.property.type==='Literal'?node.property.value:null) :
-      (node.property.type==='Identifier'?node.property.name:null);
-    if(key==='prototype'||key==='__proto__')touched=true;
-    if((key==='getPrototypeOf'||key==='setPrototypeOf')&&
-       node.object.type==='Identifier'&&
-       (node.object.name==='Object'||node.object.name==='Reflect'))touched=true;
+    if(node.type==='MemberExpression'){
+      const key=keyName(node);
+      if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)touched=true;
+      if(node.object.type==='Identifier'&&
+         (node.object.name==='Object'||node.object.name==='Reflect')&&
+         (key==='getPrototypeOf'||key==='setPrototypeOf'))touched=true;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.arguments.length>=2&&isIntrinsic(node.arguments[0])&&
+       node.callee.object.type==='Identifier'&&
+       (node.callee.object.name==='Object'||node.callee.object.name==='Reflect')){
+      const method=keyName(node.callee);
+      const member=staticString(node.arguments[1]);
+      if((method==='getOwnPropertyDescriptor'||method==='get'||
+          method==='set'||method==='defineProperty')&&
+         (member===null||member==='prototype'||member==='__proto__'))touched=true;
+    }
+    if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
+       patternReadsPrototype(node.id))touched=true;
+    if(node.type==='AssignmentExpression'&&isIntrinsic(node.right)&&
+       patternReadsPrototype(node.left))touched=true;
   });
   return touched;
 }
