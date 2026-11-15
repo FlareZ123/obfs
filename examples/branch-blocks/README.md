@@ -50,3 +50,10 @@ when a runtime benchmark fits the project's 2.5x budget.
 provide reproducibility. See the
 [dated experiment report](../../im-results/branch-superblocks-2026-11-15.md)
 for scope, performance results and remaining constraints.
+
+
+A separate [real Chromium COO ESM regression](../../test/branch-block-browser.js)
+compares the transformed export to the original over 4,109 heterogeneous
+inputs. The pinned [focus run](https://github.com/FlareZ123/obfs/actions/runs/43735256344)
+passed and measured 1.872× numeric hot-loop slowdown in Chrome; the experiment
+report gives the scope and limitations.
