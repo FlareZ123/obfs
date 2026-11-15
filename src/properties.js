@@ -123,11 +123,12 @@ function collectBindingScopes(ast) {
  * @param {string} rootName
  * @param {Map<string,number>} bindings
  * @param {Map<string,number>} [importedIdentityFunctions] Verified direct ESM imports of immutable, pure identity functions.
+ * @param {Map<string,number>} [importedConsumers] Verified imported functions that consume an object without returning an alias.
  * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[]}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map()) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map()) {
   if(observesFunctionSource(ast)) return null;
-  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,external?:boolean}>} */
+  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   /** @type {Map<string,AstNode[]>} */
   const calls = new Map();
@@ -175,6 +176,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for (const [name,index] of importedIdentityFunctions) {
     if (index===0 && bindings.get(name)===1 && !functions.has(name)) {
       functions.set(name,{node:ast,params:[],forwardIndex:0,external:true});
+    }
+  }
+  // A read-only helper returns a field value, not the object's identity.
+  // Its direct calls may consume the owner without allowing alias forwarding.
+  for (const [name,index] of importedConsumers) {
+    if (index===0 && bindings.get(name)===1 && !functions.has(name)) {
+      functions.set(name,{node:ast,params:[],forwardIndex:-1,consumerIndex:0,external:true});
     }
   }
 
@@ -282,7 +290,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
-      if (fn?.external && index===fn.forwardIndex) continue;
+      if (fn?.external && (index===fn.forwardIndex || index===fn.consumerIndex)) continue;
       if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' && aliases.has(fn.params[index].name)) continue;
       return null;
     }
