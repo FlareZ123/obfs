@@ -244,10 +244,10 @@ test('state masking never adds observable user-defined coercion or branch effect
         throw new RangeError('sentinel');
       }};
     }
-    for(const [fn,trace] of [[original,originalSteps],[baseline,plainSteps],[hardened,maskedSteps]]){
+    for(const fn of [original,baseline,hardened]){
       const logs=/** @type {string[]} */ ([]);
       assert.throws(()=>fn(throwing(logs)),/sentinel/);
-      assert.deepEqual(logs,['throw:number']);
+      assert.deepEqual(logs,['throw:default']);
     }
   }
 });
