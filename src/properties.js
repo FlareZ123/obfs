@@ -336,8 +336,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent.id.type === 'Identifier' && aliases.has(parent.id.name)) continue;
     if (parent.type === 'VariableDeclarator' && key === 'init' && parent.id.type === 'ObjectPattern') {
       // A direct, statically-keyed pattern reads own fields without escaping
-      // the object. Restrict it to simple bindings so computed keys, rest
-      // objects, and defaults cannot change behavior under a rename.
+      // the object. Keep targets as plain identifiers, with optional defaults;
+      // reject dynamic keys, rest bindings, and nested assignment targets.
       /** @type {AstNode[]} */
       const fields = parent.id.properties;
       if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
