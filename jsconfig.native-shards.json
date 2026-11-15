@@ -4,6 +4,7 @@
     "workplace/coo-native-shards.js",
     "test/coo-native-shards.test.js",
     "sims/coo-native-shards-profile.js",
-    "examples/coo-native-shards/build.cjs"
+    "examples/coo-native-shards/build.cjs",
+    "test/coo-native-shards-browser.js"
   ]
 }

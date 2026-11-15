@@ -1,0 +1,36 @@
+name: Manual COO native ESM sharding experiment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-shards:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Differential, rejection and source-only reconstruction tests
+        run: node --test test/coo-native-shards.test.js
+      - name: Verify real checked-in before-and-after modules
+        run: node examples/coo-native-shards/build.cjs
+      - name: Strict JSDoc contracts
+        run: npx tsc -p jsconfig.native-shards.json
+      - name: Paired ESM graph cold and hot cost
+        run: node sims/coo-native-shards-profile.js
+      - name: Real Chromium ESM graph with external host API
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-native-shards-browser.js
