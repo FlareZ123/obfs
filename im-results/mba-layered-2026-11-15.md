@@ -28,6 +28,19 @@ A strengthened source-only attacker, `sims/mba-layered-recover.js`, first applie
 
 `sims/mba-layered-profile.js` times two selected workloads after eight warmups, 17 alternating pairs and 300,000 original or transformed calls per trial. A pure-bitwise loop evaluates the XOR on every iteration. A second surrounding-arithmetic loop includes extra fixed integer work each iteration. On local Node.js 22 Linux one run measured approximately 1.41× for the pure kernel and 1.00× for the surrounding-arithmetic workload, both under the 2.5× ceiling, although repeated local timings were noisy. These values are provisional until pinned Windows and Linux CI samples are recorded. Initialization, source parsing, runtime instrumentation, browser compatibility and whole-program overhead are not inferred from this microbenchmark.
 
+
+
+## Pinned cross-platform comparison
+
+The complete focused manual experiment [run 43722386954](https://github.com/FlareZ123/obfs/actions/runs/43722386954) passed on Ubuntu and Windows Node.js 22 at immutable commit `6dacd52f6dfe3e9460dc24fd733eb6aefe1bc03d`. It executed both the generated sample and source-only attacker tests for direct and layered MBA, the prior VM comparator, strict core JSDoc checks, and alternating hot-path microbenchmarks. Its observed median candidate/native time ratios were:
+
+| Platform | Layered pure-bitwise | Layered surrounding arithmetic | Threshold |
+|---|---:|---:|---|
+| Ubuntu Linux | 1.083× | 1.086× | Both ≤ 2.5× |
+| Windows | 1.101× | 1.089× | Both ≤ 2.5× |
+
+The earlier pinned [run 43722195342](https://github.com/FlareZ123/obfs/actions/runs/43722195342) was red because a manually transferred test assertion lacked a closing parenthesis. That test-source error was corrected before the green run; the reported compiler and attack algorithms were unaffected. The selected workloads, build seed, and trial structure remain fixed across OS. These are CI observations and cannot be generalized to arbitrary protected programs or high-frequency browser execution.
+
 ## Independent threat dimensions
 
 - Static reconstruction: first-stage template matching required another reduction step, but source-only two-stage attack completely recovered all 100 generated layered circuits tested.
