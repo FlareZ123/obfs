@@ -1,0 +1,34 @@
+name: Manual multi-file ESM attacker comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  multi-file:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Run shared multi-file ESM workload with held-out static attacks
+        run: node sims/decision-attack-grid.js
+      - name: Preserve raw evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: decision-attack-esm-${{ matrix.os }}
+          path: decision-grid-output.json
+          if-no-files-found: ignore
+      - name: Validate strict JSDoc
+        run: npm run typecheck
