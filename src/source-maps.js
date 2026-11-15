@@ -34,12 +34,20 @@ function isUntransformedSourceAsset(filename) {
  * @returns {boolean}
  */
 function isSourceMapDocument(code) {
-  if(!code.includes('"version"') || !code.includes('"sources"') &&
-      !code.includes('"sections"') || !code.includes('"mappings"') &&
-      !code.includes('"sections"'))return false;
+  // A JSON key can contain escaped Unicode, e.g. "ver\\u0073ion".
+  // Inspect parsed field names instead of raw substring spellings.
+  // Most opaque binary assets are rejected by this cheap object-prefix test
+  // without decoding or parsing their full contents.
+  if (Buffer.isBuffer(code)) {
+    let index=code[0]===0xef && code[1]===0xbb && code[2]===0xbf ? 3 : 0;
+    while (index<code.length &&
+        (code[index]===0x20 || code[index]===0x09 ||
+         code[index]===0x0a || code[index]===0x0d)) index++;
+    if (code[index]!==0x7b) return false;
+  } else if (!code.trimStart().startsWith('{')) return false;
   /** @type {unknown} */
   let parsed;
-  try {parsed=JSON.parse(Buffer.isBuffer(code)?code.toString('utf8'):code);}
+  try {parsed=JSON.parse((Buffer.isBuffer(code)?code.toString('utf8'):code).trimStart());}
   catch(error){return false;}
   if(!parsed || typeof parsed!=='object' || Array.isArray(parsed))return false;
   const map=/** @type {{version?:unknown,sources?:unknown,mappings?:unknown,sections?:unknown}} */ (parsed);
