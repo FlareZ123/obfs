@@ -4,6 +4,11 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles,createScoHandler}=require('../src');
 const {isSourceMapAsset,hasSourceMapDirective}=require('../src/source-maps');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
 
 const app={path:'app.mjs',sourceType:'module',code:'export const secretValue=42;const local={hiddenField:4};console.log(local.hiddenField);'};
 const map={
@@ -72,4 +77,27 @@ test('SCO serving preflight refuses explicitly published map assets and inline d
     code:'export default 1;\n//# sourceMappingURL=data:application/json;base64,AAAA'
   }]),/Source-map directive/);
   assert.equal(typeof createScoHandler([app]),'function');
+});
+
+test('COO/SNO output and explicitly published SCO source maps fail before any file is emitted',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-map-cli-'));
+  const input=path.join(root,'input');
+  const output=path.join(root,'output');
+  try {
+    await fs.mkdir(input);
+    await atomicWrite(path.join(input,'index.mjs'),'export const score=13;');
+    await atomicWrite(path.join(input,'index.cjs'),'module.exports=13;');
+    await atomicWrite(path.join(input,'index.mjs.map'),map.code);
+    for (const [mode,entry] of [['coo','index.mjs'],['sno','index.cjs'],['sco','index.mjs']]) {
+      const args=['--root',input,'--entry',entry];
+      if(mode==='sco')args.push('--asset','index.mjs.map','--port','40999');
+      else args.push('--out',output);
+      const run=spawnSync(process.execPath,[path.join(__dirname,'../bin/'+mode+'.js'),...args],{encoding:'utf8'});
+      assert.notEqual(run.status,0,mode+' should refuse an original source map');
+      assert.match(run.stderr,/Source-map asset would disclose original source/,mode);
+      if(mode!=='sco')await assert.rejects(fs.stat(output),{code:'ENOENT'});
+    }
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
 });
