@@ -222,6 +222,12 @@ function createScoHandler(sourceFiles,options={}) {
     }
     return {...file,path:filename,sourceType};
   });
+  // Another served module can inspect an exported function's exact source.
+  // A per-file request cannot see that observer, so suppress source-spelling
+  // transformations for the whole published group when one is present.
+  const interfileSourceObserver=normalized.length>1 && normalized.some(file=>
+    file.sourceType!=='asset' && typeof file.code==='string' &&
+    observesFunctionSource(parse(file.code,file.sourceType)));
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   return (request,response) => {
@@ -282,9 +288,13 @@ function createScoHandler(sourceFiles,options={}) {
       }
       try {
         const nonce=randomBytes(24).toString('hex');
-        const result=obfuscateFiles([confirmedFile],{mode:'sco',seed:nonce,allowedHosts:options.allowedHosts});
+        const result=obfuscateFiles([confirmedFile],{
+          mode:'sco',seed:nonce,allowedHosts:options.allowedHosts,
+          properties:!interfileSourceObserver,identifiers:!interfileSourceObserver
+        });
         const output=/** @type {string} */ (result.files[0].code);
-        const varied=varyLiteralSpellings(output,confirmedFile.sourceType,nonce);
+        const varied=interfileSourceObserver ? output :
+          varyLiteralSpellings(output,confirmedFile.sourceType,nonce);
         response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
         // The per-request seed is private server state. Publishing it would
         // let source-only adversaries verify candidate hashed names offline.
