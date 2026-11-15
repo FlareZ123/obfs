@@ -8,7 +8,7 @@ const {atomicWrite}=require('../../src/atomic');
 
 /** @param {boolean} [check] @returns {Promise<string>} */
 async function buildSample(check=false) {
-  const original=await fs.readFile(path.join(__dirname,'before.cjs'),'utf8');
+  const original=(await fs.readFile(path.join(__dirname,'before.cjs'),'utf8')).replace(/\r\n?/gu,'\n');
   const transformed=obfuscateFiles([{path:'factory.cjs',sourceType:'commonjs',code:original}],{
     mode:'sno',seed:'factory-returned-object-v1',identifiers:false,strings:false
   });
@@ -16,7 +16,7 @@ async function buildSample(check=false) {
   assert.equal(transformed.files[0].metrics.properties,2);
   const code=/** @type {string} */ (transformed.files[0].code);
   const target=path.join(__dirname,'after.cjs');
-  if(check)assert.equal(await fs.readFile(target,'utf8'),code);
+  if(check)assert.equal((await fs.readFile(target,'utf8')).replace(/\r\n?/gu,'\n'),code);
   else await atomicWrite(target,code);
   return code;
 }
