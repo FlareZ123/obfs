@@ -25,7 +25,7 @@ function safePath(file) {
   if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
       path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
   for (const segment of file.split('/')) {
-    if (/[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(segment)) {
+    if (/[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(segment)) {
       throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
     }
   }
