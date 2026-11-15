@@ -56,6 +56,7 @@ test('first-stage static normalizer cannot fully peel unequal-source mask forms'
   for(let seed=0;seed<20;seed++){
     const output=layerXorFunctions(source,{sourceType:'commonjs',seed:'static/'+seed,names:['f']});
     const normalized=normalizeMba(output.code);
+    assert.equal(normalized.rewrites,1,'First-stage parser reduces inner mask only');
     assert.ok(normalized.code.includes('^'));
     // First-stage attacker can simplify De Morgan, but it cannot cancel two
     // structurally equivalent masks until the resulting terms are reconciled.
