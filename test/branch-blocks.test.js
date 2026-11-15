@@ -182,3 +182,31 @@ test('state-blinded core option retains browser ESM behavior and metric contract
   for(const x of [0n,1n,Symbol('tag'),null,undefined,'7',NaN])
     same(original.f,transformed.f,x);
 });
+
+
+test('long left-deep native operation chains decline safely above fixed budget',()=>{
+  /** @param {number} count */
+  function expression(count) {
+    let current='x';
+    for(let i=0;i<count;i++)current='('+current+'+'+(i&255)+')';
+    return current;
+  }
+  /** @param {number} count */
+  const source=count=>'function f(x){return x?'+expression(count)+':x;}module.exports={f};';
+  const accepted=flattenBranchBlocks(source(32),'commonjs',{
+    seed:'bounded-native-chains',names:['f']
+  });
+  assert.equal(accepted.functions,1);
+  assert.equal(accepted.blocks,3);
+  const normal=loadFunction(source(32),'f'),modified=loadFunction(accepted.code,'f');
+  for(let x=-256;x<=256;x++)same(normal,modified,x);
+  for(const length of [33,64,128,512]) {
+    const original=source(length);
+    const declined=flattenBranchBlocks(original,'commonjs',{
+      seed:'bounded-native-chains',names:['f']
+    });
+    assert.equal(declined.functions,0,'expected predictable decline at '+length);
+    assert.equal(declined.declined,1);
+    assert.equal(declined.code,original);
+  }
+});
