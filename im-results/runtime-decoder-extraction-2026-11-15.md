@@ -8,7 +8,7 @@ The main encoder in `src/strings.js` stores XOR-encoded strings in client-visibl
 
 The test source contains a never-called `dormant()` function returning a protected literal, plus a public side effect `globalThis.__obfsPublicResult=37`. In the native source, the runtime hook observes **no** reconstructed fragments because the function is never called. After emitted eager encoding, the same hook observes the dormant literal at program initialization while the public result stays 37. The plaintext sentinel is absent from the transformed source string.
 
-The instrumentation uses Node `vm` only as an *attacker-controlled demonstration realm*. It is not a safe sandbox for untrusted source. A browser/Node adversary allowed to alter or instrument its own runtime can establish an equivalent hook; an actual Chromium instrumentation run was **not** performed in this experiment.
+The instrumentation uses Node `vm` only as an *attacker-controlled demonstration realm*. It is not a safe sandbox for untrusted source. A browser/Node adversary allowed to alter or instrument its own runtime can establish an equivalent hook; a follow-up live Chromium test now confirms this mechanism in an actual browser (details below).
 
 ## Executable evidence
 
@@ -27,6 +27,10 @@ The instrumentation uses Node `vm` only as an *attacker-controlled demonstration
 
 **Pinned integration head:** `8ab554d7bb612bb3cc07d8f710ce0783b2ebe9ce`.
 Manual Linux/Windows run: [GitHub Actions #43695839545](https://github.com/FlareZ123/obfs/actions/runs/43695839545). The three new subtests were **ok 392, 393, 394** on both platforms. JSDoc type checking, benchmark, and Ubuntu live Chromium integration passed. The overall workflow was **red** on five preexisting native source-observer / BigInt-guard failures: tests 58, 90, 91, 403, 404, independent of this runtime decoder attack. Therefore the run is **not** a clean release gate.
+
+## Follow-up real Chromium reproduction
+
+`test/browser-integration.js` now serves an opt-in COO-encoded classic script with an unused `browser-dormant-plaintext-canary` literal. The browser page installs a wrapper around `String.fromCharCode` before loading the obfuscated script, records its plaintext fragments, and renders the recovered string alongside the script's unchanged public result. The protected file itself has no plaintext canary string. Manual Chromium [workflow #43696954625](https://github.com/FlareZ123/obfs/actions/runs/43696954625) passed at head `0f8dcf3e6e75fac3116089e2a3e232d42f47a906`, with the explicit log `Chromium PASS: /trace.html: 37:browser-dormant-plaintext-canary`. This is one real-browser proof of concept, separate from the 30 per-mode seeds checked on Node/Windows/Linux.
 
 ## Independent security dimensions
 
