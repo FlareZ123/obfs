@@ -4,7 +4,7 @@ const {parse,walk}=require('./ast');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean}} ScoSelectiveOptions */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[]}} ScoSelectivePartition */
 
 /**
@@ -23,11 +23,32 @@ function isStaticKey(parent,key){
 }
 
 /**
+ * Admit only a direct Node.js process.env property read with an explicit
+ * static UPPER_SNAKE_CASE key. The private original module runs on the server;
+ * this opt-in never copies the environment variable into a client facade.
+ * @param {import('./ast').AstNode} expression
+ * @returns {boolean}
+ */
+function isServerEnvironmentRead(expression){
+  if(expression.type!=='MemberExpression'||expression.optional)return false;
+  const env=expression.object;
+  if(env.type!=='MemberExpression'||env.optional||env.computed||
+     env.object.type!=='Identifier'||env.object.name!=='process'||
+     env.property.type!=='Identifier'||env.property.name!=='env')return false;
+  const name=expression.computed?
+    (expression.property.type==='Literal'?expression.property.value:null):
+    (expression.property.type==='Identifier'?expression.property.name:null);
+  return typeof name==='string' && /^[A-Z][A-Z0-9_]*$/u.test(name);
+}
+
+/**
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
  * exports, plus unexported primitive-literal const declarations referenced
- * only by private functions. Imports, reexports, public data exports,
+ * only by private functions. An explicit opt-in additionally admits direct
+ * process.env uppercase-key reads on the trusted server, refusing any public
+ * process access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
  *
  * This deliberate limited contract keeps private bodies off the client while
@@ -45,7 +66,9 @@ function partitionScoSelectedAsyncExports(file,options) {
       (file.sourceType!==undefined&&file.sourceType!=='module')||
       file.code.startsWith('#!')||!options||!Array.isArray(options.privateNames)||
       !options.privateNames.length||options.privateNames.some(n=>typeof n!=='string'||!n)||
-      new Set(options.privateNames).size!==options.privateNames.length) {
+      new Set(options.privateNames).size!==options.privateNames.length||
+      options.allowServerEnvConstants!==undefined &&
+      typeof options.allowServerEnvConstants!=='boolean') {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
@@ -55,6 +78,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   // original module's client/server state and evaluation-order contracts.
   /** @type {Set<string>} */
   const serverConstants=new Set();
+  let serverEnvironmentUsed=false;
   /** @type {string[]} */
   const serverConstantChunks=[];
   for(const statement of ast.body){
@@ -64,13 +88,16 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     for(const declaration of statement.declarations){
       const value=declaration.init?.value;
+      const primitive=declaration.init?.type==='Literal' &&
+        (value===null||typeof value==='string'||typeof value==='number'||
+         typeof value==='boolean'||typeof value==='bigint');
+      const environment=options.allowServerEnvConstants===true &&
+        declaration.init!=null && isServerEnvironmentRead(declaration.init);
       if(declaration.id.type!=='Identifier'||!declaration.init||
-         declaration.init.type!=='Literal'||
-         !(value===null||typeof value==='string'||typeof value==='number'||
-           typeof value==='boolean'||typeof value==='bigint')||
-         serverConstants.has(declaration.id.name)){
-        throw new TypeError('Selective SCO only admits distinct primitive literal const declarations');
+         !(primitive||environment)||serverConstants.has(declaration.id.name)){
+        throw new TypeError('Selective SCO only admits distinct primitive literal const declarations or explicitly approved server environment reads');
       }
+      if(environment)serverEnvironmentUsed=true;
       serverConstants.add(declaration.id.name);
     }
     serverConstantChunks.push(file.code.slice(statement.start,statement.end));
@@ -134,6 +161,10 @@ function partitionScoSelectedAsyncExports(file,options) {
         if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
            node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
+        }
+        if(serverEnvironmentUsed&&node.type==='Identifier'&&!isStaticKey(parent,key)&&
+           node.name==='process'){
+          throw new TypeError('Public SCO export cannot share server environment: '+name);
         }
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
           throw new TypeError('Public SCO export reads server-only constant: '+name);

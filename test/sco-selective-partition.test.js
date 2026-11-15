@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const http=require('node:http');
+const {randomBytes}=require('node:crypto');
 const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
@@ -259,4 +260,101 @@ test('selective SCO rejects retained public reads of private constants',()=>{
     'const SECRET=null;export async function secret(){return SECRET;}export const local=()=>SECRET;'
   ];
   for(const source of cases)assert.throws(()=>partition(source,['secret']),/server-only constant/);
+});
+
+test('selective SCO server environment key stays outside source and Chromium-compatible ESM facade',{
+  timeout:60000
+},async()=>{
+  const folder=path.join(__dirname,'../examples/sco-private-env');
+  const source=(await fs.readFile(path.join(folder,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const golden=(await fs.readFile(path.join(folder,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:source
+  },{seed:'sco-private-env-20261115',privateNames:['protectedDigest']}),
+  /primitive literal/);
+  const generated=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:source
+  },{
+    seed:'sco-private-env-20261115',privateNames:['protectedDigest'],
+    allowServerEnvConstants:true
+  });
+  assert.equal(generated.clientFile.code,golden);
+  assert.doesNotMatch(golden,/process|SERVER_KEY|OBFS_SCO_SERVER_KEY|createHmac/u);
+  const previousKey=process.env.OBFS_SCO_SERVER_KEY;
+  const originalFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    process.env.OBFS_SCO_SERVER_KEY=randomBytes(32).toString('hex');
+    const original=await import('data:text/javascript,'+encodeURIComponent(source));
+    const registry=bindScoModuleExports(generated,original);
+    server=http.createServer(createScoHandler([generated.clientFile],{
+      remoteMethods:registry,
+      authorizeRead:req=>req.headers['x-test-session']==='allow',
+      authorizeRpc:req=>req.headers['x-test-session']==='allow',
+      authorizeOperation:(req,method,args)=>
+        req.headers['x-test-session']==='allow'&&
+        method===generated.methodNames.protectedDigest &&
+        args.length===1 && typeof args[0]==='string'
+    }));
+    /** @type {Promise<void>} */
+    const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+    await ready;
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected environment test TCP port');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await originalFetch(origin+'/obfs/mixed.mjs')).status,403);
+    const response=await originalFetch(origin+'/obfs/mixed.mjs',{
+      headers:{'x-test-session':'allow'}
+    });
+    assert.equal(response.status,200);
+    assert.equal(await response.text(),golden);
+    globalThis.fetch=(url,options)=>originalFetch(new URL(/** @type {string} */ (url),origin),{
+      ...options,headers:{...options?.headers,'x-test-session':'allow'}
+    });
+    const client=await import('data:text/javascript,'+encodeURIComponent(golden));
+    for(const value of ['  Alpha  ','βeta','42']){
+      assert.equal(client.normalize(value),original.normalize(value));
+      assert.equal(await client.run(value),await original.run(value));
+    }
+  }finally{
+    globalThis.fetch=originalFetch;
+    if(server){
+      const running=server;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>running.close(error=>error?reject(error):resolve()));
+      await closed;
+    }
+    if(previousKey===undefined)delete process.env.OBFS_SCO_SERVER_KEY;
+    else process.env.OBFS_SCO_SERVER_KEY=previousKey;
+  }
+});
+
+test('selective SCO server environment opt-in refuses public process reads and dynamic keys',()=>{
+  const base='export async function protectedDigest(){return SERVER_KEY;}'+
+    'export function local(){return 7;}';
+  const invalid=[
+    'const SERVER_KEY=process.env[process.env.KEY_NAME];'+base,
+    'const SERVER_KEY=process.env["lowerCase"];'+base,
+    'const SERVER_KEY=process["env"].OBFS_KEY;'+base,
+    'const SERVER_KEY=globalThis.process.env.OBFS_KEY;'+base
+  ];
+  for(const source of invalid){
+    assert.throws(()=>partitionScoSelectedAsyncExports({
+      path:'mixed.mjs',code:source
+    },{seed:'env-negative',privateNames:['protectedDigest'],
+      allowServerEnvConstants:true}),/primitive literal/);
+  }
+  const unsafe='const SERVER_KEY=process.env.OBFS_KEY;'+
+    'export async function protectedDigest(){return SERVER_KEY;}'+
+    'export function local(){return process.version;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',code:unsafe
+  },{seed:'env-public',privateNames:['protectedDigest'],
+    allowServerEnvConstants:true}),/cannot share server environment/);
+  const bracket='const SERVER_KEY=process.env["OBFS_KEY"];'+base;
+  const accepted=partitionScoSelectedAsyncExports({path:'mixed.mjs',code:bracket},{
+    seed:'env-bracket',privateNames:['protectedDigest'],allowServerEnvConstants:true
+  });
+  assert.doesNotMatch(accepted.clientFile.code,/OBFS_KEY/u);
 });

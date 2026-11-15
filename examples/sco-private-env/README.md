@@ -1,0 +1,7 @@
+# Runtime-injected server-only secret in a mixed SCO module
+
+The before file references `process.env.OBFS_SCO_SERVER_KEY` through an unexported immutable binding. Its secret value is **absent from source control and generated code**. With `allowServerEnvConstants:true`, the compiler admits this exact trusted-server environment-read pattern while keeping the `protectedDigest` HMAC body and key binding off the public client. The module's `normalize` and `run` exports remain local, with a generated authenticated RPC facade for `protectedDigest`.
+
+Run `node examples/sco-private-env/build.cjs` to regenerate `after/mixed.mjs` without reading any environment value. The builder only interprets AST structure and copies selected source. To execute the original private module, the real Node server must set `OBFS_SCO_SERVER_KEY` to a nonempty private random key through deployment secrets before module initialization. The browser may receive only `after/mixed.mjs`, never the original source or the server environment.
+
+The opt-in refuses computed/dynamic secret names, nonliteral/effectful initializers, public reads of server-only constants, and *any* public use of `process` when a private server environment read exists. This is a scoped server-trust contract; authenticated users can still relay allowed operations, and many tiny RPCs exceed the 2.5× elapsed-time budget. See `test/sco-selective-partition.test.js` and the adversarial timing report for the literal-key sibling example.
