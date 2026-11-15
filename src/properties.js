@@ -502,6 +502,60 @@ function patternPropertyEdits(source,patterns,mapping) {
 }
 
 /**
+ * Prove a private zero-argument factory has exactly one direct invocation,
+ * creating an inert object literal in the specified binding initializer.
+ * Exported, aliased, mutable, dynamically invoked or observable factories
+ * are excluded by explicit bindings and AST-reference checks. Intended for
+ * both local-owner and opt-in closed-world ESM ownership proofs.
+ *
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @param {AstNode} expression
+ * @returns {AstNode|null}
+ */
+function singleUseFactoryObject(ast,bindings,expression) {
+  if(expression.type!=='CallExpression'||expression.optional||expression.arguments.length||
+     expression.callee.type!=='Identifier')return null;
+  const name=expression.callee.name;
+  if(bindings.get(name)!==1)return null;
+  /** @type {AstNode|null} */
+  let fn=null;
+  /** @type {AstNode|null} */
+  let definition=null;
+  for(const statement of ast.body) {
+    if(statement.type==='FunctionDeclaration'&&statement.id?.type==='Identifier'&&
+       statement.id.name===name) {
+      fn=statement;
+      definition=statement.id;
+      break;
+    }
+    if(statement.type==='VariableDeclaration'&&statement.kind==='const'&&
+       statement.declarations.length===1) {
+      const dec=statement.declarations[0];
+      if(dec.id.type==='Identifier'&&dec.id.name===name&&dec.init&&
+         ['ArrowFunctionExpression','FunctionExpression'].includes(dec.init.type)) {
+        fn=dec.init;
+        definition=dec.id;
+        break;
+      }
+    }
+  }
+  if(!fn||!definition||fn.async||fn.generator||fn.params.length)return null;
+  const body=fn.body.type==='BlockStatement' ?
+    fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement' ?
+      fn.body.body[0].argument : null :
+    fn.body;
+  if(body?.type!=='ObjectExpression')return null;
+  let references=0;
+  walk(ast,(node,parent,key)=>{
+    if(node.type!=='Identifier'||node.name!==name||node===definition)return;
+    if(parent===expression&&key==='callee')references++;
+    else references=2;
+  });
+  return references===1?body:null;
+}
+
+/**
  * Rename selected object-literal own keys only when a closed-world use proof succeeds.
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
@@ -511,51 +565,6 @@ function patternPropertyEdits(source,patterns,mapping) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
-  // A private zero-argument factory can create an owner without exposing its
-  // shape. Admit its literal only when a single direct call initializes the
-  // tracked const and every other reference to the factory is absent.
-  // Exported, mutable, aliased or dynamically invoked factories are refused.
-  /** @param {AstNode} functionNode @returns {AstNode|null} */
-  function returnedObject(functionNode){
-    if(functionNode.async||functionNode.generator||functionNode.params.length)return null;
-    const body=functionNode.body.type==='BlockStatement' ?
-      functionNode.body.body.length===1&&functionNode.body.body[0].type==='ReturnStatement' ?
-        functionNode.body.body[0].argument : null :
-      functionNode.body;
-    return body?.type==='ObjectExpression'?body:null;
-  }
-  /** @type {Map<string,AstNode>} */
-  const factoryObjects=new Map();
-  for(const statement of ast.body) {
-    if(statement.type==='FunctionDeclaration'&&statement.id?.type==='Identifier'&&
-       bindings.get(statement.id.name)===1) {
-      const result=returnedObject(statement);
-      if(result)factoryObjects.set(statement.id.name,result);
-    } else if(statement.type==='VariableDeclaration'&&statement.kind==='const'&&
-              statement.declarations.length===1) {
-      const declaration=statement.declarations[0];
-      const fn=declaration.init;
-      if(declaration.id.type!=='Identifier'||bindings.get(declaration.id.name)!==1||
-         !fn||!['ArrowFunctionExpression','FunctionExpression'].includes(fn.type))continue;
-      const result=returnedObject(fn);
-      if(result)factoryObjects.set(declaration.id.name,result);
-    }
-  }
-  /** @param {AstNode} expression @returns {AstNode|null} */
-  function factoryLiteral(expression) {
-    if(expression.type!=='CallExpression'||expression.arguments.length||
-       expression.callee.type!=='Identifier'||!factoryObjects.has(expression.callee.name))return null;
-    const name=expression.callee.name;
-    let references=0;
-    walk(ast,(node,parent,key)=>{
-      if(node.type!=='Identifier'||node.name!==name)return;
-      if((parent?.type==='FunctionDeclaration'||parent?.type==='VariableDeclarator')&&
-          key==='id')return;
-      if(parent===expression&&key==='callee')references++;
-      else references=2;
-    });
-    return references===1?factoryObjects.get(name)??null:null;
-  }
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
@@ -564,7 +573,7 @@ function renameLocalProperties(source, ast, options) {
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
-    const literal=node.type==='ObjectExpression' ? node : factoryLiteral(node);
+    const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
     const properties = literal.properties;
@@ -608,4 +617,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject};
