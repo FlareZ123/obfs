@@ -1,6 +1,7 @@
 'use strict';
 
-const {randomBytes} = require('node:crypto');
+const {randomBytes,createHash} = require('node:crypto');
+const {parse,walk,applyEdits} = require('./ast');
 const {obfuscateFiles} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
 
@@ -82,6 +83,35 @@ async function handleRpc(request,response,options) {
 }
 
 /**
+ * Vary string spelling with no runtime decoder in the SCO client.
+ * @param {string} source
+ * @param {'script'|'module'|'commonjs'} sourceType
+ * @param {string} nonce
+ * @returns {string}
+ */
+function varyLiteralSpellings(source,sourceType,nonce) {
+  const ast=parse(source,sourceType);
+  const entropy=createHash('sha256').update(nonce).digest();
+  /** @type {import('./ast').Edit[]} */
+  const edits=[];
+  walk(ast,(node,parent,key)=>{
+    if(node.type!=='Literal' || typeof node.value!=='string' || !node.value.length ||
+       !(parent?.type==='AssignmentExpression' && key==='right' ||
+         parent?.type==='VariableDeclarator' && key==='init')) return;
+    let spelling='"';
+    for(let i=0;i<node.value.length;i++) {
+      const unit=node.value.charCodeAt(i);
+      if(unit>=32 && unit<=126 && unit!==34 && unit!==92 &&
+          (entropy[(i+node.start)%entropy.length]&1)) spelling+=String.fromCharCode(unit);
+      else spelling+='\\u'+unit.toString(16).padStart(4,'0');
+    }
+    spelling+='"';
+    edits.push({start:node.start,end:node.end,text:spelling});
+  });
+  return applyEdits(source,edits);
+}
+
+/**
  * Create a polymorphic SCO handler. The serving machine keeps the obfuscator
  * and optional remoteMethods implementations, mutating client code per GET.
  * RPC is disabled unless BOTH remoteMethods and an authorization callback exist.
@@ -146,11 +176,12 @@ function createScoHandler(sourceFiles,options={}) {
         return;
       }
       try {
-        const result = obfuscateFiles([file],{
-          mode:'sco',seed:randomBytes(24).toString('hex'),allowedHosts:options.allowedHosts
-        });
+        const nonce=randomBytes(24).toString('hex');
+        const result=obfuscateFiles([file],{mode:'sco',seed:nonce,allowedHosts:options.allowedHosts});
+        const output=/** @type {string} */ (result.files[0].code);
+        const varied=varyLiteralSpellings(output,file.sourceType,nonce);
         response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
-        response.end(result.files[0].code);
+        response.end(varied+'\n/* variant:'+nonce+' */');
       } catch (error) {
         response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
         response.end('Obfuscation failed');
