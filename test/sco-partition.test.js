@@ -158,9 +158,15 @@ test('opt-in SCO partition batch preserves special names, order and server polic
   const effects=[];
   /** @type {Record<string,unknown>} */
   const serverExports=Object.create(null);
-  serverExports.double=async value=>{effects.push('double');return value*2;};
-  serverExports.triple=async value=>{effects.push('triple');return value*3;};
-  serverExports.__proto__=async value=>{effects.push('__proto__');return value+1;};
+  /** @param {number} value */
+  const double=async value=>{effects.push('double');return value*2;};
+  /** @param {number} value */
+  const triple=async value=>{effects.push('triple');return value*3;};
+  /** @param {number} value */
+  const special=async value=>{effects.push('__proto__');return value+1;};
+  serverExports.double=double;
+  serverExports.triple=triple;
+  serverExports.__proto__=special;
   const serverMethods=bindScoModuleExports(partition,serverExports);
   assert.equal(Object.keys(serverMethods).length,4);
 
