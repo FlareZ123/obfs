@@ -23,5 +23,9 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Test full finite-domain HMAC oracle clone with legitimate authorization
         run: node sims/sco-oracle-exhaustion.js
+      - name: Attacker model and authenticated piecewise oracle regression
+        run: node --test test/sco-piecewise-oracle.test.js
+      - name: Emit eight randomized piecewise oracle attack outcomes
+        run: node sims/sco-piecewise-oracle.js
       - name: Strict JSDoc type safety
         run: npm run typecheck
