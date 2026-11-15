@@ -58,6 +58,25 @@ test('private const arrow and function-expression helpers run only on the server
   }
 });
 
+test('async private declaration and async arrow keep native Node imports server-only',async()=>{
+  const source=[
+    'async function privateDigest(value){',
+    '  const {createHash}=await import("node:crypto");',
+    '  return createHash("sha256").update(value).digest("hex");',
+    '}',
+    'const privateWrap=async value=>await privateDigest(value);',
+    'export async function secret(value){return await privateWrap(value);}',
+    'export function local(value){return value.length;}'
+  ].join('\n');
+  const generated=partition(source);
+  assert.doesNotMatch(generated.clientFile.code,/privateDigest|privateWrap|createHash|node:crypto/u);
+  const original=await import('data:text/javascript,'+encodeURIComponent(source));
+  const methods=bindScoModuleExports(generated,original);
+  for(const value of ['', 'hello', 'Ω', 'a'.repeat(128)]){
+    assert.equal(await methods[generated.methodNames.secret](value),await original.secret(value));
+  }
+});
+
 test('private helpers fail closed on cross-boundary references and stateful identities',()=>{
   const exported='export async function secret(){return helper();}'+
     'export function local(){return 7;}';
@@ -78,25 +97,21 @@ test('private helpers fail closed on cross-boundary references and stateful iden
        'export async function secret(){return helper();}'+
        'export function local(){return window.shared;}',
       /share ambient state/u],
-    ['async function helper(){return 1;}'+exported,
-      /synchronous private helper/u],
     ['function* helper(){yield 1;}'+exported,
-      /synchronous private helper/u],
+      /non-generator private helper/u],
     ['function helper(value=local()){return value;}'+exported,
-      /synchronous private helper/u],
+      /non-generator private helper/u],
     ['function helper({value}){return value;}'+exported,
-      /synchronous private helper/u],
+      /non-generator private helper/u],
     ['function helper(...values){return values.length;}'+exported,
-      /synchronous private helper/u],
+      /non-generator private helper/u],
     ['const helper=()=>1;export async function secret(){return helper;}'+
        'export function local(){return 7;}',/helper may only be called directly/u],
     ['const helper=()=>1;'+
        'export async function secret(){return helper();}'+
        'export function local(){return helper();}',/server-only helper/u],
-    ['const helper=async ()=>1;'+exported,
-      /synchronous private helper/u],
     ['const helper=function*(){yield 1;};'+exported,
-      /synchronous private helper/u],
+      /non-generator private helper/u],
     ['const helper=()=>1,notPrimitive=()=>2;'+exported,
       /primitive literal/u]
   ];
