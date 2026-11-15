@@ -23,3 +23,5 @@ jobs:
         run: node sims/decoder-candidates.js
       - name: Validate offline static string recovery
         run: node --test test/static-string-recovery.test.js
+      - name: Validate offline property and module normalization
+        run: node --test test/offline-reconstruction.test.js
