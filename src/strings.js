@@ -39,7 +39,9 @@ function encodeStrings(source, ast, options) {
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if ((parent.type === 'Property' || parent.type === 'MethodDefinition' ||
          parent.type === 'PropertyDefinition') && key === 'key' && !parent.computed) return;
-    if (/^(ImportDeclaration|ImportExpression|ExportNamedDeclaration|ExportAllDeclaration|ImportAttribute)$/.test(parent.type)) return;
+    // Quoted module binding names are grammar tokens, not runtime expressions.
+    // Replacing one with a decoder lookup produces invalid import/export syntax.
+    if (/^(ImportDeclaration|ImportExpression|ImportSpecifier|ExportNamedDeclaration|ExportAllDeclaration|ExportSpecifier|ImportAttribute)$/.test(parent.type)) return;
     if ((parent.type === 'CallExpression' || parent.type === 'NewExpression') && key === 'arguments' &&
         parent.callee.type === 'Identifier' && ['require', 'eval', 'Function'].includes(parent.callee.name)) return;
     if (ancestors.some(ancestor => /^(ForStatement|ForInStatement|ForOfStatement|WhileStatement|DoWhileStatement)$/.test(ancestor.type))) return;
