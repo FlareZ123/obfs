@@ -551,6 +551,12 @@ function observesFunctionSource(ast) {
     if(node.type==='MemberExpression') {
       const name=node.computed ? sourceStringKey(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
+      // Error stack strings expose generated source line/column coordinates.
+      // Even harmless identifier-length edits change those coordinates, so
+      // refuse rewrites for syntactic stack observers. This deliberately also
+      // declines ambiguous user-defined .stack properties rather than guessing
+      // whether their values represent a runtime Error.
+      if (['stack','captureStackTrace','prepareStackTrace','stackTraceLimit'].includes(name??'')) observed=true;
       // A function's unknown computed key might evaluate to toString.
       if(node.computed && name===null && isFunctionValue(node.object)) observed=true;
       // A plain assignment overwrites the property without reading or
