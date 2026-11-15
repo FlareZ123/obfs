@@ -114,14 +114,36 @@ function observesFunctionSource(ast) {
   // addition to direct String/RegExp coercers.
   const functions=new Set();
   const arraysWithFunctions=new Set();
+  // Imported bindings and CommonJS require() results may be functions even
+  // when their declarations are in a separate file. A consumer's computed
+  // property key can stringify the imported function's original source.
+  const opaqueFunctions=new Set();
+  const opaqueNamespaces=new Set();
   walk(ast,node=>{
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
        node.id?.type==='Identifier')functions.add(node.id.name);
+    if((node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier') &&
+       node.local?.type==='Identifier')opaqueFunctions.add(node.local.name);
+    if(node.type==='ImportNamespaceSpecifier'&&node.local?.type==='Identifier') {
+      opaqueNamespaces.add(node.local.name);
+    }
   });
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isRequireCall(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isOpaqueNamespace(node) {
+    return Boolean(node && (node.type==='Identifier'&&opaqueNamespaces.has(node.name) ||
+      isRequireCall(node)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isFunctionValue(node) {
-    return Boolean(node && (node.type==='Identifier'&&functions.has(node.name) ||
-      ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type)));
+    return Boolean(node && (node.type==='Identifier'&&
+        (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
+      ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
+      node.type==='MemberExpression' && isOpaqueNamespace(node.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunction(node) {
@@ -190,7 +212,19 @@ function observesFunctionSource(ast) {
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
         if(isFunctionValue(value))changed=add(functions,name)||changed;
+        if(isOpaqueNamespace(value)) {
+          changed=add(opaqueNamespaces,name)||changed;
+          changed=add(opaqueFunctions,name)||changed;
+        }
         if(containsFunction(value))changed=add(arraysWithFunctions,name)||changed;
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isRequireCall(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type==='Property'&&property.value.type==='Identifier') {
+            changed=add(opaqueFunctions,property.value.name)||changed;
+          }
+        }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
