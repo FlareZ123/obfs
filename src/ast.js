@@ -271,6 +271,14 @@ function observesFunctionSource(ast) {
     // Literal-prefix concatenation can do the same without an explicit call
     // to Function#toString. Decline source-spelling transforms conservatively.
     if(node.type==='TemplateLiteral' && node.expressions.length) observed=true;
+    // Abstract Equality and relational comparisons call ToPrimitive on a
+    // function operand when compared against a primitive. The resulting
+    // native source text can be compared without an explicit String() call.
+    // Strict equality (===, !==) does not invoke ToPrimitive.
+    if(node.type==='BinaryExpression' &&
+        ['==','!=','<','<=','>','>='].includes(node.operator) &&
+        (isFunctionValue(node.left)||isFunctionValue(node.right)||
+         containsFunction(node.left)||containsFunction(node.right))) observed=true;
     if(node.type==='BinaryExpression' && node.operator==='+') {
       const leftText=node.left.type==='Literal' && typeof node.left.value==='string' ||
         node.left.type==='TemplateLiteral' && !node.left.expressions.length;
