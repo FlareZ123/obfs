@@ -22,7 +22,7 @@ function compilerAt(root) {
  */
 async function servedAsset(handler,assetName) {
   const server=http.createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   const address=server.address();
   assert.ok(address && typeof address!=='string');
   try {
