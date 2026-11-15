@@ -132,6 +132,33 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('namespace import with computed exported binding preserves property names', () => {
+  const files={
+    'source.mjs':'export const a={secret:20};',
+    'main.mjs':'import * as ns from "./source.mjs";console.log(ns["a"].secret);',
+  };
+  const out=transform(files,{closedWorld:true});
+  assert.equal(out.renamed,0);
+});
+
+test('dynamic ESM import with computed exported binding preserves property names', () => {
+  const files={
+    'source.mjs':'export const a={secret:21};',
+    'main.mjs':'const ns=await import("./source.mjs");console.log(ns["a"].secret);',
+  };
+  const out=transform(files,{closedWorld:true});
+  assert.equal(out.renamed,0);
+});
+
+test('CommonJS require of an ESM namespace protects exported property names', () => {
+  const files={
+    'source.mjs':'export const a={secret:22};',
+    'main.cjs':'const ns=require("./source.mjs");console.log(ns["a"].secret);',
+  };
+  const out=transform(files,{closedWorld:true});
+  assert.equal(out.renamed,0);
+});
+
 test('arguments implicit alias blocks unsound parameter renaming', () => {
   const code = 'function f(p){console.log(arguments[0].secret,p.secret);} const a={secret:11};f(a);';
   const out = compare({'a.js':code});
