@@ -29,4 +29,6 @@ jobs:
         run: npm run benchmark
       - name: Real Chromium module and host-lock integration
         if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
         run: npm run test:browser
