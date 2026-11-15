@@ -29,6 +29,17 @@ Each measurement compares the **same native private function** against 12 sequen
 
 The measured ratios pass the requested 2.5× budget for this **one coarse protected workload**. The 8 MiB work is part of both original and protected algorithms. It must not be added artificially to a cheap function solely to hide RPC overhead. Private module initialization and code generation are excluded, consistent with the server-side SCO allowance; the reported timing includes operation CPU and RPC traversal. Performance over real remote links, short methods, slow clients, mixed concurrent traffic, HTTP retries and distributed load is unknown. Prior `sims/sco-rtt-grid.js` measured some such overheads for other workloads.
 
+## Simulated 25 ms per HTTP request
+
+The same protected HMAC experiment was extended with a controlled 25 ms **asynchronous wait inside `authorizeRpc` before each authenticated request**. This models a per-request network/policy latency component without claiming to reproduce a real remote network, TLS, packet loss or authentication system. Original CPU work is unchanged; exactly one wait is charged for a batch and twelve waits for serial RPCs. Five alternating-order rounds compare equivalent 12-call workloads.
+
+| OS | Twelve local calls | Twelve serial RPCs + 25 ms/request | One 12-call batch + 25 ms/request | Serial ratio | Batch ratio |
+|---|---:|---:|---:|---:|---:|
+| Ubuntu | 48.7999 ms | 369.8766 ms | 76.0495 ms | **7.579× (fails)** | **1.558× (passes)** |
+| Windows | 63.8355 ms | 411.6635 ms | 92.9515 ms | **6.449× (fails)** | **1.456× (passes)** |
+
+Pinned amended source: `dbd53c59ac034c64ce462224e863104836550b72`. Green manual [CI #43700173996](https://github.com/FlareZ123/obfs/actions/runs/43700173996) on both Node.js 22 runners, including the original no-delay control and the new 25 ms simulated check. Differences in CPU-only baseline times relative to the first experiment reflect runner variability and do not alter the observed pattern. This is a direct measured example where batching is **required** to satisfy a 2.5× end-to-end wall-time budget for the same private business operation once moderate request latency is introduced. A real deployment must measure its own RTT/TLS and concurrency.
+
 ## Five dimensions, independently evaluated
 
 1. **Static program reconstruction:** the private HMAC source and random secret key do not appear in public modules. Only server-retained source is protected, following the explicit SCO trust model.
