@@ -21,6 +21,67 @@ function resolveImport(from,specifier) {
 }
 
 /**
+ * Resolve direct, unique named ESM imports whose source module exports a
+ * statically known, immutable const string. The value is sufficient to
+ * distinguish a computed key from Function#toString observation; ownership
+ * and initialization order are separately proved before renaming any key.
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Map<string,string>>}
+ */
+function collectVerifiedImportedStrings(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    const type=file.sourceType??(file.path.endsWith('.mjs')?'module':'script');
+    if(type==='module'&&typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    }
+  }
+  /** @type {Map<string,Map<string,string>>} */
+  const exported=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,string>} */
+    const names=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source||
+         statement.declaration?.type!=='VariableDeclaration'||
+         statement.declaration.kind!=='const')continue;
+      for(const declaration of statement.declaration.declarations) {
+        if(declaration.id.type!=='Identifier'||!declaration.init||
+           module.bindings.get(declaration.id.name)!==1)continue;
+        const value=staticString(declaration.init);
+        if(value!==null)names.set(declaration.id.name,value);
+      }
+    }
+    exported.set(filename,names);
+  }
+  /** @type {Map<string,Map<string,string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,string>} */
+    const names=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const source=statement.source.value;
+      if(/[?#%\\]/.test(source))continue;
+      const origin=resolveImport(filename,source);
+      const target=origin?exported.get(origin):null;
+      if(!target)continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type!=='ImportSpecifier'||module.bindings.get(spec.local.name)!==1)continue;
+        const exportedName=spec.imported.name??spec.imported.value;
+        const value=target.get(exportedName);
+        if(value!==undefined)names.set(spec.local.name,value);
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
+
+/**
  * Across an explicit closed-world set of ESM modules, rename properties of
  * direct named exported const-object literals and all proven import aliases.
  * Reject reexports, reflection, dynamic import and unproven uses rather than
@@ -52,6 +113,7 @@ function renameCrossFileProperties(files,seed) {
     }
   }
   const knownFiles=new Set(files.map(file=>file.path));
+  const verifiedStrings=collectVerifiedImportedStrings(files);
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
@@ -69,7 +131,7 @@ function renameCrossFileProperties(files,seed) {
     // Function source can be inspected by a separate ESM consumer that never
     // imports the object whose field is being renamed. Check the whole graph,
     // rather than relying on object-alias consumers alone.
-    if(observesFunctionSource(module.ast))return {files,objects:0,properties:0};
+    if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
     let ambiguous=false;
     walk(module.ast,node=>{
       if (node.type==='Identifier' &&
@@ -406,4 +468,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings};
