@@ -1,0 +1,27 @@
+name: Manual real-browser validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check available Chromium installation
+        run: |
+          command -v google-chrome
+          google-chrome --version
+      - name: Run live browser integration suite
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
