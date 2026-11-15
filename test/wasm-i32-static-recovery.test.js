@@ -30,7 +30,7 @@ function canonical(source) {
 function load(code) {
   const module={exports:null};
   vm.runInNewContext(code,{module,globalThis},{timeout:1000});
-  return /** @type {(x:number)=>number} */(module.exports);
+  return /** @type {(x:number)=>number} */(/** @type {unknown} */(module.exports));
 }
 
 const expressions=[
