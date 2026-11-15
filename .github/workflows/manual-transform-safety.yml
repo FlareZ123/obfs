@@ -1,0 +1,27 @@
+name: Manual transformation semantics regression
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  semantics:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Source observation, ambient intrinsic and property semantics
+        run: node --test test/ambient-string-alias.test.js test/ambient-string-intrinsic.test.js test/source-introspection-safety.test.js test/cross-file-source-introspection.test.js test/cross-file-source-observer-global.test.js test/sco-source-observation.test.js test/semantic-boundaries.test.js test/property-reflection.test.js test/string-shadowing.test.js
+      - name: Strict JSDoc type checking
+        run: npm run typecheck
