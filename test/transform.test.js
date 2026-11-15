@@ -128,6 +128,10 @@ test('trusted helper passed as callback is not trusted', () => {
   assert.equal(out.renamed,0);
 });
 
+test('duplicate normalized paths are rejected', () => {
+  assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
+});
+
 test('deterministic transformation', () => {
   const files={'a.js':`const a={private:5};console.log(a.private);`};
   assert.deepEqual(transform(files,{seed:'alpha',closedWorld:true}),transform(files,{seed:'alpha',closedWorld:true}));
