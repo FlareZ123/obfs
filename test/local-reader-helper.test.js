@@ -75,10 +75,7 @@ for(const [name,source] of [
     'module.exports=reader(root);'],
   ['function-source observation',
     'const root={secretField:7,otherField:5};const reader=x=>x.secretField;'+
-    'module.exports=[reader(root),reader.toString()];'],
-  ['reader result is not an owner alias',
-    'const root={secretField:7,otherField:5};const reader=x=>x.secretField;'+
-    'const result=reader(root);module.exports=result.secretField;']
+    'module.exports=[reader(root),reader.toString()];']
 ]){
   test('unproved local reader flow declines: '+name,()=>{
     const result=obfuscateFiles([
@@ -89,6 +86,17 @@ for(const [name,source] of [
     assert.equal(execute(/** @type {string} */ (result.files[0].code)),execute(source),name);
   });
 }
+
+test('reader return value remains a scalar rather than an owner alias',()=>{
+  const source='const root={secretField:7,otherField:5};'+
+    'const reader=x=>x.secretField;const result=reader(root);'+
+    'module.exports=[result.secretField,typeof result];';
+  const output=obfuscateFiles([
+    {path:'reader.cjs',sourceType:'commonjs',code:source}
+  ],{mode:'coo',seed:'reader-result-not-alias',strings:false,identifiers:false});
+  assert.equal(output.files[0].metrics.objects,1);
+  assert.equal(execute(/** @type {string} */ (output.files[0].code)),execute(source));
+});
 
 test('checked-in local reader sample exactly matches emitted code',async()=>{
   await buildSample(true);
