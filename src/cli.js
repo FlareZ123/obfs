@@ -12,10 +12,10 @@ const {parse,walk}=require('./ast');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[]}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[]}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[]};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -31,6 +31,16 @@ function readArgs(argv) {
     else if (option === '--seed') opts.seed=value;
     else if (option === '--asset') opts.publicAssets.push(value);
     else if (option === '--client') opts.publicScripts.push(value);
+    else if (option === '--register-vm') {
+      const index=value.lastIndexOf(':');
+      if(index<1||index===value.length-1) {
+        throw new TypeError('--register-vm expects relative-file:functionName');
+      }
+      const file=safePath(value.slice(0,index));
+      const name=value.slice(index+1);
+      opts.experimentalRegisterVm??={};
+      (opts.experimentalRegisterVm[file]??=[]).push(name);
+    }
     else throw new TypeError(`Unknown option ${option}`);
   }
   if (!opts.root || !opts.entry) throw new TypeError('Required: --root directory --entry relative-file');
@@ -206,8 +216,9 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
+  if (mode==='sco' && experimentalRegisterVm) throw new TypeError('SCO CLI register VM is unavailable');
   const absRoot = path.resolve(root);
   const sourceTree = await readSourceTree(absRoot);
   // A .js dependency inside a nested {"type":"module"} package is ESM,
@@ -234,7 +245,7 @@ async function main(mode,argv) {
   if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
