@@ -94,3 +94,27 @@ Important limitation: the differential evaluator reports native equivalence over
 Earlier pinned manual runs 43702918423 (source 18b48aa) and 43703061283 (source b646e89) initially found 89/94 baseline original executions failing on the 50-program subset while five paired cases matched. The follow-up run captured the exact Linux error ENXIO reopening /dev/stdin from subprocess stdin. This was a harness artifact because a pipe descriptor is not reliably reopenable through /proc/self/fd/0. The evaluator now writes each reference input through the project's atomic locked writer into a container-private 32-MB tmpfs file and attaches that regular file as the child process's read-only stdin. The container remains network-disabled, read-only outside the bounded tmpfs, nonroot, CPU/memory/pids-limited. The corrected 50-program run 43703293828 proved 94/94 eligible and 94/94 matches for both COO and SNO before the full 1,301-program run.
 
 The full manual Node 22 Ubuntu/Windows validation run 43703443619 at the same source SHA 20eeb56 passed the standard test, JSDoc, benchmark and Ubuntu browser integration gates. These results are pinned; later edits to coverage reporting are not implicitly certified.
+
+## Transformation coverage, tails and explicit CommonJS grammar (validated 2026-11-15)
+
+[Manual three-lane workflow run 43704598450](https://github.com/FlareZ123/obfs/actions/runs/43704598450) at obfs commit 816e064ca5f085101ca73a759f3a67cd415a879c evaluated the pinned 1,301-source corpus in independent COO script, SNO script and SNO CommonJS modes. Each processed all 1,301 programs and preserved all 2,199 eligible input/output cases. The third lane explicitly requests source-type commonjs and executes both original and transformed program files through the Node.js CommonJS file module wrapper. The single reference-original failure remains p02618_1, with input undefined.
+
+All source columns total 719,005 UTF-8 bytes; output size and transformations:
+
+| Measure | COO script | SNO script | SNO CommonJS |
+| --- | ---: | ---: | ---: |
+| Obfuscated UTF-8 bytes | 824,951 | 1,319,459 | 1,325,986 |
+| Aggregate output/source size | 1.147351x | 1.835118x | 1.844196x |
+| Programs with identifier-binding renames | 830 | 830 | 842 |
+| Total renamed identifier bindings | 2,929 | 2,929 | 3,118 |
+| Programs with encoded literals | 0 | 1,039 | 1,039 |
+| Total encoded string literals | 0 | 2,304 | 2,304 |
+| Programs with proven private-property changes | 0 | 0 | 0 |
+| Total changed private-property keys | 0 | 0 | 0 |
+| Matched native eligible cases | 2,199 / 2,199 | 2,199 / 2,199 | 2,199 / 2,199 |
+
+In the prior bounded full corpus run with per-process tail telemetry [43703960540](https://github.com/FlareZ123/obfs/actions/runs/43703960540), the COO script conditional process ratio had median 0.99536x, p95 1.10849x, maximum 1.33414x; SNO script had median 1.00097x, p95 1.08797x, maximum 1.30282x. No eligible process-pair ratio exceeded 2.5x in that run. The three-lane CommonJS file execution had median 1.00016x, p95 1.07511x, maximum 1.44164x. These include process startup and do not establish the hot-path budget or any worst-case generalization.
+
+**Interpretation:** classic-script mode deliberately does not rename local properties because globals can escape through other script files. The explicit CommonJS lane activates the proof pass, but this specific algorithmic CodeNet corpus still produced zero proven safe private-property changes. A separate synthetic CommonJS regression fixture positively demonstrates the pass working on an object with a literal key. Source inspection of the 1,301 originals using rough lexical patterns found just nine const-object literals and three files with a const-object variable followed by a direct dot-property read. That count is a syntactic estimate and cannot establish property-ownership safety. Thus this dataset is strong for independent behavior preservation but weak evidence about the cross-file/interprocedural property-renaming requirement. Use the repository's dedicated multi-file provenance/dynamic-reflection suites for that requirement.
+
+The strict TypeScript/JSDoc check of external research scripts is now separately available with jsconfig.external.json and npm run typecheck:external. It should remain part of the manual validation gate. Any benchmark report must disclose the exact sourceType and execution style to prevent comparing script and CommonJS under mismatched module semantics.
