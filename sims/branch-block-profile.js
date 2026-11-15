@@ -3,6 +3,7 @@
 const {performance}=require('node:perf_hooks');
 const native=require('../examples/branch-blocks/before/gate.cjs').gate;
 const obfuscated=require('../examples/branch-blocks/after/gate.cjs').gate;
+const masked=require('../examples/branch-blocks/after/gate-masked.cjs').gate;
 
 /** @typedef {{name:string,inputs:(index:number)=>unknown}} Profile */
 /** @param {number[]} samples @returns {number} */
@@ -34,25 +35,30 @@ const profiles=/** @type {Profile[]} */ ([
 /** @type {Record<string,unknown>[]} */
 const results=[];
 for(const profile of profiles){
-  const timing={native:/** @type {number[]} */([]),obfuscated:/** @type {number[]} */([])};
+  const timing={native:/** @type {number[]} */([]),obfuscated:/** @type {number[]} */([]),masked:/** @type {number[]} */([])};
   for(let trial=0;trial<6;trial++){
-    const order=trial%2===0?['native','obfuscated']:['obfuscated','native'];
+    const order=trial%3===0?['native','obfuscated','masked']:
+      trial%3===1?['masked','native','obfuscated']:['obfuscated','masked','native'];
     for(const kind of order){
-      const fn=kind==='native'?native:obfuscated;
+      const fn=kind==='native'?native:kind==='masked'?masked:obfuscated;
       run(fn,profile,100000);
       const outcome=run(fn,profile,1200000);
-      timing[/** @type {'native'|'obfuscated'} */(kind)].push(outcome.ms);
-      if(run(native,profile,1000).checksum!==run(obfuscated,profile,1000).checksum){
+      timing[/** @type {'native'|'obfuscated'|'masked'} */(kind)].push(outcome.ms);
+      if(run(native,profile,1000).checksum!==run(obfuscated,profile,1000).checksum||
+          run(native,profile,1000).checksum!==run(masked,profile,1000).checksum){
         throw new Error('Behavior mismatch for '+profile.name);
       }
     }
   }
   const nativeMs=median(timing.native);
   const obfuscatedMs=median(timing.obfuscated);
+  const maskedMs=median(timing.masked);
   results.push({name:profile.name,node:process.version,iterations:1200000,
     nativeMedianMs:nativeMs,obfuscatedMedianMs:obfuscatedMs,
     slowdown:obfuscatedMs/nativeMs,
     withinBudget:obfuscatedMs/nativeMs<=2.5,
+    maskedMedianMs:maskedMs,maskedSlowdown:maskedMs/nativeMs,
+    maskedWithinBudget:maskedMs/nativeMs<=2.5,
     samples:timing});
 }
 console.log(JSON.stringify(results,null,2));
