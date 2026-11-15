@@ -104,6 +104,52 @@ function runScenario(period,iterations) {
     original_samples_ms:originalSamples,virtualized_samples_ms:virtualSamples};
 }
 
+/**
+ * Isolate the bytecode cost without the ordinary surrounding application.
+ * This prevents mixed-workload results from masking the interpreter's cost on
+ * a numerically dominated hot path.
+ *
+ * @param {number} iterations
+ * @returns {{iterations:number,original_ms:number,virtualized_ms:number,ratio:number,within_2_5:boolean}}
+ */
+function runPureHot(iterations) {
+  /** @param {(x:number)=>number} calculate @param {number} n @returns {number} */
+  const sum=(calculate,n)=>{
+    let result=0;
+    for(let i=0;i<n;i++)result^=calculate((i*7)|0);
+    return result;
+  };
+  assert.equal(sum(originalNumeric,iterations),sum(virtualizedNumeric,iterations));
+  for(let warmup=0;warmup<8;warmup++) {
+    sum(originalNumeric,30000);
+    sum(virtualizedNumeric,30000);
+  }
+  /** @type {number[]} */
+  const baseline=[];
+  /** @type {number[]} */
+  const virtual=[];
+  for(let sample=0;sample<11;sample++) {
+    if(sample%2===0) {
+      let begin=performance.now();
+      sum(originalNumeric,iterations);
+      baseline.push(performance.now()-begin);
+      begin=performance.now();
+      sum(virtualizedNumeric,iterations);
+      virtual.push(performance.now()-begin);
+    }else {
+      let begin=performance.now();
+      sum(virtualizedNumeric,iterations);
+      virtual.push(performance.now()-begin);
+      begin=performance.now();
+      sum(originalNumeric,iterations);
+      baseline.push(performance.now()-begin);
+    }
+  }
+  const before=median(baseline),after=median(virtual);
+  return {iterations,original_ms:before,virtualized_ms:after,
+    ratio:after/before,within_2_5:after/before<=2.5};
+}
+
 for(let i=-30000;i<30000;i+=17)assert.equal(virtualizedNumeric(i),originalNumeric(i));
 const report={
   node:process.version,platform:process.platform,architecture:process.arch,
@@ -114,6 +160,7 @@ const report={
   vm_implementation:'register switch dispatch; one opaque bytecode array',
   note:'steady-state hot/cold mixed compute; one-time setup excluded; all times are one-run local samples',
   warmup:8,trials:11,
+  pureHot:runPureHot(400000),
   measurements:[1,8,64,512].map(period=>runScenario(period,400000))
 };
 process.stdout.write(JSON.stringify(report,null,2)+'\n');
