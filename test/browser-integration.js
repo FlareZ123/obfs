@@ -55,8 +55,10 @@ async function main(){
   const rpcHandler=createScoHandler([
     {path:'remote.mjs',sourceType:'module',code:createScoRpcClientSource(['score'])}
   ],{
-    /** @param {number} value */
-    remoteMethods:{score:value=>value*3},
+    remoteMethods:{
+      /** @param {number} value */
+      score:value=>value*3
+    },
     authorizeRead:()=>true,
     authorizeRpc:request=>request.headers.cookie==='session=accepted',
     authorizeOperation:(request,method,args)=>method==='score' &&
