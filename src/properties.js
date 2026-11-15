@@ -257,8 +257,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       // objects, and defaults cannot change behavior under a rename.
       /** @type {AstNode[]} */
       const fields = parent.id.properties;
-      if (fields.some(p => p.type !== 'Property' || p.computed || p.kind !== 'init' ||
-          staticName(p.key) === null || p.value.type !== 'Identifier')) return null;
+      if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
+          ownPropertyName(p) === null || p.value.type !== 'Identifier')) return null;
       patterns.push(...fields);
       continue;
     }
@@ -333,7 +333,7 @@ function patternPropertyEdits(source,patterns,mapping) {
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   for (const property of patterns) {
-    const old=staticName(property.key);
+    const old=ownPropertyName(property);
     if (old === null) continue;
     const replacement=mapping.get(old);
     if (!replacement) continue;
@@ -385,7 +385,7 @@ function renameLocalProperties(source, ast, options) {
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
-        proof.patterns.some(property=>!ownNames.has(staticName(property.key)))) continue;
+        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = ownPropertyName(prop);
