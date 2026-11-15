@@ -46,7 +46,8 @@ async function handleRpc(request,response,options) {
       respondJson(response,403,{ok:false,error:'Forbidden'});
       return;
     }
-    if (!String(request.headers['content-type']||'').startsWith('application/json')) {
+    const mediaType=String(request.headers['content-type']||'').split(';',1)[0].trim().toLowerCase();
+    if (mediaType!=='application/json') {
       respondJson(response,415,{ok:false,error:'Expected JSON'});
       return;
     }
@@ -63,7 +64,13 @@ async function handleRpc(request,response,options) {
       chunks.push(chunk);
     }
     /** @type {{method?:unknown,args?:unknown}} */
-    const query=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    let query;
+    try {
+      query=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    } catch (error) {
+      respondJson(response,400,{ok:false,error:'Malformed JSON'});
+      return;
+    }
     if (!query || typeof query !== 'object' || typeof query.method!=='string' ||
         !Object.hasOwn(options.remoteMethods,query.method) || !Array.isArray(query.args)) {
       respondJson(response,400,{ok:false,error:'Unknown method or invalid arguments'});
@@ -77,8 +84,11 @@ async function handleRpc(request,response,options) {
     const result=await task(...query.args);
     respondJson(response,200,{ok:true,value:result});
   } catch (error) {
-    // Do not reflect server source code, filenames, stack traces or secrets.
-    respondJson(response,error instanceof SyntaxError?400:500,{ok:false,error:'Operation failed'});
+    // Server-resident exceptions must never be classified by their type.
+    // The only caller-visible 400 SyntaxError is a malformed JSON request.
+    if (!response.headersSent && !response.destroyed) {
+      respondJson(response,500,{ok:false,error:'Operation failed'});
+    } else response.destroy();
   }
 }
 
