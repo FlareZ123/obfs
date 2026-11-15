@@ -21,6 +21,14 @@ cross-boundary dependencies and state. The original source must remain only
 on the trusted SCO server. This is an explicit, conservative module-author
 declaration of the public helper set, not automatic security classification.
 
+The [independent oracle experiment](../../sims/sco-public-helper-oracle.js)
+reads only the distributed client bytes and issues two legitimate authenticated
+queries to learn an affine function of string UTF-16 length. It then predicts
+64 held-out strings without further RPC requests, demonstrating that even a
+withheld implementation can be functionally cloned in an easy model family.
+This attacker does not learn the original key literal or generalize its method
+to cryptographic secrets.
+
 Only source withheld by the trusted server benefits from this separation.
 A client with a valid session can inspect generated request IDs and relay
 authorized operations to another user. Thin RPC calls may violate the 2.5x
