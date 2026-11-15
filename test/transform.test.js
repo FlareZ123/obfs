@@ -132,6 +132,12 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('tracked function return passed through implicit arrow remains unchanged', () => {
+  const code='const a={"$name":907,other:908};function f(x){return x;}const b=()=>f(a);console.log(b().$name);';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('namespace import with computed exported binding preserves property names', () => {
   const files={
     'source.mjs':'export const a={secret:20};',
