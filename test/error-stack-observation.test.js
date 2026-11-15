@@ -46,6 +46,16 @@ test('private property renaming declines when stack frame coordinates are visibl
   compareStack(source);
 });
 
+test('destructured Error.stack preserves the same captured source coordinates',()=>{
+  const source="'use strict';function capture(){const significantLocal=37;const {stack}=new Error('trace');return [significantLocal,stack.match(/stack-observer\\.cjs:\\d+:\\d+/)[0]];}module.exports=capture();";
+  compareStack(source);
+});
+
+test('Reflect.get(Error,stack) preserves captured source coordinates',()=>{
+  const source="'use strict';function capture(){const significantLocal=37;const trace=Reflect.get(new Error('trace'),'stack');return [significantLocal,trace.match(/stack-observer\\.cjs:\\d+:\\d+/)[0]];}module.exports=capture();";
+  compareStack(source);
+});
+
 test('a separate file stack observer protects source coordinates throughout a file group',()=>{
   const source="export function compute(){const significantLocal=2;return significantLocal;}";
   const observer="export const recordedFrame=new Error('trace').stack;";
