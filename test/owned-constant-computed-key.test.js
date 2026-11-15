@@ -97,11 +97,11 @@ test('real three-file ESM graph rewrites exported root with own local computed k
   /** @type {{path:string,sourceType:'module',code:string}[]} */
   const source=[
     {path:'state.mjs',sourceType:'module',
-      code:'const key="secretField";export const bag={secretField:8};export const read=()=>bag[key];'},
+      code:'const key="secretField";export const bag={secretField:8};const read=()=>bag[key];export const output=read();'},
     {path:'identity.mjs',sourceType:'module',code:'export const identity=x=>x;'},
     {path:'main.mjs',sourceType:'module',
-      code:'import {bag,read} from "./state.mjs";import {identity} from "./identity.mjs";'+
-        'console.log(read(),identity(bag).secretField);'}
+      code:'import {bag,output} from "./state.mjs";import {identity} from "./identity.mjs";'+
+        'console.log(output,identity(bag).secretField);'}
   ];
   /** @param {typeof source|ReturnType<typeof obfuscateFiles>['files']} files @returns {Promise<string>} */
   async function run(files) {
