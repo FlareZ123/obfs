@@ -85,3 +85,18 @@ test('an imported identity function passed as a value is rejected',async()=>{
   await check(identity,
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const invoke=identity;const v=invoke(state);console.log(v.secretField);',0);
 });
+
+test('immutable exported arrow identity enables cross-file alias flow',async()=>{
+  await check('export const identity=x=>x;',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',1);
+});
+
+test('async exported arrow is never summarized as a synchronous alias',async()=>{
+  await check('export const identity=async x=>x;',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";identity(state).then(v=>console.log(v.secretField));',0);
+});
+
+test('arrow wrapper with a side-effect expression cannot forward ownership',async()=>{
+  await check('export const identity=x=>(Object.keys(x),x);',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',0);
+});
