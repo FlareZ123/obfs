@@ -52,9 +52,16 @@ async function summarizeCoverage(jsonl) {
 }
 
 if(require.main===module) {
-  if(process.argv.length!==3)throw new TypeError('Required: generated benchmark JSONL path');
-  summarizeCoverage(process.argv[2]).then(result=>{
+  const args=process.argv.slice(2);
+  if(args.length<1||args.length>2||args.length===2&&args[1]!=='--require-transform') {
+    throw new TypeError('Required: benchmark JSONL path [--require-transform]');
+  }
+  summarizeCoverage(args[0]).then(result=>{
     process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    // Native behavior alone cannot establish an obfuscator benchmark if the
+    // output is an unmodified copy of every source file.
+    if(args.length===2 && !result.withBindingRewrites &&
+        !result.withEncodedLiterals && !result.withPropertyRewrites)process.exitCode=1;
   }).catch(error=>{
     process.stderr.write(String(error?.stack??error)+'\n');
     process.exitCode=1;
