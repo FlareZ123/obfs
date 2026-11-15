@@ -308,13 +308,24 @@ test('closed-world refuses opaque consumers in mixed source groups',()=>{
   const exported={path:'state.mjs',code:'export const state={secret:19};'};
   for(const opaque of [
     {path:'loader.cjs',code:'import("./state.mjs").then(m=>m.state.secret);'},
-    {path:'index.html',sourceType:'asset',code:'<script type="module">import {state} from "./state.mjs"; console.log(state.secret)</script>'},
+    {path:'index.html',sourceType:'asset',code:'<script type="module" src="./state.mjs"></script>'},
     {path:'browser.js',sourceType:'script',code:'import("./state.mjs").then(m=>m.state.secret);'}
   ]) {
     const output=obfuscateFiles([exported,opaque],{mode:'coo',closedWorld:true,seed:'mixed'});
     assert.equal(output.crossFile.properties,0);
     assert.match(output.files[0].code,/secret/);
   }
+});
+
+test('closed-world inline HTML module consumer is refused as source-bearing markup',()=>{
+  const sources=[
+    {path:'state.mjs',code:'export const state={secret:19};'},
+    {path:'index.html',sourceType:'asset',
+      code:'<script type="module">import {state} from "./state.mjs"; console.log(state.secret)</script>'}
+  ];
+  assert.throws(()=>obfuscateFiles(sources,{
+    mode:'coo',closedWorld:true,seed:'mixed-asset-refusal'
+  }),/HTML asset contains inline script source/);
 });
 
 test('closed-world rejects namespace import and dynamic importing',()=>{
