@@ -4,6 +4,7 @@ const {performance}=require('node:perf_hooks');
 const native=require('../examples/branch-blocks/before/gate.cjs').gate;
 const obfuscated=require('../examples/branch-blocks/after/gate.cjs').gate;
 const masked=require('../examples/branch-blocks/after/gate-masked.cjs').gate;
+const ITERATIONS=12000000;
 
 /** @typedef {{name:string,inputs:(index:number)=>unknown}} Profile */
 /** @param {number[]} samples @returns {number} */
@@ -42,7 +43,7 @@ for(const profile of profiles){
     for(const kind of order){
       const fn=kind==='native'?native:kind==='masked'?masked:obfuscated;
       run(fn,profile,100000);
-      const outcome=run(fn,profile,1200000);
+      const outcome=run(fn,profile,ITERATIONS);
       timing[/** @type {'native'|'obfuscated'|'masked'} */(kind)].push(outcome.ms);
       if(run(native,profile,1000).checksum!==run(obfuscated,profile,1000).checksum||
           run(native,profile,1000).checksum!==run(masked,profile,1000).checksum){
@@ -53,7 +54,7 @@ for(const profile of profiles){
   const nativeMs=median(timing.native);
   const obfuscatedMs=median(timing.obfuscated);
   const maskedMs=median(timing.masked);
-  results.push({name:profile.name,node:process.version,iterations:1200000,
+  results.push({name:profile.name,node:process.version,iterations:ITERATIONS,
     nativeMedianMs:nativeMs,obfuscatedMedianMs:obfuscatedMs,
     slowdown:obfuscatedMs/nativeMs,
     withinBudget:obfuscatedMs/nativeMs<=2.5,
