@@ -5,25 +5,31 @@ const fs=require('node:fs/promises');
 const http=require('node:http');
 const path=require('node:path');
 const {execFile}=require('node:child_process');
+const {randomBytes}=require('node:crypto');
 const {promisify}=require('node:util');
 const {pathToFileURL}=require('node:url');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
-
-const ROOT=path.join(__dirname,'../examples/sco-private-const');
 
 /**
  * Real Chromium obtains an HttpOnly same-origin cookie from the test server,
  * loads the public facade as an ESM module, then calls the server-private
  * HMAC through its authenticated RPC method. The cookie is a test credential.
  * An attacker with a valid credential can still relay the protected function.
+ * @param {'sco-private-const'|'sco-private-env'} example
+ * @param {string} seed
+ * @param {boolean} allowServerEnvConstants
  * @returns {Promise<void>}
  */
-async function main(){
+async function checkVariant(example,seed,allowServerEnvConstants){
+  const ROOT=path.join(__dirname,'../examples',example);
   const source=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const result=partitionScoSelectedAsyncExports({
     path:'mixed.mjs',sourceType:'module',code:source
-  },{seed:'sco-private-const-20261115',privateNames:['protectedDigest']});
+  },{seed,privateNames:['protectedDigest'],allowServerEnvConstants});
   assert.ok(!result.clientFile.code.includes('SCO_SERVER_ONLY_HMAC'));
+  assert.ok(!result.clientFile.code.includes('OBFS_SCO_SERVER_KEY'));
+  assert.ok(!result.clientFile.code.includes('createHmac'));
+  assert.equal(result.clientFile.code,(await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n'));
   const original=await import(pathToFileURL(path.join(ROOT,'before','mixed.mjs')).href);
   const remoteMethods=bindScoModuleExports(result,original);
   const expected=await original.run('  Alpha  ');
@@ -68,11 +74,24 @@ async function main(){
     const observed=stdout.match(/<pre id="out">([^<]+)<\/pre>/u)?.[1];
     assert.equal(observed,expected+':beta',
       'Actual Chromium authenticated private-const RPC differs: '+stdout.slice(-2000));
-    console.log('Chromium SCO private module constant remained server-only; RPC matched native HMAC');
+    console.log('Chromium '+example+' kept private module source off the wire; RPC matched native HMAC');
   } finally {
     /** @type {Promise<void>} */
     const ended=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
     await ended;
+  }
+}
+
+/** @returns {Promise<void>} */
+async function main(){
+  const previous=process.env.OBFS_SCO_SERVER_KEY;
+  try{
+    process.env.OBFS_SCO_SERVER_KEY=randomBytes(32).toString('hex');
+    await checkVariant('sco-private-const','sco-private-const-20261115',false);
+    await checkVariant('sco-private-env','sco-private-env-20261115',true);
+  }finally{
+    if(previous===undefined)delete process.env.OBFS_SCO_SERVER_KEY;
+    else process.env.OBFS_SCO_SERVER_KEY=previous;
   }
 }
 
