@@ -111,3 +111,45 @@ test('reader with a default parameter is outside simple flow proof',async()=>{
   await check(exposed+'export function peek(x=state){return x.secretField;}',
     'import {state,peek} from "./state.mjs";console.log(peek(state));',0);
 });
+
+test('computed constant reader key is rewritten without changing the result',async()=>{
+  await check(exposed+'export function peek(x){return x["secret"+"Field"];}',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',1);
+});
+
+test('multiple pure property readers share one closed-world state',async()=>{
+  await check('export const state={secretField:23,otherField:47};'+
+    'export function peek(x){return x.secretField;}'+
+    'export function other(x){return x["otherField"];}',
+    'import {state,peek,other} from "./state.mjs";console.log(peek(state),other(state));',2);
+});
+
+test('imported identity return can forward state into a pure reader',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=x=>x;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'const alias=identity(state);console.log(peek(alias));'}
+  ],1);
+});
+
+test('opaque reader alias via a callback declines property rewrite',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";const apply=fn=>fn(state);console.log(apply(peek));',0);
+});
+
+test('reader invoked through Function.apply declines property rewrite',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";console.log(peek.apply(undefined,[state]));',0);
+});
+
+test('reader called with another object from an importer declines all renames',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'other.mjs',sourceType:'module',code:
+      'import {peek} from "./state.mjs";console.log(peek({secretField:77}));'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import "./other.mjs";import {state,peek} from "./state.mjs";console.log(peek(state));'}
+  ],0);
+});
