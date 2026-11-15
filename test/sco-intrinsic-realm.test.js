@@ -172,7 +172,7 @@ test('SCO private export cannot silently migrate browser-only ambient reads',()=
   const browser=vm.createContext({window:{externalBridge:{value:41}}});
   const server=vm.createContext({});
   assert.equal(vm.runInContext('window.externalBridge.value',browser),41);
-  assert.throws(()=>vm.runInContext('window.externalBridge.value',server),ReferenceError);
+  assert.throws(()=>vm.runInContext('window.externalBridge.value',server),/window is not defined/);
   for(const expression of [
     'window.externalBridge.value',
     'document.title',
