@@ -6,16 +6,17 @@ const http = require('node:http');
 const {obfuscateFiles,createSnoLauncher,createScoHandler} = require('./index');
 const {atomicWrite} = require('./atomic');
 const {safePath} = require('./core');
+const {parse,walk}=require('./ast');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[]}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[]}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[]}} */
-  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[]};
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[]}} */
+  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[]};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
     if (option === '--closed-world') {opts.closedWorld=true;continue;}
@@ -29,6 +30,7 @@ function readArgs(argv) {
     else if (option === '--host') opts.hosts.push(value);
     else if (option === '--seed') opts.seed=value;
     else if (option === '--asset') opts.publicAssets.push(value);
+    else if (option === '--client') opts.publicScripts.push(value);
     else throw new TypeError(`Unknown option ${option}`);
   }
   if (!opts.root || !opts.entry) throw new TypeError('Required: --root directory --entry relative-file');
@@ -117,9 +119,72 @@ async function assertOutputOutsideInput(root,destination) {
   }
 }
 
+/**
+ * Select only the JavaScript explicitly authorized for public delivery.
+ * Static ESM imports/reexports and literal dynamic imports are transitively
+ * included; independent classic scripts, computed dynamic imports, and files
+ * loaded by fetch() require a separate --client path.
+ *
+ * @param {SourceFile[]} files
+ * @param {string} entry
+ * @param {string[]} publicScripts
+ * @param {string[]} publicAssets
+ * @returns {SourceFile[]}
+ */
+function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
+  const byPath=new Map(files.map(file=>[file.path,file]));
+  /** @param {string} name @returns {string} */
+  function publicPath(name) {
+    if(name.startsWith('.') || name.split('/').some(part=>part.startsWith('.'))) {
+      throw new TypeError('SCO public file must not be hidden');
+    }
+    return safePath(name);
+  }
+  const assets=new Set(publicAssets.map(publicPath));
+  for(const name of assets) {
+    if(byPath.get(name)?.sourceType!=='asset')throw new Error('SCO public asset not found: '+name);
+  }
+  const scripts=new Set(publicScripts.map(publicPath));
+  for(const name of scripts) {
+    const file=byPath.get(name);
+    if(!file || file.sourceType==='asset')throw new Error('SCO client JavaScript not found: '+name);
+  }
+  const included=new Set([entry,...scripts]);
+  const queue=[...included];
+  for(let i=0;i<queue.length;i++) {
+    const filename=queue[i];
+    const file=byPath.get(filename);
+    if(!file)throw new Error('SCO client JavaScript not found: '+filename);
+    if(file.sourceType==='asset') {
+      if(!assets.has(filename))throw new Error('SCO dependency requires --asset: '+filename);
+      continue;
+    }
+    const sourceType=file.sourceType??(filename.endsWith('.mjs')?'module':'script');
+    if(sourceType!=='module')continue;
+    const ast=parse(/** @type {string} */ (file.code),'module');
+    walk(ast,node=>{
+      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration','ImportExpression'].includes(node.type) ||
+          node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
+      const specifier=node.source.value;
+      if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
+      if(/[\\%]/u.test(specifier))throw new Error('SCO encoded import path unsupported: '+specifier);
+      const clean=specifier.split(/[?#]/u,1)[0];
+      const target=path.posix.normalize(path.posix.join(path.posix.dirname(filename),clean));
+      if(target==='..'||target.startsWith('../')||!byPath.has(target)) {
+        throw new Error('SCO dependency missing from root: '+specifier);
+      }
+      if(!included.has(target)) {
+        included.add(target);
+        queue.push(target);
+      }
+    });
+  }
+  return files.filter(file=>included.has(file.path)||assets.has(file.path));
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   const absRoot = path.resolve(root);
   const sourceTree = await readSourceTree(absRoot);
@@ -131,21 +196,8 @@ async function main(mode,argv) {
       {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
-    // Source roots may also contain server-only configuration and credentials.
-    // Public assets require an explicit opt-in; shipped JS remains the caller's
-    // client-only responsibility.
-    const explicitAssets=new Set(publicAssets.map(asset=>{
-      if (asset.startsWith('.') || asset.split('/').some(part=>part.startsWith('.'))) {
-        throw new TypeError('SCO asset must not be a hidden file or directory');
-      }
-      return safePath(asset);
-    }));
-    for (const asset of explicitAssets) {
-      if (!source.some(file=>file.path===asset && file.sourceType==='asset')) {
-        throw new Error(`SCO public asset not found: ${asset}`);
-      }
-    }
-    const clientFiles=source.filter(file=>file.sourceType!=='asset' || explicitAssets.has(file.path));
+    // Server-only .js/.mjs/.cjs files under --root are private by default.
+    const clientFiles=selectScoPublicFiles(source,entry,publicScripts,publicAssets);
     const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts,closedWorld}));
     /** @type {Promise<void>} */
     const listening=new Promise(resolve=>server.listen(port,()=>resolve()));
