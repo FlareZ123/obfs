@@ -55,3 +55,12 @@ function run(n){let sum=0;for(let i=0;i<n;i++){
   const {secretField:read}=identity(state);sum+=read;
 }return sum;}
 module.exports=run;`,2);
+
+bench('single-use function factory',`function make(){return {secretField:7,otherField:5};}
+const state=make();
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
+module.exports=run;`,2);
+bench('single-use arrow factory',`const make=()=>({secretField:7,otherField:5});
+const state=make();
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
+module.exports=run;`,2);
