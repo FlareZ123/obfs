@@ -34,15 +34,16 @@ async function readJsonl(file) {
  * @param {string} input
  * @param {number} timeoutMs
  * @param {string} [stdinFile] If supplied, attach a regular-file stdin for programs that reopen /dev/stdin.
+ * @param {string} [entryFile] If supplied, execute a Node.js file with CommonJS wrapper semantics.
  * @returns {{status:number|null,stdout:string,stderr:string,timeout:boolean,nanoseconds:number}}
  */
-function runSource(source,input,timeoutMs,stdinFile) {
+function runSource(source,input,timeoutMs,stdinFile,entryFile) {
   /** @type {number|undefined} */
   let inputDescriptor;
   try {
     if(stdinFile!==undefined)inputDescriptor=fsSync.openSync(stdinFile,'r');
     const before=process.hrtime.bigint();
-    const result=spawnSync(process.execPath,['-e',source],{
+    const result=spawnSync(process.execPath,entryFile?[entryFile]:['-e',source],{
       ...(inputDescriptor===undefined ? {input}:{stdio:[inputDescriptor,'pipe','pipe']}),
       encoding:'utf8',timeout:timeoutMs,maxBuffer:1024*1024,windowsHide:true
     });
@@ -130,6 +131,17 @@ async function compareCorpus(originalFile,transformedFile,options) {
   for(const item of selected) {
     const candidate=byName.get(item.filename);
     if(!candidate)throw new Error('Lost matched row');
+    if(candidate.obfs_source_type!==undefined &&
+        !['script','commonjs'].includes(candidate.obfs_source_type)) {
+      throw new TypeError('Unknown compiled source type');
+    }
+    const commonjs=candidate.obfs_source_type==='commonjs';
+    const originalFile=path.join(tempRoot,'original.cjs');
+    const transformedFile=path.join(tempRoot,'compiled.cjs');
+    if(commonjs) {
+      await atomicWrite(originalFile,item.original);
+      await atomicWrite(transformedFile,candidate.obfuscated);
+    }
     for(let index=0;index<Math.min(options.cases,item.test_cases.length);index++) {
       const pair=item.test_cases[index];
       if(!Array.isArray(pair)||pair.length!==2||
@@ -138,7 +150,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
       }
       total++;
       await atomicWrite(stdinFile,pair[0]);
-      const original=runSource(item.original,pair[0],options.timeoutMs,stdinFile);
+      const original=runSource(item.original,pair[0],options.timeoutMs,stdinFile,commonjs?originalFile:undefined);
       if(original.timeout||original.status!==0) {
         baselineFailure++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error',
@@ -147,7 +159,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
       }
       baselinePass++;
       if(original.stdout.trim()!==pair[1].trim())baselineExpectedDisagrees++;
-      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs,stdinFile);
+      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs,stdinFile,commonjs?transformedFile:undefined);
       if(output.timeout||output.status!==0) {
         transformedErrors++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error',
@@ -168,6 +180,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
   ratios.sort((a,b)=>a-b);
   return {
     samplePrograms:selected.length,sourcePrograms:originals.length,
+    commonjsPrograms:selected.filter(item=>byName.get(item.filename)?.obfs_source_type==='commonjs').length,
     transformedPrograms:transformed.length,totalCases:total,
     baselinePass,baselineFailure,baselineExpectedDisagrees,
     transformedMatches,transformedMismatches,transformedErrors,
