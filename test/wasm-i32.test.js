@@ -84,6 +84,27 @@ test('unsafe type/effect grammar and direct source observation decline',()=>{
   }
 });
 
+test('ESM static dependency graphs decline to avoid cyclic TDZ calls',()=>{
+  const cycleSource="import {observed} from './callee.mjs';"+
+    "export {observed};export function f(x){return x^1;}";
+  const out=lowerWasmI32Functions(cycleSource,'module',{
+    seed:'esm-cycle',names:['f']
+  });
+  assert.equal(out.functions,0);
+  assert.equal(out.declined,1);
+  assert.equal(out.code,cycleSource);
+  const published=obfuscateFiles([
+    {path:'owner.mjs',sourceType:'module',code:cycleSource},
+    {path:'callee.mjs',sourceType:'module',
+      code:"import {f} from './owner.mjs';export const observed=f(42);"}
+  ],{
+    mode:'coo',seed:'cyclic-graph',strings:false,properties:false,identifiers:false,
+    experimentalWasmI32:{'owner.mjs':['f']}
+  });
+  assert.equal(published.files[0].metrics.wasmI32Functions,0);
+  assert.equal(published.files[0].code,cycleSource);
+});
+
 test('COO/SNO selection, CLI parsing and top-level call preserve results',async()=>{
   const cjs='"use strict";\nfunction f(x){return x^175;}const answer=f(5);module.exports=answer;';
   const out=lowerWasmI32Functions(cjs,'commonjs',{seed:'init-before-call',names:['f']});
