@@ -569,7 +569,8 @@ function observesFunctionSource(ast) {
       // A plain assignment overwrites the property without reading or
       // invoking its previous value. Preserve the source-observation guard
       // for calls, reads, compound writes, and other receiver uses.
-      if((name==='toString'||name==='toSource' ||
+      if(((name==='toString'||name==='toSource') &&
+            !isDefinitelyPrimitive(node.object) ||
           name==='toLocaleString'&&isFunctionValue(node.object)) &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
