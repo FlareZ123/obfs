@@ -22,6 +22,6 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Cross-file differential and negative cases
-        run: node --test test/cross-file-reader-flow.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js
+        run: node --test test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js
       - name: Strict JSDoc type safety
         run: npm run typecheck
