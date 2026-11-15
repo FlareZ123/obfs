@@ -12,6 +12,7 @@ const {learnMachine,learnedTrace,privateTrace}=require('./sco-stateful-oracle');
 
 /** @typedef {{next:number[][],output:number[][]}} PrivateMachine */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
+/** @typedef {{next:number[][],output:number[][],access:number[][]}} LearnedMachine */
 
 /**
  * Construct a deterministic four-state Mealy machine with no reset method.
@@ -45,7 +46,7 @@ function makeSynchronizingMachine(seed) {
  *
  * @param {StepOnlyOracle} api
  * @param {readonly number[]} synchronizingWord
- * @returns {Promise<{machine:import('./sco-stateful-oracle').LearnedMachine,
+ * @returns {Promise<{machine:LearnedMachine,
  *   rpcSteps:number,logicalRequests:number,resetCalls:number,elapsedMs:number}>}
  */
 async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
