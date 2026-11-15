@@ -291,6 +291,15 @@ function observesFunctionSource(ast) {
           ['get','set','has','deleteProperty','defineProperty','getOwnPropertyDescriptor',
             'hasOwn'].includes(memberName(callee)??'') &&
           hasFunctionKey(node.arguments[1])) observed=true;
+      // Obtaining an inherited or own Function.prototype.toString method
+      // through Reflect.get/descriptor APIs exposes native source inspection
+      // without any syntactic member access named "toString".
+      if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
+          ['Reflect','Object'].includes(callee.object.name) &&
+          ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') &&
+          node.arguments.length>=2 &&
+          ['toString','toSource','toLocaleString'].includes(
+            staticString(node.arguments[1])??'')) observed=true;
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
