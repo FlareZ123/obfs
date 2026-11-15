@@ -4,7 +4,8 @@
     "sims/sco-stateful-oracle.js",
     "sims/sco-synchronizing-oracle.js",
     "sims/sco-sync-search.js",
-    "sims/sco-discovered-oracle-run.js"
+    "sims/sco-discovered-oracle-run.js",
+    "sims/sco-sync-search-falsification.js"
   ],
   "exclude": [
     "node_modules"
