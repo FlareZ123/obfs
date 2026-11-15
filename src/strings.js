@@ -45,7 +45,7 @@ function encodeStrings(source, ast, options) {
   // ESM dependencies evaluate before this module's body. In an import cycle,
   // a dependency can call a hoisted function declaration before the decoder
   // array's top-level initializer executes. Preserve such literals verbatim.
-  const hasEagerDependencies = ast.sourceType === 'module' && ast.body.some(statement =>
+  const hasEagerDependencies = ast.sourceType === 'module' && (/** @type {AstNode[]} */ (ast.body)).some(statement =>
     statement.type === 'ImportDeclaration' || statement.type === 'ExportAllDeclaration' ||
     statement.type === 'ExportNamedDeclaration' && statement.source);
   walk(ast, (node, parent, key, ancestors) => {
