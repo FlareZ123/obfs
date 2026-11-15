@@ -12,12 +12,12 @@ Designed a self-contained, dependency-free Node 22 HTTPS/1.1 TLS-1.3 experiment,
 
 Key observation: 1k-round fresh TLS / 0ms case exceeded 2.5× in both runs; 100ms delay with 20k rounds also exceeded; 100k rounds met 2.5× in these local tests. This is a scoped performance finding, not new general security or a realistic WAN benchmark.
 
-## Next useful actions
+## Next useful actions (revised after cross-platform/browser evidence)
 
-1. Verify reproducibility on independent GitHub Actions Linux/Windows Node 22 with captured raw JSON, preferably via an existing manual workflow rather than adding CI clutter.
-2. Integrate the actual compiler-generated SCO RPC facade with HTTPS and browser; measure origin/authorization constraints with real physical network RTT and process separation.
-3. In the threat model of unlimited legitimate queries, challenge the same TLS service with an attacker credential-bearing online relay; do not claim increased cloning resistance from TLS.
-4. If strict JSDoc is added for this simulation, include it in a targeted jsconfig and address any inferencing errors without changing semantic checks.
+1. Test a genuinely independent **physical WAN origin** with normal publicly trusted PKI and a separate client machine. Distinguish real geographic RTT from this experiment's injected server wait, quantify concurrent sessions, separate cold TLS+server initialization from repeatedly used operations, and enforce the project's whole-session 2.5× budget.
+2. Perform active **hostile Chromium instrumentation** against the actual generated facade under realistic CSP, with authorized user sessions. The current test proves the method ID and output can be observed in a test-modified HTML page, and the Node proxy clone reproduces 32/32 outputs. Do not claim anti-relay or anti-debugging without a hostile browser experiment.
+3. Benchmark representative multi-module mixed local/remote SCO programs with per-operation batching and measured output parity across browsers/Node, Windows/Linux, and real remote networking. Current HMAC-only test workloads are deliberately narrow.
+4. Improve COO and SNO within the full-control threat assumptions only with measurable, independent attacker time-to-reconstruction evidence. Coordinate with active property-analysis and VM agents before duplicating their work. Never describe server-only key confidentiality as an available COO/SNO property.
 
 Known local limitation: repo cloning failed because container DNS access to github.com is disabled; GitHub connector was used for persistent uploads. Source script itself was run twice in the local container with Node v22.16.0. The full repository test suite was not run locally, and these simulator files do not affect production transforms.
 
