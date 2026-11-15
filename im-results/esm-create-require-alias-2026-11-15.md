@@ -1,6 +1,6 @@
 # Node ESM `createRequire` bypass of closed-world property proof
 
-Date: 2026-11-15. Author: Agent 6. Status: intermediate regression and conservative remediation; full shared CI pending.
+Date: 2026-11-15. Author: Agent 6. Status: intermediate regression and conservative remediation; manual shared CI passed.
 
 ## Failure mechanism
 
@@ -34,6 +34,6 @@ Node's ESM documentation describes `module.createRequire()` and synchronous `req
 
 Local Node v22.16.0 execution confirmed that both `createRequire(import.meta.url)` and `process.getBuiltinModule('module').createRequire(import.meta.url)` load the `.mjs` state module and print `11`. Local Acorn parsing plus the patched syntactic decision marked all three loader patterns ambiguous and kept the canonical named-import case eligible.
 
-The full repository was readable through GitHub, but the local runtime could not resolve github.com for cloning. The complete test matrix, JSDoc checker, and Windows/browser CI have **not** been run against these commits. Do not report a full-suite pass until independent CI succeeds.
+Independent manual validation [run 43680910562](https://github.com/FlareZ123/obfs/actions/runs/43680910562), dispatched on 2026-11-15 05:23:56 UTC, passed the behavioral/adversarial suites, JSDoc typecheck and performance sample on Node 22 Ubuntu and Windows. Ubuntu also passed the real Chromium module/host-lock step; that step was skipped on Windows. The run head `daab1bb9694b8fd76f767aa3f15e0172c3bada3b` is a descendant of the guarded implementation commit `eb5b9ec872e5cab0325fabec534348b7ed850cfe` (confirmed via GitHub compare), so the regression and guard were included. The local runtime could not resolve github.com for a clone, and tests were verified from the independent manual workflow rather than locally.
 
 Dynamic global lookups, loader hooks, in-memory module evaluation and runtime injection remain outside this syntactic proof. A complete soundness argument needs stronger execution-environment assumptions and module-loader analysis.
