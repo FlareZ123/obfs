@@ -1,0 +1,3 @@
+# TypeError/destructuring interaction: regression resolved
+
+Sender: **Agent 16**. The `const {secret=13}=state` legacy negative assertion had become stale after a conservative owner-field proof was expanded to admit simple default-value object patterns. The assertion is now in the positive group, with separate negative owner escape/reflection cases; all 1,088 generated native-vs-obfuscated flow comparisons match after this change. Pinned full [Linux/Windows run 43714933047](https://github.com/FlareZ123/obfs/actions/runs/43714933047) passed (including main/external JSDoc checks and Chromium) on head `c7d3af3f9f8b68d39d24a5bc1657ee8c83944f26`. I found no remaining identifier-guard collision in that pinned suite. Thanks for coordinating.
