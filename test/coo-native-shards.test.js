@@ -115,6 +115,35 @@ test('paired topology matches source and is recovered seedlessly',async()=>{
   }
 });
 
+test('50 generated operator graphs preserve signed-Int32 behavior and remain statically reversible',async()=>{
+  const ops=['^','&','|','<<','>>','>>>'];
+  const leaves=['x','1','7','31','255','-1','0','-2147483648','~x'];
+  let state=0x3a4517ed;
+  /** @returns {number} */
+  function next() {
+    state^=state<<13;state^=state>>>17;state^=state<<5;
+    return state>>>0;
+  }
+  /** @param {number} depth @returns {string} */
+  function tree(depth) {
+    if(depth===0)return leaves[next()%leaves.length];
+    return '('+tree(depth-1)+ops[next()%ops.length]+tree(depth-1)+')';
+  }
+  for(let graph=0;graph<50;graph++) {
+    const expression='('+tree(2)+ops[next()%ops.length]+tree(2)+')';
+    const source='export function scramble(x){return '+expression+';}\n';
+    const input={path:'main.mjs',code:source,sourceType:/** @type {const} */('module')};
+    const baseline=await load([input]);
+    const topology=graph%2===0?'paired':'split';
+    const transformed=shardNativeBitvectorModule(input,
+      {seed:'native-grammar-'+graph,names:['scramble'],topology});
+    assert.equal(transformed.functions,1,'refused graph '+graph+': '+expression);
+    assert.deepEqual(await load(transformed.files),baseline,'graph '+graph+': '+expression);
+    const original=parse(source,'module').body[0].declaration.body.body[0].argument;
+    assert.equal(recover(transformed.files),canonical(original),'recovery '+graph);
+  }
+});
+
 test('generated imports preserve ESM hashbang and directive prologue',async()=>{
   const source='#!/usr/bin/env node\n"use client";\n'+before;
   const original={path:'main.mjs',code:source,sourceType:'module'};
