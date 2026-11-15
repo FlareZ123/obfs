@@ -57,8 +57,29 @@ passed the expanded attack and real Chromium fixture at source commit
 - **Dynamic tracing:** a hostile browser or Node owner can intercept WebAssembly module construction, inspect exports, and instrument the wrapper. The compiler does not attempt to defeat an adversary owning the runtime.
 - **Tamper resistance:** no trusted signature, external attestation, or cryptographic integrity check is introduced. An attacker who can edit the output may modify the embedded bytes or replace the export.
 - **Authorized execution:** no domain, URL, or trustworthy execution restriction is added; existing COO host checks and SNO launcher hashes have only their previously documented limited guarantees.
-- **Behavioral compatibility:** the caller must prove the parameter is a primitive signed Int32 Number; `x ^ 1` on other JS inputs can differ from Wasm parameter conversion, and dynamically patched Wasm intrinsics or strict CSP may break the wrapper. External source observations, stack formatting, top-level cyclical ESM import calls, missing WebAssembly, and arbitrary JS input types are outside the proven contract. The grammar declines side effects, calls, property access, mutable closures, BigInt arithmetic, or general JavaScript operator coercions.
-- **Performance:** selected steady-state hot work met 2.5× on the pinned Ubuntu, Windows, and Chromium samples, with unamortized initialization and other workloads unproved.
+- **Behavioral compatibility:** the caller must prove the parameter is a primitive signed Int32 Number; `x ^ 1` on other JS inputs can differ from Wasm parameter conversion, and dynamically patched Wasm intrinsics or strict CSP may break the wrapper. External source observations, stack formatting, missing WebAssembly, and arbitrary JS input types are outside the proven contract. A two-module cyclic ESM graph is now covered by an explicit hoisted-initializer regression, with broader ESM linking and runtime environments unproved. The grammar declines side effects, calls, property access, mutable closures, BigInt arithmetic, or general JavaScript operator coercions.
+- **Performance:** selected steady-state hot work met 2.5× on the pinned Ubuntu, Windows, and Chromium samples, with unamortized initialization and other workloads unproved. A separate pinned whole-session counterexample above exceeds 2.5× for many small invocation counts.
+
+## Pinned cold-to-hot crossover: budget counterexample
+
+An additional self-contained experiment [sims/wasm-i32-cold-counterexample.js](../sims/wasm-i32-cold-counterexample.js) initializes a fresh CommonJS-style module and immediately invokes its protected function a selected number of times. The JavaScript wrappers are precompiled outside the timed interval, so the experiment isolates module execution/initialization plus signed-Int32 computations; it is a bounded startup-cost experiment rather than a full browser download/parse workload. It alternates 101 paired measurements for each call count after 20 correctness-checked warmups.
+
+The [green Windows/Linux run 43744533933](https://github.com/FlareZ123/obfs/actions/runs/43744533933), pinned to commit `e76b1fd1e34a69df442f9bfe99ee4f0a0cd7879a`, measured:
+
+| Calls in one module lifetime | Ubuntu total ratio | Windows total ratio | Within 2.5× on both? |
+|---:|---:|---:|:---:|
+| 1 | 15.691× | 30.000× | No |
+| 16 | 6.064× | 11.750× | No |
+| 1,024 | 14.059× | 21.848× | No |
+| 8,192 | 3.617× | 4.905× | No |
+| 65,536 | 2.156× | 2.608× | No |
+| 150,000 | 2.007× | 2.347× | Yes |
+
+These readings include initialization and reveal a concrete failure of the 2.5× budget for short-lived COO use; ratios for tiny microsecond-scale originals are sensitive to host clock resolution, JIT tiering and local CPU state, so the experiment is a counterexample rather than a portable threshold guarantee. On the Windows runner, 65,536 calls still exceeded 2.5×. An automatic compile-time decision based only on AST size cannot guarantee an application-level runtime ratio.
+
+### Cyclic ESM module initialization
+
+A separate agent found and repaired a genuine cyclic-import compatibility bug. The old ESM wrapper called an eager generated top-level const, which could still be in TDZ when a cyclic importer calls the hoisted exported function. Agent 23's [two-module witness and repair](wasm-i32-esm-cycle-2026-11-15.md) replaces the ESM const with a hoisted, self-replacing function initializer. Early calls compile on demand, and later calls use the cached Wasm export. CommonJS retains eager initialization and the pinned before/after file remains unchanged. Agent 23's real native Node cyclic-import fixture was included in [the green run 43744533933](https://github.com/FlareZ123/obfs/actions/runs/43744533933) alongside the source-only reconstruction attacker, strict JSDoc checks, and real Chromium ESM host API. As usual, the ESM first-call compilation cost remains part of the COO budget.
 
 ## Decision and next steps
 
