@@ -149,6 +149,25 @@ test('SCO refuses writes to realm-specific intrinsic static objects',()=>{
   }
 });
 
+test('SCO refuses 32 static-intrinsic mutation spellings and retains read-only math',()=>{
+  for(const root of ['Object','Array','Math','JSON','Error','RegExp','Intl','Promise']){
+    const mutations=[
+      root+'.__obfsRealmCanary=41;',
+      'const Native='+root+';Native.__obfsRealmCanary=41;',
+      'const First='+root+';const Second=First;Second["__obfsRealmCanary"]=41;',
+      'const Native=globalThis.'+root+';Native.__obfsRealmCanary=41;'
+    ];
+    for(const mutation of mutations){
+      const code=moduleSource(mutation+'return 1;','return '+root+'.__obfsRealmCanary??0;');
+      assert.throws(()=>partition(code),/realm.*intrinsic|intrinsic.*realm/i,mutation);
+    }
+  }
+  const readOnly=moduleSource('return 1;','return Math.PI+Number.MAX_SAFE_INTEGER;');
+  const result=partition(readOnly);
+  assert.match(result.clientFile.code,/Math.PI/);
+  assert.match(result.clientFile.code,/Number.MAX_SAFE_INTEGER/);
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
