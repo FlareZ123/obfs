@@ -47,8 +47,8 @@ function isServerEnvironmentRead(expression){
  * must consist only of direct named function exports or single-function const
  * exports, plus unexported primitive-literal const declarations referenced
  * only by private functions. An explicit opt-in additionally admits direct
- * process.env uppercase-key reads on the trusted server, refusing any public
- * process access. Imports, reexports, public data exports,
+ * process.env uppercase-key reads on the trusted server, refusing public
+ * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
  *
  * This deliberate limited contract keeps private bodies off the client while
