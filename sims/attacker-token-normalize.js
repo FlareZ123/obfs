@@ -52,7 +52,7 @@ function normalizeDistributedFiles(files) {
     const edits=[];
     for(const token of tokens) {
       if(token.type!==acorn.tokTypes.name && token.type!==acorn.tokTypes.string)continue;
-      const value=token.value;
+      const value='value' in token ? token.value : undefined;
       if(typeof value!=='string')continue;
       const next=replacement(value);
       if(next===null)continue;
