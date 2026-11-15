@@ -31,3 +31,13 @@ test('independent normalizer leaves unknown identifiers and other literals alone
   assert.equal(result.properties,0);
   assert.equal(result.variables,0);
 });
+
+test('alternate checker hashes normalize without reading compiler internals',()=>{
+  const code='const _$0123456789abcd={other:1};module.exports=_$0123456789abcd.other;';
+  const result=normalizeDistributedFiles([{path:'alt.cjs',sourceType:'commonjs',code}]);
+  assert.equal(result.properties,1);
+  assert.match(result.files[0].code,/plainField0/);
+  const context={module:{exports:null}};
+  vm.runInNewContext(result.files[0].code,context,{timeout:2000});
+  assert.equal(context.module.exports,1);
+});
