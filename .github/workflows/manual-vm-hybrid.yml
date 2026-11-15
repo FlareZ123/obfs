@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared dependencies
-        run: npm ci
+        run: npm install --no-package-lock --ignore-scripts
       - name: Differential proof-subset VM tests
         run: node --test test/vm-immediate-lowering.test.js
       - name: Measure pure numeric VM hot and cold ratios
