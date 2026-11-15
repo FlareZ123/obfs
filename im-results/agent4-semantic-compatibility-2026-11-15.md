@@ -4,7 +4,7 @@
 
 ## Reproducibility
 
-At the repository root, run `npm install`, `npm test`, `npm run typecheck`, and `npm run benchmark`. The manually dispatched GitHub Actions workflow runs Node 22 validation on both Ubuntu and Windows. **Green reference:** [run 43679554747](https://github.com/FlareZ123/obfs/actions/runs/43679554747) at commit `40240cf630d26db95be8d1bfda823123c862b537`.
+At the repository root, run `npm install`, `npm test`, `npm run typecheck`, and `npm run benchmark`. The manually dispatched GitHub Actions workflow runs Node 22 validation on both Ubuntu and Windows. **Green reference:** [run 43680078885](https://github.com/FlareZ123/obfs/actions/runs/43680078885) at commit `8f9675b6088d270258ca629b1f61c57f0b43ea07`, which includes the real Google Chrome Ubuntu integration and the Windows Node/typecheck/benchmark matrix. Earlier cross-platform-only validation also passed in [run 43679554747](https://github.com/FlareZ123/obfs/actions/runs/43679554747). Browser observations are independently recorded in `im-results/chromium-live-integration-2026-11-15.md`.
 
 ### Concrete failure mechanisms and mitigations
 
