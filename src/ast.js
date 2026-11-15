@@ -317,6 +317,93 @@ function observesFunctionSource(ast) {
       }
     });
   }while(changed);
+  // A template substitution may preserve a function's native source, but
+  // expressions proven primitive cannot contain a function object. Only
+  // uniquely declared, immutable const bindings are followed. Names with
+  // shadowed declarations or dynamic scope must remain unproved.
+  /** @type {Map<string,number>} */
+  const bindingCounts=new Map();
+  /** @type {Map<string,AstNode>} */
+  const primitiveCandidates=new Map();
+  /** @param {AstNode|null|undefined} pattern @returns {void} */
+  function recordPattern(pattern) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier') {
+      bindingCounts.set(pattern.name,(bindingCounts.get(pattern.name)??0)+1);
+    } else if(pattern.type==='RestElement'||pattern.type==='AssignmentPattern') {
+      recordPattern(pattern.argument??pattern.left);
+    } else if(pattern.type==='ArrayPattern') {
+      for(const value of pattern.elements)recordPattern(value);
+    } else if(pattern.type==='ObjectPattern') {
+      for(const value of pattern.properties) {
+        recordPattern(value.type==='RestElement'?value.argument:value.value);
+      }
+    }
+  }
+  let dynamicScope=false;
+  walk(ast,node=>{
+    if(node.type==='WithStatement' ||
+       node.type==='Identifier' && node.name==='eval')dynamicScope=true;
+    if(node.type==='VariableDeclarator')recordPattern(node.id);
+    if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+       node.type==='ArrowFunctionExpression') {
+      recordPattern(node.id);
+      for(const param of node.params)recordPattern(param);
+    }
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression')recordPattern(node.id);
+    if(node.type==='CatchClause')recordPattern(node.param);
+    if(node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier'||
+       node.type==='ImportNamespaceSpecifier')recordPattern(node.local);
+    if(node.type==='VariableDeclaration'&&node.kind==='const') {
+      for(const declaration of node.declarations) {
+        if(declaration.id.type==='Identifier'&&declaration.init) {
+          primitiveCandidates.set(declaration.id.name,declaration.init);
+        }
+      }
+    }
+  });
+  const primitives=new Set();
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isDefinitelyPrimitive(node,depth=0) {
+    if(!node||depth>32)return false;
+    if(node.type==='Literal')return node.regex===undefined &&
+      (node.value===null||['string','number','boolean','bigint'].includes(typeof node.value));
+    if(node.type==='Identifier')return primitives.has(node.name);
+    if(node.type==='TemplateLiteral')return node.expressions.every(
+      (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
+    if(node.type==='UnaryExpression') {
+      return ['!','~','+','-','typeof','void'].includes(node.operator) &&
+        isDefinitelyPrimitive(node.argument,depth+1);
+    }
+    if(node.type==='BinaryExpression') {
+      return !['in','instanceof'].includes(node.operator) &&
+        isDefinitelyPrimitive(node.left,depth+1)&&
+        isDefinitelyPrimitive(node.right,depth+1);
+    }
+    if(node.type==='LogicalExpression')return isDefinitelyPrimitive(node.left,depth+1)&&
+      isDefinitelyPrimitive(node.right,depth+1);
+    if(node.type==='ConditionalExpression') {
+      return isDefinitelyPrimitive(node.test,depth+1)&&
+        isDefinitelyPrimitive(node.consequent,depth+1)&&
+        isDefinitelyPrimitive(node.alternate,depth+1);
+    }
+    if(node.type==='SequenceExpression')return node.expressions.every(
+      (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
+    return false;
+  }
+  if(!dynamicScope) {
+    let progress;
+    do {
+      progress=false;
+      for(const [name,initial] of primitiveCandidates) {
+        if(bindingCounts.get(name)!==1||primitives.has(name))continue;
+        if(isDefinitelyPrimitive(initial)) {
+          primitives.add(name);
+          progress=true;
+        }
+      }
+    } while(progress);
+  }
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -337,10 +424,10 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='BinaryExpression' && node.operator==='in' &&
        hasFunctionKey(node.left))observed=true;
-    // Template interpolation coerces values to strings, including functions.
-    // Literal-prefix concatenation can do the same without an explicit call
-    // to Function#toString. Decline source-spelling transforms conservatively.
-    if(node.type==='TemplateLiteral' && node.expressions.length) observed=true;
+    // Decline only interpolations whose primitive value cannot be proved.
+    // An unknown or function-valued substitution may expose source text.
+    if(node.type==='TemplateLiteral' && node.expressions.some(
+      (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))observed=true;
     // Abstract Equality and relational comparisons call ToPrimitive on a
     // function operand when compared against a primitive. The resulting
     // native source text can be compared without an explicit String() call.
