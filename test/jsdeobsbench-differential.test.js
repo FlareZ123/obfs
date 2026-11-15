@@ -57,6 +57,18 @@ test('regular file input lets Linux CodeNet programs reopen /dev/stdin',async t=
   }
 });
 
+test('paired V8 random seed reproduces intrinsic Math.random without global monkeypatching',()=>{
+  const program='console.log(Math.random().toFixed(12))';
+  const first=runSource(program,'',3000,undefined,undefined,90210);
+  const second=runSource(program,'',3000,undefined,undefined,90210);
+  const other=runSource(program,'',3000,undefined,undefined,90211);
+  assert.equal(first.status,0,first.stderr);
+  assert.equal(second.status,0,second.stderr);
+  assert.equal(other.status,0,other.stderr);
+  assert.equal(first.stdout,second.stdout);
+  assert.notEqual(first.stdout,other.stdout);
+});
+
 test('parser requires valid explicit paths and bounds',()=>{
   assert.throws(()=>parseArgs(['--original','a']),/Missing/);
   assert.throws(()=>parseArgs(['--original','a','--transformed','b','--sample','-2']),/numeric/);
