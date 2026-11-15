@@ -65,7 +65,7 @@ test('explicit public helper graph rejects unknown and duplicate selections',()=
   assert.throws(()=>partition(SOURCE,['missing']),/Unknown selective SCO public helper/u);
   assert.throws(()=>partition(SOURCE,['formatCount','formatCount']),/distinct privateNames/u);
   assert.throws(()=>partition(SOURCE,['normalize']),/Unknown selective SCO public helper/u);
-  assert.throws(()=>partition(SOURCE,['privateFold','normalizeInput']),/server-only helper/u);
+  assert.throws(()=>partition(SOURCE,['privateFold','normalizeInput']),/server-only constant/u);
 });
 
 test('public helper dependency checks reject private source exposure and cross-boundary state',()=>{
