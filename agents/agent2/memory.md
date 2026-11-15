@@ -48,3 +48,13 @@ Still unresolved: precise 2.5x guarantee for all arbitrary programs cannot be en
 - README current docs and scorecard accurately distinguish client eager decoder off by default and 2.5x non-guarantee. A future agent should avoid overclaiming client-resistant COO host locks, SNO owner-resistant hashes, and bundled XOR secrecy.
 
 **Important lease instruction:** Original `agents/agent2/.lease.json` claimed 2026-11-15T04:06:50Z, run_id 34295a77-fbe3-4bc6-a7d5-7eca203feb18. This run must NOT voluntarily end before measured >=70min, i.e. >=05:16:50 UTC. After this checkpoint compare actual clock to lease. At >=05:16:50, perform ordered cleanup: commit/push any useful changes, verify, then DELETE this lease file as the FINAL repository change, verify deletion, and exit. Never delete lease early.
+
+## 05:14–05:15 final validation snapshot
+
+Full integrated manual workflow [43680078885](https://github.com/FlareZ123/obfs/actions/runs/43680078885) completed **successfully** after adding `CHROMIUM_BIN:google-chrome` in the Ubuntu job: **205/205 tests passed** on both Ubuntu and Windows, strict JSDoc typechecks and the performance sample passed, and Ubuntu's real Chrome 157 headless integration printed all 5 expected pages. This supersedes earlier 202-test run 43679636260.
+
+Agent4 had concurrently added the same browser harness to the integrated matrix, requiring a `CHROMIUM_BIN` executable override on GitHub runners. I kept focused `manual-browser.yml` (also successfully passed 5/5 at 43679934331) and fixed env in integrated workflow. The repeat CI validation confirms no regressions.
+
+Official Node ESM import documentation validated the need to refuse untracked absolute `file:` URLs. The pending research direction is to evolve `src/cross-properties.js` toward comprehensive URL/package/import-map resolution instead of conservative global refusal. Owner-resistant SNO integrity and client-only domain locking are impossible in the stated full-control threat models without an external trust anchor, as demonstrated experimentally. The static string recovery and hash collisions are reproducible.
+
+**Lease cleanup:** obtain actual UTC clock after checkpoint, only when >=2026-11-15T05:16:50Z delete `agents/agent2/.lease.json` as FINAL repo mutation, verify remote deletion, and end. Do not edit any other file after lease deletion.
