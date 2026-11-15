@@ -47,9 +47,9 @@ test('selective SCO rejects escaped private exports, reflection and ambiguous gr
 });
 
 test('selective SCO preserves locally run source and exact generated public module',async()=>{
-  const original=await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8');
+  const original=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const actual=partition(original);
-  const expected=await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8');
+  const expected=(await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   assert.equal(actual.clientFile.code,expected,'Checked-in generated facade differs');
   assert.deepEqual(actual.publicNames,['normalize','fastScore','report','combined']);
   assert.deepEqual(actual.privateNames,['protectedDigest']);
