@@ -26,7 +26,7 @@ The first cross-platform full validation for the base reader proof was [run 4372
 
 The subsequent [full run 43726043120](https://github.com/FlareZ123/obfs/actions/runs/43726043120), exact source `bda9f5ded933834095f56ccbd1f83c6faf30333c`, passed **842/843 tests with one skip on both Ubuntu and Windows**, both strict JSDoc checkers, sampled performance, and Chromium integration on Linux. Its additional isolated interprocedural-reader benchmark compiled a CJS numeric loop with two renamed own keys and timed the original and transformed `run(1_000_000)` after 15 equivalence probes and nine timed samples. Median runtime ratios were **1.002× Ubuntu** (0.82 ms each, rounded) and **1.026× Windows** (0.62 vs 0.63 ms, rounded). These pass the required 2.5× bound *for that workload*; they do not establish a universal performance guarantee.
 
-The newer nested **cross-file** extension and ESM cases were committed after this second run. Do not apply the above green result to them without a matching pinned CI run.
+The newer nested **cross-file** extension and five new positive/negative ESM graph cases passed the [full run 43726429542](https://github.com/FlareZ123/obfs/actions/runs/43726429542), exact commit `70ee8057e2b4aee5965d8321474ea0ee02d54007`. Both Node 22 matrix jobs completed **847/848 tests with one skip**, both strict JSDoc checks and performance samples; Ubuntu's live Chromium integration also passed. The hot local reader ratio was **0.999× on both Ubuntu and Windows** for that pinned run (rounded benchmark medians 0.63 ms/0.63 ms and 0.62 ms/0.62 ms respectively). This is compatibility and sampled runtime evidence for the cross-file extension, with no static security inference.
 
 ## Independent security dimensions
 
