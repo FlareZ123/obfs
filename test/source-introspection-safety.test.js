@@ -212,11 +212,11 @@ test('cross-file pure reader respects indirect native function-source reflection
   /** @type {{path:string,sourceType:'module',code:string}[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'export const state={secretField:23};export function peek(x){return x.secretField;}'},
+      'export const state={secretField:23};export function show(){return state.secretField;}'},
     {path:'entry.mjs',sourceType:'module',code:
-      'import {state,peek} from "./state.mjs";'+
+      'import {state,show} from "./state.mjs";'+
       'const stringify=Reflect.get(Object.getPrototypeOf(()=>{}),"toString");'+
-      'console.log(stringify.call(peek).includes("secretField"),peek(state));'}
+      'console.log(stringify.call(show).includes("secretField"),show());'}
   ];
   try {
     /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
