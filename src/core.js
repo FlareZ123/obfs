@@ -77,6 +77,7 @@ function mutatesStringIntrinsic(ast) {
   // file's eager decoder initializes; the whole group must then opt out.
   const globalNames=new Set(['globalThis','window','self','global']);
   const stringNames=new Set(['String']);
+  const prototypeNames=new Set();
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function memberName(node) {
     if (node.type!=='MemberExpression') return null;
@@ -102,6 +103,19 @@ function mutatesStringIntrinsic(ast) {
     }
     return false;
   }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isStringPrototype(node) {
+    if(node.type==='Identifier')return prototypeNames.has(node.name);
+    if(node.type==='MemberExpression')return isStringValue(node.object) &&
+      (memberName(node)==='prototype'||memberName(node)===null);
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       node.callee.object.type==='Identifier' &&
+       ['Object','Reflect'].includes(node.callee.object.name) &&
+       memberName(node.callee)==='getPrototypeOf' &&
+       node.arguments[0]?.type==='Literal' &&
+       typeof node.arguments[0].value==='string')return true;
+    return false;
+  }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
   // positive, which is safer than assuming a potentially mutable alias is pure.
@@ -117,25 +131,29 @@ function mutatesStringIntrinsic(ast) {
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
-        } else if(node.id.type==='ObjectPattern' && isGlobal(node.init)) {
+          if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
+        } else if(node.id.type==='ObjectPattern' &&
+                  (isGlobal(node.init)||isStringValue(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
             const name=property.key.type==='Identifier' ? property.key.name :
               property.key.type==='Literal' ? property.key.value : null;
-            if(name==='String')add(stringNames,property.value.name);
+            if(name==='String'&&isGlobal(node.init))add(stringNames,property.value.name);
+            if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
           }
         }
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
+        if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
       }
     });
   } while(discovered);
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
-    if(node.type==='Identifier')return stringNames.has(node.name);
+    if(node.type==='Identifier')return stringNames.has(node.name)||prototypeNames.has(node.name);
     if(node.type!=='MemberExpression')return false;
     return isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) ||
       touchesString(node.object);
