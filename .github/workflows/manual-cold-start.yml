@@ -19,3 +19,5 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Sample COO startup cost
         run: node sims/cold-start.js
+      - name: Compare UTF-16 decoder strategies
+        run: node sims/decoder-candidates.js
