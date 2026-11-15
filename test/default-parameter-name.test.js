@@ -43,12 +43,12 @@ test('default async arrow parameter preserves its identifier name',()=>{
 
 test('primitive default parameter remains behaviorally correct',()=>{
   compare(`'use strict';function run(value=17){return value+1;}
-    module.exports=run();`,0);
+    module.exports=run();`,1);
 });
 
 test('explicitly named default function does not require name inference',()=>{
   compare(`'use strict';function run(callback=function declared(){}){return callback.name;}
-    module.exports=run();`,0);
+    module.exports=run();`,1);
 });
 
 test('simple parameter without defaults remains eligible for local mangling',()=>{
