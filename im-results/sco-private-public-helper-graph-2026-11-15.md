@@ -3,7 +3,7 @@
 ## Status and directly reproducible implementation
 
 Intermediate implementation result. The trusted-server SCO module partitioner now accepts
-unexported, synchronous, parameter-simple function declarations and immutable
+unexported, parameter-simple non-generator function declarations (including async) and immutable
 function/arrow `const` declarations. It has an explicit
 `publicHelperNames` allowlist for helpers retained on the client; unlisted
 helpers and the selected asynchronous private export implementation stay on
