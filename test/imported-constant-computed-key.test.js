@@ -118,3 +118,28 @@ test('opaque imported function key continues to refuse private-field renaming',a
     'import {bag,key} from "./state.mjs";console.log(bag.secretField,({})[key]);'
   ),0);
 });
+
+test('ESM cycle reads proven imported key after owner initialization',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const key="secretField";'+
+      'export const bag={secretField:8};console.log("cycle",probe());',
+    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+  ),1);
+});
+
+test('ESM cycle owner-first and key-later order remains refused',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const bag={secretField:8};'+
+      'export const key="secretField";console.log("cycle",probe());',
+    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+  ),0);
+});
+
+test('ESM cycle TDZ before owner initialization keeps exception semantics',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const key="secretField";'+
+      'try{console.log(probe());}catch(error){console.log(error.name);}'+
+      'export const bag={secretField:8};console.log(probe());',
+    'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
+  ),1);
+});
