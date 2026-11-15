@@ -159,9 +159,10 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       if(!assets.has(filename))throw new Error('SCO dependency requires --asset: '+filename);
       continue;
     }
-    const sourceType=file.sourceType??(filename.endsWith('.mjs')?'module':'script');
-    if(sourceType!=='module')continue;
-    const ast=parse(/** @type {string} */ (file.code),'module');
+    const sourceType=file.sourceType??(filename.endsWith('.mjs')?'module':filename.endsWith('.cjs')?'commonjs':'script');
+    // Dynamic import() is also legal in classic scripts and CommonJS.
+    // Inspect those bodies too; only static import/export needs module grammar.
+    const ast=parse(/** @type {string} */ (file.code),sourceType);
     walk(ast,node=>{
       if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration','ImportExpression'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
