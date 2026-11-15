@@ -37,3 +37,12 @@ Local Node v22.16.0 execution confirmed that both `createRequire(import.meta.url
 Independent manual validation [run 43680910562](https://github.com/FlareZ123/obfs/actions/runs/43680910562), dispatched on 2026-11-15 05:23:56 UTC, passed the behavioral/adversarial suites, JSDoc typecheck and performance sample on Node 22 Ubuntu and Windows. Ubuntu also passed the real Chromium module/host-lock step; that step was skipped on Windows. The run head `daab1bb9694b8fd76f767aa3f15e0172c3bada3b` is a descendant of the guarded implementation commit `eb5b9ec872e5cab0325fabec534348b7ed850cfe` (confirmed via GitHub compare), so the regression and guard were included. The local runtime could not resolve github.com for a clone, and tests were verified from the independent manual workflow rather than locally.
 
 Dynamic global lookups, loader hooks, in-memory module evaluation and runtime injection remain outside this syntactic proof. A complete soundness argument needs stronger execution-environment assumptions and module-loader analysis.
+
+
+## Extension: imports generated at runtime
+
+Node 22 also evaluates `Function('return import("./state.mjs")')()` and direct `eval('import("./state.mjs").then(...)')` as successful dynamic imports. These imports are embedded in runtime strings, so Acorn does not emit an `ImportExpression` node in the original file. A consumer can access an exported object's old keys while the static cross-file proof sees no imported alias.
+
+Commit `35e8729946e21a34194a6bc3bb7bee4a3a651155` introduces an additional fail-closed guard for static references to `eval`, `Function`, `AsyncFunction`, `GeneratorFunction` and `AsyncGeneratorFunction`, including statically named computed member references. `test/esm-generated-import-ambiguity.test.js` adds native Node regression fixtures for direct `Function`, direct `eval`, a string-computed `globalThis['Function']` lookup, and a canonical static-import positive control.
+
+Local Node 22.16.0 execution confirmed the runtime-created import mechanisms. The full shared CI result above predates this additional code change; its validation remained pending at the time this section was written. Arbitrary computed constructor names or indirect execution methods remain outside the finite syntactic guard. The new check should not be described as a sound general dynamic-code analysis.
