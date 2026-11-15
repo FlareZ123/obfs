@@ -1,0 +1,29 @@
+name: Manual SNO local self-hash threat boundary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  owner-bypass:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Run SNO attack under full local ownership
+        run: node --test test/sno-self-hash-bypass.test.js
+      - name: Print owner-bypass evidence
+        run: node sims/sno-self-hash-bypass.js
+      - name: Strict JSDoc type safety
+        run: npm run typecheck
