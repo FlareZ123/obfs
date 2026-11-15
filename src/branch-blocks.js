@@ -70,9 +70,10 @@ function buildBlocks(expression,parameter,blocks,depth) {
  * @param {string} name
  * @param {string} seed
  * @param {Set<string>} reserved
+ * @param {boolean} stateBlinding
  * @returns {string}
  */
-function emitBlockBody(blocks,parameter,name,seed,reserved) {
+function emitBlockBody(blocks,parameter,name,seed,reserved,stateBlinding) {
   const hash=/** @param {string} key @returns {Buffer} */ key=>
     createHash('sha256').update(seed).update('\0').update(name).update('\0').update(key).digest();
   /** @param {string} prefix @returns {string} */
@@ -96,7 +97,12 @@ function emitBlockBody(blocks,parameter,name,seed,reserved) {
   });
   const ordered=[...blocks].sort((a,b)=>
     hash('order/'+a.index).readUInt32LE(0)-hash('order/'+b.index).readUInt32LE(0));
-  let code='{let '+value+','+state+'='+states[0]+';for(;;){switch('+state+'){';
+  // A number-only state mask is a pure operation on an already evaluated
+  // primitive value. Other JS values (including objects, BigInt and Symbol)
+  // remain untouched so test evaluation acquires no extra coercion effects.
+  const numericMask='(typeof '+value+'==="number"?('+value+'|0):0)';
+  const dispatch=stateBlinding ? '(('+state+'^'+numericMask+')>>>0)' : state;
+  let code='{let '+value+','+state+'='+states[0]+';for(;;){switch('+dispatch+'){';
   for(const block of ordered) {
     code+='case '+states[block.index]+':'+value+'='+parameter+';';
     for(let i=0;i<block.steps.length;i++) {
@@ -107,8 +113,10 @@ function emitBlockBody(blocks,parameter,name,seed,reserved) {
     if(block.type==='return') {
       code+='return '+value+';';
     } else {
-      code+=state+'='+value+'?'+states[/** @type {number} */ (block.yes)]+
-        ':'+states[/** @type {number} */ (block.no)]+';break;';
+      const target='('+value+'?'+states[/** @type {number} */ (block.yes)]+
+        ':'+states[/** @type {number} */ (block.no)]+')';
+      code+=state+'='+(stateBlinding ? '(('+target+'^'+numericMask+')>>>0)' :
+        target)+';break;';
     }
   }
   return code+'default:throw Error("Invalid basic-block state");}}}';
@@ -123,13 +131,14 @@ function emitBlockBody(blocks,parameter,name,seed,reserved) {
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[]}} options
+ * @param {{seed:string,names:string[],stateBlinding?:boolean}} options
  * @returns {BranchBlockResult}
  */
 function flattenBranchBlocks(source,sourceType,options) {
   if(typeof source!=='string'||!['module','commonjs'].includes(sourceType)||
       !options||typeof options.seed!=='string'||!options.seed||
-      !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')) {
+      !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')||
+      options.stateBlinding!==undefined&&typeof options.stateBlinding!=='boolean') {
     throw new TypeError('Expected source, module type, seed and explicit function names');
   }
   const targets=new Set(options.names);
@@ -181,7 +190,7 @@ function flattenBranchBlocks(source,sourceType,options) {
       continue;
     }
     edits.push({start:fn.body.start,end:fn.body.end,
-      text:emitBlockBody(blocks,parameter.name,name,options.seed,used)});
+      text:emitBlockBody(blocks,parameter.name,name,options.seed,used,options.stateBlinding===true)});
     functions++;
     blockCount+=blocks.length;
   }
