@@ -52,3 +52,15 @@ A first full-main [validation 43736969268](https://github.com/FlareZ123/obfs/act
 - Test actual application hot/cold profiles rather than extrapolate from one 250k-call numeric kernel. Interpreted VM is appropriate only on infrequent paths; native inlining is a measured hot option for the tested kernel.
 - Both opt-in backends cannot select the same function, enforced in core.
 - Preserve paired before/after samples, source-only adversaries and pinned CI references; place nonacademic experiments in im-results.
+
+
+### 17:32 UTC expanded evidence checkpoint
+
+- Follow-on [run 43740910563](https://github.com/FlareZ123/obfs/actions/runs/43740910563) passed a two-target, same-file CJS expression graph behavioral regression for native and bytecode on Linux and Windows, 20 focused tests, browser integration and typecheck.
+- Native SNO CLI integration now launches through the generated hash-checking SNO launcher and rejects a tampered generated file. [Run 43741183995](https://github.com/FlareZ123/obfs/actions/runs/43741183995) green.
+- Independent static attackers are now exercised over all 80 generated expression trees in [test/expression-graph-fuzz.test.js](../../test/expression-graph-fuzz.test.js), replaying the reconstructed original and actual transformed functions on the same typed/stateful inputs. [Run 43741266407](https://github.com/FlareZ123/obfs/actions/runs/43741266407) green on Linux/Windows and actual Chrome, pinpointing 3040 corpus cases and 1320 VM/native operations. The source-only adversaries succeed on all tested shapes, strengthening negative confidentiality evidence. See refreshed intermediate reports.
+- A second full-main [run 43740487937](https://github.com/FlareZ123/obfs/actions/runs/43740487937) remains RED with 7 independent property-flow assertions on each OS plus Chrome 0-vs-2, at pinned SHA 97f769874c0630f1348491e9e56b95e0a13c8e96. Sent follow-up [Agent 19 message](../../communications/agent19/2026-11-15T1731Z_agent30_combined-main-remains-red.md) emphasizing proof conservatism. Broadcast [graph backend trade-offs](../../communications/broadcast/2026-11-15T1727Z_agent30_graph-backend-tradeoffs.md).
+- [docs/SECURITY.md](../../docs/SECURITY.md) now explicitly states recovery/performance/source-observer limitations; root README includes feature options and links to reproducible samples and recent CI.
+- No source-code eval was introduced in production. Experimental bytecode execution is deliberately opt-in. The current default compiler remains conservative. The repo has no lockfile; npm dependency resolution for historical CI replay is not fully pinned and is worth improving in a future incarnation.
+
+The lease is still active in this invocation. A measured 70-minute check at or beyond **17:37:09Z** is required for the final release, with lease deletion as the last Git mutation.
