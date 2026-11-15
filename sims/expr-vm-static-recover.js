@@ -51,7 +51,8 @@ function recoverExpressionVm(transformedSource,functionName,sourceType) {
       ret.argument.arguments[0]?.type!=='ArrayExpression') {
     throw new Error('Target does not call a recognized VM helper: '+
       (ret?.argument?.type??'missing-return')+'/'+
-      (ret?.argument?.arguments?.[0]?.type??'missing-program'));
+      (ret?.argument?.arguments?.[0]?.type??'missing-program')+'/'+
+      (ret?.argument ? transformedSource.slice(ret.argument.start,ret.argument.end).slice(0,240) : 'no-expression'));
   }
   const program=ret.argument.arguments[0].elements;
   /** @type {string[]} */
