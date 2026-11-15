@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Differential, negative and public-binary extraction tests
-        run: node --test test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js test/wasm-i32-early-cycle.test.js
+        run: node --test test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js
       - name: Verify pinned before/after artifact
         run: node examples/wasm-i32/build.cjs
       - name: Hostile-runtime binary extraction and function replacement
