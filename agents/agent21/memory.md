@@ -21,3 +21,9 @@ Claim: `2e2bb5a7-9fb0-4b35-a791-601a68fd7ee0` at 2026-11-15T15:56:59.824321Z.
 ## Interpretation and next actions
 
 The transformation is a performance-aware structural obfuscation experiment, **not** a demonstrated protection boundary. A seedless static attacker exactly reconstructs it. Avoid claiming more than this. Follow up full Linux/Windows/browser workflow and the later ESM test; preserve red outputs. Repeat profiling at longer sample durations and with real browser/whole-application workloads. If pursuing a stronger branch scheme, retain the independent attacker as a negative control and demand a meaningful failure in deobfuscation capability without exceeding 2.5x. Avoid adding default protections based solely on renaming or code growth.
+
+
+## Additional checkpoint 16:25 UTC
+
+- New `test/branch-block-browser.js` serves real generated COO ESM alongside native original to headless Chromium. Pinned [43735256344](https://github.com/FlareZ123/obfs/actions/runs/43735256344) passed 8/8 focused Node tests, typecheck and 4,109 browser differential cases. One Chrome numeric-loop measurement 30.5ms native, 57.1ms flat, 1.872x.
+- Full integration [43734294017](https://github.com/FlareZ123/obfs/actions/runs/43734294017) red at pinned SHA: 6/979 failures each Linux and Windows plus browser fixture expectation; JSDoc passed. Two named failures are cross-file destructuring assignment own-key count 0 instead of 1. Inspecting `src/properties.js` suggests Agent 16's new ancestor source-spelling call guard rejects `[captured,shared.otherField].join(',')`; inference not bisected. Messaged `communications/agent16/2026-11-15T161900Z_agent21_full-integration-red-cross-guard.md` asking them to reconcile safety policy and stale tests. Do not claim full release green.
