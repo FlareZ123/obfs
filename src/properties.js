@@ -162,6 +162,30 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex});
     }
+    // Immutable local identity expressions are as predictable as direct
+    // function declarations when their only result is one plain parameter.
+    // The existing use proof separately rejects exported, reassigned,
+    // reflected or callback-escaped helper bindings.
+    if (node.type === 'VariableDeclarator' && parent?.type === 'VariableDeclaration' &&
+        parent.kind === 'const' && node.id.type === 'Identifier' &&
+        bindings.get(node.id.name) === 1) {
+      const value=node.init;
+      if (value && (value.type === 'ArrowFunctionExpression' ||
+                    value.type === 'FunctionExpression') &&
+          !value.async && !value.generator &&
+          value.params.every((/** @type {AstNode} */ p)=>p.type === 'Identifier')) {
+        const body=value.body.type === 'BlockStatement'
+          ? value.body.body.length === 1 && value.body.body[0].type === 'ReturnStatement'
+            ? value.body.body[0].argument : null
+          : value.body;
+        if (body?.type === 'Identifier') {
+          const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
+          if (index>=0) functions.set(node.id.name,{
+            node:value,params:value.params,forwardIndex:index
+          });
+        }
+      }
+    }
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
       const key = node.callee.name;
       const sites=calls.get(key)??[];
@@ -200,6 +224,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if (ancestors.some(a => /^Export/.test(a.type))) unusableFunctions.add(node.name);
       continue;
     }
+    if (parent?.type === 'VariableDeclarator' && key === 'id' &&
+        parent.init===functions.get(node.name)?.node) continue;
     if (functions.get(node.name)?.external && /^Import(?:Default|Namespace)?Specifier$/.test(parent?.type??'')) continue;
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
@@ -304,9 +330,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if (parent.type === 'ReturnStatement' && key === 'argument') {
       const enclosing = [...ancestors].reverse().find(a => /^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(a.type));
-      if (enclosing?.type === 'FunctionDeclaration' && (functions.get(enclosing.id?.name)?.forwardIndex??-1) >= 0) continue;
+      if (enclosing && [...functions.values()].some(fn=>fn.node===enclosing && fn.forwardIndex>=0)) continue;
       return null;
     }
+    if (parent.type === 'ArrowFunctionExpression' && key === 'body' &&
+        [...functions.values()].some(fn=>fn.node===parent && fn.forwardIndex>=0)) continue;
     return null;
   }
   // Member assignment can install a function whose `this` observes the
