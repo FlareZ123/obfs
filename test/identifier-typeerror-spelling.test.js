@@ -68,6 +68,27 @@ test('nested member spread preserves receiver binding spelling',()=>{
   );
 });
 
+test('nullish object destructuring declaration retains source spelling',()=>{
+  preserve(
+    'const nullishSource=null;let result;try{const {entry}=nullishSource;}catch(error){result=error.message;}module.exports=result;',
+    'nullishSource'
+  );
+});
+
+test('nullish object destructuring assignment retains source spelling',()=>{
+  preserve(
+    'const assignmentSource=undefined;let entry,result;try{({entry}=assignmentSource);}catch(error){result=error.message;}module.exports=result;',
+    'assignmentSource'
+  );
+});
+
+test('nullish object rest destructuring retains source spelling',()=>{
+  preserve(
+    'const restSource=null;let result;try{const {...entries}=restSource;}catch(error){result=error.message;}module.exports=result;',
+    'restSource'
+  );
+});
+
 test('safe arithmetic binding remains eligible for transformation',()=>{
   const source='const arithmeticOnly=27;module.exports=arithmeticOnly*2;';
   const result=obfuscateFiles([{path:'safe.cjs',code:source,sourceType:'commonjs'}],{
