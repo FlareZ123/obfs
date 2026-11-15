@@ -70,11 +70,11 @@ function median(times) {
 /** @returns {Scenario[]} */
 function scenarios() {
   const seed='A😀Z\uD800\uDC00\uDC00\uD800\0\uFFFF-';
-  const long=seed.repeat(4000).slice(0,65536);
+  const long=seed.repeat(Math.ceil(65536/seed.length)).slice(0,65536);
   return [
     {name:'64KiB-codeunits-with-surrogates',values:[long]},
     {name:'256-distinct-strings',values:Array.from({length:256},(_,index)=>
-      seed.repeat(17).slice(0,256)+String(index).padStart(3,'0'))},
+      seed.repeat(Math.ceil(253/seed.length)).slice(0,253)+String(index).padStart(3,'0'))},
     {name:'edge-case-UTF16',values:['','\uD800','\uDC00','\uD800a\uDC00','\0\n\r\u2028\u2029','😀']}
   ];
 }
