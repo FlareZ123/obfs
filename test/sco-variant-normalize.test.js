@@ -65,7 +65,7 @@ test('SCO hashed identifier variants normalize without the request seed',async()
     'const confidentialCount=7;',
     'const weightedCount=confidentialCount+5;',
     'module.exports=weightedCount;'
-  ].join('\\n');
+  ].join('\n');
   // Separate compiler errors from HTTP path or response errors.
   const direct=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],
     {mode:'sco',seed:'static-normalizer-diagnostic'});
