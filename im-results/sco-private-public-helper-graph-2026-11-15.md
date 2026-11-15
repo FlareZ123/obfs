@@ -47,6 +47,41 @@ helpers. The proof is intentionally conservative and may refuse safe programs.
 The public-helper list is an explicit author-reviewed declaration: including a
 secret-bearing helper in that list would publish its source by design.
 
+## Independent authenticated attacker
+
+The separate [attacker module](../sims/sco-public-helper-attacker.js)
+imports no source from the obfuscator or private server. It downloads only
+the served client and extracts the public RPC method identifier, then uses
+the legitimate session to query `secret('')` and `secret('x')`. Its explicitly
+hypothesized model is `intercept + slope * value.length`, with JavaScript
+UTF-16 string length. The independent [server and evaluation
+harness](../sims/sco-public-helper-oracle.js) validates this offline clone
+against 64 held-out strings of varying lengths and Unicode contents, with
+no further authorized RPC calls. The test checks unauthenticated 403
+rejection and that the private key and helper source remain absent from the
+served JavaScript. All 64 held-out outputs matched, while the key literal
+itself was never reconstructed. This is a finite, workload-specific negative
+result for black-box functional secrecy. It does not imply similar learning
+complexity for a cryptographic private function.
+
+The independent attacker/harness split passed focused Ubuntu and Windows
+[SCO authorization run 43767565961](https://github.com/FlareZ123/obfs/actions/runs/43767565961)
+at source `9c59ba812842ef711ce4b80bef776d42cc64bb9e`.
+
+## Differential mixed-helper coverage
+
+The deterministic [36-graph differential test](../test/sco-public-helper-grid.test.js)
+runs three private function forms against three public forms across four
+source-order and name variants each. It checks 180 original-versus-generated
+public and protected outputs, rejects exposure of each graph's private
+key/helper identifiers, and uses bound private RPC methods for generated
+public modules. The focused Linux/Windows
+[run 43767717951](https://github.com/FlareZ123/obfs/actions/runs/43767717951)
+passed at source `7e43e2335e5d319f881aa27f7d6c518684f91026`.
+These graphs contain simple scalar local helpers; their count is useful
+transformation-coverage evidence, not a broad proof for dynamic property
+aliases, unusual effects, or every legal ESM construct.
+
 ## Validation and unresolved claims
 
 The integrated full Linux/Windows validation at
