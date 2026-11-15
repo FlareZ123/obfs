@@ -6,7 +6,7 @@ const {parse,walk,observesFunctionSource} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
-const {renameCrossFileProperties} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -311,9 +311,12 @@ function obfuscateFiles(files, options = {}) {
   // A function declared in one ESM/classic-script file may have its source
   // observed by another supplied file. File-local proofs cannot see that
   // consumer, so preserve all original source spellings across the file group.
+  const importedStringProof=prepared.length>1 && options.closedWorld ?
+    collectVerifiedImportedStrings(prepared) : new Map();
   const remoteSourceObserver=prepared.length>1 && prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    observesFunctionSource(parse(file.code,file.sourceType)));
+    observesFunctionSource(parse(file.code,file.sourceType),
+      importedStringProof.get(file.path)));
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
