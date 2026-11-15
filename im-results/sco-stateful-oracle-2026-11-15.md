@@ -33,13 +33,22 @@ The learner never reads the private state variable. Every training probe crosses
 | Total authorized reset/step requests | 2,736 | 2,736 |
 | Requests per fixture | 712, 656, 712, 656 | 712, 656, 712, 656 |
 | Learned observable states | 4 in each | 4 in each |
-| Held-out binary sequences of lengths 1..10 | 8,184/8,184 | 8,184/8,184 |
+| All validation binary sequences of lengths 1..10 | 8,184/8,184 | 8,184/8,184 |
+| Exact validation sequences absent from all training trace prefixes | **7,872/7,872** | **7,872/7,872** |
 | Public source contains private canary/table accesses | No | No |
 | Unauthenticated RPC status | 403 | 403 |
 | Combined learner execution time | 1,062.548 ms | 1,471.224 ms |
 | Focused tests passed | 2/2 | 2/2 |
 
 Individual online learning times in milliseconds were Ubuntu **375.623, 275.525, 230.424, 180.976** and Windows **481.169, 397.957, 332.287, 259.811**. These are loopback HTTP measurements from GitHub runners, **not** an application slowdown bound or 2.5x performance claim.
+
+## More rigorous validation independence (subsequent verified revision)
+
+The original run 43711404113 checked every binary word of length 1..10 without extra RPC queries. Some of those 8,184 words had already occurred as complete training traces or as prefixes of training traces. The original table's term 'held-out' was therefore too broad. The table above retains the original 8,184/8,184 all-word check, relabels it accurately, and adds the strictly unseen subset from a subsequent source update.
+
+On both Ubuntu and Windows, [manual run 43714456617](https://github.com/FlareZ123/obfs/actions/runs/43714456617) at pinned head **9678808f5ac619194b6a30053f9a7d5d467e1e34** verified **7,872/7,872 exact words not previously issued as a complete post-reset query or observed as any training prefix** across four scenarios, 1,968 per scenario. The remaining 312 words overlapped training in this conservative comparison; all 8,184 still matched the private fixture. The attack retained 2,736 legitimate requests. Dedicated strict JSDoc checking for both SCO state-machine simulations also passed on both runners.
+
+Independence here means the particular exact binary input word was absent from training probes. It does not imply statistical independence of observations, a randomly sampled distribution, or a formal learning-theory generalization guarantee. The fixture is deterministic and has only four states; suffix-signature learning explicitly exploits that assumption.
 
 ## Implications and limitations
 
