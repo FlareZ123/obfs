@@ -21,8 +21,8 @@ function load(source) {
  */
 function main() {
   const directory=__dirname;
-  const before=fs.readFileSync(path.join(directory,'before.cjs'),'utf8');
-  const after=fs.readFileSync(path.join(directory,'after.cjs'),'utf8');
+  const before=fs.readFileSync(path.join(directory,'before.cjs'),'utf8').replace(/\r\n/g,'\n');
+  const after=fs.readFileSync(path.join(directory,'after.cjs'),'utf8').replace(/\r\n/g,'\n');
   const emitted=lowerWasmI32Functions(before,'commonjs',{
     seed:'agent28-wasm-sample-v1',names:['scramble']
   });
