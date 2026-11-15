@@ -114,7 +114,12 @@ async function learnMachine(api, maxStates = 4, alphabetSize = 2) {
     const key = JSON.stringify([prefix, suffix]);
     const remembered = cache.get(key);
     if (remembered) return remembered;
-    trainingWords.add(JSON.stringify([...prefix,...suffix]));
+    // Every prefix of a replay is observed while warming up the oracle.
+    // Counting only the final word would inflate independent validation.
+    const fullWord=[...prefix,...suffix];
+    for(let length=1;length<=fullWord.length;length++) {
+      trainingWords.add(JSON.stringify(fullWord.slice(0,length)));
+    }
     assert.equal(await api.reset(), true);
     requests++;
     for (const symbol of prefix) {
