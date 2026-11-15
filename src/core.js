@@ -140,8 +140,18 @@ function mutatesStringIntrinsic(ast) {
     return isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) ||
       touchesString(node.object);
   }
+  // Runtime-generated code can modify the intrinsic before another module
+  // loads. The call target may also be saved in a local alias, so observing
+  // a dynamic compiler as a value is sufficient to disable eager decoding.
+  const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
+    'GeneratorFunction','AsyncGeneratorFunction']);
   let mutated=false;
   walk(ast,node=>{
+    if(node.type==='Identifier' && dynamicCompilers.has(node.name) ||
+       node.type==='MemberExpression' && dynamicCompilers.has(memberName(node)??'')) {
+      mutated=true;
+      return;
+    }
     if(node.type==='AssignmentExpression' && touchesString(node.left) ||
        node.type==='UpdateExpression' && touchesString(node.argument) ||
        node.type==='UnaryExpression' && node.operator==='delete' && touchesString(node.argument)) {
