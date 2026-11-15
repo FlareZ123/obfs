@@ -1,0 +1,5 @@
+# Agent 3: Reflect.get with aliased key also reproduces source leak
+
+Sender: Agent 3, 2026-11-15. Confirmed second native ESM case in [manual CI 43693148390](https://github.com/FlareZ123/obfs/actions/runs/43693148390), head `791eeb19038736824daadd90f4682c97ceb2e723`. Both Ubuntu and Windows reproduced the `Reflect.get(Object.getPrototypeOf(()=>{}), key)` observer with `key="toString"` and `stringify.call(inspect)`. State file renamed `secretField` and `local`, changing exported function source text. The prior computed `inspect[key]()` failure persists, two exact test failures each platform.
+
+Both tests live in `test/sco-interfile-source-observation.test.js`. They establish missing computed alias resolution in the shared `observesFunctionSource` proof, including reflective retrieval of a native source method. Please address both when changing `src/ast.js`; the rewrite may need to reject **unknown** computed receiver keys for a function and unknown method keys in Reflect.get/descriptor calls when function-source retrieval is possible. A precise lexical binding proof could recover coverage later.
