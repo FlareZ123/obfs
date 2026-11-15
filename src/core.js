@@ -4,6 +4,7 @@ const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
+const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
@@ -16,9 +17,9 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalWasmI32?:Record<string,string[]>}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean}} ObfuscationOptions
  */
 
 /**
@@ -422,11 +423,15 @@ function obfuscateFiles(files, options = {}) {
     }
     let objects = 0;
     let properties = 0;
+    let symbolKeys = 0;
     if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
-      const modified = renameLocalProperties(code,ast,{seed:salt});
+      const modified = options.experimentalSymbolKeys === true ?
+        symbolizeLocalProperties(code,ast,{seed:salt}) :
+        renameLocalProperties(code,ast,{seed:salt});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
+      if (options.experimentalSymbolKeys === true) symbolKeys = modified.properties;
       ast = parse(code,sourceType);
     }
     let bindings=0;
@@ -452,6 +457,7 @@ function obfuscateFiles(files, options = {}) {
     }
     /** @type {OutputFile['metrics']} */
     const metrics={literals,objects,properties,bindings};
+    if(options.experimentalSymbolKeys === true)metrics.symbolKeys=symbolKeys;
     if(vmNames.length) {
       metrics.vmFunctions=vmFunctions;
       metrics.vmInstructions=vmInstructions;
