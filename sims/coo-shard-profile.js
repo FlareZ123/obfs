@@ -66,7 +66,9 @@ async function profile(options={}) {
         for(const file of files)await atomicWrite(path.join(parent,file.path),file.code);
       }
     }
+    /** @type {number[]} */
     const originalTimes=[];
+    /** @type {number[]} */
     const shardedTimes=[];
     /** @type {{original:Function,sharded:Function}|null} */
     let callable=null;
@@ -90,7 +92,9 @@ async function profile(options={}) {
       hot(callable.original,hotIterations);
       hot(callable.sharded,hotIterations);
     }
+    /** @type {number[]} */
     const originalHot=[];
+    /** @type {number[]} */
     const shardedHot=[];
     for(let i=0;i<hotTrials;i++) {
       const order=/** @type {('original'|'sharded')[]} */ (i%2===0?['original','sharded']:['sharded','original']);
