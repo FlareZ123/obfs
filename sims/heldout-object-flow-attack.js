@@ -187,7 +187,7 @@ async function runHeldout(seedCount=3) {
       const start=performance.now();
       const normalized=neutralizeHashedNames(result.files.map(file=>{
         if(typeof file.code!=='string')throw new TypeError('Expected JavaScript text');
-        return {path:file.path,code:file.code,sourceType:'module'};
+        return {path:file.path,code:file.code};
       }));
       attackMilliseconds+=performance.now()-start;
       recoveredLabels+=normalized.properties;
