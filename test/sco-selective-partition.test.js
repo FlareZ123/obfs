@@ -361,6 +361,13 @@ test('selective SCO server environment opt-in refuses public process reads and d
     },{seed:'env-ambient-'+ambient,privateNames:['protectedDigest'],
       allowServerEnvConstants:true}),/cannot share server environment/);
   }
+  const implicitThis='const SERVER_KEY=process.env.OBFS_KEY;'+
+    'export async function protectedDigest(){return SERVER_KEY;}'+
+    'export function local(){return this.process.env.OBFS_KEY;}';
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',code:implicitThis
+  },{seed:'env-this',privateNames:['protectedDigest'],
+    allowServerEnvConstants:true}),/cannot share server environment/);
   const bracket='const SERVER_KEY=process.env["OBFS_KEY"];'+base;
   const accepted=partitionScoSelectedAsyncExports({path:'mixed.mjs',code:bracket},{
     seed:'env-bracket',privateNames:['protectedDigest'],allowServerEnvConstants:true

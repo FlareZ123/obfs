@@ -162,8 +162,10 @@ function partitionScoSelectedAsyncExports(file,options) {
            node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
         }
-        if(serverEnvironmentUsed&&node.type==='Identifier'&&!isStaticKey(parent,key)&&
-           ambientRoots.has(node.name)){
+        // A caller can bind an ambient global as "this" even when its
+        // source code contains no explicit globalThis/process identifier.
+        if(serverEnvironmentUsed&&(node.type==='ThisExpression'||
+           node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))){
           throw new TypeError('Public SCO export cannot share server environment: '+name);
         }
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
