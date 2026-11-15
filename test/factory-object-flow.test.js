@@ -75,7 +75,7 @@ for(const [label,ending] of refused){
 for(const source of [
   'function make(){return {secretField:Date.now()};}const owner=make();module.exports=owner.secretField;',
   'function make(){return {...{secretField:17}};}const owner=make();module.exports=owner.secretField;',
-  'function make(){const obj={secretField:17};return obj;}const owner=make();module.exports=owner.secretField;',
+  'function make(){const marker=1;return {secretField:marker};}const owner=make();module.exports=owner.secretField;',
   'function make(x){return {secretField:17};}const owner=make();module.exports=owner.secretField;',
   'function make(){return {get secretField(){return 17}};}const owner=make();module.exports=owner.secretField;'
 ]) {
