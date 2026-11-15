@@ -112,7 +112,8 @@ function proveLocalObject(ast, rootName, bindings) {
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
-      if (node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
+      if (!node.async && !node.generator && node.body.body.length === 1 &&
+          node.body.body[0].type === 'ReturnStatement' &&
           node.body.body[0].argument?.type === 'Identifier') {
         /** @type {AstNode[]} */
         const params = node.params;
