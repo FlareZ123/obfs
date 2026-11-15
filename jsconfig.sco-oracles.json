@@ -8,6 +8,7 @@
     "sims/sco-sync-search-falsification.js",
     "sims/sco-sync-diversified.js",
     "sims/sco-sync-diversified-report.js",
+    "sims/sco-mealy-refinement.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js"
   ],
