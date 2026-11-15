@@ -91,10 +91,12 @@ async function runPrfChallenge() {
     });
     const activeServer=http.createServer(handler);
     server=activeServer;
-    await new Promise((resolve,reject)=>{
+    /** @type {Promise<void>} */
+    const ready=new Promise((resolve,reject)=>{
       activeServer.once('error',reject);
-      activeServer.listen(0,'127.0.0.1',resolve);
+      activeServer.listen(0,'127.0.0.1',()=>resolve());
     });
+    await ready;
     const address=activeServer.address();
     assert.ok(address && typeof address==='object');
     const origin='http://127.0.0.1:'+address.port;
@@ -177,7 +179,10 @@ async function runPrfChallenge() {
     globalThis.fetch=nativeFetch;
     if(server) {
       const activeServer=server;
-      await new Promise((resolve,reject)=>activeServer.close(error=>error?reject(error):resolve()));
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        activeServer.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     await fs.rm(directory,{recursive:true,force:true});
   }
