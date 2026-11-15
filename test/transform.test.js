@@ -132,6 +132,18 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('nested destructuring can overwrite a property with a reflective function', () => {
+  const code='const a={secret:1};({secret:a.secret}={secret:function(){return Object.keys(this)[0]}});console.log(a.secret());';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('for-of property lvalue can overwrite property with a reflective function', () => {
+  const code='const a={secret:1};for(a.secret of [function(){return Object.keys(this)[0]}]){}console.log(a.secret());';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('delete own property may reveal a prototype getter with original key', () => {
   const code='Object.defineProperty(Object.prototype,"secret",{get(){return 42},configurable:true});const a={secret:1};delete a.secret;console.log(a.secret);';
   const out=compare({'a.js':code});
