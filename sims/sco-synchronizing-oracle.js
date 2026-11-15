@@ -153,6 +153,9 @@ async function scenario(index) {
     const resetPrefix=[0,0,0];
     const probedFullWords=new Set(learned.trainingWords.map(word=>
       JSON.stringify([...resetPrefix,...JSON.parse(word)])));
+    for(let length=1;length<=resetPrefix.length;length++){
+      probedFullWords.add(JSON.stringify(resetPrefix.slice(0,length)));
+    }
     /** @type {number[][]} */
     let layer=[[]];
     for(let length=1;length<=10;length++) {
