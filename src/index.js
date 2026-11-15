@@ -3,6 +3,7 @@
 const {obfuscateFiles} = require('./core');
 const {createSnoLauncher} = require('./sno');
 const {virtualizeRegisterChains} = require('./register-vm');
+const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
 const {createScoHandler} = require('./sco');
 const {createScoRpcClientSource} = require('./rpc-client');
@@ -11,4 +12,4 @@ const {preflightScoBatchState} = require('./rpc-batch-policy');
 const {partitionScoAsyncModule,bindScoModuleExports} = require('./sco-partition');
 const {partitionScoAsyncGraph,bindScoGraphExports} = require('./sco-graph');
 
-module.exports = {flattenBranchBlocks,virtualizeRegisterChains,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
+module.exports = {flattenBranchBlocks,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
