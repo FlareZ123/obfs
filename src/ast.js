@@ -107,7 +107,7 @@ function observesFunctionSource(ast) {
   const cached=sourceObservationCache.get(ast);
   if(cached!==undefined) return cached;
   let observed=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent,key)=>{
     // Template interpolation coerces values to strings, including functions.
     // Literal-prefix concatenation can do the same without an explicit call
     // to Function#toString. Decline source-spelling transforms conservatively.
@@ -122,7 +122,11 @@ function observesFunctionSource(ast) {
     if(node.type==='MemberExpression') {
       const name=node.computed ? staticString(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
-      if(name==='toString'||name==='toSource') observed=true;
+      // A plain assignment overwrites the property without reading or
+      // invoking its previous value. Preserve the source-observation guard
+      // for calls, reads, compound writes, and other receiver uses.
+      if((name==='toString'||name==='toSource') &&
+          !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
