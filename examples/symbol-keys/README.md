@@ -35,3 +35,5 @@ private-object output, but does not prove resistance to reconstruction,
 instrumentation, tampering or unauthorized execution. Under a hostile runtime,
 the native `Symbol` constructor itself can be replaced. This is deliberately
 an experimental performance and representation study, not a trust boundary.
+
+**Empirical update, 15 November 2026:** Cross-platform Node 22 and Ubuntu live Chromium passed focused semantic checks at [manual run 43744682043](https://github.com/FlareZ123/obfs/actions/runs/43744682043). The source-only attacker reconstructed both private-key accesses. Dynamic fresh-compilation measurements with one, ten and fifty private objects exceeded **2.5×** for many cases, reaching **22.5× Windows**. These facts and exact reproductions are published in the [hot/cold attack report](../../im-results/symbol-key-backend-cold-attack-2026-11-15.md). The backend is not appropriate for unprofiled COO cold starts.
