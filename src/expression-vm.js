@@ -80,20 +80,18 @@ function emitGraphHelper(helper,initial,instructions,result,entropy) {
 }
 
 /**
- * Emit a straight-line register graph for hot functions. The same native JS
- * operators execute in original left-to-right order, while register names
- * and integer literals are seed-diversified. Public source still reveals the
- * operation graph; this trades away bytecode concealment for hot-path speed.
- * @param {string} helper
+ * Inline a straight-line register graph into the selected function body.
+ * This avoids an extra helper call and gives JITs an ordinary local dataflow
+ * region. Coercion side effects remain in original left-to-right order.
+ * @param {string} parameter
  * @param {(number|null)[]} initial
  * @param {Instruction[]} instructions
  * @param {number} result
  * @param {Buffer} entropy
+ * @param {Set<string>} reserved
  * @returns {string}
  */
-function emitNativeGraphHelper(helper,initial,instructions,result,entropy) {
-  /** @type {Set<string>} */
-  const reserved=new Set(['input']);
+function emitNativeGraphBody(parameter,initial,instructions,result,entropy,reserved) {
   const registers=initial.map((value,index)=>{
     let attempt=0;
     let name='_ng_'+createHash('sha256').update(entropy)
@@ -106,7 +104,7 @@ function emitNativeGraphHelper(helper,initial,instructions,result,entropy) {
     reserved.add(name);
     return name;
   });
-  let body='const '+registers[0]+'=input;';
+  let body='{const '+registers[0]+'='+parameter+';';
   for(let index=1;index<initial.length;index++) {
     const value=initial[index];
     if(value===null)continue;
@@ -117,7 +115,7 @@ function emitNativeGraphHelper(helper,initial,instructions,result,entropy) {
     body+='const '+registers[step.destination]+'='+registers[step.left]+
       step.operator+registers[step.right]+';';
   }
-  return '\nfunction '+helper+'(input){'+body+'return '+registers[result]+';}\n';
+  return body+'return '+registers[result]+';}';
 }
 
 /**
@@ -192,18 +190,21 @@ function virtualizeExpressionGraphs(source,sourceType,options) {
     if(result===null||program.length<2) {declined++;continue;}
     const entropy=createHash('sha256').update(options.seed).update('\0')
       .update(name).update('\0').update(source).digest();
-    let helper='_egvm_'+entropy.subarray(3,11).toString('hex');
-    for(let index=1;used.has(helper)||used.has(helper+'Cache');index++) {
-      helper='_egvm_'+createHash('sha256').update(options.seed+'/'+name+'/'+index)
-        .digest('hex').slice(0,16);
+    if(options.backend==='native') {
+      edits.push({start:fn.body.start,end:fn.body.end,
+        text:emitNativeGraphBody(param.name,initial,program,result,entropy,used)});
+    } else {
+      let helper='_egvm_'+entropy.subarray(3,11).toString('hex');
+      for(let index=1;used.has(helper)||used.has(helper+'Cache');index++) {
+        helper='_egvm_'+createHash('sha256').update(options.seed+'/'+name+'/'+index)
+          .digest('hex').slice(0,16);
+      }
+      used.add(helper);
+      used.add(helper+'Cache');
+      edits.push({start:statements[0].argument.start,end:statements[0].argument.end,
+        text:helper+'('+param.name+')'});
+      helpers.push(emitGraphHelper(helper,initial,program,result,entropy));
     }
-    used.add(helper);
-    used.add(helper+'Cache');
-    edits.push({start:statements[0].argument.start,end:statements[0].argument.end,
-      text:helper+'('+param.name+')'});
-    helpers.push(options.backend==='native'?
-      emitNativeGraphHelper(helper,initial,program,result,entropy):
-      emitGraphHelper(helper,initial,program,result,entropy));
     functions++;
     instructions+=program.length;
   }
