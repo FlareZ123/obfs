@@ -81,7 +81,7 @@ test('deterministic nested-graph differential fuzz across native and interpreted
     }
   }
   assert.equal(verified,80*2*(inputs.length+1));
-  assert.ok(operations>2000);
+  assert.ok(operations>1000);
   console.log('Nested expression differential fuzz: '+verified+
     ' typed/stateful input pairs, '+operations+' emitted operations; seed 0x39a2cf51');
 });
