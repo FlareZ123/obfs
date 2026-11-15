@@ -49,8 +49,8 @@ test('offline XOR recovery and name normalization compose without original sourc
 
 test('offline property names normalize consistently across two ESM files',async()=>{
   const files=[
-    {path:'state.mjs',sourceType:'module',code:'export const state={privateNumber:23};'},
-    {path:'entry.mjs',sourceType:'module',code:'import {state} from "./state.mjs";console.log(state.privateNumber);'}
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretField:23};'},
+    {path:'main.mjs',sourceType:'module',code:'import {state} from "./state.mjs";console.log(state.secretField);'}
   ];
   const transformed=obfuscateFiles(files,{mode:'coo',closedWorld:true,seed:'cross-reconstruct'});
   assert.equal(transformed.crossFile.properties,1);
@@ -61,7 +61,7 @@ test('offline property names normalize consistently across two ESM files',async(
     /** @param {typeof files} sources @returns {Promise<string>} */
     async function run(sources) {
       for(const file of sources) await atomicWrite(path.join(dir,file.path),file.code);
-      const result=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{encoding:'utf8',timeout:5000});
+      const result=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{encoding:'utf8',timeout:5000});
       assert.equal(result.status,0,result.stderr);
       return result.stdout;
     }
