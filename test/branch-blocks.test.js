@@ -118,3 +118,24 @@ test('unsupported or source-observed functions decline without mutation',()=>{
     {path:'observe.cjs',sourceType:'commonjs',code:"String(require('./choice.cjs').choice);"}
   ],{mode:'sno',experimentalBranchBlocks:{'choice.cjs':['choice']}}),/cross-file source observation/);
 });
+
+
+test('COO ESM export remains callable by a native module loader',async()=>{
+  const source='export function gate(x){return x?((x^3)?((x+7)*2):(x>>>1)):(x-11);}';
+  const compiled=obfuscateFiles([{
+    path:'gate.mjs',sourceType:'module',code:source
+  }],{
+    mode:'coo',seed:'esm-branch',properties:false,identifiers:false,strings:false,
+    experimentalBranchBlocks:{'gate.mjs':['gate']}
+  });
+  assert.equal(compiled.files[0].metrics.branchFunctions,1);
+  /** @param {string} code @returns {Promise<{gate:(x:unknown)=>unknown}>} */
+  async function load(code){
+    const uri='data:text/javascript;base64,'+Buffer.from(code).toString('base64');
+    return /** @type {Promise<{gate:(x:unknown)=>unknown}>} */ (import(uri));
+  }
+  const original=await load(source);
+  const transformed=await load(/** @type {string} */ (compiled.files[0].code));
+  for(let x=-1024;x<=1024;x++)same(original.gate,transformed.gate,x);
+  for(const v of ['10',0n,Symbol('k'),undefined,null])same(original.gate,transformed.gate,v);
+});
