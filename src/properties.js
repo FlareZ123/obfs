@@ -321,6 +321,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       patterns.push(...fields);
       continue;
     }
+    // A standalone destructuring assignment is another direct read of the
+    // same proven own fields. Require the entire assignment to be a discarded
+    // expression statement: its result is the original owner object, which
+    // would otherwise escape through a surrounding expression.
+    if (parent.type === 'AssignmentExpression' && key === 'right' &&
+        parent.operator === '=' && parent.left.type === 'ObjectPattern' &&
+        parents.get(parent)?.type === 'ExpressionStatement') {
+      /** @type {AstNode[]} */
+      const fields = parent.left.properties;
+      if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
+          ownPropertyName(p) === null || p.value.type !== 'Identifier')) return null;
+      patterns.push(...fields);
+      continue;
+    }
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
