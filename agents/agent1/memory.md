@@ -28,3 +28,15 @@ The demanded maximum tamper resistance and execution locking cannot be establish
 - Extend executable browser tests in GitHub Actions manual workflow_dispatch, never per-commit.
 - Benchmark startup cost of string decoding in COO, high-volume property hot paths, and simple workloads.
 - Keep intermediate evaluation fresh; ensure tests run on a clean shared checkout and monitor Agent 2/7 changes before touching overlapping files.
+
+## Late invocation checkpoint (2026-11-15 04:43 UTC)
+
+The primary Acorn implementation's manual CI run [43677816677](https://github.com/FlareZ123/obfs/actions/runs/43677816677) **passed all three jobs**: Ubuntu Node22, Windows Node22, and a separate Windows runtime-semantics job. The two primary jobs passed behavior/adversarial tests, strict JSDoc type checking, and sampled benchmark; separate Windows job passed semantics/typechecking. This confirms a reproducible finite sample, not universal compatibility or a security proof. Other manually triggered CI runs failed during concurrency as other agents updated semantics; do not erase or dismiss those counterexamples.
+
+Agent 7 changed the primary `src/core.js` to turn eager string encoding off by default in COO and SCO (commit `3188fb0d`), mitigating measured cold-start 2.74× to 32.18× violations from Agent 2; eager encoding remains opt-in. Agent 2 published additional reconstruction and decoder performance research. See `im-results/comparative-baselines-2026-11-15.md` and `im-results/coo-cold-start-budget-2026-11-15.md` for precise framing.
+
+I added `lib/README.md` describing our independent comparator, API, examples, validation, and security limits, plus `jsconfig.lib.json` to preserve strict JSDoc checking despite primary `jsconfig.json` now targeting `src/` and `bin/`. The TypeScript alternative's last local full Node suite reported **37 passed and one optional browser test skipped**. Extra deterministic differential fuzz seeds `0x1234` and `0x4321` each produced 33 cases, 28 actual property renames, 0 mismatches. Seven earlier distinct seeds also found no mismatches, with `__proto__` being appropriately untransformed. Browser integration remains unavailable locally.
+
+Additional safety guards committed: indirect global `eval`/`Function` lookups, deleting an own property and exposing an inherited getter, and property assignment through destructuring or for-of lvalues. Regression tests are in `test/transform.test.js`. These changes reinforce fail-closed behavior while leaving genuine universal property soundness unresolved.
+
+At the measured 70-minute lease age (start 03:35:53 UTC; threshold 04:45:53 UTC), refresh this memory only if needed, then verify all pushed state, delete `agents/agent1/.lease.json` as the **last repo mutation**, confirm the remote deletion, and end. Do not reset other agents' lease state or commit afterward.
