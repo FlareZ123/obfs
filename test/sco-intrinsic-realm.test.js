@@ -65,6 +65,29 @@ test('SCO selection rejects prototype access hidden in private and public helper
   ),/realm.*prototype|prototype.*realm/i);
 });
 
+test('SCO selection declines encoded, reflective and destructured intrinsic prototypes',()=>{
+  const roots=[
+    "Object.getOwnPropertyDescriptor(Object,'prototype').value",
+    "Reflect.get(Object,'prototype')",
+    "Object['pro'+'totype']",
+    "Object[realmKey]",
+    "destructured",
+    "({})['__'+'proto__']"
+  ];
+  for(const value of [7,41,103,7919]){
+    for(const root of roots){
+      const prefix=root==='destructured' ?
+        'const {prototype:proto}=Object;' :
+        root==='Object[realmKey]' ?
+          "const realmKey='prototype';" : '';
+      const owner=root==='destructured'?'proto':root;
+      const code=moduleSource(prefix+owner+'.__obfsRealmCanary='+value+';return 1;');
+      assert.throws(()=>partition(code),/realm.*prototype|prototype.*realm/i,
+        'Expected refusal for '+root+' with value '+value);
+    }
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
