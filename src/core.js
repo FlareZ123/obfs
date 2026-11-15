@@ -63,6 +63,61 @@ function injectHostLock(source, ast, hosts) {
 }
 
 /**
+ * Detect direct writes that can replace the ambient String methods used by
+ * the eager decoder. An imported ESM dependency executes before this file's
+ * decoder, so a write anywhere in the supplied file group must disable that
+ * decoder throughout the group. Indirect aliases and external modules remain
+ * outside this deliberately conservative syntactic check.
+ * @param {import('./ast').AstNode} ast
+ * @returns {boolean}
+ */
+function mutatesStringIntrinsic(ast) {
+  const globalNames=new Set(['globalThis','window','self','global']);
+  /** @param {import('./ast').AstNode} node @returns {string|null} */
+  function memberName(node) {
+    if (node.type!=='MemberExpression') return null;
+    return node.computed
+      ? node.property.type==='Literal' && typeof node.property.value==='string' ? node.property.value : null
+      : node.property.type==='Identifier' ? node.property.name : null;
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isGlobal(node) {
+    return node.type==='Identifier' && globalNames.has(node.name);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function touchesString(node) {
+    if(node.type==='Identifier')return node.name==='String';
+    if(node.type!=='MemberExpression')return false;
+    return isGlobal(node.object) && memberName(node)==='String' || touchesString(node.object);
+  }
+  let mutated=false;
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression' && touchesString(node.left) ||
+       node.type==='UpdateExpression' && touchesString(node.argument) ||
+       node.type==='UnaryExpression' && node.operator==='delete' && touchesString(node.argument)) {
+      mutated=true;
+      return;
+    }
+    if(node.type!=='CallExpression' || node.callee.type!=='MemberExpression')return;
+    const receiver=node.callee.object;
+    const method=memberName(node.callee);
+    const first=node.arguments[0];
+    if(!first || receiver.type!=='Identifier')return;
+    if(receiver.name==='Object' && ['defineProperty','defineProperties','assign','setPrototypeOf'].includes(method??'')) {
+      if(touchesString(first))mutated=true;
+      // Object.assign/defineProperties can change String through a dynamic
+      // property bag whose keys are not statically provable here.
+      if(isGlobal(first) && (method==='assign'||method==='defineProperties'))mutated=true;
+      if(isGlobal(first) && method==='defineProperty' &&
+         node.arguments[1]?.type==='Literal' && node.arguments[1].value==='String')mutated=true;
+    }
+    if(receiver.name==='Reflect' && method==='set' && isGlobal(first) &&
+       (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
+  });
+  return mutated;
+}
+
+/**
  * Obfuscate an in-memory file group. Internal imports retain their relative paths.
  * Default transformations preserve dependencies and module boundaries.
  * @param {SourceFile[]} files
@@ -95,7 +150,7 @@ function obfuscateFiles(files, options = {}) {
   const reservedNames=new Set();
   /** @type {string[]} */
   const reservedSources=[];
-  let globalStringShadow=false;
+  let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
     // identifier, including Unicode-escaped spellings and free references,
@@ -107,8 +162,9 @@ function obfuscateFiles(files, options = {}) {
         if (node.type==='Identifier') reservedNames.add(node.name);
       });
       reservedSources.push(input.code);
-      if (input.sourceType==='script' && collectBindings(inputAst).has('String')) {
-        globalStringShadow=true;
+      if (mutatesStringIntrinsic(inputAst) ||
+          input.sourceType==='script' && collectBindings(inputAst).has('String')) {
+        unsafeDecoderIntrinsic=true;
       }
     }
   }
@@ -141,7 +197,7 @@ function obfuscateFiles(files, options = {}) {
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
-    if (shouldEncodeStrings && !globalStringShadow) {
+    if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
       const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources});
       code = modified.code;
       literals = modified.count;
