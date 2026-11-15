@@ -71,18 +71,23 @@ function renameLocalIdentifiers(source,ast,options) {
       knownNonNullObjects.add(node.id.name);
     }
   });
-  /** @param {AstNode|null|undefined} expression @returns {string|null} */
-  function rootIdentifier(expression) {
-    let node=expression;
-    while(node && (node.type==='ChainExpression'||node.type==='MemberExpression')) {
-      node=node.type==='ChainExpression'?node.expression:node.object;
-    }
-    return node?.type==='Identifier'?node.name:null;
-  }
-  /** @param {AstNode|null|undefined} expression */
+  /**
+   * V8 may spell an entire callee/iterable expression into a TypeError,
+   * including computed keys and subexpressions: e.g.
+   * "table[index] is not a function" or
+   * "(0 , callback) is not a function". Protect all referenced lexical
+   * names inside the operand. Examining only a member's root loses those
+   * names even when the generated executable value remains identical.
+   * @param {AstNode|null|undefined} expression
+   */
   function markErrorRoot(expression) {
-    const name=rootIdentifier(expression);
-    if(name!==null)errorSpellingNames.add(name);
+    if(!expression)return;
+    walk(expression,(node,parent,key)=>{
+      if(node.type!=='Identifier')return;
+      if(node===expression || classifyIdentifier(node,parent,key)==='reference') {
+        errorSpellingNames.add(node.name);
+      }
+    });
   }
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function derivesBindingName(expression) {
