@@ -33,6 +33,9 @@ test('HTML5 parser detects inline source across browser execution contexts',()=>
     ['ASCII controls in javascript URL','<a href="java&#10;script:window.secret=25">go</a>'],
     ['embedded HTML data URL','<iframe src="data:text/html;base64,PHNjcmlwdD4="></iframe>'],
     ['embedded SVG data URL','<object data="data:image/svg+xml,%3Csvg%20onload%3Dalert(1)%3E"></object>'],
+    ['XHTML document data URL','<iframe src="data:application/xhtml+xml,%3Chtml%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%3E%3Cscript%3Ewindow.secret%3D44%3C%2Fscript%3E%3C%2Fhtml%3E"></iframe>'],
+    ['XML document data URL','<object data="data:application/xml,%3Chtml%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%3E%3Cscript%3Ewindow.secret%3D45%3C%2Fscript%3E%3C%2Fhtml%3E"></object>'],
+    ['XML text document data URL','<iframe src="data:text/xml,%3Chtml%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%3E%3Cscript%3Ewindow.secret%3D46%3C%2Fscript%3E%3C%2Fhtml%3E"></iframe>'],
     ['meta refresh embedded HTML','<meta http-equiv="ReFrEsH" content="0; URL=data:text/html,&lt;script&gt;window.secret=27&lt;/script&gt;">'],
     ['meta refresh javascript URL','<meta content="0; URL=java&#x73;cript:window.secret=28" http-equiv="refresh">'],
     ['embedded source data script','<script src="data:text/javascript,window.secret=26"></script>'],
@@ -77,8 +80,12 @@ test('URL detector decodes parser-normalized HTML attribute spellings',()=>{
   assert.equal(isEmbeddedExecutableUrl('java\nscript:alert(1)'),true);
   assert.equal(isEmbeddedExecutableUrl('DATA:TEXT/HTML,abc'),true);
   assert.equal(isEmbeddedExecutableUrl('data:image/svg+xml,<svg/>'),true);
+  assert.equal(isEmbeddedExecutableUrl('data:application/xhtml+xml;charset=UTF-8,%3Chtml%3E'),true);
+  assert.equal(isEmbeddedExecutableUrl('data:application/xml,%3Chtml%3E'),true);
+  assert.equal(isEmbeddedExecutableUrl('data:text/xml,%3Chtml%3E'),true);
   assert.equal(isEmbeddedExecutableUrl('https://example.test/public.mjs'),false);
   assert.equal(isEmbeddedExecutableUrl('data:image/png;base64,AAA'),false);
+  assert.equal(isEmbeddedExecutableUrl('data:application/json;base64,AAAA'),false);
 });
 
 test('HTML CLI source-disclosure refusal occurs before either COO or SNO emits output',async()=>{

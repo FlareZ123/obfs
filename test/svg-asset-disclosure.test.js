@@ -23,6 +23,7 @@ test('static SVG script, event handlers and executable links are refused across 
     ['entity-encoded JS URL','<svg xmlns="http://www.w3.org/2000/svg"><a href="java&#x73;cript:alert(1)"/></svg>'],
     ['XLink JS URL','<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="javascript:alert(1)"/></svg>'],
     ['embedded HTML data URL','<svg xmlns="http://www.w3.org/2000/svg"><a href="data:text/html;base64,PHNjcmlwdD4="/></svg>'],
+    ['XHTML data URL','<svg xmlns="http://www.w3.org/2000/svg"><a href="data:application/xhtml+xml,%3Chtml%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F1999%2Fxhtml%22%3E%3Cscript%3Ewindow.privateSource%3D10%3C%2Fscript%3E%3C%2Fhtml%3E"/></svg>'],
     ['animation URL rewrite','<svg xmlns="http://www.w3.org/2000/svg"><set attributeName="href" to="javascript:alert(1)"/></svg>'],
     ['foreignObject XHTML srcdoc','<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><iframe xmlns="http://www.w3.org/1999/xhtml" srcdoc="&lt;script&gt;window.privateSource=9;&lt;/script&gt;"/></foreignObject></svg>'],
     ['foreignObject XHTML refresh','<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><meta xmlns="http://www.w3.org/1999/xhtml" http-equiv="refresh" content="0; URL=data:text/html,&lt;script&gt;privateSource()&lt;/script&gt;"/></foreignObject></svg>'],
