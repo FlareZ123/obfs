@@ -19,7 +19,8 @@
   },
   "dependencies": {
     "acorn": "^8.15.0",
-    "parse5": "7.3.0"
+    "parse5": "7.3.0",
+    "saxes": "6.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.18.0",
