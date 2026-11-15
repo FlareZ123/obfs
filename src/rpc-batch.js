@@ -46,7 +46,9 @@ function createScoBatchMethod(methods,options={}) {
     const results=[];
     for(const call of calls) {
       try {
-        const value=await registry.get(call.method)(...call.args);
+        const task=registry.get(call.method);
+        if (!task) throw new TypeError('Unknown batch method');
+        const value=await task(...call.args);
         results.push({ok:true,value});
       } catch (error) {
         results.push({ok:false,error:'Operation failed'});
