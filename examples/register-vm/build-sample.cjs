@@ -14,11 +14,11 @@ const SEED='register-vm-example-v1';
  * @returns {Promise<void>}
  */
 async function buildSample(check=false) {
-  const input=await fs.readFile(path.join(__dirname,'before.cjs'),'utf8');
+  const input=(await fs.readFile(path.join(__dirname,'before.cjs'),'utf8')).replace(/\r\n/gu,'\n');
   const output=virtualizeRegisterChains(input,'commonjs',{seed:SEED,names:['mix']});
   assert.equal(output.functions,1);
   const destination=path.join(__dirname,'after.cjs');
-  if(check)assert.equal(await fs.readFile(destination,'utf8'),output.code);
+  if(check)assert.equal((await fs.readFile(destination,'utf8')).replace(/\r\n/gu,'\n'),output.code);
   else await atomicWrite(destination,output.code);
 }
 
