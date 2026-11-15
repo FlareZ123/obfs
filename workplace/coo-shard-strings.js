@@ -159,6 +159,7 @@ function shardTopLevelStrings(input,options) {
     '}',
     ''
   ].join('\n');
+  /** @type {ModuleFile[]} */
   const files=[
     {path:filename,code:transformed,sourceType:'module'},
     {path:payloadFile,code:payloadCode,sourceType:'module'},
