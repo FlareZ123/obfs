@@ -46,11 +46,12 @@ test('SCO selection cannot share realm-local Object.prototype state',()=>{
 });
 
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
-  const safe=moduleSource('const item={field:41};return item.field;',
-    'const item={field:7};return item.field;');
+  const safe=moduleSource('const item={privateField:41};return item.privateField;',
+    'const item={publicField:7};return item.publicField;');
   const partitioned=partition(safe);
   assert.deepEqual(partitioned.privateNames,['protectedOp']);
   assert.deepEqual(partitioned.publicNames,['visible']);
   assert.ok(partitioned.clientFile.code.includes('export function visible()'));
-  assert.ok(!partitioned.clientFile.code.includes('return item.field;return'));
+  assert.ok(partitioned.clientFile.code.includes('return item.publicField;'));
+  assert.ok(!partitioned.clientFile.code.includes('privateField'));
 });
