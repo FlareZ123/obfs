@@ -168,6 +168,28 @@ test('SCO refuses 32 static-intrinsic mutation spellings and retains read-only m
   assert.match(result.clientFile.code,/Number.MAX_SAFE_INTEGER/);
 });
 
+test('SCO private export cannot silently migrate browser-only ambient reads',()=>{
+  const browser=vm.createContext({window:{externalBridge:{value:41}}});
+  const server=vm.createContext({});
+  assert.equal(vm.runInContext('window.externalBridge.value',browser),41);
+  assert.throws(()=>vm.runInContext('window.externalBridge.value',server),ReferenceError);
+  for(const expression of [
+    'window.externalBridge.value',
+    'document.title',
+    'navigator.language',
+    'location.href',
+    'localStorage.length',
+    'sessionStorage.length',
+    'indexedDB.open("x")',
+    'globalThis.window.externalBridge.value',
+    'globalThis["doc"+"ument"].title',
+    'typeof window'
+  ]){
+    const source=moduleSource('return '+expression+';','return 7;');
+    assert.throws(()=>partition(source),/browser.*ambient|ambient.*browser/i,expression);
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
