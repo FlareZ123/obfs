@@ -109,20 +109,38 @@ function observesFunctionSource(ast) {
   // Aliased string prefixes and aliased String constructors can coerce
   // functions to their exact source text without a literal at the use site.
   const strings=new Set();
-  const coercers=new Set(['String']);
+  // These standard builtins coerce a nonprimitive argument to a string.
+  // That invokes Function#toString when the argument is a function. A
+  // source rewrite can therefore change RegExp.source, Symbol.description,
+  // or the output of URI encoders even without an explicit String(...) call.
+  const builtinCoercers=new Set(['String','RegExp','Symbol','encodeURI',
+    'encodeURIComponent','decodeURI','decodeURIComponent','escape','unescape']);
+  const coercers=new Set(builtinCoercers);
+  const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isGlobal(node) {
     return Boolean(node && node.type==='Identifier' && globals.has(node.name));
   }
+  /** @param {AstNode} node @returns {string|null} */
+  function memberName(node) {
+    return node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isSymbolConstructor(node) {
+    return Boolean(node && (node.type==='Identifier' && symbols.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='Symbol'));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
-    if(node.type!=='MemberExpression'||!isGlobal(node.object))return false;
-    const name=node.computed?staticString(node.property):
-      node.property.type==='Identifier'?node.property.name:null;
-    return name==='String';
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
+      name==='for' && isSymbolConstructor(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStringValue(node) {
@@ -149,6 +167,7 @@ function observesFunctionSource(ast) {
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -157,7 +176,10 @@ function observesFunctionSource(ast) {
           if(property.type!=='Property' || property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name==='String')changed=add(coercers,property.value.name)||changed;
+          if(name!==null && builtinCoercers.has(name)) {
+            changed=add(coercers,property.value.name)||changed;
+            if(name==='Symbol')changed=add(symbols,property.value.name)||changed;
+          }
         }
       }
     });
