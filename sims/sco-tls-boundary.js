@@ -7,6 +7,7 @@ const https = require('node:https');
 const os = require('node:os');
 const path = require('node:path');
 const {performance} = require('node:perf_hooks');
+const {atomicWrite} = require('../src/atomic');
 
 /** @param {number[]} items @returns {number} */
 function median(items) {
@@ -177,7 +178,8 @@ async function main() {
 }
 
 if (require.main === module) {
-  main().then(result => {
+  main().then(async result => {
+    await atomicWrite(path.join(process.cwd(), 'sco-tls-boundary-output.json'),JSON.stringify(result,null,2)+'\n');
     for (const row of result.results) {
       process.stdout.write('wait=' + row.artificialWaitMs + 'ms rounds=' + row.rounds +
         ' TLS reuse=' + row.reuseRatio.toFixed(2) + 'x fresh=' + row.freshRatio.toFixed(2) + 'x\n');
