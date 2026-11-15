@@ -3,12 +3,14 @@ export const fastScore=value=>((value*31)^0x4d13)|0;
 function privateRound(current,key,createHmac){
   return createHmac('sha256',key).update(current).digest();
 }
+const privateKeyBytes=raw=>Buffer.from(raw);
+const privateHex=buffer=>buffer.toString('hex');
 export async function protectedDigest(value){
   const {createHmac}=await import('node:crypto');
-  const privateKey=Buffer.from('SCO_SELECTIVE_SERVER_ONLY_CANARY_73159');
+  const privateKey=privateKeyBytes('SCO_SELECTIVE_SERVER_ONLY_CANARY_73159');
   let current=Buffer.from(value,'utf8');
   for(let round=0;round<16000;round++)current=privateRound(current,privateKey,createHmac);
-  return current.toString('hex');
+  return privateHex(current);
 }
 export function report(value){return globalThis.externalBridge.accept(fastScore(value));}
 export async function combined(value){
