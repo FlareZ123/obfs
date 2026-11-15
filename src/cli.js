@@ -62,6 +62,24 @@ async function readSourceTree(root) {
   return results;
 }
 
+/**
+ * Match Node's nearest package.json scope for a .js entry, including nested
+ * package boundaries that can override the top-level package type.
+ * @param {SourceFile[]} files
+ * @param {string} entry
+ * @returns {boolean}
+ */
+function entryUsesEsmPackage(files,entry) {
+  let directory=path.posix.dirname(entry);
+  for (;;) {
+    const location=path.posix.join(directory,'package.json');
+    const pkg=files.find(file=>file.path===location);
+    if (pkg) return JSON.parse(String(pkg.code)).type==='module';
+    if (directory==='.') return false;
+    directory=path.posix.dirname(directory);
+  }
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
   const {root,out,entry,port,hosts,seed,closedWorld} = readArgs(argv);
@@ -87,8 +105,7 @@ async function main(mode,argv) {
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
-    const packageFile=source.find(file=>file.path==='package.json');
-    if (entry.endsWith('.js') && packageFile && JSON.parse(packageFile.code.toString()).type === 'module') {
+    if (entry.endsWith('.js') && entryUsesEsmPackage(source,entry)) {
       throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');
     }
     const entrySource = result.files.find(file=>file.path===entry);
