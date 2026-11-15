@@ -179,3 +179,37 @@ opt-in and does not establish an application-wide runtime ceiling. The
 source-only parser recovering every admitted held-out format also means
 that its masked mode has no demonstrated security advantage compensating
 for the higher measured median slowdown.
+
+
+## Why the numeric state mask is algebraically cancellable
+
+Let q be a target case identifier (an unsigned 32-bit integer) and v
+the result of the just-evaluated branch test. Define m(v) as ToInt32(v)
+when typeof v is "number", and as zero for every other type. The
+emitted branch encodes its target as
+
+    state = ToUint32(q XOR m(v)).
+
+Before entering the next block the dispatcher computes
+
+    case = ToUint32(state XOR m(v)).
+
+Bitwise XOR is self-inverse at all 32 positions, so
+
+    case = ToUint32((q XOR m(v)) XOR m(v)) = q
+
+for every possible Number value, including NaN, infinities and signed
+zero. Non-Number types use a zero mask. The scratch test result remains
+unchanged between the two operations. First dispatch starts with a
+scratch variable whose typeof is "undefined" and therefore a zero mask.
+The additional ToInt32 conversion runs only on primitive Numbers; it
+cannot invoke user-defined object coercion.
+
+A source-only attacker can apply this identity without knowing v,
+the build seed, the runtime branch or a sampled execution. The
+[independent recovery tool](../sims/branch-block-reconstruction.js)
+implements exactly this cancellation across both published variants,
+including the held-out corpus. This argument covers input/result values
+and exception types/messages in the subset studied. Source-level stack
+locations and function-string introspection differ, so external
+observers still need an explicit application contract.
