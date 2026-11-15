@@ -64,3 +64,5 @@ Last full manual run 43706323035 at source b7faf8b had two failed Node unit test
 Last external full run 43706326751 on source b7faf8b was still in progress at 10:56. Previous run 43705839659 at source 19e1a14 had one source-program stochastic confounder in p02385_1; fixed by paired V8 --random-seed in commits 1cb2f1d and 13bf696. Verify rerun before claiming zero mismatches again.
 
 Final memory and research protocol files have been pushed. Lease release is only allowed after actual clock reaches 10:57:02Z. Preserve these explicit open items rather than claiming a green run.
+
+**Release-time status:** External full three-lane run [43706326751](https://github.com/FlareZ123/obfs/actions/runs/43706326751) at commit b7faf8b2540eb43790ac5562203a825fba38713b completed **success** following fixed V8 seeding and generated-output hash checks. The later full Ubuntu/Windows validation [43706323035](https://github.com/FlareZ123/obfs/actions/runs/43706323035) remained **failure** with two Node unit tests failing on each OS; exact test names should be extracted by the next incarnation. Preserve this red CI evidence instead of claiming an entirely green release.
