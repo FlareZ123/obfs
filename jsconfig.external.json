@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/jsdeobsbench-adapter.js",
+    "sims/jsdeobsbench-audit.js",
+    "sims/jsdeobsbench-coverage.js",
+    "sims/jsdeobsbench-differential.js"
+  ],
+  "exclude": ["node_modules"]
+}
