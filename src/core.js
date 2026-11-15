@@ -63,21 +63,23 @@ function injectHostLock(source, ast, hosts) {
 }
 
 /**
- * Detect direct writes that can replace the ambient String methods used by
- * the eager decoder. An imported ESM dependency executes before this file's
+ * Detect direct writes that can replace String decoder methods or the Array
+ * iterator consumed by chunked string spread. An imported ESM dependency executes before this file's
  * decoder, so a write anywhere in the supplied file group must disable that
  * decoder throughout the group. Indirect aliases and external modules remain
  * outside this deliberately conservative syntactic check.
  * @param {import('./ast').AstNode} ast
  * @returns {boolean}
  */
-function mutatesStringIntrinsic(ast) {
+function mutatesDecoderIntrinsic(ast) {
   // Find immutable-looking and reassigned aliases before checking writes.
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
   const globalNames=new Set(['globalThis','window','self','global']);
   const stringNames=new Set(['String']);
   const prototypeNames=new Set();
+  const arrayNames=new Set(['Array']);
+  const arrayPrototypes=new Set();
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function memberName(node) {
     if (node.type!=='MemberExpression') return null;
@@ -116,6 +118,23 @@ function mutatesStringIntrinsic(ast) {
        typeof node.arguments[0].value==='string')return true;
     return false;
   }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isArrayValue(node) {
+    if(node.type==='Identifier')return arrayNames.has(node.name);
+    return node.type==='MemberExpression' && isGlobal(node.object) &&
+      (memberName(node)==='Array'||memberName(node)===null);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isArrayPrototype(node) {
+    if(node.type==='Identifier')return arrayPrototypes.has(node.name);
+    if(node.type==='MemberExpression')return isArrayValue(node.object) &&
+      (memberName(node)==='prototype'||memberName(node)===null);
+    return node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+      node.callee.object.type==='Identifier' &&
+      ['Object','Reflect'].includes(node.callee.object.name) &&
+      memberName(node.callee)==='getPrototypeOf' &&
+      node.arguments[0]?.type==='ArrayExpression';
+  }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
   // positive, which is safer than assuming a potentially mutable alias is pure.
@@ -132,8 +151,10 @@ function mutatesStringIntrinsic(ast) {
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
+          if(isArrayValue(node.init))add(arrayNames,node.id.name);
+          if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
-                  (isGlobal(node.init)||isStringValue(node.init))) {
+                  (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
@@ -141,6 +162,8 @@ function mutatesStringIntrinsic(ast) {
               property.key.type==='Literal' ? property.key.value : null;
             if(name==='String'&&isGlobal(node.init))add(stringNames,property.value.name);
             if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
+            if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
+            if(name==='prototype'&&isArrayValue(node.init))add(arrayPrototypes,property.value.name);
           }
         }
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
@@ -148,6 +171,8 @@ function mutatesStringIntrinsic(ast) {
         if(isGlobal(node.right))add(globalNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
+        if(isArrayValue(node.right))add(arrayNames,node.left.name);
+        if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
       }
     });
   } while(discovered);
@@ -157,6 +182,20 @@ function mutatesStringIntrinsic(ast) {
     if(node.type!=='MemberExpression')return false;
     return isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) ||
       touchesString(node.object);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isArrayIteratorProperty(node) {
+    if(node.type!=='MemberExpression'||!node.computed||
+       !isArrayPrototype(node.object))return false;
+    const key=node.property;
+    if(key.type==='Literal')return false;
+    // A known different well-known Symbol does not affect array spread.
+    if(key.type==='MemberExpression' && key.object.type==='Identifier' &&
+       key.object.name==='Symbol' && memberName(key)!==null) {
+      return memberName(key)==='iterator';
+    }
+    // Symbol aliases and computed keys require a richer proof.
+    return true;
   }
   // Runtime-generated code can modify the intrinsic before another module
   // loads. The call target may also be saved in a local alias, so observing
@@ -170,9 +209,12 @@ function mutatesStringIntrinsic(ast) {
       mutated=true;
       return;
     }
-    if(node.type==='AssignmentExpression' && touchesString(node.left) ||
-       node.type==='UpdateExpression' && touchesString(node.argument) ||
-       node.type==='UnaryExpression' && node.operator==='delete' && touchesString(node.argument)) {
+    if(node.type==='AssignmentExpression' &&
+         (touchesString(node.left)||isArrayIteratorProperty(node.left)) ||
+       node.type==='UpdateExpression' &&
+         (touchesString(node.argument)||isArrayIteratorProperty(node.argument)) ||
+       node.type==='UnaryExpression' && node.operator==='delete' &&
+         (touchesString(node.argument)||isArrayIteratorProperty(node.argument))) {
       mutated=true;
       return;
     }
@@ -188,6 +230,16 @@ function mutatesStringIntrinsic(ast) {
       if(isGlobal(first) && (method==='assign'||method==='defineProperties'))mutated=true;
       if(isGlobal(first) && method==='defineProperty' &&
          (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
+    }
+    if(isArrayPrototype(first) && receiver.name==='Object' &&
+       ['assign','defineProperty','defineProperties','setPrototypeOf'].includes(method??'')) {
+      const key=node.arguments[1];
+      if(method!=='defineProperty' || !key || key.type!=='Literal')mutated=true;
+    }
+    if(isArrayPrototype(first) && receiver.name==='Reflect' &&
+       ['set','defineProperty','deleteProperty','setPrototypeOf'].includes(method??'')) {
+      const key=node.arguments[1];
+      if(method==='setPrototypeOf'||!key||key.type!=='Literal')mutated=true;
     }
     if(receiver.name==='Reflect' && ['set','defineProperty','deleteProperty','setPrototypeOf'].includes(method??'')) {
       if(touchesString(first))mutated=true;
@@ -251,7 +303,7 @@ function obfuscateFiles(files, options = {}) {
         if (node.type==='Identifier') reservedNames.add(node.name);
       });
       reservedSources.push(input.code);
-      if (mutatesStringIntrinsic(inputAst) ||
+      if (mutatesDecoderIntrinsic(inputAst) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
