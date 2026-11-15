@@ -49,6 +49,8 @@ jobs:
         run: node sims/sco-sync-diversified-report.js --stress
       - name: Stress-test two independent heldout public SCO machine corpora
         run: node sims/sco-sync-diversified-report.js --stress --holdout
+      - name: Verify independent four-state behavioral equivalence partition on 60000 cases
+        run: node --test test/sco-mealy-refinement.test.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
