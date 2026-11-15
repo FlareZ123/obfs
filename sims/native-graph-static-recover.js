@@ -75,7 +75,9 @@ function recoverNativeGraph(code) {
       if(wrapper){wrapper=null;break;}
       wrapper={name:fn.id.name,parameter:fn.params[0].name};
     }
-    if(!wrapper)continue;
+    // An inline graph retains its original public function. Older prototypes
+    // used an additional helper wrapper, which is still recognized above.
+    wrapper??={name:helper.id.name,parameter:helper.params[0].name};
     const expression=/** @type {string} */ (values.get(terminal.name));
     recovered.push({...wrapper,
       expression:expression.replaceAll('__ATTACK_PARAMETER__',wrapper.parameter),operations});
