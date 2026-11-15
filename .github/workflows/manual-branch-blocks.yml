@@ -25,6 +25,8 @@ jobs:
         run: node sims/branch-block-reconstruction.js
       - name: Held-out seeded attacker corpus
         run: node sims/branch-block-recovery-corpus.js
+      - name: Public ciphertext-bit tamper attack
+        run: node sims/branch-block-tamper.js
       - name: Six-trial isolated performance profile
         env:
           OBFS_ENFORCE_BUDGET: '1'
@@ -53,6 +55,8 @@ jobs:
         run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js
       - name: Held-out seeded attacker corpus
         run: node sims/branch-block-recovery-corpus.js
+      - name: Public ciphertext-bit tamper attack
+        run: node sims/branch-block-tamper.js
       - name: Six-trial plain and masked hot performance
         env:
           OBFS_ENFORCE_BUDGET: '1'
