@@ -6,19 +6,6 @@ const {performance}=require('node:perf_hooks');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
 
 /**
- * Promise-returning computation with intentionally coarse and fine invocation
- * sizes. It is not a secret algorithm. Source privacy is tested separately
- * from function privacy under unlimited authorized chosen-input requests.
- * @param {number} input
- * @returns {number}
- */
-function digest(input) {
-  let x=123456789;
-  for(let i=0;i<input;i++)x=(Math.imul(x^i,1664525)+1013904223)|0;
-  return x>>>0;
-}
-
-/**
  * Median of a nonempty finite set of measured runtimes.
  * @param {number[]} samples
  * @returns {number}
@@ -42,10 +29,19 @@ function median(samples) {
  */
 async function measureScoConstGranularity() {
   const secret='SCO_SERVER_ONLY_CANARY_314159';
-  const source='export const compute=async value=>{'+
-    'const privateCanary='+JSON.stringify(secret)+';'+
-    digest.toString().replace(/^function digest\(input\)/,'function internalDigest(input)')+
-    'return internalDigest(value);};';
+  // Build a byte-identical ESM fixture on Windows and Linux. Function#toString
+  // would inherit checkout-specific line endings from this benchmark script.
+  const source=[
+    'export const compute=async value=>{',
+    'const privateCanary='+JSON.stringify(secret)+';',
+    'function internalDigest(input){',
+    ' let x=123456789;',
+    ' for(let i=0;i<input;i++)x=(Math.imul(x^i,1664525)+1013904223)|0;',
+    ' return x>>>0;',
+    '}',
+    'return internalDigest(value);',
+    '};'
+  ].join('\n');
   const partition=partitionScoAsyncModule({path:'kernel.mjs',sourceType:'module',code:source},{
     seed:'sco-const-granularity'
   });
