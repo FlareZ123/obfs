@@ -88,7 +88,7 @@ function mutatesStringIntrinsic(ast) {
   function touchesString(node) {
     if(node.type==='Identifier')return node.name==='String';
     if(node.type!=='MemberExpression')return false;
-    return isGlobal(node.object) && memberName(node)==='String' || touchesString(node.object);
+    return isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) || touchesString(node.object);
   }
   let mutated=false;
   walk(ast,node=>{
@@ -109,10 +109,13 @@ function mutatesStringIntrinsic(ast) {
       // property bag whose keys are not statically provable here.
       if(isGlobal(first) && (method==='assign'||method==='defineProperties'))mutated=true;
       if(isGlobal(first) && method==='defineProperty' &&
-         node.arguments[1]?.type==='Literal' && node.arguments[1].value==='String')mutated=true;
+         (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
     }
-    if(receiver.name==='Reflect' && method==='set' && isGlobal(first) &&
-       (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
+    if(receiver.name==='Reflect' && ['set','defineProperty','deleteProperty','setPrototypeOf'].includes(method??'')) {
+      if(touchesString(first))mutated=true;
+      if(isGlobal(first) && (method==='setPrototypeOf' ||
+          node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
+    }
   });
   return mutated;
 }
