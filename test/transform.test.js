@@ -132,6 +132,30 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('arguments implicit alias blocks unsound parameter renaming', () => {
+  const code = 'function f(p){console.log(arguments[0].secret,p.secret);} const a={secret:11};f(a);';
+  const out = compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('rest parameters cannot be treated as ordinary parameters', () => {
+  const code='function f(...args){console.log(args[0].secret);} const a={secret:12};f(a);';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('async identity return is wrapped in Promise', () => {
+  const code='async function f(p){return p;} const a={secret:13}; f(a).then(x=>console.log(x.secret));';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('generator identity return does not preserve value identity', () => {
+  const code='function* f(p){return p;} const a={secret:14}; console.log(f(a).next().value.secret);';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('deterministic transformation', () => {
   const files={'a.js':`const a={private:5};console.log(a.private);`};
   assert.deepEqual(transform(files,{seed:'alpha',closedWorld:true}),transform(files,{seed:'alpha',closedWorld:true}));
