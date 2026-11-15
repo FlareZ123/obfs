@@ -11,7 +11,7 @@ const {readArgs}=require('../src/cli');
 function load(source) {
   const module={exports:null};
   vm.runInNewContext(source,{module,globalThis},{timeout:2000});
-  return /** @type {(x:number)=>number} */(module.exports);
+  return /** @type {(x:number)=>number} */(/** @type {unknown} */(module.exports));
 }
 
 /** @param {number[]} arr @returns {number} */
@@ -56,7 +56,7 @@ test('Wasm i32 compiler preserves bitvector results on typed inputs',()=>{
       assert.ok(byteMatch,'Public binary bytes must be recoverable');
       const bytes=Uint8Array.from(JSON.parse(byteMatch[1]));
       assert.ok(WebAssembly.validate(bytes));
-      const attacker=new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports.f;
+      const attacker=/** @type {(x:number)=>number} */(new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports.f);
       assert.equal(typeof attacker,'function');
       assert.equal(attacker(42)>>>0,obfuscated(42)>>>0);
     }
@@ -153,8 +153,12 @@ test('record native versus Wasm warm hot/cold costs without universal assertion'
   for(let i=0;i<6;i++) {
     assert.equal(work(original,150000),work(transformed,150000));
   }
-  const native=[],wasm=[];
+  /** @type {number[]} */
+  const native=[];
+  /** @type {number[]} */
+  const wasm=[];
   for(let trial=0;trial<17;trial++) {
+    /** @type {[((x:number)=>number),number[]][]} */
     const order=trial%2===0?[[original,native],[transformed,wasm]]:
       [[transformed,wasm],[original,native]];
     for(const [fn,times] of order) {
