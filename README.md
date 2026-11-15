@@ -33,6 +33,8 @@ their private server methods into an authorized RPC registry. Its measured
 runners, with incomplete performance/security coverage documented in
 [`im-results/sco-graph-partition-2026-11-15.md`](im-results/sco-graph-partition-2026-11-15.md).
 
+**SCO authorized online-relay limit:** Keeping a random HMAC key and private ESM implementation server-side protects them from a source-only client; it does not prevent an attacker who has a legitimate unlimited-query account from using that same original server as an oracle for downstream users. A real attacker-operated loopback proxy reproduced **32/32 previously unqueried high-entropy outputs** without extracting the key, despite direct unauthenticated requests returning 403. Its heavy 8 MiB HMAC workload measured **1.304× Ubuntu / 1.345× Windows** end-to-end through two HTTP hops, measured only on local loopback without realistic RTT or TLS. The independently reproducible [server-private online relay attacker](sims/sco-relay-attack.js) and [SCO large-domain results](im-results/sco-large-domain-prf-2026-11-15.md) distinguish actual server-side source secrecy from functional anti-cloning under an authorized online relay.
+
 **Experimental COO sharding sample:** [`examples/coo-shards/`](examples/coo-shards/README.md)
 includes a checked-in four-module before/after transformation of two string
 constants, a source-only offline reconstruction witness, and paired cold/hot
