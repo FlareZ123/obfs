@@ -87,20 +87,42 @@ async function measure(style,iterations,trials) {
   assert.equal(result.crossFile.properties,2,style+' must protect two properties');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-property-hot-'));
   try {
-    const before=path.join(root,'native');
-    const after=path.join(root,'obfuscated');
-    await writeFiles(before,files);
-    await writeFiles(after,result.files);
-    const nativeStart=performance.now();
-    const native=await import(pathToFileURL(path.join(before,'worker.mjs')).href);
-    const coldNativeMs=performance.now()-nativeStart;
-    const protectedStart=performance.now();
-    const protectedModule=await import(pathToFileURL(path.join(after,'worker.mjs')).href);
-    const coldObfuscatedMs=performance.now()-protectedStart;
-    /** @type {(initial:number,iterations:number)=>number} */
-    const originalHot=native.hot;
-    /** @type {(initial:number,iterations:number)=>number} */
-    const obfuscatedHot=protectedModule.hot;
+    // Each cold import has a fresh module URL. Alternating first-import
+    // ordering across several pairs limits the warm filesystem/module-loader
+    // bias that would favor the second file in a single comparison.
+    /** @type {number[]} */
+    const coldNativeSamples=[];
+    /** @type {number[]} */
+    const coldObfuscatedSamples=[];
+    /** @type {((initial:number,iterations:number)=>number)|null} */
+    let originalHot=null;
+    /** @type {((initial:number,iterations:number)=>number)|null} */
+    let obfuscatedHot=null;
+    for(let repeat=0;repeat<trials;repeat++) {
+      const before=path.join(root,'native-'+repeat);
+      const after=path.join(root,'obfuscated-'+repeat);
+      await writeFiles(before,files);
+      await writeFiles(after,result.files);
+      /** @returns {Promise<void>} */
+      async function loadNative() {
+        const started=performance.now();
+        const loaded=await import(pathToFileURL(path.join(before,'worker.mjs')).href);
+        coldNativeSamples.push(performance.now()-started);
+        if(originalHot===null)originalHot=loaded.hot;
+      }
+      /** @returns {Promise<void>} */
+      async function loadProtected() {
+        const started=performance.now();
+        const loaded=await import(pathToFileURL(path.join(after,'worker.mjs')).href);
+        coldObfuscatedSamples.push(performance.now()-started);
+        if(obfuscatedHot===null)obfuscatedHot=loaded.hot;
+      }
+      if(repeat%2===0){await loadNative();await loadProtected();}
+      else {await loadProtected();await loadNative();}
+    }
+    assert.ok(originalHot&&obfuscatedHot);
+    const coldNativeMs=median(coldNativeSamples);
+    const coldObfuscatedMs=median(coldObfuscatedSamples);
     let matchingProbes=0;
     for(const seed of [0,1,7,43,511,-91]) {
       assert.equal(obfuscatedHot(seed,10000),originalHot(seed,10000));
