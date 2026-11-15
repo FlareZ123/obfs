@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -183,7 +183,7 @@ function renameCrossFileProperties(files,seed) {
         /** @type {AstNode[]} */
         const props=decl.init.properties;
         if (!props.length || props.some(p => p.type!=='Property' || p.computed || p.method || p.shorthand ||
-              p.kind!=='init' || p.value.type!=='Literal' || !staticName(p.key) ||
+              p.kind!=='init' || !isLiteralValue(p.value) || !staticName(p.key) ||
               ['__proto__','constructor','prototype'].includes(String(staticName(p.key))))) continue;
         const names=props.map(p=>staticName(p.key));
         if (new Set(names).size!==names.length) continue;
