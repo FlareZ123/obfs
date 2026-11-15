@@ -138,7 +138,9 @@ test('real private SCO graph preserves authenticated remote behavior and withhol
     globalThis.fetch=previousFetch;
     if(sample){
       const server=sample.server;
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     if(oldKey===undefined)delete process.env.OBFS_SCO_GRAPH_KEY;
     else process.env.OBFS_SCO_GRAPH_KEY=oldKey;
