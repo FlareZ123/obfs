@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
 const {obfuscateFiles}=require('../src');
+const {neutralizeHashedNames}=require('../sims/offline-normalize');
 
 /**
  * Execute one CommonJS fixture without granting arbitrary filesystem access.
@@ -31,7 +32,14 @@ function check(wrapper,expectedObjects) {
     }).files[0];
     assert.equal(out.metrics.objects,expectedObjects,out.code);
     assert.equal(execute(/** @type {string} */ (out.code)),baseline,mode);
-    if(expectedObjects)assert.doesNotMatch(/** @type {string} */ (out.code),/\.secretField/u);
+    if(expectedObjects) {
+      assert.doesNotMatch(/** @type {string} */ (out.code),/\.secretField/u);
+      const attack=neutralizeHashedNames([{
+        path:'entry.cjs',sourceType:'commonjs',code:/** @type {string} */ (out.code)
+      }]);
+      assert.equal(attack.properties,2,'Static label normalization must expose coverage');
+      assert.equal(execute(attack.files[0].code),baseline,'Normalized program must preserve behavior');
+    }
   }
 }
 
