@@ -6,9 +6,9 @@ const { transform } = require('../lib/transform');
 
 /** @type {Record<string, string>} */
 const workloads = {
-  numeric: `(function workload(n) {const state={secret:1,step:7};for(let i=0;i<n;i++){state.secret=(state.secret*1664525+state.step+i)|0;}return state.secret;})`,
-  alias: `(function workload(n) {const state={secret:17};const a=state;let sum=0;for(let i=0;i<n;i++){a.secret=(a.secret+i)&65535;sum^=state.secret;}return sum;})`,
-  bracket: `(function workload(n) {const state={secret:1,step:3};let s=0;for(let i=0;i<n;i++){state['secret']+=state['step'];s^=state['secret'];}return s;})`,
+  numeric: `(function workload(n) {const state={secret:1,step:7};for(let i=0;i<n;i++){state.secret+=7;state.step++;}return state.secret;})`,
+  alias: `(function workload(n) {const state={secret:17};const a=state;let sum=0;for(let i=0;i<n;i++){a.secret++;sum^=state.secret;}return sum;})`,
+  bracket: `(function workload(n) {const state={secret:1,step:3};let s=0;for(let i=0;i<n;i++){state['secret']+=3;s^=state['secret'];}return s;})`,
   calls: `(function workload(n) {function identity(p){return p;}const state={secret:1};let s=0;for(let i=0;i<n;i++){identity(state).secret++;s ^= state.secret;}return s;})`,
 };
 /** @param {number[]} a @returns {number} */
@@ -22,6 +22,7 @@ function time(fn, n) {
 /** @param {string} label @param {string} source */
 function run(label, source) {
   const transformed=transform({ 'bench.mjs':source },{closedWorld:true,seed:'performance-stable'});
+  if (transformed.renamed === 0) throw new Error('Benchmark did not obfuscate ' + label);
   const original=vm.runInNewContext(source);
   const modified=vm.runInNewContext(transformed.files['bench.mjs']);
   const n=3_000_000;
