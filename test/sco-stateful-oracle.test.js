@@ -19,6 +19,8 @@ test('resettable finite-state learner does not consult the hidden transition tab
   assert.equal(recovered.machine.access.length,4);
   assert.equal(recovered.experiments,14);
   assert.ok(recovered.requests<900);
+  assert.ok(recovered.trainingWords.length>=14);
+  assert.equal(new Set(recovered.trainingWords).size,recovered.trainingWords.length);
   for(let index=1;index<1024;index++) {
     const word=index.toString(2).split('').map(Number);
     assert.deepEqual(learnedTrace(recovered.machine,word),privateTrace(machine,word));
@@ -30,11 +32,14 @@ test('actual SCO proxy permits legitimate learning of private state transitions'
   assert.equal(result.scenarios,2);
   assert.ok(result.requests<2000);
   assert.equal(result.heldout,4092);
+  assert.ok(result.strictlyUnseen>3600 && result.strictlyUnseen<4092);
   assert.equal(result.allExact,true);
   for(const detail of result.details) {
     assert.equal(detail.unauthorizedStatus,403);
     assert.equal(detail.sourceDisclosed,false);
     assert.equal(detail.learnedStates,4);
     assert.equal(detail.heldout,2046);
+    assert.ok(detail.strictlyUnseen>1800 && detail.strictlyUnseen<2046);
+    assert.ok(detail.uniqueTrainingWords>=14);
   }
 });
