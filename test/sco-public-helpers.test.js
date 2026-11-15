@@ -2,6 +2,8 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const path=require('node:path');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports}=require('../src');
 const {parse}=require('../src/ast');
 
@@ -26,6 +28,21 @@ const SOURCE=[
   'export function label(value){return formatCount(value.length);}',
   'export async function combined(value){return formatCount(await secret(normalizeInput(value)));}'
 ].join('\n');
+
+test('checked-in mixed helper example matches the actual emitted client bytes',async()=>{
+  const root=path.join(__dirname,'../examples/sco-public-helpers');
+  const source=(await fs.readFile(path.join(root,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const expected=(await fs.readFile(path.join(root,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const generated=partitionScoSelectedAsyncExports({path:'mixed.mjs',sourceType:'module',code:source},{
+    seed:'sco-public-helpers-20261115-example',privateNames:['secret'],
+    publicHelperNames:['normalizeInput','formatCount']
+  });
+  assert.equal(generated.clientFile.code,expected);
+  assert.doesNotMatch(expected,/SCO_PUBLIC_HELPER_PRIVATE_CANARY|privateFold|PRIVATE_KEY/u);
+  assert.match(expected,/function normalizeInput/u);
+  assert.match(expected,/const formatCount/u);
+  assert.doesNotThrow(()=>parse(expected,'module'));
+});
 
 test('explicit public helpers stay native while private helpers and constants remain server-only',async()=>{
   const split=partition(SOURCE);
