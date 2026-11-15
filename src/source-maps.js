@@ -132,7 +132,7 @@ function hasCssSourceMapDirective(code) {
 function hasWasmSourceMapDirective(code) {
   if(!Buffer.isBuffer(code) || code.length<8 ||
       code[0]!==0 || code[1]!==0x61 || code[2]!==0x73 || code[3]!==0x6d) return false;
-  const module=new WebAssembly.Module(code);
+  const module=new WebAssembly.Module(new Uint8Array(code));
   return WebAssembly.Module.customSections(module,'sourceMappingURL').length>0;
 }
 
