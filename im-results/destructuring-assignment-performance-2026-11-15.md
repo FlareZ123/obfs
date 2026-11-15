@@ -21,7 +21,7 @@ The baseline and transformed output execute as separate fresh Node `vm` contexts
 | Forwarded reader, COO | 0.94226× | 0.98311× | 1.00043× | 1.00914× |
 | Forwarded reader, SNO | 1.00191× | 0.99284× | 1.00841× | 1.00465× |
 
-All twelve paired hot/cold rows per OS? There are six workload/mode rows and two measurement phases, for **twelve phase-specific ratios on each OS**. Each observed ratio falls below the requested **2.5×** budget in the selected workloads. No server initialization deduction was needed; the SCO mode was not measured here. The direct loop runs in roughly 0.37–0.44 ms per sample, where ratio noise and V8 optimizations are significant. The forwarded-reader loop runs in roughly 30–35 ms per sample; different JavaScript shapes should not be compared as security transformations through those raw times.
+Across six workload/mode rows and two measurement phases, there are **twelve phase-specific ratios per OS**. Each observed ratio falls below the requested **2.5×** budget in the selected workloads. No server initialization deduction was needed; the SCO mode was not measured here. The direct loop runs in roughly 0.37–0.44 ms per sample, where ratio noise and V8 optimizations are significant. The forwarded-reader loop runs in roughly 30–35 ms per sample; different JavaScript shapes should not be compared as security transformations through those raw times.
 
 The result does not establish an upper bound on all user code, browser engines, modules, unusual JIT states or input distributions. Repeated CI runs, a realistic browser workload and an end-to-end SCO latency benchmark would be needed before broad release claims.
 
