@@ -113,9 +113,27 @@ function observesFunctionSource(ast) {
         (node.property.type==='Identifier' ? node.property.name : null);
       if(name==='toString'||name==='toSource') observed=true;
     }
-    if((node.type==='CallExpression'||node.type==='NewExpression') &&
-        node.callee.type==='Identifier' && node.callee.name==='String') {
-      const argument=node.arguments[0];
+    if(node.type==='CallExpression'||node.type==='NewExpression') {
+      const callee=node.callee;
+      /** @type {AstNode|null|undefined} */
+      let argument=null;
+      if(callee.type==='Identifier' && callee.name==='String') argument=node.arguments[0];
+      if(callee.type==='MemberExpression') {
+        const name=callee.computed ? staticString(callee.property) :
+          (callee.property.type==='Identifier' ? callee.property.name : null);
+        const receiver=callee.object;
+        if(name==='String' && receiver.type==='Identifier' &&
+            ['globalThis','window','self','global'].includes(receiver.name)) {
+          argument=node.arguments[0];
+        } else if(receiver.type==='Identifier' && receiver.name==='String' && node.type==='CallExpression') {
+          if(name==='call'||name==='bind') argument=node.arguments[1];
+          if(name==='apply') {
+            const args=node.arguments[1];
+            if(args?.type==='ArrayExpression') argument=args.elements[0];
+            else if(args) observed=true;
+          }
+        }
+      }
       // A literal string/number/regex is never a function whose source is
       // exposed through coercion. Keep these common primitives eligible.
       if(argument && argument.type!=='Literal' &&
