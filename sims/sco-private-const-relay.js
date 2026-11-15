@@ -61,8 +61,9 @@ function publicKernel(count,normalize){
  *   heldOut:number,matched:number,unauthorizedStatus:number,
  *   publicSourceHasKey:boolean,privateCalls:number,sessionCalls:number,
  *   sourceBytes:number,publicBytes:number,nativeMedianMs:number,
- *   relayMedianMs:number,relayRatio:number,
- *   thinNativeMedianMs:number,thinRelayMedianMs:number,thinRelayRatio:number
+ *   clientMedianMs:number,clientRatio:number,relayMedianMs:number,relayRatio:number,
+ *   thinNativeMedianMs:number,thinClientMedianMs:number,thinClientRatio:number,
+ *   thinRelayMedianMs:number,thinRelayRatio:number
  * }>}
  */
 async function runChallenge(){
@@ -159,43 +160,55 @@ async function runChallenge(){
     /** @type {number[]} */
     const thinNativeTimes=[];
     /** @type {number[]} */
+    const thinClientTimes=[];
+    /** @type {number[]} */
     const thinRelayTimes=[];
     for(let trial=0;trial<8;trial++){
-      for(const mode of trial%2?['relay','native']:['native','relay']){
+      for(const mode of trial%2?['relay','client','native']:['native','client','relay']){
         const start=performance.now();
         const digest=mode==='relay'?
-          await clone('fixed-thin-challenge'):
+          await clone('fixed-thin-challenge') :
+          mode==='client' ? await client.run('fixed-thin-challenge') :
           await original.run('fixed-thin-challenge');
         assert.equal(typeof digest,'string');
-        (mode==='relay'?thinRelayTimes:thinNativeTimes).push(performance.now()-start);
+        (mode==='relay'?thinRelayTimes:
+          mode==='client'?thinClientTimes:thinNativeTimes).push(performance.now()-start);
       }
     }
     const expected=publicKernel(SESSION_CALLS,original.normalize);
     /** @type {number[]} */
     const nativeTimes=[];
     /** @type {number[]} */
+    const clientTimes=[];
+    /** @type {number[]} */
     const relayTimes=[];
     for(let trial=0;trial<8;trial++){
-      for(const mode of trial%2?['relay','native']:['native','relay']){
+      for(const mode of trial%2?['relay','client','native']:['native','client','relay']){
         const start=performance.now();
         const local=publicKernel(SESSION_CALLS,
-          mode==='relay'?client.normalize:original.normalize);
+          mode==='native'?original.normalize:client.normalize);
         const result=mode==='relay'?
-          await clone('fixed-session-challenge'):
+          await clone('fixed-session-challenge') :
+          mode==='client' ? await client.run('fixed-session-challenge') :
           await original.run('fixed-session-challenge');
         assert.equal(local,expected);
         assert.equal(typeof result,'string');
-        (mode==='relay'?relayTimes:nativeTimes).push(performance.now()-start);
+        (mode==='relay'?relayTimes:
+          mode==='client'?clientTimes:nativeTimes).push(performance.now()-start);
       }
     }
     const nativeMedianMs=median(nativeTimes);
+    const clientMedianMs=median(clientTimes);
     const relayMedianMs=median(relayTimes);
     return {heldOut:20,matched,unauthorizedStatus:denied.status,
       publicSourceHasKey:publicCode.includes('SCO_SERVER_ONLY_HMAC'),
       privateCalls,sessionCalls:SESSION_CALLS,sourceBytes:Buffer.byteLength(source),
-      publicBytes:Buffer.byteLength(publicCode),nativeMedianMs,relayMedianMs,
-      relayRatio:relayMedianMs/nativeMedianMs,
+      publicBytes:Buffer.byteLength(publicCode),nativeMedianMs,clientMedianMs,
+      clientRatio:clientMedianMs/nativeMedianMs,
+      relayMedianMs,relayRatio:relayMedianMs/nativeMedianMs,
       thinNativeMedianMs:median(thinNativeTimes),
+      thinClientMedianMs:median(thinClientTimes),
+      thinClientRatio:median(thinClientTimes)/median(thinNativeTimes),
       thinRelayMedianMs:median(thinRelayTimes),
       thinRelayRatio:median(thinRelayTimes)/median(thinNativeTimes)};
   }finally{
