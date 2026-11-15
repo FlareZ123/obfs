@@ -59,6 +59,8 @@ test('attacker simplifies checked-in generated sample without original source or
   const before=readFileSync(path.join(__dirname,'../samples/mba-i32-before.cjs'),'utf8');
   const delivered=readFileSync(path.join(__dirname,'../samples/mba-i32-after.cjs'),'utf8');
   const recovered=normalizeMba(delivered);
+  const expected=readFileSync(path.join(__dirname,'../samples/mba-i32-recovered.cjs'),'utf8');
+  assert.equal(recovered.code,expected);
   assert.equal(recovered.rewrites,2);
   assert.ok(recovered.code.length<delivered.length);
   assert.ok(!recovered.code.includes('~(~('));
