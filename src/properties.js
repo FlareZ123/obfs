@@ -88,10 +88,11 @@ function collectBindingScopes(ast) {
  * @param {AstNode} ast
  * @param {string} rootName
  * @param {Map<string,number>} bindings
+ * @param {Map<string,number>} [importedIdentityFunctions] Verified direct ESM imports of immutable, pure identity functions.
  * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[]}|null}
  */
-function proveLocalObject(ast, rootName, bindings) {
-  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number}>} */
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map()) {
+  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,external?:boolean}>} */
   const functions = new Map();
   /** @type {Map<string,AstNode[]>} */
   const calls = new Map();
@@ -128,6 +129,14 @@ function proveLocalObject(ast, rootName, bindings) {
     }
   });
   if (dynamicScope) return null;
+  // A cross-module signature is admitted only after the module graph has
+  // proved the imported function is a stable, pure one-parameter identity.
+  // It has no locally tracked parameters, but its return aliases argument 0.
+  for (const [name,index] of importedIdentityFunctions) {
+    if (index===0 && bindings.get(name)===1 && !functions.has(name)) {
+      functions.set(name,{node:ast,params:[],forwardIndex:0,external:true});
+    }
+  }
 
   const scopes=collectBindingScopes(ast);
   /** @type {Set<string>} */
@@ -143,6 +152,7 @@ function proveLocalObject(ast, rootName, bindings) {
       if (ancestors.some(a => /^Export/.test(a.type))) unusableFunctions.add(node.name);
       continue;
     }
+    if (functions.get(node.name)?.external && /^Import(?:Default|Namespace)?Specifier$/.test(parent?.type??'')) continue;
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
   for (const name of unusableFunctions) functions.delete(name);
@@ -232,6 +242,7 @@ function proveLocalObject(ast, rootName, bindings) {
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
+      if (fn?.external && index===fn.forwardIndex) continue;
       if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' && aliases.has(fn.params[index].name)) continue;
       return null;
     }
