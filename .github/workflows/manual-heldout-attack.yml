@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Held-out semantic differential and static attacker
-        run: node --test test/heldout-object-flow-attack.test.js
+        run: node --test test/heldout-object-flow-attack.test.js test/attacker-token-normalize.test.js
       - name: Emit attack and protection surface metrics
         run: node sims/heldout-object-flow-attack.js
       - name: Check JSDoc types
