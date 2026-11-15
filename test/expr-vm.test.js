@@ -128,6 +128,43 @@ test('VM declines source-observing, dynamic-scope and unsupported expressions',(
   }
 });
 
+test('opt-in VM cost is amortized only when the verified call frequency falls',()=>{
+  const source='function compute(a,b){return ((a^b)+17)*3;}module.exports=compute;';
+  const transformed=virtualizeExpressionFunctions(source,'commonjs',{
+    seed:'expr-vm/mixed',names:['compute']
+  });
+  const native=fromCommonJs(source);
+  const compiled=fromCommonJs(transformed.code);
+  /** @param {(...args:any[])=>any} fn @param {number} frequency */
+  function mixed(fn,frequency) {
+    let checksum=0;
+    const start=performance.now();
+    for(let i=0;i<120000;i++) {
+      let v=Math.imul(i+17,31)^((i>>>2)+5);
+      v=(v+7)^((v<<3)|17);
+      v+=Math.imul(v^17,13);
+      if(i%frequency===0)v+=fn(i,i>>>1);
+      checksum=(checksum^v)|0;
+    }
+    return {ms:performance.now()-start,checksum};
+  }
+  for(const frequency of [1,8,64,512]) {
+    const baseline=mixed(native,frequency);
+    const candidate=mixed(compiled,frequency);
+    assert.equal(candidate.checksum,baseline.checksum);
+    for(let i=0;i<3;i++){mixed(native,frequency);mixed(compiled,frequency);}
+    const ratios=[];
+    for(let i=0;i<7;i++) {
+      const a=mixed(native,frequency).ms;
+      const b=mixed(compiled,frequency).ms;
+      ratios.push(b/a);
+    }
+    ratios.sort((a,b)=>a-b);
+    console.log('Experimental VM mixed frequency 1/'+frequency+' median ratio: '+
+      ratios[3].toFixed(2)+'x');
+  }
+});
+
 test('opt-in VM hot-path ratio is recorded, never assumed under 2.5x',()=>{
   const source='function compute(a,b){return ((a^b)+17)*3;}module.exports=compute;';
   const result=virtualizeExpressionFunctions(source,'commonjs',{
