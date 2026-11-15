@@ -75,6 +75,27 @@ function applyEdits(source, edits) {
 }
 
 /**
+ * Resolve only bounded constant string spellings used as computed keys.
+ * @param {AstNode} node
+ * @param {number} [depth]
+ * @returns {string|null}
+ */
+function staticString(node,depth=0){
+  if(depth>16)return null;
+  if(node.type==='Literal' && typeof node.value==='string')return node.value;
+  if(node.type==='TemplateLiteral' && !node.expressions.length){
+    const cooked=node.quasis[0]?.value.cooked;
+    return typeof cooked==='string' ? cooked : null;
+  }
+  if(node.type==='BinaryExpression' && node.operator==='+'){
+    const left=staticString(node.left,depth+1);
+    const right=staticString(node.right,depth+1);
+    return left!==null && right!==null ? left+right : null;
+  }
+  return null;
+}
+
+/**
  * Detect common source-observing operations before rewriting AST subtrees.
  * Native Function#toString can expose changed source spelling at runtime.
  * This is a conservative opt-out for known direct operations; arbitrary
@@ -88,13 +109,12 @@ function observesFunctionSource(ast) {
   let observed=false;
   walk(ast,node=>{
     if(node.type==='MemberExpression') {
-      const name=node.computed ?
-        (node.property.type==='Literal' ? node.property.value : null) :
+      const name=node.computed ? staticString(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
       if(name==='toString'||name==='toSource') observed=true;
     }
-    if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
-        node.callee.name==='String') {
+    if((node.type==='CallExpression'||node.type==='NewExpression') &&
+        node.callee.type==='Identifier' && node.callee.name==='String') {
       const argument=node.arguments[0];
       // A literal string/number/regex is never a function whose source is
       // exposed through coercion. Keep these common primitives eligible.
