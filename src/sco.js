@@ -166,20 +166,20 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    /** Serve the confirmed file after trusted authorization. */
-    function serve() {
-      if (file.sourceType === 'asset') {
+    /** @param {NonNullable<typeof file>} confirmedFile */
+    function serve(confirmedFile) {
+      if (confirmedFile.sourceType === 'asset') {
         const contentType = name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' :
           name.endsWith('.html') ? 'text/html' : 'application/octet-stream';
         response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
-        response.end(file.code);
+        response.end(confirmedFile.code);
         return;
       }
       try {
         const nonce=randomBytes(24).toString('hex');
-        const result=obfuscateFiles([file],{mode:'sco',seed:nonce,allowedHosts:options.allowedHosts});
+        const result=obfuscateFiles([confirmedFile],{mode:'sco',seed:nonce,allowedHosts:options.allowedHosts});
         const output=/** @type {string} */ (result.files[0].code);
-        const varied=varyLiteralSpellings(output,file.sourceType,nonce);
+        const varied=varyLiteralSpellings(output,confirmedFile.sourceType,nonce);
         response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
         response.end(varied+'\n/* variant:'+nonce+' */');
       } catch (error) {
@@ -189,7 +189,7 @@ function createScoHandler(sourceFiles,options={}) {
     }
     const authorizeRead=options.authorizeRead;
     if (!authorizeRead) {
-      serve();
+      serve(file);
       return;
     }
     // Authentication runs before delivering source or assets; failure closes access.
@@ -199,7 +199,7 @@ function createScoHandler(sourceFiles,options={}) {
         response.writeHead(403,{'cache-control':'no-store'}).end();
         return;
       }
-      serve();
+      serve(file);
     }).catch(()=>{
       if (!response.headersSent && !response.destroyed) response.writeHead(500).end();
       else response.destroy();
