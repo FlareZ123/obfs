@@ -18,15 +18,15 @@ function attack(published) {
   const intercepted={
     Uint8Array,
     WebAssembly:{
-      /** @param {Uint8Array} bytes */
       Module:class {
+        /** @param {Uint8Array} bytes */
         constructor(bytes) {
           captured.push(Uint8Array.from(bytes));
-          return new WebAssembly.Module(bytes);
+          return new WebAssembly.Module(/** @type {BufferSource} */(/** @type {unknown} */(bytes)));
         }
       },
-      /** @param {WebAssembly.Module} wasm */
       Instance:class {
+        /** @param {WebAssembly.Module} wasm */
         constructor(wasm) {
           return new WebAssembly.Instance(wasm);
         }
@@ -40,14 +40,14 @@ function attack(published) {
   const original=wrapped(31);
   assert.equal(captured.length,1);
   const cloned=/** @type {(x:number)=>number} */(
-    new WebAssembly.Instance(new WebAssembly.Module(captured[0])).exports.f)(31);
+    new WebAssembly.Instance(new WebAssembly.Module(/** @type {BufferSource} */(/** @type {unknown} */(captured[0])))).exports.f)(31);
   assert.equal(cloned,original);
   const substituteGlobal={
     Uint8Array,
     WebAssembly:{
       Module:class {
         /** @param {Uint8Array} bytes */
-        constructor(bytes){return new WebAssembly.Module(bytes);}
+        constructor(bytes){return new WebAssembly.Module(/** @type {BufferSource} */(/** @type {unknown} */(bytes)));}
       },
       Instance:class {
         /** @param {WebAssembly.Module} module */
@@ -60,7 +60,7 @@ function attack(published) {
   };
   const tamperModule={exports:null};
   vm.runInNewContext(published,{module:tamperModule,globalThis:substituteGlobal},{timeout:2000});
-  const replaced=/** @type {(x:number)=>number} */(tamperModule.exports);
+  const replaced=/** @type {(x:number)=>number} */(/** @type {unknown} */(tamperModule.exports));
   const tampered=replaced(31);
   assert.equal(tampered,7331);
   assert.notEqual(tampered,original);
