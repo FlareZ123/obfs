@@ -29,8 +29,10 @@ jobs:
         with:
           node-version: '22'
       - name: Install baseline dependencies
-        run: npm install --prefix baseline --no-package-lock --ignore-scripts
+        working-directory: baseline
+        run: npm install --no-package-lock --ignore-scripts
       - name: Install protected dependencies
-        run: npm install --prefix protected --no-package-lock --ignore-scripts
+        working-directory: protected
+        run: npm install --no-package-lock --ignore-scripts
       - name: Run source-map, inline HTML and opaque-source disclosure attack
         run: node protected/sims/asset-disclosure-attack.js baseline protected
