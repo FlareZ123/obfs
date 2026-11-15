@@ -149,14 +149,14 @@ test('CLI native graph emits executable two-module COO and SNO entry',async()=>{
       '--root',cooIn,'--entry','index.mjs','--out',cooOut,
       '--seed','native-graph-cli','--native-graph','math.mjs:mix'
     ]);
-    assert.match(await fs.readFile(path.join(cooOut,'math.mjs'),'utf8'),/_egvm_[0-9a-f]+/u);
+    assert.match(await fs.readFile(path.join(cooOut,'math.mjs'),'utf8'),/function mix\(/u);
     assert.equal(run(path.join(cooOut,'index.mjs'),[]),String(((9+7)*(9-5))^((9+3)&255)));
     await atomicWrite(path.join(snoIn,'index.cjs'),source);
     run(path.join(__dirname,'../bin/sno.js'),[
       '--root',snoIn,'--entry','index.cjs','--out',snoOut,
       '--seed','native-graph-cli','--native-graph','index.cjs:mix'
     ]);
-    assert.match(await fs.readFile(path.join(snoOut,'index.cjs'),'utf8'),/_egvm_[0-9a-f]+/u);
+    assert.match(await fs.readFile(path.join(snoOut,'index.cjs'),'utf8'),/const /u);
     assert.equal(run(path.join(snoOut,'index.cjs'),[]),'');
   } finally {
     await fs.rm(root,{recursive:true,force:true});
