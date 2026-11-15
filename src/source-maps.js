@@ -27,8 +27,8 @@ function isUntransformedSourceAsset(filename) {
 
 /**
  * Recognize a version-3 source map by its JSON structure even when the
- * filename is disguised as .json, .txt or an arbitrary opaque asset. Only
- * parse content with source-map field names to avoid decoding large images.
+ * filename is disguised as .json, .txt or an arbitrary opaque asset. JSON
+ * object shape is screened before parsing to avoid decoding large images.
  * Indexed source maps may reference nested maps by URL or map object.
  * @param {string|Buffer} code
  * @returns {boolean}
@@ -140,15 +140,14 @@ function assertNoSourceMapDisclosure(file) {
       throw new TypeError('Source-map JSON payload would disclose original source: ' + file.path);
     }
     if(/\.css$/iu.test(file.path)) {
+      let hasMap;
       try {
-        if(hasCssSourceMapDirective(file.code)) {
-          throw new TypeError('CSS source-map directive would disclose original source: '+file.path);
-        }
+        hasMap=hasCssSourceMapDirective(file.code);
       } catch(error) {
-        if(error instanceof TypeError && !/CSS source-map directive/.test(error.message)) {
-          throw new TypeError('CSS asset is not valid UTF-8 or contains NUL bytes: '+file.path);
-        }
-        throw error;
+        throw new TypeError('CSS asset is not valid UTF-8 or contains NUL bytes: '+file.path);
+      }
+      if(hasMap) {
+        throw new TypeError('CSS source-map directive would disclose original source: '+file.path);
       }
     }
     assertNoInlineHtmlSource(file.path,file.code);
