@@ -45,6 +45,26 @@ test('SCO selection cannot share realm-local Object.prototype state',()=>{
   }
 });
 
+test('SCO selection rejects prototype access hidden in private and public helpers',()=>{
+  const privateHelper=[
+    'function helper(){const proto=Object.prototype;proto.__obfsRealmCanary=7;return 1;}',
+    'export async function protectedOp(){return helper();}',
+    'export function visible(){return ({}).__obfsRealmCanary??0;}'
+  ].join('\n');
+  assert.throws(()=>partition(privateHelper),/realm.*prototype|prototype.*realm/i);
+
+  const publicHelper=[
+    'const helper=()=>Array.prototype.__obfsRealmCanary??0;',
+    'export async function protectedOp(){return 1;}',
+    'export function visible(){return helper();}'
+  ].join('\n');
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'realm.mjs',code:publicHelper,sourceType:'module'},
+    {seed:'intrinsic-realm-20261115',privateNames:['protectedOp'],
+      publicHelperNames:['helper']}
+  ),/realm.*prototype|prototype.*realm/i);
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
