@@ -5,7 +5,8 @@
     "sims/sco-synchronizing-oracle.js",
     "sims/sco-sync-search.js",
     "sims/sco-discovered-oracle-run.js",
-    "sims/sco-sync-search-falsification.js"
+    "sims/sco-sync-search-falsification.js",
+    "sims/sco-high-entropy-prf.js"
   ],
   "exclude": [
     "node_modules"
