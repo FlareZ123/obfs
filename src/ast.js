@@ -144,4 +144,4 @@ function observesFunctionSource(ast) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, staticString};
