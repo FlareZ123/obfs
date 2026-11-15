@@ -90,6 +90,25 @@ test('ES module exports retain their callable name and arity',async()=>{
   }
 });
 
+test('VM does not depend on mutable Array prototype helpers',()=>{
+  const source=[
+    'function compute(a,b){return (a^b)+17;}',
+    'module.exports=compute;',
+    'Array.prototype.push=function(){throw Error("push is patched");};',
+    'Array.prototype.pop=function(){throw Error("pop is patched");};',
+    'Array.prototype[Symbol.iterator]=function(){throw Error("iterator is patched");};'
+  ].join('\n');
+  const output=virtualizeExpressionFunctions(source,'commonjs',{
+    seed:'expr-vm/patched-array',names:['compute']
+  });
+  assert.equal(output.functions,1);
+  const native=fromCommonJs(source);
+  const compiled=fromCommonJs(output.code);
+  for(const [a,b] of [[1,2],[17,-9],[0,0]]) {
+    assert.equal(compiled(a,b),native(a,b));
+  }
+});
+
 test('VM declines source-observing, dynamic-scope and unsupported expressions',()=>{
   const fixtures=[
     ['function f(a){return a.value;}module.exports=f;',1],
