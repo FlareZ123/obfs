@@ -2,7 +2,6 @@
 
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
-const os=require('node:os');
 const path=require('node:path');
 const http=require('node:http');
 const {execFile}=require('node:child_process');
@@ -44,7 +43,6 @@ async function runBrowser(variant,chromium){
     }
     res.writeHead(404);res.end();
   });
-  const profile=fs.mkdtempSync(path.join(os.tmpdir(),'piggyback-browser-profile-'));
   try{
     /** @type {Promise<void>} */
     const listening=new Promise((resolve,reject)=>{
@@ -55,8 +53,7 @@ async function runBrowser(variant,chromium){
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const args=['--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--disable-extensions','--disable-background-networking','--no-first-run',
-      '--virtual-time-budget=4000','--user-data-dir='+profile,
+      '--no-first-run','--virtual-time-budget=4000',
       '--dump-dom','http://127.0.0.1:'+address.port+'/'];
     const {stdout}=await promisify(execFile)(chromium,args,
       {timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
@@ -69,7 +66,6 @@ async function runBrowser(variant,chromium){
     /** @type {Promise<void>} */
     const closed=new Promise(resolve=>server.close(()=>resolve()));
     await closed;
-    fs.rmSync(profile,{recursive:true,force:true});
   }
 }
 
