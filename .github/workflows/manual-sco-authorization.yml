@@ -25,5 +25,7 @@ jobs:
         run: node --test test/sco-rpc-isolation.test.js test/sco-batch-state-model.test.js test/sco-batch-state-drift.test.js test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js test/sco-partition-const-functions.test.js
       - name: Paired SCO stateful authorization runtime sample
         run: node sims/sco-batch-state-cost.js
+      - name: Compare fine and coarse authenticated SCO immutable async expression calls
+        run: node sims/sco-const-granularity.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
