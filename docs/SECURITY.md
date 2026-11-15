@@ -23,7 +23,7 @@ and applications with restrictive CSP or no WebAssembly must decline.
 
 The native WebAssembly byte array is delivered to the recipient. A
 source-only attacker independently instantiated the public export with the
-native Wasm API and reproduced 4,001 output pairs. No key or original source
+native Wasm API and reproduced 4,001 output pairs. A separate seedless source-only Wasm stack interpreter reconstructed all 120 tested diversified original expression trees exactly, with 30,720 additional held-out comparisons. No key or original source
 was needed, and the binary is available for disassembly. This pass provides
 neither a secret execution boundary nor hostile-runtime integrity, domain
 locking or instrumented-runtime resistance. Its native hot runtime was
