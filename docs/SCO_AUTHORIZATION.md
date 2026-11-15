@@ -196,6 +196,52 @@ timeouts as appropriate. A mutex can serialize calls across request
 boundaries, but it is not a general rollback mechanism and does not
 prevent unlimited legitimate oracle queries.
 
+### Reusable per-principal isolation helper
+
+`createScoKeyedIsolation(principalOf)` provides a small in-process FIFO queue
+compatible with `createScoHandler`'s `runRpcIsolated` hook. Each verified
+principal's authorization checks and method execution are serialized, while
+different principals retain independent queues. A failed operation releases
+its queue, and the last completed request removes the idle queue entry.
+
+```js
+const {createScoHandler,createScoKeyedIsolation}=require('./src');
+const runRpcIsolated=createScoKeyedIsolation(async request=>{
+  const session=await authenticateRequest(request);
+  return session.accountId;
+});
+const handler=createScoHandler(publicFiles,{
+  remoteMethods,
+  authorizeRpc:authenticateRequest,
+  authorizeOperation:checkOperation,
+  runRpcIsolated
+});
+```
+
+`authenticateRequest`, `publicFiles`, `remoteMethods` and `checkOperation`
+are application-provided. The key resolver must authenticate and use a
+server-verified, stable account/session identity. Never derive the lock key
+directly from an unverified client-chosen header, which permits adversarial
+key proliferation and defeats per-account serialization. Invalid identity
+values cause the generic RPC 500 path; reject invalid credentials explicitly
+through application policy. Keep lock and authorization identity aligned.
+
+This helper protects only calls through the same in-process instance. It
+cannot synchronize Node workers, cluster processes, other services, database
+writers or permission changes outside this handler. For those deployments
+use a shared transactional database or distributed lock with the required
+isolation semantics. Long-running operations retain their principal's queue
+until settlement; the helper has no timeout and must not be used recursively
+for the same principal. FIFO order is the order of completed identity
+resolution and queue registration, not a network arrival guarantee.
+
+An isolator does not make a batch transactionally safe. Continue using
+`preflightScoBatchState` or disallow state-changing operations in batches.
+See `test/sco-keyed-isolation.test.js` for a real parallel HTTP revocation
+test and independent-principal FIFO/failure regressions. This is an SCO
+server authorization control, not client-side anti-debugging or a proof
+of the project's universal 2.5× compute target.
+
 ## Limits
 
 The client still receives executable JavaScript and may retain, trace, debug, modify, replay, or redistribute it. Source delivery authorization only controls which requests the trusted SCO server fulfills. Do not put server secrets inside delivered JavaScript, and do not use the `Host` header as an identity proof. Keep sensitive algorithms or secret-dependent operations on the server through `remoteMethods`; account for network cost under the 2.5x runtime budget.

@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Targeted SCO HTTP and partition tests
-        run: node --test test/sco-rpc-isolation.test.js test/sco-batch-state-model.test.js test/sco-batch-state-drift.test.js test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js test/sco-partition-const-functions.test.js
+        run: node --test test/sco-rpc-isolation.test.js test/sco-batch-state-model.test.js test/sco-batch-state-drift.test.js test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js test/sco-partition-const-functions.test.js test/sco-keyed-isolation.test.js
       - name: Paired SCO stateful authorization runtime sample
         run: node sims/sco-batch-state-cost.js
       - name: Compare fine and coarse authenticated SCO immutable async expression calls
