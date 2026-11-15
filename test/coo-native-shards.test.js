@@ -115,6 +115,32 @@ test('paired topology matches source and is recovered seedlessly',async()=>{
   }
 });
 
+test('generated imports preserve ESM hashbang and directive prologue',async()=>{
+  const source='#!/usr/bin/env node\n"use client";\n'+before;
+  const original={path:'main.mjs',code:source,sourceType:'module'};
+  const baseline=await load([original]);
+  for(const topology of /** @type {const} */ (['split','paired'])) {
+    const generated=shardNativeBitvectorModule(original,
+      {seed:'directive',names:['scramble'],topology});
+    assert.ok(generated.files[0].code.startsWith('#!/usr/bin/env node\n"use client";'));
+    assert.deepEqual(await load(generated.files),baseline);
+  }
+});
+
+test('hoisted exported kernel remains callable from an early cyclic importer',async()=>{
+  const original={path:'main.mjs',sourceType:'module',
+    code:'import "./peer.mjs";\n'+before};
+  const peer={path:'peer.mjs',sourceType:'module',
+    code:'import {scramble} from "./main.mjs";export const observed=scramble(41);'};
+  const baseline=await load([original,peer]);
+  for(const topology of /** @type {const} */ (['split','paired'])) {
+    const transformed=shardNativeBitvectorModule(original,
+      {seed:'cycle-native',names:['scramble'],reservedPaths:['peer.mjs'],topology});
+    assert.ok(transformed.functions===1);
+    assert.deepEqual(await load([transformed.files[0],peer,...transformed.files.slice(1)]),baseline);
+  }
+});
+
 test('unsupported or potentially effectful expressions decline',()=>{
   for(const source of [
     'export function f(x){return x+1;}',
