@@ -170,21 +170,17 @@ function findWrapper(program,helperName) {
       statement.declaration:statement;
     if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
        fn.params.length!==1||fn.params[0].type!=='Identifier'||
-       fn.body.body.length!==1)returnIfNotMatch();
-    else {
-      const argument=fn.body.body[0];
-      if(argument.type!=='ReturnStatement'||argument.argument?.type!=='CallExpression')continue;
-      const call=argument.argument;
-      if(call.callee.type==='Identifier'&&call.callee.name===helperName&&
-         call.arguments.length===1&&call.arguments[0].type==='Identifier'&&
-         call.arguments[0].name===fn.params[0].name) {
-        matches.push({name:fn.id.name,parameter:fn.params[0].name});
-      }
+       fn.body.body.length!==1)continue;
+    const argument=fn.body.body[0];
+    if(argument.type!=='ReturnStatement'||argument.argument?.type!=='CallExpression')continue;
+    const call=argument.argument;
+    if(call.callee.type==='Identifier'&&call.callee.name===helperName&&
+       call.arguments.length===1&&call.arguments[0].type==='Identifier'&&
+       call.arguments[0].name===fn.params[0].name) {
+      matches.push({name:fn.id.name,parameter:fn.params[0].name});
     }
   }
   return matches.length===1?matches[0]:null;
-  /** @returns {void} */
-  function returnIfNotMatch() {}
 }
 
 /**
