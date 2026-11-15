@@ -15,3 +15,7 @@ The unmasked `examples/branch-blocks/after/gate.cjs` diverged from `src/branch-b
 ## Validation
 
 Rerun targeted Node tests on Node 22, then full Linux/Windows/Chromium tests and strict JSDoc checks on the immutable source. Treat as proposed repair until those gates pass. No improvement in hostile-runtime confidentiality is claimed.
+
+## Verified integrated snapshot
+
+The [manual full gate 43756140634](https://github.com/FlareZ123/obfs/actions/runs/43756140634) succeeded on `5f8fc07de415310fabf36d0e77cf1ee3645cac6d`, a three-commit descendant of the patch `1bf1c6ae3a9935bf702e6c65d907b7a9fd76e8d0`. On both Ubuntu and Windows: **1,065 passed, 0 failed, 1 skipped of 1,066 Node tests**, strict core/external JSDoc and sampled runtime benchmarks. Ubuntu also passed all 14 real Chromium browser fixtures. The same pin, rather than a later moving HEAD, is the validated artifact. No adversarial source-confidentiality breakthrough follows from this integration success.
