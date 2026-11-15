@@ -2,7 +2,7 @@
 
 The original [before/mixed.mjs](before/mixed.mjs) provides fast public functions
 `normalize` and `fastScore`, an async public `combined` function, and an async
-`protectedDigest` whose HMAC loop and key must remain on the server. The
+`protectedDigest` whose HMAC loop and key must remain on the server. An unexported synchronous\n`privateRound` helper performs the core HMAC step and is retained only in the\nserver-original module. The compiled browser facade has no helper definition. The
 [after/mixed.mjs](after/mixed.mjs) is an actual generated public ES module.
 Its public functions are preserved directly, while `protectedDigest` becomes
 an async authenticated JSON RPC call to `/obfs/rpc`.
@@ -24,7 +24,7 @@ may move server-side. Public exports can call private exports directly but
 cannot treat the private function as a local value. No imports, top-level
 initializers, mutable data exports, reexports, dynamic public imports, `eval`,
 `Function` constructors or source-introspection contracts are admitted.
-The original private source must be loaded from a server-private path.
+Direct top-level synchronous function declarations are permitted as private\nhelpers only if no retained public export references them and private code\nuses their names exclusively as direct call targets. Their bodies may call\none another and private exports, but cannot observe a separated public binding.\nThe original private source must be loaded from a server-private path.
 
 The transport is JSON; reflection, arbitrary objects, browser-local state,
 error stacks and latency cannot be preserved transparently. Selected exports
