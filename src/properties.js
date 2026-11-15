@@ -51,44 +51,13 @@ function staticName(node) {
 }
 
 /**
- * Bind each simple name to the lexical region in which its declaration is
- * visible. Name uniqueness alone is insufficient: a free identifier outside
- * a block or function can resolve to a separate global with the same name.
- * @param {AstNode} ast
- * @returns {Map<string,AstNode>}
- */
-function collectBindingScopes(ast) {
-  /** @type {Map<string,AstNode>} */
-  const scopes = new Map();
-  const lexical = new Set(['Program','BlockStatement','StaticBlock','SwitchStatement',
-    'ForStatement','ForInStatement','ForOfStatement','CatchClause']);
-  /** @param {AstNode[]} ancestors @returns {AstNode} */
-  function enclosing(ancestors) {
-    return [...ancestors].reverse().find(node => lexical.has(node.type)) || ast;
-  }
-  walk(ast,(node,parent,key,ancestors)=>{
-    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
-      scopes.set(node.id.name,enclosing(ancestors));
-    } else if (node.type === 'FunctionDeclaration') {
-      if (node.id?.type === 'Identifier') scopes.set(node.id.name,enclosing(ancestors));
-      for (const param of node.params) if (param.type === 'Identifier') scopes.set(param.name,node);
-    } else if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
-      for (const param of node.params) if (param.type === 'Identifier') scopes.set(param.name,node);
-    } else if (/^Import(?:Default|Namespace)?Specifier$/.test(node.type) && node.local?.type === 'Identifier') {
-      scopes.set(node.local.name,ast);
-    }
-  });
-  return scopes;
-}
-
-/**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
  * Rejects reflection, computed keys, escapes, ambiguous calls, and shadowing.
  * @param {AstNode} ast
  * @param {string} rootName
  * @param {Map<string,number>} bindings
- * @returns {{aliases:Set<string>,members:AstNode[]}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[]}|null}
  */
 function proveLocalObject(ast, rootName, bindings) {
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number}>} */
@@ -112,8 +81,7 @@ function proveLocalObject(ast, rootName, bindings) {
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
-      if (!node.async && !node.generator && node.body.body.length === 1 &&
-          node.body.body[0].type === 'ReturnStatement' &&
+      if (node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
           node.body.body[0].argument?.type === 'Identifier') {
         /** @type {AstNode[]} */
         const params = node.params;
@@ -130,16 +98,10 @@ function proveLocalObject(ast, rootName, bindings) {
   });
   if (dynamicScope) return null;
 
-  const scopes = collectBindingScopes(ast);
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!functions.has(node.name)) continue;
-    const scope = scopes.get(node.name);
-    if (!scope || !ancestors.includes(scope)) {
-      unusableFunctions.add(node.name);
-      continue;
-    }
     if (parent?.type === 'FunctionDeclaration' && key === 'id') {
       if (ancestors.some(a => /^Export/.test(a.type))) unusableFunctions.add(node.name);
       continue;
@@ -184,21 +146,28 @@ function proveLocalObject(ast, rootName, bindings) {
     }
   } while (changed);
 
+  // A const alias can be exported without any reference appearing in an
+  // ExportSpecifier. Such exports reveal the object shape to untracked callers.
+  // Only the original root binding may be intentionally exported by the
+  // opt-in cross-module proof; its imported consumers are verified separately.
+  for (const declaration of ast.body) {
+    if (declaration.type !== 'ExportNamedDeclaration' ||
+        declaration.declaration?.type !== 'VariableDeclaration') continue;
+    for (const decl of declaration.declaration.declarations) {
+      if (decl.id.type === 'Identifier' && decl.id.name !== rootName && aliases.has(decl.id.name)) {
+        return null;
+      }
+    }
+  }
+
   /** @type {AstNode[]} */
   const members = [];
+  /** @type {AstNode[]} */
+  const patterns = [];
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
-    // A same-spelled reference outside its declaration scope may be a global.
-    const scope = scopes.get(node.name);
-    if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
-    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) {
-      // An exported immutable alias is visible to consumers outside this proof.
-      // The cross-file transform separately validates the named exported root.
-      if (parent.type === 'VariableDeclarator' && node.name !== rootName &&
-          ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return null;
-      continue;
-    }
+    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
     if (key === 'params' && /^Function/.test(parent.type)) continue;
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
@@ -210,6 +179,17 @@ function proveLocalObject(ast, rootName, bindings) {
     }
     if (parent.type === 'VariableDeclarator' && key === 'init' &&
         parent.id.type === 'Identifier' && aliases.has(parent.id.name)) continue;
+    if (parent.type === 'VariableDeclarator' && key === 'init' && parent.id.type === 'ObjectPattern') {
+      // A direct, statically-keyed pattern reads own fields without escaping
+      // the object. Restrict it to simple bindings so computed keys, rest
+      // objects, and defaults cannot change behavior under a rename.
+      /** @type {AstNode[]} */
+      const fields = parent.id.properties;
+      if (fields.some(p => p.type !== 'Property' || p.computed || p.kind !== 'init' ||
+          staticName(p.key) === null || p.value.type !== 'Identifier')) return null;
+      patterns.push(...fields);
+      continue;
+    }
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
@@ -239,7 +219,33 @@ function proveLocalObject(ast, rootName, bindings) {
     if (callParent?.type === 'ExpressionStatement') continue;
     return null;
   }
-  return {aliases,members};
+  return {aliases,members,patterns};
+}
+
+/**
+ * Construct edits for a statically known object destructuring read. Shorthand
+ * must be expanded to preserve its local binding name after the key changes.
+ * @param {string} source
+ * @param {AstNode[]} patterns
+ * @param {Map<string,string>} mapping
+ * @returns {import('./ast').Edit[]}
+ */
+function patternPropertyEdits(source,patterns,mapping) {
+  /** @type {import('./ast').Edit[]} */
+  const edits=[];
+  for (const property of patterns) {
+    const old=staticName(property.key);
+    if (old === null) continue;
+    const replacement=mapping.get(old);
+    if (!replacement) continue;
+    if (property.shorthand) {
+      edits.push({start:property.start,end:property.end,
+        text:`${JSON.stringify(replacement)}:${source.slice(property.value.start,property.value.end)}`});
+    } else {
+      edits.push({start:property.key.start,end:property.key.end,text:JSON.stringify(replacement)});
+    }
+  }
+  return edits;
 }
 
 /**
@@ -275,7 +281,7 @@ function renameLocalProperties(source, ast, options) {
   let properties = 0;
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
-    if (!proof || !proof.members.length) continue;
+    if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = staticName(prop.key);
@@ -287,10 +293,11 @@ function renameLocalProperties(source, ast, options) {
       const name = member.computed ? member.property.value : staticName(member.property);
       if (mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
+    edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
     objects++;
     properties += mapping.size;
   }
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits};

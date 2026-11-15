@@ -5,3 +5,5 @@ Acorn documentation: https://github.com/acornjs/acorn/blob/master/acorn/README.m
 Node.js v22 VM API: https://nodejs.org/download/release/v22.21.0/docs/api/vm.html (vm.Script compiles but does not execute, dynamic import limitations)
 
 Node.js crypto API: https://nodejs.org/docs/latest-v22.x/api/crypto.html (SHA-256 hashing, crypto random bytes)
+
+Chrome headless command-line documentation: https://developer.chrome.com/docs/automation-and-testing/headless-cli (browser integration test uses `--dump-dom`)

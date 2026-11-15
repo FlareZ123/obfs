@@ -13,7 +13,8 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "benchmark": "node test/benchmark.js",
-    "typecheck": "tsc -p jsconfig.json"
+    "typecheck": "tsc -p jsconfig.json",
+    "test:browser": "node test/browser-integration.js"
   },
   "dependencies": {
     "acorn": "^8.15.0"

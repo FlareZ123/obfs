@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse} = require('./ast');
-const {collectBindings,proveLocalObject,staticName} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -30,31 +30,20 @@ function resolveImport(from,specifier) {
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
 function renameCrossFileProperties(files,seed) {
+  // Without a proof for other language/runtime boundaries, inline scripts,
+  // assets, and CommonJS code are potential consumers of any ESM export.
+  // Decline the entire closed-world property pass for mixed-format projects.
+  if (files.some(file => file.sourceType !== 'module')) {
+    return {files,objects:0,properties:0};
+  }
   /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
-  let ambiguousConsumer=false;
   for(const file of files) {
-    const sourceType=file.sourceType ??
-      (file.path.endsWith('.mjs') ? 'module' : file.path.endsWith('.cjs') ? 'commonjs' :
-        file.path.endsWith('.js') ? 'script' : 'asset');
-    if(sourceType==='asset'||typeof file.code!=='string') continue;
-    const ast=parse(file.code,sourceType);
-    // The filename-oriented resolver cannot prove URL query/fragment/percent
-    // aliases. Dynamic imports and CommonJS require can consume ESM exports
-    // outside the direct named-import graph, so decline the entire rename.
-    walk(ast,node=>{
-      if(node.type==='ImportExpression') ambiguousConsumer=true;
-      if(['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) &&
-          typeof node.source?.value==='string' &&
-          (node.source.value.startsWith('./')||node.source.value.startsWith('../')) &&
-          /[?#%]/.test(node.source.value)) ambiguousConsumer=true;
-      if(node.type==='CallExpression' && node.callee.type==='Identifier' && node.callee.name==='require' &&
-          node.arguments.some(argument=>argument.type!=='Literal'||typeof argument.value!=='string' ||
-            argument.value.startsWith('./')||argument.value.startsWith('../'))) ambiguousConsumer=true;
-    });
-    if(sourceType==='module') modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
+    if (file.sourceType==='module' && typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
+    }
   }
-  if(ambiguousConsumer) return {files,objects:0,properties:0};
   /** @type {Map<string,import('./ast').Edit[]>} */
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */
@@ -82,8 +71,8 @@ function renameCrossFileProperties(files,seed) {
         const exportName=decl.id.name;
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings);
         if(!localProof) continue;
-        /** @type {{file:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
-        const users=[{file:exporterName,proof:localProof}];
+        /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
+        const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
         let failed=false;
         for(const [importerName,importer] of modules) {
           if (failed) break;
@@ -107,7 +96,7 @@ function renameCrossFileProperties(files,seed) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
             const proof=proveLocalObject(importer.ast,alias,importer.bindings);
             if(!proof) {failed=true;break;}
-            users.push({file:importerName,proof});
+            users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
           }
         }
         if (failed) continue;
@@ -131,6 +120,9 @@ function renameCrossFileProperties(files,seed) {
             const old=member.computed ? member.property.value : staticName(member.property);
             if(mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
+          }
+          for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+            add(user.file,edit);
           }
         }
         objects++;

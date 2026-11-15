@@ -106,6 +106,22 @@ test('path traversal, collision and malformed syntax are rejected',()=>{
   assert.throws(()=>obfuscateFiles([{path:'x.js',code:'const ='}]),/Unexpected token/);
 });
 
+test('SNO CLI rejects launcher name collisions before producing output',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cli-conflict-'));
+  try {
+    const src=path.join(dir,'src');
+    const out=path.join(dir,'out');
+    await fs.mkdir(src);
+    await atomicWrite(path.join(src,'index.cjs'),'module.exports=1;');
+    await atomicWrite(path.join(src,'sno-entry.cjs'),'module.exports=2;');
+    const cli=path.join(__dirname,'../bin/sno.js');
+    const proc=spawnSync(process.execPath,[cli,'--root',src,'--entry','index.cjs','--out',out],{encoding:'utf8'});
+    assert.notEqual(proc.status,0);
+    assert.match(proc.stderr,/collides with an input/);
+    await assert.rejects(fs.access(out));
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
 test('SNO loader checks every file before running one CommonJS entry',async()=>{
   const dir = await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-test-'));
   try {
@@ -177,6 +193,80 @@ test('closed-world ESM importer and exporter agree on renamed property',async()=
     assert.equal(result.status,0,result.stderr);
     assert.equal(result.stdout.trim(),'13');
   }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('literal-key destructuring preserves binding names and can be renamed',()=>{
+  const sources=[
+    'const state={secret:7,other:11};const {secret,other:second}=state;module.exports=[secret,second,state.secret];',
+    'const state={secret:13};function get(p){const {secret:local}=p;return local;}module.exports=get(state);',
+    'const state={secret:17};const {secret}=state;module.exports=secret;'
+  ];
+  for(const source of sources) {
+    const out=obfuscateFiles([{path:'entry.cjs',code:source}],{mode:'sno',seed:'destructure',strings:false});
+    assert.ok(out.files[0].metrics.properties>=1,source);
+    assert.equal(JSON.stringify(evaluate(source)),JSON.stringify(evaluate(out.files[0].code)),source);
+    assert.doesNotMatch(out.files[0].code,/\{secret:/);
+  }
+  for(const source of [
+    'const state={secret:7};const {["secret"]:value}=state;module.exports=value;',
+    'const state={secret:7};const {...rest}=state;module.exports=rest.secret;',
+    'const state={secret:7};const {secret=13}=state;module.exports=secret;'
+  ]) {
+    const out=obfuscateFiles([{path:'entry.cjs',code:source}],{mode:'sno',seed:'destructure',strings:false});
+    assert.equal(out.files[0].metrics.properties,0,source);
+    assert.equal(JSON.stringify(evaluate(source)),JSON.stringify(evaluate(out.files[0].code)));
+  }
+});
+
+test('closed-world ESM destructuring follows cross-module property names',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cross-pattern-'));
+  try {
+    const input=[
+      {path:'state.mjs',code:'export const state={secret:23};'},
+      {path:'entry.mjs',code:'import {state} from "./state.mjs";const {secret}=state;export const result=secret;'}
+    ];
+    const result=obfuscateFiles(input,{mode:'coo',closedWorld:true,seed:'cross-pattern',strings:false});
+    assert.equal(result.crossFile.properties,1);
+    for(const file of result.files) await atomicWrite(path.join(dir,file.path),file.code);
+    const proc=spawnSync(process.execPath,['--input-type=module','--eval',`import(${JSON.stringify('file://'+path.join(dir,'entry.mjs'))}).then(m=>console.log(m.result))`],{encoding:'utf8'});
+    assert.equal(proc.status,0,proc.stderr);
+    assert.equal(proc.stdout.trim(),'23');
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('escaped aliases exported as const disable private property rename',()=>{
+  const sources=[
+    'const state={secret:7};export const alias=state;export const result=state.secret;',
+    'const state={secret:7};export const alias=state;const x=state.secret;export const result=x;'
+  ];
+  for(const source of sources) {
+    for(const closedWorld of [false,true]) {
+      const out=obfuscateFiles([{path:'exposed.mjs',code:source}],{
+        mode:'coo',seed:'export-escape',closedWorld,identifiers:false,strings:false
+      });
+      assert.equal(out.files[0].metrics.properties,0,source);
+      assert.match(out.files[0].code,/secret/);
+    }
+  }
+  const exporter='export const state={secret:7};export const alias=state;';
+  const importer='import {state} from "./exposed.mjs";export const result=state.secret;';
+  const out=obfuscateFiles([{path:'exposed.mjs',code:exporter},{path:'reader.mjs',code:importer}],{
+    mode:'coo',seed:'export-escape',closedWorld:true,strings:false
+  });
+  assert.equal(out.crossFile.properties,0);
+});
+
+test('closed-world refuses opaque consumers in mixed source groups',()=>{
+  const exported={path:'state.mjs',code:'export const state={secret:19};'};
+  for(const opaque of [
+    {path:'loader.cjs',code:'import("./state.mjs").then(m=>m.state.secret);'},
+    {path:'index.html',sourceType:'asset',code:'<script type="module">import {state} from "./state.mjs"; console.log(state.secret)</script>'},
+    {path:'browser.js',sourceType:'script',code:'import("./state.mjs").then(m=>m.state.secret);'}
+  ]) {
+    const output=obfuscateFiles([exported,opaque],{mode:'coo',closedWorld:true,seed:'mixed'});
+    assert.equal(output.crossFile.properties,0);
+    assert.match(output.files[0].code,/secret/);
+  }
 });
 
 test('closed-world rejects namespace import and dynamic importing',()=>{

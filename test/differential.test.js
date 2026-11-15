@@ -95,3 +95,39 @@ test('1,200 differential state/alias/reflection programs',()=>{
   assert.ok(transformedObjects>80,`Expected meaningful property coverage; got ${transformedObjects}`);
   assert.ok(transformedStrings>100,`Expected string coverage; got ${transformedStrings}`);
 });
+
+
+test('800 differential destructuring and interprocedural alias programs',()=>{
+  const next=generator(0x9e3779b9);
+  const keys=['secret','σ','long-key','toString','constructor','then','__proto__','s'];
+  let renamed=0;
+  for(let i=0;i<800;i++) {
+    const key=keys[next()%keys.length];
+    const quote=JSON.stringify(key);
+    const value=next()%1000;
+    const mode=next()%9;
+    const common=`const state={${quote}:${value}};`;
+    const variants=[
+      `const {${quote}:v}=state;module.exports=v;`,
+      `function read(p){const {${quote}:v}=p;return v;}module.exports=read(state);`,
+      `const copy=state;const {${quote}:v}=copy;module.exports=v;`,
+      `function read(p){const alias=p;const {${quote}:v}=alias;return v;}module.exports=read(state);`,
+      `const {${quote}:v}=state;module.exports=[v,state[${quote}]];`,
+      `const {[${quote}]:v}=state;module.exports=v;`,
+      `const {...rest}=state;module.exports=rest[${quote}];`,
+      `const {${quote}:v=17}=state;module.exports=v;`,
+      `const {${quote}:v}=state;module.exports=[v,${quote} in state];`
+    ];
+    const source=common+variants[mode];
+    let expected;
+    try {expected=evaluate(source);}catch(e){continue;}
+    const output=obfuscateFiles([{path:'pattern.cjs',code:source}],{mode:'sno',seed:`pattern-${i}`}).files[0];
+    let got;
+    try {got=evaluate(output.code);}catch(e){
+      throw new Error(`Error in pattern case=${i}; key=${key}; mode=${mode}\n${source}\n${output.code}\n${e.stack}`);
+    }
+    assert.equal(got,expected,`pattern case=${i}; key=${key}; mode=${mode}\n${source}\n${output.code}`);
+    renamed+=output.metrics.properties;
+  }
+  assert.ok(renamed>100,`Expected meaningful destructuring coverage; got ${renamed}`);
+});

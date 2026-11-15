@@ -68,10 +68,6 @@ async function main(mode,argv) {
   const absRoot = path.resolve(root);
   const source = await readSourceTree(absRoot);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
-  // Validate the reserved launcher destination before writing any output.
-  if (mode === 'sno' && source.some(file=>file.path.toLowerCase()==='sno-entry.cjs')) {
-    throw new Error('SNO launcher path is reserved: sno-entry.cjs');
-  }
   if (mode === 'sco') {
     const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
     /** @type {Promise<void>} */
@@ -83,8 +79,13 @@ async function main(mode,argv) {
   if (!out) throw new TypeError('COO/SNO require --out directory');
   const absOut = path.resolve(out);
   if (absOut === absRoot || absOut.startsWith(absRoot + path.sep)) throw new Error('Output must be outside the input directory');
+  // Preflight all predictable errors before writing any output artifact.
+  if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
+    throw new Error('SNO launcher filename collides with an input file');
+  }
   const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld});
-  for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
+  /** @type {string|undefined} */
+  let launcher;
   if (mode === 'sno') {
     const packageFile=source.find(file=>file.path==='package.json');
     if (entry.endsWith('.js') && packageFile && JSON.parse(packageFile.code.toString()).type === 'module') {
@@ -93,9 +94,10 @@ async function main(mode,argv) {
     const entrySource = result.files.find(file=>file.path===entry);
     if (!entrySource) throw new Error(`Missing obfuscated entry ${entry}`);
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
-    const launcher = createSnoLauncher(result.files,entry);
-    await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
+    launcher = createSnoLauncher(result.files,entry);
   }
+  for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
+  if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
   process.stdout.write(`Processed ${result.files.length} files; mode ${mode}; output ${absOut}\n`);
 }
 
