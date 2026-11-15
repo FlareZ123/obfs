@@ -9,6 +9,7 @@
     "sims/sco-sync-diversified.js",
     "sims/sco-sync-diversified-report.js",
     "sims/sco-mealy-refinement.js",
+    "sims/sco-sync-state-size.js",
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js"
