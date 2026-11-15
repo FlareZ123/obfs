@@ -18,7 +18,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Differential proof-subset VM tests
-        run: node --test test/vm-immediate-lowering.test.js test/vm-static-recovery.test.js test/expr-vm.test.js test/expr-vm-static-recovery.test.js test/mba-i32-lowering.test.js test/mba-static-recovery.test.js test/register-vm.test.js test/register-vm-static-recovery.test.js
+        run: node --test test/vm-immediate-lowering.test.js test/vm-static-recovery.test.js test/expr-vm.test.js test/expr-vm-static-recovery.test.js test/mba-i32-lowering.test.js test/mba-static-recovery.test.js test/mba-layered.test.js test/mba-layered-recovery.test.js test/register-vm.test.js test/register-vm-static-recovery.test.js
       - name: Check exact register VM before-and-after output
         run: node examples/register-vm/build-sample.cjs --check
       - name: Full JS typecheck
@@ -27,3 +27,5 @@ jobs:
         run: node sims/vm-hybrid-ratio.js
       - name: Measure seeded MBA direct-expression hot ratios
         run: node sims/mba-i32-profile.js
+      - name: Measure layered MBA pure and mixed hot ratios
+        run: node sims/mba-layered-profile.js
