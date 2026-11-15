@@ -189,7 +189,13 @@ function proveLocalObject(ast, rootName, bindings) {
     // A same-spelled reference outside its declaration scope may be a global.
     if (!ancestors.includes(scopes.get(node.name))) return null;
     if (!parent) return null;
-    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
+    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) {
+      // An exported immutable alias is visible to consumers outside this proof.
+      // The cross-file transform separately validates the named exported root.
+      if (parent.type === 'VariableDeclarator' && node.name !== rootName &&
+          ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return null;
+      continue;
+    }
     if (key === 'params' && /^Function/.test(parent.type)) continue;
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
