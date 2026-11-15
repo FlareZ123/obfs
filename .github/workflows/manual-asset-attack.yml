@@ -1,0 +1,36 @@
+name: Manual original-source asset extraction attack
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  paired-asset-attack:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - name: Checkout vulnerable historical baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 5c24cc02066fc27d29fc95d80ea89b005ca9071e
+          path: baseline
+      - name: Checkout current protected candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          path: protected
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install baseline dependencies
+        run: npm install --prefix baseline --no-package-lock --ignore-scripts
+      - name: Install protected dependencies
+        run: npm install --prefix protected --no-package-lock --ignore-scripts
+      - name: Run source-map, inline HTML and opaque-source disclosure attack
+        run: node protected/sims/asset-disclosure-attack.js baseline protected
