@@ -4,6 +4,7 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 
 - `authorizeRead(request)`: optional sync or async callback evaluated before every valid GET of an obfuscated JavaScript file **or** static asset under `routePrefix`. A falsy result returns HTTP 403 with an empty body; an exception returns HTTP 500 without exposing the internal error. Missing files still return 404 before the callback.
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
+- `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Falsy results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. It does not replace the required coarse `authorizeRpc` gate.
 
 Example (CommonJS):
 
@@ -19,13 +20,15 @@ const handler = createScoHandler(
       return Boolean(await verifyUserSession(request));
     },
     remoteMethods: {protectedOperation: async () => protectedServerValue()},
-    authorizeRpc: async request => Boolean(await verifyUserSession(request))
+    authorizeRpc: async request => Boolean(await verifyUserSession(request)),
+    authorizeOperation: async (request,method,args) =>
+      Boolean(await verifyUserSession(request)) && isPermittedOperation(method,args)
   }
 );
 http.createServer(handler).listen(8080);
 ```
 
-This is a conceptual example: `verifyUserSession` and `protectedServerValue` are application-supplied functions. The obfuscator does not generate user accounts or tokens.
+This is a conceptual example: `verifyUserSession`, `protectedServerValue` and `isPermittedOperation` are application-supplied functions. The obfuscator does not generate user accounts or tokens.
 
 ## Generated browser RPC facade
 
@@ -85,7 +88,7 @@ const results=await remote.batch([
 // Each result is {ok:true,value} or {ok:false,error:'Operation failed'}.
 ```
 
-The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch, so your application must apply any method-level or item-level authorization needed for the caller. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
+The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. With batching registered as the RPC method `batch`, `authorizeOperation(request,'batch',args)` can inspect every nested operation and reject the **entire** batch before any side effect when one item violates the policy. For fine-grained per-item enforcement, wrap individual registered functions with server-side policy checks as well. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
 
 ## Limits
 
