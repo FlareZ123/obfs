@@ -51,6 +51,7 @@ function renameCrossFileProperties(files,seed) {
       modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
     }
   }
+  const knownFiles=new Set(files.map(file=>file.path));
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
@@ -88,7 +89,12 @@ function renameCrossFileProperties(files,seed) {
       if (specifier==='node:module') ambiguous=true;
       if (specifier.startsWith('node:')) return;
       if (!specifier.startsWith('./') && !specifier.startsWith('../') ||
-          /[?#%\\]/.test(specifier)) ambiguous=true;
+          /[?#%\\]/.test(specifier)) {ambiguous=true;return;}
+      // All relative dependencies must be in the declared file group. This
+      // also refuses alternate capitalization that can resolve to the same
+      // disk file on case-insensitive Windows/macOS volumes.
+      const resolved=resolveImport(module.file.path,specifier);
+      if (!resolved || !knownFiles.has(resolved)) ambiguous=true;
     });
     if(ambiguous) return {files,objects:0,properties:0};
   }
