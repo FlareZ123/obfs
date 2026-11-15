@@ -3,8 +3,8 @@
 The original [before/mixed.mjs](before/mixed.mjs) provides fast public functions
 `normalize` and `fastScore`, an async public `combined` function, and an async
 `protectedDigest` whose HMAC loop and key must remain on the server. An unexported synchronous
-`privateRound` declaration performs the core HMAC step; `privateKeyBytes` and
-`privateHex` are unexported `const` arrow helpers. All three stay in the
+`privateRound` declaration performs the core HMAC step; `privateKeyBytes`
+is an async `const` arrow and `privateHex` a synchronous `const` arrow. All three stay in the
 server-original module. The compiled browser facade has no helper definition. The
 [after/mixed.mjs](after/mixed.mjs) is an actual generated public ES module.
 Its public functions are preserved directly, while `protectedDigest` becomes
