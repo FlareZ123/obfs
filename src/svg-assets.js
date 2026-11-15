@@ -38,7 +38,14 @@ function findInlineSvgSource(xml) {
       const key=attr.local.toLowerCase();
       if(key==='srcdoc')issue='embedded iframe source';
       if(/^on[a-z]/u.test(key))issue='event handler';
-      if(['href','src','data','action','formaction','from','to','by','values'].includes(key) &&
+      // SVG animation values are semicolon-delimited. A harmless first
+      // value must not conceal an executable URL in a later animation state.
+      // Other attributes are single values and retain the existing check.
+      const animationValues=key==='values' &&
+        ['animate','animatemotion','animatetransform'].includes(element);
+      if(animationValues
+        ? attr.value.split(';').some(isEmbeddedExecutableUrl)
+        : ['href','src','data','action','formaction','from','to','by','values'].includes(key) &&
           isEmbeddedExecutableUrl(attr.value)) {
         issue='embedded executable URL';
       }
