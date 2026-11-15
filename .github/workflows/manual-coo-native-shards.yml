@@ -45,3 +45,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/coo-native-shards-browser.js --paired
+      - name: Browser complete session load and run profile
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/coo-native-shards-browser-session.js
