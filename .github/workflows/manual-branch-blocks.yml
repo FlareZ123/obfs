@@ -31,3 +31,23 @@ jobs:
         run: node test/branch-block-browser.js
       - name: JSDoc checker
         run: npm run typecheck
+
+
+  branch-blocks-windows:
+    runs-on: windows-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Generate actual before and after
+        run: node examples/branch-blocks/build.cjs
+      - name: Semantic, layered ESM, masked-state recovery regressions
+        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js
+      - name: Six-trial plain and masked hot performance
+        run: node sims/branch-block-profile.js
+      - name: Strict JSDoc
+        run: npm run typecheck
