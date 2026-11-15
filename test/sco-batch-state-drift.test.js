@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {createScoHandler,createScoBatchMethod}=require('../src');
+const {createScoHandler,createScoBatchMethod,preflightScoBatchState}=require('../src');
 
 /**
  * @typedef {{status:number,body:any}} RpcReply
@@ -58,10 +58,12 @@ function fixture(excludeMutatingBatches) {
       if(!state.active)return false;
       if(method!=='batch')return method==='revoke'||method==='read';
       if(args.length!==1||!Array.isArray(args[0]))return false;
-      // Application-level mitigation: a batch that can invalidate its own
+      // Application-level mitigation: predict each state transition so a batch that would invalidate its own
       // later permissions is rejected before ANY side effects occur.
-      return !excludeMutatingBatches ||
-        !args[0].some(call=>call?.method==='revoke');
+      return !excludeMutatingBatches || preflightScoBatchState(args[0],state.active,{
+        authorize:(active,operation)=>active && (operation==='revoke'||operation==='read'),
+        transition:(active,operation)=>operation==='revoke'?false:active
+      });
     }
   }));
   return {server,effects,events,state};
@@ -132,6 +134,15 @@ test('SCO batch-level state-transition policy rejects the whole unsafe batch',as
       status:200,body:{ok:true,value:'private-value'}
     });
     assert.deepEqual(effects,['read']);
+    assert.deepEqual(await invoke(port,'batch',[[
+      {method:'read',args:[]},
+      {method:'revoke',args:[]}
+    ]]),{status:200,body:{ok:true,value:[
+      {ok:true,value:'private-value'},
+      {ok:true,value:'revoked'}
+    ]}});
+    assert.deepEqual(effects,['read','read','revoke']);
+    assert.equal(state.active,false);
   }finally{
     await stop(server);
   }
