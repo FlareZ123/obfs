@@ -143,6 +143,38 @@ suite/benchmark/browser gates. The subsequent browser-ambient admission
 change was validated by the targeted SCO workflow only. All claims are
 pinned to the tested commit, rather than projected onto future HEAD.
 
+## Small independent admission-rate control
+
+A new reproducible script `sims/sco-realm-admission-coverage.js`
+evaluates 25 manually reviewed, small JSON-return examples. There are
+18 designated safe-control cases (fresh owned objects, local shadowing,
+standard read-only APIs) and seven explicit unsafe realm-mismatch witnesses.
+The examples are bounded semantic controls, not a representative corpus
+of production JavaScript.
+
+On both Windows and Ubuntu in
+[manual run 43773446898](https://github.com/FlareZ123/obfs/actions/runs/43773446898)
+at SHA `dd8aa8ce99c2ed7efabc13bd82e734b997e23bb7`,
+the compiler **admitted 11/18 safe controls (61.11%)**, **refused seven
+safe controls (38.89%)**, and **refused all seven tested unsafe witnesses**.
+This is a measured conservatism/coverage tradeoff; seven of seven negative
+tests being refused is no general soundness guarantee.
+
+The seven refused safe controls were direct descriptor inspection of
+fresh own data, direct prototype inspection of a fresh object, locally
+shadowed `window` and `document`, `Reflect.get` of a fresh own data
+field, a locally owned field literally named `prototype`, and direct
+`Object.defineProperty` on a fresh local object. All seven are small
+pure or local side-effect examples under the specified VM/JSON observation
+model. Their refusal results from the global syntax-level guard rather
+than any demonstrated cross-boundary effect.
+
+Before broad deployment, improve binding-aware ownership proofs and
+measure admission on independent application suites. A future narrowing
+must preserve the pinned unsafe-witness refusals and actual
+original-versus-split equivalence, rather than just improving the
+acceptance fraction. The raw per-case refusal reasons are printed in CI.
+
 ## Limits and follow-up
 
 The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
