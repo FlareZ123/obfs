@@ -92,10 +92,17 @@ function mutatesDecoderIntrinsic(ast) {
     return node.type==='Identifier' && globalNames.has(node.name);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isStringInstance(node) {
+    return node.type==='Literal' && typeof node.value==='string' ||
+      node.type==='TemplateLiteral' && node.expressions.length===0 ||
+      node.type==='NewExpression' && isStringValue(node.callee);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isStringValue(node) {
     if(node.type==='Identifier')return stringNames.has(node.name);
-    if(node.type==='MemberExpression')return isGlobal(node.object) &&
-      (memberName(node)==='String' || memberName(node)===null);
+    if(node.type==='MemberExpression')return (
+      isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) ||
+      memberName(node)==='constructor' && isStringInstance(node.object));
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' && node.callee.object.name==='Reflect' &&
        memberName(node.callee)==='get' && node.arguments.length>=2 &&
@@ -111,8 +118,7 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='MemberExpression') {
       // Primitive string instances expose String.prototype through __proto__.
       // An earlier dependency can mutate the decoder's charCodeAt this way.
-      if(node.object.type==='Literal' && typeof node.object.value==='string' &&
-         memberName(node)==='__proto__')return true;
+      if(isStringInstance(node.object) && memberName(node)==='__proto__')return true;
       return isStringValue(node.object) &&
         (memberName(node)==='prototype'||memberName(node)===null);
     }
@@ -120,15 +126,20 @@ function mutatesDecoderIntrinsic(ast) {
        node.callee.object.type==='Identifier' &&
        ['Object','Reflect'].includes(node.callee.object.name) &&
        memberName(node.callee)==='getPrototypeOf' &&
-       node.arguments[0]?.type==='Literal' &&
-       typeof node.arguments[0].value==='string')return true;
+       node.arguments[0] && isStringInstance(node.arguments[0]))return true;
     return false;
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isArrayInstance(node) {
+    return node.type==='ArrayExpression' ||
+      node.type==='NewExpression' && isArrayValue(node.callee);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayValue(node) {
     if(node.type==='Identifier')return arrayNames.has(node.name);
-    return node.type==='MemberExpression' && isGlobal(node.object) &&
-      (memberName(node)==='Array'||memberName(node)===null);
+    return node.type==='MemberExpression' && (
+      isGlobal(node.object) && (memberName(node)==='Array'||memberName(node)===null) ||
+      memberName(node)==='constructor' && isArrayInstance(node.object));
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayPrototype(node) {
@@ -136,7 +147,7 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='MemberExpression') {
       // Array literals inherit the same iterator prototype as Array.prototype.
       // A patched iterator would corrupt the chunked decoder's spread.
-      if(node.object.type==='ArrayExpression' && memberName(node)==='__proto__')return true;
+      if(isArrayInstance(node.object) && memberName(node)==='__proto__')return true;
       return isArrayValue(node.object) &&
         (memberName(node)==='prototype'||memberName(node)===null);
     }
@@ -144,7 +155,7 @@ function mutatesDecoderIntrinsic(ast) {
       node.callee.object.type==='Identifier' &&
       ['Object','Reflect'].includes(node.callee.object.name) &&
       memberName(node.callee)==='getPrototypeOf' &&
-      node.arguments[0]?.type==='ArrayExpression';
+      node.arguments[0] && isArrayInstance(node.arguments[0]);
   }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
