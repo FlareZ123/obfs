@@ -58,9 +58,24 @@ function renameCrossFileProperties(files,seed) {
   for(const module of modules.values()) {
     let ambiguous=false;
     walk(module.ast,node=>{
+      // A Node ESM file can acquire a CommonJS require function without using
+      // ImportExpression or a static import from the target. This is another
+      // way to read an exported object's original keys, so the proof must
+      // decline the graph until such consumers are resolved explicitly.
+      if (node.type==='CallExpression') {
+        const callee=node.callee;
+        const name=callee.type==='Identifier' ? callee.name :
+          callee.type==='MemberExpression' ?
+            (callee.computed ? (callee.property.type==='Literal' ? callee.property.value : null) :
+              staticName(callee.property)) : null;
+        if (['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
+      }
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
       const specifier=node.source.value;
+      // node:module exposes createRequire and loader hooks. A separate
+      // require('./target.mjs') would not appear as an ESM import edge.
+      if (specifier==='node:module') ambiguous=true;
       if (specifier.startsWith('node:')) return;
       if (!specifier.startsWith('./') && !specifier.startsWith('../') ||
           /[?#%\\]/.test(specifier)) ambiguous=true;
