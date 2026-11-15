@@ -88,6 +88,24 @@ test('SCO selection declines encoded, reflective and destructured intrinsic prot
   }
 });
 
+test('SCO refuses first-class reflective methods and immutable constructor aliases',()=>{
+  const aliases=[
+    "const reflect=Object.getOwnPropertyDescriptor;reflect(Object,'prototype').value.__obfsRealmCanary=41;",
+    "const reflect=Reflect.get;reflect(Object,'prototype').__obfsRealmCanary=41;",
+    "const alias=Reflect;alias.get(Object,'prototype').__obfsRealmCanary=41;",
+    "const alias=Object;Reflect.get(alias,'prototype').__obfsRealmCanary=41;",
+    "const alias=Object;const key='prototype';alias[key].__obfsRealmCanary=41;",
+    "const alias=globalThis.Object;Reflect.get(alias,'prototype').__obfsRealmCanary=41;",
+    "const {get:reflect}=Reflect;reflect(Object,'prototype').__obfsRealmCanary=41;",
+    "const {getOwnPropertyDescriptor:reflect}=Object;reflect(Object,'prototype').value.__obfsRealmCanary=41;",
+    "const {getOwnPropertyDescriptors:reflect}=Object;reflect(Object).prototype.value.__obfsRealmCanary=41;"
+  ];
+  for(const body of aliases){
+    assert.throws(()=>partition(moduleSource(body+'return 1;')),
+      /realm.*prototype|prototype.*realm/i,body);
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
