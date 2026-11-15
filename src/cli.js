@@ -87,7 +87,7 @@ async function main(mode,argv) {
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   const absRoot = path.resolve(root);
   const source = (await readSourceTree(absRoot)).map(file =>
-    jsModule && file.path.endsWith('.js') ? {...file,sourceType:'module'} : file);
+    jsModule && file.path.endsWith('.js') ? {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
     const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
