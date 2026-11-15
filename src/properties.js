@@ -137,7 +137,7 @@ function collectBindingScopes(ast) {
  * @param {Map<string,number>} bindings
  * @param {Map<string,number>} [importedIdentityFunctions] Verified direct ESM imports of immutable, pure identity functions.
  * @param {Map<string,number>} [importedConsumers] Verified imported functions that consume an object without returning an alias.
- * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[]}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map()) {
   if(observesFunctionSource(ast)) return null;
@@ -446,7 +446,15 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return null;
   }
-  return {aliases,members,patterns};
+  /** @type {Set<AstNode>} */
+  const forwardedCalls=new Set();
+  // Expose already-proven direct identity-return expressions to the
+  // cross-file reader verifier. The receiving call is separately checked
+  // against an imported read-only function and its parameter ownership.
+  walk(ast,node=>{
+    if(node.type==='CallExpression' && resolves(node))forwardedCalls.add(node);
+  });
+  return {aliases,members,patterns,forwardedCalls};
 }
 
 /**
