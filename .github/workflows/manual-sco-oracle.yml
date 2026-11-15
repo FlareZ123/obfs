@@ -47,6 +47,8 @@ jobs:
         run: node sims/sco-sync-diversified-report.js
       - name: Stress-test public-step-only synchronization on 2,000 models
         run: node sims/sco-sync-diversified-report.js --stress
+      - name: Stress-test two independent heldout public SCO machine corpora
+        run: node sims/sco-sync-diversified-report.js --stress --holdout
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
