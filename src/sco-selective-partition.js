@@ -45,8 +45,8 @@ function isServerEnvironmentRead(expression){
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
- * exports, plus private, unexported synchronous function declarations and
- * unexported primitive-literal const declarations. Local helpers must never
+ * exports, plus private synchronous function declarations or immutable function
+ * expressions, and unexported primitive-literal const declarations. Helpers must never
  * be referenced by a retained public function or escape as function values. An explicit opt-in additionally admits direct
  * process.env uppercase-key reads on the trusted server, refusing public
  * ambient-global access. Imports, reexports, public data exports,
@@ -82,10 +82,21 @@ function partitionScoSelectedAsyncExports(file,options) {
   let serverEnvironmentUsed=false;
   /** @type {string[]} */
   const serverConstantChunks=[];
+  /** @type {{name:string,fn:import('./ast').AstNode,text:string}[]} */
+  const privateHelperCandidates=[];
   for(const statement of ast.body){
     if(statement.type!=='VariableDeclaration')continue;
     if(statement.kind!=='const'||statement.declarations.length===0){
       throw new TypeError('Selective SCO server constants must be immutable const declarations');
+    }
+    if(statement.declarations.length===1){
+      const binding=statement.declarations[0];
+      if(binding.id.type==='Identifier'&&binding.init&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(binding.init.type)){
+        privateHelperCandidates.push({name:binding.id.name,fn:binding.init,
+          text:file.code.slice(statement.start,statement.end)});
+        continue;
+      }
     }
     for(const declaration of statement.declarations){
       const value=declaration.init?.value;
@@ -117,17 +128,23 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {string[]} */
   const privateHelperChunks=[];
   for(const statement of ast.body){
-    if(statement.type!=='FunctionDeclaration')continue;
-    const name=statement.id?.type==='Identifier'?statement.id.name:null;
-    if(!name||statement.async||statement.generator||
-       statement.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier')||selected.has(name)||
-       serverConstants.has(name)||privateHelperNames.has(name)){
-      throw new TypeError('Selective SCO requires distinct synchronous private helper declarations');
+    if(statement.type==='FunctionDeclaration'){
+      privateHelperCandidates.push({name:statement.id?.type==='Identifier'?statement.id.name:'',
+        fn:statement,text:file.code.slice(statement.start,statement.end)});
+    }
+  }
+  for(const helper of privateHelperCandidates){
+    const {name,fn}=helper;
+    if(!name||fn.async||fn.generator||
+       !Array.isArray(fn.params)||
+       fn.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier')||
+       selected.has(name)||serverConstants.has(name)||privateHelperNames.has(name)){
+      throw new TypeError('Selective SCO requires distinct synchronous private helper bindings');
     }
     privateHelperNames.add(name);
-    privateHelperChunks.push(file.code.slice(statement.start,statement.end));
-    privateBodies.push(statement.body);
-    walk(statement.body,(node,parent,key)=>{
+    privateHelperChunks.push(helper.text);
+    privateBodies.push(fn.body);
+    walk(fn.body,(node,parent,key)=>{
       if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
         privateAmbient.add(node.name);
       }
