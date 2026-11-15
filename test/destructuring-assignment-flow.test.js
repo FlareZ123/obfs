@@ -9,6 +9,7 @@ const vm=require('node:vm');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
+const {normalizeDistributedFiles}=require('../sims/attacker-token-normalize');
 
 /** @param {string} source @returns {string} */
 function evaluateCommonJs(source) {
@@ -112,6 +113,12 @@ test('closed-world ESM assignment rewrite preserves cross-file behavior',async()
     }
     assert.equal(await run(inputs),'17,5');
     assert.equal(await run(transformed.files),'17,5');
+    const attacked=normalizeDistributedFiles(transformed.files.map(file=>({
+      path:file.path,code:String(file.code),sourceType:'module'
+    })));
+    assert.equal(attacked.properties,2);
+    assert.doesNotMatch(attacked.files[0].code,/_p[a-f0-9]{12}\\b/u);
+    assert.equal(await run(attacked.files),'17,5');
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
