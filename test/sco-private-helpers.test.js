@@ -40,6 +40,24 @@ test('private synchronous helper call graph stays off the public ESM facade',asy
   }
 });
 
+test('private const arrow and function-expression helpers run only on the server',async()=>{
+  const source=[
+    'const twist=value=>(value*17)^0x5a;',
+    'const fold=function(value){return twist(value)+3;};',
+    'export async function secret(value){return fold(value);}',
+    'export function local(value){return value+4;}'
+  ].join('\n');
+  const generated=partition(source);
+  assert.deepEqual(generated.publicNames,['local']);
+  assert.doesNotMatch(generated.clientFile.code,/\b(?:twist|fold)\b/u);
+  assert.doesNotThrow(()=>parse(generated.clientFile.code,'module'));
+  const original=await import('data:text/javascript,'+encodeURIComponent(source));
+  const methods=bindScoModuleExports(generated,original);
+  for(const x of [-23,0,1,11,123456]){
+    assert.equal(await methods[generated.methodNames.secret](x),await original.secret(x));
+  }
+});
+
 test('private helpers fail closed on cross-boundary references and stateful identities',()=>{
   const exported='export async function secret(){return helper();}'+
     'export function local(){return 7;}';
@@ -70,7 +88,16 @@ test('private helpers fail closed on cross-boundary references and stateful iden
       /synchronous private helper/u],
     ['function helper(...values){return values.length;}'+exported,
       /synchronous private helper/u],
-    ['const helper=()=>1;'+exported,
+    ['const helper=()=>1;export async function secret(){return helper;}'+
+       'export function local(){return 7;}',/helper may only be called directly/u],
+    ['const helper=()=>1;'+
+       'export async function secret(){return helper();}'+
+       'export function local(){return helper();}',/server-only helper/u],
+    ['const helper=async ()=>1;'+exported,
+      /synchronous private helper/u],
+    ['const helper=function*(){yield 1;};'+exported,
+      /synchronous private helper/u],
+    ['const helper=()=>1,notPrimitive=()=>2;'+exported,
       /primitive literal/u]
   ];
   for(const [code,error] of invalid){
