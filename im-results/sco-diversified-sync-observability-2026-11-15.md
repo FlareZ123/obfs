@@ -121,7 +121,7 @@ An independent two-corpus holdout, with **250 machines per state size per corpus
 | 12 | 3 | 69 | 3 | 269,056 |
 | 12 | 5 | 66 | 0 | 622,280 |
 
-Across all four 250-model seed streams at three hidden-state sizes (3,000 models), this bounded depth-five heuristic produced no observed post-discovery false candidate, while depth three produced 16. The holdout is deterministic and remains tiny compared with a realistic high-entropy private state space; a future independent adversarial generator may reveal another false candidate, as happened earlier at four states. The reported cost increase must be interpreted as the attacker's legitimate-query expense.
+Across all four 250-model seed streams at three hidden-state sizes (3,000 models), this bounded depth-five heuristic produced no observed post-discovery false candidate, while depth three produced 16. The holdout is deterministic and remains tiny compared with a realistic high-entropy private state space; a future independent adversarial generator may reveal another false candidate, as happened earlier at four states. Both Ubuntu and Windows completed the expanded holdout, other adversarial SCO cases and JSDoc checks successfully in [run 43758124045](https://github.com/FlareZ123/obfs/actions/runs/43758124045), immutable source SHA `fb06ae5914f287f2c97f1851826a40d6626f7a5b`. The reported cost increase must be interpreted as the attacker's legitimate-query expense.
 
 Reproduction commands: `node sims/sco-sync-depth-sweep.js`, plus `node --test test/sco-sync-depth-sweep.test.js`. Additional seeds may falsify the zero-error count; preserve future negative controls.
 
