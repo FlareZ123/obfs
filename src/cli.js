@@ -81,6 +81,40 @@ function entryUsesEsmPackage(files,entry) {
   }
 }
 
+/**
+ * Check lexical and resolved paths, including existing symlink/junction
+ * ancestors of an output directory that has not been created yet.
+ * @param {string} root
+ * @param {string} destination
+ * @returns {Promise<void>}
+ */
+async function assertOutputOutsideInput(root,destination) {
+  /** @param {string} input @param {string} candidate @returns {boolean} */
+  const inside=(input,candidate)=>{
+    const relative=path.relative(input,candidate);
+    return relative==='' || (relative!=='..' &&
+      !relative.startsWith('..'+path.sep) && !path.isAbsolute(relative));
+  };
+  if (inside(root,destination)) throw new Error('Output must be outside the input directory');
+  const actualRoot=await fs.realpath(root);
+  let ancestor=destination;
+  for (;;) {
+    try {
+      const actualAncestor=await fs.realpath(ancestor);
+      const actualDestination=path.resolve(actualAncestor,path.relative(ancestor,destination));
+      if (inside(actualRoot,actualDestination)) {
+        throw new Error('Output must be outside the input directory');
+      }
+      return;
+    } catch (error) {
+      if (/** @type {NodeJS.ErrnoException} */ (error).code!=='ENOENT') throw error;
+      const parent=path.dirname(ancestor);
+      if (parent===ancestor) throw error;
+      ancestor=parent;
+    }
+  }
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
   const {root,out,entry,port,hosts,seed,closedWorld,jsModule} = readArgs(argv);
@@ -99,7 +133,7 @@ async function main(mode,argv) {
   }
   if (!out) throw new TypeError('COO/SNO require --out directory');
   const absOut = path.resolve(out);
-  if (absOut === absRoot || absOut.startsWith(absRoot + path.sep)) throw new Error('Output must be outside the input directory');
+  await assertOutputOutsideInput(absRoot,absOut);
   // Preflight all predictable errors before writing any output artifact.
   if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher filename collides with an input file');
