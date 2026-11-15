@@ -27,3 +27,8 @@ jobs:
         run: npm run typecheck
       - name: Measure steady-state hot-key performance
         run: node sims/symbol-key-profile.js
+      - name: Real Chromium COO modules and external page API
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/symbol-keys-browser.js
