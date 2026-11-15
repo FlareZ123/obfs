@@ -80,30 +80,51 @@ function realmStateObservation(body){
     }
     return null;
   }
-  // Track simple constructor and Reflect aliases across declarations. This
-  // overapproximates reassigned or shadowed bindings to preserve safe refusal.
+  // Track global roots as well as constructor/Reflect aliases. Without
+  // this, a private write through `const root=globalThis;root.Math.x=...`
+  // may appear independent from a public read of `Math.x`, even though the
+  // original module uses one realm and the partition uses two.
+  // Alias collection deliberately overapproximates shadowed and reassigned
+  // bindings. Such ambiguity causes a safe refusal of the partition.
   let changed=true;
   while(changed){
     changed=false;
     walk(body,node=>{
-      if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init||
-         intrinsicNames.has(node.id.name))return;
+      /** @param {Set<string>} names @param {string} name @returns {void} */
+      function add(names,name){
+        if(!names.has(name)){names.add(name);changed=true;}
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='Identifier'&&node.right.type==='Identifier'&&
+         globalNames.has(node.right.name)){
+        add(globalNames,node.left.name);
+      }
+      if(node.type!=='VariableDeclarator'||!node.init)return;
+      if(node.id.type==='ObjectPattern'&&node.init.type==='Identifier'&&
+         globalNames.has(node.init.name)){
+        for(const property of node.id.properties){
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=keyName(property);
+          if(name!==null&&intrinsicNames.has(name))add(intrinsicNames,property.value.name);
+          if(name==='RegExp')add(regexpNames,property.value.name);
+        }
+        return;
+      }
+      if(node.id.type!=='Identifier')return;
+      if(node.init.type==='Identifier'&&globalNames.has(node.init.name)){
+        add(globalNames,node.id.name);
+      }
+      if(intrinsicNames.has(node.id.name))return;
       const direct=node.init.type==='Identifier'&&intrinsicNames.has(node.init.name);
       const globalMember=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
         intrinsicNames.has(keyName(node.init)??'');
-      if(direct||globalMember){
-        intrinsicNames.add(node.id.name);
-        changed=true;
-      }
+      if(direct||globalMember)add(intrinsicNames,node.id.name);
       const regexpDirect=node.init.type==='Identifier'&&regexpNames.has(node.init.name);
       const regexpGlobal=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
         keyName(node.init)==='RegExp';
-      if((regexpDirect||regexpGlobal)&&!regexpNames.has(node.id.name)){
-        regexpNames.add(node.id.name);
-        changed=true;
-      }
+      if(regexpDirect||regexpGlobal)add(regexpNames,node.id.name);
     });
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
