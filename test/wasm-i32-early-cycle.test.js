@@ -9,9 +9,8 @@ const {pathToFileURL}=require('node:url');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {obfuscateFiles}=require('../src/core');
 
-const kernel='import {observed} from "./peer.mjs";\n'+
-  'export function f(x){return ((x>>>1)^(x&255));}\n'+
-  'export {observed};\n';
+const kernel='import "./peer.mjs";\n'+
+  'export function f(x){return ((x>>>1)^(x&255));}\n';
 const peer='import {f} from "./kernel.mjs";\n'+
   'export const observed=[-2147483648,-1,0,1,2147483647].map(f);\n';
 
@@ -28,7 +27,8 @@ async function executeCycle(code) {
     writeFileSync(path.join(root,'kernel.mjs'),code,'utf8');
     writeFileSync(path.join(root,'peer.mjs'),peer,'utf8');
     const imported=await import(pathToFileURL(path.join(root,'kernel.mjs')).href);
-    return {early:imported.observed,
+    const neighbor=await import(pathToFileURL(path.join(root,'peer.mjs')).href);
+    return {early:neighbor.observed,
       later:[imported.f(-2147483648),imported.f(-1),
         imported.f(0),imported.f(1),imported.f(2147483647)]};
   } finally {
