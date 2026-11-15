@@ -10,14 +10,15 @@ const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
+const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalWasmI32?:Record<string,string[]>}} ObfuscationOptions
  */
 
 /**
@@ -402,6 +403,23 @@ function obfuscateFiles(files, options = {}) {
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
+    const wasmNames=options.experimentalWasmI32?.[filename]??[];
+    let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
+    if(wasmNames.length) {
+      if(sourceType==='script'||remoteSourceObserver) {
+        throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
+      }
+      if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
+          nativeNames.includes(name)||branchNames.includes(name))) {
+        throw new TypeError('Do not select the same function for multiple experimental backends');
+      }
+      const lowered=lowerWasmI32Functions(code,sourceType,{seed:salt,names:wasmNames});
+      code=lowered.code;
+      wasmI32Functions=lowered.functions;
+      wasmI32Instructions=lowered.instructions;
+      wasmI32Bytes=lowered.wasmBytes;
+      ast=parse(code,sourceType);
+    }
     let objects = 0;
     let properties = 0;
     if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
@@ -449,6 +467,11 @@ function obfuscateFiles(files, options = {}) {
     if(branchNames.length) {
       metrics.branchFunctions=branchFunctions;
       metrics.branchBlocks=branchBlocks;
+    }
+    if(wasmNames.length) {
+      metrics.wasmI32Functions=wasmI32Functions;
+      metrics.wasmI32Instructions=wasmI32Instructions;
+      metrics.wasmI32Bytes=wasmI32Bytes;
     }
     return {path:filename,code,sourceType,metrics};
   });
