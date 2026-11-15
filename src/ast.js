@@ -3,7 +3,7 @@
 const acorn = require('acorn');
 
 /**
- * @typedef {Object & {type: string, start: number, end: number}} AstNode
+ * @typedef {{[key:string]:any,type: string, start: number, end: number}} AstNode
  * @typedef {{ start: number, end: number, text: string }} Edit
  */
 

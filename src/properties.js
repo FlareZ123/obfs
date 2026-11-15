@@ -68,9 +68,12 @@ function proveLocalObject(ast, rootName, bindings) {
   const declarations = [];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers = [];
+  /** @type {WeakMap<AstNode,AstNode>} */
+  const parents = new WeakMap();
   let dynamicScope = false;
 
   walk(ast, (node, parent, key, ancestors) => {
+    if (parent) parents.set(node,parent);
     if (node.type === 'WithStatement' ||
         (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'eval')) dynamicScope = true;
     if (node.type === 'Identifier') identifiers.push({node,parent,key,ancestors});
@@ -80,14 +83,17 @@ function proveLocalObject(ast, rootName, bindings) {
       let forwardIndex = -1;
       if (node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
           node.body.body[0].argument?.type === 'Identifier') {
-        forwardIndex = node.params.findIndex(p => p.type === 'Identifier' && p.name === node.body.body[0].argument.name);
+        /** @type {AstNode[]} */
+        const params = node.params;
+        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === node.body.body[0].argument.name);
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex});
     }
     if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
       const key = node.callee.name;
-      if (!calls.has(key)) calls.set(key, []);
-      calls.get(key).push(node);
+      const sites=calls.get(key)??[];
+      sites.push(node);
+      calls.set(key,sites);
     }
   });
   if (dynamicScope) return null;
@@ -145,14 +151,7 @@ function proveLocalObject(ast, rootName, bindings) {
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
     if (!parent) return null;
-    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) {
-      // An exported alias exposes the object to consumers beyond this proof.
-      // Only the explicitly tracked root of a closed-world export may remain
-      // exported. Its other aliases must have their own complete import proof.
-      if (parent.type === 'VariableDeclarator' && node.name !== rootName &&
-          ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return null;
-      continue;
-    }
+    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
     if (key === 'params' && /^Function/.test(parent.type)) continue;
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
@@ -172,22 +171,22 @@ function proveLocalObject(ast, rootName, bindings) {
     }
     if (parent.type === 'ReturnStatement' && key === 'argument') {
       const enclosing = [...ancestors].reverse().find(a => /^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(a.type));
-      if (enclosing?.type === 'FunctionDeclaration' && functions.get(enclosing.id?.name)?.forwardIndex >= 0) continue;
+      if (enclosing?.type === 'FunctionDeclaration' && (functions.get(enclosing.id?.name)?.forwardIndex??-1) >= 0) continue;
       return null;
     }
     return null;
   }
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifiers.some(({node}) => node.name === 'arguments') &&
-      [...functions.values()].some(fn => fn.params.some(p => p.type === 'Identifier' && aliases.has(p.name)))) return null;
+      [...functions.values()].some(fn => fn.params.some((/** @type {AstNode} */ p) => p.type === 'Identifier' && aliases.has(p.name)))) return null;
   // A forwarded object must be consumed by a tracked const alias or discarded.
   for (const {node,parent,key} of identifiers) {
-    if (!functions.has(node.name) || parent?.type !== 'CallExpression' || key !== 'callee') continue;
+    if (parent?.type !== 'CallExpression' || key !== 'callee') continue;
     const fn = functions.get(node.name);
+    if(!fn) continue;
     if (fn.forwardIndex < 0 || !resolves(parent.arguments[fn.forwardIndex])) continue;
     // Other returned values (including members of the call) are opaque.
-    let callParent = null;
-    walk(ast, (candidate, p) => { if (candidate === parent) callParent = p; });
+    const callParent = parents.get(parent);
     if (callParent?.type === 'VariableDeclarator' && callParent.init === parent &&
         callParent.id.type === 'Identifier' && aliases.has(callParent.id.name)) continue;
     if (callParent?.type === 'ExpressionStatement') continue;
@@ -214,9 +213,10 @@ function renameLocalProperties(source, ast, options) {
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
+    /** @type {AstNode[]} */
     const properties = node.properties;
     if (!properties.length || properties.some(p => p.type !== 'Property' || p.computed || p.method || p.shorthand || p.kind !== 'init' ||
-          staticName(p.key) === null || ['__proto__','prototype','constructor'].includes(staticName(p.key)) || p.value.type !== 'Literal')) return;
+          staticName(p.key) === null || ['__proto__','prototype','constructor'].includes(String(staticName(p.key))) || p.value.type !== 'Literal')) return;
     const names = properties.map(p=>staticName(p.key));
     if (new Set(names).size !== names.length) return;
     candidates.push({node,name:parent.id.name,properties});

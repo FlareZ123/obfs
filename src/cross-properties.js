@@ -5,7 +5,7 @@ const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse} = require('./ast');
 const {collectBindings,proveLocalObject,staticName} = require('./properties');
 
-/** @typedef {import('./core').SourceFile} SourceFile */
+/** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
 
 /**
@@ -42,8 +42,9 @@ function renameCrossFileProperties(files,seed) {
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */
   function add(file,edit) {
-    if (!allEdits.has(file)) allEdits.set(file,[]);
-    allEdits.get(file).push(edit);
+    const existing=allEdits.get(file) ?? [];
+    existing.push(edit);
+    allEdits.set(file,existing);
   }
   let objects=0;
   let properties=0;
@@ -54,15 +55,19 @@ function renameCrossFileProperties(files,seed) {
       for(const decl of declaration.declaration.declarations) {
         if (decl.id.type!=='Identifier' || decl.init?.type!=='ObjectExpression' ||
             exporter.bindings.get(decl.id.name)!==1) continue;
+        /** @type {AstNode[]} */
         const props=decl.init.properties;
         if (!props.length || props.some(p => p.type!=='Property' || p.computed || p.method || p.shorthand ||
               p.kind!=='init' || p.value.type!=='Literal' || !staticName(p.key) ||
-              ['__proto__','constructor','prototype'].includes(staticName(p.key)))) continue;
+              ['__proto__','constructor','prototype'].includes(String(staticName(p.key))))) continue;
         const names=props.map(p=>staticName(p.key));
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
-        const users=[{file:exporterName,proof:proveLocalObject(exporter.ast,exportName,exporter.bindings)}];
-        let failed=!users[0].proof;
+        const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings);
+        if(!localProof) continue;
+        /** @type {{file:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
+        const users=[{file:exporterName,proof:localProof}];
+        let failed=false;
         for(const [importerName,importer] of modules) {
           if (failed) break;
           /** @type {string[]} */
@@ -116,7 +121,12 @@ function renameCrossFileProperties(files,seed) {
       }
     }
   }
-  return {files:files.map(f => ({...f,code:allEdits.has(f.path)?applyEdits(f.code,allEdits.get(f.path)):f.code})),objects,properties};
+  return {files:files.map(f => {
+    const edits=allEdits.get(f.path);
+    if(!edits) return f;
+    if(typeof f.code!=='string') throw new TypeError(`Cannot rewrite binary module ${f.path}`);
+    return {...f,code:applyEdits(f.code,edits)};
+  }),objects,properties};
 }
 
 module.exports={renameCrossFileProperties};

@@ -10,9 +10,10 @@ const {atomicWrite} = require('./atomic');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean}}
  */
 function readArgs(argv) {
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -69,7 +70,9 @@ async function main(mode,argv) {
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
     const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
-    await new Promise(resolve=>server.listen(port,resolve));
+    /** @type {Promise<void>} */
+    const listening=new Promise(resolve=>server.listen(port,()=>resolve()));
+    await listening;
     process.stdout.write(`SCO listening on port ${port}: /obfs/${entry}\n`);
     return;
   }
@@ -85,6 +88,7 @@ async function main(mode,argv) {
       throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');
     }
     const entrySource = result.files.find(file=>file.path===entry);
+    if (!entrySource) throw new Error(`Missing obfuscated entry ${entry}`);
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
     const launcher = createSnoLauncher(result.files,entry);
     await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);

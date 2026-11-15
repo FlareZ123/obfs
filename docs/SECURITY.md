@@ -2,7 +2,7 @@
 
 ## Static and dynamic analysis
 
-XOR string encoding and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
+XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
 ## Property-name transformation
 
@@ -10,9 +10,9 @@ The implementation only edits properties of literal objects whose relevant local
 
 ## Authorization
 
-COO: The receiver can modify script and `location` observations. Host lock is bypassable. True authorization must live on a trusted server.
+COO: The receiver can modify script and `location` observations. Host lock is bypassable, and ESM static imports/reexports must be rejected because dependencies evaluate before the body guard. True authorization must live on a trusted server.
 
-SCO: The obfuscation-controlled server can keep undistributed secrets and enforce authenticated operations. Requests for JavaScript can be replayed, and unlimited responses can be collected. Per-response mutation alone does not ensure secrecy. Any `Host`/`Origin` check is an auxiliary signal, not identity authentication.
+SCO: The obfuscation-controlled server can keep undistributed secrets and enforce authenticated operations. Requests for JavaScript can be replayed, and unlimited responses can be collected. Per-response mutation alone does not ensure secrecy. Any `Host`/`Origin` check is an auxiliary signal, not identity authentication. The optional authenticated RPC service retains method implementation on the server, but black-box oracle attacks and timing overhead remain in scope. Operational controls such as rate limits, monitoring, and durable authentication belong to the integrator.
 
 SNO: Under the stated attacker model the adversary owns code, filesystem, and process memory. A hash manifest inside a launcher cannot prevent code modification or bypass. For integrity, deploy a remote trust anchor or OS/TEE-backed attestation beyond this project's capabilities.
 
@@ -22,4 +22,4 @@ The CLI emits executable JavaScript using normal JS operations. String decoding 
 
 ## Compatibility
 
-Acorn parses standard stage-4 JavaScript, CommonJS and ESM. JSX, experimental syntax, non-JavaScript languages, unrecognized bundler conventions, native add-on binary changes, code that depends on function-toString source, and unmodeled reflection require other handling. Module specifiers and file paths are preserved. The output writing API uses cross-process lock files with atomic rename within the same filesystem.
+Acorn parses standard stage-4 JavaScript, CommonJS and ESM. JSX, experimental syntax, non-JavaScript languages, unrecognized bundler conventions, native add-on binary changes, code that depends on function-toString source, and unmodeled reflection require other handling. Module specifiers and file paths are preserved. The output writing API uses cross-process lock files with atomic rename within the same filesystem. Paths reject traversal, Windows device names, unsafe Windows filename characters, and case-insensitive collisions. The multi-file directory is not a transactional snapshot.

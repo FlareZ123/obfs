@@ -4,9 +4,7 @@
   "private": true,
   "description": "Conservative JavaScript obfuscation research toolkit",
   "type": "commonjs",
-  "engines": {
-    "node": ">=22"
-  },
+  "engines": {"node": ">=22"},
   "bin": {
     "obfs-coo": "./bin/coo.js",
     "obfs-sno": "./bin/sno.js",
@@ -15,13 +13,13 @@
   "scripts": {
     "test": "node --test test/*.test.js",
     "benchmark": "node test/benchmark.js",
-    "typecheck": "tsc --project jsconfig.json"
+    "typecheck": "tsc -p jsconfig.json"
   },
   "dependencies": {
-    "acorn": "^8.18.0",
-    "typescript": "^5.8.3"
+    "acorn": "^8.15.0"
   },
   "devDependencies": {
-    "@types/node": "^22.15.30"
+    "@types/node": "^22.18.0",
+    "typescript": "^5.8.3"
   }
 }

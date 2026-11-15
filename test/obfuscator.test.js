@@ -99,6 +99,10 @@ test('exported object public ABI remains stable',()=>{
 test('path traversal, collision and malformed syntax are rejected',()=>{
   assert.throws(()=>obfuscateFiles([{path:'../hack.js',code:'1'}]),/Unsafe/);
   assert.throws(()=>obfuscateFiles([{path:'x.js',code:'1'},{path:'x.js',code:'2'}]),/Duplicate/);
+  assert.throws(()=>obfuscateFiles([{path:'x.js',code:'1'},{path:'X.js',code:'2'}]),/Duplicate/);
+  for (const bad of ['C:drive.js','aux.js','path/NUL.txt','name.', 'dir/name:stream.js','a|b.js']) {
+    assert.throws(()=>obfuscateFiles([{path:bad,code:'1'}]),/Unsafe/,bad);
+  }
   assert.throws(()=>obfuscateFiles([{path:'x.js',code:'const ='}]),/Unexpected token/);
 });
 
@@ -207,4 +211,99 @@ test('asset content stays binary-exact',()=>{
   const bytes=Buffer.from([0,255,200,1,2,3]);
   const output=obfuscateFiles([{path:'binary.data',code:bytes,sourceType:'asset'}],{mode:'sno'});
   assert.deepEqual(output.files[0].code,bytes);
+});
+
+test('SCO keeps server-side method implementation undistributed and guards RPC',async()=>{
+  const privateSecret='server-only-private-implementation-909090';
+  let calls=0;
+  const handler=createScoHandler([{path:'client.js',code:'globalThis.client="browser-code";',sourceType:'script'}],{
+    remoteMethods:{multiply:(n)=>{calls++;return n*privateSecret.length;}},
+    authorizeRpc:request=>request.headers['x-authorized']==='yes',
+    maxRpcBytes:512
+  });
+  assert.throws(()=>createScoHandler([],{remoteMethods:{f:()=>1}}),/authorizeRpc/);
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const address=server.address();
+  /** @param {string} method @param {string} body @param {boolean} [authenticated] */
+  function request(method,body,authenticated=true){
+    return new Promise((resolve,reject)=>{
+      const req=http.request({host:'127.0.0.1',port:address.port,path:'/obfs/rpc',method,
+        headers:{'content-type':'application/json','x-authorized':authenticated?'yes':'no'}},res=>{
+          let data='';res.on('data',chunk=>data+=chunk);res.on('end',()=>resolve({status:res.statusCode,body:data}));
+        });
+      req.on('error',reject);
+      req.end(body);
+    });
+  }
+  try {
+    const unauthorized=await request('POST',JSON.stringify({method:'multiply',args:[4]}),false);
+    assert.equal(unauthorized.status,403);
+    assert.equal(calls,0);
+    const result=await request('POST',JSON.stringify({method:'multiply',args:[3]}));
+    assert.equal(result.status,200);
+    assert.equal(JSON.parse(result.body).value,3*privateSecret.length);
+    assert.equal(calls,1);
+    assert.equal((await request('POST','{invalid')).status,400);
+    assert.equal((await request('POST',JSON.stringify({method:'toString',args:[]}))).status,400);
+    assert.equal((await request('POST','x'.repeat(600))).status,413);
+    assert.equal(calls,1);
+    const served=await new Promise((resolve,reject)=>{
+      http.get({host:'127.0.0.1',port:address.port,path:'/obfs/client.js'},response=>{
+        let data='';response.on('data',chunk=>data+=chunk);response.on('end',()=>resolve(data));
+      }).on('error',reject);
+    });
+    assert.ok(!served.includes(privateSecret));
+  } finally {await new Promise(resolve=>server.close(resolve));}
+});
+
+
+test('host lock rejects static ESM evaluation that would precede authorization',()=>{
+  for(const code of [
+    'import "./side-effect.mjs";globalThis.result=1;',
+    'export {sideEffect} from "./side-effect.mjs";',
+    'export * from "./side-effect.mjs";'
+  ]) {
+    assert.throws(()=>obfuscateFiles([{path:'index.mjs',code}],{mode:'coo',allowedHosts:['example.org']}),/Host locking ESM static imports/);
+  }
+  const code='export const secret="works-after-lock";';
+  const output=obfuscateFiles([{path:'index.mjs',code}],{mode:'coo',allowedHosts:['example.org']}).files[0].code;
+  assert.match(output,/Unauthorized execution host/);
+});
+
+test('identifier renaming retains object literal shorthand and captured values',()=>{
+  const examples=[
+    'const item=7;module.exports={item};',
+    'function f(value){return {value}};module.exports=f(9);',
+    'const outer=4;module.exports=(()=>{const local=outer;return {local}})();',
+    'function f(v){return ()=>v};module.exports=f(12)();',
+    'let value=1;value++;module.exports={value, result:value};',
+    'const outer=3;module.exports={a:outer,b:{outer}};',
+    'let v=3;module.exports=({v}={v:9});'
+  ];
+  let changes=0;
+  for(const source of examples) {
+    const expected=JSON.stringify(evaluate(source));
+    const out=obfuscateFiles([{path:'entry.cjs',code:source}],{mode:'sno',seed:'identifiers',properties:false,strings:false}).files[0];
+    assert.equal(JSON.stringify(evaluate(out.code)),expected,`${source} => ${out.code}`);
+    changes+=out.metrics.bindings;
+  }
+  assert.ok(changes>=5);
+});
+
+test('identifier renaming retains external member fields and rejects eval',()=>{
+  for(const source of [
+    'const external=globalThis.host;module.exports=external.expected;',
+    'const value=1;module.exports=eval("value+3");',
+    'const name=5;module.exports=({name:7}).name+name;',
+    'function f(value){return arguments[0]+value};module.exports=f(5);'
+  ]) {
+    const transformed=obfuscateFiles([{path:'file.cjs',code:source}],{mode:'sno',seed:'negative',properties:false,strings:false}).files[0].code;
+    const context={host:{expected:7}};
+    const a={module:{exports:undefined},...context};
+    const b={module:{exports:undefined},...context};
+    vm.runInNewContext(source,a);
+    vm.runInNewContext(transformed,b);
+    assert.equal(a.module.exports,b.module.exports,`${source} => ${transformed}`);
+  }
 });
