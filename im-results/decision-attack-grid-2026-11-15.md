@@ -68,6 +68,21 @@ These results narrow the valid **compatibility admission** contract.
 They do not harden public code against dynamic inspection or overcome
 unlimited legitimate queries to the private server.
 
+## Later integrated compiler and runtime snapshot
+
+At pinned commit `161322ffbf5b9ebae36cfe3815f8ea6d363adc01`,
+the [full repository manual run 43772847867](https://github.com/FlareZ123/obfs/actions/runs/43772847867)
+passed both Ubuntu and Windows, including code compatibility, strict
+JSDoc, browser and the seven default `test/benchmark.js` workloads.
+From the individual runner logs, **observed baseline compiler**
+obfuscated/native ratios range **0.592–1.006×** on Ubuntu and
+**0.920–1.006×** on Windows. These medians were sampled from the
+default local benchmark cases (numeric arithmetic, object property,
+strings, forwarded readers and single-use factories). They do not
+measure SCO HTTP transport, adversarial analysis cost or general
+application performance; their sub-1× values are affected by JIT
+variance and should not be interpreted as stable speedups.
+
 ## Decision
 
 **Keep** the conservative main compiler and experimental TypeScript checker for their limited, reproducible compatibility coverage. **Do not deploy** the public postfix VM on a hot function under the specified 2.5x budget. Source-only extraction of the protected numeric expression succeeds without knowing a seed, so measured complexity provides no demonstrated attack-cost benefit. **Prefer** SCO server-resident partitioning for secrets that must remain outside client-delivered source, provided a real server authorization policy, meaningful high-entropy private computation and measured network overhead fit the workload.
