@@ -23,6 +23,8 @@ jobs:
         run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js
       - name: Seedless attacker reconstruction
         run: node sims/branch-block-reconstruction.js
+      - name: Held-out seeded attacker corpus
+        run: node sims/branch-block-recovery-corpus.js
       - name: Six-trial isolated performance profile
         run: node sims/branch-block-profile.js
       - name: Real Chromium COO differential
@@ -47,6 +49,8 @@ jobs:
         run: node examples/branch-blocks/build.cjs
       - name: Semantic, layered ESM, masked-state recovery regressions
         run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js
+      - name: Held-out seeded attacker corpus
+        run: node sims/branch-block-recovery-corpus.js
       - name: Six-trial plain and masked hot performance
         run: node sims/branch-block-profile.js
       - name: Strict JSDoc
