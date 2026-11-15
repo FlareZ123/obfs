@@ -44,10 +44,12 @@ async function startServer(options={}){
       args.length<=2&&args.every(value=>typeof value==='string')
   });
   const server=http.createServer(handler);
-  await new Promise((resolve,reject)=>{
+  /** @type {Promise<void>} */
+  const ready=new Promise((resolve,reject)=>{
     server.once('error',reject);
     server.listen(port,host,()=>resolve());
   });
+  await ready;
   const address=server.address();
   if(!address||typeof address==='string')throw Error('No local TCP address');
   return {server,origin:'http://'+host+':'+address.port,graph,token};
