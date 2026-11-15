@@ -44,6 +44,12 @@ test('SCO CLI refuses unsafe explicit publications and noncanonical imports',asy
     await atomicWrite(path.join(root,'entry.mjs'),
       'import "./a%2Fb.mjs";');
     rejectsSco(root,[],/SCO encoded import path unsupported/);
+    await atomicWrite(path.join(root,'entry.mjs'),
+      'import "./%2e%2e/private.mjs";');
+    rejectsSco(root,[],/SCO encoded import path unsupported/);
+    await atomicWrite(path.join(root,'entry.mjs'),
+      'import "./%ZZ.mjs";');
+    rejectsSco(root,[],/SCO encoded import path unsupported/);
 
     await atomicWrite(path.join(root,'entry.mjs'),
       'import "./outside.mjs";');
