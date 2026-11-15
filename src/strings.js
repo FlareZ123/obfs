@@ -10,17 +10,21 @@ const {collectBindings} = require('./properties');
  * @param {string} source
  * @param {AstNode} ast
  * @param {string} seed
+ * @param {Set<string>|undefined} reservedNames
+ * @param {string[]|undefined} reservedSources
  * @returns {string}
  */
-function unusedName(source, ast, seed) {
+function unusedName(source, ast, seed, reservedNames, reservedSources) {
   // Escaped Unicode identifiers do not appear verbatim in the source text,
   // but Acorn normalizes their names. Reserve those bindings as well.
   const names = new Set();
   walk(ast, node => {if (node.type === 'Identifier') names.add(node.name);});
   const digest = createHash('sha256').update(seed).digest('hex');
-  for (let n = 0; n < 16; n++) {
+  for (let n = 0; n <= digest.length - 12; n++) {
     const name = `_o${digest.slice(n, n + 12)}`;
-    if (!names.has(name) && !new RegExp(`\\b${name}\\b`, 'u').test(source)) return name;
+    const pattern = new RegExp(`\\b${name}\\b`, 'u');
+    if (!names.has(name) && !reservedNames?.has(name) && !pattern.test(source) &&
+        !(reservedSources?.some(text => pattern.test(text)))) return name;
   }
   throw new Error('Failed to allocate a collision-free helper name');
 }
@@ -30,7 +34,7 @@ function unusedName(source, ast, seed) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[]}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
@@ -40,12 +44,12 @@ function encodeStrings(source, ast, options) {
   const values = new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits = [];
-  const helper = unusedName(source, ast, options.seed + 'strings');
+  const helper = unusedName(source, ast, options.seed + 'strings', options.reservedNames, options.reservedSources);
   const minimumLength = options.minimumLength ?? 4;
   // ESM dependencies evaluate before this module's body. In an import cycle,
   // a dependency can call a hoisted function declaration before the decoder
   // array's top-level initializer executes. Preserve such literals verbatim.
-  const hasEagerDependencies = ast.sourceType === 'module' && (/** @type {AstNode[]} */ (ast.body)).some(statement =>
+  const hasEagerDependencies = ast.sourceType === 'module' && (/** @type {AstNode[]} */ (ast.body)).some((/** @type {AstNode} */ statement) =>
     statement.type === 'ImportDeclaration' || statement.type === 'ExportAllDeclaration' ||
     statement.type === 'ExportNamedDeclaration' && statement.source);
   walk(ast, (node, parent, key, ancestors) => {
@@ -67,6 +71,7 @@ function encodeStrings(source, ast, options) {
     edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
   });
   if (!edits.length) return {code:source,count:0};
+  options.reservedNames?.add(helper);
 
   const key = (parseInt(createHash('sha256').update(options.seed).digest('hex').slice(0, 4), 16) % 65535) + 1;
   const encoded = [...values.keys()].map(value => {
