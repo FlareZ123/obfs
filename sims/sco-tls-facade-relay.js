@@ -307,7 +307,10 @@ async function experiment() {
 }
 
 if(require.main===module) {
-  experiment().then(result=>process.stdout.write(JSON.stringify(result,null,2)+'\n'))
+  experiment().then(async result=>{
+    await atomicWrite(path.join(process.cwd(),'sco-tls-facade-relay-output.json'),JSON.stringify(result,null,2)+'\n');
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+  })
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 module.exports={experiment,createAttackRelay,trustedFetch};
