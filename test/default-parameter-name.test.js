@@ -37,8 +37,8 @@ test('default class parameter inherits its identifier name',()=>{
 });
 
 test('default async arrow parameter preserves its identifier name',()=>{
-  compare(`'use strict';const run=async (task=async()=>19)=>task.name;
-    module.exports=run.toString().includes('task=')?1:0;`,0);
+  compare(`'use strict';async function run(task=async()=>19){module.exports=task.name;}
+    void run();`,0);
 });
 
 test('primitive default parameter remains an eligible local binding',()=>{
