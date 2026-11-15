@@ -34,6 +34,10 @@ Numbers are observed ratios, not modeled guarantees. Process-wall measurements i
 
 The independently runnable `sims/sco-oracle-exhaustion.js` was validated on Ubuntu and Windows in manual [run #43691354928](https://github.com/FlareZ123/obfs/actions/runs/43691354928). Under the stipulated unlimited legitimate request model, a 256-input server-private random-key HMAC-derived function was **fully behaviorally cloned (256/256 outputs)** using one 256-item authorized batch, despite the secret key never leaving server memory. A separate 256-request enumeration agreed exactly. The server still enforced authorization on each nested item. This is a bounded-domain counterexample to functional secrecy, not a cryptographic key recovery. Evidence and timings are in `im-results/sco-authorized-oracle-extraction-2026-11-15.md`.
 
+## Follow-up SNO local tamper test
+
+The independent native Node attacker in `sims/sno-self-hash-bypass.js` was validated in manual cross-platform [run #43691613602](https://github.com/FlareZ123/obfs/actions/runs/43691613602). A modified SNO entry correctly failed with the unmodified launcher's stored SHA-256 digest, but succeeded after the local filesystem owner replaced the digest in the launcher. This directly demonstrates that co-located self-hashes do not authenticate code to an attacker who owns the files. Reproduction details appear in `im-results/sno-owner-self-hash-bypass-2026-11-15.md`.
+
 ## Decision
 
 **Keep** the conservative main compiler and experimental TypeScript checker for their limited, reproducible compatibility coverage. **Do not deploy** the public postfix VM on a hot function under the specified 2.5x budget. Source-only extraction of the protected numeric expression succeeds without knowing a seed, so measured complexity provides no demonstrated attack-cost benefit. **Prefer** SCO server-resident partitioning for secrets that must remain outside client-delivered source, provided a real server authorization policy, meaningful high-entropy private computation and measured network overhead fit the workload.
