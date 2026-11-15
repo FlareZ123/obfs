@@ -3,6 +3,8 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
+const {readFileSync}=require('node:fs');
+const path=require('node:path');
 const {mixInt32Functions}=require('../workplace/mba-i32-lower');
 
 /** @param {string} source @returns {(x:number,y:number)=>number} */
@@ -115,5 +117,18 @@ test('invalid configuration is rejected',()=>{
     {seed:'ok',names:['f'],maxRewrites:0},{seed:'ok',names:['f'],maxRewrites:17},
     {seed:'ok',names:['f'],sourceType:'asset'}]) {
     assert.throws(()=>mixInt32Functions(source,/** @type {any} */ (options)),TypeError);
+  }
+});
+
+test('checked-in before/after samples reproduce this exact seeded lowerer',()=>{
+  const before=readFileSync(path.join(__dirname,'../samples/mba-i32-before.cjs'),'utf8');
+  const after=readFileSync(path.join(__dirname,'../samples/mba-i32-after.cjs'),'utf8');
+  const generated=mixInt32Functions(before,{sourceType:'commonjs',
+    seed:'agent17-mba-sample-v1',names:['digest'],maxRewrites:2});
+  assert.equal(generated.functions,1);
+  assert.equal(generated.rewrites,2);
+  assert.equal(generated.code,after);
+  for(const x of [-2147483648,-9,0,3,2147483647])for(const y of [-2147483648,-1,0,71,2147483647]) {
+    assert.equal(compile(after)(x,y),compile(before)(x,y));
   }
 });
