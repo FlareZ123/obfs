@@ -69,4 +69,8 @@ Run `node sims/fuzz.js`. The deterministic 33-case default corpus, seed `0xC0FFE
 - Validate published package dependencies and both CLIs from a clean Windows 11 install, including NodeNext ESM interop and filesystem constraints.
 - Preserve the 2.5× runtime budget for every representative workload; make security and speed tradeoffs explicit.
 
+## Shared manual CI milestone and scope
+
+Manual GitHub Actions run [43677816677](https://github.com/FlareZ123/obfs/actions/runs/43677816677) completed successfully on 2026-11-15. The three jobs `node22 (ubuntu-latest)`, `node22 (windows-latest)`, and `windows-node22` each passed. Both primary jobs passed behavioral/adversarial tests, strict JSDoc typechecking, and their sampled performance step. The Windows-specific job passed runtime semantics and typechecking. This is meaningful reproducibility across two operating systems, although tests and benchmarks cover a finite sample. Earlier manual runs failed and remain evidence of the corrected semantics and integration issues. The successful run is for the primary Acorn implementation, not an independent formal validation of all obfuscation protections.
+
 No claims from this report have been promoted to `results/` as novel research.
