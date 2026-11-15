@@ -27,5 +27,9 @@ jobs:
         run: node sims/heldout-object-flow-attack.js
       - name: Compare checker compiler on same held-out ESM graphs
         run: node sims/heldout-compiler-compare.js
+      - name: Hot cross-file property-flow regression
+        run: node --test test/property-hotpath-closedworld.test.js
+      - name: Report measured protected hot loops and module cold startup
+        run: node sims/property-hotpath-closedworld.js
       - name: Check JSDoc types
         run: npm run typecheck
