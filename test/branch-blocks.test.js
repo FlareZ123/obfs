@@ -139,3 +139,46 @@ test('COO ESM export remains callable by a native module loader',async()=>{
   for(let x=-1024;x<=1024;x++)same(original.gate,transformed.gate,x);
   for(const v of ['10',0n,Symbol('k'),undefined,null])same(original.gate,transformed.gate,v);
 });
+
+
+test('operand-tied state masking preserves original branch truthiness and coercion',()=>{
+  const protectedSource=flattenBranchBlocks(SAMPLE,'commonjs',{
+    seed:'masked-v1',names:['choice'],stateBlinding:true
+  });
+  assert.equal(protectedSource.functions,1);
+  assert.equal(protectedSource.blocks,3);
+  assert.ok(protectedSource.code.includes('typeof '));
+  assert.ok(protectedSource.code.includes('>>>0'));
+  assert.notEqual(protectedSource.code,flattenBranchBlocks(SAMPLE,'commonjs',{
+    seed:'masked-v1',names:['choice'],stateBlinding:false
+  }).code);
+  const native=loadFunction(SAMPLE,'choice');
+  const modified=loadFunction(protectedSource.code,'choice');
+  for(let x=-4096;x<=4096;x++)same(native,modified,x);
+  for(const x of ['3','',true,false,null,undefined,NaN,Infinity,-Infinity,0n,1n,
+    Symbol('tag'),{valueOf(){return 2;}},{[Symbol.toPrimitive](){return '7';}}])same(native,modified,x);
+  assert.throws(()=>flattenBranchBlocks(SAMPLE,'commonjs',{
+    seed:'invalid-mask',names:['choice'],stateBlinding:'yes'
+  }),/Expected source/);
+});
+
+test('state-blinded core option retains browser ESM behavior and metric contracts',async()=>{
+  const source='export function f(x){return x?((x+7)?(x|1):(x^2)):(x*3);}';
+  const output=obfuscateFiles([{path:'f.mjs',sourceType:'module',code:source}],{
+    mode:'coo',seed:'masked-browser',strings:false,properties:false,identifiers:false,
+    experimentalBranchBlocks:{'f.mjs':['f']},
+    experimentalBranchStateBlinding:true
+  });
+  assert.equal(output.files[0].metrics.branchFunctions,1);
+  assert.equal(output.files[0].metrics.branchBlocks,4);
+  const raw=/** @type {string} */ (output.files[0].code);
+  assert.ok(raw.includes('typeof '));
+  /** @param {string} code @returns {Promise<{f:(x:unknown)=>unknown}>} */
+  const load=async code=>/** @type {Promise<{f:(x:unknown)=>unknown}>} */ (
+    import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
+  );
+  const original=await load(source),transformed=await load(raw);
+  for(let x=-512;x<=512;x++)same(original.f,transformed.f,x);
+  for(const x of [0n,1n,Symbol('tag'),null,undefined,'7',NaN])
+    same(original.f,transformed.f,x);
+});
