@@ -2,6 +2,7 @@
 
 const {parse}=require('parse5');
 const {TextDecoder}=require('node:util');
+const {hasCssSourceMapDirective}=require('./css-source-maps');
 
 const utf8=new TextDecoder('utf-8',{fatal:true});
 
@@ -72,6 +73,11 @@ function findInlineHtmlSource(html) {
           isEmbeddedExecutableUrl(value)) {issue='embedded executable URL';return;}
       if(node.tagName==='script' && lower==='src' &&
           /^\s*data:/iu.test(value)) {issue='embedded script data URL';return;}
+    }
+    if(node.tagName==='style' &&
+        hasCssSourceMapDirective((node.childNodes??[]).map(child=>child.value??'').join(''))) {
+      issue='inline CSS source-map directive';
+      return;
     }
     if(node.tagName==='script' &&
         node.childNodes?.some(child=>typeof child.value==='string' && /\S/u.test(child.value))) {
