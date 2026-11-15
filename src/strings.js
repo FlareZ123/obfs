@@ -1,0 +1,79 @@
+'use strict';
+
+const {createHash} = require('node:crypto');
+const {walk, applyEdits} = require('./ast');
+
+/** @typedef {import('./ast').AstNode} AstNode */
+
+/**
+ * @param {string} source
+ * @param {string} seed
+ * @returns {string}
+ */
+function unusedName(source, seed) {
+  const digest = createHash('sha256').update(seed).digest('hex');
+  for (let n = 0; n < 16; n++) {
+    const name = `_o${digest.slice(n, n + 12)}`;
+    if (!new RegExp(`\\b${name}\\b`, 'u').test(source)) return name;
+  }
+  throw new Error('Failed to allocate a collision-free helper name');
+}
+
+/**
+ * Encode immutable literal strings with one-time runtime decoding.
+ * All JS UTF-16 code units are retained, including isolated surrogates.
+ * @param {string} source
+ * @param {AstNode} ast
+ * @param {{seed:string, minimumLength?:number}} options
+ * @returns {{code:string, count:number}}
+ */
+function encodeStrings(source, ast, options) {
+  const values = new Map();
+  /** @type {{start:number,end:number,text:string}[]} */
+  const edits = [];
+  const helper = unusedName(source, options.seed + 'strings');
+  const minimumLength = options.minimumLength ?? 4;
+  walk(ast, (node, parent, key, ancestors) => {
+    if (node.type !== 'Literal' || typeof node.value !== 'string' ||
+        node.value.length < minimumLength || !parent) return;
+    if (parent.type === 'ExpressionStatement' && parent.directive) return;
+    if ((parent.type === 'Property' || parent.type === 'MethodDefinition' ||
+         parent.type === 'PropertyDefinition') && key === 'key' && !parent.computed) return;
+    if (/^(ImportDeclaration|ImportExpression|ExportNamedDeclaration|ExportAllDeclaration|ImportAttribute)$/.test(parent.type)) return;
+    if ((parent.type === 'CallExpression' || parent.type === 'NewExpression') && key === 'arguments' &&
+        parent.callee.type === 'Identifier' && ['require', 'eval', 'Function'].includes(parent.callee.name)) return;
+    if (ancestors.some(ancestor => /^(ForStatement|ForInStatement|ForOfStatement|WhileStatement|DoWhileStatement)$/.test(ancestor.type))) return;
+    const value = /** @type {string} */ (node.value);
+    if (!values.has(value)) values.set(value, values.size);
+    edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
+  });
+  if (!edits.length) return {code:source,count:0};
+
+  const key = (parseInt(createHash('sha256').update(options.seed).digest('hex').slice(0, 4), 16) % 65535) + 1;
+  const encoded = [...values.keys()].map(value => {
+    let data = '';
+    for (let i = 0; i < value.length; i++) data += String.fromCharCode(value.charCodeAt(i) ^ key);
+    return data;
+  });
+  const i = `${helper}i`;
+  const j = `${helper}j`;
+  const raw = `${helper}r`;
+  const decoded = `${helper}d`;
+  const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';for(let ${j}=0;${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});${helper}[${i}]=${decoded};}\n`;
+
+  // Keep hashbang and directive prologues intact; imports can follow declarations per ESM grammar.
+  let offset = 0;
+  if (source.startsWith('#!')) {
+    const end = source.indexOf('\n');
+    offset = end < 0 ? source.length : end + 1;
+  }
+  for (const statement of ast.body) {
+    if (statement.type === 'ExpressionStatement' && statement.directive) offset = statement.end;
+    else break;
+  }
+  const transformed = applyEdits(source, edits);
+  // The prefix remains untouched: literal replacements never overlap a directive.
+  return {code:transformed.slice(0,offset) + '\n' + init + transformed.slice(offset),count:edits.length};
+}
+
+module.exports = {encodeStrings};

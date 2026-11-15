@@ -1,22 +1,20 @@
 {
-  "name": "obfs-research-core",
+  "name": "obfs-research",
   "version": "0.1.0",
   "private": true,
-  "description": "Soundness-oriented JS obfuscation research baseline",
+  "description": "Conservative JavaScript obfuscation research toolkit",
   "type": "commonjs",
-  "main": "lib/transform.js",
+  "engines": {"node": ">=22"},
+  "bin": {
+    "obfs-coo": "./bin/coo.js",
+    "obfs-sno": "./bin/sno.js",
+    "obfs-sco": "./bin/sco.js"
+  },
   "scripts": {
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js",
+    "benchmark": "node test/benchmark.js"
   },
   "dependencies": {
-    "typescript": "^5.8.3"
-  },
-  "engines": {
-    "node": ">=20"
-  },
-  "bin": {
-    "obfs-coo": "bin/coo.js",
-    "obfs-sno": "bin/sno.js",
-    "obfs-sco": "bin/sco.js"
+    "acorn": "^8.18.0"
   }
 }

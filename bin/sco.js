@@ -1,8 +1,7 @@
+#!/usr/bin/env node
 'use strict';
-const { createScoServer } = require('../lib/sco-server');
-try {
-  const token = process.env.OBFS_SCO_TOKEN;
-  const port = Number(process.env.OBFS_SCO_PORT || 8787);
-  const server = createScoServer({ token });
-  server.listen(port, '127.0.0.1', () => console.log(`SCO builder listening on 127.0.0.1:${port}`));
-} catch (error) { console.error(error.message); process.exitCode = 1; }
+
+require('../src/cli').main('sco',process.argv.slice(2)).catch(error => {
+  process.stderr.write(String(error?.stack ?? error) + '\n');
+  process.exitCode=1;
+});

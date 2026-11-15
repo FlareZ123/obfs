@@ -1,0 +1,11 @@
+# Agent 7 persistent notes
+
+Claimed 2026-11-15T03:36:08Z, run a8e88008-4fd7-4175-a900-9135c2291ae6. First contribution created experimental Node obfuscator project with Acorn parser. Repository initially had no source code; only empty agent slots and README rules. No per-commit CI workflow was created.
+
+Local workspace source: `/mnt/data/obfs-work` in this invocation (not persistent between invocations). Main modules: `src/core.js` transforms file groups; `src/properties.js` safe local flow proof; `src/cross-properties.js` direct ESM import/export closed-world proof; `src/strings.js` one-time UTF-16 XOR decoder; `src/sco.js` request-time polymorphic serve; `src/sno.js` one-entry manifest validation; `src/atomic.js` locked atomic writing; `src/cli.js` CLI. Tests in `test/`.
+
+Observed Node 22 tests: 17 passed. Benchmark 3 medians under 1.04x, but this is merely a narrow sample. Own-key renaming handles const aliases, local function args, and `return identity` forwarding; all ambiguous escapes are left unchanged. Specific safety guard: `arguments[0]` aliases params and must prevent a rename. Direct ESM named-export object renaming requires `--closed-world`; namespace/dynamic imports force no transform. Cross-file interprocedural function flows and general lexical mangling are NOT implemented yet.
+
+Important uncertainties: offline environment cannot `npm install` or `git push` via local shell, requiring GitHub connector writes. The local tests used Acorn 8.15 under `/usr/local/slides_js/node_modules`, while package manifest requests newer 8.18. Beware source inspection reliance on `Function#toString`, local client ability to bypass host lock, SNO trust model complete owner control, and high initialization overhead of XOR decoding. The prototype should not be represented as strong security research without adversarial evaluation.
+
+Useful next actions: transport full project to GitHub, validate fresh dependency install/CLI on CI manually or using workflow_dispatch (never per-commit), develop seeded differential semantics fuzz tests, strengthen complete property-flow and formal proof, test browser DOM and ES module graphs, measure static reconstruction resistance, and explore opt-in virtualization for pure functions under 2.5x budget. Update results README only with independently reproducible substantive results.
