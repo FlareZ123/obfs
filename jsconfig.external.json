@@ -5,7 +5,8 @@
     "sims/jsdeobsbench-audit.js",
     "sims/jsdeobsbench-coverage.js",
     "sims/jsdeobsbench-differential.js",
-    "sims/destructuring-assignment-performance.js"
+    "sims/destructuring-assignment-performance.js",
+    "sims/external-function-source-contract.js"
   ],
   "exclude": [
     "node_modules"
