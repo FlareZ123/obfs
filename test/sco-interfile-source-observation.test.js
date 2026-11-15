@@ -76,3 +76,18 @@ test('SCO preserves source spelling of exported functions observed by another mo
   assert.equal(await execute(delivered),expected,
     'Per-file SCO transformations must honor a source observer in another served file');
 });
+
+
+test('SCO preserves function source read through a constant computed key in another ESM module',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'function inspect(){const local={secretField:42};return local.secretField;}export {inspect};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {inspect} from "./state.mjs";const key="toString";console.log(inspect[key]());'}
+  ];
+  const expected=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),expected,
+    'An imported function key alias must preserve the exact original source spelling');
+});
