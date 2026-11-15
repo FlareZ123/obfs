@@ -7,8 +7,8 @@ const {lowerAffineNative}=require('../src/affine-native');
 const {recoverAffine}=require('./affine-native-recover');
 
 const root=path.join(__dirname,'../examples/affine-native');
-const before=fs.readFileSync(path.join(rroot,'efore=cjs'),'utf8');
-const candidate=lowerAffineNative('efore,'commonjs',{
+const before=fs.readFileSync(path.join(root,'before.cjs'),'utf8');
+const candidate=lowerAffineNative(before,'commonjs',{
   seed:'affine-native-example-v1',names:['encode']
 });
 
@@ -19,7 +19,7 @@ function compile(source) {
   return /** @type {(input:number)=>number} */ (module.exports);
 }
 
-const native=compile('efore),masked=compile(candidate.code);
+const native=compile(before),masked=compile(candidate.code);
 
 /** @param {(input:number)=>number} fn @param {'dense'|'mixed'} mode @returns {number} */
 function workload(fn,mode) {
@@ -63,11 +63,11 @@ const report={
   platform:process.platform,
   arch:process.arch,
   steps:candidate.steps,
-  sourceBytes:Buffer.byteLength('efore),
+  sourceBytes:Buffer.byteLength(before),
   outputBytes:Buffer.byteLength(candidate.code),
   attacker:recoverAffine(candidate.code,'encode'),
   dense:sample(()=>workload(native,'dense'),()=>workload(masked,'dense'),19),
   mixed:sample(()=>workload(native,'mixed'),()=>workload(masked,'mixed'),19),
-  cold:sample(()=>compile('efore),()=>compile(candidate.code),35)
+  cold:sample(()=>compile(before),()=>compile(candidate.code),35)
 };
 console.log(JSON.stringify(report,null,2));
