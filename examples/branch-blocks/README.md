@@ -57,3 +57,14 @@ compares the transformed export to the original over 4,109 heterogeneous
 inputs. The pinned [focus run](https://github.com/FlareZ123/obfs/actions/runs/43735256344)
 passed and measured 1.872× numeric hot-loop slowdown in Chrome; the experiment
 report gives the scope and limitations.
+
+
+The generated [operand-masked variant](after/gate-masked.cjs) is a second
+actual output of the same compiler. It is enabled only through
+`experimentalBranchStateBlinding:true` and ties switch
+state to the previous numeric test result. The independent
+[seedless static attacker](../../sims/branch-block-reconstruction.js) can
+symbolically cancel the masks and recover this variant too. An additional
+[held-out corpus](../../sims/branch-block-recovery-corpus.js) recovered
+210 generated variants covering 8,234 blocks on Windows and Linux, providing
+stronger evidence that this mask adds no effective confidentiality.
