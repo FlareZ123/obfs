@@ -60,7 +60,7 @@ async function main() {
     response.writeHead(200,{'Content-Type':selected.type,'Cache-Control':'no-store'});
     response.end(selected.body);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   try {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
