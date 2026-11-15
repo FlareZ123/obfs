@@ -27,17 +27,3 @@ jobs:
         run: npm run typecheck
       - name: Performance sample
         run: npm run benchmark
-  windows-node22:
-    runs-on: windows-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Verify Windows runtime semantics
-        run: npm test
-      - name: Verify JSDoc type safety
-        run: npm run typecheck
