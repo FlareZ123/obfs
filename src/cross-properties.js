@@ -68,7 +68,7 @@ function renameCrossFileProperties(files,seed) {
           callee.type==='MemberExpression' ?
             (callee.computed ? (callee.property.type==='Literal' ? callee.property.value : null) :
               staticName(callee.property)) : null;
-        if (['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
+        if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
