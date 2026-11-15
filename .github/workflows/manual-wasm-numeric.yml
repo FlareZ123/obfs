@@ -1,0 +1,27 @@
+name: Manual numeric WebAssembly research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  wasm-numeric:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared project dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Install optional pinned research-only Binaryen
+        run: npm install --no-save --no-package-lock --ignore-scripts binaryen@132.0.0
+      - name: Compare native JS with compiled Wasm and execute source-only cloning
+        run: node sims/wasm-numeric-experiment.js
