@@ -16,6 +16,12 @@ SCO: The obfuscation-controlled server can keep undistributed secrets and enforc
 
 SNO: Under the stated attacker model the adversary owns code, filesystem, and process memory. A hash manifest inside a launcher cannot prevent code modification or bypass. A native Windows/Ubuntu reproduction in [the local-owner manifest attack](../im-results/sno-owner-self-hash-bypass-2026-11-15.md) changes the SNO entry, observes an integrity rejection, then recomputes the expected digest in the attacker-controlled launcher and executes the modified entry successfully. For integrity, deploy a remote trust anchor or OS/TEE-backed attestation beyond this project's capabilities.
 
+## Source-map disclosure preflight
+
+A source map can contain `sourcesContent` with the original untransformed JavaScript, along with original symbol names and source paths. All three programmatic modes now reject supplied assets whose filenames end in `.map` (case-insensitive), and reject actual `//#`, `//@`, or `/*#` `sourceMappingURL` comments in JavaScript before any transformation. SCO's static-serving handler performs the same preflight, including assets explicitly selected by `--asset`. Remove source-map comments and exclude map sidecars in the source build before obfuscating. Refusal is intentional because copying the map would undermine the intended confidentiality, while silently removing runtime-loaded assets could alter behavior.
+
+This guard is narrow. It does not inspect arbitrary `.json`, HTML, SVG, generated `data:` strings, or externally hosted response bodies for embedded source. It does not establish resistance to execution-time extraction or reverse engineering of distributed scripts. Integrators must audit the complete published asset set and any independent source-map hosting themselves.
+
 ## Performance
 
 The CLI emits executable JavaScript using normal JS operations. String decoding incurs startup cost (especially in COO). Hot-loop string sites are excluded, but the 2.5x runtime requirement is empirical and workload-specific. `test/benchmark.js` samples arithmetic, property read/write, and string comparisons; it fails if any observed median exceeds 2.5x. This does not exhaust possible programs or timing distributions.
