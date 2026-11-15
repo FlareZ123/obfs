@@ -184,6 +184,12 @@ function observesFunctionSource(ast) {
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
   const aggregateErrors=new Set(['AggregateError']);
+  // Web IDL string arguments and string-valued record/sequence entries also
+  // invoke ToString, so exposed source can cross a browser API boundary.
+  const webScalarNames=new Set(['DOMException','URL']);
+  const webDictionaryNames=new Set(['URLSearchParams','Headers']);
+  const webScalars=new Set(webScalarNames);
+  const webDictionaries=new Set(webDictionaryNames);
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -215,6 +221,14 @@ function observesFunctionSource(ast) {
     return Boolean(node && (node.type==='Identifier'&&aggregateErrors.has(node.name) ||
       node.type==='MemberExpression' && isGlobal(node.object) &&
         memberName(node)==='AggregateError'));
+  }
+  /** @param {AstNode|null|undefined} node @param {Set<string>} aliases
+   *  @param {Set<string>} builtins @returns {boolean} */
+  function isWebConstructor(node,aliases,builtins) {
+    if(!node)return false;
+    if(node.type==='Identifier')return aliases.has(node.name);
+    return node.type==='MemberExpression'&&isGlobal(node.object)&&
+      builtins.has(memberName(node)??'');
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStringValue(node) {
@@ -252,6 +266,12 @@ function observesFunctionSource(ast) {
         if(isCoercer(value))changed=add(coercers,name)||changed;
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
+        if(isWebConstructor(value,webScalars,webScalarNames)) {
+          changed=add(webScalars,name)||changed;
+        }
+        if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
+          changed=add(webDictionaries,name)||changed;
+        }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
         if(isFunctionValue(value))changed=add(functions,name)||changed;
@@ -312,6 +332,12 @@ function observesFunctionSource(ast) {
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
             if(name==='Symbol')changed=add(symbols,property.value.name)||changed;
+          }
+          if(name!==null&&webScalarNames.has(name)) {
+            changed=add(webScalars,property.value.name)||changed;
+          }
+          if(name!==null&&webDictionaryNames.has(name)) {
+            changed=add(webDictionaries,property.value.name)||changed;
           }
         }
       }
@@ -404,6 +430,26 @@ function observesFunctionSource(ast) {
       }
     } while(progress);
   }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function mayCoerceSourceWithinWebRecord(node,depth=0) {
+    if(!node || depth>16)return true;
+    if(isDefinitelyPrimitive(node))return false;
+    if(node.type==='ObjectExpression') {
+      return node.properties.some((/** @type {AstNode} */ property)=>
+        property.type!=='Property' || property.computed &&
+          staticString(property.key)===null ||
+        mayCoerceSourceWithinWebRecord(property.value,depth+1));
+    }
+    if(node.type==='ArrayExpression') {
+      return node.elements.some((/** @type {AstNode|null} */ value)=>
+        mayCoerceSourceWithinWebRecord(value,depth+1));
+    }
+    if(node.type==='NewExpression' && node.callee.type==='Identifier' &&
+        node.callee.name==='Map') {
+      return mayCoerceSourceWithinWebRecord(node.arguments[0],depth+1);
+    }
+    return true;
+  }
   let observed=false;
   // ToPropertyKey applies ToPrimitive with a string hint. Functions with
   // ordinary prototype methods stringify to their source text. Restrict the
@@ -461,6 +507,12 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      if(isWebConstructor(callee,webScalars,webScalarNames) &&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+      if(isWebConstructor(callee,webDictionaries,webDictionaryNames) &&
+          node.arguments[0] &&
+          mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
       // Object.fromEntries converts each pair's first value to a property
       // key. A function-valued key exposes the function's native source.
       if(node.type==='CallExpression') {
