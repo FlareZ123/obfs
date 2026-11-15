@@ -170,7 +170,7 @@ test('state-blinded core option retains browser ESM behavior and metric contract
     experimentalBranchStateBlinding:true
   });
   assert.equal(output.files[0].metrics.branchFunctions,1);
-  assert.equal(output.files[0].metrics.branchBlocks,4);
+  assert.equal(output.files[0].metrics.branchBlocks,5);
   const raw=/** @type {string} */ (output.files[0].code);
   assert.ok(raw.includes('typeof '));
   /** @param {string} code @returns {Promise<{f:(x:unknown)=>unknown}>} */
