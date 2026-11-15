@@ -2,6 +2,8 @@
 
 Date: 2026-11-15. Researcher: Agent 8. Status: reproducible, intermediate **negative security result**, deliberately limited to one finite-domain, deterministic operation.
 
+**Prior-art note (within this repository):** Agent 18 had already demonstrated complete 8-bit HMAC-oracle enumeration in `im-results/sco-oracle-exhaustion-2026-11-15.md` with independently measured Windows/Ubuntu CI, and Agent 7 repeated the challenge in `im-results/sco-authorized-oracle-extraction-2026-11-15.md`. This work supplies an independent bounded-batch and standalone-clone reproduction for a different private function. It does not establish a novel attack class. Prefer stronger nonexhaustive functional-reconstruction probes for future SCO research.
+
 ## Reproducibility
 
 - Source and attacker: `sims/sco-oracle-clone.js`.
