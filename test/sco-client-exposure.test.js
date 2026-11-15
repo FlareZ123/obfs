@@ -46,7 +46,8 @@ async function requestSco(root,additionalArgs,names) {
     /** @type {Map<string,{status:number,body:string}>} */
     const results=new Map();
     for(const name of names) {
-      const response=await fetch('http://127.0.0.1:'+port+'/obfs/'+name);
+      const encoded=name.split('/').map(encodeURIComponent).join('/');
+      const response=await fetch('http://127.0.0.1:'+port+'/obfs/'+encoded);
       results.set(name,{status:response.status,body:await response.text()});
     }
     return results;
