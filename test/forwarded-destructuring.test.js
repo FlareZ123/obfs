@@ -2,8 +2,11 @@
 
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
+const fs=require('node:fs/promises');
+const path=require('node:path');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
+const {buildSample}=require('../examples/forwarded-destructuring/build-sample');
 
 /** @param {string} source @returns {string} */
 function run(source){
@@ -82,4 +85,13 @@ test('forwarder source introspection preserves source spelling',()=>{
   preserve(own+'const identity=value=>value;'+
     'const {secretField:read}=identity(root);'+
     'module.exports=[read,identity.toString()];',0);
+});
+
+test('generated forwarded destructuring sample is byte-exact and behavior preserving',async()=>{
+  await buildSample(true);
+  const directory=path.resolve(__dirname,'../examples/forwarded-destructuring');
+  const original=await fs.readFile(path.join(directory,'before.cjs'),'utf8');
+  const transformed=await fs.readFile(path.join(directory,'after.cjs'),'utf8');
+  assert.notEqual(original,transformed);
+  assert.equal(run(original),run(transformed));
 });
