@@ -147,4 +147,4 @@ if(require.main===module) {
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={runApiFuzz};
+module.exports={runApiFuzz,fixture,execute};
