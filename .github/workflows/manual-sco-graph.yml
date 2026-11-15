@@ -1,0 +1,29 @@
+name: Manual multi-module SCO graph research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  graph:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Verify real generated SCO graph facades
+        run: node examples/sco-graph/build.cjs --check
+      - name: Check private graph semantics, source denial and paired HMAC cost
+        run: node --test test/sco-graph.test.js
+      - name: Strict JSDoc for SCO graph integration
+        run: npx tsc -p jsconfig.sco-graph.json

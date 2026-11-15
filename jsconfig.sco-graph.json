@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "examples/sco-graph/build.cjs",
+    "examples/sco-graph/server.cjs",
+    "test/sco-graph.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
