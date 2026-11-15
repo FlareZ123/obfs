@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,staticString} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -241,10 +241,13 @@ function renameCrossFileProperties(files,seed) {
       if (declaration.type !== 'ExportNamedDeclaration' || declaration.source ||
           declaration.declaration?.type !== 'VariableDeclaration' || declaration.declaration.kind!=='const') continue;
       for(const decl of declaration.declaration.declarations) {
-        if (decl.id.type!=='Identifier' || decl.init?.type!=='ObjectExpression' ||
+        if (decl.id.type!=='Identifier'||!decl.init||
             exporter.bindings.get(decl.id.name)!==1) continue;
+        const literal=decl.init.type==='ObjectExpression' ? decl.init :
+          singleUseFactoryObject(exporter.ast,exporter.bindings,decl.init);
+        if(!literal)continue;
         /** @type {AstNode[]} */
-        const props=decl.init.properties;
+        const props=literal.properties;
         if (!props.length || props.some(p => p.type!=='Property' || p.method || p.shorthand ||
               p.kind!=='init' || !isLiteralValue(p.value) || !ownPropertyName(p) ||
               ['__proto__','constructor','prototype'].includes(String(ownPropertyName(p))))) continue;
