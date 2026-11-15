@@ -10,7 +10,7 @@ const {spawnSync}=require('node:child_process');
 
 /**
  * @typedef {{filename:string,original:string,test_cases:unknown[]}} OriginalRow
- * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string,obfs_source_type?:'script'|'commonjs'}} ObfuscatedRow
+ * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string,obfs_output_sha256:string,obfs_source_type?:'script'|'commonjs'}} ObfuscatedRow
  * @typedef {{sample:number,cases:number,timeoutMs:number,seed:string}} Options
  * @typedef {{file:string,caseIndex:number,kind:string,detail?:string}} FailureRecord
  * @typedef {{samplePrograms:number,sourcePrograms:number,commonjsPrograms:number,
@@ -101,8 +101,13 @@ async function compareCorpus(originalFile,transformedFile,options) {
   const byName=new Map();
   for(const candidate of transformed) {
     if(typeof candidate.filename!=='string'||typeof candidate.obfuscated!=='string'||
-        typeof candidate.obfs_source_sha256!=='string'||byName.has(candidate.filename)) {
+        typeof candidate.obfs_source_sha256!=='string'||typeof candidate.obfs_output_sha256!=='string'||
+        byName.has(candidate.filename)) {
       throw new TypeError('Invalid or duplicate transformed benchmark identity');
+    }
+    const digest=createHash('sha256').update(candidate.obfuscated).digest('hex');
+    if(candidate.obfs_output_sha256!==digest) {
+      throw new Error('Obfuscated output mismatch: '+candidate.filename);
     }
     byName.set(candidate.filename,/** @type {ObfuscatedRow} */ (/** @type {unknown} */ (candidate)));
   }
