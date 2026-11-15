@@ -7,6 +7,7 @@ const {renameLocalProperties,collectBindings} = require('./properties');
 const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
+const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
@@ -299,6 +300,9 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code:file.code,sourceType};
   });
+  // Fail before any output is generated: source maps can undo an entire
+  // transformation by retaining original text and symbol mappings.
+  for (const file of prepared) assertNoSourceMapDisclosure(file);
   // A function declared in one ESM/classic-script file may have its source
   // observed by another supplied file. File-local proofs cannot see that
   // consumer, so preserve all original source spellings across the file group.
