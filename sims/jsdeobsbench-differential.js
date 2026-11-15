@@ -10,7 +10,7 @@ const {spawnSync}=require('node:child_process');
 
 /**
  * @typedef {{filename:string,original:string,test_cases:unknown[]}} OriginalRow
- * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string}} ObfuscatedRow
+ * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string,obfs_source_type?:'script'|'commonjs'}} ObfuscatedRow
  * @typedef {{sample:number,cases:number,timeoutMs:number,seed:string}} Options
  */
 
