@@ -248,6 +248,10 @@ function proveLocalObject(ast, rootName, bindings) {
   // assignments and method-call receivers.
   for (const member of members) {
     const consumer=parents.get(member);
+    // Deletion can expose an inherited getter/value under the original key.
+    // The property shape of Object.prototype is outside the local proof.
+    const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
+    if (finalConsumer?.type==='UnaryExpression' && finalConsumer.operator==='delete') return null;
     if (consumer?.type==='AssignmentExpression' && consumer.left===member) {
       if (consumer.operator==='=') {
         const rhs=consumer.right;
@@ -337,6 +341,10 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
+    // An unowned field may invoke an inherited getter with this=object. That
+    // getter can enumerate own keys, making otherwise private renaming visible.
+    const ownNames=new Set(candidate.properties.map(prop=>staticName(prop.key)));
+    if (proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = staticName(prop.key);
