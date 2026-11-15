@@ -8,7 +8,7 @@ const {spawnSync}=require('node:child_process');
 const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
-const {neutralizeHashedNames}=require('./offline-normalize');
+const {normalizeDistributedFiles}=require('./attacker-token-normalize');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} SourceFile */
 /** @typedef {{index:number,kind:string,files:SourceFile[],expected:number,privateFields:number}} Fixture */
@@ -185,7 +185,7 @@ async function runHeldout(seedCount=3) {
       outputBytes+=result.files.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0);
       transformed.push({index:item.index,files:result.files});
       const start=performance.now();
-      const normalized=neutralizeHashedNames(result.files.map(file=>{
+      const normalized=normalizeDistributedFiles(result.files.map(file=>{
         if(typeof file.code!=='string')throw new TypeError('Expected JavaScript text');
         return {path:file.path,code:file.code};
       }));
