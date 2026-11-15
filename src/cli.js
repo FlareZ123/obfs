@@ -5,16 +5,17 @@ const path = require('node:path');
 const http = require('node:http');
 const {obfuscateFiles,createSnoLauncher,createScoHandler} = require('./index');
 const {atomicWrite} = require('./atomic');
+const {safePath} = require('./core');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[]}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean}} */
-  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false};
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[]}} */
+  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[]};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
     if (option === '--closed-world') {opts.closedWorld=true;continue;}
@@ -27,6 +28,7 @@ function readArgs(argv) {
     else if (option === '--port') opts.port=Number(value);
     else if (option === '--host') opts.hosts.push(value);
     else if (option === '--seed') opts.seed=value;
+    else if (option === '--asset') opts.publicAssets.push(value);
     else throw new TypeError(`Unknown option ${option}`);
   }
   if (!opts.root || !opts.entry) throw new TypeError('Required: --root directory --entry relative-file');
@@ -47,7 +49,7 @@ async function readSourceTree(root) {
     const entries = await fs.readdir(path.join(root,directory),{withFileTypes:true});
     entries.sort((a,b)=>a.name.localeCompare(b.name,'en'));
     for(const item of entries) {
-      if (item.name === 'node_modules' || item.name === '.git') continue;
+      if (item.name.toLowerCase() === 'node_modules' || item.name.toLowerCase() === '.git') continue;
       const relative = path.posix.join(directory,item.name);
       if (item.isSymbolicLink()) throw new Error(`Symlink in source tree: ${relative}`);
       if(item.isDirectory()) await read(relative);
@@ -117,14 +119,29 @@ async function assertOutputOutsideInput(root,destination) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   const absRoot = path.resolve(root);
   const source = (await readSourceTree(absRoot)).map(file =>
     jsModule && file.path.endsWith('.js') ? {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
-    const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
+    // Source roots may also contain server-only configuration and credentials.
+    // Public assets require an explicit opt-in; shipped JS remains the caller's
+    // client-only responsibility.
+    const explicitAssets=new Set(publicAssets.map(asset=>{
+      if (asset.startsWith('.') || asset.split('/').some(part=>part.startsWith('.'))) {
+        throw new TypeError('SCO asset must not be a hidden file or directory');
+      }
+      return safePath(asset);
+    }));
+    for (const asset of explicitAssets) {
+      if (!source.some(file=>file.path===asset && file.sourceType==='asset')) {
+        throw new Error(`SCO public asset not found: ${asset}`);
+      }
+    }
+    const clientFiles=source.filter(file=>file.sourceType!=='asset' || explicitAssets.has(file.path));
+    const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts,closedWorld}));
     /** @type {Promise<void>} */
     const listening=new Promise(resolve=>server.listen(port,()=>resolve()));
     await listening;
