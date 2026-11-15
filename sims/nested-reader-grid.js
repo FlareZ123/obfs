@@ -122,6 +122,7 @@ async function runNestedReaderGrid(){
         });
         assert.equal(obfuscated.crossFile.properties,sample.expectedProperties,
           sample.name+'/'+JSON.stringify(obfuscated.crossFile));
+        /** @type {ModuleSource[]} */
         const produced=obfuscated.files.map(file=>({
           path:file.path,sourceType:'module',
           code:/** @type {string} */ (file.code)
@@ -131,9 +132,12 @@ async function runNestedReaderGrid(){
         const attack=neutralizeHashedNames(produced);
         assert.equal(attack.properties,sample.expectedProperties,
           'Unexpected source-only neutralization: '+sample.name);
-        assert.equal(await runGraph(directory,attack.files.map(file=>({
+        /** @type {ModuleSource[]} */
+        const neutralized=attack.files.map(file=>({
           path:file.path,sourceType:'module',code:file.code
-        }))),original,'Source-only normalized graph differs: '+sample.name);
+        }));
+        assert.equal(await runGraph(directory,neutralized),original,
+          'Source-only normalized graph differs: '+sample.name);
         graphs++;
         renamedProperties+=sample.expectedProperties;
         normalizedProperties+=attack.properties;
