@@ -137,7 +137,8 @@ function observesFunctionSource(ast) {
     target.add(name);
     return true;
   }
-  let changed;
+  /** @type {boolean} */
+  let changed=false;
   do {
     changed=false;
     walk(ast,node=>{
