@@ -157,7 +157,15 @@ test('CLI native graph emits executable two-module COO and SNO entry',async()=>{
       '--seed','native-graph-cli','--native-graph','index.cjs:mix'
     ]);
     assert.match(await fs.readFile(path.join(snoOut,'index.cjs'),'utf8'),/const /u);
-    assert.equal(run(path.join(snoOut,'index.cjs'),[]),'');
+    const launcher=path.join(snoOut,'sno-entry.cjs');
+    const launch='console.log(require('+JSON.stringify(launcher)+')(9))';
+    const protectedOutput=spawnSync(process.execPath,['-e',launch],{encoding:'utf8'});
+    assert.equal(protectedOutput.status,0,String(protectedOutput.stderr));
+    assert.equal(protectedOutput.stdout.trim(),String(((9+7)*(9-5))^((9+3)&255)));
+    await atomicWrite(path.join(snoOut,'index.cjs'),'module.exports=()=>999;');
+    const tampered=spawnSync(process.execPath,[launcher],{encoding:'utf8'});
+    assert.notEqual(tampered.status,0);
+    assert.match(tampered.stderr,/Integrity check failed/u);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
