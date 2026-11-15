@@ -1,0 +1,9 @@
+# Three-file native ESM bitvector sharding
+
+This is a generated, opt-in COO experiment for primitive signed-Int32 Number kernels. The original [before/main.mjs](before/main.mjs) has one direct bitwise expression; the [after/](after/) folder contains three **actual generated ESM files**: a public entry and two separate native helper modules. Every external export name remains the same.
+
+The compiler is [workplace/coo-native-shards.js](../../workplace/coo-native-shards.js), exported as `shardNativeBitvectorModule`. Regenerate and verify the exact pinned build with `node examples/coo-native-shards/build.cjs`. Explicit `--write` replaces outputs using the project's locked atomic file writer. The dependency is the existing Acorn AST parser; there is no dynamic `eval` in output.
+
+The caller must guarantee primitive signed Int32 Number arguments, no function-source/stack observers outside the published group, stable module loading, and collision-free output paths. This is a narrow grammar: selected top-level `export function f(x){return L(x) op R(x)}` declarations where both subexpressions contain operations and use only the parameter, i32 literals, bitwise operators and bitwise NOT. A filename collision is refused or a different generated name is selected. Ordinary code not proved safe is unchanged.
+
+**Public output has no secret.** An independent attacker in [test/coo-native-shards.test.js](../../test/coo-native-shards.test.js) statically follows the two imports and recovers the original expression syntax without any compiler seed. Local Node 22.16.0 pilot median ratios: 1.114x hot loop and 2.295x first module-graph load, on one selected kernel. These are preliminary, workload-specific results; cross-platform profiles belong in the [intermediate report](../../im-results/coo-native-shards-2026-11-15.md). COO initialization counts toward the project's 2.5x budget. Do not enable this by default or infer a general security or performance guarantee.

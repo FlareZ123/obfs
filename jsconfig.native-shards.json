@@ -1,0 +1,9 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "workplace/coo-native-shards.js",
+    "test/coo-native-shards.test.js",
+    "sims/coo-native-shards-profile.js",
+    "examples/coo-native-shards/build.cjs"
+  ]
+}
