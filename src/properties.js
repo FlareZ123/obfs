@@ -430,6 +430,24 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (callParent?.type === 'VariableDeclarator' && callParent.init === parent &&
         callParent.id.type === 'Identifier' && aliases.has(callParent.id.name)) continue;
     if (callParent?.type === 'ExpressionStatement') continue;
+    // A forwarded owner can be destructured immediately without binding the
+    // complete object. Require plain known keys and simple binding targets,
+    // and forbid assignment-expression result exposure to another consumer.
+    const objectPattern=callParent?.type==='VariableDeclarator' &&
+      callParent.init===parent ? callParent.id :
+      callParent?.type==='AssignmentExpression' && callParent.operator==='=' &&
+      callParent.right===parent &&
+      parents.get(callParent)?.type==='ExpressionStatement' ?
+        callParent.left : null;
+    if(objectPattern?.type==='ObjectPattern') {
+      /** @type {AstNode[]} */
+      const fields=objectPattern.properties;
+      if(fields.some(field=>field.type!=='Property' || field.kind!=='init' ||
+          ownPropertyName(field)===null ||
+          !isSimplePatternBinding(field.value))) return null;
+      patterns.push(...fields);
+      continue;
+    }
     // A forwarding call can feed another already-proven direct consumer.
     // Both functions must be admitted by the no-escape proof, and the
     // receiving formal must be a tracked alias. This preserves ownership
