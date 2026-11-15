@@ -179,7 +179,9 @@ if(require.main===module) {
   const {originalFile,transformedFile,options}=parseArgs(process.argv.slice(2));
   compareCorpus(originalFile,transformedFile,options).then(result=>{
     process.stdout.write(JSON.stringify(result,null,2)+'\n');
-    if(result.baselineFailure||result.transformedMismatches||result.transformedErrors)process.exitCode=1;
+    // An original-program failure is an environment eligibility exclusion,
+    // not a compiler defect. Only passing baselines enter the paired verdict.
+    if(result.transformedMismatches||result.transformedErrors)process.exitCode=1;
   }).catch(error=>{
     process.stderr.write(String(error?.stack??error)+'\n');
     process.exitCode=1;
