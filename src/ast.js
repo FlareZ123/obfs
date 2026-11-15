@@ -548,6 +548,13 @@ function observesFunctionSource(ast) {
           isFunctionValue(node.right) || containsFunction(node.left) ||
           containsFunction(node.right)) && staticString(node)===null) observed=true;
     }
+    // Stack observation can also be expressed without a .stack member access.
+    // A destructuring pattern reads the error's captured source location.
+    if(node.type==='Property' && parent?.type==='ObjectPattern') {
+      const property=node.computed ? staticString(node.key) :
+        node.key.type==='Identifier' ? node.key.name : staticString(node.key);
+      if(property==='stack') observed=true;
+    }
     if(node.type==='MemberExpression') {
       const name=node.computed ? sourceStringKey(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
@@ -568,6 +575,15 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // Reflect.get and descriptor inspection can read the same stack data
+      // without mentioning it in a MemberExpression.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         staticString(node.arguments[1])==='stack' &&
+         callee.object.type==='Identifier' &&
+         (callee.object.name==='Reflect' &&
+           ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
+          callee.object.name==='Object' &&
+           memberName(callee)==='getOwnPropertyDescriptor')) observed=true;
       // Web IDL receiver methods accept USVString/DOMString arguments. Check
       // the receiver's local constructor provenance before considering a
       // function-valued argument an implicit source-text observer.
