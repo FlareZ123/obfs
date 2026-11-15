@@ -60,6 +60,11 @@ function renameCrossFileProperties(files,seed) {
   // statically closed ESM module graph. Even a constructor held as an alias
   // must make the property-renaming proof decline the whole graph.
   const dynamicCompilerNames=new Set(['eval','Function','AsyncFunction','GeneratorFunction','AsyncGeneratorFunction']);
+  // A separate Worker, child process, VM context or service worker may load a
+  // supplied module through a runtime-only string/URL. No static ESM import
+  // edge then exists for our property-ownership graph, so decline the graph.
+  const secondaryLoaderNames=new Set(['Worker','SharedWorker','importScripts','serviceWorker']);
+  const secondaryLoaderModules=new Set(['node:worker_threads','node:child_process','node:vm']);
   for(const module of modules.values()) {
     // Function source can be inspected by a separate ESM consumer that never
     // imports the object whose field is being renamed. Check the whole graph,
@@ -67,11 +72,13 @@ function renameCrossFileProperties(files,seed) {
     if(observesFunctionSource(module.ast))return {files,objects:0,properties:0};
     let ambiguous=false;
     walk(module.ast,node=>{
-      if (node.type==='Identifier' && dynamicCompilerNames.has(node.name)) ambiguous=true;
+      if (node.type==='Identifier' &&
+          (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
       if (node.type==='MemberExpression') {
         const name=node.computed ? (node.property.type==='Literal' ? node.property.value : null) :
           staticName(node.property);
-        if (typeof name==='string' && dynamicCompilerNames.has(name)) ambiguous=true;
+        if (typeof name==='string' &&
+            (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
       }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
@@ -90,7 +97,7 @@ function renameCrossFileProperties(files,seed) {
       const specifier=node.source.value;
       // node:module exposes createRequire and loader hooks. A separate
       // require('./target.mjs') would not appear as an ESM import edge.
-      if (specifier==='node:module') ambiguous=true;
+      if (specifier==='node:module'||secondaryLoaderModules.has(specifier)) ambiguous=true;
       if (specifier.startsWith('node:')) return;
       if (!specifier.startsWith('./') && !specifier.startsWith('../') ||
           /[?#%\\]/.test(specifier)) {ambiguous=true;return;}
