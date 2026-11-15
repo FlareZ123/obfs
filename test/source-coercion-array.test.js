@@ -41,6 +41,26 @@ for(const [name,statement] of [
   });
 }
 
+for(const [name,statement] of [
+  ['direct Function plus number','const sourceText=observed+3'],
+  ['aliased Function plus number','const fn=observed;const sourceText=fn+3'],
+  ['two Functions added','const sourceText=observed+observed'],
+  ['array holding Function plus number','const items=[observed];const sourceText=items+3'],
+  ['inline array holding Function plus number','const sourceText=[observed]+3'],
+  ['transitive function and array alias',
+    'const fn=observed;const first=[fn];const alias=first;const sourceText=alias+3']
+]) {
+  test('Function + operand preserves observed source: '+name,()=>{
+    const source=fixture(statement);
+    const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode:'sno',seed:'source-function-plus/'+name,strings:false
+    }).files[0];
+    assert.equal(run(output.code),run(source),output.code);
+    assert.equal(output.metrics.objects,0,output.code);
+    assert.equal(output.metrics.bindings,0,output.code);
+  });
+}
+
 test('join on plain-number array leaves private property obfuscation enabled',()=>{
   const code='const owner={secretField:17};const parts=[1,2,3];'+
     'module.exports=owner.secretField+parts.join(",");';
