@@ -95,6 +95,10 @@ An additional deterministic [nested AST grammar fuzz test](../test/wasm-i32-nest
 
 A separate strict [research JSDoc config](../jsconfig.wasm-i32.json) now includes all compiler-adjacent tests, source-only attack harnesses, cold-budget profile, runtime interception and Chromium/CSP fixtures. Both main library and research checks passed on the [green full focused run 43747058413](https://github.com/FlareZ123/obfs/actions/runs/43747058413), commit `c3247af5698eb07e58d6a852e1efc48c73eb53e2`, under Windows and Ubuntu Node.js 22; the Ubuntu real Chromium ESM and CSP checks passed as well. The research config initially revealed JSDoc constructor, Promise callback and ambiguous tuple types, which were resolved before this pinned green validation.
 
+## Explicit selection safety
+
+The standalone experimental lowerer returns a conservative `declined` metric for unsupported source grammar, unknown selected names, or source observations. In the integrated `obfuscateFiles` pipeline, an **explicitly requested Wasm i32 transform now fails closed** with a TypeError when any requested function is declined, rather than silently distributing the unprotected original source as an apparently processed output. This makes a transform-strength expectation visible to the operator while leaving the lowerer's independent refusal contract intact. Regression: `test/wasm-i32.test.js`, case `explicit Wasm pipeline selection fails closed on refusal or missing target`.
+
 ## Decision and next steps
 
 Keep as an experimental, explicitly typed COO/SNO backend with checked-in generated output and public attacker proof. Avoid selling public Wasm binary lowering or seeded operand masks as encryption, authorization, or tamper protection. A natural next experiment is to compare this grammar's real-world typed call-site coverage and cold-loaded browser workload to direct native-register graphs, then evaluate source-only Wasm disassembly and JIT instrumentation with the same attack budget.
