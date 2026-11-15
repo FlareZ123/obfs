@@ -71,7 +71,7 @@ async function profile(options={}) {
     /** @type {{original:Function,sharded:Function}|null} */
     let callable=null;
     for(let i=0;i<pairs;i++) {
-      const order=i%2===0?['original','sharded']:['sharded','original'];
+      const order=/** @type {('original'|'sharded')[]} */ (i%2===0?['original','sharded']:['sharded','original']);
       /** @type {{[key:string]:any}} */
       const exported={};
       for(const kind of order) {
@@ -93,7 +93,7 @@ async function profile(options={}) {
     const originalHot=[];
     const shardedHot=[];
     for(let i=0;i<hotTrials;i++) {
-      const order=i%2===0?['original','sharded']:['sharded','original'];
+      const order=/** @type {('original'|'sharded')[]} */ (i%2===0?['original','sharded']:['sharded','original']);
       for(const kind of order) {
         const started=performance.now();
         const checksum=hot(callable[kind],hotIterations);
