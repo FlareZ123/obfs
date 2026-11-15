@@ -31,7 +31,9 @@ async function summarizeCoverage(jsonl) {
       throw new TypeError('Missing original, obfuscated or transformation metrics');
     }
     const metrics=row.obfs_metrics;
-    for(const name of ['properties','bindings','literals','objects']) {
+    /** @type {('properties'|'bindings'|'literals'|'objects')[]} */
+    const metricNames=['properties','bindings','literals','objects'];
+    for(const name of metricNames) {
       if(!Number.isSafeInteger(metrics[name])||metrics[name]<0) {
         throw new TypeError('Invalid compiler metric '+name);
       }
