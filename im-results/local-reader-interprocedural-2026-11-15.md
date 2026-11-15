@@ -28,6 +28,14 @@ The subsequent [full run 43726043120](https://github.com/FlareZ123/obfs/actions/
 
 The newer nested **cross-file** extension and five new positive/negative ESM graph cases passed the [full run 43726429542](https://github.com/FlareZ123/obfs/actions/runs/43726429542), exact commit `70ee8057e2b4aee5965d8321474ea0ee02d54007`. Both Node 22 matrix jobs completed **847/848 tests with one skip**, both strict JSDoc checks and performance samples; Ubuntu's live Chromium integration also passed. The hot local reader ratio was **0.999× on both Ubuntu and Windows** for that pinned run (rounded benchmark medians 0.63 ms/0.63 ms and 0.62 ms/0.62 ms respectively). This is compatibility and sampled runtime evidence for the cross-file extension, with no static security inference.
 
+## Held-out multi-graph test and adversarial baseline
+
+A further independent fixture generator, [`sims/nested-reader-grid.js`](../sims/nested-reader-grid.js), instantiates **36 deterministic closed-world three-module ESM graphs** with four distinct key-name seeds and nine program shapes. Each graph is executed under the native Node ESM loader three times: original, transformed, then transformed after the separate source-only label neutralizer. Scenarios include direct imported identity, two local identities, nested imported-plus-local forwarding, a second foreign owner, foreign objects through forwarding, first-class reader escape, computed runtime key, own-key reflection, and source-text observation.
+
+All **12** positive ownership graphs renamed both candidate fields (**24/24 field labels**), and all **24** negative ownership/reflection/source-observation graphs declined property rewriting. Native and obfuscated output matched exactly for all **36**. The seedless adversary normalized **24/24** emitted key labels on the positive graphs and its runnable output still matched the originals. This is a deliberately controlled adversary with recognizable hash patterns, not exhaustive source recovery.
+
+The [full Ubuntu/Windows run 43727094546](https://github.com/FlareZ123/obfs/actions/runs/43727094546) pinned at source commit `d283e8fc9e2ee64c227b11a296995e986afa37db` passed **849/850 tests with one skip** on each OS, both strict JSDoc checkers, sampled benchmarks, and live Chromium on Ubuntu. The reader hot ratios in that run were **1.004× Ubuntu** and **0.999× Windows**. The performance budget conclusion remains restricted to the measured loop.
+
 ## Independent security dimensions
 
 - **Static reconstruction:** The established seedless label-normalization adversary recognizes and neutralizes the current randomized field spellings. This work extends proof coverage, with no measured increase in reconstruction resistance.
