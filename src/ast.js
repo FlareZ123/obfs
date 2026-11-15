@@ -114,6 +114,8 @@ function observesFunctionSource(ast) {
   // addition to direct String/RegExp coercers.
   const functions=new Set();
   const arraysWithFunctions=new Set();
+  const entryCollectionsWithFunctionKeys=new Set();
+  const fromEntriesMethods=new Set();
   /** @type {Map<string,Set<string>>} */
   const objectFunctionKeys=new Map();
   // Imported bindings and CommonJS require() results may be functions even
@@ -155,6 +157,22 @@ function observesFunctionSource(ast) {
     return Boolean(node && (node.type==='Identifier'&&arraysWithFunctions.has(node.name) ||
       node.type==='ArrayExpression'&&node.elements.some((/** @type {AstNode|null} */ value)=>
         value && (isFunctionValue(value)||value.type==='SpreadElement'&&containsFunction(value.argument)))));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function containsFunctionKeyEntries(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+        entryCollectionsWithFunctionKeys.has(node.name) ||
+      node.type==='ArrayExpression' && node.elements.some(
+        (/** @type {AstNode|null} */ entry)=>entry?.type==='ArrayExpression' &&
+          isFunctionValue(entry.elements[0])) ||
+      node.type==='NewExpression' && node.callee.type==='Identifier' &&
+        node.callee.name==='Map' && containsFunctionKeyEntries(node.arguments[0])));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isObjectFromEntries(node) {
+    return Boolean(node && (node.type==='Identifier' && fromEntriesMethods.has(node.name) ||
+      node.type==='MemberExpression' && node.object.type==='Identifier' &&
+        node.object.name==='Object' && memberName(node)==='fromEntries'));
   }
   // These standard builtins coerce a nonprimitive argument to a string.
   // That invokes Function#toString when the argument is a function. A
@@ -232,6 +250,7 @@ function observesFunctionSource(ast) {
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
@@ -254,6 +273,9 @@ function observesFunctionSource(ast) {
           changed=add(opaqueFunctions,name)||changed;
         }
         if(containsFunction(value))changed=add(arraysWithFunctions,name)||changed;
+        if(containsFunctionKeyEntries(value)) {
+          changed=add(entryCollectionsWithFunctionKeys,name)||changed;
+        }
       }
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='MemberExpression' &&
@@ -352,6 +374,22 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // Object.fromEntries converts each pair's first value to a property
+      // key. A function-valued key exposes the function's native source.
+      if(node.type==='CallExpression') {
+        /** @type {AstNode|null|undefined} */
+        let entryArgument=isObjectFromEntries(callee)?node.arguments[0]:null;
+        if(callee.type==='MemberExpression' && isObjectFromEntries(callee.object)) {
+          const method=memberName(callee);
+          if(method==='call'||method==='bind')entryArgument=node.arguments[1];
+          if(method==='apply') {
+            const args=node.arguments[1];
+            if(args?.type==='ArrayExpression')entryArgument=args.elements[0];
+            else if(args)observed=true;
+          }
+        }
+        if(containsFunctionKeyEntries(entryArgument)) observed=true;
+      }
       // String prototype search, comparison, replacement and padding methods
       // can coerce an argument into the native source text of a function.
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
