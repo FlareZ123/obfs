@@ -13,18 +13,22 @@ const {fixture,kinds}=require('../sims/heldout-object-flow-attack');
  * permitted to depend on this harness, preserving its external API boundary.
  * @param {number} graphs
  * @param {'native'|'obfuscated'} flavor
+ * @param {0|1} [apiVariant]
  * @returns {string}
  */
-function runner(graphs,flavor) {
+function runner(graphs,flavor,apiVariant=0) {
+  const keyPrefix=apiVariant===0?'privateMetric':'weightedFactor';
+  const offset=apiVariant===0?5:31;
+  const bonus=apiVariant===0?9:19;
   const imports=Array.from({length:graphs},(_,index)=>
     'results.push((await import("/'+flavor+'/'+index+'/entry.mjs")).result);'
   ).join('');
   return [
-    'globalThis.window.api={offset:5,',
-    'keyFor(index){return "privateMetric"+index;},',
-    'read(object){const key=Object.keys(object).find(name=>name.startsWith("privateMetric"));',
+    'globalThis.window.api={offset:'+offset+',',
+    'keyFor(index){return '+JSON.stringify(keyPrefix)+'+index;},',
+    'read(object){const key=Object.keys(object).find(name=>name.startsWith('+JSON.stringify(keyPrefix)+'));',
     'if(key===undefined)throw Error("Missing externally observed private key");',
-    'return object[key]+9;}};',
+    'return object[key]+'+bonus+';}};',
     'const results=[];',
     'try{',imports,
     'document.getElementById("answer").textContent=JSON.stringify(results);',
@@ -52,7 +56,7 @@ async function runChrome(browser,url) {
 /**
  * @param {number} [seedCount]
  * @param {string} [browser]
- * @returns {Promise<{graphs:number,positiveGraphs:number,refusalGraphs:number,
+ * @returns {Promise<{graphs:number,apiConfigurations:number,positiveGraphs:number,refusalGraphs:number,
  *     renamedFields:number,chromeMatches:number}>}
  */
 async function runHeldoutChrome(seedCount=3,browser=process.env.CHROMIUM_BIN??'chromium') {
@@ -74,12 +78,15 @@ async function runHeldoutChrome(seedCount=3,browser=process.env.CHROMIUM_BIN??'c
       content.set('/obfuscated/'+item.index+'/'+file.path,file.code);
     }
   }
-  content.set('/runtime-native.mjs',runner(cases.length,'native'));
-  content.set('/runtime-obfuscated.mjs',runner(cases.length,'obfuscated'));
-  content.set('/native.html','<!doctype html><meta charset="utf-8"><pre id="answer">pending</pre>'+
-    '<script type="module" src="/runtime-native.mjs"></script>');
-  content.set('/obfuscated.html','<!doctype html><meta charset="utf-8"><pre id="answer">pending</pre>'+
-    '<script type="module" src="/runtime-obfuscated.mjs"></script>');
+  for(const apiVariant of /** @type {(0|1)[]} */ ([0,1])) {
+    for(const flavor of /** @type {('native'|'obfuscated')[]} */ (['native','obfuscated'])) {
+      const base=flavor+'-'+apiVariant;
+      content.set('/runtime-'+base+'.mjs',runner(cases.length,flavor,apiVariant));
+      content.set('/'+base+'.html',
+        '<!doctype html><meta charset="utf-8"><pre id="answer">pending</pre>'+
+        '<script type="module" src="/runtime-'+base+'.mjs"></script>');
+    }
+  }
   const server=http.createServer((request,response)=>{
     const url=new URL(request.url??'/', 'http://127.0.0.1');
     const body=content.get(url.pathname);
@@ -97,12 +104,16 @@ async function runHeldoutChrome(seedCount=3,browser=process.env.CHROMIUM_BIN??'c
     const address=server.address();
     assert.ok(address&&typeof address==='object');
     const root='http://127.0.0.1:'+address.port;
-    const baseline=await runChrome(browser,root+'/native.html');
-    const transformed=await runChrome(browser,root+'/obfuscated.html');
-    assert.equal(baseline.length,cases.length);
-    assert.deepEqual(transformed,baseline);
-    return {graphs:cases.length,positiveGraphs,refusalGraphs,
-      renamedFields,chromeMatches:transformed.length};
+    let chromeMatches=0;
+    for(const apiVariant of /** @type {(0|1)[]} */ ([0,1])) {
+      const baseline=await runChrome(browser,root+'/native-'+apiVariant+'.html');
+      const transformed=await runChrome(browser,root+'/obfuscated-'+apiVariant+'.html');
+      assert.equal(baseline.length,cases.length);
+      assert.deepEqual(transformed,baseline);
+      chromeMatches+=transformed.length;
+    }
+    return {graphs:cases.length,apiConfigurations:2,positiveGraphs,refusalGraphs,
+      renamedFields,chromeMatches};
   }finally{
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
