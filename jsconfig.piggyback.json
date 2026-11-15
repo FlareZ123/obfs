@@ -15,7 +15,8 @@
     "sims/coo-piggyback-recover.js",
     "sims/coo-piggyback-profile.js",
     "examples/coo-piggyback/build.cjs",
-    "test/coo-piggyback-shards.test.js"
+    "test/coo-piggyback-shards.test.js",
+    "test/coo-piggyback-browser.js"
   ],
   "exclude": ["node_modules"]
 }

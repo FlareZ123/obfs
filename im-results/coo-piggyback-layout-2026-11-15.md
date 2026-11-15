@@ -84,3 +84,15 @@ untrusted device provides no independent cryptographic secret. Promotion to
 production would require automated whole-graph source-observer proof, broader
 browser tests, verified build-path collisions, and a security gain resistant
 to this very reconstruction attacker.
+
+## Browser integration follow-up
+
+The reproducible `test/coo-piggyback-browser.js` harness has been
+added to exercise the exact original and obfuscated ESM output over real HTTP
+with an independent Chromium page per variant. It compares return-value
+UTF-16 code units, an unrelated imported computation, and actual module fetch
+counts. Typechecking passed locally. The local sandbox Chromium executable
+failed even a minimal `data:` page in headless mode and cannot provide a
+positive or negative browser compatibility verdict; a manually dispatched
+GitHub Actions Chrome run is required. Any CI result must be pinned to its
+exact source SHA, separate from the Node 22 local measurements above.

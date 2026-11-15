@@ -37,5 +37,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-real-browser.js
+      - name: Test experimental COO piggyback sharding in real Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-piggyback-browser.js
+      - name: Check experimental COO piggyback JSDoc types
+        run: node_modules/.bin/tsc -p jsconfig.piggyback.json
       - name: Check JSDoc types
         run: npm run typecheck

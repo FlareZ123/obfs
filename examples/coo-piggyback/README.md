@@ -21,6 +21,7 @@ After installing Node.js 22 and the repository dependencies on Windows 11:
 node examples/coo-piggyback/build.cjs --check
 node --test test/coo-piggyback-shards.test.js
 node sims/coo-piggyback-profile.js
+node test/coo-piggyback-browser.js
 node_modules\.bin\tsc -p jsconfig.piggyback.json
 ```
 
@@ -52,3 +53,15 @@ threshold for **this fixture**. The source-only attacker recovered the whole
 string; broader compatibility and browser cold-start remain unproven. Read
 [the intermediate study](../../im-results/coo-piggyback-layout-2026-11-15.md)
 before considering use.
+
+## Real Chromium integration
+
+`node test/coo-piggyback-browser.js` starts an in-process loopback HTTP
+server for each fixture, serves the *actual committed* original and transformed
+ESM files, and executes both pages through Chromium `--headless --dump-dom`.
+It verifies exact UTF-16 return signatures, identical unrelated `render()`
+output, and exactly two fetched `.mjs` resources in either graph. Set
+`CHROMIUM_BIN` to the installed Chrome/Chromium executable. The workflow
+`.github/workflows/manual-browser.yml` runs this check with Chrome on Ubuntu
+when manually dispatched. Node-based tests remain useful if a local Chromium
+installation cannot start in the current sandbox.
