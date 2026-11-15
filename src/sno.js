@@ -1,6 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
+const path = require('node:path');
 const {safePath} = require('./core');
 
 /**
@@ -19,6 +20,23 @@ function createSnoLauncher(files,entry) {
   }
   if (!files.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);
   if (!/\.(?:cjs|js)$/.test(checkedEntry)) throw new Error('SNO entry must be a CommonJS .cjs or .js file');
+  // A nested package.json overrides its parent scope for a .js entry.
+  // The direct API must reject this too, not only the CLI preflight.
+  if (checkedEntry.endsWith('.js')) {
+    let directory=path.posix.dirname(checkedEntry);
+    for (;;) {
+      const packageName=path.posix.join(directory,'package.json');
+      const packageFile=files.find(file=>file.path===packageName);
+      if (packageFile) {
+        if (JSON.parse(String(packageFile.code)).type==='module') {
+          throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');
+        }
+        break;
+      }
+      if (directory==='.') break;
+      directory=path.posix.dirname(directory);
+    }
+  }
   const manifest = files.map(file => [safePath(file.path), createHash('sha256').update(file.code).digest('hex')]);
   return `'use strict';\n` +
     `const fs=require('node:fs');const crypto=require('node:crypto');const path=require('node:path');\n` +
