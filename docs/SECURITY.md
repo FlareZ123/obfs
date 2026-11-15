@@ -10,6 +10,29 @@ The experimental bytecode and native-register graph backends are opt-in for sele
 
 The bytecode backend may exceed the 2.5x compute cap when selected for frequently invoked functions. An early native-register backend introduced a helper call and measured **17.873x Ubuntu /24.918x Windows** overhead on a 250,000-call numeric kernel. Inlining the same graph into the original function body brought that measured hot ratio to **1.003x Ubuntu /0.995x Windows** at the pinned CI run [43739846096](https://github.com/FlareZ123/obfs/actions/runs/43739846096). These are workload-specific benchmark measurements. They do not establish safe overhead for every JIT tier, browser, call site, input type or startup shape. Unknown external observers of function source/stack formatting also remain a compatibility hazard, even when the AST source-observer guard declines recognized local cases.
 
+## Experimental Int32 WebAssembly lowering
+
+Selected opt-in, pure bitvector functions can be compiled into embedded
+WebAssembly i32 binaries using `experimentalWasmI32` or the COO/SNO
+`--wasm-i32` CLI selector. The source grammar is deliberately restricted.
+Only one signed-Int32 Number argument is supported; the caller is responsible
+for enforcing that type contract and a stable WebAssembly environment.
+The transformed wrapper has a different `Function#toString` representation.
+ESM dependency cycles may invoke exported functions before initialization,
+and applications with restrictive CSP or no WebAssembly must decline.
+
+The native WebAssembly byte array is delivered to the recipient. A
+source-only attacker independently instantiated the public export with the
+native Wasm API and reproduced 4,001 output pairs. No key or original source
+was needed, and the binary is available for disassembly. This pass provides
+neither a secret execution boundary nor hostile-runtime integrity, domain
+locking or instrumented-runtime resistance. Its native hot runtime was
+2.064× on Ubuntu and 1.923× on Windows in a selected pinned kernel;
+Chromium measured 1.333× for a selected loop. Initialization must count
+for COO, and no workload-independent 2.5× guarantee has been established.
+See the [generated pair](../examples/wasm-i32/README.md) and
+[intermediate report](../im-results/wasm-i32-pipeline-2026-11-15.md).
+
 ## Property-name transformation
 
 The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, visible-scope mismatches, nonprimitive writes, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use. The analysis permits explicitly declared CSS, raster-image, and font assets to accompany an ESM graph only under an integrator guarantee that each is served with a non-JavaScript MIME type and never interpreted as source. File extensions alone are insufficient evidence of safe execution. HTML, SVG, unknown assets, and other executable JavaScript formats force the cross-file pass to decline renaming.
