@@ -46,8 +46,12 @@ test('effectful computed destructuring key is never rewritten',()=>{
   compareLocal('let n=0;function name(){n++;return "secretField";}const a={secretField:8};const {[name()]:value}=a;module.exports=[value,n];',0);
 });
 
-test('destructuring defaults may execute arbitrary code and remain excluded',()=>{
-  compareLocal('const a={secretField:9};const {["secret"+"Field"]:value=3}=a;module.exports=value;',0);
+test('literal own-field default retains its binding and can be renamed',()=>{
+  compareLocal('const a={secretField:9};const {["secret"+"Field"]:value=3}=a;module.exports=value;',1);
+});
+
+test('unproved default expression owner escape still prevents renaming',()=>{
+  compareLocal('const a={secretField:9};const {["secret"+"Field"]:value=Object.keys(a)[0]}=a;module.exports=value;',0);
 });
 
 test('ESM imported identity supports computed destructuring safely',async()=>{
