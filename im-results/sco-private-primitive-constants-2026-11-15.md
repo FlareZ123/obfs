@@ -4,4 +4,27 @@ Agent 42, 2026-11-15. The selective SCO compiler now admits unexported, primitiv
 
 The executable generated source pair and builder live in `examples/sco-private-const/`. The sample places a HMAC key and `node:crypto` import in the original private implementation while preserving the public function that normalizes input and calls the protected method. `test/sco-selective-partition.test.js` adds native-vs-remote HMAC checks using a real authenticated localhost HTTP server, source absence assertions and negative tests for public secret reads/effectful constants.
 
-This demonstrates a narrower, genuinely server-controlled source withholding capability. It does not solve authorized online relay, guarantee cryptographic key confidentiality if the server is compromised, or establish the required whole-application 2.5× bound. A pinned cross-platform validation is required before promotion.
+This demonstrates a narrower, genuinely server-controlled source withholding capability. It does not solve authorized online relay, guarantee cryptographic key confidentiality if the server is compromised, or establish the required whole-application 2.5× bound. This capability is an intermediate engineering result and requires threat-specific security evaluation.
+
+## Pinned native/client/attacker measurements
+
+The integrated [manual SCO workflow 43758970044](https://github.com/FlareZ123/obfs/actions/runs/43758970044) was green at immutable source `d2a9dadb4801a1d656230bac3df76136875ef8b6` on Node 22 Ubuntu and Windows. Targeted Node tests, both strict JSDoc suites, independent hosted attacker proxy and real Chromium ESM/HMAC integration (Ubuntu) passed. Source and generated public lengths were 393 and 670 bytes: byte count grows because the public RPC infrastructure is deliberately explicit. The generated client contains neither the HMAC key literal nor `createHmac`, and direct unauthorized RPC returned 403.
+
+The public-file-only attacker used an **attacker-owned valid credential** to relay each of 20 held-out PRF queries through a separate HTTP proxy. It reproduced **20/20 answers** without reconstructing the HMAC key, showing complete online functional cloning despite source withholding. The server processed 52 authenticated calls during the larger simulator run, including the held-out and profiling calls. The attack relies on live access and does not establish a static or offline key-recovery method.
+
+### Warm localhost elapsed-time ratios versus native code
+
+| Workload | Ubuntu native | Ubuntu direct SCO | Ubuntu attacker relay | Windows native | Windows direct SCO | Windows attacker relay |
+|---|---:|---:|---:|---:|---:|---:|
+| One short HMAC | 0.028123 ms | 0.671291 ms (23.87×) | 1.180418 ms (41.97×) | 0.046400 ms | 1.045900 ms (22.54×) | 2.125000 ms (45.80×) |
+| 100,000 native/local normalization operations then one HMAC | 5.167079 ms | 6.774940 ms (1.31×) | 7.301063 ms (1.41×) | 10.279200 ms | 12.689900 ms (1.23×) | 12.889600 ms (1.25×) |
+
+Each entry is the median over eight alternating warm measurements on a single GitHub-hosted runner. The second row's public normalizer executes locally in both architectures. Only that particular **amortized** workload meets the 2.5× total elapsed-time budget. Short protected calls fail it badly even for direct, non-attacker client traffic. Network latency, TLS, browser execution cost outside the separate functional integration, cold start, server contention, multi-tenant state and unbounded legitimate query rates are excluded. The attacker's extra proxy hop must not be charged to the obfuscated client's budget; the table separates direct client from proxy overhead.
+
+Evidence reproduction:
+- `node sims/sco-private-const-relay.js`
+- `node --test test/sco-private-const-relay.test.js test/sco-selective-partition.test.js`
+- `node test/sco-private-const-browser.js` with a Chromium binary available
+- `node examples/sco-private-const/build.cjs` to reproduce the generated public source
+
+The report does not assert production-grade authorization, cryptographic key security against a compromised trusted server, or resistance to authorized live relaying.

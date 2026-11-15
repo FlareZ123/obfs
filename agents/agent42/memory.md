@@ -11,3 +11,11 @@ Next: run targeted cross-platform Node tests, then one immutable-source full Lin
 ## Verified outcome
 
 Full Linux/Windows/Chromium gate 43756140634 passed at source 5f8fc07de415310fabf36d0e77cf1ee3645cac6d: 1,065 passed, zero failed, one skipped (1,066 tests) on each Node 22 platform. Both JSDoc checks, seven sampled benchmarks, and 14 Ubuntu Chromium fixtures succeeded. This snapshot is a descendant of the repair commit 1bf1c6ae3a9935bf702e6c65d907b7a9fd76e8d0. README and results/README status should cite the immutable pin. Unsolved: stronger obfuscation resistance and whole-session cost under primary threat models.
+
+## Pinned private-constant SCO extension and limits (20:36 UTC)
+
+Added `src/sco-selective-partition.js` support for server-private unexported primitive-literal `const` declarations, source pair/builder under `examples/sco-private-const/`, targeted native/HTTP, real Chromium, and attacker relay trials. Principal commits: a8ced61 (feature), 03d335e (attacker), 2013421 (browser), 848ef93 (thin-vs-amortized trials), d2a9dad (separate direct client from extra attacker proxy). Focused [CI 43758970044](https://github.com/FlareZ123/obfs/actions/runs/43758970044) green at d2a9dadb4801a1d656230bac3df76136875ef8b6.
+
+Native vs direct SCO **single HMAC**: 23.87× Ubuntu, 22.54× Windows, failing 2.5×. Native vs direct SCO **100k local normalizations + 1 HMAC**: 1.31× Ubuntu, 1.23× Windows. Authorized external relay cloned 20/20 held-out outputs without extracting original HMAC key. Browser with HttpOnly cookie and server-only node:crypto HMAC matches native. See im-results/sco-private-primitive-constants-2026-11-15.md for full table and caveats.
+
+Future: permit explicitly trusted runtime-injected server-only environment consts (e.g. process.env) under a narrow opt-in, avoiding checked-in demo key; verify public references are rejected. Crucial: conventional source hiding cannot prevent live authorized relay or guarantee thin-call budget. Pinned full integration should be rerun after a coherent feature snapshot.
