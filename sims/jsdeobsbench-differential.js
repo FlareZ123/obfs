@@ -172,6 +172,9 @@ async function compareCorpus(originalFile,transformedFile,options) {
     baselinePass,baselineFailure,baselineExpectedDisagrees,
     transformedMatches,transformedMismatches,transformedErrors,
     processLevelWallRatioMedian:ratios.length?ratios[Math.floor(ratios.length/2)]:null,
+    processLevelWallRatioP95:ratios.length?ratios[Math.floor(ratios.length*0.95)]:null,
+    processLevelWallRatioMax:ratios.length?ratios[ratios.length-1]:null,
+    processLevelWallRatioOverBudget:ratios.filter(ratio=>ratio>2.5).length,
     timingScope:'whole Node process, includes spawn and V8 startup, not a hot-path 2.5x measurement',
     failures
   };
