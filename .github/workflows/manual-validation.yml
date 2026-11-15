@@ -20,15 +20,19 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared dependencies
+        id: install
         run: npm install --no-package-lock --ignore-scripts
       - name: Behavioral and adversarial suites
         run: npm test
       - name: JSDoc type safety
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
       - name: Performance sample
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
       - name: Real Chromium module and host-lock integration
-        if: matrix.os == 'ubuntu-latest'
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
