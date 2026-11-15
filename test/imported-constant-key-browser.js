@@ -30,6 +30,14 @@ function fixtures() {
       files:graph('export const key="secretField";export const bag={secretField:23};',
         'import {key,bag} from "./state.mjs";'+
         'window.hostApi.accept(bag[key]+Number(window.hostApi.fieldKey===key));')},
+    {name:'esm-cycle-safe',expectedFields:1,expectedText:'15',
+      files:graph('import {probe} from "./main.mjs";export const key="secretField";'+
+        'export const bag={secretField:15};console.log(probe());',
+        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
+    {name:'esm-cycle-refused',expectedFields:0,expectedText:'15',
+      files:graph('import {probe} from "./main.mjs";export const bag={secretField:15};'+
+        'export const key="secretField";console.log(probe());',
+        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
     {name:'unknown-host-key',expectedFields:0,expectedText:'9',
       files:graph('export const bag={secretField:9};',
         'import {bag} from "./state.mjs";'+
