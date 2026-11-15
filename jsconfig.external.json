@@ -11,7 +11,9 @@
     "examples/sco-private/server.cjs",
     "test/sco-real-example.test.js",
     "sims/xml-data-url-browser.js",
-    "sims/xml-data-url-attack.js"
+    "sims/xml-data-url-attack.js",
+    "workplace/mba-i32-lower.js",
+    "sims/mba-i32-profile.js"
   ],
   "exclude": [
     "node_modules"
