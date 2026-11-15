@@ -37,3 +37,25 @@ test('independent attacker reconstructs the actual emitted branches without the 
     assert.equal(flattened(value),original(value));
   }
 });
+
+
+test('independent attacker symbolically cancels operand-dependent runtime state masks',()=>{
+  const masked=flattenBranchBlocks(before,'commonjs',{
+    seed:SEED,names:['gate'],stateBlinding:true
+  });
+  assert.equal(masked.blocks,5);
+  assert.match(masked.code,/typeof /u);
+  const recovered=recoverBranchFunction(masked.code,'gate');
+  assert.equal(recovered.blocks,5);
+  assert.equal(recovered.tests,2);
+  assert.equal(recovered.operations,7);
+  const native=require('../examples/branch-blocks/before/gate.cjs').gate;
+  const obfuscated=/** @type {(x:unknown)=>unknown} */ (
+    vm.runInNewContext('(function(){const module={exports:{}};'+masked.code+';return module.exports.gate})()')
+  );
+  const clone=/** @type {(x:unknown)=>unknown} */ (vm.runInNewContext('('+recovered.source+')'));
+  for(let x=-4096;x<=4096;x++){
+    assert.equal(obfuscated(x),native(x));
+    assert.equal(clone(x),native(x));
+  }
+});
