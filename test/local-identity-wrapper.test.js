@@ -63,7 +63,7 @@ for(const [name,wrapper] of [
   test('unproved local identity is left unchanged: '+name,()=>check(wrapper,0));
 }
 
-test('a pure helper called with two owners preserves disjoint alias shapes',()=>{
+test('a helper called with two owners declines ambiguous parameter ownership',()=>{
   const code='const root={secretField:7};const forward=x=>x;'+
     'const alien={secretField:9};const unrelated=forward(alien);'+
     'const alias=forward(root);module.exports=[unrelated.secretField,alias.secretField];';
@@ -73,6 +73,6 @@ test('a pure helper called with two owners preserves disjoint alias shapes',()=>
       mode,seed:'agent15-foreign-call',strings:false,identifiers:false
     }).files[0];
     assert.equal(execute(/** @type {string} */ (out.code)),baseline);
-    assert.equal(out.metrics.objects,2);
+    assert.equal(out.metrics.objects,0);
   }
 });
