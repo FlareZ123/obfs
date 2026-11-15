@@ -1,0 +1,18 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/wasm-i32.js",
+    "sims/wasm-i32-static-recover.js",
+    "sims/wasm-i32-cold-counterexample.js",
+    "sims/wasm-i32-runtime-extraction.js",
+    "test/wasm-i32.test.js",
+    "test/wasm-i32-static-recovery.test.js",
+    "test/wasm-i32-early-cycle.test.js",
+    "test/wasm-i32-browser.js",
+    "test/wasm-i32-csp-browser.js",
+    "examples/wasm-i32/build.cjs"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
