@@ -90,6 +90,28 @@ At four states, 554 of 1,504 accepted words physically synchronize every state (
 
 The 250-model-per-row version passed Node.js 22 Ubuntu and Windows in [run 43757055165](https://github.com/FlareZ123/obfs/actions/runs/43757055165), exact SHA `655f0f6d1f5963016efca45e58a353c712d2c64a`. The subsequent **8,000-model extended state-size sweep** and **6/8/12-state full-depth independent partition validation** both passed Ubuntu and Windows in [run 43757312398](https://github.com/FlareZ123/obfs/actions/runs/43757312398) at immutable SHA `2100c2ede74e6ca31dee4ed65b5b8e0a2ce3954f`. The same gate passed the authenticated Chromium extraction, other SCO oracle scenarios and targeted/root JSDoc checks.
 
+## Increasing the attacker's distinguishing depth
+
+The public heuristic now accepts an optional **exact suffix depth** from 1 through 7, retaining depth 3 by default so prior browser and four-state runs remain comparable. This changes only attacker probing, never the obfuscator or hidden server state. Its future-output trace suffixes number `2**depth`, so a longer bound increases request cost rapidly.
+
+A separate `sims/sco-sync-depth-sweep.js` challenges 100 machines in each of two seeded distributions at 6, 8 and 12 hidden states, comparing depths 3, 5 and 7. The same maximum synchronizing candidate length (three symbols), 12 scrambled probes and two unscrumbled probes remain fixed. Evaluation against exact private-model partition classes occurs after inference.
+
+| Hidden states | Suffix depth | Accepted words, across 200 fixtures | False post-discovery candidates | Public oracle calls |
+|---:|---:|---:|---:|---:|
+| 6 | 3 | 106 | 3 | 218,666 |
+| 6 | 5 | 103 | 0 | 716,642 |
+| 6 | 7 | 103 | 0 | 3,018,978 |
+| 8 | 3 | 63 | 2 | 155,567 |
+| 8 | 5 | 61 | 0 | 470,231 |
+| 8 | 7 | 61 | 0 | 1,907,158 |
+| 12 | 3 | 33 | 1 | 118,098 |
+| 12 | 5 | 32 | 0 | 299,166 |
+| 12 | 7 | 32 | 0 | 985,873 |
+
+On these particular models, depth 5 removed all six post-discovery false candidates at 2.533× to 3.277× the depth-3 request count, while depth 7 offered no additional successful candidates and incurred approximately 8.348× to 13.806× the request cost. This is evidence that a shallow fixed observation policy is a fragile attacker assumption. It also illustrates an exponential **attacker-side** query cost; it does **not** imply the protected code exceeds the 2.5× runtime budget, nor that an unrestricted attacker cannot find a more efficient adaptive distinguishing sequence.
+
+Reproduction commands: `node sims/sco-sync-depth-sweep.js`, plus `node --test test/sco-sync-depth-sweep.test.js`. Additional seeds may falsify the zero-error count; preserve future negative controls.
+
 ## Black-box impossibility witness
 
 The regression `unreachable private states make global physical synchronization undecidable` constructs two four-state machines with identical public step transcripts from their initial state 0. In the first, every state transitions to 0 on either input; any nonempty word physically synchronizes it. In the second, state 0 loops forever and the three other states form a closed 3-cycle on either input; no word can converge all four states. Both machines emit output 0 for every input from every state. Because the public initial state cannot leave 0, any adaptive black-box step-only attacker receives identical outputs under both models, regardless of query budget. The two global physical-sync answers differ. This is an exact indistinguishability argument for the stated public-access model, separate from the empirical 500-machine comparison.
