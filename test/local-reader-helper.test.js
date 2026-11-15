@@ -72,6 +72,9 @@ for(const [name,source] of [
   ['escaped as a first-class value',
     'const root={secretField:7,otherField:5};const reader=x=>x.secretField;'+
     'const escaped=reader;module.exports=escaped(root);'],
+  ['exported helper is observable',
+    'const root={secretField:7,otherField:5};const reader=x=>x.secretField;'+
+    'module.exports={reader,value:reader(root)};'],
   ['dynamic computed key',
     'const root={secretField:7,otherField:5};const reader=x=>x[globalThis.key];'+
     'module.exports=reader(root);'],
