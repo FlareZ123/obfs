@@ -100,14 +100,17 @@ test('SCO partition recognizes immutable async expression exports, retaining met
       return [name,{name:fn.name,length:fn.length,ownPrototype:Object.hasOwn(fn,'prototype')}];
     }));
     assert.deepEqual(result.metadata,metadata);
-    assert.deepEqual(result.outputs,[
+    const originalOutputs=[
       await namespace.add(4,7),
       await namespace.add(4),
       await namespace.measure(),
       await namespace.measure(2,9,15),
       await namespace.named(6,8),
-      {0:undefined}
-    ].slice(0,5).concat([[{ok:true,value:await namespace.measure(8)},{ok:true,value:await namespace.named(7)}]]));
+      [{ok:true,value:await namespace.measure(8)},
+        {ok:true,value:await namespace.named(7)}]
+    ];
+    // JSON RPC intentionally normalizes NaN and absent object fields.
+    assert.deepEqual(result.outputs,JSON.parse(JSON.stringify(originalOutputs)));
     assert.deepEqual(await call('deny'),{error:'Remote operation failed'});
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
