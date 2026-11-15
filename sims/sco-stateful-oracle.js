@@ -94,7 +94,8 @@ function suffixes(alphabetSize, maxStates) {
  * @param {StateOracle} api
  * @param {number} [maxStates]
  * @param {number} [alphabetSize]
- * @returns {Promise<{machine:LearnedMachine,requests:number,experiments:number,elapsedMs:number}>}
+ * @returns {Promise<{machine:LearnedMachine,requests:number,experiments:number,
+ *   trainingWords:string[],elapsedMs:number}>}
  */
 async function learnMachine(api, maxStates = 4, alphabetSize = 2) {
   if (!Number.isSafeInteger(maxStates) || maxStates < 2 || maxStates > 6 ||
@@ -104,6 +105,8 @@ async function learnMachine(api, maxStates = 4, alphabetSize = 2) {
   const started = performance.now();
   const experiments = suffixes(alphabetSize, maxStates);
   let requests = 0;
+  /** @type {Set<string>} */
+  const trainingWords=new Set();
   /** @type {Map<string,number[]>} */
   const cache = new Map();
   /** @param {number[]} prefix @param {number[]} suffix @returns {Promise<number[]>} */
@@ -111,6 +114,7 @@ async function learnMachine(api, maxStates = 4, alphabetSize = 2) {
     const key = JSON.stringify([prefix, suffix]);
     const remembered = cache.get(key);
     if (remembered) return remembered;
+    trainingWords.add(JSON.stringify([...prefix,...suffix]));
     assert.equal(await api.reset(), true);
     requests++;
     for (const symbol of prefix) {
@@ -166,7 +170,7 @@ async function learnMachine(api, maxStates = 4, alphabetSize = 2) {
     output.push(outputs);
   }
   return {machine:{next,output,access},requests,experiments:experiments.length,
-    elapsedMs:Number((performance.now()-started).toFixed(3))};
+    trainingWords:[...trainingWords],elapsedMs:Number((performance.now()-started).toFixed(3))};
 }
 
 /** @param {LearnedMachine} machine @param {number[]} word @returns {number[]} */
@@ -185,7 +189,8 @@ function learnedTrace(machine, word) {
  * The server's private module is never passed to learnMachine.
  * @param {number} index
  * @returns {Promise<{index:number,learnedStates:number,requests:number,experiments:number,
- *   heldout:number,sourceDisclosed:boolean,unauthorizedStatus:number,elapsedMs:number}>}
+ *   heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
+ *   sourceDisclosed:boolean,unauthorizedStatus:number,elapsedMs:number}>}
  */
 async function scenario(index) {
   const secret = makeMachine((0x5f7a2b31 + Math.imul(index, 7919)) >>> 0);
@@ -249,7 +254,10 @@ async function scenario(index) {
     const learned = await learnMachine(api);
     assert.equal(learned.machine.access.length,4);
     let heldout = 0;
-    // Verify 2^1 + ... + 2^10 traces without additional RPC requests.
+    let strictlyUnseen=0;
+    const trainingWords=new Set(learned.trainingWords);
+    // Validate all binary words through length ten; only count independent
+    // exact query words as strictly unseen in the reported metric.
     /** @type {number[][]} */
     let layer = [[]];
     for (let length=1;length<=10;length++) {
@@ -259,12 +267,14 @@ async function scenario(index) {
         const word=[...prefix,bit];
         next.push(word);
         assert.deepEqual(learnedTrace(learned.machine,word),privateTrace(secret,word));
+        if(!trainingWords.has(JSON.stringify(word)))strictlyUnseen++;
         heldout++;
       }
       layer=next;
     }
     return {index,learnedStates:learned.machine.access.length,requests:learned.requests,
-      experiments:learned.experiments,heldout,sourceDisclosed:false,
+      experiments:learned.experiments,heldout,strictlyUnseen,
+      uniqueTrainingWords:trainingWords.size,sourceDisclosed:false,
       unauthorizedStatus:unauthenticated.status,elapsedMs:learned.elapsedMs};
   } finally {
     globalThis.fetch=nativeFetch;
@@ -280,7 +290,7 @@ async function scenario(index) {
 
 /**
  * @param {number} [count]
- * @returns {Promise<{scenarios:number,requests:number,heldout:number,allExact:boolean,
+ * @returns {Promise<{scenarios:number,requests:number,heldout:number,strictlyUnseen:number,allExact:boolean,
  *   details:Awaited<ReturnType<typeof scenario>>[]}>}
  */
 async function runStateful(count=4) {
@@ -290,6 +300,7 @@ async function runStateful(count=4) {
   for(let index=0;index<count;index++)details.push(await scenario(index));
   return {scenarios:details.length,requests:details.reduce((sum,item)=>sum+item.requests,0),
     heldout:details.reduce((sum,item)=>sum+item.heldout,0),
+    strictlyUnseen:details.reduce((sum,item)=>sum+item.strictlyUnseen,0),
     allExact:details.every(item=>item.learnedStates===4 && item.unauthorizedStatus===403 && !item.sourceDisclosed),
     details};
 }
