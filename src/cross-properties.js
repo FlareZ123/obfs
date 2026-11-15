@@ -140,10 +140,17 @@ function renameCrossFileProperties(files,seed) {
       for(const dec of statement.declaration.declarations) {
         const fn=dec.init;
         if(dec.id.type!=='Identifier' || module.bindings.get(dec.id.name)!==1 ||
-            fn?.type!=='ArrowFunctionExpression' || fn.async ||
-            fn.params.length!==1 || fn.params[0].type!=='Identifier' ||
-            fn.body.type!=='Identifier' || fn.body.name!==fn.params[0].name) continue;
-        exported.add(dec.id.name);
+            !fn || !['ArrowFunctionExpression','FunctionExpression'].includes(fn.type) ||
+            fn.async || fn.generator || fn.params.length!==1 ||
+            fn.params[0].type!=='Identifier') continue;
+        const parameter=fn.params[0].name;
+        const arrowIdentity=fn.type==='ArrowFunctionExpression' &&
+          fn.body.type==='Identifier' && fn.body.name===parameter;
+        const functionIdentity=fn.body.type==='BlockStatement' &&
+          fn.body.body.length===1 && fn.body.body[0].type==='ReturnStatement' &&
+          fn.body.body[0].argument?.type==='Identifier' &&
+          fn.body.body[0].argument.name===parameter;
+        if(arrowIdentity||functionIdentity) exported.add(dec.id.name);
       }
     }
     identities.set(filename,exported);
