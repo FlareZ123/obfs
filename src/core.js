@@ -415,6 +415,13 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const lowered=lowerWasmI32Functions(code,sourceType,{seed:salt,names:wasmNames});
+      // Explicit selection is a security expectation: never silently publish
+      // a requested function in unchanged source when the proof declines.
+      if(lowered.declined) {
+        throw new TypeError('Wasm i32 declined '+lowered.declined+
+          ' explicitly selected function(s) in '+filename+
+          '; restrict to pure return-only Int32 bitvector functions');
+      }
       code=lowered.code;
       wasmI32Functions=lowered.functions;
       wasmI32Instructions=lowered.instructions;
