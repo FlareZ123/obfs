@@ -51,15 +51,19 @@ function renameCrossFileProperties(files,seed) {
       modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
     }
   }
-  // Query/fragment and percent-encoded ESM URLs can resolve to an input
-  // file through a different spelling. An ordinary path join misses them.
-  // Refuse the complete pass until a URL-aware resolution proof is available.
+  // The filename-oriented resolver only proves canonical relative imports.
+  // Absolute file URLs, package aliases and encoded/query/fragment paths can
+  // reach the same ESM source through another spelling without being tracked.
+  // Node builtins cannot resolve to an input module under the default loader.
   for(const module of modules.values()) {
     let ambiguous=false;
     walk(module.ast,node=>{
-      if ((node.type==='ImportDeclaration'||node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration') &&
-          node.source?.type==='Literal' && typeof node.source.value==='string' &&
-          /^[.][.\/]?/.test(node.source.value) && /[?#%]/.test(node.source.value)) ambiguous=true;
+      if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
+          node.source?.type!=='Literal' || typeof node.source.value!=='string') return;
+      const specifier=node.source.value;
+      if (specifier.startsWith('node:')) return;
+      if (!specifier.startsWith('./') && !specifier.startsWith('../') ||
+          /[?#%\\]/.test(specifier)) ambiguous=true;
     });
     if(ambiguous) return {files,objects:0,properties:0};
   }
