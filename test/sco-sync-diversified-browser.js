@@ -58,11 +58,11 @@ async function main(){
     const attacker=[
       binaryWords.toString(),
       searchSynchronizingWordDiversified.toString(),
-      'import {step} from "/obfs/client.mjs";',
+      'import * as publicModule from "/obfs/client.mjs";',
       '(async()=>{',
-      'const candidate=await searchSynchronizingWordDiversified({step});',
+      'const candidate=await searchSynchronizingWordDiversified({step:publicModule.step});',
       'document.getElementById("out").textContent=JSON.stringify({',
-      '  word:candidate.word,steps:candidate.steps,resetExport:false',
+      '  word:candidate.word,steps:candidate.steps,resetExport:Object.hasOwn(publicModule,"reset")',
       '});',
       '})().catch(error=>{document.getElementById("out").textContent="ERROR:"+error.message;});'
     ].join('\n');
@@ -97,6 +97,13 @@ async function main(){
 
     const unauthorizedSource=await fetch(origin+'/obfs/client.mjs');
     assert.equal(unauthorizedSource.status,403);
+    const authorizedSource=await fetch(origin+'/obfs/client.mjs',{
+      headers:{cookie:'session=approved'}
+    });
+    assert.equal(authorizedSource.status,200);
+    const publicSource=await authorizedSource.text();
+    assert.ok(!publicSource.includes(privateCanary));
+    assert.ok(!publicSource.includes('model.next'));
     const unauthorizedRpc=await fetch(origin+'/obfs/rpc',{
       method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({method:partition.methodNames.step,args:[0]})
