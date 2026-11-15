@@ -187,9 +187,15 @@ function observesFunctionSource(ast) {
   // Web IDL string arguments and string-valued record/sequence entries also
   // invoke ToString, so exposed source can cross a browser API boundary.
   const webScalarNames=new Set(['DOMException','URL']);
-  const webDictionaryNames=new Set(['URLSearchParams','Headers']);
+  const webDictionaryNames=new Set(['URLSearchParams','Headers','Blob']);
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
+  const encoderNames=new Set(['TextEncoder']);
+  const formNames=new Set(['FormData']);
+  const encoderConstructors=new Set(encoderNames);
+  const formConstructors=new Set(formNames);
+  const encoderInstances=new Set();
+  const formInstances=new Set();
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -229,6 +235,12 @@ function observesFunctionSource(ast) {
     if(node.type==='Identifier')return aliases.has(node.name);
     return node.type==='MemberExpression'&&isGlobal(node.object)&&
       builtins.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @param {Set<string>} instances
+   *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
+  function isWebInstance(node,instances,constructors,names) {
+    return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
+      node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStringValue(node) {
@@ -271,6 +283,18 @@ function observesFunctionSource(ast) {
         }
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
+        }
+        if(isWebConstructor(value,encoderConstructors,encoderNames)) {
+          changed=add(encoderConstructors,name)||changed;
+        }
+        if(isWebConstructor(value,formConstructors,formNames)) {
+          changed=add(formConstructors,name)||changed;
+        }
+        if(isWebInstance(value,encoderInstances,encoderConstructors,encoderNames)) {
+          changed=add(encoderInstances,name)||changed;
+        }
+        if(isWebInstance(value,formInstances,formConstructors,formNames)) {
+          changed=add(formInstances,name)||changed;
         }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
@@ -338,6 +362,12 @@ function observesFunctionSource(ast) {
           }
           if(name!==null&&webDictionaryNames.has(name)) {
             changed=add(webDictionaries,property.value.name)||changed;
+          }
+          if(name!==null&&encoderNames.has(name)) {
+            changed=add(encoderConstructors,property.value.name)||changed;
+          }
+          if(name!==null&&formNames.has(name)) {
+            changed=add(formConstructors,property.value.name)||changed;
           }
         }
       }
@@ -507,6 +537,22 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // Web IDL receiver methods accept USVString/DOMString arguments. Check
+      // the receiver's local constructor provenance before considering a
+      // function-valued argument an implicit source-text observer.
+      if(node.type==='CallExpression'&&callee.type==='MemberExpression') {
+        const method=memberName(callee);
+        if(isWebInstance(callee.object,encoderInstances,encoderConstructors,encoderNames) &&
+            ['encode','encodeInto'].includes(method??'') &&node.arguments[0] &&
+            !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        if(isWebInstance(callee.object,formInstances,formConstructors,formNames) &&
+            ['append','set','get','getAll','delete','has'].includes(method??'')) {
+          const positions=method==='append'||method==='set'?
+            node.arguments.slice(0,3):node.arguments.slice(0,1);
+          if(positions.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+        }
+      }
       if(isWebConstructor(callee,webScalars,webScalarNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
