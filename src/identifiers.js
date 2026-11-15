@@ -64,6 +64,9 @@ function renameLocalIdentifiers(source,ast,options) {
         derivesBindingName(node.init)) inferredNames.add(node.id.name);
     if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
         derivesBindingName(node.right)) inferredNames.add(node.left.name);
+    // A destructuring default like [name = () => {}] also infers 'name'.
+    if (node.type==='AssignmentPattern' && node.left.type==='Identifier' &&
+        derivesBindingName(node.right)) inferredNames.add(node.left.name);
     if (node.type==='WithStatement' || node.type==='CallExpression' && node.callee.type==='Identifier' && node.callee.name==='eval') dynamic=true;
     if (node.type==='VariableDeclaration' && (node.kind==='const'||node.kind==='let') &&
         (parent?.type==='BlockStatement'||parent?.type==='Program') &&
