@@ -27,8 +27,8 @@ may move server-side. Public exports can call private exports directly but
 cannot treat the private function as a local value. No imports, top-level
 initializers, mutable data exports, reexports, dynamic public imports, `eval`,
 `Function` constructors or source-introspection contracts are admitted.
-Top-level synchronous function declarations and single-binding immutable
-`const` arrow/function expressions are private by default. An integrator may
+Top-level non-generator function declarations and single-binding immutable
+`const` arrow/function expressions, including async helpers, are private by default. An integrator may
 explicitly select public-only local helpers with `publicHelperNames`, alongside
 private async exports selected with `privateNames`. Public helpers stay in the
 client module. Private helper bodies remain server-side, and private helper
