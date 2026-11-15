@@ -1,6 +1,9 @@
 'use strict';
 
 const {parse}=require('parse5');
+const {TextDecoder}=require('node:util');
+
+const utf8=new TextDecoder('utf-8',{fatal:true});
 
 /**
  * @typedef {{
@@ -75,7 +78,20 @@ function findInlineHtmlSource(html) {
  */
 function assertNoInlineHtmlSource(path,code) {
   if(!/\.html?$/iu.test(path))return;
-  const issue=findInlineHtmlSource(Buffer.isBuffer(code)?code.toString('utf8'):code);
+  /** @type {string} */
+  let html;
+  try {
+    // Buffer#toString('utf8') silently replaces malformed sequences. A
+    // browser may instead decode the same bytes as UTF-16 via its BOM/meta
+    // charset and execute markup invisible to a UTF-8-only HTML parser.
+    html=Buffer.isBuffer(code)?utf8.decode(code):code;
+  } catch (error) {
+    throw new TypeError('HTML asset is not valid UTF-8: '+path);
+  }
+  // Unmarked UTF-16 code units are often valid UTF-8 *bytes* with embedded
+  // NUL characters. Refuse them before parsing the HTML document.
+  if(html.includes('\0'))throw new TypeError('HTML asset contains NUL code units: '+path);
+  const issue=findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
