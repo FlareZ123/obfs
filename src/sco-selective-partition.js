@@ -119,7 +119,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   for(const statement of ast.body){
     if(statement.type!=='FunctionDeclaration')continue;
     const name=statement.id?.type==='Identifier'?statement.id.name:null;
-    if(!name||statement.async||statement.generator||selected.has(name)||
+    if(!name||statement.async||statement.generator||
+       statement.params.some(param=>param.type!=='Identifier')||selected.has(name)||
        serverConstants.has(name)||privateHelperNames.has(name)){
       throw new TypeError('Selective SCO requires distinct synchronous private helper declarations');
     }
