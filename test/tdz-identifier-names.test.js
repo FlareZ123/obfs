@@ -54,3 +54,15 @@ test('a safe local with no early references remains transformable',()=>{
   assert.equal(evaluate(output.code),evaluate(source));
   assert.equal(output.metrics.bindings,1);
 });
+
+test('default parameter self-reference retains visible TDZ binding spelling',()=>{
+  compare(`'use strict';function read(secret=secret){return secret;}
+    let result;try{read();}catch(error){result=error.message;}
+    module.exports=result;`,['secret']);
+});
+
+test('a later default parameter referenced before initialization retains its name',()=>{
+  compare(`'use strict';function read(a=b,b=1){return a;}
+    let result;try{read();}catch(error){result=error.message;}
+    module.exports=result;`,['b']);
+});
