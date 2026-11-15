@@ -578,7 +578,7 @@ function observesFunctionSource(ast) {
       // Reflect.get and descriptor inspection can read the same stack data
       // without mentioning it in a MemberExpression.
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
-         staticString(node.arguments[1])==='stack' &&
+         node.arguments.length>1 && staticString(node.arguments[1])==='stack' &&
          callee.object.type==='Identifier' &&
          (callee.object.name==='Reflect' &&
            ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
