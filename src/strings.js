@@ -38,10 +38,17 @@ function encodeStrings(source, ast, options) {
   const edits = [];
   const helper = unusedName(source, ast, options.seed + 'strings');
   const minimumLength = options.minimumLength ?? 4;
+  // ESM dependencies evaluate before this module's body. In an import cycle,
+  // a dependency can call a hoisted function declaration before the decoder
+  // array's top-level initializer executes. Preserve such literals verbatim.
+  const hasEagerDependencies = ast.sourceType === 'module' && ast.body.some(statement =>
+    statement.type === 'ImportDeclaration' || statement.type === 'ExportAllDeclaration' ||
+    statement.type === 'ExportNamedDeclaration' && statement.source);
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
         node.value.length < minimumLength || !parent) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
+    if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
     if ((parent.type === 'Property' || parent.type === 'MethodDefinition' ||
          parent.type === 'PropertyDefinition') && key === 'key' && !parent.computed) return;
     if (/^(ImportDeclaration|ImportExpression|ExportNamedDeclaration|ExportAllDeclaration|ImportAttribute)$/.test(parent.type)) return;
