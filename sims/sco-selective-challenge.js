@@ -16,14 +16,18 @@ const SESSION_CALLS=200000;
 
 /** @param {import('node:http').Server} server @returns {Promise<number>} */
 async function listen(server){
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await ready;
   const address=server.address();
   if(!address||typeof address==='string')throw Error('Expected HTTP port');
   return address.port;
 }
 /** @param {import('node:http').Server} server @returns {Promise<void>} */
 async function close(server){
-  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  /** @type {Promise<void>} */
+  const ended=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await ended;
 }
 /** @param {number[]} samples @returns {number} */
 function median(samples){
@@ -57,9 +61,11 @@ async function runChallenge(){
     const token='legitimate-attacker-owned-session';
     const methods=bindScoModuleExports(partition,original);
     let privateCalls=0;
-    const guarded=Object.fromEntries(Object.entries(methods).map(([id,fn])=>[
-      id,async(...args)=>{privateCalls++;return fn(...args);}
-    ]));
+    /** @type {Record<string,(...args:any[])=>unknown|Promise<unknown>>} */
+    const guarded=Object.create(null);
+    for(const [id,fn] of Object.entries(methods)){
+      guarded[id]=(...args)=>{privateCalls++;return fn(...args);};
+    }
     target=http.createServer(createScoHandler([partition.clientFile],{
       remoteMethods:guarded,
       authorizeRead:req=>req.headers['x-demo-session']===token,
@@ -128,7 +134,9 @@ async function runChallenge(){
       for(let i=0;i<n;i++)result=(result^score(i))|0;
       return result;
     }
+    /** @type {number[]} */
     const nativeTimes=[];
+    /** @type {number[]} */
     const relayTimes=[];
     for(let trial=0;trial<8;trial++){
       for(const mode of trial%2?['relay','native']:['native','relay']){
