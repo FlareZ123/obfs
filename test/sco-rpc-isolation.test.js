@@ -11,7 +11,7 @@ const {createScoHandler,createScoBatchMethod,preflightScoBatchState}=require('..
 function latch() {
   /** @type {()=>void} */
   let release=()=>{};
-  const promise=new Promise(resolve=>{release=resolve;});
+  const promise=new Promise(resolve=>{release=()=>resolve();});
   return {promise,resolve:release};
 }
 
