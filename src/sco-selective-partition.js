@@ -45,8 +45,9 @@ function isServerEnvironmentRead(expression){
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
- * exports, plus unexported primitive-literal const declarations referenced
- * only by private functions. An explicit opt-in additionally admits direct
+ * exports, plus private, unexported synchronous function declarations and
+ * unexported primitive-literal const declarations. Local helpers must never
+ * be referenced by a retained public function or escape as function values. An explicit opt-in additionally admits direct
  * process.env uppercase-key reads on the trusted server, refusing public
  * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
@@ -111,6 +112,26 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateAmbient=new Set();
   /** @type {Set<string>} */
   const publicAmbient=new Set();
+  /** @type {Set<string>} */
+  const privateHelperNames=new Set();
+  /** @type {string[]} */
+  const privateHelperChunks=[];
+  for(const statement of ast.body){
+    if(statement.type!=='FunctionDeclaration')continue;
+    const name=statement.id?.type==='Identifier'?statement.id.name:null;
+    if(!name||statement.async||statement.generator||selected.has(name)||
+       serverConstants.has(name)||privateHelperNames.has(name)){
+      throw new TypeError('Selective SCO requires distinct synchronous private helper declarations');
+    }
+    privateHelperNames.add(name);
+    privateHelperChunks.push(file.code.slice(statement.start,statement.end));
+    privateBodies.push(statement.body);
+    walk(statement.body,(node,parent,key)=>{
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
+        privateAmbient.add(node.name);
+      }
+    });
+  }
   /** @type {string[]} */
   const publicChunks=[];
   /** @type {string[]} */
@@ -118,7 +139,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {Set<string>} */
   const seen=new Set();
   for(const statement of ast.body) {
-    if(statement.type==='VariableDeclaration')continue;
+    if(statement.type==='VariableDeclaration'||statement.type==='FunctionDeclaration')continue;
     if(statement.type!=='ExportNamedDeclaration'||statement.source||
        statement.specifiers?.length||!statement.declaration) {
       throw new TypeError('Selective SCO requires direct named function exports only');
@@ -143,7 +164,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }else{
       throw new TypeError('Selective SCO requires function declarations or single-function const exports');
     }
-    if(seen.has(name))throw new TypeError('Duplicate selective SCO exported binding: '+name);
+    if(seen.has(name)||privateHelperNames.has(name))throw new TypeError('Duplicate selective SCO exported binding: '+name);
     seen.add(name);
     const text=file.code.slice(statement.start,statement.end);
     if(selected.has(name)){
@@ -171,6 +192,9 @@ function partitionScoSelectedAsyncExports(file,options) {
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
           throw new TypeError('Public SCO export reads server-only constant: '+name);
         }
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&privateHelperNames.has(node.name)){
+          throw new TypeError('Public SCO export references a server-only helper: '+name);
+        }
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&selected.has(node.name)&&
            !(parent?.type==='CallExpression'&&key==='callee')) {
           throw new TypeError('Public SCO export observes a private function value: '+name);
@@ -195,6 +219,9 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(selected.has(node.name)&&!(parent?.type==='CallExpression'&&key==='callee')){
         throw new TypeError('Private SCO export exposes a stateful private function value: '+node.name);
       }
+      if(privateHelperNames.has(node.name)&&!(parent?.type==='CallExpression'&&key==='callee')){
+        throw new TypeError('Private SCO helper may only be called directly: '+node.name);
+      }
       if(node.name==='eval'||node.name==='Function'){
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
@@ -206,7 +233,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     throw new TypeError('Private/public exports share ambient state roots');
   }
   const partition=partitionScoAsyncModule({
-    path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateChunks.join('\n')
+    path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateHelperChunks.join('\n')+'\n'+privateChunks.join('\n')
   },{seed:options.seed,endpoint:options.endpoint,batch:options.batch,maxBatchCalls:options.maxBatchCalls,
     serverOnlyInitialization:true});
   const clientCode=publicChunks.join('\n')+'\n'+partition.clientFile.code;
