@@ -42,9 +42,10 @@ function isServerEnvironmentRead(expression){
 }
 
 /**
- * Refuse known cross-realm prototype access in split SCO public and private
- * functions. Intrinsic prototypes belong to their JavaScript realm, so
- * partitioning code that mutates them can silently change observations.
+ * Refuse known realm-local intrinsic state in split SCO public/private code.
+ * Intrinsic prototypes belong to their JavaScript realm, and legacy RegExp
+ * match properties store per-realm results of pattern matching. Relocating a
+ * match while retaining a corresponding read can silently change behavior.
  * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
