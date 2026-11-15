@@ -18,8 +18,11 @@ WebAssembly i32 binaries using `experimentalWasmI32` or the COO/SNO
 Only one signed-Int32 Number argument is supported; the caller is responsible
 for enforcing that type contract and a stable WebAssembly environment.
 The transformed wrapper has a different `Function#toString` representation.
-ESM dependency cycles may invoke exported functions before initialization,
-and applications with restrictive CSP or no WebAssembly must decline.
+A cyclic ESM import formerly invoked a transformed function before its eager
+WebAssembly initializer and caused a TDZ exception. The ESM emitter now uses
+a hoisted self-replacing helper that preserves the tested cycle. Its first-call
+compilation must count in COO. Applications with restrictive CSP or no
+WebAssembly must decline.
 
 The native WebAssembly byte array is delivered to the recipient. A
 source-only attacker independently instantiated the public export with the
@@ -29,7 +32,10 @@ neither a secret execution boundary nor hostile-runtime integrity, domain
 locking or instrumented-runtime resistance. Its native hot runtime was
 2.064× on Ubuntu and 1.923× on Windows in a selected pinned kernel;
 Chromium measured 1.333× for a selected loop. Initialization must count
-for COO, and no workload-independent 2.5× guarantee has been established.
+for COO. An independent pinned whole-session profile measured 15.691×
+Ubuntu and 30.000× Windows for a one-call module lifetime after JS wrappers
+were precompiled, violating the 2.5× ceiling in that specific workload.
+There is no workload-independent runtime guarantee.
 See the [generated pair](../examples/wasm-i32/README.md) and
 [intermediate report](../im-results/wasm-i32-pipeline-2026-11-15.md).
 
