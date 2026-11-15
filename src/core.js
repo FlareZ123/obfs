@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk} = require('./ast');
+const {parse,walk,observesFunctionSource} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
@@ -207,8 +207,16 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code:file.code,sourceType};
   });
-  const cross = options.closedWorld && options.properties !== false ? renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
-  const shouldEncodeStrings=options.strings === true || (options.strings === undefined && mode === 'sno');
+  // A function declared in one ESM/classic-script file may have its source
+  // observed by another supplied file. File-local proofs cannot see that
+  // consumer, so preserve all original source spellings across the file group.
+  const remoteSourceObserver=prepared.length>1 && prepared.some(file=>
+    file.sourceType!=='asset' && typeof file.code==='string' &&
+    observesFunctionSource(parse(file.code,file.sourceType)));
+  const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
+    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+  const shouldEncodeStrings=!remoteSourceObserver &&
+    (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
   const reservedNames=new Set();
   /** @type {string[]} */
@@ -243,7 +251,7 @@ function obfuscateFiles(files, options = {}) {
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
     let objects = 0;
     let properties = 0;
-    if (options.properties !== false && sourceType !== 'script') {
+    if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
       const modified = renameLocalProperties(code,ast,{seed:salt});
       code = modified.code;
       objects = modified.objects;
@@ -251,7 +259,7 @@ function obfuscateFiles(files, options = {}) {
       ast = parse(code,sourceType);
     }
     let bindings=0;
-    if(options.identifiers!==false) {
+    if(!remoteSourceObserver && options.identifiers!==false) {
       const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
       code=renamed.code;
       bindings=renamed.bindings;
