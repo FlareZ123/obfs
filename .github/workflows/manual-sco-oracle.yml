@@ -1,0 +1,27 @@
+name: Manual SCO authorized oracle extraction
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  authorized-oracle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Test full finite-domain HMAC oracle clone with legitimate authorization
+        run: node sims/sco-oracle-exhaustion.js
+      - name: Strict JSDoc type safety
+        run: npm run typecheck
