@@ -102,3 +102,34 @@ test('unrelated String.fromCharCode function alias preserves string encoding',()
   });
   assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
 });
+
+
+test('read-only String prototype alias keeps encoding enabled',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const Native=String;const P=Native.prototype;const f=P.charCodeAt;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/read-only-prototype'
+  });
+  assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
+});
+
+test('unrelated Number prototype mutation keeps String decoder enabled',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const P=Object.getPrototypeOf(7);P.toString=function(){return "number";};'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/unrelated-number-prototype'
+  });
+  assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
+});
