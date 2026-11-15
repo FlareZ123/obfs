@@ -57,6 +57,10 @@ jobs:
         run: node sims/sco-sync-state-size.js
       - name: Stress eight thousand public SCO machine workloads by state count
         run: node sims/sco-sync-state-size.js --stress
+      - name: Test bounded adversarial suffix depth-versus-query cost
+        run: node --test test/sco-sync-depth-sweep.test.js
+      - name: Print 6-12-state attacker depth cost grid
+        run: node sims/sco-sync-depth-sweep.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
