@@ -40,7 +40,7 @@ jobs:
       - name: Generate deterministic public source candidates
         run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --source-type ${{ matrix.sourceType }} --seed pinned-jsdeobsbench-20261115 --max 1301
       - name: Measure public-source transformation coverage and emitted size
-        run: node sims/jsdeobsbench-coverage.js ./jsdeobsbench-obfuscated.jsonl
+        run: node sims/jsdeobsbench-coverage.js ./jsdeobsbench-obfuscated.jsonl --require-transform
       - name: Independently execute paired baseline and transformed code in restricted Docker
         shell: bash
         run: |
