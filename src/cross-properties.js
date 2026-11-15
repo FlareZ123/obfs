@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,staticString} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -193,10 +193,10 @@ function renameCrossFileProperties(files,seed) {
             exporter.bindings.get(decl.id.name)!==1) continue;
         /** @type {AstNode[]} */
         const props=decl.init.properties;
-        if (!props.length || props.some(p => p.type!=='Property' || p.computed || p.method || p.shorthand ||
-              p.kind!=='init' || !isLiteralValue(p.value) || !staticName(p.key) ||
-              ['__proto__','constructor','prototype'].includes(String(staticName(p.key))))) continue;
-        const names=props.map(p=>staticName(p.key));
+        if (!props.length || props.some(p => p.type!=='Property' || p.method || p.shorthand ||
+              p.kind!=='init' || !isLiteralValue(p.value) || !ownPropertyName(p) ||
+              ['__proto__','constructor','prototype'].includes(String(ownPropertyName(p))))) continue;
+        const names=props.map(ownPropertyName);
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,importedIdentities.get(exporterName));
@@ -244,7 +244,7 @@ function renameCrossFileProperties(files,seed) {
         if(reexported) continue;
         const mapping=new Map();
         for(const prop of props) {
-          const old=staticName(prop.key);
+          const old=ownPropertyName(prop);
           const token=createHash('sha256').update(`${seed}/${exporterName}/${exportName}/${old}`).digest('hex').slice(0,12);
           mapping.set(old,`_p${token}`);
         }
@@ -252,7 +252,7 @@ function renameCrossFileProperties(files,seed) {
         if (new Set(mapping.values()).size !== mapping.size) continue;
         // The export binding name is unchanged; its public object shape is
         // changed only when callers opted into closed-world semantics.
-        for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
+        for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
         for(const user of users) {
           for(const member of user.proof.members) {
             const old=member.computed ? staticString(member.property) : staticName(member.property);
