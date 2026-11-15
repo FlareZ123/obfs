@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,parse,observesFunctionSource} = require('./ast');
+const {walk,applyEdits,parse,observesFunctionSource,staticString} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -227,7 +227,7 @@ function renameCrossFileProperties(files,seed) {
         // object's original own keys even when the reference never escapes.
         const ownNames=new Set(names);
         if (users.some(user=>
-          user.proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property))) ||
+          user.proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
           user.proof.patterns.some(property=>!ownNames.has(staticName(property.key))))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
@@ -248,7 +248,7 @@ function renameCrossFileProperties(files,seed) {
         for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
         for(const user of users) {
           for(const member of user.proof.members) {
-            const old=member.computed ? member.property.value : staticName(member.property);
+            const old=member.computed ? staticString(member.property) : staticName(member.property);
             if(mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
           }
