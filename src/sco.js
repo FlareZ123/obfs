@@ -23,8 +23,10 @@ const {renameCrossFileProperties} = require('./cross-properties');
  * @returns {void}
  */
 function respondJson(response,status,payload) {
+  // Serialize before committing the HTTP status. BigInt and cycles can throw.
+  const body=JSON.stringify(payload);
   response.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
-  response.end(JSON.stringify(payload));
+  response.end(body);
 }
 
 /**
