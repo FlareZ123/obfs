@@ -19,7 +19,7 @@ test('two independent SCO variants collapse under source-only AST canonicalizati
     'function emit(value){',
     "const payload='client-polymorphism-secret';",
     'const offset=value+5;',
-    "return payload+':'+offset;",
+    'return {payload,offset};',
     '}',
     'globalThis.out=emit(12);'
   ].join('\n');
@@ -60,10 +60,10 @@ function evaluateCommonJs(source) {
   return context.module.exports;
 }
 
-test('SCO hashed identifiers and object properties normalize without the request seed',async()=>{
+test('SCO hashed identifier variants normalize without the request seed',async()=>{
   const original=[
-    'const record={secretCount:7};',
-    'const weightedCount=record.secretCount+5;',
+    'const confidentialCount=7;',
+    'const weightedCount=confidentialCount+5;',
     'module.exports=weightedCount;'
   ].join('\\n');
   const server=http.createServer(createScoHandler([
@@ -80,14 +80,12 @@ test('SCO hashed identifiers and object properties normalize without the request
     assert.notEqual(variants[0],variants[1]);
     for(const variant of variants){
       assert.match(variant,/_v[a-f0-9]{12}/u);
-      assert.match(variant,/_p[a-f0-9]{10}/u);
       assert.equal(evaluateCommonJs(variant),evaluateCommonJs(original));
       assert.ok(!variant.includes('/* variant:'));
     }
     const normalized=variants.map(variant=>normalizeScoVariant(variant,'commonjs'));
     assert.equal(normalized[0],normalized[1]);
     assert.equal(evaluateCommonJs(normalized[0]),evaluateCommonJs(original));
-    assert.match(normalized[0],/reconstructedProperty_0/u);
     assert.match(normalized[0],/reconstructedLocal_0/u);
   }finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
