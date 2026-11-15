@@ -70,3 +70,18 @@ test('identity result stored into opaque container still blocks private shape re
   await check(identity,
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const box={result:identity(state)};console.log(box.result.secretField);',0);
 });
+
+test('reassigned exported identity is not a stable cross-module summary',async()=>{
+  await check('export function identity(x){return x;} identity=function(x){console.log(Object.keys(x)[0]);return x;};',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',0);
+});
+
+test('default-parameter wrapper is outside the pure imported identity proof',async()=>{
+  await check('export function identity(x=0){return x;}',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',0);
+});
+
+test('an imported identity function passed as a value is rejected',async()=>{
+  await check(identity,
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const invoke=identity;const v=invoke(state);console.log(v.secretField);',0);
+});
