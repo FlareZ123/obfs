@@ -18,7 +18,9 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Differential proof-subset VM tests
-        run: node --test test/vm-immediate-lowering.test.js test/vm-static-recovery.test.js test/expr-vm.test.js test/expr-vm-static-recovery.test.js
+        run: node --test test/vm-immediate-lowering.test.js test/vm-static-recovery.test.js test/expr-vm.test.js test/expr-vm-static-recovery.test.js test/register-vm.test.js
+      - name: Check exact register VM before-and-after output
+        run: node examples/register-vm/build-sample.cjs --check
       - name: Full JS typecheck
         run: npm run typecheck
       - name: Measure pure numeric VM hot and cold ratios
