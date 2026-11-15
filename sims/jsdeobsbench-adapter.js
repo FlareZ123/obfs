@@ -10,7 +10,7 @@ const {atomicWrite}=require('../src/atomic');
 /**
  * @typedef {'coo'|'sno'} PublicBenchmarkMode
  * @typedef {{filename:string,original:string,test_cases:unknown[],[key:string]:unknown}} BenchmarkItem
- * @typedef {{mode:PublicBenchmarkMode,seed:string,strings?:boolean,max:number}} BenchmarkOptions
+ * @typedef {{mode:PublicBenchmarkMode,seed:string,strings?:boolean,max:number,sourceType?:'script'|'commonjs'}} BenchmarkOptions
  */
 
 /**
@@ -26,7 +26,7 @@ function parseArgs(argv) {
   for(let index=0;index<argv.length;index+=2) {
     const key=argv[index];
     const value=argv[index+1];
-    if(!['--input','--output','--mode','--seed','--strings','--max'].includes(key) ||
+    if(!['--input','--output','--mode','--seed','--strings','--max','--source-type'].includes(key) ||
         value===undefined || Object.hasOwn(values,key)) {
       throw new TypeError('Expected unique --input, --output, --mode, --seed, --strings, --max pairs');
     }
@@ -37,10 +37,13 @@ function parseArgs(argv) {
   if(!values['--input']||!values['--output'])throw new TypeError('Required: --input JSONL --output JSONL');
   const strings=values['--strings']??'default';
   if(!['on','off','default'].includes(strings))throw new TypeError('--strings must be on, off or default');
+  const sourceType=values['--source-type']??'script';
+  if(sourceType!=='script'&&sourceType!=='commonjs')throw new TypeError('--source-type must be script or commonjs');
   const max=Number(values['--max']??0);
   if(!Number.isSafeInteger(max)||max<0)throw new TypeError('--max must be a nonnegative safe integer');
   /** @type {BenchmarkOptions} */
-  const options={mode,seed:values['--seed']??'obfs-jsdeobsbench-v1',max};
+  /** @type {BenchmarkOptions} */
+  const options={mode,seed:values['--seed']??'obfs-jsdeobsbench-v1',max,sourceType};
   if(strings!=='default')options.strings=strings==='on';
   return {input:values['--input'],output:values['--output'],options};
 }
@@ -66,7 +69,7 @@ function convertItem(source,options,index) {
     .update(String(index)).update('\0')
     .update(row.filename).digest('hex');
   const result=obfuscateFiles(
-    [{path:'benchmark.js',code:row.original,sourceType:'script'}],
+    [{path:'benchmark.js',code:row.original,sourceType:options.sourceType??'script'}],
     {mode:options.mode,seed:uniqueSeed,strings:options.strings}
   );
   const transformed=result.files[0];
@@ -78,6 +81,7 @@ function convertItem(source,options,index) {
     test_cases:row.test_cases,
     obfuscated:transformed.code,
     obfs_mode:options.mode,
+    obfs_source_type:options.sourceType??'script',
     obfs_source_sha256:createHash('sha256').update(row.original).digest('hex'),
     obfs_output_sha256:createHash('sha256').update(transformed.code).digest('hex'),
     obfs_metrics:transformed.metrics
