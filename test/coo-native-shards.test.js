@@ -146,6 +146,7 @@ test('50 generated operator graphs preserve signed-Int32 behavior and remain sta
 
 test('generated imports preserve ESM hashbang and directive prologue',async()=>{
   const source='#!/usr/bin/env node\n"use client";\n'+before;
+  /** @type {import('../workplace/coo-native-shards').ModuleFile} */
   const original={path:'main.mjs',code:source,sourceType:'module'};
   const baseline=await load([original]);
   for(const topology of /** @type {const} */ (['split','paired'])) {
@@ -157,8 +158,10 @@ test('generated imports preserve ESM hashbang and directive prologue',async()=>{
 });
 
 test('hoisted exported kernel remains callable from an early cyclic importer',async()=>{
+  /** @type {import('../workplace/coo-native-shards').ModuleFile} */
   const original={path:'main.mjs',sourceType:'module',
     code:'import "./peer.mjs";\n'+before};
+  /** @type {import('../workplace/coo-native-shards').ModuleFile} */
   const peer={path:'peer.mjs',sourceType:'module',
     code:'import {scramble} from "./main.mjs";export const observed=scramble(41);'};
   const baseline=await load([original,peer]);
