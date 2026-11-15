@@ -91,6 +91,14 @@ function renameLocalIdentifiers(source,ast,options) {
     const {name,scope,identifier}=candidate;
     if (counts.get(name)!==1 || inferredNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
+    // TDZ ReferenceError messages expose the original binding spelling.
+    // Until a control-flow dominance proof exists, reject a candidate when a
+    // reference occurs lexically before the declaration or in its initializer.
+    if (identifiers.some(item=>item.node!==identifier && item.node.name===name &&
+        (item.node.start < identifier.start || item.ancestors.some(ancestor=>
+          ancestor.type==='VariableDeclarator' && ancestor.id===identifier &&
+          ancestor.init && ancestor.init.start<=item.node.start &&
+          item.node.end<=ancestor.init.end)))) continue;
     /** @type {import('./ast').Edit[]} */
     const local=[];
     let safe=true;
