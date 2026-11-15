@@ -64,6 +64,10 @@ for(const [name,source] of [
   ['called on second owner',
     'const root={secretField:7,otherField:5};const foreign={secretField:9};'+
     'const reader=x=>x.secretField;module.exports=[reader(root),reader(foreign)];'],
+  ['nested forwarding with ambiguous receiving parameter',
+    'const root={secretField:7,otherField:5};const foreign={secretField:9};'+
+    'const forward=y=>y;const reader=x=>x.secretField;'+
+    'module.exports=[reader(forward(root)),reader(forward(foreign))];'],
   ['escaped as a first-class value',
     'const root={secretField:7,otherField:5};const reader=x=>x.secretField;'+
     'const escaped=reader;module.exports=escaped(root);'],
