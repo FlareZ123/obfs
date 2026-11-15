@@ -52,10 +52,12 @@ function coverage(output) {
 async function studySourceObserverCoverage(seed = 'source-observer-coverage') {
   /** @type {ModuleFile} */
   const state = {path:'state.mjs', sourceType:'module',
-    code:'export function watched(){const record={privateA:17};return record.privateA;}'};
+    code:'const recordA={privateA:17};const valueA=recordA.privateA;'+
+      'export function watched(){return valueA;}'};
   /** @type {ModuleFile} */
   const independent = {path:'independent.mjs', sourceType:'module',
-    code:'export function unrelated(){const record={privateB:23};return record.privateB;}'};
+    code:'const recordB={privateB:23};const valueB=recordB.privateB;'+
+      'export function unrelated(){return valueB;}'};
   /** @type {ModuleFile} */
   const withoutObserver = {path:'entry.mjs', sourceType:'module',
     code:'import {watched} from "./state.mjs";' +
