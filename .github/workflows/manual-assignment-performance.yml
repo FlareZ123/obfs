@@ -25,3 +25,5 @@ jobs:
         run: node sims/destructuring-assignment-performance.js
       - name: Main compiler JSDoc check
         run: npm run typecheck
+      - name: Research tool strict JSDoc check
+        run: npm run typecheck:external
