@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/sco-stateful-oracle.js",
+    "sims/sco-synchronizing-oracle.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
