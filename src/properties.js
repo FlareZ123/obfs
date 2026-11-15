@@ -129,6 +129,44 @@ function collectBindingScopes(ast) {
 }
 
 /**
+ * Resolve bounded compile-time computed own keys only when a same-scope
+ * immutable key initializer executes before the private owner is created.
+ * The scope must be a sequential Program or BlockStatement: a SwitchStatement
+ * can jump past earlier lexical declarations into later cases.
+ *
+ * Imported root aliases have no local owner creation proof, so retain their
+ * conservative dynamic-key refusal (including ESM cycle/TDZ cases).
+ * @param {AstNode} ast
+ * @param {string} rootName
+ * @param {Map<string,number>} bindings
+ * @param {Map<string,AstNode>} scopes
+ * @returns {Map<string,string>}
+ */
+function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
+  const ownerScope=scopes.get(rootName);
+  /** @type {Map<string,string>} */
+  const keys=new Map();
+  if(!ownerScope||!['Program','BlockStatement'].includes(ownerScope.type))return keys;
+  /** @type {AstNode|null} */
+  let owner=null;
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+        node.id.name===rootName && parent?.type==='VariableDeclaration' &&
+        parent.kind==='const' && bindings.get(rootName)===1)owner=node;
+  });
+  if(!owner)return keys;
+  walk(ast,(node,parent)=>{
+    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
+       parent?.type!=='VariableDeclaration'||parent.kind!=='const'||
+       bindings.get(node.id.name)!==1||scopes.get(node.id.name)!==ownerScope||
+       node.start>=/** @type {AstNode} */ (owner).start||!node.init)return;
+    const value=staticString(node.init);
+    if(value!==null)keys.set(node.id.name,value);
+  });
+  return keys;
+}
+
+/**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
  * Rejects reflection, computed keys, escapes, ambiguous calls, and shadowing.
@@ -137,7 +175,7 @@ function collectBindingScopes(ast) {
  * @param {Map<string,number>} bindings
  * @param {Map<string,number>} [importedIdentityFunctions] Verified direct ESM imports of immutable, pure identity functions.
  * @param {Map<string,number>} [importedConsumers] Verified imported functions that consume an object without returning an alias.
- * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map()) {
   if(observesFunctionSource(ast)) return null;
@@ -240,6 +278,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const scopes=collectBindingScopes(ast);
+  const constantKeys=collectOwnedConstantKeys(ast,rootName,bindings,scopes);
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
@@ -319,6 +358,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   /** @type {AstNode[]} */
   const members = [];
+  /** @type {Map<AstNode,string>} */
+  const memberNames=new Map();
   /** @type {AstNode[]} */
   const patterns = [];
   for (const {node,parent,key,ancestors} of identifiers) {
@@ -339,8 +380,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
     if (parent.type === 'MemberExpression' && key === 'object') {
-      const property = parent.computed ? staticString(parent.property) : staticName(parent.property);
+      const property = parent.computed ?
+        staticString(parent.property) ??
+          (parent.property.type==='Identifier' ? constantKeys.get(parent.property.name)??null : null) :
+        staticName(parent.property);
       if (property === null) return null;
+      memberNames.set(parent,property);
       members.push(parent);
       continue;
     }
@@ -497,7 +542,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   walk(ast,node=>{
     if(node.type==='CallExpression' && resolves(node))forwardedCalls.add(node);
   });
-  return {aliases,members,patterns,forwardedCalls};
+  return {aliases,members,memberNames,patterns,forwardedCalls};
 }
 
 /**
@@ -633,7 +678,7 @@ function renameLocalProperties(source, ast, options) {
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
-    if (proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
+    if (proof.members.some(member=>!ownNames.has(proof.memberNames.get(member))) ||
         proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
@@ -646,8 +691,9 @@ function renameLocalProperties(source, ast, options) {
     if (new Set(mapping.values()).size !== mapping.size) continue;
     for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
     for (const member of proof.members) {
-      const name = member.computed ? staticString(member.property) : staticName(member.property);
-      if (mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
+      const name=proof.memberNames.get(member);
+      if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
+        text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
     edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
     objects++;
