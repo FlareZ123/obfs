@@ -113,6 +113,11 @@ test('differential result separates baseline errors, source mismatches and outpu
 
     transformed[0].obfuscated='console.log(999)';
     await atomicWrite(compiled,transformed.map(item=>JSON.stringify(item)).join('\n')+'\n');
+    await assert.rejects(compareCorpus(native,compiled,opts),/Obfuscated output mismatch/);
+
+    transformed[0].obfs_output_sha256=createHash('sha256')
+      .update(transformed[0].obfuscated).digest('hex');
+    await atomicWrite(compiled,transformed.map(item=>JSON.stringify(item)).join('\n')+'\n');
     const wrong=await compareCorpus(native,compiled,opts);
     assert.equal(wrong.transformedMismatches,1);
 
