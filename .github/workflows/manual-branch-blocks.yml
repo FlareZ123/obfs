@@ -17,6 +17,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Generate real before-and-after sample
+        run: node examples/branch-blocks/build.cjs
       - name: Branch differential semantics
         run: node --test test/branch-blocks.test.js
       - name: JSDoc checker
