@@ -61,6 +61,14 @@ The original two seed formulas influenced the choice of extra prefix-free probin
 
 The retained counterexample in the second holdout demonstrates that a plausible candidate can still fail an unseen continuation after finite probes. This is an intentionally negative control. The diversified attack uses 1.675× and 1.688× as many legitimate public step calls as the baseline on these holdouts. The advantage is a lower observed error rate for behavior reachable *after* discovery. The test cannot prove safety for the original unrepeatable initial state or for all hidden states.
 
+## Independent behavioral-equivalence validation
+
+The post-attack evaluator does not assume that its three-symbol suffix criterion is valid merely because it resembles a standard automata bound. A second implementation, `sims/sco-mealy-refinement.js`, computes observable-state equivalence through fixed-point class partition refinement. It compares immediate output vectors and successor equivalence classes, independent of suffix enumeration and independent of the public chosen-input search.
+
+The regression `test/sco-mealy-refinement.test.js` evaluates 15 candidate words (including the empty word) for each of 4,000 seeded machines across the main and independent holdout corpora: **60,000 exact agreements** between the independent partition algorithm and suffix-based evaluator. It also supplies an explicit four-state witness whose two initial states produce equal outputs for every input of length at most two, then diverge on `110` at length three. This makes truncating the suffix bound to two observably incorrect for this family.
+
+Both Node.js 22 Ubuntu and Windows checks, including the existing authenticated live SCO facade and strict JSDoc, were green in [run 43756117880](https://github.com/FlareZ123/obfs/actions/runs/43756117880), source SHA `5f8fc07de415310fabf36d0e77cf1ee3645cac6d`. This cross-validation verifies the *finite fixture evaluation*, not the absence of attack failures on untested models.
+
 ## Black-box impossibility witness
 
 The regression `unreachable private states make global physical synchronization undecidable` constructs two four-state machines with identical public step transcripts from their initial state 0. In the first, every state transitions to 0 on either input; any nonempty word physically synchronizes it. In the second, state 0 loops forever and the three other states form a closed 3-cycle on either input; no word can converge all four states. Both machines emit output 0 for every input from every state. Because the public initial state cannot leave 0, any adaptive black-box step-only attacker receives identical outputs under both models, regardless of query budget. The two global physical-sync answers differ. This is an exact indistinguishability argument for the stated public-access model, separate from the empirical 500-machine comparison.
