@@ -31,6 +31,8 @@ jobs:
         run: node sims/wasm-i32-cold-counterexample.js
       - name: Strict JSDoc checks
         run: npm run typecheck
+      - name: Strict Wasm research and attacker JSDoc checks
+        run: npx tsc -p jsconfig.wasm-i32.json
       - name: Real Chromium COO ESM host API
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
