@@ -42,7 +42,7 @@ The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createS
 - Optional browser hostname check. It is a convenience restriction against accidental reuse, and **cannot withstand a client that can modify code**. Host-locked ESM files with static imports or reexports are refused, because those dependencies would execute before the guard. Use server-side authorization to protect such graphs.
 - SNO local integrity check against incidental file corruption. Since the modeled adversary controls the server's files and runtime, this cannot establish a cryptographic trust boundary.
 
-**Source-map disclosure:** COO, SCO, and SNO refuse `.map` sidecar assets and real JavaScript `sourceMappingURL` directives, including inline `data:` maps. Remove those artifacts before obfuscation. A source map can contain the original program in `sourcesContent`; see `docs/SECURITY.md` for the policy, compatibility consequences, and remaining asset-disclosure gaps.
+**Source disclosure:** COO, SCO, and SNO refuse `.map` sidecar assets and real JavaScript `sourceMappingURL` directives, including inline `data:` maps. They also refuse executable JavaScript and transpiler input files such as `.js`, `.jsx`, `.ts`, `.tsx`, and `.vue` when supplied as opaque assets. Remove original-source sidecars and source-map references before obfuscation. A source map can contain the original program in `sourcesContent`; see `docs/SECURITY.md` for the policy, compatibility consequences, and remaining asset-disclosure gaps.
 
 ## Important limitations
 
