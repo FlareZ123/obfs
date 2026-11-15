@@ -23,3 +23,5 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Measure static recovery, coverage and runtime over same source
         run: node sims/decision-grid.js
+      - name: Test SCO source withholding, authorization and RPC cost
+        run: node sims/sco-trust-challenge.js
