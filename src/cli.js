@@ -121,9 +121,10 @@ async function assertOutputOutsideInput(root,destination) {
 
 /**
  * Select only the JavaScript explicitly authorized for public delivery.
- * Static ESM imports/reexports and literal dynamic imports are transitively
- * included; independent classic scripts, computed dynamic imports, and files
- * loaded by fetch() require a separate --client path.
+ * Static ESM imports/reexports are transitively included. Dynamic import()
+ * is a runtime-only edge and must be published explicitly with --client,
+ * even when its specifier is a literal. This prevents a dormant import in
+ * dead code from implicitly exposing private server-side modules.
  *
  * @param {SourceFile[]} files
  * @param {string} entry
@@ -160,11 +161,13 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
       continue;
     }
     const sourceType=file.sourceType??(filename.endsWith('.mjs')?'module':filename.endsWith('.cjs')?'commonjs':'script');
-    // Dynamic import() is also legal in classic scripts and CommonJS.
-    // Inspect those bodies too; only static import/export needs module grammar.
+    // Dynamic import() does not imply publication authority for its target.
+    // The operator is legal inside classic scripts too, so only the module
+    // grammar's static dependencies are followed automatically.
+    if(sourceType!=='module')continue;
     const ast=parse(/** @type {string} */ (file.code),sourceType);
     walk(ast,node=>{
-      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration','ImportExpression'].includes(node.type) ||
+      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
       const specifier=node.source.value;
       if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
