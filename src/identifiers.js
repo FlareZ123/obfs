@@ -46,9 +46,24 @@ function renameLocalIdentifiers(source,ast,options) {
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers=[];
+  // Anonymous function/arrow/class expressions receive the assignment target's
+  // name through NamedEvaluation. Mangling that binding changes observable
+  // .name even when every lexical reference is rewritten correctly.
+  /** @type {Set<string>} */
+  const inferredNames=new Set();
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function derivesBindingName(expression) {
+    return Boolean(expression && (expression.type==='ArrowFunctionExpression' ||
+      expression.type==='FunctionExpression' && !expression.id ||
+      expression.type==='ClassExpression' && !expression.id));
+  }
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
+    if (node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+        derivesBindingName(node.init)) inferredNames.add(node.id.name);
+    if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
+        derivesBindingName(node.right)) inferredNames.add(node.left.name);
     if (node.type==='WithStatement' || node.type==='CallExpression' && node.callee.type==='Identifier' && node.callee.name==='eval') dynamic=true;
     if (node.type==='VariableDeclaration' && (node.kind==='const'||node.kind==='let') &&
         (parent?.type==='BlockStatement'||parent?.type==='Program') &&
@@ -74,7 +89,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
+    if (counts.get(name)!==1 || inferredNames.has(name) ||
+        ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     /** @type {import('./ast').Edit[]} */
     const local=[];
     let safe=true;
