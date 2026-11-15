@@ -27,6 +27,8 @@ node .\dist-server\sno-entry.cjs
 node bin/sco.js --root .\examples\browser --entry index.mjs --port 8080 --closed-world
 ```
 
+For browser module graphs that use `.js` rather than `.mjs` extensions, add `--js-module` to the COO or SCO CLI invocation. This explicitly treats every input `.js` file as an ES module; do not enable it for mixed classic-script or CommonJS `.js` trees. The flag is rejected in SNO. `.mjs` is recognized as a module without the flag.
+
 The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createSnoLauncher`, and `createScoHandler`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
 ## Implemented transformations
