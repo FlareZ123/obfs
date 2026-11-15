@@ -46,9 +46,9 @@ jobs:
         run: node protected/sims/asset-disclosure-attack.js baseline protected
       - name: Verify XML MIME asset disclosure against immediate prepatch
         run: node protected/sims/xml-data-url-attack.js xml-previous protected
-      - name: Verify SVG and CSS source-map regressions
+      - name: Verify HTML, SVG and CSS source-map regressions
         working-directory: protected
-        run: node --test test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js
+        run: node --test test/html-asset-disclosure.test.js test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck
