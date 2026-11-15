@@ -207,7 +207,22 @@ function observesFunctionSource(ast) {
     });
   }while(changed);
   let observed=false;
+  // ToPropertyKey applies ToPrimitive with a string hint. Functions with
+  // ordinary prototype methods stringify to their source text. Restrict the
+  // guard to syntactically tracked functions so string/number computed keys
+  // keep their existing transformations.
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function hasFunctionKey(node) {
+    return isFunctionValue(node);
+  }
   walk(ast,(node,parent,key)=>{
+    if(node.computed && (node.type==='MemberExpression'||node.type==='Property'||
+        node.type==='MethodDefinition'||node.type==='PropertyDefinition') &&
+        hasFunctionKey(node.type==='MemberExpression'?node.property:node.key)) {
+      observed=true;
+    }
+    if(node.type==='BinaryExpression' && node.operator==='in' &&
+       hasFunctionKey(node.left))observed=true;
     // Template interpolation coerces values to strings, including functions.
     // Literal-prefix concatenation can do the same without an explicit call
     // to Function#toString. Decline source-spelling transforms conservatively.
@@ -232,6 +247,11 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
+          ['Reflect','Object'].includes(callee.object.name) &&
+          ['get','set','has','deleteProperty','defineProperty','getOwnPropertyDescriptor',
+            'hasOwn'].includes(memberName(callee)??'') &&
+          hasFunctionKey(node.arguments[1])) observed=true;
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
