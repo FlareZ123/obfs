@@ -27,13 +27,15 @@ function recoverExpressionVm(transformedSource,functionName,sourceType) {
     const body=transformedSource.slice(node.start,node.end);
     /** @type {{kind:'param'|'literal'|'binary'|'unary',symbol?:string}|null} */
     let operation=null;
-    if(/stack\.push\(args\[inst\[1\]\]\)/u.test(body)) {
+    // Indexed stack assignments expose the same native operators as before.
+    // Recover the meaning of their randomized numeric switch labels.
+    if(/stack\[sp\+\+\]=args\[inst\[1\]\]/u.test(body)) {
       operation={kind:'param'};
-    } else if(/stack\.push\(inst\[1\]\)/u.test(body)) {
+    } else if(/stack\[sp\+\+\]=inst\[1\]/u.test(body)) {
       operation={kind:'literal'};
     } else {
-      const binary=/stack\.push\(a\s*(===|!==|>>>|>>|<<|==|!=|\*\*|<=|>=|[+\-*/%|&^<>])\s*b\)/u.exec(body);
-      const unary=/stack\.push\((typeof\s+|void\s+|[!~+\-])a\)/u.exec(body);
+      const binary=/stack\[sp\+\+\]=a\s*(===|!==|>>>|>>|<<|==|!=|\*\*|<=|>=|[+\-*/%|&^<>])\s*b/u.exec(body);
+      const unary=/stack\[sp\+\+\]=(typeof\s+|void\s+|[!~+\-])a/u.exec(body);
       if(binary)operation={kind:'binary',symbol:binary[1]};
       else if(unary)operation={kind:'unary',symbol:unary[1].trim()};
     }
@@ -47,14 +49,35 @@ function recoverExpressionVm(transformedSource,functionName,sourceType) {
   const parameters=fn.params.map(node=>node.type==='Identifier'?node.name:null);
   if(parameters.some(name=>name===null))throw new Error('Unsupported transformed parameter');
   const ret=fn.body.body.find(node=>node.type==='ReturnStatement');
-  if(!ret||ret.argument?.type!=='CallExpression'||
-      ret.argument.arguments[0]?.type!=='ArrayExpression') {
-    throw new Error('Target does not call a recognized VM helper: '+
-      (ret?.argument?.type??'missing-return')+'/'+
-      (ret?.argument?.arguments?.[0]?.type??'missing-program')+'/'+
-      (ret?.argument ? transformedSource.slice(ret.argument.start,ret.argument.end).slice(0,240) : 'no-expression'));
+  const call=ret?.argument;
+  const index=call?.arguments?.[0];
+  const argumentsObject=call?.arguments?.[1];
+  if(call?.type!=='CallExpression'||call.callee.type!=='Identifier'||
+      index?.type!=='Literal'||typeof index.value!=='number'||
+      !Number.isSafeInteger(index.value)||index.value<0||
+      argumentsObject?.type!=='Identifier'||argumentsObject.name!=='arguments') {
+    throw new Error('Target does not call a recognized VM helper');
   }
-  const program=ret.argument.arguments[0].elements;
+  // Locate the public, lazily cached program array within the exact helper
+  // called by the target declaration. A random opcode mapping or helper name
+  // does not prevent reconstruction when the bytecode is sent to the client.
+  const helpers=topLevel.filter(node=>
+    node?.type==='FunctionDeclaration'&&node.id?.name===call.callee.name);
+  if(helpers.length!==1)throw new Error('Expected exactly one VM helper');
+  /** @type {import('../src/ast').AstNode|null} */
+  let programs=null;
+  walk(helpers[0],node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       node.id.name==='programs'&&node.init?.type==='LogicalExpression'&&
+       node.init.operator==='||'&&node.init.right?.type==='AssignmentExpression'&&
+       node.init.right.operator==='='&&node.init.right.right?.type==='ArrayExpression') {
+      programs=node.init.right.right;
+    }
+  });
+  if(!programs)throw new Error('No initialized VM bytecode table');
+  const selected=/** @type {import('../src/ast').AstNode} */(programs).elements[index.value];
+  if(!selected||selected.type!=='ArrayExpression')throw new Error('Missing VM bytecode program');
+  const program=selected.elements;
   /** @type {string[]} */
   const stack=[];
   for(const element of program) {
