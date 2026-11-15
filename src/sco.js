@@ -254,8 +254,9 @@ function createScoHandler(sourceFiles,options={}) {
     /** @param {NonNullable<typeof file>} confirmedFile */
     function serve(confirmedFile) {
       if (confirmedFile.sourceType === 'asset') {
-        const contentType = name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' :
-          name.endsWith('.html') ? 'text/html' : 'application/octet-stream';
+        const contentType = confirmedFile.path.endsWith('.json') ? 'application/json' :
+          confirmedFile.path.endsWith('.css') ? 'text/css' :
+            confirmedFile.path.endsWith('.html') ? 'text/html' : 'application/octet-stream';
         response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
         response.end(confirmedFile.code);
         return;
