@@ -31,7 +31,6 @@ jobs:
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
       - name: Real Chromium module and host-lock integration
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: google-chrome
