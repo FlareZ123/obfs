@@ -108,6 +108,17 @@ function observesFunctionSource(ast) {
   if(cached!==undefined) return cached;
   let observed=false;
   walk(ast,node=>{
+    // Template interpolation coerces values to strings, including functions.
+    // Literal-prefix concatenation can do the same without an explicit call
+    // to Function#toString. Decline source-spelling transforms conservatively.
+    if(node.type==='TemplateLiteral' && node.expressions.length) observed=true;
+    if(node.type==='BinaryExpression' && node.operator==='+') {
+      const leftText=node.left.type==='Literal' && typeof node.left.value==='string' ||
+        node.left.type==='TemplateLiteral' && !node.left.expressions.length;
+      const rightText=node.right.type==='Literal' && typeof node.right.value==='string' ||
+        node.right.type==='TemplateLiteral' && !node.right.expressions.length;
+      if(leftText || rightText) observed=true;
+    }
     if(node.type==='MemberExpression') {
       const name=node.computed ? staticString(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
