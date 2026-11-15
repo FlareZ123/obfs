@@ -157,7 +157,8 @@ function realmStateObservation(body){
     // escapes rather than silently splitting their state between realms.
     // Direct member access, direct invocation and simple recognized aliases
     // retain their existing, more precise write/read checks.
-    if((isIntrinsic(node)||node.type==='Identifier'&&globalNames.has(node.name))&&
+    if((isIntrinsic(node)||node.type==='Identifier'&&globalNames.has(node.name)&&
+      !['window','self','global'].includes(node.name))&&
        parent&&!isStaticKey(parent,key)&&
        !(parent.type==='MemberExpression'&&key==='object')&&
        !(parent.type==='VariableDeclarator'&&
