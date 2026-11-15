@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
-const {buildSample}=require('../examples/forwarded-destructuring/build-sample');
+const {buildSample}=require('../examples/forwarded-destructuring/build-sample.cjs');
 
 /** @param {string} source @returns {string} */
 function run(source){
