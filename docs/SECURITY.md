@@ -53,6 +53,8 @@ The checker also refuses migration of direct browser-only ambient roots (includi
 
 The static guard remains incomplete. More complex aliases, unmodeled intrinsic APIs, dynamically evaluated accessors, and mutable state outside these checked roots may still cross the boundary. An integrator must audit mixed public/private code for cross-realm side effects. These guards address semantic compatibility, not deobfuscation resistance.
 
+A [pinned 220-case intrinsic state shape grid](../im-results/sco-intrinsic-shape-grid-2026-11-15.md) adds independent Node VM witnesses for mutations through `globalThis` aliases, arrays, objects, local function forwarding, defaulted/nested binding patterns, built-in method references (e.g. `Math.imul`), and deep member writes. In the tested cases the original shared realm observes the canary update and the isolated reader realm does not; the compiler now refuses all 220 generated unsafe partitions while admitting seven selected read-only controls. The Linux/Windows [focused CI run 43776297613](https://github.com/FlareZ123/obfs/actions/runs/43776297613) passed at pinned source `2ccc4e5574e44374869dc6c51309fc54d778c7dc`. This is a bounded syntax and VM-context validation, with potentially significant false refusals. The compiler still has no complete alias/effect model across general JavaScript execution, and the result supplies no new confidentiality or authorization guarantee.
+
 ## Authorization
 
 COO: The receiver can modify script and `location` observations. Host lock is bypassable, and ESM static imports/reexports must be rejected because dependencies evaluate before the body guard. True authorization must live on a trusted server.
