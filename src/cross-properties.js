@@ -235,7 +235,7 @@ function renameCrossFileProperties(files,seed) {
         const ownNames=new Set(names);
         if (users.some(user=>
           user.proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
-          user.proof.patterns.some(property=>!ownNames.has(staticName(property.key))))) continue;
+          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
