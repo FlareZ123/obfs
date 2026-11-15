@@ -1,0 +1,27 @@
+name: Manual cross-file property reader proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  reader-proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Cross-file differential and negative cases
+        run: node --test test/cross-file-reader-flow.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js
+      - name: Strict JSDoc type safety
+        run: npm run typecheck
