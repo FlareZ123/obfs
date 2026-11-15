@@ -168,3 +168,43 @@ test('two-argument reader refuses a non-owned object passed to the reading param
   await check(exposed+'export function peek(label,x){return x.secretField;}',
     'import {state,peek} from "./state.mjs";console.log(peek("tag",{secretField:44}),state.secretField);',0);
 });
+
+test('immutable exported arrow reader preserves a property rename',async()=>{
+  await check(exposed+'export const peek=x=>x.secretField;',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',1);
+});
+
+test('immutable exported arrow reader can consume second parameter',async()=>{
+  await check(exposed+'export const peek=(label,x)=>x.secretField;',
+    'import {state,peek} from "./state.mjs";console.log(peek("tag",state));',1);
+});
+
+test('immutable exported block-body arrow reader preserves computed own key',async()=>{
+  await check(exposed+'export const peek=x=>{return x["secretField"];}',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',1);
+});
+
+test('immutable exported function-expression reader preserves the field',async()=>{
+  await check(exposed+'export const peek=function(x){return x.secretField;};',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',1);
+});
+
+test('mutable exported reader cannot establish stable function identity',async()=>{
+  await check(exposed+'export let peek=x=>x.secretField;',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',0);
+});
+
+test('asynchronous arrow reader remains outside the synchronous proof',async()=>{
+  await check(exposed+'export const peek=async x=>x.secretField;',
+    'import {state,peek} from "./state.mjs";console.log(await peek(state));',0);
+});
+
+test('arrow reader with reflective side effects declines property renaming',async()=>{
+  await check(exposed+'export const peek=x=>(Object.keys(x),x.secretField);',
+    'import {state,peek} from "./state.mjs";console.log(peek(state));',0);
+});
+
+test('arrow reader called with an unrelated shape disables the proof',async()=>{
+  await check(exposed+'export const peek=x=>x.secretField;',
+    'import {state,peek} from "./state.mjs";console.log(peek(state),peek({secretField:77}));',0);
+});
