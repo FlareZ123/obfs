@@ -83,7 +83,16 @@ function encodeStrings(source, ast, options) {
   const j = `${helper}j`;
   const raw = `${helper}r`;
   const decoded = `${helper}d`;
-  const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';for(let ${j}=0;${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});${helper}[${i}]=${decoded};}\n`;
+  const offsetName = `${helper}o`;
+  const units = `${helper}u`;
+  const originalDecoder = `for(let ${j}=0;${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
+  // Chunk long strings into 4096-code-unit spreads to avoid quadratic-looking
+  // concatenation costs in fresh V8 contexts. Small literals stay on the
+  // shorter decoder path, preserving startup speed and the existing AST shape.
+  const useChunks=encoded.some(value=>value.length>=1024);
+  const chunkedDecoder = `for(let ${offsetName}=0;${offsetName}<${raw}.length;${offsetName}+=4096){const ${units}=[];for(let ${j}=${offsetName};${j}<${raw}.length&&${j}<${offsetName}+4096;${j}++)${units}[${j}-${offsetName}]=${raw}.charCodeAt(${j})^${key};${decoded}+=String.fromCharCode(...${units});}`;
+  const decoder=useChunks ? `if(${raw}.length<1024){${originalDecoder}}else{${chunkedDecoder}}` : originalDecoder;
+  const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';${decoder}${helper}[${i}]=${decoded};}\n`;
 
   // Keep hashbang and directive prologues intact; imports can follow declarations per ESM grammar.
   let offset = 0;
