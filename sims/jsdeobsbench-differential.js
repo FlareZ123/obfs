@@ -180,12 +180,12 @@ async function compareCorpus(originalFile,transformedFile,options) {
   };
 }
 
-/** @param {string[]} args @returns {{originalFile:string,transformedFile:string,options:Options}} */
+/** @param {string[]} args @returns {{originalFile:string,transformedFile:string,options:Options,minimumBaselineRate:number}} */
 function parseArgs(args) {
   /** @type {Record<string,string>} */
   const values={};
   for(let i=0;i<args.length;i+=2) {
-    if(!['--original','--transformed','--sample','--cases','--timeout','--seed'].includes(args[i])||
+    if(!['--original','--transformed','--sample','--cases','--timeout','--seed','--min-baseline-rate'].includes(args[i])||
         args[i+1]===undefined||Object.hasOwn(values,args[i]))throw new TypeError('Invalid argument pairs');
     values[args[i]]=args[i+1];
   }
@@ -201,16 +201,21 @@ function parseArgs(args) {
       !Number.isSafeInteger(options.timeoutMs)||options.timeoutMs<100) {
     throw new TypeError('Invalid numeric evaluation parameter');
   }
-  return {originalFile:values['--original'],transformedFile:values['--transformed'],options};
+  const minimumBaselineRate=Number(values['--min-baseline-rate']??0.95);
+  if(!Number.isFinite(minimumBaselineRate)||minimumBaselineRate<0||minimumBaselineRate>1) {
+    throw new TypeError('--min-baseline-rate must be in [0,1]');
+  }
+  return {originalFile:values['--original'],transformedFile:values['--transformed'],options,minimumBaselineRate};
 }
 
 if(require.main===module) {
-  const {originalFile,transformedFile,options}=parseArgs(process.argv.slice(2));
+  const {originalFile,transformedFile,options,minimumBaselineRate}=parseArgs(process.argv.slice(2));
   compareCorpus(originalFile,transformedFile,options).then(result=>{
     process.stdout.write(JSON.stringify(result,null,2)+'\n');
-    // An original-program failure is an environment eligibility exclusion,
-    // not a compiler defect. Only passing baselines enter the paired verdict.
-    if(result.transformedMismatches||result.transformedErrors)process.exitCode=1;
+    // Ineligible original fixtures are excluded from paired comparisons, but
+    // insufficient native coverage must fail CI rather than falsely appear green.
+    if(result.totalCases===0 || result.baselinePass/result.totalCases<minimumBaselineRate ||
+        result.transformedMismatches || result.transformedErrors)process.exitCode=1;
   }).catch(error=>{
     process.stderr.write(String(error?.stack??error)+'\n');
     process.exitCode=1;
