@@ -21,6 +21,8 @@ node bin/sno.js --root .\examples\server --entry index.cjs --out .\dist-server
 node .\dist-server\sno-entry.cjs
 ```
 
+**Runnable advanced SCO example:** [`examples/sco-private/`](examples/sco-private/README.md) includes an original keyed ESM implementation, the **actual generated client RPC facade** saved as a before-and-after artifact, a deterministic reproduction/check script, and an authenticated localhost HTTP server. A live differential regression checks the generated client against the server-resident original. This demonstrates a genuine server-only source and key separation, with the runtime and oracle limitations documented in the example. Existing COO/SNO transformations cannot provide the same trusted-server confidentiality under their full-control threat models.
+
 `bin/sco.js` starts an HTTP server with the obfuscator library loaded server-side. It encodes served JavaScript afresh on each request, under `/obfs/`. Example:
 
 ```powershell
