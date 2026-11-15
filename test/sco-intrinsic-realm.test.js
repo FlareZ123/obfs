@@ -1,0 +1,56 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const {partitionScoSelectedAsyncExports}=require('../src');
+
+/**
+ * @param {string} protectedBody
+ * @param {string} [visibleBody]
+ * @returns {string}
+ */
+function moduleSource(protectedBody,visibleBody='return ({}).__obfsRealmCanary??0;') {
+  return 'export async function protectedOp(){'+protectedBody+'}\n'+
+    'export function visible(){'+visibleBody+'}\n';
+}
+
+/** @param {string} code */
+function partition(code) {
+  return partitionScoSelectedAsyncExports(
+    {path:'realm.mjs',code,sourceType:'module'},
+    {seed:'intrinsic-realm-20261115',privateNames:['protectedOp']}
+  );
+}
+
+test('SCO selection cannot share realm-local Object.prototype state',()=>{
+  const first=vm.createContext({});
+  const second=vm.createContext({});
+  assert.equal(vm.runInContext(
+    'Object.prototype.__obfsRealmCanary=41;({}).__obfsRealmCanary',first),41);
+  assert.equal(vm.runInContext('({}).__obfsRealmCanary??0',second),0);
+  assert.equal(({}).__obfsRealmCanary,undefined);
+
+  const cases=[
+    moduleSource('Object.prototype.__obfsRealmCanary=41;return 1;'),
+    moduleSource('const proto=Array.prototype;proto.__obfsRealmCanary=41;return 1;'),
+    moduleSource('Object.defineProperty(Object.prototype,"__obfsRealmCanary",{value:41});return 1;'),
+    moduleSource('Reflect.getPrototypeOf({}).__obfsRealmCanary=41;return 1;'),
+    moduleSource('({}).__proto__.__obfsRealmCanary=41;return 1;'),
+    moduleSource('return Object.prototype.__obfsRealmCanary??0;',
+      'Object.prototype.__obfsRealmCanary=41;return 41;')
+  ];
+  for(const code of cases) {
+    assert.throws(()=>partition(code),/realm.*prototype|prototype.*realm/i,code);
+  }
+});
+
+test('SCO realm safeguard keeps proven independent public/private functions',()=>{
+  const safe=moduleSource('const item={field:41};return item.field;',
+    'const item={field:7};return item.field;');
+  const partitioned=partition(safe);
+  assert.deepEqual(partitioned.privateNames,['protectedOp']);
+  assert.deepEqual(partitioned.publicNames,['visible']);
+  assert.ok(partitioned.clientFile.code.includes('export function visible()'));
+  assert.ok(!partitioned.clientFile.code.includes('return item.field;return'));
+});
