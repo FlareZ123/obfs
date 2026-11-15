@@ -174,6 +174,40 @@ function renameCrossFileProperties(files,seed) {
     importedIdentities.set(filename,imported);
   }
 
+  // A very restricted cross-module reader has one plain parameter and a
+  // single return of that parameter's statically named property. Its own
+  // exporter must not otherwise use the function binding. Call-site proof
+  // below additionally requires every importer invocation to pass the
+  // candidate object, so other receiver shapes cannot be changed.
+  /** @type {Map<string,Map<string,{member:AstNode,property:string}>>} */
+  const exportedReaders=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,{member:AstNode,property:string}>} */
+    const readers=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration' || statement.source ||
+          statement.declaration?.type!=='FunctionDeclaration')continue;
+      const fn=statement.declaration;
+      const name=fn.id?.name;
+      if(typeof name!=='string'||module.bindings.get(name)!==1 ||
+          fn.async||fn.generator||fn.params.length!==1 ||
+          fn.params[0].type!=='Identifier'||fn.body.body.length!==1 ||
+          fn.body.body[0].type!=='ReturnStatement')continue;
+      const member=fn.body.body[0].argument;
+      if(member?.type!=='MemberExpression'||member.object.type!=='Identifier' ||
+          member.object.name!==fn.params[0].name)continue;
+      const property=member.computed ? staticString(member.property) : staticName(member.property);
+      if(property===null)continue;
+      let usedInExporter=false;
+      walk(module.ast,(node,parent,key)=>{
+        if(node.type==='Identifier' && node.name===name &&
+            !(node===fn.id&&parent===fn&&key==='id'))usedInExporter=true;
+      });
+      if(!usedInExporter)readers.set(name,{member,property});
+    }
+    exportedReaders.set(filename,readers);
+  }
+
   /** @type {Map<string,import('./ast').Edit[]>} */
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */
@@ -199,6 +233,10 @@ function renameCrossFileProperties(files,seed) {
         const names=props.map(ownPropertyName);
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
+        const readers=new Map([.../** @type {Map<string,{member:AstNode,property:string}>} */ (exportedReaders.get(exporterName)??new Map())]
+          .filter(([,reader])=>names.includes(reader.property)));
+        /** @type {Set<string>} */
+        const usedReaders=new Set();
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,importedIdentities.get(exporterName));
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
@@ -208,11 +246,16 @@ function renameCrossFileProperties(files,seed) {
           if (failed) break;
           /** @type {string[]} */
           const importedAliases=[];
+          /** @type {Map<string,string>} Local reader alias to original exported reader name. */
+          const readerAliases=new Map();
           for(const statement of importer.ast.body) {
             if (statement.type==='ImportDeclaration' && resolveImport(importerName,statement.source.value)===exporterName) {
               for(const spec of statement.specifiers) {
                 if (spec.type==='ImportNamespaceSpecifier') {failed=true;break;}
-                if (spec.type==='ImportSpecifier' && (spec.imported.name ?? spec.imported.value)===exportName) importedAliases.push(spec.local.name);
+                if(spec.type!=='ImportSpecifier')continue;
+                const exportedName=spec.imported.name ?? spec.imported.value;
+                if(exportedName===exportName)importedAliases.push(spec.local.name);
+                if(readers.has(exportedName))readerAliases.set(spec.local.name,exportedName);
               }
             }
             if ((statement.type==='ExportAllDeclaration'||(statement.type==='ExportNamedDeclaration'&&statement.source)) &&
@@ -222,11 +265,35 @@ function renameCrossFileProperties(files,seed) {
           let hasDynamic=false;
           walk(importer.ast,node=>{if(node.type==='ImportExpression')hasDynamic=true;});
           if (hasDynamic) {failed=true;break;}
+          // A reader imported without the candidate state, or alongside two
+          // separately proved state bindings, has insufficient call ownership
+          // evidence. Refuse rather than treating the reader as a free alias.
+          if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
+          const consumerIndices=new Map([...readerAliases.keys()].map(name=>[name,0]));
+          /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
+          let readerProof=null;
           for(const alias of importedAliases) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings,importedIdentities.get(importerName));
+            const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+              importedIdentities.get(importerName),consumerIndices);
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
+            if(readerAliases.size)readerProof=proof;
+          }
+          if(failed)break;
+          if(readerAliases.size) {
+            let unsafeReaderUse=false;
+            walk(importer.ast,(node,parent,key)=>{
+              if(node.type!=='Identifier'||!readerAliases.has(node.name))return;
+              if(parent?.type==='ImportSpecifier')return;
+              if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
+                  node===parent.callee && parent.arguments[0]?.type==='Identifier' &&
+                  readerProof?.aliases.has(parent.arguments[0].name)) {
+                const exportedReader=readerAliases.get(node.name);
+                if(exportedReader)usedReaders.add(exportedReader);
+              } else unsafeReaderUse=true;
+            });
+            if(unsafeReaderUse) {failed=true;break;}
           }
         }
         if (failed) continue;
@@ -253,6 +320,16 @@ function renameCrossFileProperties(files,seed) {
         // The export binding name is unchanged; its public object shape is
         // changed only when callers opted into closed-world semantics.
         for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
+        // Rewrite the reader's one proven member access only after every
+        // importing call site has passed ownership validation.
+        for(const name of usedReaders) {
+          const reader=readers.get(name);
+          if(!reader)continue;
+          const replacement=mapping.get(reader.property);
+          if(!replacement)continue;
+          add(exporterName,{start:reader.member.property.start,end:reader.member.property.end,
+            text:reader.member.computed?JSON.stringify(replacement):replacement});
+        }
         for(const user of users) {
           for(const member of user.proof.members) {
             const old=member.computed ? staticString(member.property) : staticName(member.property);
