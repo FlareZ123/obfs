@@ -174,37 +174,47 @@ function renameCrossFileProperties(files,seed) {
     importedIdentities.set(filename,imported);
   }
 
-  // A very restricted cross-module reader has plain parameters and a
-  // single return of one parameter's statically named property. Its own
-  // exporter must not otherwise use the function binding. Call-site proof
-  // below additionally requires every importer invocation to pass the
-  // candidate object, so other receiver shapes cannot be changed.
+  // Restrict cross-module readers to single-member returns from a plain
+  // parameter, with no local references to their exported binding.
+  // Direct exported function declarations and immutable function expressions
+  // have stable call identities across ordinary ESM named imports.
   /** @type {Map<string,Map<string,{member:AstNode,property:string,argIndex:number}>>} */
   const exportedReaders=new Map();
   for(const [filename,module] of modules) {
     /** @type {Map<string,{member:AstNode,property:string,argIndex:number}>} */
     const readers=new Map();
-    for(const statement of module.ast.body) {
-      if(statement.type!=='ExportNamedDeclaration' || statement.source ||
-          statement.declaration?.type!=='FunctionDeclaration')continue;
-      const fn=statement.declaration;
-      const name=fn.id?.name;
-      if(typeof name!=='string'||module.bindings.get(name)!==1 ||
-          fn.async||fn.generator||fn.params.length===0 ||
-          fn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier') ||
-          fn.body.body.length!==1||fn.body.body[0].type!=='ReturnStatement')continue;
-      const member=fn.body.body[0].argument;
-      if(member?.type!=='MemberExpression'||member.object.type!=='Identifier')continue;
-      const argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>param.name===member.object.name);
-      if(argIndex<0)continue;
-      const property=member.computed ? staticString(member.property) : staticName(member.property);
-      if(property===null)continue;
+    /** @param {string} name @param {AstNode} binding @param {AstNode} fn */
+    function inspectReader(name,binding,fn) {
+      if(module.bindings.get(name)!==1 || fn.async||fn.generator ||
+          !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type) ||
+          !fn.params.length ||
+          fn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier'))return;
+      const returned=fn.body.type==='BlockStatement'
+        ? fn.body.body.length===1 && fn.body.body[0].type==='ReturnStatement'
+          ? fn.body.body[0].argument : null
+        : fn.body;
+      if(returned?.type!=='MemberExpression'||returned.object.type!=='Identifier')return;
+      const argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>param.name===returned.object.name);
+      if(argIndex<0)return;
+      const property=returned.computed ? staticString(returned.property) : staticName(returned.property);
+      if(property===null)return;
       let usedInExporter=false;
-      walk(module.ast,(node,parent,key)=>{
-        if(node.type==='Identifier' && node.name===name &&
-            !(node===fn.id&&parent===fn&&key==='id'))usedInExporter=true;
+      walk(module.ast,node=>{
+        if(node.type==='Identifier' && node.name===name && node!==binding)usedInExporter=true;
       });
-      if(!usedInExporter)readers.set(name,{member,property,argIndex});
+      if(!usedInExporter)readers.set(name,{member:returned,property,argIndex});
+    }
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const declaration=statement.declaration;
+      if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier') {
+        inspectReader(declaration.id.name,declaration.id,declaration);
+      }
+      if(declaration?.type==='VariableDeclaration'&&declaration.kind==='const') {
+        for(const dec of declaration.declarations) {
+          if(dec.id.type==='Identifier'&&dec.init)inspectReader(dec.id.name,dec.id,dec.init);
+        }
+      }
     }
     exportedReaders.set(filename,readers);
   }
