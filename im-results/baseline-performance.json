@@ -1,0 +1,50 @@
+{
+  "node": "v22.16.0",
+  "platform": "linux",
+  "architecture": "x64",
+  "runtime_budget": 2.5,
+  "trials": 11,
+  "warmup": 12,
+  "measurements": [
+    {
+      "label": "numeric",
+      "source_sha256": "04fd0bc82a09672a29270cdc9a60b62f460924fe49edca9f202500c645bc7003",
+      "renamed": 2,
+      "iterations": 3000000,
+      "median_original_ms": 27.022194000000127,
+      "median_obfuscated_ms": 26.333180999999968,
+      "ratio": 0.9745019593893761,
+      "passes_budget": true
+    },
+    {
+      "label": "alias",
+      "source_sha256": "6342bafb97015dc201dc4b4e235acf7bffcfa30cf1f1e2ee2c76fae61aad1317",
+      "renamed": 1,
+      "iterations": 3000000,
+      "median_original_ms": 5.826591000000008,
+      "median_obfuscated_ms": 4.922620000000052,
+      "ratio": 0.8448542209329684,
+      "passes_budget": true
+    },
+    {
+      "label": "bracket",
+      "source_sha256": "80c57e3ceffbbe9ceaf51510652b6e30a70206f282bcdecdba00f2c61a4244f6",
+      "renamed": 2,
+      "iterations": 3000000,
+      "median_original_ms": 5.032439999999951,
+      "median_obfuscated_ms": 5.064714999999978,
+      "ratio": 1.0064133899261645,
+      "passes_budget": true
+    },
+    {
+      "label": "calls",
+      "source_sha256": "613449c4fb03dc1046cab1d61d1e39d7bfa70097fbc4186d1fcc978d2658508a",
+      "renamed": 1,
+      "iterations": 3000000,
+      "median_original_ms": 3.047143000000233,
+      "median_obfuscated_ms": 4.997585000000072,
+      "ratio": 1.6400887651152867,
+      "passes_budget": true
+    }
+  ]
+}
