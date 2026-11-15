@@ -1,0 +1,80 @@
+name: Manual obfuscation output sample
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Generate actual output and verify behavior
+        shell: bash
+        run: |
+          node <<'NODE'
+          'use strict';
+          const fs = require('node:fs');
+          const vm = require('node:vm');
+          const assert = require('node:assert/strict');
+          const { obfuscateFiles } = require('./src');
+
+          const source = `'use strict';
+          const state = { secret: 41, salt: 7 };
+          const alias = state;
+          const total = alias.secret + state.salt;
+          console.log('hidden-message', total);
+          `;
+
+          function execute(code) {
+            const lines = [];
+            vm.runInNewContext(code, {
+              console: { log: (...args) => lines.push(args.join(' ')) },
+            }, { timeout: 2000 });
+            return lines;
+          }
+
+          fs.mkdirSync('obfs-output-sample', { recursive: true });
+          fs.writeFileSync('obfs-output-sample/original.cjs', source);
+          const expected = execute(source);
+          const measurements = { commit: process.env.GITHUB_SHA, expected, modes: {} };
+
+          for (const mode of ['sno', 'coo']) {
+            const result = obfuscateFiles(
+              [{ path: 'sample.cjs', code: source, sourceType: 'commonjs' }],
+              { mode, seed: 'obfs-inspection-2026-11-15', strings: true }
+            );
+            const transformed = result.files.find(file => file.path === 'sample.cjs');
+            assert.ok(transformed && typeof transformed.code === 'string');
+            assert.notEqual(transformed.code, source, mode + ' produced unchanged input');
+            const actual = execute(transformed.code);
+            assert.deepEqual(actual, expected, mode + ' changed program behavior');
+            fs.writeFileSync('obfs-output-sample/' + mode + '.cjs', transformed.code);
+            measurements.modes[mode] = {
+              metrics: transformed.metrics,
+              bytes: Buffer.byteLength(transformed.code),
+              result: actual,
+              identicalBehavior: true,
+            };
+            console.log('=== ' + mode.toUpperCase() + ' OBFUSCATED OUTPUT ===');
+            console.log(transformed.code);
+          }
+          fs.writeFileSync('obfs-output-sample/measurements.json', JSON.stringify(measurements, null, 2) + '\n');
+          console.log('=== VALIDATED METRICS ===');
+          console.log(JSON.stringify(measurements, null, 2));
+          NODE
+      - name: Upload actual generated source
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: obfs-output-sample
+          path: obfs-output-sample/
+          if-no-files-found: error
