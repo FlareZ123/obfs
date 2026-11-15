@@ -11,7 +11,7 @@ const {lowerWasmI32Functions}=require('../../src/wasm-i32');
 function load(source) {
   const module={exports:null};
   vm.runInNewContext(source,{module,globalThis},{timeout:2000});
-  return /** @type {(x:number)=>number} */ (module.exports);
+  return /** @type {(x:number)=>number} */ (/** @type {unknown} */(module.exports));
 }
 
 /**
