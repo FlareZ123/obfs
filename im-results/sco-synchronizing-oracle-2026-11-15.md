@@ -56,6 +56,31 @@ A prior [green run 43713786025](https://github.com/FlareZ123/obfs/actions/runs/4
 - **Environment locking:** the cookie hook is a deterministic test authorization policy. It is not a production identity, domain ownership or anti-replay claim. An approved session was explicitly available to the attacker.
 - **Compatibility and performance:** the learned machine matched 8,184 binary sequences from the trusted fixture and used finite normal HTTP calls. The attack timing is neither a 2.5x protected application runtime measurement nor a general SCO deployment overhead guarantee.
 
+## Additional heuristic discovery experiment and falsification
+
+An additional attacker `sims/sco-sync-search.js` was tested with the same `step(symbol)`-only published SCO proxy. The attacker **was not supplied** the known input word `000`. Instead it enumerated candidate binary strings up to length three and repeatedly scrambled hidden state using symbol 1 before applying each candidate. It compared observed output suffixes for apparent stability across trials, chose a plausible candidate, then passed that word to the existing finite-state learner. The method is an observational **heuristic** with no general correctness claim.
+
+Two specially constructed private models were fully behaviorally reconstructed through their actual authenticated SCO proxy. The attacker discovered `000` for each with **857 RPC step operations** per discovery, followed by **964** RPC steps per learning phase, or **1,821 per fixture and 3,642 total** network requests. Every one of 4,092 validation sequences matched. **1,920/1,920** were absent from the collected training prefixes, reset-prefix probes, and all length-at-most-ten substrings of the discovery input tapes, under this conservative syntactic overlap definition. The original private source and state variable were never provided to the learner, and no explicit public reset existed.
+
+The live discovery harness and two fixtures are reproducible through `sims/sco-discovered-oracle-run.js`, with assertions in `test/sco-sync-search.test.js`. The latest pinned **Ubuntu/Windows green run [43715756236](https://github.com/FlareZ123/obfs/actions/runs/43715756236)** at commit **923210c9f87a04b66ec35c1d0c444382287f83d8** passed the SCO oracle suite, live inferred-word attack, false-positive corpus and dedicated strict JSDoc checking for all simulators.
+
+### Deliberate falsification on a broader target family
+
+To quantify uncertainty rather than extrapolate the successful structured example, `sims/sco-sync-search-falsification.js` generates **250 seeded pseudorandom four-state binary Mealy machines** with no promised synchronizing word or cyclic input. Its truth checker knows private transitions, but **only after the observational search makes its candidate**, and never passes this source data to the attacker. Exact results on both runner operating systems:
+
+| Falsification result | Count |
+|---|---:|
+| Independent generated machines | 250 |
+| Machines with at least one genuine word of length up to three | 155 |
+| Proposed candidate words from heuristic | 189 |
+| Proposed words verified as genuinely synchronizing | **33** |
+| Proposed words that were false positives | **156** |
+| Genuine-word machines where heuristic returned no word | 0 |
+
+These fixed-corpus results show **156 incorrect candidates out of 189 proposed**. Returning a candidate is not proof that it synchronizes an arbitrary machine. The zero omitted-candidate count is especially misleading on its own: many machines received an incorrect candidate. The negative control deliberately keeps this failed generalization visible in automated regression tests. This heuristic depends heavily on repeated scramble inputs exposing enough distinct hidden states and output traces; indistinguishability, biased state reachability and small output alphabets can create false apparent consistency.
+
+This discovery experiment does not establish a general black-box synchronizing-word finder, a practical attack against large or cryptographically hidden state, or a universal SCO weakness. The earlier known-word attack is stronger evidence within its explicit assumptions. As before, normal application 2.5x compute was not benchmarked by these attacker query counts.
+
 ## Decision and limitations
 
 Removing a privileged reset operation does not eliminate all state-reset capabilities: a synchronizing word in the **ordinary authorized input alphabet** can suffice. SCO authorization and source withholding remain useful for hiding private implementation bytes and restricting unauthenticated users. They cannot, by themselves, promise secrecy of a small deterministic observable machine from unlimited legitimate queries.
