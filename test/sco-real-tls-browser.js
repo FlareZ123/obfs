@@ -34,6 +34,26 @@ async function dumpDom(browser,url,profile,testPin) {
 }
 
 /**
+ * Attacker-controlled page modification that records an RPC method identifier
+ * and the server response through a fetch wrapper placed before public ESM.
+ * Both values stay on the test page; no external exfiltration occurs.
+ * @param {string} html
+ * @returns {string}
+ */
+function instrumentHtml(html) {
+  const probe='<pre id="rpc-trace">pending</pre><script>'+
+    'const originalFetch=window.fetch.bind(window);'+
+    'window.fetch=async(resource,options)=>{const result=await originalFetch(resource,options);'+
+    'if(String(resource).includes("/obfs/rpc")){'+
+    'const method=JSON.parse(String(options.body)).method;'+
+    'const copy=await result.clone().json();'+
+    'document.getElementById("rpc-trace").textContent=method+":"+copy.value;'+
+    '}return result;};</script>';
+  assert(html.includes('<script>'));
+  return html.replace('<script>',probe+'<script>');
+}
+
+/**
  * Exercise a real compiler-emitted ESM SCO client across an HTTPS reverse
  * proxy in Chromium. The original sample server keeps the key and module;
  * the proxy keeps its Node port loopback-only. The browser uses a test-only
@@ -60,12 +80,26 @@ async function main() {
     // This reverse proxy only transports authenticated public sample pages
     // and RPC; the original protected module never enters its public route.
     tlsServer=https.createServer({cert,key,minVersion:'TLSv1.3'},(request,response)=>{
-      const target=new URL(request.url??'/',backendOrigin);
+      const observe=request.method==='GET'&&request.url==='/observe';
+      const target=new URL(observe?'/':request.url??'/',backendOrigin);
       const upstream=http.request(target,{
         method:request.method,headers:{...request.headers,host:target.host}
       },upstreamResponse=>{
-        response.writeHead(upstreamResponse.statusCode??502,upstreamResponse.headers);
-        upstreamResponse.pipe(response);
+        if(observe&&upstreamResponse.statusCode===200) {
+          let html='';
+          upstreamResponse.setEncoding('utf8');
+          upstreamResponse.on('data',chunk=>{html+=chunk;});
+          upstreamResponse.on('error',()=>response.destroy());
+          upstreamResponse.on('end',()=>{
+            const headers={...upstreamResponse.headers};
+            delete headers['content-length'];
+            delete headers['transfer-encoding'];
+            response.writeHead(200,headers).end(instrumentHtml(html));
+          });
+        } else {
+          response.writeHead(upstreamResponse.statusCode??502,upstreamResponse.headers);
+          upstreamResponse.pipe(response);
+        }
       });
       upstream.on('error',()=>{
         if(!response.headersSent)response.writeHead(502).end();
@@ -97,7 +131,17 @@ async function main() {
     const observed=allowedHtml.match(/<pre id="out">([a-f0-9]{64})<\/pre>/u)?.[1];
     assert.equal(observed,native,
       'Real Chromium must execute compiled HTTPS SCO facade and return native HMAC');
-    process.stdout.write('Chromium HTTPS SCO ESM matched private reference; untrusted TLS control blocked\n');
+    // The attacker controls their page and instruments fetch before the ESM
+    // facade executes, without access to the private Node HMAC key.
+    const observedUrl=new URL(authorizedUrl.href);
+    observedUrl.pathname='/observe';
+    const observedHtml=await dumpDom(browser,observedUrl.href,
+      path.join(directory,'instrumented-profile'),pin);
+    const methodId=hosted.partition.methodNames.derive;
+    assert.match(methodId,/^m[a-f0-9]{24}$/u);
+    assert.ok(observedHtml.includes('<pre id="rpc-trace">'+methodId+':'+native+'</pre>'),
+      'Instrumented Chromium should observe the RPC method ID and value');
+    process.stdout.write('Chromium HTTPS SCO ESM matched private reference; untrusted TLS control blocked; attacker fetch instrumentation recovered RPC method and response\n');
   } finally {
     if(tlsServer){
       const activeTlsServer=tlsServer;
