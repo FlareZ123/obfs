@@ -21,6 +21,8 @@ jobs:
         run: node sims/sco-rpc-cost.js
       - name: Profile artificial RTT and concurrent versus batched operations
         run: node sims/sco-rtt-grid.js
+      - name: Test authorized SCO black-box algorithm reconstruction
+        run: node sims/sco-oracle-polynomial.js
       - name: Save reproducible raw timings
         uses: actions/upload-artifact@v4
         with:
@@ -28,3 +30,4 @@ jobs:
           path: |
             rpc-cost-output.json
             rpc-rtt-grid-output.json
+            sco-oracle-polynomial-output.json
