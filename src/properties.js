@@ -401,6 +401,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         consumer?.type==='ForInStatement' && consumer.left===member ||
         consumer?.type==='ObjectPattern' || consumer?.type==='ArrayPattern' ||
         consumer?.type==='Property' && parents.get(consumer)?.type==='ObjectPattern') return null;
+    // V8 can insert the original operand's *source spelling* into a thrown
+    // TypeError, e.g. "owner.secretField is not iterable" for for-of or
+    // array spread. Changing the private key would therefore alter an error
+    // message even if no explicit Function#toString or stack read occurs.
+    // Refuse iterable-protocol sources rather than assuming only values
+    // and method receivers are observable. Other engines may differ.
+    if(consumer?.type==='ForOfStatement' && consumer.right===member ||
+       consumer?.type==='SpreadElement' && consumer.argument===member ||
+       consumer?.type==='VariableDeclarator' && consumer.init===member &&
+         consumer.id.type==='ArrayPattern' ||
+       consumer?.type==='AssignmentExpression' && consumer.right===member &&
+         consumer.left.type==='ArrayPattern' ||
+       consumer?.type==='YieldExpression' && consumer.delegate &&
+         consumer.argument===member) return null;
     // Deletion can expose an inherited getter/value under the original key.
     // The property shape of Object.prototype is outside the local proof.
     const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
