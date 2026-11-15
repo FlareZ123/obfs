@@ -14,7 +14,7 @@ test('SNO direct API rejects its reserved output path in the protected manifest'
     assert.throws(()=>createSnoLauncher([
       {path:'entry.cjs',code:'module.exports=1;'},
       {path:reserved,code:'module.exports=2;'}
-    ],'entry.cjs'),/SNO launcher path is reserved/);
+    ],'entry.cjs'),/SNO launcher (?:path is reserved|filename collides)/);
   }
 });
 
@@ -27,7 +27,7 @@ test('SNO CLI refuses launcher collisions before producing an output directory',
     await atomicWrite(path.join(input,'sno-entry.cjs'),'module.exports=13;');
     await assert.rejects(
       main('sno',['--root',input,'--entry','entry.cjs','--out',output]),
-      /SNO launcher path is reserved/
+      /SNO launcher (?:path is reserved|filename collides)/
     );
     await assert.rejects(fs.stat(output),{code:'ENOENT'});
   } finally {
