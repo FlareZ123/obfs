@@ -105,8 +105,7 @@ function recoverBranchFunction(source,functionName){
         const number=masked.left.value^masked.right.value;
         expression='('+expression+' '+node.operator.slice(0,-1)+' '+number+')';
         operations++;
-      } else if(node.left.name===stateName&&node.operator==='='&&
-                node.right.type==='ConditionalExpression') {
+      } else if(node.left.name===stateName&&node.operator==='=') {
         const choice=unmask(node.right);
         if(choice.type!=='ConditionalExpression'||
            choice.test.type!=='Identifier'||choice.test.name!==valueName||
