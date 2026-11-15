@@ -80,6 +80,9 @@ function renameLocalIdentifiers(source,ast,options) {
     if (/^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(node.type)) {
       for(const param of node.params) {
         if (param.type==='Identifier') candidates.push({identifier:param,name:param.name,scope:node});
+        else if (param.type==='AssignmentPattern' && param.left.type==='Identifier') {
+          candidates.push({identifier:param.left,name:param.left.name,scope:node});
+        }
       }
     }
   });
@@ -99,9 +102,12 @@ function renameLocalIdentifiers(source,ast,options) {
     // reference occurs lexically before the declaration or in its initializer.
     if (identifiers.some(item=>item.node!==identifier && item.node.name===name &&
         (item.node.start < identifier.start || item.ancestors.some(ancestor=>
-          ancestor.type==='VariableDeclarator' && ancestor.id===identifier &&
-          ancestor.init && ancestor.init.start<=item.node.start &&
-          item.node.end<=ancestor.init.end)))) continue;
+          (ancestor.type==='VariableDeclarator' && ancestor.id===identifier &&
+            ancestor.init && ancestor.init.start<=item.node.start &&
+            item.node.end<=ancestor.init.end ||
+          ancestor.type==='AssignmentPattern' && ancestor.left===identifier &&
+            ancestor.right && ancestor.right.start<=item.node.start &&
+            item.node.end<=ancestor.right.end))))) continue;
     /** @type {import('./ast').Edit[]} */
     const local=[];
     let safe=true;
