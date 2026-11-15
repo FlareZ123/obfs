@@ -122,8 +122,13 @@ async function main(mode,argv) {
   const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   const absRoot = path.resolve(root);
-  const source = (await readSourceTree(absRoot)).map(file =>
-    jsModule && file.path.endsWith('.js') ? {...file,sourceType:/** @type {'module'} */ ('module')} : file);
+  const sourceTree = await readSourceTree(absRoot);
+  // A .js dependency inside a nested {"type":"module"} package is ESM,
+  // even when SNO starts from a CommonJS .cjs entry. Preserve Node's
+  // nearest-package scope for every file, not only for the launcher entry.
+  const source = sourceTree.map(file =>
+    file.path.endsWith('.js') && (jsModule || mode === 'sno' && entryUsesEsmPackage(sourceTree,file.path)) ?
+      {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
     // Source roots may also contain server-only configuration and credentials.
