@@ -91,3 +91,20 @@ test('SCO preserves function source read through a constant computed key in anot
   assert.equal(await execute(delivered),expected,
     'An imported function key alias must preserve the exact original source spelling');
 });
+
+
+test('SCO preserves function source retrieved through Reflect.get with a constant key alias',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'function inspect(){const local={secretField:42};return local.secretField;}export {inspect};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {inspect} from "./state.mjs";const key="toString";'+
+      'const stringify=Reflect.get(Object.getPrototypeOf(()=>{}),key);'+
+      'console.log(stringify.call(inspect));'}
+  ];
+  const expected=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),expected,
+    'An inherited native source method retrieved through a key alias must preserve source');
+});
