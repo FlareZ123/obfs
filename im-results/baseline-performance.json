@@ -8,32 +8,32 @@
   "measurements": [
     {
       "label": "numeric",
-      "source_sha256": "04fd0bc82a09672a29270cdc9a60b62f460924fe49edca9f202500c645bc7003",
+      "source_sha256": "3f32f32a6581aa578edf6e00d6cc4a2f0b0ec0d70ae2d3d8f2a6cf96e608a936",
       "renamed": 2,
       "iterations": 3000000,
-      "median_original_ms": 27.022194000000127,
-      "median_obfuscated_ms": 26.333180999999968,
-      "ratio": 0.9745019593893761,
+      "median_original_ms": 5.850562000000082,
+      "median_obfuscated_ms": 5.692477999999937,
+      "ratio": 0.9729796898143901,
       "passes_budget": true
     },
     {
       "label": "alias",
-      "source_sha256": "6342bafb97015dc201dc4b4e235acf7bffcfa30cf1f1e2ee2c76fae61aad1317",
+      "source_sha256": "1fd1e5748118311717bb607bae43496bbc25c43096bc2c38e660e22a2d84d80c",
       "renamed": 1,
       "iterations": 3000000,
-      "median_original_ms": 5.826591000000008,
-      "median_obfuscated_ms": 4.922620000000052,
-      "ratio": 0.8448542209329684,
+      "median_original_ms": 6.070462000000134,
+      "median_obfuscated_ms": 5.946170000000166,
+      "ratio": 0.9795251168691994,
       "passes_budget": true
     },
     {
       "label": "bracket",
-      "source_sha256": "80c57e3ceffbbe9ceaf51510652b6e30a70206f282bcdecdba00f2c61a4244f6",
+      "source_sha256": "95f21ef336bf7abd82fd384e873d6fa07466d2566dce0c7c939ba20c02d4a47e",
       "renamed": 2,
       "iterations": 3000000,
-      "median_original_ms": 5.032439999999951,
-      "median_obfuscated_ms": 5.064714999999978,
-      "ratio": 1.0064133899261645,
+      "median_original_ms": 4.889008999999987,
+      "median_obfuscated_ms": 5.0010590000001685,
+      "ratio": 1.0229187551097128,
       "passes_budget": true
     },
     {
@@ -41,9 +41,9 @@
       "source_sha256": "613449c4fb03dc1046cab1d61d1e39d7bfa70097fbc4186d1fcc978d2658508a",
       "renamed": 1,
       "iterations": 3000000,
-      "median_original_ms": 3.047143000000233,
-      "median_obfuscated_ms": 4.997585000000072,
-      "ratio": 1.6400887651152867,
+      "median_original_ms": 2.9737880000002406,
+      "median_obfuscated_ms": 4.918243000000075,
+      "ratio": 1.6538647005098135,
       "passes_budget": true
     }
   ]
