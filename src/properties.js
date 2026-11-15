@@ -145,7 +145,14 @@ function proveLocalObject(ast, rootName, bindings) {
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
     if (!parent) return null;
-    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
+    if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) {
+      // An exported alias exposes the object to consumers beyond this proof.
+      // Only the explicitly tracked root of a closed-world export may remain
+      // exported. Its other aliases must have their own complete import proof.
+      if (parent.type === 'VariableDeclarator' && node.name !== rootName &&
+          ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return null;
+      continue;
+    }
     if (key === 'params' && /^Function/.test(parent.type)) continue;
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
