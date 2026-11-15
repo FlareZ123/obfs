@@ -27,6 +27,9 @@ jobs:
       - name: JSDoc type safety
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
+      - name: Strict JSDoc for external corpus research tools
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck:external
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
