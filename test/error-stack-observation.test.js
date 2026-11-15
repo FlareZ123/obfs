@@ -32,23 +32,23 @@ function compareStack(source) {
 }
 
 test('Error.stack preserves exact source coordinates after local bindings',()=>{
-  const source=String.raw'use strict';function inspect(){const significantLocal=37;return [significantLocal,new Error('trace').stack.match(/stack-observer.cjs:d+:d+/)[0]];}module.exports=inspect();`;
+  const source="'use strict';function inspect(){const significantLocal=37;return [significantLocal,new Error('trace').stack.match(/stack-observer\\.cjs:\\d+:\\d+/)[0]];}module.exports=inspect();";
   compareStack(source);
 });
 
 test('Error.captureStackTrace preserves coordinates and source layout',()=>{
-  const source=String.raw`'use strict';function capture(){const significantLocal=37;const target={};Error.captureStackTrace(target);return [significantLocal,target.stack.match(/stack-observer\.cjs:\d+:\d+/)[0]];}module.exports=capture();`;
+  const source="'use strict';function capture(){const significantLocal=37;const target={};Error.captureStackTrace(target);return [significantLocal,target.stack.match(/stack-observer\\.cjs:\\d+:\\d+/)[0]];}module.exports=capture();";
   compareStack(source);
 });
 
 test('private property renaming declines when stack frame coordinates are visible',()=>{
-  const source=String.raw`'use strict';const owner={hiddenDetail:73};module.exports=[owner.hiddenDetail,new Error('trace').stack.match(/stack-observer\.cjs:\d+:\d+/)[0]];`;
+  const source="'use strict';const owner={hiddenDetail:73};module.exports=[owner.hiddenDetail,new Error('trace').stack.match(/stack-observer\\.cjs:\\d+:\\d+/)[0]];";
   compareStack(source);
 });
 
 test('a separate file stack observer protects source coordinates throughout a file group',()=>{
-  const source=String.raw`export function compute(){const significantLocal=2;return significantLocal;}`;
-  const observer=String.raw`export const recordedFrame=new Error('trace').stack;`;
+  const source="export function compute(){const significantLocal=2;return significantLocal;}";
+  const observer="export const recordedFrame=new Error('trace').stack;";
   const output=obfuscateFiles([
     {path:'compute.mjs',sourceType:'module',code:source},
     {path:'observer.mjs',sourceType:'module',code:observer}
@@ -59,7 +59,7 @@ test('a separate file stack observer protects source coordinates throughout a fi
 });
 
 test('code without stack observation remains eligible for identifier mangling',()=>{
-  const source=String.raw`'use strict';function inspect(){const significantLocal=37;return significantLocal;}module.exports=inspect();`;
+  const source="'use strict';function inspect(){const significantLocal=37;return significantLocal;}module.exports=inspect();";
   const result=obfuscateFiles([{path:'stack-observer.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',strings:false,seed:'agent50-no-stack-control'
   }).files[0];
