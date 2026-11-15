@@ -1,0 +1,47 @@
+name: Manual external JsDeObsBench differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-external-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [coo, sno]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Download upstream pinned verified corpus
+        shell: bash
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://raw.githubusercontent.com/Ch3nYe/JsDeObsBench/8b2e1c35dc4ae25a46ea580ea5dcb6b5de5edbe9/build_dataset/codenet_dataset_name-obfuscation/Project_CodeNet_selected.jsonl" \
+            --output ./jsdeobsbench-native.jsonl
+          actual="$(git hash-object ./jsdeobsbench-native.jsonl)"
+          test "$actual" = "4bde98f958eb81b070f411f39545ea6d5339e8d8"
+      - name: Audit external corpus without executing samples
+        run: node sims/jsdeobsbench-audit.js ./jsdeobsbench-native.jsonl
+      - name: Generate deterministic public source candidates
+        run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --seed pinned-jsdeobsbench-20261115 --max 100
+      - name: Independently execute paired baseline and transformed code in restricted Docker
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --cpus 2 --memory 1g --pids-limit 64 \
+            --user 65534:65534 \
+            --mount "type=bind,src=${{ github.workspace }},dst=/work,readonly" \
+            --workdir /work node:22-alpine \
+            node sims/jsdeobsbench-differential.js \
+              --original /work/jsdeobsbench-native.jsonl \
+              --transformed /work/jsdeobsbench-obfuscated.jsonl \
+              --sample 50 --cases 2 --timeout 3000 \
+              --seed pinned-jsdeobsbench-20261115
