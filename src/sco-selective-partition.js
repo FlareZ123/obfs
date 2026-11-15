@@ -63,71 +63,9 @@ function realmStateObservation(body){
     'ownKeys']);
   const globalNames=new Set(['globalThis','window','self','global']);
   const regexpNames=new Set(['RegExp']);
-  const regexpStatics=new Set(['input','$_','lastMatch','  const globalNames=new Set(['globalThis','window','self','global']);','lastParen',
-    '$+','leftContext',''use strict';
-
-const {parse,walk,staticString}=require('./ast');
-const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
-
-/** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean}} ScoSelectiveOptions */
-/** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
-
-/**
- * Uncomputed object and member keys are property labels, not variable reads.
- * Shorthand properties still visit their separate value nodes as references.
- * @param {import('./ast').AstNode|null} parent
- * @param {string|null} key
- * @returns {boolean}
- */
-function isStaticKey(parent,key){
-  return Boolean(parent&&(
-    parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
-    (parent.type==='Property'||parent.type==='MethodDefinition'||
-     parent.type==='PropertyDefinition')&&key==='key'&&!parent.computed
-  ));
-}
-
-/**
- * Admit only a direct Node.js process.env property read with an explicit
- * static UPPER_SNAKE_CASE key. The private original module runs on the server;
- * this opt-in never copies the environment variable into a client facade.
- * @param {import('./ast').AstNode} expression
- * @returns {boolean}
- */
-function isServerEnvironmentRead(expression){
-  if(expression.type!=='MemberExpression'||expression.optional)return false;
-  const env=expression.object;
-  if(env.type!=='MemberExpression'||env.optional||env.computed||
-     env.object.type!=='Identifier'||env.object.name!=='process'||
-     env.property.type!=='Identifier'||env.property.name!=='env')return false;
-  const name=expression.computed?
-    (expression.property.type==='Literal'?expression.property.value:null):
-    (expression.property.type==='Identifier'?expression.property.name:null);
-  return typeof name==='string' && /^[A-Z][A-Z0-9_]*$/u.test(name);
-}
-
-/**
- * Refuse known cross-realm prototype access in split SCO public and private
- * functions. Intrinsic prototypes belong to their JavaScript realm, so
- * partitioning code that mutates them can silently change observations.
- * This conservative syntax check makes no whole-program alias guarantee.
- *
- * @param {import('./ast').AstNode} body
- * @returns {'prototype'|'RegExp match'|null}
- */
-function realmStateObservation(body){
-  const intrinsicNames=new Set(['Object','Array','Function','String','Number',
-    'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
-    'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
-    'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
-    'Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array',
-    'BigUint64Array']);
-  const reflectorMethods=new Set(['getPrototypeOf','setPrototypeOf',
-    'getOwnPropertyDescriptor','getOwnPropertyDescriptors','getOwnPropertyNames',
-    'getOwnPropertySymbols','defineProperty','defineProperties','get','set',
-    'ownKeys']);
-','rightContext',"
+  const regexpStatics=new Set(['input','$_','lastMatch','$&','lastParen',
+    '$+','leftContext','$`','rightContext',"$'",'$1','$2','$3','$4',
+    '$5','$6','$7','$8','$9']);
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function keyName(node){
     if(node.type==='MemberExpression'){
