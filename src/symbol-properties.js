@@ -67,7 +67,7 @@ function symbolizeLocalProperties(source,ast,options) {
     const proof=proveLocalObject(ast,candidate.name,bindings);
     if(!proof||(!proof.members.length&&!proof.patterns.length))continue;
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
-    if(proof.members.some(member=>!ownNames.has(proof.memberNames.get(member)??null))||
+    if(proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);})||
        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))continue;
     /** @type {Map<string,string>} */
     const symbols=new Map();
