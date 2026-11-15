@@ -2,7 +2,7 @@
 
 const {randomBytes,createHash} = require('node:crypto');
 const {parse,walk,applyEdits,observesFunctionSource} = require('./ast');
-const {obfuscateFiles} = require('./core');
+const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -154,8 +154,30 @@ function createScoHandler(sourceFiles,options={}) {
   if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
+  if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
+  // Validate the public route namespace before creating the HTTP handler.
+  // Exact duplicates silently overwrite Map values, and case-folded aliases
+  // may collide when the source group is deployed on Windows.
+  const seen=new Set();
   /** @type {import('./cross-properties').SourceFile[]} */
-  const normalized = sourceFiles.map(file=>({...file,sourceType:file.sourceType ?? (file.path.endsWith('.mjs')?'module' : file.path.endsWith('.cjs')?'commonjs':'script')}));
+  const normalized=sourceFiles.map(file=>{
+    const filename=safePath(file.path);
+    const collisionKey=filename.toLowerCase();
+    if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
+    seen.add(collisionKey);
+    if(typeof file.code!=='string'&&!Buffer.isBuffer(file.code)) {
+      throw new TypeError(filename+' content must be a string or Buffer');
+    }
+    const sourceType=file.sourceType ??
+      (filename.endsWith('.mjs')?'module':filename.endsWith('.cjs')?'commonjs':'script');
+    if(!['module','script','commonjs','asset'].includes(sourceType)) {
+      throw new TypeError('Unknown source type '+sourceType);
+    }
+    if(sourceType!=='asset'&&typeof file.code!=='string') {
+      throw new TypeError(filename+' JavaScript must be UTF-8 text');
+    }
+    return {...file,path:filename,sourceType};
+  });
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   return (request,response) => {
