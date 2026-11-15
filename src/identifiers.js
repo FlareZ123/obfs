@@ -52,6 +52,25 @@ function renameLocalIdentifiers(source,ast,options) {
   // .name even when every lexical reference is rewritten correctly.
   /** @type {Set<string>} */
   const inferredNames=new Set();
+  // V8 can embed the original binding spelling in TypeError messages such as
+  // "callable is not a function" or "items is not iterable". Catching those
+  // errors makes a lexical-only rename observably incorrect. Protect direct
+  // callee/tag and iteration-source roots rather than disabling every rename.
+  /** @type {Set<string>} */
+  const errorSpellingNames=new Set();
+  /** @param {AstNode|null|undefined} expression @returns {string|null} */
+  function rootIdentifier(expression) {
+    let node=expression;
+    while(node && (node.type==='ChainExpression'||node.type==='MemberExpression')) {
+      node=node.type==='ChainExpression'?node.expression:node.object;
+    }
+    return node?.type==='Identifier'?node.name:null;
+  }
+  /** @param {AstNode|null|undefined} expression */
+  function markErrorRoot(expression) {
+    const name=rootIdentifier(expression);
+    if(name!==null)errorSpellingNames.add(name);
+  }
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function derivesBindingName(expression) {
     return Boolean(expression && (expression.type==='ArrowFunctionExpression' ||
@@ -61,6 +80,13 @@ function renameLocalIdentifiers(source,ast,options) {
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
+    if(node.type==='CallExpression'||node.type==='NewExpression')markErrorRoot(node.callee);
+    if(node.type==='TaggedTemplateExpression')markErrorRoot(node.tag);
+    if(node.type==='SpreadElement')markErrorRoot(node.argument);
+    if(node.type==='ForOfStatement')markErrorRoot(node.right);
+    if(node.type==='YieldExpression' && node.delegate)markErrorRoot(node.argument);
+    if(node.type==='VariableDeclarator' && node.id.type==='ArrayPattern')markErrorRoot(node.init);
+    if(node.type==='AssignmentExpression' && node.left.type==='ArrayPattern')markErrorRoot(node.right);
     if (node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
         derivesBindingName(node.init)) inferredNames.add(node.id.name);
     if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
@@ -96,7 +122,7 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) ||
+    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
