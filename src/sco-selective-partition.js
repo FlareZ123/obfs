@@ -385,6 +385,25 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
     }
+    // A declaration in this function's outermost block shadows the host
+    // binding throughout the body. The bounded proof avoids mistaking safe
+    // locals named "window" or "document" for ambient browser capabilities.
+    const localBrowserNames=new Set();
+    if(body.type==='BlockStatement'){
+      for(const statement of body.body){
+        if(statement.type==='VariableDeclaration'){
+          for(const declaration of statement.declarations){
+            if(declaration.id.type==='Identifier'&&browserOnlyRoots.has(declaration.id.name)){
+              localBrowserNames.add(declaration.id.name);
+            }
+          }
+        }
+        if((statement.type==='FunctionDeclaration'||statement.type==='ClassDeclaration')&&
+           statement.id?.type==='Identifier'&&browserOnlyRoots.has(statement.id.name)){
+          localBrowserNames.add(statement.id.name);
+        }
+      }
+    }
     const globalAliases=new Set(['globalThis']);
     let aliasesChanged=true;
     while(aliasesChanged){
@@ -419,7 +438,7 @@ function partitionScoSelectedAsyncExports(file,options) {
         }
       }
       if(node.type!=='Identifier'||isStaticKey(parent,key))return;
-      if(browserOnlyRoots.has(node.name)){
+      if(browserOnlyRoots.has(node.name)&&!localBrowserNames.has(node.name)){
         throw new TypeError('Private SCO export uses browser-only ambient state: '+node.name);
       }
       if(publicBindings.has(node.name)){
