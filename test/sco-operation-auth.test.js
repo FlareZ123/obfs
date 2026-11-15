@@ -95,6 +95,8 @@ test('SCO authorizer can inspect all nested batch calls before side effects',asy
     remoteMethods:{batch:createScoBatchMethod(operations)},
     authorizeRpc:()=>true,
     authorizeOperation:(request,method,args)=>{
+      if(method==='score')return args.length===1 &&
+        Number.isSafeInteger(args[0]) && args[0]>=0 && args[0]<=3;
       if(method!=='batch'||args.length!==1||!Array.isArray(args[0]))return false;
       return args[0].every(call=>call && call.method==='score' && Array.isArray(call.args) &&
         call.args.length===1 && Number.isSafeInteger(call.args[0]) && call.args[0]>=0 && call.args[0]<=3);
