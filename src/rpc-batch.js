@@ -33,7 +33,9 @@ function createScoBatchMethod(methods,options={}) {
   /** @type {Map<string,(...args:any[])=>unknown|Promise<unknown>>} */
   const registry=new Map();
   for(const [name,task] of Object.entries(methods)) {
-    if (name==='batch' || typeof task!=='function') {
+    if (name==='batch' || typeof task!=='function' || recognizedBatches.has(task)) {
+      // Renaming a nested batch method must not bypass the HTTP handler's
+      // single-level preflight authorization for its individual operations.
       throw new TypeError('Batch registry cannot contain a nested batch or nonfunction operation');
     }
     registry.set(name,task);
