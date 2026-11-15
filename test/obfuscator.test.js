@@ -223,7 +223,8 @@ test('literal-key destructuring preserves binding names and can be renamed',()=>
   const sources=[
     'const state={secret:7,other:11};const {secret,other:second}=state;module.exports=[secret,second,state.secret];',
     'const state={secret:13};function get(p){const {secret:local}=p;return local;}module.exports=get(state);',
-    'const state={secret:17};const {secret}=state;module.exports=secret;'
+    'const state={secret:17};const {secret}=state;module.exports=secret;',
+    'const state={secret:7};const {["secret"]:value}=state;module.exports=value;'
   ];
   for(const source of sources) {
     const out=obfuscateFiles([{path:'entry.cjs',code:source}],{mode:'sno',seed:'destructure',strings:false});
@@ -232,7 +233,6 @@ test('literal-key destructuring preserves binding names and can be renamed',()=>
     assert.doesNotMatch(out.files[0].code,/\{secret:/);
   }
   for(const source of [
-    'const state={secret:7};const {["secret"]:value}=state;module.exports=value;',
     'const state={secret:7};const {...rest}=state;module.exports=rest.secret;',
     'const state={secret:7};const {secret=13}=state;module.exports=secret;'
   ]) {
