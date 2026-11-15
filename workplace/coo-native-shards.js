@@ -150,7 +150,19 @@ function shardNativeBitvectorModule(file,options) {
         helpers[1]+'('+param.name+');}'});
   }
   if(!shards.length)return {files:[file],functions:0,declined,helperCalls:0};
-  const code=imports.join('\n')+'\n'+applyEdits(file.code,edits);
+  const transformed=applyEdits(file.code,edits);
+  // Hashbang must remain byte zero, and directive prologues may carry
+  // host/toolchain meaning such as "use client" in supported deployments.
+  let offset=0;
+  if(file.code.startsWith('#!')) {
+    const end=file.code.indexOf('\n');
+    offset=end<0?file.code.length:end+1;
+  }
+  for(const statement of ast.body) {
+    if(statement.type==='ExpressionStatement'&&statement.directive)offset=statement.end;
+    else break;
+  }
+  const code=transformed.slice(0,offset)+'\n'+imports.join('\n')+'\n'+transformed.slice(offset);
   parse(code,'module');
   return {files:[{path:filename,code,sourceType:'module'},...shards],
     functions:edits.length,declined,helperCalls:edits.length*2};
