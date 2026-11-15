@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles,createScoHandler}=require('../src');
-const {isSourceMapAsset,hasSourceMapDirective}=require('../src/source-maps');
+const {isSourceMapAsset,isUntransformedSourceAsset,hasSourceMapDirective}=require('../src/source-maps');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
@@ -100,4 +100,26 @@ test('COO/SNO output and explicitly published SCO source maps fail before any fi
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
+});
+
+test('source-like files marked as opaque assets are refused rather than shipped unchanged',()=>{
+  const extensions=['js','mjs','cjs','jsx','ts','mts','cts','tsx','vue','svelte','astro','mdx','coffee','litcoffee'];
+  for (const ext of extensions) {
+    const filename='src/private.'+ext;
+    assert.equal(isUntransformedSourceAsset(filename),true,filename);
+    for(const mode of ['coo','sco','sno']) {
+      assert.throws(()=>obfuscateFiles([
+        app,{path:filename,sourceType:'asset',code:Buffer.from('export const privateCode=1;')}
+      ],{mode}),/Untransformed source asset would disclose original code/,mode+' '+ext);
+    }
+  }
+  for(const filename of ['style.css','index.html','graphic.png','bundle.wasm','data.json']) {
+    assert.equal(isUntransformedSourceAsset(filename),false,filename);
+  }
+});
+
+test('SCO refuses JavaScript relabeled as a static asset',()=>{
+  assert.throws(()=>createScoHandler([
+    {path:'public.js',sourceType:'asset',code:'globalThis.originalSource="leaked"'}
+  ]),/Untransformed source asset/);
 });
