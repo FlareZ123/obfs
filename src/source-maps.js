@@ -2,6 +2,7 @@
 
 const acorn = require('acorn');
 const {assertNoInlineHtmlSource}=require('./html-assets');
+const {assertNoInlineSvgSource}=require('./svg-assets');
 
 /**
  * Source-map artifacts can contain the unobfuscated program in sourcesContent,
@@ -63,6 +64,7 @@ function assertNoSourceMapDisclosure(file) {
       throw new TypeError('Untransformed source asset would disclose original code: ' + file.path);
     }
     assertNoInlineHtmlSource(file.path,file.code);
+    assertNoInlineSvgSource(file.path,file.code);
     return;
   }
   if (typeof file.code === 'string' && hasSourceMapDirective(file.code,file.sourceType)) {
