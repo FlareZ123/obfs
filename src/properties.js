@@ -511,21 +511,52 @@ function patternPropertyEdits(source,patterns,mapping) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
+  // A private zero-argument factory can create an owner without exposing its
+  // shape. Admit its literal only when a single direct call initializes the
+  // tracked const and every other reference to the factory is absent.
+  // Exported, aliased, re-entered or dynamically invoked factories are refused.
+  /** @type {Map<string,AstNode>} */
+  const factoryObjects=new Map();
+  for(const statement of ast.body) {
+    if(statement.type!=='FunctionDeclaration'||statement.async||statement.generator||
+       statement.params.length||statement.id?.type!=='Identifier'||
+       bindings.get(statement.id.name)!==1||statement.body.body.length!==1)continue;
+    const returned=statement.body.body[0];
+    if(returned.type==='ReturnStatement'&&returned.argument?.type==='ObjectExpression') {
+      factoryObjects.set(statement.id.name,returned.argument);
+    }
+  }
+  /** @param {AstNode} expression @returns {AstNode|null} */
+  function factoryLiteral(expression) {
+    if(expression.type!=='CallExpression'||expression.arguments.length||
+       expression.callee.type!=='Identifier'||!factoryObjects.has(expression.callee.name))return null;
+    const name=expression.callee.name;
+    let references=0;
+    walk(ast,(node,parent,key)=>{
+      if(node.type!=='Identifier'||node.name!==name)return;
+      if(parent?.type==='FunctionDeclaration'&&key==='id')return;
+      if(parent===expression&&key==='callee')references++;
+      else references=2;
+    });
+    return references===1?factoryObjects.get(name)??null:null;
+  }
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
-    if (node.type !== 'ObjectExpression' || parent?.type !== 'VariableDeclarator' || key !== 'init' ||
+    if (parent?.type !== 'VariableDeclarator' || key !== 'init' ||
         parent.id.type !== 'Identifier' || bindings.get(parent.id.name) !== 1) return;
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
+    const literal=node.type==='ObjectExpression' ? node : factoryLiteral(node);
+    if(!literal)return;
     /** @type {AstNode[]} */
-    const properties = node.properties;
+    const properties = literal.properties;
     if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.shorthand || p.kind !== 'init' ||
           ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) || !isLiteralValue(p.value))) return;
     const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
-    candidates.push({node,name:parent.id.name,properties});
+    candidates.push({node:literal,name:parent.id.name,properties});
   });
 
   /** @type {import('./ast').Edit[]} */
