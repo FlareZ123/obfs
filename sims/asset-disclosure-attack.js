@@ -72,6 +72,9 @@ async function evaluate(baselineRoot,protectedRoot) {
     path:'icon.svg',sourceType:'asset',
     code:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>window.'+secret+'=31;</script></svg>')
   });
+  const renamedMap=/** @type {File} */ ({
+    path:'metadata.json',sourceType:'asset',code:Buffer.from(map.code)
+  });
   const safeHtml=/** @type {File} */ ({
     path:'safe.html',sourceType:'asset',
     code:Buffer.from('<!doctype html><script src="./entry.cjs"></script>')
@@ -80,7 +83,7 @@ async function evaluate(baselineRoot,protectedRoot) {
   const rows=[];
   for(const mode of /** @type {Mode[]} */ (['coo','sco','sno'])) {
     const options={mode,seed:'asset-disclosure-attack-control'};
-    const sourceArtifacts=[map,html,disguised,svg];
+    const sourceArtifacts=[map,html,disguised,svg,renamedMap];
     let disclosedByBaseline=0;
     let refusedByProtected=0;
     const startBaseline=performance.now();
@@ -88,7 +91,7 @@ async function evaluate(baselineRoot,protectedRoot) {
       const out=baseline.obfuscateFiles([entry,asset],options).files.find(f=>f.path===asset.path);
       assert.ok(out,asset.path);
       const published=Buffer.isBuffer(out.code)?out.code.toString('utf8'):out.code;
-      if(asset.path.endsWith('.map')) {
+      if(asset.path.endsWith('.map') || asset.path==='metadata.json') {
         const decoded=JSON.parse(published);
         assert.equal(decoded.sourcesContent[0],source);
         disclosedByBaseline++;
@@ -101,7 +104,7 @@ async function evaluate(baselineRoot,protectedRoot) {
     const startProtected=performance.now();
     for(const asset of sourceArtifacts) {
       assert.throws(()=>protectedCompiler.obfuscateFiles([entry,asset],options),
-        /(?:Source-map asset|HTML asset|SVG asset|Untransformed source asset)/);
+        /(?:Source-map asset|Source-map JSON payload|HTML asset|SVG asset|Untransformed source asset)/);
       refusedByProtected++;
     }
     const protectedBuildMs=performance.now()-startProtected;
@@ -124,6 +127,10 @@ async function evaluate(baselineRoot,protectedRoot) {
   assert.equal(baselineMapResponse.status,200);
   assert.equal(JSON.parse(baselineMapResponse.body.toString('utf8')).sourcesContent[0],source);
   assert.throws(()=>protectedCompiler.createScoHandler([map]),/Source-map asset/);
+  const baselineRenamedResponse=await readScoAsset(baseline.createScoHandler([renamedMap]),renamedMap.path);
+  assert.equal(baselineRenamedResponse.status,200);
+  assert.equal(JSON.parse(baselineRenamedResponse.body.toString('utf8')).sourcesContent[0],source);
+  assert.throws(()=>protectedCompiler.createScoHandler([renamedMap]),/Source-map JSON payload/);
   const baselineHtmlResponse=await readScoAsset(baseline.createScoHandler([html]),html.path);
   assert.equal(baselineHtmlResponse.status,200);
   assert.ok(baselineHtmlResponse.body.toString('utf8').includes(secret));
@@ -137,7 +144,7 @@ async function evaluate(baselineRoot,protectedRoot) {
     protectedPath:path.resolve(protectedRoot),
     attack:'Read distributed opaque asset without executing or deobfuscating JavaScript',
     rows,
-    scoAssetExtraction:{sourceMapRecovered:true,htmlRecovered:true,svgRecovered:true,protectedRefusal:true},
+    scoAssetExtraction:{sourceMapRecovered:true,renamedMapRecovered:true,htmlRecovered:true,svgRecovered:true,protectedRefusal:true},
     note:'Timings are cold, tiny preflight samples and are NOT runtime overhead benchmarks.'
   };
   return result;
