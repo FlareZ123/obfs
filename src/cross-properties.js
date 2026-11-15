@@ -327,7 +327,7 @@ function renameCrossFileProperties(files,seed) {
         // object's original own keys even when the reference never escapes.
         const ownNames=new Set(names);
         if (users.some(user=>
-          user.proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
+          user.proof.members.some(member=>!ownNames.has(user.proof.memberNames.get(member))) ||
           user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
@@ -358,8 +358,8 @@ function renameCrossFileProperties(files,seed) {
         }
         for(const user of users) {
           for(const member of user.proof.members) {
-            const old=member.computed ? staticString(member.property) : staticName(member.property);
-            if(mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
+            const old=user.proof.memberNames.get(member);
+            if(old!==undefined && mapping.has(old)) add(user.file,{start:member.property.start,end:member.property.end,
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
           }
           for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
