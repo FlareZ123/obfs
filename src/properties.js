@@ -514,16 +514,31 @@ function renameLocalProperties(source, ast, options) {
   // A private zero-argument factory can create an owner without exposing its
   // shape. Admit its literal only when a single direct call initializes the
   // tracked const and every other reference to the factory is absent.
-  // Exported, aliased, re-entered or dynamically invoked factories are refused.
+  // Exported, mutable, aliased or dynamically invoked factories are refused.
+  /** @param {AstNode} functionNode @returns {AstNode|null} */
+  function returnedObject(functionNode){
+    if(functionNode.async||functionNode.generator||functionNode.params.length)return null;
+    const body=functionNode.body.type==='BlockStatement' ?
+      functionNode.body.body.length===1&&functionNode.body.body[0].type==='ReturnStatement' ?
+        functionNode.body.body[0].argument : null :
+      functionNode.body;
+    return body?.type==='ObjectExpression'?body:null;
+  }
   /** @type {Map<string,AstNode>} */
   const factoryObjects=new Map();
   for(const statement of ast.body) {
-    if(statement.type!=='FunctionDeclaration'||statement.async||statement.generator||
-       statement.params.length||statement.id?.type!=='Identifier'||
-       bindings.get(statement.id.name)!==1||statement.body.body.length!==1)continue;
-    const returned=statement.body.body[0];
-    if(returned.type==='ReturnStatement'&&returned.argument?.type==='ObjectExpression') {
-      factoryObjects.set(statement.id.name,returned.argument);
+    if(statement.type==='FunctionDeclaration'&&statement.id?.type==='Identifier'&&
+       bindings.get(statement.id.name)===1) {
+      const result=returnedObject(statement);
+      if(result)factoryObjects.set(statement.id.name,result);
+    } else if(statement.type==='VariableDeclaration'&&statement.kind==='const'&&
+              statement.declarations.length===1) {
+      const declaration=statement.declarations[0];
+      const fn=declaration.init;
+      if(declaration.id.type!=='Identifier'||bindings.get(declaration.id.name)!==1||
+         !fn||!['ArrowFunctionExpression','FunctionExpression'].includes(fn.type))continue;
+      const result=returnedObject(fn);
+      if(result)factoryObjects.set(declaration.id.name,result);
     }
   }
   /** @param {AstNode} expression @returns {AstNode|null} */
@@ -534,7 +549,8 @@ function renameLocalProperties(source, ast, options) {
     let references=0;
     walk(ast,(node,parent,key)=>{
       if(node.type!=='Identifier'||node.name!==name)return;
-      if(parent?.type==='FunctionDeclaration'&&key==='id')return;
+      if((parent?.type==='FunctionDeclaration'||parent?.type==='VariableDeclarator')&&
+          key==='id')return;
       if(parent===expression&&key==='callee')references++;
       else references=2;
     });
