@@ -68,8 +68,8 @@ async function main(){
         'let captured=0,fallbackCalls=0;'+
         'function fallback(){fallbackCalls++;return 99;}'+
         '({privateScore:captured=fallback()}=state);'+
-        'document.getElementById("answer").textContent='+
-        '[captured,fallbackCalls,state.cacheWeight].join(",");'}
+        'const displayed=[captured,fallbackCalls,state.cacheWeight];'+
+        'document.getElementById("answer").textContent=displayed.join(",");'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-default-assignment',
     identifiers:false,strings:false});
   assert.equal(defaultSet.crossFile.properties,2);

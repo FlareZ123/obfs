@@ -157,7 +157,8 @@ test('closed-world ESM assignment rewrite preserves cross-file behavior',async()
       'import {shared} from "./state.mjs";',
       'let captured=0;',
       '({privateField:captured}=shared);',
-      'console.log([captured,shared.otherField].join(","));'
+      'const displayed=[captured,shared.otherField];',
+      'console.log(displayed.join(","));'
     ].join('')}
   ];
   const transformed=obfuscateFiles(inputs,{
@@ -200,7 +201,8 @@ test('closed-world ESM assignment default retains fallback and owner behavior',a
       'let captured=0,fallbackCalls=0;',
       'function fallback(){fallbackCalls++;return 99;}',
       '({privateField:captured=fallback()}=shared);',
-      'console.log([captured,fallbackCalls,shared.otherField].join(","));'
+      'const displayed=[captured,fallbackCalls,shared.otherField];',
+      'console.log(displayed.join(","));'
     ].join('')}
   ];
   const transformed=obfuscateFiles(files,{
@@ -225,6 +227,26 @@ test('closed-world ESM assignment default retains fallback and owner behavior',a
   }finally {
     await fs.rm(root,{recursive:true,force:true});
   }
+});
+
+test('closed-world imported owner in an observable failed join callee is not renamed',()=>{
+  // V8 reports the complete [captured,state.privateField].join callee text
+  // when Array.prototype.join is replaced with a non-callable value. A
+  // property rewrite in that callee would change the TypeError.message.
+  const files=[
+    {path:'state.mjs',sourceType:/** @type {const} */ ('module'),
+      code:'export const state={privateField:17};'},
+    {path:'entry.mjs',sourceType:/** @type {const} */ ('module'),
+      code:'import {state} from "./state.mjs";'+
+        'let captured=0;({privateField:captured}=state);'+
+        'console.log([captured,state.privateField].join(","));'}
+  ];
+  const out=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+    seed:'source-spelled-callee-refusal',strings:false,identifiers:false});
+  assert.equal(out.crossFile.objects,0);
+  assert.equal(out.crossFile.properties,0);
+  assert.equal(out.files[0].code,files[0].code);
+  assert.equal(out.files[1].code,files[1].code);
 });
 
 test('closed-world export refuses assignment results that escape to reflection',()=>{
