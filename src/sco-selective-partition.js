@@ -45,8 +45,8 @@ function isServerEnvironmentRead(expression){
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
- * exports, plus private synchronous function declarations or immutable function
- * expressions, and unexported primitive-literal const declarations. Helpers
+ * exports, plus local non-generator function declarations or immutable function
+ * expressions (including async helpers), and unexported primitive constants. Helpers
  * remain private unless listed explicitly in publicHelperNames. A server-only
  * helper cannot escape as a function value or be called from public code.
  * An explicit opt-in admits direct process.env uppercase-key reads, refusing public
@@ -149,11 +149,11 @@ function partitionScoSelectedAsyncExports(file,options) {
   }
   for(const helper of privateHelperCandidates){
     const {name,fn}=helper;
-    if(!name||fn.async||fn.generator||
+    if(!name||fn.generator||
        !Array.isArray(fn.params)||
        fn.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier')||
        selected.has(name)||serverConstants.has(name)||helperBindings.has(name)){
-      throw new TypeError('Selective SCO requires distinct synchronous private helper bindings');
+      throw new TypeError('Selective SCO requires distinct non-generator private helper bindings');
     }
     helperBindings.add(name);
     if(requestedPublicHelpers.has(name)){
