@@ -52,6 +52,48 @@ test('two independent SCO variants collapse under source-only AST canonicalizati
   }
 });
 
+
+/** @param {string} source @returns {unknown} */
+function evaluateCommonJs(source) {
+  const context={module:{exports:null}};
+  vm.runInNewContext(source,context,{timeout:1000});
+  return context.module.exports;
+}
+
+test('SCO hashed identifiers and object properties normalize without the request seed',async()=>{
+  const original=[
+    'const record={secretCount:7};',
+    'const weightedCount=record.secretCount+5;',
+    'module.exports=weightedCount;'
+  ].join('\\n');
+  const server=http.createServer(createScoHandler([
+    {path:'entry.cjs',sourceType:'commonjs',code:original}
+  ]));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const addr=server.address();
+    if(!addr||typeof addr==='string')throw new Error('Expected listener');
+    const endpoint='http://127.0.0.1:'+addr.port+'/obfs/entry.cjs';
+    const responses=await Promise.all([fetch(endpoint),fetch(endpoint)]);
+    assert.ok(responses.every(response=>response.status===200));
+    const variants=await Promise.all(responses.map(response=>response.text()));
+    assert.notEqual(variants[0],variants[1]);
+    for(const variant of variants){
+      assert.match(variant,/_v[a-f0-9]{12}/u);
+      assert.match(variant,/_p[a-f0-9]{10}/u);
+      assert.equal(evaluateCommonJs(variant),evaluateCommonJs(original));
+      assert.ok(!variant.includes('/* variant:'));
+    }
+    const normalized=variants.map(variant=>normalizeScoVariant(variant,'commonjs'));
+    assert.equal(normalized[0],normalized[1]);
+    assert.equal(evaluateCommonJs(normalized[0]),evaluateCommonJs(original));
+    assert.match(normalized[0],/reconstructedProperty_0/u);
+    assert.match(normalized[0],/reconstructedLocal_0/u);
+  }finally {
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
 test('normalizer handles marker-free source and refuses invalid input',()=>{
   assert.equal(normalizeScoVariant("const x='text';"),'const x="text";');
   assert.throws(()=>normalizeScoVariant(/** @type {any} */ (null)),/served JS string/);
