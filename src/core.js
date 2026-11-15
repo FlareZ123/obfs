@@ -2,8 +2,8 @@
 
 const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse} = require('./ast');
-const {renameLocalProperties} = require('./properties');
+const {parse,walk} = require('./ast');
+const {renameLocalProperties,collectBindings} = require('./properties');
 const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
@@ -90,6 +90,28 @@ function obfuscateFiles(files, options = {}) {
     return {path:filename,code:file.code,sourceType};
   });
   const cross = options.closedWorld && options.properties !== false ? renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+  const shouldEncodeStrings=options.strings === true || (options.strings === undefined && mode === 'sno');
+  /** @type {Set<string>} */
+  const reservedNames=new Set();
+  /** @type {string[]} */
+  const reservedSources=[];
+  let globalStringShadow=false;
+  if (shouldEncodeStrings) {
+    // Classic scripts share one page-global lexical environment. Reserve every
+    // identifier, including Unicode-escaped spellings and free references,
+    // before any single file introduces a top-level decoder helper.
+    for (const input of cross.files) {
+      if (input.sourceType==='asset' || typeof input.code!=='string') continue;
+      const inputAst=parse(input.code,input.sourceType);
+      walk(inputAst,node=>{
+        if (node.type==='Identifier') reservedNames.add(node.name);
+      });
+      reservedSources.push(input.code);
+      if (input.sourceType==='script' && collectBindings(inputAst).has('String')) {
+        globalStringShadow=true;
+      }
+    }
+  }
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
@@ -119,8 +141,8 @@ function obfuscateFiles(files, options = {}) {
     let literals = 0;
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
-    if (options.strings === true || (options.strings === undefined && mode === 'sno')) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength});
+    if (shouldEncodeStrings && !globalStringShadow) {
+      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources});
       code = modified.code;
       literals = modified.count;
       ast = parse(code,sourceType);
