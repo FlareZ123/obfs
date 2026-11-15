@@ -40,6 +40,23 @@ test('discarded own-field destructuring assignment is rewritten with the owner',
   assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
 });
 
+test('SCO compiler rewrites the same proven assignment without changing behavior',()=>{
+  const source=[
+    'const owner={privateField:17,otherField:5};',
+    'let captured=0;',
+    '({privateField:captured=999}=owner);',
+    'module.exports=[captured,owner.otherField];'
+  ].join('');
+  const output=obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sco',seed:'sco-local-default-assignment',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.metrics.objects,1);
+  assert.equal(output.metrics.properties,2);
+  assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
+});
+
 test('constant computed assignment key is safely rewritten',()=>{
   const source=[
     'const owner={privateField:17};',
