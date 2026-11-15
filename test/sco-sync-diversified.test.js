@@ -38,6 +38,37 @@ test('physical and observational synchronization are different in opaque machine
   assert.equal(observationallySynchronizes(distinguishable,[0],[0,1,2,3]),false);
 });
 
+test('unreachable private states make global physical synchronization undecidable by a public step-only observer',async()=>{
+  const outputs=Array.from({length:4},()=>[0,0]);
+  const globallySynchronizing={
+    next:Array.from({length:4},()=>[0,0]),
+    output:outputs
+  };
+  const neverGloballySynchronizing={
+    next:[[0,0],[2,2],[3,3],[1,1]],
+    output:outputs
+  };
+  assert.equal(new Set(globallySynchronizing.next.map(row=>row[0])).size,1);
+  assert.equal(new Set(neverGloballySynchronizing.next.map(row=>row[0])).size,4);
+  const run=async model=>{
+    let state=0;
+    return searchSynchronizingWordDiversified({
+      async step(symbol){
+        const prior=state;
+        state=model.next[prior][symbol];
+        return model.output[prior][symbol];
+      }
+    });
+  };
+  const first=await run(globallySynchronizing);
+  const second=await run(neverGloballySynchronizing);
+  assert.deepEqual(second.inputTape,first.inputTape);
+  assert.deepEqual(second.word,first.word);
+  assert.ok(first.word);
+  assert.equal(observationallySynchronizes(globallySynchronizing,first.word,[0,1,2,3]),true);
+  assert.equal(observationallySynchronizes(neverGloballySynchronizing,first.word,[0,1,2,3]),true);
+});
+
 test('diversified attack reduces false post-search observable resets in two independent corpora',async()=>{
   const result=await runComparison(250);
   assert.equal(result.count,250);
