@@ -5,6 +5,7 @@ const {parse,walk,applyEdits,observesFunctionSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
+const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 /**
@@ -220,7 +221,9 @@ function createScoHandler(sourceFiles,options={}) {
     if(sourceType!=='asset'&&typeof file.code!=='string') {
       throw new TypeError(filename+' JavaScript must be UTF-8 text');
     }
-    return {...file,path:filename,sourceType};
+    const normalizedFile = {...file,path:filename,sourceType};
+    assertNoSourceMapDisclosure(normalizedFile);
+    return normalizedFile;
   });
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
