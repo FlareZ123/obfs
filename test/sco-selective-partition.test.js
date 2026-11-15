@@ -46,6 +46,24 @@ test('selective SCO rejects escaped private exports, reflection and ambiguous gr
     ['secret','secret']),/distinct privateNames/);
 });
 
+
+test('selective SCO rejects split function-object and ambient-state mutation',async()=>{
+  const sharedFunction=[
+    'export function visible(){return visible.counter||0;}',
+    'export async function privateBump(){visible.counter=42;return 1;}',
+    'export async function run(){await privateBump();return visible();}'
+  ].join('\n');
+  const original=await import('data:text/javascript,'+encodeURIComponent(sharedFunction));
+  assert.equal(await original.run(),42,'Original private/public exports share one function');
+  assert.throws(()=>partition(sharedFunction,['privateBump']),/separated public binding/);
+
+  const sharedGlobal=[
+    'export function visible(){return globalThis.sharedFlag;}',
+    'export async function privateBump(){globalThis.sharedFlag=42;return 1;}'
+  ].join('\n');
+  assert.throws(()=>partition(sharedGlobal,['privateBump']),/share ambient state/);
+});
+
 test('selective SCO preserves locally run source and exact generated public module',async()=>{
   const original=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const actual=partition(original);

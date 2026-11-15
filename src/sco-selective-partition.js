@@ -36,6 +36,13 @@ function partitionScoSelectedAsyncExports(file,options) {
   const ast=parse(file.code,'module');
   /** @type {string[]} */
   const privateChunks=[];
+  /** @type {import('./ast').AstNode[]} */
+  const privateBodies=[];
+  const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
+  /** @type {Set<string>} */
+  const privateAmbient=new Set();
+  /** @type {Set<string>} */
+  const publicAmbient=new Set();
   /** @type {string[]} */
   const publicChunks=[];
   /** @type {string[]} */
@@ -73,10 +80,15 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(selected.has(name)){
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
+      privateBodies.push(fn.body);
+      walk(fn.body,node=>{
+        if(node.type==='Identifier'&&ambientRoots.has(node.name))privateAmbient.add(node.name);
+      });
     }else{
       publicNames.push(name);
       publicChunks.push(text);
       walk(fn,(node,parent,key)=>{
+        if(node.type==='Identifier'&&ambientRoots.has(node.name))publicAmbient.add(node.name);
         if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
            node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
@@ -90,6 +102,21 @@ function partitionScoSelectedAsyncExports(file,options) {
   }
   if(privateChunks.length!==selected.size)throw new TypeError('Unknown private SCO export name');
   if(!publicChunks.length)throw new TypeError('Selective SCO requires at least one retained public export');
+  // Server and client load different function objects. Private code that reads
+  // or mutates a public export can observe the wrong copy after partitioning.
+  const publicBindings=new Set(publicNames);
+  for(const body of privateBodies){
+    walk(body,node=>{
+      if(node.type==='Identifier'&&publicBindings.has(node.name)){
+        throw new TypeError('Private SCO export references a separated public binding: '+node.name);
+      }
+    });
+  }
+  // Both environments also have distinct ambient state objects. Reject a
+  // global-root overlap without attempting to prove which properties alias.
+  for(const name of privateAmbient){
+    if(publicAmbient.has(name))throw new TypeError('Private/public exports share ambient state: '+name);
+  }
   const partition=partitionScoAsyncModule({
     path:file.path,sourceType:'module',code:privateChunks.join('\n')
   },{seed:options.seed,endpoint:options.endpoint,batch:options.batch,maxBatchCalls:options.maxBatchCalls});
