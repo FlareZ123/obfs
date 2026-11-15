@@ -21,6 +21,10 @@ The prompt imposes three distinct control surfaces: SCO retains a trusted mutabl
 - **Correctness:** a compiler may increase the number of transformed properties only after ownership and reflection are proved. The source-observation repair restored native function-source behavior in five previously failing tests and passed full CI across OSes; the coarse refusal remains costly in otherwise safe programs.
 - **Cost:** the 2.5× constraint applies to the actual end-to-end workload. COO cannot subtract a client initializer. The SCO HMAC loopback result does not include network RTT/TLS, while the numeric Wasm hot result excluded fresh initialization. A suitable workload-specific configuration policy must include cold and steady work, setup, transport and retries.
 
+## SCO operation granularity under per-request latency
+
+A follow-up adds a **25 ms asynchronous wait per authenticated HTTP request** to the *same* legitimate 12-operation HMAC workload, without altering protected CPU work. In five alternating-order trials, serial RPCs exceeded the 2.5× ceiling: **7.579× Ubuntu and 6.449× Windows**. A **single batch** preserved the ceiling: **1.558× Ubuntu and 1.456× Windows**. Both platforms passed manual [CI #43700173996](https://github.com/FlareZ123/obfs/actions/runs/43700173996), source `dbd53c59ac034c64ce462224e863104836550b72`. This is a controlled auth-wait/RTT surrogate, not a real TLS or network measurement. Under an additive latency approximation based on the zero-delay runs, 12 serial requests have only ~6–7 ms of per-request latency headroom; a single batch has roughly 83–94 ms headroom. The estimates are sensitive to CPU and OS variance. **Choose SCO batching on actual operation boundaries**, with server-side per-item authorization, before claiming the application's 2.5× runtime requirement.
+
 ## Pinned evidence
 
 - Source-observer repair and benchmarked collateral opt-out: `im-results/source-observer-proof-coverage-2026-11-15.md`, full green [CI #43696715738](https://github.com/FlareZ123/obfs/actions/runs/43696715738).
