@@ -68,6 +68,10 @@ async function main(mode,argv) {
   const absRoot = path.resolve(root);
   const source = await readSourceTree(absRoot);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
+  // Validate the reserved launcher destination before writing any output.
+  if (mode === 'sno' && source.some(file=>file.path.toLowerCase()==='sno-entry.cjs')) {
+    throw new Error('SNO launcher path is reserved: sno-entry.cjs');
+  }
   if (mode === 'sco') {
     const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
     /** @type {Promise<void>} */
@@ -82,7 +86,6 @@ async function main(mode,argv) {
   const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld});
   for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
   if (mode === 'sno') {
-    if (entry === 'sno-entry.cjs') throw new Error('SNO launcher path collides with the entry file');
     const packageFile=source.find(file=>file.path==='package.json');
     if (entry.endsWith('.js') && packageFile && JSON.parse(packageFile.code.toString()).type === 'module') {
       throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');

@@ -13,6 +13,11 @@ const {safePath} = require('./core');
  */
 function createSnoLauncher(files,entry) {
   const checkedEntry = safePath(entry);
+  // The launcher's own output name must never be part of its digest manifest.
+  // Check case-insensitively because Windows filesystems commonly fold case.
+  if (files.some(file => safePath(file.path).toLowerCase() === 'sno-entry.cjs')) {
+    throw new Error('SNO launcher path is reserved: sno-entry.cjs');
+  }
   if (!files.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);
   if (!/\.(?:cjs|js)$/.test(checkedEntry)) throw new Error('SNO entry must be a CommonJS .cjs or .js file');
   const manifest = files.map(file => [safePath(file.path), createHash('sha256').update(file.code).digest('hex')]);
