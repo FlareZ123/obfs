@@ -16,6 +16,7 @@ const modules=[
 ];
 
 test('inert CSS and raster assets preserve cross-file ESM property mangling',async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const files=[...modules,
     {path:'styles/site.css',sourceType:'asset',code:Buffer.from('body{color:red}')},
     {path:'image/logo.png',sourceType:'asset',code:Buffer.from([0x89,0x50,0x4e,0x47,0,1])},
@@ -48,10 +49,12 @@ test('inert CSS and raster assets preserve cross-file ESM property mangling',asy
 });
 
 test('HTML and unknown JSON assets keep the full module graph unmodified',()=>{
-  for(const asset of [
+  /** @type {import('../src/core').SourceFile[]} */
+  const potentiallyActiveAssets=[
     {path:'index.html',sourceType:'asset',code:'<script type="module">import {state} from "./lib/state.mjs"</script>'},
     {path:'manifest.json',sourceType:'asset',code:'{"possibleModuleConsumer":"lib/state.mjs"}'}
-  ]) {
+  ];
+  for(const asset of potentiallyActiveAssets) {
     const source=[...modules,asset];
     const result=obfuscateFiles(source,{
       mode:'coo',seed:'active-assets-block',closedWorld:true,
@@ -63,6 +66,7 @@ test('HTML and unknown JSON assets keep the full module graph unmodified',()=>{
 });
 
 test('potentially active SVG assets remain outside the inert whitelist',()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const files=[...modules,{path:'vector.svg',sourceType:'asset',
     code:'<svg xmlns="http://www.w3.org/2000/svg"><script>console.log(1)</script></svg>'}];
   const result=obfuscateFiles(files,{
