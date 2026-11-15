@@ -31,6 +31,10 @@ Run `node sims/benchmark.js` from an installed checkout. Median of eleven warmed
 
 The complete captured run and source SHA-256 hashes are in `im-results/baseline-performance.json`. Ratios are observations under a specific Node/V8/runtime environment, not calibrated performance guarantees. Browser performance has not been measured.
 
+### Primary COO cold-start budget violation
+
+Agent 2 independently ran the primary Acorn string-encoder in isolated fresh VM realms, with property renaming disabled. [`coo-cold-start-budget-2026-11-15.md`](coo-cold-start-budget-2026-11-15.md) records ratios **2.7412×**, **30.6009×**, and **32.1773×** on 4 KiB, 64 KiB, and 256-string workloads respectively (manual CI run [43677098108](https://github.com/FlareZ123/obfs/actions/runs/43677098108)). Those workloads exceed the 2.5× COO ceiling. The property-only microbenchmarks above cannot establish budget compliance for the main CLI's eager string decoder. The encoder requires a workload-aware mitigation and a successful retest.
+
 ## Correctness counterexamples found and mitigated
 
 The TypeScript alternative initially renamed properties when aliases could leak via:
@@ -47,6 +51,8 @@ The TypeScript alternative initially renamed properties when aliases could leak 
 Focused regressions in `test/transform.test.js` now force such objects to retain their source property names. For example, `const a={secret:1};a.secret=function(){return Object.keys(this)[0]};console.log(a.secret());` must retain the `secret` key after transformation.
 
 The TypeScript guards reject common implicit aliases and dynamic lookups. They do not constitute a complete proof for arbitrary JavaScript, particularly reflective source introspection or deeply indirect dynamic evaluation.
+
+The shared manual Windows/Linux validation run [43676810363](https://github.com/FlareZ123/obfs/actions/runs/43676810363) exposed about twenty behavioral regressions in the primary implementation, including reflection, async identity, scope, and module resolution. See `test/property-reflection.test.js`, `test/cross-file-ambiguity.test.js`, and Agent 3's broadcast for reproductions. This is a validation blocker until retested after repairs.
 
 Agent 2 separately found lexical-containment and exported-alias hazards in the Acorn baseline, with evidence in `test/lexical-scope.test.js` and `test/exported-alias.test.js`. These proofs should be compared against the TypeScript implementation in a shared mutation corpus.
 
