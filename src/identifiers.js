@@ -85,8 +85,12 @@ function renameLocalIdentifiers(source,ast,options) {
     if(node.type==='SpreadElement')markErrorRoot(node.argument);
     if(node.type==='ForOfStatement')markErrorRoot(node.right);
     if(node.type==='YieldExpression' && node.delegate)markErrorRoot(node.argument);
-    if(node.type==='VariableDeclarator' && node.id.type==='ArrayPattern')markErrorRoot(node.init);
-    if(node.type==='AssignmentExpression' && node.left.type==='ArrayPattern')markErrorRoot(node.right);
+    // Object destructuring of nullish values may include the RHS binding
+    // spelling in a caught TypeError (including object-rest patterns).
+    if(node.type==='VariableDeclarator' &&
+        (node.id.type==='ArrayPattern'||node.id.type==='ObjectPattern'))markErrorRoot(node.init);
+    if(node.type==='AssignmentExpression' &&
+        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern'))markErrorRoot(node.right);
     if (node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
         derivesBindingName(node.init)) inferredNames.add(node.id.name);
     if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
