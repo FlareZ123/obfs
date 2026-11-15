@@ -50,10 +50,13 @@ test('actual authenticated SCO proxy permits observed sync-word discovery withou
   assert.equal(result.scenarios,2);
   assert.equal(result.heldout,4092);
   assert.equal(result.allExact,true);
+  assert.equal(result.networkSteps,result.discoverySteps+result.rpcSteps);
+  assert.equal(result.networkSteps,3642);
   assert.ok(result.strictlyUnseen>1000);
   for(const detail of result.details){
     assert.deepEqual(detail.discoveredWord,[0,0,0]);
-    assert.ok(detail.discoverySteps>0);
+    assert.equal(detail.discoverySteps,857);
+    assert.equal(detail.networkSteps,detail.discoverySteps+detail.rpcSteps);
     assert.equal(detail.publicResetExport,false);
     assert.equal(detail.unauthorizedStatus,403);
     assert.equal(detail.heldout,2046);
