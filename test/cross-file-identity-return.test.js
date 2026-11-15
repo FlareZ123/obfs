@@ -100,3 +100,23 @@ test('arrow wrapper with a side-effect expression cannot forward ownership',asyn
   await check('export const identity=x=>(Object.keys(x),x);',
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',0);
 });
+
+test('immutable exported function expression forwards object alias',async()=>{
+  await check('export const identity=function(x){return x;};',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',1);
+});
+
+test('immutable exported named function expression forwards object alias',async()=>{
+  await check('export const identity=function inner(x){return x;};',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',1);
+});
+
+test('immutable exported block-body arrow identity forwards object alias',async()=>{
+  await check('export const identity=x=>{return x;};',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',1);
+});
+
+test('generator function expression is outside synchronous identity proof',async()=>{
+  await check('export const identity=function*(x){return x;};',
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state).next().value;console.log(v.secretField);',0);
+});
