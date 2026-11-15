@@ -212,6 +212,10 @@ function recoverBundledExpressionVm(code) {
     const wrapper=findWrapper(ast,helper.id.name);
     if(!dispatch||!operators||!wrapper)continue;
     const values=[...registers.initial];
+    // The public wrapper and private helper have independent parameter names.
+    // Both pass the same value through the exact call, so substitute the
+    // wrapper's binding when synthesizing the executable recovered function.
+    values[0]=wrapper.parameter;
     let pc=0,instructions=0,invalid=false;
     while(pc<tape.bytes.length) {
       const opcode=((tape.bytes[pc++]^dispatch.key)-dispatch.rotation)&255;
