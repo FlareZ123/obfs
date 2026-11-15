@@ -141,3 +141,41 @@ against *both* the ordinary and state-masked COO ESM variants. One
 variants fit the 2.5× bound for this single workload. The earlier ordinary
 Chromium run was 30.5 vs 57.1 ms (1.872×), illustrating run-to-run JIT and
 clock variability. Whole-app and other browser measurements remain necessary.
+
+
+## Cross-platform held-out recovery and long hot-loop follow-up
+
+[Reproducible corpus](../sims/branch-block-recovery-corpus.js) generates
+120 deterministic bounded random conditional trees with seed-per-case,
+then invokes an independent source-only parser on each compiler output.
+The [pinned Linux/Windows run
+43736928794](https://github.com/FlareZ123/obfs/actions/runs/43736928794)
+reconstructed **210 variants from 105 admitted programs**, covering
+**8,234 basic blocks** and **10,920 compared transformed/recovered executions**
+with value or exception class/message equivalence. The other 15 generated
+programs were conservatively declined because the root was not a
+conditional expression. This result is limited to the emitted format
+recognized by the attacker and observed input cases, including Symbols
+and BigInts; it is not a general JavaScript program equivalence proof.
+
+A 1.2M-call interleaved six-trial Node 22 profile
+[43736748023](https://github.com/FlareZ123/obfs/actions/runs/43736748023)
+measured one **2.606×** slowdown for the masked variant on Linux
+mixed-positive/negative inputs, violating the 2.5× cap in that micro-run.
+Its native median was only **6.64 ms**, so clock/JIT noise was a credible
+confounder. The subsequent [12-million-call per-trial Linux/Windows run
+43737145220](https://github.com/FlareZ123/obfs/actions/runs/43737145220)
+passed the focused suite on both OS and produced:
+
+| Workload | Linux plain | Linux masked | Windows plain | Windows masked |
+| --- | ---: | ---: | ---: | ---: |
+| Mixed positive/negative | 1.409× | 1.773× | 1.488× | 1.793× |
+| Alternating zero/nonzero | 1.203× | 1.394× | 1.253× | 1.444× |
+| Numeric/string coercion | 1.168× | 1.360× | 1.184× | 1.388× |
+
+The longer trials suggest substantial short-run variance; both runs are
+retained. The 2.5× budget is workload-specific. This transform is still
+opt-in and does not establish an application-wide runtime ceiling. The
+source-only parser recovering every admitted held-out format also means
+that its masked mode has no demonstrated security advantage compensating
+for the higher measured median slowdown.
