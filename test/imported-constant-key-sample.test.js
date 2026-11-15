@@ -56,6 +56,7 @@ test('seedless attacker normalizes the two hashed ESM fields without original so
   const original=await run(sources('before'));
   const attack=neutralizeHashedNames(sources('after'));
   assert.equal(attack.properties,2);
-  assert.equal(await run(/** @type {ReturnType<typeof sources>} */ (attack.files)).then(
-    result=>result.stdout),original.stdout);
+  const neutralized=await run(/** @type {ReturnType<typeof sources>} */ (attack.files));
+  assert.equal(neutralized.status,0,neutralized.stderr);
+  assert.equal(neutralized.stdout,original.stdout);
 });
