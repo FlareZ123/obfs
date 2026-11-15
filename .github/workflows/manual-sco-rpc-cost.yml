@@ -56,3 +56,10 @@ jobs:
         run: node sims/sco-tls-boundary.js
       - name: Challenge compiler-generated HTTPS SCO facade with authorized relay
         run: node sims/sco-tls-facade-relay.js
+      - name: Preserve cross-platform TLS and attacker timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-tls-${{ matrix.os }}
+          path: |
+            sco-tls-boundary-output.json
+            sco-tls-facade-relay-output.json
