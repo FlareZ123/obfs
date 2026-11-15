@@ -65,7 +65,9 @@ function cases(key,n) {
     `${initial}function f(x){return x?.[${literal}];}console.log(f(a));`,
   ];
 }
-const rand=rng(0xC0FFEE);
+const seed=Number(process.env.OBFS_FUZZ_SEED ?? 0xC0FFEE);
+if(!Number.isSafeInteger(seed) || seed<0 || seed>0xFFFFFFFF)throw new Error('OBFS_FUZZ_SEED must be a uint32');
+const rand=rng(seed);
 const keys=['secret','alpha','$name','some_key','a-b','constructor','prototype','a space','__proto__','unicode_π'];
 let total=0,renamed=0,failures=[];
 const rounds=Number(process.env.OBFS_FUZZ_ROUNDS ?? 1);
@@ -81,5 +83,5 @@ for(let i=0;i<rounds;i++) {
     if(original!==obfuscated) failures.push({key:name,n,index,original,obfuscated,source,code:result.files['fuzz.js']});
   }
 }
-console.log(JSON.stringify({seed:'0xC0FFEE',cases:total,renamed,failures},null,2));
+console.log(JSON.stringify({seed:'0x'+seed.toString(16),cases:total,renamed,failures},null,2));
 assert.equal(failures.length,0,'semantic counterexample(s) discovered');
