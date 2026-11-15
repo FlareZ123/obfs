@@ -51,6 +51,36 @@ with the nine-case addition, strict JSDoc and browser SCO fixtures. This
 extends the tested refusal coverage while reducing admission for some
 legitimate introspective functions. No universal completeness claim follows.
 
+## Independent legacy RegExp match-state counterexample
+
+Node `vm.createContext` supplies an independent intrinsic `RegExp` state
+for each realm. In one context `/(XY)(Z)/.test("XYZ");RegExp.$1`
+returns `"XY"`; a second fresh context's `RegExp.$1` remains the
+empty string. A mixed-module private match followed by a retained
+public `RegExp.$1` read can therefore diverge after SCO relocation,
+despite no visible `.prototype` property and no shared user global.
+
+The new `SCO split must refuse legacy RegExp match state shared between
+exports` test in `test/sco-intrinsic-realm.test.js` reproduces the
+realm separation and checks compiler refusal for four literal and
+immutable-alias public reads: `RegExp.$1`, `RegExp.lastMatch`,
+`const Rx=RegExp;Rx["$"+"1"]`, and `const Rx=RegExp;Rx.input`.
+
+**Pre-fix** [Ubuntu/Windows run 43770956356](https://github.com/FlareZ123/obfs/actions/runs/43770956356)
+at `e1742cfd112e29e597afa14522ac1d1d85c783a0` failed the new
+semantic refusal on each platform. **Post-fix**
+[Ubuntu/Windows run 43771299189](https://github.com/FlareZ123/obfs/actions/runs/43771299189)
+at `a2613893b92662e75293540d5264b6bd85aadb0c` passed both
+platforms' targeted SCO tests, static checks and browser fixtures.
+The compiler now refuses these legacy RegExp static state properties
+(and their bounded computed and local alias spellings) wherever they
+appear in a selected-SCO public or private body.
+
+The evidence covers V8 legacy RegExp match properties in Node;
+other JavaScript engines, alternate aliases and unrelated hidden
+per-realm runtime state need separate investigation. It does not
+establish a general realm-isolation equivalence theorem.
+
 ## Limits and follow-up
 
 The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
