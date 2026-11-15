@@ -44,7 +44,7 @@ test('an anonymous class expression inherits its const binding name',()=>{
 
 test('an anonymous async arrow retains its binding name through an alias',()=>{
   compare(`'use strict';const handler=async()=>1;const alias=handler;
-    module.exports=[handler.name,alias.name];`,0);
+    module.exports=[handler.name,alias.name];`,1);
 });
 
 test('let binding also supplies a function name',()=>{
