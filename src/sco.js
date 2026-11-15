@@ -18,6 +18,7 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
  * @property {number} [maxRpcBytes]
+ * @property {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>} [runRpcIsolated]
  */
 
 /**
@@ -40,12 +41,15 @@ function respondJson(response,status,payload) {
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
  * @param {import('node:http').IncomingMessage} request
  * @param {import('node:http').ServerResponse} response
- * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'>} options
+ * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'>} options
  * @returns {Promise<void>}
  */
 async function handleRpc(request,response,options) {
   try {
-    if (!await options.authorizeRpc(request)) {
+    // Preserve the early coarse denial path when no isolation callback is
+    // configured. With isolation, authorization occurs inside its critical
+    // section after bounded request parsing, avoiding stale policy snapshots.
+    if (!options.runRpcIsolated && !await options.authorizeRpc(request)) {
       respondJson(response,403,{ok:false,error:'Forbidden'});
       return;
     }
@@ -84,6 +88,14 @@ async function handleRpc(request,response,options) {
       respondJson(response,400,{ok:false,error:'Unknown method'});
       return;
     }
+    // Run the coarse gate, all inner policy checks and the actual task under
+    // the same application-supplied isolation scope. A server-supplied mutex
+    // or transaction can then serialize state-changing RPCs for one identity.
+    const execute=async()=>{
+    if (options.runRpcIsolated && !await options.authorizeRpc(request)) {
+      respondJson(response,403,{ok:false,error:'Forbidden'});
+      return;
+    }
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
@@ -110,6 +122,18 @@ async function handleRpc(request,response,options) {
     }
     const result=await task(...query.args);
     respondJson(response,200,{ok:true,value:result});
+    };
+    if(options.runRpcIsolated) {
+      // A trusted integrator callback MUST await execute exactly once and
+      // hold whatever transaction or lock is needed until it settles.
+      let invoked=false;
+      await options.runRpcIsolated(request,async()=>{
+        if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
+        invoked=true;
+        await execute();
+      });
+      if(!invoked)throw new TypeError('RPC isolation callback omitted execute');
+    } else await execute();
   } catch (error) {
     // Server-resident exceptions must never be classified by their type.
     // The only caller-visible 400 SyntaxError is a malformed JSON request.
@@ -196,6 +220,9 @@ function createScoHandler(sourceFiles,options={}) {
   if (options.authorizeOperation !== undefined && typeof options.authorizeOperation!=='function') {
     throw new TypeError('authorizeOperation must be a function');
   }
+  if (options.runRpcIsolated !== undefined && typeof options.runRpcIsolated!=='function') {
+    throw new TypeError('runRpcIsolated must be a function');
+  }
   if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
@@ -261,6 +288,7 @@ function createScoHandler(sourceFiles,options={}) {
         remoteMethods:options.remoteMethods,
         authorizeRpc:options.authorizeRpc,
         authorizeOperation:options.authorizeOperation,
+        runRpcIsolated:options.runRpcIsolated,
         maxRpcBytes:options.maxRpcBytes
       });
       return;
