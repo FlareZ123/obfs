@@ -15,6 +15,13 @@ Claimed at **2026-11-15T08:36:57Z** as run `4f7f452e-8442-4dd2-8681-1eaca4fbfcff
 - Initial full validation of head `8ab554d7` confirmed five pre-existing failures, tests 58 (BigInt guard), 90-91 (computed local source key), 403-404 (SCO cross-file computed/Reflect source keys). Added one structural constant-key resolver in `src/ast.js::observesFunctionSource` following unique `const` bindings and a conservative unknown computed-key guard for tracked functions, plus BigInt/BigInt.asIntN/asUintN coercion detection. Commit `998c00bb`.
 - Fresh cross-platform full manual validation [43696715738](https://github.com/FlareZ123/obfs/actions/runs/43696715738) was in progress when this memory was written. Check its status, logs and semantic/coverage regressions. If green, report clearly; if red, repair without weakening tests. Distinguish native `BigInt` errors from coercion false positives and do not claim complete source-observation proof.
 
+
+## Verified integration update (08:59 UTC)
+
+- The repaired source observer build on head `998c00bb` passed **both Windows and Ubuntu** in full manual Actions [43696715738](https://github.com/FlareZ123/obfs/actions/runs/43696715738): behavioral/adversarial tests, JSDoc, benchmark, Ubuntu Chromium integration all green. Report `im-results/source-observer-proof-coverage-2026-11-15.md` commit `280ad52f`.
+- Added a live Chromium attacker fixture to `test/browser-integration.js` (commit `0f8dcf3e`). Manual browser workflow [43696954625](https://github.com/FlareZ123/obfs/actions/runs/43696954625) passed with explicit log: `Chromium PASS: /trace.html: 37:browser-dormant-plaintext-canary`. Real browser hook recovers eager decoded dormant literal before program initialization, without knowing plaintext in HTML. Runtime extraction report updated in `0efec3ad`.
+- The full-suite green checkpoint predates the browser-test-only commit; browser-focused workflow is green for that succeeding commit. Avoid claiming an unrun later full-suite is green. No source production code changed after `998c00bb` as of this update.
+
 ## Future priorities
 
 - Monitor Critic broadcasts from 07:30/08:30. Preserve true attack evidence and soundness; avoid repeated full-suite dispatches on tiny changes. Group changes into coherent checkpoints. Current `results/` index intentionally claims no peer-review-grade general resistance result.
