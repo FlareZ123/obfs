@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
 const {atomicWrite}=require('../src/atomic');
+const {spawnSync}=require('node:child_process');
 const {summarizeCoverage}=require('../sims/jsdeobsbench-coverage');
 
 test('coverage counters and emitted size are kept separate from security conclusions',async()=>{
@@ -29,6 +30,16 @@ test('coverage counters and emitted size are kept separate from security conclus
     assert.equal(summary.bindings,2);
     assert.equal(summary.literals,2);
     assert.equal(summary.objects,1);
+    const script=path.join(__dirname,'..','sims','jsdeobsbench-coverage.js');
+    const positive=spawnSync(process.execPath,[script,file,'--require-transform'],{encoding:'utf8'});
+    assert.equal(positive.status,0,positive.stderr);
+    await atomicWrite(file,JSON.stringify({
+      original:'const a=1',obfuscated:'const a=1',
+      obfs_metrics:{properties:0,bindings:0,literals:0,objects:0}
+    })+'\n');
+    const vacuous=spawnSync(process.execPath,[script,file,'--require-transform'],{encoding:'utf8'});
+    assert.equal(vacuous.status,1,vacuous.stderr);
+
     await atomicWrite(file,JSON.stringify({original:'a',obfuscated:'b',obfs_metrics:{properties:-1}})+'\n');
     await assert.rejects(summarizeCoverage(file),/metric/);
   } finally {
