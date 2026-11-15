@@ -401,20 +401,32 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         consumer?.type==='ForInStatement' && consumer.left===member ||
         consumer?.type==='ObjectPattern' || consumer?.type==='ArrayPattern' ||
         consumer?.type==='Property' && parents.get(consumer)?.type==='ObjectPattern') return null;
-    // V8 can insert the original operand's *source spelling* into a thrown
-    // TypeError, e.g. "owner.secretField is not iterable" for for-of or
-    // array spread. Changing the private key would therefore alter an error
-    // message even if no explicit Function#toString or stack read occurs.
-    // Refuse iterable-protocol sources rather than assuming only values
-    // and method receivers are observable. Other engines may differ.
-    if(consumer?.type==='ForOfStatement' && consumer.right===member ||
-       consumer?.type==='SpreadElement' && consumer.argument===member ||
-       consumer?.type==='VariableDeclarator' && consumer.init===member &&
-         consumer.id.type==='ArrayPattern' ||
-       consumer?.type==='AssignmentExpression' && consumer.right===member &&
-         consumer.left.type==='ArrayPattern' ||
-       consumer?.type==='YieldExpression' && consumer.delegate &&
-         consumer.argument===member) return null;
+    // V8 can print the source spelling of a failed callee or iterable
+    // operand, e.g. "owner.secretField is not iterable", or
+    // "target[owner.secretField] is not a function". Renaming a member
+    // anywhere inside that expression would alter an observable TypeError
+    // even without Function#toString or a stack observation. Reject such
+    // contexts through the enclosing AST expression chain. A nested
+    // function body is a separately executed expression and does not become
+    // part of its enclosing function object's operand spelling.
+    let expression=member;
+    let ancestor=consumer;
+    while(ancestor) {
+      if(ancestor.type==='CallExpression' && ancestor.callee===expression ||
+         ancestor.type==='NewExpression' && ancestor.callee===expression ||
+         ancestor.type==='TaggedTemplateExpression' && ancestor.tag===expression ||
+         ancestor.type==='ForOfStatement' && ancestor.right===expression ||
+         ancestor.type==='SpreadElement' && ancestor.argument===expression ||
+         ancestor.type==='VariableDeclarator' && ancestor.init===expression &&
+           ancestor.id.type==='ArrayPattern' ||
+         ancestor.type==='AssignmentExpression' && ancestor.right===expression &&
+           ancestor.left.type==='ArrayPattern' ||
+         ancestor.type==='YieldExpression' && ancestor.delegate &&
+           ancestor.argument===expression) return null;
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))break;
+      expression=ancestor;
+      ancestor=parents.get(expression);
+    }
     // Deletion can expose an inherited getter/value under the original key.
     // The property shape of Object.prototype is outside the local proof.
     const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
@@ -426,8 +438,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             !['string','number','boolean','bigint'].includes(typeof rhs.value) && rhs.value!==null) return null;
       } else if (['&&=','||=','??='].includes(consumer.operator)) return null;
     }
-    if (consumer?.type==='CallExpression' && consumer.callee===member ||
-        consumer?.type==='TaggedTemplateExpression' && consumer.tag===member) return null;
+
   }
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifiers.some(({node}) => node.name === 'arguments') &&
