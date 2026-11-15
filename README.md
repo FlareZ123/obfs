@@ -23,6 +23,24 @@ node .\dist-server\sno-entry.cjs
 
 **Runnable advanced SCO example:** [`examples/sco-private/`](examples/sco-private/README.md) includes an original keyed ESM implementation, the **actual generated client RPC facade** saved as a before-and-after artifact, a deterministic reproduction/check script, and an authenticated localhost HTTP server. A live differential regression checks the generated client against the server-resident original. This demonstrates a genuine server-only source and key separation, with the runtime and oracle limitations documented in the example. Existing COO/SNO transformations cannot provide the same trusted-server confidentiality under their full-control threat models.
 
+**Multi-module SCO example:** [`examples/sco-graph/`](examples/sco-graph/README.md)
+contains three cooperating private ES modules, two exact compiler-generated
+public RPC facades, an authenticated localhost service, and a native-versus-
+remote integration test. `partitionScoAsyncGraph` explicitly selects which
+private module exports become public facades; `bindScoGraphExports` merges
+their private server methods into an authorized RPC registry. Its measured
+12,000-round HMAC operation met the 2.5× runtime target on two localhost
+runners, with incomplete performance/security coverage documented in
+[`im-results/sco-graph-partition-2026-11-15.md`](im-results/sco-graph-partition-2026-11-15.md).
+
+**Experimental COO sharding sample:** [`examples/coo-shards/`](examples/coo-shards/README.md)
+includes a checked-in four-module before/after transformation of two string
+constants, a source-only offline reconstruction witness, and paired cold/hot
+Node measurements. It remains outside the production transform: its public
+UTF-16/XOR masks are reversible, and the tested graph-load wall time exceeded
+the project's 2.5× target. See
+[`im-results/coo-shard-layout-2026-11-15.md`](im-results/coo-shard-layout-2026-11-15.md).
+
 `bin/sco.js` starts an HTTP server with the obfuscator library loaded server-side. It encodes served JavaScript afresh on each request, under `/obfs/`. Example:
 
 ```powershell
@@ -35,7 +53,7 @@ SCO now serves only the named browser entry and its static ESM imports/reexports
 
 For browser module graphs that use `.js` rather than `.mjs` extensions, add `--js-module` to the COO or SCO CLI invocation. This explicitly treats every input `.js` file as an ES module; do not enable it for mixed classic-script or CommonJS `.js` trees. The flag is rejected in SNO. `.mjs` is recognized as a module without the flag. The SNO CLI detects explicit nested Node `package.json` module scopes for `.js` dependencies, allowing a CommonJS entry to dynamically import ESM modules.
 
-The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, `createScoBatchMethod`, `preflightScoBatchState`, `partitionScoAsyncModule`, and `bindScoModuleExports`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
+The programmatic API is `require('./src')`, exporting `obfuscateFiles`, `createSnoLauncher`, `createScoHandler`, `createScoRpcClientSource`, `createScoBatchMethod`, `preflightScoBatchState`, `partitionScoAsyncModule`, `bindScoModuleExports`, `partitionScoAsyncGraph`, and `bindScoGraphExports`. A file is `{path,code,sourceType?}`. Modes are `coo`, `sco`, `sno`; supported source types are `script`, `module`, `commonjs`, `asset`.
 
 ## Implemented transformations
 
