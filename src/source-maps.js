@@ -14,6 +14,16 @@ function isSourceMapAsset(filename) {
 }
 
 /**
+ * Executable or transpiler-input source files copied as opaque assets bypass
+ * every JavaScript transformation and can publish the entire source text.
+ * @param {string} filename
+ * @returns {boolean}
+ */
+function isUntransformedSourceAsset(filename) {
+  return /\.(?:[cm]?js|jsx|[cm]?ts|tsx|vue|svelte|astro|mdx|coffee|litcoffee)$/iu.test(filename);
+}
+
+/**
  * Recognize both //# and /*# sourceMappingURL directives from real JavaScript
  * comments. Parsing avoids false positives in string/regex/template
  * literals containing the same spelling. All known source-map URL forms,
@@ -48,6 +58,9 @@ function assertNoSourceMapDisclosure(file) {
     if (isSourceMapAsset(file.path)) {
       throw new TypeError('Source-map asset would disclose original source: ' + file.path);
     }
+    if (isUntransformedSourceAsset(file.path)) {
+      throw new TypeError('Untransformed source asset would disclose original code: ' + file.path);
+    }
     return;
   }
   if (typeof file.code === 'string' && hasSourceMapDirective(file.code,file.sourceType)) {
@@ -55,4 +68,4 @@ function assertNoSourceMapDisclosure(file) {
   }
 }
 
-module.exports = {isSourceMapAsset,hasSourceMapDirective,assertNoSourceMapDisclosure};
+module.exports = {isSourceMapAsset,isUntransformedSourceAsset,hasSourceMapDirective,assertNoSourceMapDisclosure};
