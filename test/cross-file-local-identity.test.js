@@ -88,6 +88,18 @@ for(const [name,logic,expected] of [
   ['block arrow and two aliases',
     'const relay=value=>{return value;};const first=relay(state);let second=first;'+
     'export const outcome=second.privateMetric+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['immutable private getter',
+    'const get=()=>state;const alias=get();'+
+    'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['private getter as a local function declaration',
+    'function get(){return state;}get();const alias=get();'+
+    'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['exported getter leaks private owner to unknown imports',
+    'export const get=()=>state;const alias=get();'+
+    'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
+  ['inline getter result cannot be rewritten without a tracked alias',
+    'const get=()=>state;'+
+    'export const outcome=get().privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
   ['reflecting wrapper',
     'const relay=value=>(Object.keys(value),value);const alias=relay(state);'+
     'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
