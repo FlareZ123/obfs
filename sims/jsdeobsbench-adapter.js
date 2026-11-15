@@ -28,7 +28,7 @@ function parseArgs(argv) {
     const value=argv[index+1];
     if(!['--input','--output','--mode','--seed','--strings','--max','--source-type'].includes(key) ||
         value===undefined || Object.hasOwn(values,key)) {
-      throw new TypeError('Expected unique --input, --output, --mode, --seed, --strings, --max pairs');
+      throw new TypeError('Expected unique --input, --output, --mode, --seed, --strings, --max, --source-type pairs');
     }
     values[key]=value;
   }
@@ -41,7 +41,6 @@ function parseArgs(argv) {
   if(sourceType!=='script'&&sourceType!=='commonjs')throw new TypeError('--source-type must be script or commonjs');
   const max=Number(values['--max']??0);
   if(!Number.isSafeInteger(max)||max<0)throw new TypeError('--max must be a nonnegative safe integer');
-  /** @type {BenchmarkOptions} */
   /** @type {BenchmarkOptions} */
   const options={mode,seed:values['--seed']??'obfs-jsdeobsbench-v1',max,sourceType};
   if(strings!=='default')options.strings=strings==='on';
