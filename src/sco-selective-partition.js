@@ -64,6 +64,12 @@ function realmStateObservation(body){
     'getOwnPropertySymbols','defineProperty','defineProperties','get','set',
     'ownKeys']);
   const globalNames=new Set(['globalThis','window','self','global']);
+  /** @type {Map<string,string>} */
+  const intrinsicKinds=new Map();
+  for(const name of intrinsicNames)intrinsicKinds.set(name,name);
+  const immutableMathNumbers=new Set(['E','LN10','LN2','LOG10E','LOG2E','PI','SQRT1_2','SQRT2']);
+  const immutableNumberValues=new Set(['EPSILON','MAX_SAFE_INTEGER','MIN_SAFE_INTEGER',
+    'MAX_VALUE','MIN_VALUE','NaN','NEGATIVE_INFINITY','POSITIVE_INFINITY']);
   const regexpNames=new Set(['RegExp']);
   const regexpStatics=new Set(['input','$_','lastMatch','$&','lastParen',
     '$+','leftContext','$`','rightContext',"$'",'$1','$2','$3','$4',
@@ -79,6 +85,27 @@ function realmStateObservation(body){
         node.key.type==='Identifier'?node.key.name:staticString(node.key);
     }
     return null;
+  }
+  /**
+   * Recognize standard immutable numeric constants without assuming all
+   * members of Math or Number are primitive. Other intrinsic members may
+   * be functions or objects with mutable own properties.
+   * @param {import('./ast').AstNode} receiver
+   * @param {string} property
+   * @returns {boolean}
+   */
+  function isImmutableNumericProperty(receiver,property){
+    const kind=receiver.type==='Identifier'?intrinsicKinds.get(receiver.name):
+      receiver.type==='MemberExpression'&&receiver.object.type==='Identifier'&&
+      globalNames.has(receiver.object.name)?keyName(receiver):null;
+    return kind==='Math'&&immutableMathNumbers.has(property)||
+      kind==='Number'&&immutableNumberValues.has(property);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isImmutableNumericMember(node){
+    const property=keyName(node);
+    return node.type==='MemberExpression'&&property!==null&&
+      isImmutableNumericProperty(node.object,property);
   }
   // Track global roots as well as constructor/Reflect aliases. Without
   // this, a private write through `const root=globalThis;root.Math.x=...`
@@ -105,8 +132,21 @@ function realmStateObservation(body){
         for(const property of node.id.properties){
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const name=keyName(property);
-          if(name!==null&&intrinsicNames.has(name))add(intrinsicNames,property.value.name);
+          if(name!==null&&intrinsicNames.has(name)){
+            add(intrinsicNames,property.value.name);
+            if(!intrinsicKinds.has(property.value.name))intrinsicKinds.set(property.value.name,name);
+          }
           if(name==='RegExp')add(regexpNames,property.value.name);
+        }
+        return;
+      }
+      if(node.id.type==='ObjectPattern'&&isIntrinsic(node.init)){
+        for(const property of node.id.properties){
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=keyName(property);
+          if(name!==null&&!isImmutableNumericProperty(node.init,name)){
+            add(intrinsicNames,property.value.name);
+          }
         }
         return;
       }
@@ -119,7 +159,13 @@ function realmStateObservation(body){
       const globalMember=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
         intrinsicNames.has(keyName(node.init)??'');
-      if(direct||globalMember)add(intrinsicNames,node.id.name);
+      if(direct||globalMember){
+        add(intrinsicNames,node.id.name);
+        const kind=direct?intrinsicKinds.get(node.init.name):keyName(node.init);
+        if(kind&&!intrinsicKinds.has(node.id.name))intrinsicKinds.set(node.id.name,kind);
+      }
+      if(node.init.type==='MemberExpression'&&isIntrinsic(node.init.object)&&
+         !isImmutableNumericMember(node.init))add(intrinsicNames,node.id.name);
       const regexpDirect=node.init.type==='Identifier'&&regexpNames.has(node.init.name);
       const regexpGlobal=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
@@ -146,9 +192,14 @@ function realmStateObservation(body){
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function rootedInIntrinsic(node){
+    return isIntrinsic(node)||node.type==='MemberExpression'&&
+      rootedInIntrinsic(node.object);
+  }
   /** @param {import('./ast').AstNode} member @returns {boolean} */
   function writesIntrinsic(member){
-    return member.type==='MemberExpression'&&isIntrinsic(member.object);
+    return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
     // A builtin identity copied into an array/object, returned or passed to
@@ -170,6 +221,18 @@ function realmStateObservation(body){
          'ClassExpression'].includes(parent.type))&&
        !(parent.type==='Property'&&key==='value'&&
          ancestors.some(ancestor=>ancestor.type==='ObjectPattern'))){
+      intrinsicTouched=true;
+    }
+    // A method such as Math.imul or JSON.stringify is itself a mutable
+    // first-class function object. Direct invocation is permitted. Sending
+    // that object to an unknown consumer or returning it from a private RPC
+    // can reveal separated identity or mutable intrinsic state.
+    if(node.type==='MemberExpression'&&isIntrinsic(node.object)&&
+       !isImmutableNumericMember(node)&&parent&&
+       !(parent.type==='MemberExpression'&&key==='object')&&
+       !(parent.type==='VariableDeclarator'&&key==='init'&&parent.id.type==='Identifier')&&
+       !(parent.type==='CallExpression'&&key==='callee')&&
+       !(parent.type==='NewExpression'&&key==='callee')){
       intrinsicTouched=true;
     }
     if(node.type==='MemberExpression'){
