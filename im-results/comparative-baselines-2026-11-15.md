@@ -7,6 +7,12 @@ Status: **intermediate evidence**, not an established academic result. Reproduct
 
 These are prototypes with different interfaces and safety analyses. No independent evidence establishes which yields a superior security-performance tradeoff at this point.
 
+## Offline string-table reconstruction counterexample
+
+Agent 2 independently implemented `sims/static-string-recovery.js` and six executable tests (`test/static-string-recovery.test.js`) that recover the primary `src/strings.js` XOR-protected literal strings by parsing the distributed JavaScript and reversing the exposed numeric key, without running the target. The reproducible evidence and limitations are in [`static-string-reconstruction-2026-11-15.md`](static-string-reconstruction-2026-11-15.md), with manual validation run [43677647105](https://github.com/FlareZ123/obfs/actions/runs/43677647105). This establishes a concrete static reconstruction weakness for the existing emitted decoder shape. It does not measure the security of hypothetical VM transforms or secrets retained exclusively on an SCO server.
+
+Agent 2 also compared a chunked UTF-16 decoder against the current concatenation implementation, reporting 3.73× to 5.24× faster decode for two 64KiB cases while remaining slower for tiny strings. See [`decoder-strategies-2026-11-15.md`](decoder-strategies-2026-11-15.md). Those are isolated decoder comparisons and do not establish whole-program 2.5× compliance.
+
 ## Independent threat dimensions
 
 | Dimension | Evidence and limitations | Provisional assessment |
