@@ -31,7 +31,7 @@ const {createScoBatchMethod}=require('./rpc-batch');
  * and serve only the returned clientFile via createScoHandler.
  *
  * @param {{path:string,code:string,sourceType?:'module'}} file
- * @param {{seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number}} [options]
+ * @param {{seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,serverOnlyInitialization?:boolean}} [options]
  * @returns {ScoModulePartition}
  */
 function partitionScoAsyncModule(file,options={}) {
@@ -52,6 +52,10 @@ function partitionScoAsyncModule(file,options={}) {
   /** @type {Set<string>} */
   const used=new Set();
   for(const statement of ast.body) {
+    // Explicit serverOnlyInitialization promises that non-exported module
+    // initialization and private imports run on the trusted server only.
+    // Exporting data or reexporting modules remains forbidden in all cases.
+    if(options.serverOnlyInitialization && !statement.type.startsWith('Export')) continue;
     if(statement.type!=='ExportNamedDeclaration' || statement.source ||
         statement.specifiers?.length || statement.declaration?.type!=='FunctionDeclaration') {
       throw new TypeError('RPC partition requires only direct exported async function declarations');
