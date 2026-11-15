@@ -35,7 +35,9 @@ function consumer(serial,shape) {
     case 2:return base+'const {'+a+':first,'+b+':second}=shared;console.log(first+second);';
     case 3:return 'import {shared,read} from "./state.mjs";console.log(read(shared)+shared.'+b+');';
     case 4:return base+'const get=()=>shared;const alias=get();console.log(alias.'+a+'+alias.'+b+');';
-    default:return base+'const identity=x=>x;const alias=identity(shared);console.log(alias.'+a+'+alias.'+b+');';
+    case 5:return base+'const identity=x=>x;const alias=identity(shared);console.log(alias.'+a+'+alias.'+b+');';
+    default:return base+'import {identity} from "./identity.mjs";'+
+      'const alias=identity(shared);console.log(alias.'+a+'+alias.'+b+');';
   }
 }
 
@@ -49,11 +51,15 @@ function safeCase(serial,style,shape){
   const a='private'+serial+'First';
   const state=factory(serial,style)+(shape===3 ?
     'export function read(value){return value.'+a+';}' : '');
-  return {label:'positive/'+serial+'/factory-'+style+'/consumer-'+shape,safe:true,
-    files:[
-      {path:'state.mjs',sourceType:'module',code:state},
-      {path:'entry.mjs',sourceType:'module',code:consumer(serial,shape)}
-    ]};
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:state},
+    {path:'entry.mjs',sourceType:'module',code:consumer(serial,shape)}
+  ];
+  if(shape===6)files.push({path:'identity.mjs',sourceType:'module',
+    code:'export const identity=value=>value;'});
+  return {label:'positive/'+serial+'/factory-'+style+'/consumer-'+shape,
+    safe:true,files};
 }
 
 /** @param {number} serial @param {number} kind @returns {Case} */
@@ -121,12 +127,12 @@ async function execute(files){
   }
 }
 
-test('held-out private factory ownership grid: 30 positive ESM graphs, 9 conservative refusals',async()=>{
+test('held-out private factory ownership grid: 35 positive ESM graphs, 9 conservative refusals',async()=>{
   /** @type {Case[]} */
   const cases=[];
   let serial=0;
   for(let style=0;style<5;style++){
-    for(let shape=0;shape<6;shape++){
+    for(let shape=0;shape<7;shape++){
       cases.push(safeCase(serial++,style,shape));
     }
   }
@@ -153,8 +159,8 @@ test('held-out private factory ownership grid: 30 positive ESM graphs, 9 conserv
       neutralized+=attacked.properties;
     }else negative++;
   }
-  assert.equal(positive,31);
+  assert.equal(positive,36);
   assert.equal(negative,9);
-  assert.equal(renames,62);
-  assert.equal(neutralized,62);
+  assert.equal(renames,72);
+  assert.equal(neutralized,72);
 });
