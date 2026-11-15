@@ -101,6 +101,7 @@ function renameLocalIdentifiers(source,ast,options) {
     // Until a control-flow dominance proof exists, reject a candidate when a
     // reference occurs lexically before the declaration or in its initializer.
     if (identifiers.some(item=>item.node!==identifier && item.node.name===name &&
+        classifyIdentifier(item.node,item.parent,item.key)!=='ignore' &&
         (item.node.start < identifier.start || item.ancestors.some(ancestor=>
           (ancestor.type==='VariableDeclarator' && ancestor.id===identifier &&
             ancestor.init && ancestor.init.start<=item.node.start &&
