@@ -16,11 +16,15 @@ const {observableStateClasses}=require('./sco-mealy-refinement');
  * Attacker calls are intentionally accounted for, never hidden as free work.
  *
  * @param {number} [count]
+ * @param {boolean} [holdout]
  * @returns {Promise<{count:number,records:DepthRecord[]}>}
  */
-async function runDepthSweep(count=100){
+async function runDepthSweep(count=100,holdout=false){
   if(!Number.isSafeInteger(count)||count<1||count>250)throw new RangeError('count must be 1..250');
-  const configurations=[
+  const configurations=holdout ? [
+    {base:0x6ca2de94,stride:10309},
+    {base:0x13579bdf,stride:4567}
+  ] : [
     {base:0x9ab337e1,stride:7919},
     {base:0xdeadbeef,stride:21317}
   ];
@@ -59,7 +63,9 @@ async function runDepthSweep(count=100){
 }
 
 if(require.main===module){
-  runDepthSweep().then(value=>console.log(JSON.stringify(value,null,2)))
+  runDepthSweep(process.argv.includes('--stress')?250:100,
+    process.argv.includes('--holdout'))
+    .then(value=>console.log(JSON.stringify(value,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 module.exports={runDepthSweep};
