@@ -110,6 +110,18 @@ test('globally visible classic script bindings are protected by default', () => 
   assert.equal(transform({'a.js':source},{closedWorld:true}).renamed,1);
 });
 
+test('assignment to browser-visible script binding blocks rename', () => {
+  const source=`let exposed; (() => { const a={secret:8};exposed=a; })();console.log(exposed.secret);`;
+  const out=compare({'a.js':source},{closedWorld:false});
+  assert.equal(out.renamed,0);
+});
+
+test('global classic-script helper accepts unknown callers', () => {
+  const source=`function expose(o){return o;}(() => { const a={secret:8};console.log(expose(a).secret); })();`;
+  const out=compare({'a.js':source},{closedWorld:false});
+  assert.equal(out.renamed,0);
+});
+
 test('trusted helper passed as callback is not trusted', () => {
   const source=`function helper(p){return p;} const a={secret:1}; const callback=helper; console.log(helper(a).secret);`;
   const out=compare({'a.js':source});
