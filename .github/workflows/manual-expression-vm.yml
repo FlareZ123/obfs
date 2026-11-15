@@ -1,0 +1,27 @@
+name: Manual nested expression VM verification
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  expression-vm:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Focused differential, generated-sample, and static-attacker regressions
+        run: node --test test/expression-vm.test.js test/expression-vm-static-recovery.test.js
+      - name: Strict main-library JSDoc check
+        run: npm run typecheck
