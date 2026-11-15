@@ -68,8 +68,20 @@ function ownPropertyName(property) {
  * @returns {boolean}
  */
 function isLiteralValue(node) {
-  return node.type==='Literal' || node.type==='ArrayExpression' &&
-    node.elements.every((/** @type {AstNode|null} */ element)=>element && isLiteralValue(element));
+  if(node.type==='Literal')return true;
+  if(node.type==='ArrayExpression') {
+    return node.elements.every((/** @type {AstNode|null} */ element)=>element && isLiteralValue(element));
+  }
+  // A nested plain object with static keys and recursively inert values does
+  // not capture the enclosing owner's identity or invoke user code during
+  // construction. Accesses to the nested object's own keys stay untouched.
+  if(node.type==='ObjectExpression') {
+    return node.properties.every((/** @type {AstNode} */ property)=>
+      property.type==='Property' && property.kind==='init' &&
+      !property.method && !property.shorthand &&
+      ownPropertyName(property)!==null && isLiteralValue(property.value));
+  }
+  return false;
 }
 
 /**
