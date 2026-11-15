@@ -79,6 +79,7 @@ async function main() {
     /** @type {number[]} */
     const hotSharded=[];
     for(let i=0;i<21;i++) {
+      /** @type {Array<[(x:number)=>number,number[]]>} */
       const order=i%2===0?[[firstNative,hotNative],[firstSharded,hotSharded]]:
         [[firstSharded,hotSharded],[firstNative,hotNative]];
       for(const [fn,times] of order) {

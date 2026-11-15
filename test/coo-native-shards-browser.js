@@ -56,7 +56,7 @@ async function main() {
     response.writeHead(200,{'Content-Type':asset.type,'Cache-Control':'no-store'});
     response.end(asset.body);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(null)));
   try {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');

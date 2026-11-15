@@ -5,3 +5,6 @@ examples/coo-shards/before/main.mjs text eol=lf
 examples/coo-shards/after/*.mjs text eol=lf
 examples/sco-graph/before/*.mjs text eol=lf
 examples/sco-graph/after/*.mjs text eol=lf
+
+examples/coo-native-shards/before/*.mjs text eol=lf
+examples/coo-native-shards/after/*.mjs text eol=lf

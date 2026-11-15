@@ -111,6 +111,7 @@ test('unsupported or potentially effectful expressions decline',()=>{
     'export function f(x){return (x^1)|(x<<2);}const s=f.toString();',
     'export function f(x){return (x^1)|(x<<2);}eval("2+2");'
   ]) {
+    /** @type {import('../workplace/coo-native-shards').ModuleFile} */
     const file={path:'source.mjs',sourceType:'module',code:source};
     const generated=shardNativeBitvectorModule(file,{seed:'decline',names:['f']});
     assert.deepEqual(generated.files,[file]);
@@ -119,6 +120,7 @@ test('unsupported or potentially effectful expressions decline',()=>{
 });
 
 test('seeds diversify helpers deterministically and avoid reserved paths',()=>{
+  /** @type {import('../workplace/coo-native-shards').ModuleFile} */
   const file={path:'source.mjs',sourceType:'module',code:before};
   const a=shardNativeBitvectorModule(file,{seed:'alpha',names:['scramble']});
   const b=shardNativeBitvectorModule(file,{seed:'beta',names:['scramble']});
