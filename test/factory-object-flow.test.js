@@ -83,6 +83,37 @@ test('refuse escaped or mutable expression factories',()=>{
   }
 });
 
+for(const expression of [
+  '(()=>({secretField:17,otherField:[3,5]}))()',
+  '(function(){return {secretField:17,otherField:[3,5]};})()',
+  '(function ephemeral(){return {secretField:17,otherField:[3,5]};})()'
+]) {
+  test('single-use immediately invoked factory owns a safe literal: '+expression.slice(0,43),()=>{
+    const source='const owner='+expression+';const alias=owner;'+
+      'module.exports=[alias.secretField,alias.otherField[1]];';
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+      const result=compile(source,mode);
+      assert.equal(result.metrics.objects,1,mode);
+      assert.equal(result.metrics.properties,2,mode);
+      assert.doesNotMatch(String(result.code),/secretField|otherField/u);
+      assert.equal(run(String(result.code)),run(source));
+    }
+  });
+}
+
+for(const expression of [
+  '(async()=>({secretField:17}))()',
+  '((x)=>({secretField:17}))(0)',
+  '(()=>{const value=17;return {secretField:value};})()',
+  '(()=>({secretField:17}))?.()'
+]) {
+  test('immediately invoked unproved factory shape declines: '+expression,()=>{
+    const source='const owner='+expression+';module.exports=owner.secretField;';
+    const result=compile(source,'sno');
+    assert.equal(result.metrics.objects,0);
+  });
+}
+
 const refused=[
   ['repeated calls', 'const second=make();module.exports=[owner.secretField,Object.keys(second)];'],
   ['exported factory', 'module.exports=[owner.secretField,make];'],
