@@ -48,7 +48,7 @@ async function main() {
     response.writeHead(200,{'content-type':'text/html; charset=utf-8'});
     response.end(body);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   try {
     const address=server.address();
     assert.ok(address && typeof address!=='string');
