@@ -50,6 +50,8 @@ const cases=[
     'const {prototype:P}=String;P.charCodeAt=()=>0;'],
   ['Object.getPrototypeOf string alias',
     'const P=Object.getPrototypeOf("");P.charCodeAt=()=>0;'],
+  ['string literal __proto__ alias',
+    'const P="".__proto__;P.charCodeAt=()=>0;'],
   ['direct eval',
     'eval(`String.fromCharCode=()=>"?";`);'],
   ['indirect eval alias',
@@ -141,7 +143,9 @@ for(const [title,side] of [
   ['aliased Array iterator replacement',
     'const Native=Array;const P=Native.prototype;P[Symbol.iterator]=function*(){yield 0;};'],
   ['getPrototypeOf Array iterator replacement',
-    'const P=Object.getPrototypeOf([]);P[Symbol.iterator]=function*(){yield 0;};']
+    'const P=Object.getPrototypeOf([]);P[Symbol.iterator]=function*(){yield 0;};'],
+  ['array literal __proto__ iterator replacement',
+    'const P=[].__proto__;P[Symbol.iterator]=function*(){yield 0;};']
 ]) {
   test('chunked string decoder declines earlier '+title,async()=>{
     const literal='z'.repeat(2048);
