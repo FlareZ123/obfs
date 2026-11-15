@@ -25,12 +25,20 @@ function transform(source,sourceType='commonjs') {
 }
 
 test('aliases and interprocedural reads preserve result and rename own keys',()=>{
-  const source = `const state={secret:42,label:'hello-world'};const alias=state;function get(p){return p.secret+' '+alias.label;}module.exports=get(state);`;
+  const source = `const state={secret:42,label:19};const alias=state;function get(p){return p.secret+alias.label;}module.exports=get(state);`;
   const out = transform(source);
   assert.equal(evaluate(out.code),evaluate(source));
   assert.equal(out.metrics.objects,1);
   assert.equal(out.metrics.properties,2);
   assert.doesNotMatch(out.code,/\.secret\b/);
+});
+
+test('source-coercing addition retains original source and behavior',()=>{
+  const source = `const state={secret:42,label:'hello-world'};const alias=state;function get(p){return p.secret+' '+alias.label;}module.exports=get(state);`;
+  const out = transform(source);
+  assert.equal(evaluate(out.code),evaluate(source));
+  assert.equal(out.metrics.objects,0);
+  assert.equal(out.metrics.properties,0);
 });
 
 test('identity forwarding through const aliases remains equivalent',()=>{
