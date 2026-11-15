@@ -41,11 +41,19 @@ const cases=[
   ['destructured String alias',
     'const {String:Native}=globalThis;Native.fromCharCode=()=>"?";'],
   ['Reflect.get String alias',
-    'const Native=Reflect.get(globalThis,"String");Native.fromCharCode=()=>"?";']
+    'const Native=Reflect.get(globalThis,"String");Native.fromCharCode=()=>"?";'],
+  ['direct eval',
+    'eval(`String.fromCharCode=()=>"?";`);'],
+  ['indirect eval alias',
+    'const compile=eval;compile(`String.fromCharCode=()=>"?";`);'],
+  ['Function constructor',
+    'new Function(`String.fromCharCode=()=>"?";`)();'],
+  ['global Function constructor',
+    'globalThis["Function"](`String.fromCharCode=()=>"?";`)();']
 ];
 
 for(const [title,side] of cases) {
-  test('SNO/COO decoder declines earlier intrinsic alias mutation: '+title,async()=>{
+  test('SNO/COO decoder declines earlier intrinsic mutation: '+title,async()=>{
     /** @type {CommonJsFile[]} */
     const input=[
       {path:'entry.cjs',sourceType:'commonjs',code:
