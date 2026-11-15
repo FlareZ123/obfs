@@ -61,6 +61,8 @@ jobs:
         run: node --test test/sco-sync-depth-sweep.test.js
       - name: Print 6-12-state attacker depth cost grid
         run: node sims/sco-sync-depth-sweep.js
+      - name: Falsify SCO attacker on 1500 independent variable-state depth holdouts
+        run: node sims/sco-sync-depth-sweep.js --stress --holdout
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
