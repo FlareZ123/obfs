@@ -51,7 +51,7 @@ test('inert CSS and raster assets preserve cross-file ESM property mangling',asy
 test('HTML and unknown JSON assets keep the full module graph unmodified',()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const potentiallyActiveAssets=[
-    {path:'index.html',sourceType:'asset',code:'<script type="module">import {state} from "./lib/state.mjs"</script>'},
+    {path:'index.html',sourceType:'asset',code:'<script type="module" src="./entry.mjs"></script>'},
     {path:'manifest.json',sourceType:'asset',code:'{"possibleModuleConsumer":"lib/state.mjs"}'}
   ];
   for(const asset of potentiallyActiveAssets) {
@@ -68,9 +68,23 @@ test('HTML and unknown JSON assets keep the full module graph unmodified',()=>{
 test('potentially active SVG assets remain outside the inert whitelist',()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const files=[...modules,{path:'vector.svg',sourceType:'asset',
-    code:'<svg xmlns="http://www.w3.org/2000/svg"><script>console.log(1)</script></svg>'}];
+    code:'<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><p>safe markup</p></foreignObject></svg>'}];
   const result=obfuscateFiles(files,{
     mode:'coo',seed:'svg-active',closedWorld:true,identifiers:false,strings:false
   });
   assert.equal(result.crossFile.properties,0);
+});
+
+test('inline executable HTML and SVG assets are explicitly refused by source audit',()=>{
+  const active=[
+    {path:'index.html',sourceType:'asset',
+      code:'<script type="module">import {state} from "./lib/state.mjs"</script>'},
+    {path:'vector.svg',sourceType:'asset',
+      code:'<svg xmlns="http://www.w3.org/2000/svg"><script>console.log(1)</script></svg>'}
+  ];
+  for(const asset of active) {
+    assert.throws(()=>obfuscateFiles([...modules,asset],{
+      mode:'coo',seed:'active-asset-refusal',closedWorld:true,identifiers:false,strings:false
+    }),/(?:HTML|SVG) asset contains/);
+  }
 });
