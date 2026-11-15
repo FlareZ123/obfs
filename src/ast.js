@@ -259,6 +259,9 @@ function observesFunctionSource(ast) {
   function hasFunctionKey(node) {
     return isFunctionValue(node);
   }
+  const stringCoercionMethods=new Set(['includes','startsWith','endsWith',
+    'indexOf','lastIndexOf','split','replace','replaceAll','match','matchAll',
+    'search','localeCompare','concat','padStart','padEnd']);
   walk(ast,(node,parent,key)=>{
     if(node.computed && (node.type==='MemberExpression'||node.type==='Property'||
         node.type==='MethodDefinition'||node.type==='PropertyDefinition') &&
@@ -304,6 +307,17 @@ function observesFunctionSource(ast) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // String prototype search, comparison, replacement and padding methods
+      // can coerce an argument into the native source text of a function.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          isStringValue(callee.object) &&
+          stringCoercionMethods.has(memberName(callee)??'')) {
+        const method=memberName(callee);
+        const tested=method==='concat'?node.arguments:
+          [node.arguments[method==='padStart'||method==='padEnd'?1:0]];
+        if(tested.some((/** @type {AstNode|null|undefined} */ value)=>
+          isFunctionValue(value)||containsFunction(value))) observed=true;
+      }
       if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
           ['Reflect','Object'].includes(callee.object.name) &&
           ['get','set','has','deleteProperty','defineProperty','getOwnPropertyDescriptor',
