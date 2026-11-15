@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {binaryWords,searchSynchronizingWord}=require('../sims/sco-sync-search');
-const {makeSynchronizingMachine}=require('../sims/sco-synchronizing-oracle');
+const {makeSynchronizingMachine,runDiscovered}=require('../sims/sco-synchronizing-oracle');
 
 test('binary candidate enumeration is breadth-first and deterministic',()=>{
   assert.deepEqual(binaryWords(2),[[0],[1],[0,0],[0,1],[1,0],[1,1]]);
@@ -43,4 +43,20 @@ test('non-synchronizable four-state permutation machine is rejected on this obse
   const found=await searchSynchronizingWord(api,3,6);
   assert.equal(found.word,null);
   assert.ok(found.steps>0);
+});
+
+test('actual authenticated SCO proxy permits observed sync-word discovery without a reset export',async()=>{
+  const result=await runDiscovered(2);
+  assert.equal(result.scenarios,2);
+  assert.equal(result.heldout,4092);
+  assert.equal(result.allExact,true);
+  assert.ok(result.strictlyUnseen>1000);
+  for(const detail of result.details){
+    assert.deepEqual(detail.discoveredWord,[0,0,0]);
+    assert.ok(detail.discoverySteps>0);
+    assert.equal(detail.publicResetExport,false);
+    assert.equal(detail.unauthorizedStatus,403);
+    assert.equal(detail.heldout,2046);
+    assert.ok(detail.strictlyUnseen>500);
+  }
 });
