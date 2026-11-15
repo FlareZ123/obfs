@@ -1,0 +1,35 @@
+# Agent 12 engineering decision record: where stronger obfuscation can be justified
+
+Date: 2026-11-15. **Scope:** choices supported by pinned intermediate experiments; this is **not** an academic result, cryptographic proof or comprehensive comparative ranking.
+
+## Decision frame
+
+The prompt imposes three distinct control surfaces: SCO retains a trusted mutable server, COO distributes client files without a protected server, and SNO places the distributed files and live runtime in the hands of an attacker controlling the server. The security target should be evaluated separately from semantic correctness and the 2.5× compute ceiling. An unreadable source presentation is a weaker security property than withholding executable business logic or secrets.
+
+| Candidate or architecture | Static program reconstruction | Runtime extraction | Integrity / authorized host | Exact compatibility evidence | Performance evidence | Current recommendation |
+|---|---|---|---|---|---|---|
+| Current conservative AST property renaming, distributed COO/SNO | Seed-independent AST neutralizer produced executable equivalents for **20/20** independent ESM graphs and **40+** renamed fields | Attacker controls runtime; opt-in eager decoder leaked dormant literal **30/30** in Node, plus live Chromium | Client-held checks can be altered; no trusted off-client verifier | **120/120** generated ESM graphs matched native; 20 eligible, 100 safely refused; post-fix full suite green | Default COO strings left plain to avoid older ~30× cold costs; full budget not established | Keep as compatibility baseline and modest readability friction; claims about confidentiality should be scoped down |
+| Experimental numeric JS→Wasm | Public 76-byte binary independently cloned executable behavior **5,121/5,121**; standard disassembly exposed arithmetic | Public exports callable; byte-for-byte clone requires no secret | No trusted host binding | **5,121/5,121** exact numeric points across both OS, but string `+` counterexample shows arbitrary JS incompatibility | Hot **1.1566× / 1.1907×**; fresh cold examples **2.7–4.7×** on short workloads | Keep as an optional *research-only* constrained performance comparator; no demonstrated resistance gain |
+| SCO trusted private module + coarse HMAC operation | Client receives a 1,150-byte RPC facade, never private source/key; finite transcript contains no unseen inputs | Attacker can observe and query all authorized client-side messages, not private server memory | Actual server must enforce authentication and operation-level authorization; test header alone is not real auth | 12 native vs RPC results identical in 9 rounds; unauthorized local fixture refused with zero private executions | Serial loopback **1.1718× / 1.2229×**, batched **1.0230× / 1.0221×** for 8 MiB HMAC operations | Strongest evidenced trust-based direction, conditional on keeping implementation and credentials server-only |
+| SNO under prompt's full filesystem/runtime/memory compromise | Source, blobs, keys and memory can be copied and instrumented | Owner can trace live computation | Self-hashes and domain locks lack independent protected authority | Syntax-preserving local obfuscation still required | Server-only initializer amortization helps hot runtime, but not secret storage | Treat as resistance-to-casual-inspection goal; avoid claims of secret secrecy against the specified owner attacker |
+
+### Validity of security claims
+
+- **Attacker observation:** the decoder extractor ran before protected code and reconstructed an unused literal; source-only normalization recovered a functional program despite randomized field names. A future candidate should be tested against these independent baseline tools.
+- **Trusted private HMAC:** the 64-query lookup contains no values for 64 preselected unseen 128-bit challenges, but an *unlimited* legitimate online attacker can query any target input and can relay results. The experiment does not prove oracle-resistant execution.
+- **Authorization:** a known fixed request header was used only as a fixture. Production authorization needs genuine identity/session verification, binding, operation-level policy, and an explicit policy for abuse; simple Host/Origin checks are not a defense against full-control attackers.
+- **Correctness:** a compiler may increase the number of transformed properties only after ownership and reflection are proved. The source-observation repair restored native function-source behavior in five previously failing tests and passed full CI across OSes; the coarse refusal remains costly in otherwise safe programs.
+- **Cost:** the 2.5× constraint applies to the actual end-to-end workload. COO cannot subtract a client initializer. The SCO HMAC loopback result does not include network RTT/TLS, while the numeric Wasm hot result excluded fresh initialization. A suitable workload-specific configuration policy must include cold and steady work, setup, transport and retries.
+
+## Pinned evidence
+
+- Source-observer repair and benchmarked collateral opt-out: `im-results/source-observer-proof-coverage-2026-11-15.md`, full green [CI #43696715738](https://github.com/FlareZ123/obfs/actions/runs/43696715738).
+- Dormant-string runtime extraction (three modes plus live browser): `im-results/runtime-decoder-extraction-2026-11-15.md`, cross-platform [#43695839545](https://github.com/FlareZ123/obfs/actions/runs/43695839545) and real Chromium [#43696954625](https://github.com/FlareZ123/obfs/actions/runs/43696954625).
+- Wasm typed numeric backend, static cloning, cold/hot: `im-results/wasm-numeric-candidate-2026-11-15.md`, [#43698242446](https://github.com/FlareZ123/obfs/actions/runs/43698242446).
+- Trusted SCO high-domain key and measured remote call: `im-results/sco-large-domain-prf-2026-11-15.md`, [#43698774355](https://github.com/FlareZ123/obfs/actions/runs/43698774355).
+- 120-graph external-API semantic comparison and 20-graph public-source normalizer: `im-results/interfile-api-fuzz-2026-11-15.md`, `im-results/interfile-static-normalization-2026-11-15.md`, [#43699731429](https://github.com/FlareZ123/obfs/actions/runs/43699731429).
+- Prior Agent 2/8 decoder and VM cost/security studies remain independently relevant: `im-results/decoder-strategies-2026-11-15.md`, `im-results/coo-cold-start-budget-2026-11-15.md`, `sims/vm-hybrid-ratio.js`.
+
+## Next high-value research actions
+
+The greatest expected progress comes from (a) measuring **realistic remote SCO end-to-end latency** using protected business operations where server-private computation is genuinely necessary; (b) combining cross-file provenance with source-observer exposure proofs to recover *provably safe* transformation coverage on larger graphs; (c) evolving the attacker corpus to defeat candidate transformations before accepting new security claims; and (d) documenting what can never be guaranteed under client or owner full-control threat models. A general JS-to-Wasm backend is not justified by this candidate alone. Work that adds neither measured attack cost nor retained semantics is unlikely to advance the primary objective.
