@@ -52,3 +52,6 @@ A subsequent [seedless-reconstruction fuzz gate 43741266407](https://github.com/
 ### Distribution-size observation
 
 The exact committed CommonJS baseline is **106 UTF-8 bytes**. The bytecode VM output is **1,347 bytes (12.708x source size)**; the final inlined native-register version is **576 bytes (5.434x)**. These ratios describe the one-function example's source file only. Network compression, aggregate bundle size, parse time and cold browser startup were not measured with this byte count, so no general cold-start or transfer-time claim follows. The extra bytes could matter especially for COO, where the initialization exception to the 2.5x compute rule is unavailable.
+
+
+The combined seeded-corpus run on Ubuntu reported **733.718 ms** for the complete 80-tree test case, including compilation, transformation, source-only reconstruction and 3,040 typed/stateful input comparisons. This wall-clock duration is a regression-test observation and is not a clean isolated deobfuscator benchmark, but shows that the automated recovery witness completes comfortably within the targeted CI workload. Attack resistance should not be inferred from output byte count, shuffled identifiers or masked constants.
