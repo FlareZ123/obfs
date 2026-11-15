@@ -45,3 +45,7 @@ function bench(label,code,minProperties=0) {
 bench('numeric arithmetic',`function run(n){let x=0;for(let i=0;i<n;i++)x+=(i*7)%13;return x;}module.exports=run;`);
 bench('hot object property',`const state={counter:0};function run(n){for(let i=0;i<n;i++){state.counter++;}return state.counter;}module.exports=run;`,1);
 bench('hot string comparison',`const state={label:'label-long-constant'};function run(n){let x=0;for(let i=0;i<n;i++){if(state.label==='label-long-constant')x++;}return x;}module.exports=run;`,1);
+bench('interprocedural local reader',`const state={secretField:7,otherField:5};
+const read=value=>value.secretField;
+function run(n){let x=0;for(let i=0;i<n;i++)x+=read(state)+state.otherField;return x;}
+module.exports=run;`,2);
