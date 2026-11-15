@@ -6,6 +6,8 @@ This repository is an experimental, conservative JavaScript obfuscator targeting
 
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
+**Validation status (2026-11-15):** The latest pinned full manually dispatched [Node 22 Linux/Windows validation](https://github.com/FlareZ123/obfs/actions/runs/43753516849) remains red at **1,049 passed, 5 failed, 1 skipped on each platform**. The failures are four lost property-renaming coverage expectations and one stale branch-control-flow golden artifact, documented in the [exact triage report](im-results/manual-validation-triage-2026-11-15.md). The focused new SCO authentication and selective partition suites pass. Treat the project as an experimental research baseline until the full suite is green and broader adversarial evidence is established.
+
 ## Entrypoints
 
 `bin/coo.js` transforms a directory into static browser files, preserving relative ESM import paths and non-JavaScript assets. Example:
