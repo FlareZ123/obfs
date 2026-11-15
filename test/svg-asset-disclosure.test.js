@@ -41,6 +41,31 @@ test('static SVG script, event handlers and executable links are refused across 
   }
 });
 
+test('SVG animation URL lists screen every semicolon-separated state',()=>{
+  const dangerous=[
+    '<svg xmlns="http://www.w3.org/2000/svg"><a id="jump" href="#ok"><animate attributeName="href" values="#ok; javascript:alert(1)" dur="1s"/></a></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><a href="#ok"><animate attributeName="href" values="#ok;java&#x73;cript:alert(1)"/></a></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><a href="#ok"><animate attributeName="href" values="#ok;data:application/xhtml+xml,%3Cscript%3E"/></a></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="#ok"><animate attributeName="xlink:href" values="#ok;data:text/html,%3Cscript%3E"/></a></svg>'
+  ];
+  for(const svg of dangerous) {
+    assert.equal(findInlineSvgSource(svg),'embedded executable URL');
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      assert.throws(()=>transform(svg,mode),/SVG asset contains embedded executable URL/,mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path:'assets/icon.svg',sourceType:'asset',code:svg}
+    ]),/SVG asset contains embedded executable URL/);
+  }
+  const benign='<svg xmlns="http://www.w3.org/2000/svg"><a href="#ok"><animate attributeName="href" values="#ok; #next" dur="1s"/></a><circle r="4"><animate attributeName="r" values="4; 8; 4"/></circle></svg>';
+  assert.equal(findInlineSvgSource(benign),null);
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const file=transform(Buffer.from(benign,'utf8'),mode).files.find(item=>item.path==='assets/icon.svg');
+    assert.ok(file);
+    assert.deepEqual(file.code,Buffer.from(benign,'utf8'));
+  }
+});
+
 test('safe SVG geometry, raster image data, and external references remain byte-identical',()=>{
   const svg=[
     '<?xml version="1.0" encoding="UTF-8"?>',
