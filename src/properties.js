@@ -51,6 +51,17 @@ function staticName(node) {
 }
 
 /**
+ * A literal object key is safe to rewrite only when its computed expression
+ * is a side-effect-free constant string. The surrounding computed brackets
+ * stay intact when the interior expression is replaced with a quoted name.
+ * @param {AstNode} property
+ * @returns {string|null}
+ */
+function ownPropertyName(property) {
+  return property.computed ? staticString(property.key) : staticName(property.key);
+}
+
+/**
  * Primitive literals and recursively literal-only arrays carry no receiver
  * binding and cannot infer a function name from the enclosing object key.
  * @param {AstNode} node
@@ -356,9 +367,9 @@ function renameLocalProperties(source, ast, options) {
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
     /** @type {AstNode[]} */
     const properties = node.properties;
-    if (!properties.length || properties.some(p => p.type !== 'Property' || p.computed || p.method || p.shorthand || p.kind !== 'init' ||
-          staticName(p.key) === null || ['__proto__','prototype','constructor'].includes(String(staticName(p.key))) || !isLiteralValue(p.value))) return;
-    const names = properties.map(p=>staticName(p.key));
+    if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.shorthand || p.kind !== 'init' ||
+          ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) || !isLiteralValue(p.value))) return;
+    const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
     candidates.push({node,name:parent.id.name,properties});
   });
@@ -372,19 +383,19 @@ function renameLocalProperties(source, ast, options) {
     if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
-    const ownNames=new Set(candidate.properties.map(prop=>staticName(prop.key)));
+    const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
         proof.patterns.some(property=>!ownNames.has(staticName(property.key)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
-      const old = staticName(prop.key);
+      const old = ownPropertyName(prop);
       const hash = createHash('sha256').update(`${options.seed}/${candidate.name}/${candidate.node.start}/${old}`).digest('hex').slice(0,10);
       mapping.set(old,`_p${hash}`);
     }
     // Truncated digests can collide. Duplicating literal keys silently changes
     // both object contents and all subsequent reads, so decline this object.
     if (new Set(mapping.values()).size !== mapping.size) continue;
-    for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
+    for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
     for (const member of proof.members) {
       const name = member.computed ? staticString(member.property) : staticName(member.property);
       if (mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
@@ -396,4 +407,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName};
