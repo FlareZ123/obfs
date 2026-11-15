@@ -40,6 +40,18 @@ Those are conservative test assertions rather than an unreported exact count. Th
 
 The isolation control is **not** a proposed automatic compiler optimization. A production pass would need explicit file graph and function provenance proof, dynamic loader constraints, all consumers, reflection, aliases and external entry points before selectively permitting mutation. Hand segregation only demonstrates a measurable potential coverage gain in this known fixture.
 
+### Exact graph-coverage metrics reproduced cross-platform
+
+The previous bounds were sharpened with a directly logged `node sims/source-observer-coverage.js` workflow step. Manual [CI #43700585812](https://github.com/FlareZ123/obfs/actions/runs/43700585812), pinned at `4635b1391f7476f311194120c2bc4a69c872e119`, passed **Ubuntu and Windows** focused semantics and JSDoc. Both OS logs report identical metrics:
+
+| Path | Local properties | Cross-file properties | Total properties |
+|---|---:|---:|---:|
+| Graph without source observation | **2** | 0 | **2** |
+| Graph with native `watched.toString()` observation | **0** | 0 | **0** |
+| Known-independent module transformed in isolation | **1** | 0 | **1** |
+
+All three native ESM executions preserved output exactly. This is one deliberately small graph whose only property transformations are local; it does not quantify a typical distribution of real-world module workloads or mean that a general compiler should split graphs without proving observational independence.
+
 ## Security meaning and open questions
 
 The repair improves semantic preservation against five previously failing known observers. It does **not** demonstrate resistance to static normalization, runtime extraction, hostile debugger instrumentation, or server-owner tampering. The full observer detector remains syntactic and incomplete for arbitrary dynamic scope and host reflection. Unknown receiver types, shadowed computed keys, and indirect native intrinsics remain relevant avenues for adversarial tests.
