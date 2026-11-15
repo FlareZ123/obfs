@@ -36,6 +36,17 @@ test('SCO graph refuses ambiguous imports, accidental publication and incomplete
   assert.throws(()=>make([{path:'../illegal.mjs',code:base.code}],['../illegal.mjs']),TypeError);
   assert.throws(()=>make([{path:'api.cjs',code:base.code}],['api.cjs']),/only .mjs/);
 
+  assert.throws(()=>make([
+    {path:'api.mjs',code:'import "./sub/../secret.mjs";export async function sign(){return 1;}'},
+    {path:'secret.mjs',code:'export const x=1;'}
+  ],['api.mjs']),/noncanonical/);
+  const nested=make([
+    {path:'sub/api.mjs',code:'import {x} from "../secret.mjs";export async function sign(){return x;}'},
+    {path:'secret.mjs',code:'export const x=2;'}
+  ],['sub/api.mjs']);
+  assert.equal(nested.clientFiles.length,1);
+  assert.equal(nested.privatePaths[0],'secret.mjs');
+
   const valid=make([
     {path:'api.mjs',code:'import {x} from "./secret.mjs";export async function sign(){return x;}'},
     {path:'secret.mjs',code:'export const x="private";'}
