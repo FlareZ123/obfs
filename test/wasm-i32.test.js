@@ -84,15 +84,15 @@ test('unsafe type/effect grammar and direct source observation decline',()=>{
   }
 });
 
-test('ESM static dependency graphs decline to avoid cyclic TDZ calls',()=>{
+test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',()=>{
   const cycleSource="import {observed} from './callee.mjs';"+
     "export {observed};export function f(x){return x^1;}";
   const out=lowerWasmI32Functions(cycleSource,'module',{
     seed:'esm-cycle',names:['f']
   });
-  assert.equal(out.functions,0);
-  assert.equal(out.declined,1);
-  assert.equal(out.code,cycleSource);
+  assert.equal(out.functions,1);
+  assert.match(out.code,/function _wi_[0-9a-f]+\(input\)\{/u);
+  assert.ok(out.code.includes('WebAssembly.Module('));
   const published=obfuscateFiles([
     {path:'owner.mjs',sourceType:'module',code:cycleSource},
     {path:'callee.mjs',sourceType:'module',
@@ -101,8 +101,8 @@ test('ESM static dependency graphs decline to avoid cyclic TDZ calls',()=>{
     mode:'coo',seed:'cyclic-graph',strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'owner.mjs':['f']}
   });
-  assert.equal(published.files[0].metrics.wasmI32Functions,0);
-  assert.equal(published.files[0].code,cycleSource);
+  assert.equal(published.files[0].metrics.wasmI32Functions,1);
+  assert.ok(String(published.files[0].code).includes('WebAssembly.Module('));
 });
 
 test('COO/SNO selection, CLI parsing and top-level call preserve results',async()=>{
