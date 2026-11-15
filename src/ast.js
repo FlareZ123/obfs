@@ -684,8 +684,10 @@ function observesFunctionSource(ast) {
       }
       // A literal string/number/regex is never a function whose source is
       // exposed through coercion. Keep these common primitives eligible.
-      if(argument && argument.type!=='Literal' &&
-          !(argument.type==='TemplateLiteral' && argument.expressions.length===0)) observed=true;
+      // Immutable, proven primitive expressions cannot carry source text
+      // through ToString or ToBigInt. Keep unknown and mutable values
+      // under the conservative whole-file source-observation guard.
+      if(argument && !isDefinitelyPrimitive(argument)) observed=true;
     }
   });
   sourceObservationCache.set(ast,observed);
