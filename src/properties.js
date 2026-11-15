@@ -350,7 +350,8 @@ function renameLocalProperties(source, ast, options) {
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(prop=>staticName(prop.key)));
-    if (proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property)))) continue;
+    if (proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property))) ||
+        proof.patterns.some(property=>!ownNames.has(staticName(property.key)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = staticName(prop.key);
