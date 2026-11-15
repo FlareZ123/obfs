@@ -71,10 +71,18 @@ jobs:
           console.log('=== VALIDATED METRICS ===');
           console.log(JSON.stringify(measurements, null, 2));
           NODE
+      - name: Generate and show actual selective register VM output
+        shell: bash
+        run: |
+          node examples/register-vm/build-sample.cjs
+          node -e "process.stdout.write('=== GENERATED REGISTER VM ===\\n'+require('node:fs').readFileSync('examples/register-vm/after.cjs','utf8')+'\\n=== END REGISTER VM ===\\n')"
       - name: Upload actual generated source
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: obfs-output-sample
-          path: obfs-output-sample/
+          path: |
+            obfs-output-sample/
+            examples/register-vm/before.cjs
+            examples/register-vm/after.cjs
           if-no-files-found: error

@@ -7,14 +7,15 @@ const {renameLocalProperties,collectBindings} = require('./properties');
 const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
+const {virtualizeRegisterChains} = require('./register-vm');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>}} ObfuscationOptions
  */
 
 /**
@@ -345,6 +346,18 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
+    const vmNames=options.experimentalRegisterVm?.[filename]??[];
+    let vmFunctions=0,vmInstructions=0;
+    if(vmNames.length) {
+      if(sourceType==='script'||remoteSourceObserver) {
+        throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
+      }
+      const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
+      code=virtualized.code;
+      vmFunctions=virtualized.functions;
+      vmInstructions=virtualized.instructions;
+      ast=parse(code,sourceType);
+    }
     let objects = 0;
     let properties = 0;
     if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
@@ -375,7 +388,13 @@ function obfuscateFiles(files, options = {}) {
       code = injectHostLock(code,ast,options.allowedHosts);
       parse(code,sourceType);
     }
-    return {path:filename,code,sourceType,metrics:{literals,objects,properties,bindings}};
+    /** @type {OutputFile['metrics']} */
+    const metrics={literals,objects,properties,bindings};
+    if(vmNames.length) {
+      metrics.vmFunctions=vmFunctions;
+      metrics.vmInstructions=vmInstructions;
+    }
+    return {path:filename,code,sourceType,metrics};
   });
   return {files:output,seed,mode,crossFile:{objects:cross.objects,properties:cross.properties}};
 }

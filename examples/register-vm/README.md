@@ -1,0 +1,17 @@
+# Opt-in seeded register VM with actual source snapshots
+
+This example demonstrates a **real** source-to-source register-bytecode transformation. [`before.cjs`](before.cjs) is the original CJS function. [`after.cjs`](after.cjs) is the byte-exact output of [`src/register-vm.js`](../../src/register-vm.js) from seed `register-vm-example-v1`. [`build-sample.cjs`](build-sample.cjs) regenerates or validates the committed artifact.
+
+The source function `mix(x)` performs four immediate primitive operations. The opt-in transform replaces its expression with a call to a private register interpreter, encodes the operation sequence as a compact numeric array, rotates opcode values, and XOR-masks immediate operands. The helper initializes its bytecode array once, on first use. The VM executes native JavaScript operators on the register, preserving the selected expression's native coercion order.
+
+To verify on Windows 11 after installing dependencies, invoke the `buildSample(true)` export from Node, or run `node examples/register-vm/build-sample.cjs --check`. To generate fresh output, run `node examples/register-vm/build-sample.cjs`. The repository's `test/register-vm.test.js` checks byte-exact output and differential behavior with native functions.
+
+Explicit COO/SNO CLI opt-in is `--register-vm compute.cjs:mix` for a matching relative source path and selected function. Programmatic compilation uses `obfuscateFiles(files,{mode:'coo',experimentalRegisterVm:{'compute.cjs':['mix']}})`. The VM is **disabled by default**, rejects classic-script syntax, and declines unsupported expressions, source observation, or dynamic eval. The accepted class consists of a named, top-level, synchronous, one-argument function that returns a linear chain of immediate operations; each literal operand is an integer from 0 through 255.
+
+## Security and runtime boundaries
+
+The emitted VM's opcode switch, bytecode, rotation and XOR mask are all distributed. An offline attacker can reconstruct the supported expression from these artifacts without possessing the seed. An attacker controlling the browser or Node process can instrument the VM or read its execution. There is no claim of cryptographic confidentiality, self-enforcing integrity or effective unauthorized-environment exclusion. A source observer in another unsupplied file, `Function#toString`, stack formatting or more complex language semantics can also distinguish transformed output. Use it for audited, explicitly selected functions only.
+
+The first Linux/Windows differential run [43720564800](https://github.com/FlareZ123/obfs/actions/runs/43720564800) passed every VM-specific case. For a **single mixed workload** in that run, with the VM called once per 256 iterations, the median obfuscated/native ratios were 1.479× on Linux and 1.714× on Windows. The full run was red due to independently diagnosed concurrent example-typecheck and Windows MBA snapshot issues, unrelated to this VM's differential cases. The isolated interpreter can exceed 2.5× for hot functions, and these numbers do not establish a general compute bound. Before deployment, profile the actual application in the intended Node/browser runtime.
+
+The sample-generation [workflow run 43720842213](https://github.com/FlareZ123/obfs/actions/runs/43720842213) printed this exact `after.cjs` output and uploaded paired before/after artifacts. The project keeps both snapshots in Git so they are inspectable without CI artifacts.
