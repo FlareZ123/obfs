@@ -36,7 +36,7 @@ test('composed XOR masks preserve full Int32 differential behavior',()=>{
       for(const x of edge)for(const y of edge)assert.ok(Object.is(compiled(x,y),native(x,y)));
       for(let trial=0;trial<1800;trial++){
         const x=scramble(seed*313+trial*17),y=scramble(index*231+trial*67);
-        assert.ok(Object.is(compiled(x,y),native(x,y));
+        assert.ok(Object.is(compiled(x,y),native(x,y)));
       }
     }
   }
