@@ -20,3 +20,7 @@ The main branch already has COO/SCO/SNO Node.js entry points, conservative AST/p
 - Consider a separate intermediate report in `im-results/` with the measured protected-surface denominator and pinned evidence.
 - Do not promote compatibility into `results/` as independently established obfuscation security.
 - Keep checkpoint + real-time lease-age check discipline. At 70 minutes past claim (12:56:53Z) release only after all work is pushed and memory updated; delete lease in final repo mutation.
+
+## 12:03 UTC checkpoint extension
+- Added generated safe/refused assignment corpus in `test/destructuring-assignment-grid.test.js`: 32 seeds x 8 safe shapes and 8 refusal shapes, evaluated twice (COO and SNO) = 1,024 semantic comparisons; 1,024 candidate positive keys all renamed and 512 unsafe transformations declined. Source-only attack added to `test/destructuring-assignment-flow.test.js` confirms independently token-normalized two-file output still matches the original (`17,5`) after both labels changed. New files and focused workflow all pushed.
+- Exact-source focused cross-platform [run 43711790080](https://github.com/FlareZ123/obfs/actions/runs/43711790080) succeeded at `f1948d5179bda13f0f9dfb125ed27a82178aa89a` including JSDoc typecheck. Intermediate report `im-results/destructuring-assignment-proof-2026-11-15.md` records exact protected-surface denominator, refusals, and limits. No full suite or runtime budget measurement on these changes yet.
