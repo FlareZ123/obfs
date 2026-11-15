@@ -132,6 +132,12 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('delete own property may reveal a prototype getter with original key', () => {
+  const code='Object.defineProperty(Object.prototype,"secret",{get(){return 42},configurable:true});const a={secret:1};delete a.secret;console.log(a.secret);';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('indirect global eval through bracket access protects lexical key names', () => {
   const code='const a={secret:11};console.log(globalThis["eval"]("a.secret"));';
   const out=compare({'a.js':code});
