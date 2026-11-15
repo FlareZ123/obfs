@@ -40,6 +40,29 @@ test('discarded own-field destructuring assignment is rewritten with the owner',
   assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
 });
 
+test('classic browser script keeps externally observable top-level owner names',()=>{
+  const source=[
+    'const state={privateField:17};',
+    'let captured=0;',
+    '({privateField:captured}=state);',
+    'globalThis.output=captured;'
+  ].join('');
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const output=obfuscateFiles([{
+      path:'entry.js',sourceType:'script',code:source
+    }],{
+      mode,seed:'script-external-field-observation',
+      strings:false,identifiers:false,closedWorld:true
+    }).files[0];
+    assert.equal(output.metrics.objects,0);
+    assert.equal(output.metrics.properties,0);
+    const sandbox=vm.createContext({output:0});
+    vm.runInContext(String(output.code),sandbox);
+    assert.equal(vm.runInContext('state.privateField',sandbox),17);
+    assert.equal(sandbox.output,17);
+  }
+});
+
 test('SCO compiler rewrites the same proven assignment without changing behavior',()=>{
   const source=[
     'const owner={privateField:17,otherField:5};',
