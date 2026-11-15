@@ -232,8 +232,13 @@ function observesFunctionSource(ast) {
         node.left.type==='TemplateLiteral' && !node.left.expressions.length;
       const rightText=node.right.type==='Literal' && typeof node.right.value==='string' ||
         node.right.type==='TemplateLiteral' && !node.right.expressions.length;
+      // A function is converted to its exact source when '+' performs
+      // ToPrimitive, even with no explicit string operand. An array containing
+      // a function has the same behavior through Array#toString and join.
       if((leftText || rightText || isStringValue(node.left) ||
-          isStringValue(node.right)) && staticString(node)===null) observed=true;
+          isStringValue(node.right) || isFunctionValue(node.left) ||
+          isFunctionValue(node.right) || containsFunction(node.left) ||
+          containsFunction(node.right)) && staticString(node)===null) observed=true;
     }
     if(node.type==='MemberExpression') {
       const name=node.computed ? staticString(node.property) :
