@@ -185,3 +185,53 @@ test('unrelated Number.prototype toString overwrite permits safe SNO string deco
   assert.ok(result.metrics.literals>0,'A write-only toString must not suppress unrelated string encoding');
   assert.equal(evaluate(result.code),evaluate(code));
 });
+
+test('Reflect.get on function prototype can reveal rewritten function source',()=>{
+  const code='const a={secretField:21};const show=()=>a.secretField;'+
+    'const stringify=Reflect.get(Object.getPrototypeOf(()=>{}),"toString");module.exports=stringify.call(show);';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'reflect-source-observer',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.objects,0,'Reflect.get must protect exact function body spelling');
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('getOwnPropertyDescriptor can reveal rewritten function source',()=>{
+  const code='const a={secretField:22};const show=()=>a.secretField;'+
+    'const stringify=Object.getOwnPropertyDescriptor(Object.getPrototypeOf(()=>{}),"toString").value;'+
+    'module.exports=stringify.call(show);';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'descriptor-source-observer',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.objects,0,'Descriptor-based native toString must protect source');
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('cross-file pure reader respects indirect native function-source reflection',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-reflect-reader-observer-'));
+  /** @type {{path:string,sourceType:'module',code:string}[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:23};export function peek(x){return x.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";'+
+      'const stringify=Reflect.get(Object.getPrototypeOf(()=>{}),"toString");'+
+      'console.log(stringify.call(peek).includes("secretField"),peek(state));'}
+  ];
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources) {
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const result=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{encoding:'utf8'});
+      assert.equal(result.status,0,result.stderr);
+      return result.stdout;
+    }
+    const baseline=await execute(files);
+    const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+      seed:'reader-indirect-source',strings:false,identifiers:false});
+    assert.equal(output.crossFile.properties,0);
+    assert.equal(await execute(output.files),baseline);
+  }finally{
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
