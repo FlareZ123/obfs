@@ -81,6 +81,33 @@ other JavaScript engines, alternate aliases and unrelated hidden
 per-realm runtime state need separate investigation. It does not
 establish a general realm-isolation equivalence theorem.
 
+## Independent intrinsic static-object mutation witness
+
+A separate three-family Node `vm.createContext` control checked mutations
+to built-ins that do not access a `.prototype` property:
+
+- `Math.__obfsRealmCanary=41` is observable from `Math` in the same
+  context but absent in a second context.
+- `JSON.__obfsRealmCanary=41` likewise remains only in the writing realm.
+- `Error.stackTraceLimit=0` replaces the original V8 limit for one realm,
+  while another context retains its default value 10.
+
+The new `SCO refuses writes to realm-specific intrinsic static objects` test
+in `test/sco-intrinsic-realm.test.js` checks the VM split, private write /
+public read compiler rejection, first-class intrinsic aliases, global
+constructor aliases and `Object.assign(Math,...)` mutation. This is a
+conservative verifier: a module that writes a built-in but never relies on
+that write across the split is still refused. Static member reads on
+unmodified intrinsics remain supported.
+
+The added refusal was validated in focused
+[Ubuntu/Windows run 43771699712](https://github.com/FlareZ123/obfs/actions/runs/43771699712)
+at immutable `3618667d2c573b0c52f3478fb259e39d2e8afef9`;
+the complete selected SCO targeted workflow including browser fixtures,
+JSDoc and the new test passed. This expands supported **refusal evidence**,
+not evidence of application-level deobfuscation resistance. The full
+integrated-suite validation is tracked separately.
+
 ## Limits and follow-up
 
 The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
