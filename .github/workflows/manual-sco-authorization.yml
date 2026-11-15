@@ -1,0 +1,27 @@
+name: Manual SCO authorization regression
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sco-auth:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Targeted SCO HTTP and partition tests
+        run: node --test test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js
+      - name: Strict JSDoc type checking
+        run: npm run typecheck
