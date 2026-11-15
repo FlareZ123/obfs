@@ -4,8 +4,8 @@ const {parse,walk}=require('./ast');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean}} ScoSelectiveOptions */
-/** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[]}} ScoSelectivePartition */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean}} ScoSelectiveOptions */
+/** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
 
 /**
  * Uncomputed object and member keys are property labels, not variable reads.
@@ -46,9 +46,10 @@ function isServerEnvironmentRead(expression){
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
  * exports, plus private synchronous function declarations or immutable function
- * expressions, and unexported primitive-literal const declarations. Helpers must never
- * be referenced by a retained public function or escape as function values. An explicit opt-in additionally admits direct
- * process.env uppercase-key reads on the trusted server, refusing public
+ * expressions, and unexported primitive-literal const declarations. Helpers
+ * remain private unless listed explicitly in publicHelperNames. A server-only
+ * helper cannot escape as a function value or be called from public code.
+ * An explicit opt-in admits direct process.env uppercase-key reads, refusing public
  * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
  *
@@ -68,11 +69,16 @@ function partitionScoSelectedAsyncExports(file,options) {
       file.code.startsWith('#!')||!options||!Array.isArray(options.privateNames)||
       !options.privateNames.length||options.privateNames.some(n=>typeof n!=='string'||!n)||
       new Set(options.privateNames).size!==options.privateNames.length||
+      options.publicHelperNames!==undefined &&
+      (!Array.isArray(options.publicHelperNames)||
+       options.publicHelperNames.some(n=>typeof n!=='string'||!n)||
+       new Set(options.publicHelperNames).size!==options.publicHelperNames.length)||
       options.allowServerEnvConstants!==undefined &&
       typeof options.allowServerEnvConstants!=='boolean') {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
+  const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
@@ -127,6 +133,14 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateHelperNames=new Set();
   /** @type {string[]} */
   const privateHelperChunks=[];
+  /** @type {string[]} */
+  const publicHelperChunks=[];
+  /** @type {Set<string>} */
+  const publicHelperNames=new Set();
+  /** @type {{name:string,fn:import('./ast').AstNode}[]} */
+  const publicHelperFunctions=[];
+  /** @type {Set<string>} */
+  const helperBindings=new Set();
   for(const statement of ast.body){
     if(statement.type==='FunctionDeclaration'){
       privateHelperCandidates.push({name:statement.id?.type==='Identifier'?statement.id.name:'',
@@ -138,17 +152,27 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(!name||fn.async||fn.generator||
        !Array.isArray(fn.params)||
        fn.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier')||
-       selected.has(name)||serverConstants.has(name)||privateHelperNames.has(name)){
+       selected.has(name)||serverConstants.has(name)||helperBindings.has(name)){
       throw new TypeError('Selective SCO requires distinct synchronous private helper bindings');
     }
-    privateHelperNames.add(name);
-    privateHelperChunks.push(helper.text);
-    privateBodies.push(fn.body);
-    walk(fn.body,(node,parent,key)=>{
-      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
-        privateAmbient.add(node.name);
-      }
-    });
+    helperBindings.add(name);
+    if(requestedPublicHelpers.has(name)){
+      publicHelperNames.add(name);
+      publicHelperChunks.push(helper.text);
+      publicHelperFunctions.push({name,fn});
+    }else{
+      privateHelperNames.add(name);
+      privateHelperChunks.push(helper.text);
+      privateBodies.push(fn.body);
+      walk(fn.body,(node,parent,key)=>{
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
+          privateAmbient.add(node.name);
+        }
+      });
+    }
+  }
+  if(publicHelperNames.size!==requestedPublicHelpers.size){
+    throw new TypeError('Unknown selective SCO public helper');
   }
   /** @type {string[]} */
   const publicChunks=[];
@@ -156,6 +180,37 @@ function partitionScoSelectedAsyncExports(file,options) {
   const publicNames=[];
   /** @type {Set<string>} */
   const seen=new Set();
+  /**
+   * Keep every local public function within its original browser-side
+   * boundary. This proof covers public helpers and direct exports alike.
+   * @param {import('./ast').AstNode} fn
+   * @param {string} name
+   * @returns {void}
+   */
+  function inspectPublicFunction(fn,name){
+    walk(fn,(node,parent,key)=>{
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
+      if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
+         node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
+        throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
+      }
+      if(serverEnvironmentUsed&&(node.type==='ThisExpression'||
+         node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))){
+        throw new TypeError('Public SCO export cannot share server environment: '+name);
+      }
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
+        throw new TypeError('Public SCO export reads server-only constant: '+name);
+      }
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&privateHelperNames.has(node.name)){
+        throw new TypeError('Public SCO export references a server-only helper: '+name);
+      }
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&selected.has(node.name)&&
+         !(parent?.type==='CallExpression'&&key==='callee')) {
+        throw new TypeError('Public SCO export observes a private function value: '+name);
+      }
+    });
+  }
+  for(const helper of publicHelperFunctions)inspectPublicFunction(helper.fn,helper.name);
   for(const statement of ast.body) {
     if(statement.type==='VariableDeclaration'||statement.type==='FunctionDeclaration')continue;
     if(statement.type!=='ExportNamedDeclaration'||statement.source||
@@ -182,7 +237,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }else{
       throw new TypeError('Selective SCO requires function declarations or single-function const exports');
     }
-    if(seen.has(name)||privateHelperNames.has(name))throw new TypeError('Duplicate selective SCO exported binding: '+name);
+    if(seen.has(name)||helperBindings.has(name))throw new TypeError('Duplicate selective SCO exported binding: '+name);
     seen.add(name);
     const text=file.code.slice(statement.start,statement.end);
     if(selected.has(name)){
@@ -195,36 +250,14 @@ function partitionScoSelectedAsyncExports(file,options) {
     }else{
       publicNames.push(name);
       publicChunks.push(text);
-      walk(fn,(node,parent,key)=>{
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
-        if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
-           node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
-          throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
-        }
-        // A caller can bind an ambient global as "this" even when its
-        // source code contains no explicit globalThis/process identifier.
-        if(serverEnvironmentUsed&&(node.type==='ThisExpression'||
-           node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))){
-          throw new TypeError('Public SCO export cannot share server environment: '+name);
-        }
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
-          throw new TypeError('Public SCO export reads server-only constant: '+name);
-        }
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&privateHelperNames.has(node.name)){
-          throw new TypeError('Public SCO export references a server-only helper: '+name);
-        }
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&selected.has(node.name)&&
-           !(parent?.type==='CallExpression'&&key==='callee')) {
-          throw new TypeError('Public SCO export observes a private function value: '+name);
-        }
-      });
+      inspectPublicFunction(fn,name);
     }
   }
   if(privateChunks.length!==selected.size)throw new TypeError('Unknown private SCO export name');
   if(!publicChunks.length)throw new TypeError('Selective SCO requires at least one retained public export');
   // Server and client load different function objects. Private code that reads
   // or mutates a public export can observe the wrong copy after partitioning.
-  const publicBindings=new Set(publicNames);
+  const publicBindings=new Set([...publicNames,...publicHelperNames]);
   for(const body of privateBodies){
     walk(body,(node,parent,key)=>{
       if(node.type!=='Identifier'||isStaticKey(parent,key))return;
@@ -254,9 +287,11 @@ function partitionScoSelectedAsyncExports(file,options) {
     path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateHelperChunks.join('\n')+'\n'+privateChunks.join('\n')
   },{seed:options.seed,endpoint:options.endpoint,batch:options.batch,maxBatchCalls:options.maxBatchCalls,
     serverOnlyInitialization:true});
-  const clientCode=publicChunks.join('\n')+'\n'+partition.clientFile.code;
+  const clientCode=(publicHelperChunks.length?publicHelperChunks.join('\n')+'\n':'')+
+    publicChunks.join('\n')+'\n'+partition.clientFile.code;
   parse(clientCode,'module');
-  return {...partition,publicNames,privateNames:[...options.privateNames],
+  return {...partition,publicNames,publicHelperNames:[...publicHelperNames],
+    privateNames:[...options.privateNames],
     clientFile:{...partition.clientFile,code:clientCode}};
 }
 
