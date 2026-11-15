@@ -89,7 +89,7 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code:file.code,sourceType};
   });
-  const cross = options.closedWorld ? renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+  const cross = options.closedWorld && options.properties !== false ? renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const output = cross.files.map(file => {
     const filename = file.path;
     const sourceType = file.sourceType;
