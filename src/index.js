@@ -5,5 +5,6 @@ const {createSnoLauncher} = require('./sno');
 const {createScoHandler} = require('./sco');
 const {createScoRpcClientSource} = require('./rpc-client');
 const {createScoBatchMethod} = require('./rpc-batch');
+const {partitionScoAsyncModule,bindScoModuleExports} = require('./sco-partition');
 
-module.exports = {obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod};
+module.exports = {obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,partitionScoAsyncModule,bindScoModuleExports};
