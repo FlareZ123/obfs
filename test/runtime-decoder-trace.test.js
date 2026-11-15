@@ -10,11 +10,13 @@ const {traceStringConstruction} = require('../sims/runtime-decoder-trace');
  * its eager decoder code runs. The original source is never passed to the
  * attacker; it is used solely by the verifier to check successful extraction.
  */
-for (const [mode, sourceType, strings] of [
-  ['sno', 'commonjs', undefined],
-  ['coo', 'script', true],
-  ['sco', 'script', true]
-]) {
+/** @type {{mode:'sno'|'coo'|'sco',sourceType:'script'|'commonjs',strings?:boolean}[]} */
+const cases = [
+  {mode:'sno', sourceType:'commonjs'},
+  {mode:'coo', sourceType:'script', strings:true},
+  {mode:'sco', sourceType:'script', strings:true}
+];
+for (const {mode, sourceType, strings} of cases) {
   test(mode + ' executable string decoder leaks dormant literal to runtime hook', () => {
     const literals = [
       'unexecuted-\u03b1-\ud83d\ude00-\ud800-private-text',
@@ -34,11 +36,9 @@ for (const [mode, sourceType, strings] of [
         identifiers: false,
         ...(strings === undefined ? {} : {strings})
       };
-      /** @type {'script'|'commonjs'} */
-      const typedSource = /** @type {'script'|'commonjs'} */ (sourceType);
       const transformed = obfuscateFiles([{
         path: mode === 'sno' ? 'entry.cjs' : 'entry.js',
-        sourceType: typedSource,
+        sourceType,
         code: original
       }], options).files[0];
       assert.equal(typeof transformed.code, 'string');
