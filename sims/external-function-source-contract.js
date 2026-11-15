@@ -19,7 +19,9 @@ const {atomicWrite}=require('../src/atomic');
  * @returns {unknown}
  */
 function evaluate(source,bridge) {
-  const context={module:{exports:null},hostBridge:bridge};
+  /** @param {number} value */
+  const raise=value=>{throw Error('problem-'+value);};
+  const context={module:{exports:null},hostBridge:bridge,raise};
   vm.runInNewContext(source,context,{filename:'opaque-source.cjs',timeout:2000});
   return context.module.exports;
 }
@@ -68,7 +70,7 @@ async function studyOpaqueSourceContract() {
 
   const stackSource=[
     "'use strict';",
-    'function thrower(){const significantLocal=37;throw Error("problem-"+significantLocal);}',
+    'function thrower(){const significantLocal=37;return raise(significantLocal);}',
     'module.exports=hostBridge(thrower);'
   ].join('');
   /** @param {Function} fn */
