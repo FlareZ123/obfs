@@ -106,6 +106,24 @@ test('SCO refuses first-class reflective methods and immutable constructor alias
   }
 });
 
+test('SCO split must refuse legacy RegExp match state shared between exports',()=>{
+  const first=vm.createContext({});
+  const second=vm.createContext({});
+  assert.equal(vm.runInContext('/(XY)(Z)/.test("XYZ");RegExp.$1',first),'XY');
+  assert.equal(vm.runInContext('RegExp.$1',second),'');
+  assert.equal(vm.runInContext('RegExp.$1',first),'XY');
+  const privateMatch='return /(XY)(Z)/.test("XYZ");';
+  for(const publicRead of [
+    'return RegExp.$1;',
+    'return RegExp.lastMatch;',
+    'const Rx=RegExp;return Rx["$"+"1"];',
+    'const Rx=RegExp;return Rx.input;'
+  ]){
+    assert.throws(()=>partition(moduleSource(privateMatch,publicRead)),
+      /realm.*regexp|regexp.*realm/i,publicRead);
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
