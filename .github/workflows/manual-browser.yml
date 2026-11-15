@@ -33,5 +33,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/heldout-browser-integration.js
+      - name: Execute real server-private SCO before-and-after example in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-real-browser.js
       - name: Check JSDoc types
         run: npm run typecheck
