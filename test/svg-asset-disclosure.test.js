@@ -66,6 +66,36 @@ test('SVG animation URL lists screen every semicolon-separated state',()=>{
   }
 });
 
+test('SVG inline styles cannot publish CSS source-map annotations or source contents',()=>{
+  const original='const PRIVATE_SVG_STYLE_CANARY=728391;';
+  const map=Buffer.from(JSON.stringify({
+    version:3,sources:['original-private.js'],sourcesContent:[original],
+    names:['PRIVATE_SVG_STYLE_CANARY'],mappings:'AAAA'
+  })).toString('base64');
+  const hostile=[
+    '<svg xmlns="http://www.w3.org/2000/svg"><style><![CDATA[.x{fill:red}/*# sourceMappingURL=data:application/json;base64,'+map+' */]]></style></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>/*@ sourceMappingURL=./original-private.css.map */.x{opacity:1}</style></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>/*# sourceMap&#112;ingURL=./original-private.css.map */</style></svg>',
+    '<svg xmlns="http://www.w3.org/2000/svg"><style>/*# source<![CDATA[MappingURL=./original-private.css.map]]> */</style></svg>'
+  ];
+  for(const svg of hostile) {
+    assert.equal(findInlineSvgSource(svg),'embedded CSS source-map directive');
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      assert.throws(()=>transform(svg,mode),/SVG asset contains embedded CSS source-map directive/,mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path:'assets/icon.svg',sourceType:'asset',code:svg}
+    ]),/SVG asset contains embedded CSS source-map directive/);
+  }
+  const safe='<svg xmlns="http://www.w3.org/2000/svg"><style><![CDATA[.x::before{content:"/*# sourceMappingURL=not-a-directive */"}.x{fill:red}]]></style><circle class="x" r="4"/></svg>';
+  assert.equal(findInlineSvgSource(safe),null);
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const file=transform(Buffer.from(safe,'utf8'),mode).files.find(item=>item.path==='assets/icon.svg');
+    assert.ok(file);
+    assert.deepEqual(file.code,Buffer.from(safe,'utf8'));
+  }
+});
+
 test('safe SVG geometry, raster image data, and external references remain byte-identical',()=>{
   const svg=[
     '<?xml version="1.0" encoding="UTF-8"?>',
