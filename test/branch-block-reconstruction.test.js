@@ -12,6 +12,7 @@ const {SEED}=require('../examples/branch-blocks/build.cjs');
 const ROOT=path.join(__dirname,'../examples/branch-blocks');
 const before=fs.readFileSync(path.join(ROOT,'before/gate.cjs'),'utf8');
 const after=fs.readFileSync(path.join(ROOT,'after/gate.cjs'),'utf8');
+const maskedAfter=fs.readFileSync(path.join(ROOT,'after/gate-masked.cjs'),'utf8');
 
 test('checked-in branch sample matches the actual deterministic compiler',()=>{
   const compiled=flattenBranchBlocks(before,'commonjs',{seed:SEED,names:['gate']});
@@ -44,14 +45,15 @@ test('independent attacker symbolically cancels operand-dependent runtime state 
     seed:SEED,names:['gate'],stateBlinding:true
   });
   assert.equal(masked.blocks,5);
-  assert.match(masked.code,/typeof /u);
-  const recovered=recoverBranchFunction(masked.code,'gate');
+  assert.equal(masked.code,maskedAfter,'Checked-in masked output differs from compiler');
+  assert.match(maskedAfter,/typeof /u);
+  const recovered=recoverBranchFunction(maskedAfter,'gate');
   assert.equal(recovered.blocks,5);
   assert.equal(recovered.tests,2);
   assert.equal(recovered.operations,7);
   const native=require('../examples/branch-blocks/before/gate.cjs').gate;
   const obfuscated=/** @type {(x:unknown)=>unknown} */ (
-    vm.runInNewContext('(function(){const module={exports:{}};'+masked.code+';return module.exports.gate})()')
+    vm.runInNewContext('(function(){const module={exports:{}};'+maskedAfter+';return module.exports.gate})()')
   );
   const clone=/** @type {(x:unknown)=>unknown} */ (vm.runInNewContext('('+recovered.source+')'));
   for(let x=-4096;x<=4096;x++){
