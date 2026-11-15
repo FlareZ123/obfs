@@ -35,7 +35,10 @@ function verifyPrivateImport(source,specifier,known) {
     throw new TypeError('Private SCO graph requires relative .mjs or node: imports: '+specifier);
   }
   const target=path.posix.normalize(path.posix.join(path.posix.dirname(source),specifier));
-  if(!target.endsWith('.mjs') || target==='..'||target.startsWith('../')||!known.has(target)) {
+  const relative=path.posix.relative(path.posix.dirname(source),target);
+  const canonical=relative.startsWith('.')?relative:'./'+relative;
+  if(!target.endsWith('.mjs') || target==='..'||target.startsWith('../')||
+      !known.has(target)||specifier!==canonical) {
     throw new TypeError('Missing or noncanonical private SCO import: '+source+' -> '+specifier);
   }
 }
