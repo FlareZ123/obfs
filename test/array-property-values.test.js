@@ -30,8 +30,8 @@ test('local literal array values can be renamed with all their owning keys',()=>
   compareLocal('const a={numbers:[4,5,[6,7]],flag:42};module.exports=a.numbers.flat(Infinity).reduce((x,y)=>x+y,0)+a.flag;',1);
 });
 
-test('array containing object expressions is outside the narrow literal proof',()=>{
-  compareLocal('const a={items:[{foo:1}]};module.exports=a.items[0].foo;',0);
+test('array containing recursively inert objects supports outer-key renaming',()=>{
+  compareLocal('const a={items:[{foo:1}]};module.exports=a.items[0].foo;',1);
 });
 
 test('array containing functions is outside the narrow literal proof',()=>{
