@@ -162,7 +162,8 @@ function shardNativeBitvectorModule(file,options) {
     if(statement.type==='ExpressionStatement'&&statement.directive)offset=statement.end;
     else break;
   }
-  const code=transformed.slice(0,offset)+'\n'+imports.join('\n')+'\n'+transformed.slice(offset);
+  const code=transformed.slice(0,offset)+(offset?'\n':'')+imports.join('\n')+
+    '\n'+transformed.slice(offset);
   parse(code,'module');
   return {files:[{path:filename,code,sourceType:'module'},...shards],
     functions:edits.length,declined,helperCalls:edits.length*2};
