@@ -385,13 +385,37 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
     }
+    const globalAliases=new Set(['globalThis']);
+    let aliasesChanged=true;
+    while(aliasesChanged){
+      aliasesChanged=false;
+      walk(body,node=>{
+        if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+           node.init?.type==='Identifier'&&globalAliases.has(node.init.name)&&
+           !globalAliases.has(node.id.name)){
+          globalAliases.add(node.id.name);
+          aliasesChanged=true;
+        }
+      });
+    }
     walk(body,(node,parent,key)=>{
       if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
-         node.object.name==='globalThis'){
+         globalAliases.has(node.object.name)){
         const member=node.computed?staticString(node.property):
           node.property.type==='Identifier'?node.property.name:null;
-        if(browserOnlyRoots.has(member??'')){
+        if(member===null||browserOnlyRoots.has(member)){
           throw new TypeError('Private SCO export uses browser-only ambient state: '+member);
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
+         globalAliases.has(node.init.name)&&node.id.type==='ObjectPattern'){
+        for(const property of node.id.properties){
+          const member=property.type==='Property'?
+            (property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key)):null;
+          if(member===null||browserOnlyRoots.has(member)){
+            throw new TypeError('Private SCO export uses browser-only ambient state: '+member);
+          }
         }
       }
       if(node.type!=='Identifier'||isStaticKey(parent,key))return;
