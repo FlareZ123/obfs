@@ -4,7 +4,7 @@ The programmatic helpers partitionScoAsyncModule and bindScoModuleExports create
 
 ## Supported input and preserved interface
 
-The input must be a single .mjs module (or a .js module explicitly marked sourceType:'module') containing **only direct named exported async function declarations**. Every function must use ordinary identifier parameters, cannot be a generator, and cannot reference this or super. Empty files, imports, top-level constants, initializers, default exports, export specifiers, and synchronous declarations are refused. This strict admission policy prevents the helper from shipping forgotten top-level secrets or silently dropping visible initialization effects.
+The default input must be a single .mjs module (or a .js module explicitly marked sourceType:'module') containing **only direct named exported async function declarations**. Every function must use ordinary identifier parameters, cannot be a generator, and cannot reference this or super. Empty files, imports, top-level constants, initializers, default exports, export specifiers, and synchronous declarations are refused by default. This strict admission policy prevents the helper from shipping forgotten top-level secrets or silently dropping visible initialization effects. An explicit `serverOnlyInitialization:true` mode lifts the restriction on non-exported top-level code, described below.
 
 The output contains a public clientFile with the same module path and named async exports. It preserves exported function names and ordinary parameter count. Each proxy forwards its complete arguments list to an authenticated same-origin JSON RPC endpoint, including extra positional arguments. The original bodies are absent. The helper emits opaque per-method identifiers that are available in the public stub and must never be treated as credentials or secrets.
 
@@ -14,7 +14,7 @@ This is an explicit application contract: both inputs and outputs should be plai
 
 The following CommonJS example assumes the original private module is located outside the publicly served directory:
 
-\`\`\`js
+```js
 const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
@@ -45,17 +45,30 @@ async function start() {
   http.createServer(handler).listen(8080);
 }
 start();
-\`\`\`
+```
 
 verifySession and verifyPolicy are application-defined placeholders. The private file must never be placed in the web root or included in the SCO handler's sourceFiles. The partitioned client file is served as /obfs/protected.mjs. A browser caller can continue using named asynchronous imports:
 
-\`\`\`js
+```js
 import {calculate} from '/obfs/protected.mjs';
 const result=await calculate(40,2);
-\`\`\`
+```
 
 For a nondefault routePrefix, set the matching same-origin absolute endpoint in partitionScoAsyncModule({path,code},{endpoint:'/your-prefix/rpc'}), and use the same routePrefix on createScoHandler. The partition seed is randomized by default; when deterministic reproducibility is required, provide a seed at build time and keep the corresponding server operation registry and client stub within the same deployment generation.
 
+## Optional private module initialization
+
+Set `serverOnlyInitialization:true` to keep arbitrary non-exported top-level initialization and private imports on the trusted server. The generated browser module contains only the exported async RPC stubs; it omits private imports, local declarations, and secret constants. Reexports and exports of values or functions outside the selected async declaration shape remain forbidden. A private ESM module can therefore import `node:crypto`, initialize a server-only secret, and export an async verification operation without shipping its crypto import or secret to the browser.
+
+This explicitly changes the original module's client-side initialization behavior. Use it only for a deliberately private server module whose initialization is intended to execute on the trusted server. Do not assume that relocating arbitrary top-level effects preserves an existing browser app's semantics or timing. The integrator must load the original ESM module on the server before binding its functions.
+
+## Optional named batched operations
+
+Set `batch:true` (optionally with `maxBatchCalls:32`) to add an explicit named `batch(calls)` export to the generated client. Each call item has `{name:'exportedFunctionName',args:[...]}`. `bindScoModuleExports` automatically registers a private bounded batch handler alongside the original method registry. The proxy translates public function names to generated RPC method identifiers and sends one HTTP JSON request. It validates the batch shape and size before sending, while the server independently applies the configured maximum (64 calls by default, up to 1,024).
+
+For example, given `export async function calculate(value)`, the page may call `await batch([{name:'calculate',args:[10]},{name:'calculate',args:[20]}])` after importing `{batch}` from the generated browser module. Responses contain an ordered array of `{ok:true,value}` or `{ok:false,error:'Operation failed'}` items. This new export is opt-in and cannot be enabled if the original module already exports a function named `batch`.
+
+The outer `authorizeOperation` sees the generated batch method identifier in `partition.batchMethod` and the complete nested call list inside `args[0]`. A method-aware policy must authorize **every** nested item before allowing any operation to execute. Batching does not roll back side effects, and per-item failure statuses do not reveal the server's private stack traces. See [the quantitative RPC grid](../im-results/sco-rtt-grid-2026-11-15.md) for the latency benefits and failures under simulated fixed delay.
 ## Security and performance boundaries
 
 Original function bodies remain on the trusted server, absent from delivered JS. An attacker controlling the client can still enumerate public method identifiers, invoke every operation authorized to them, modify arguments, measure timing, observe results, and build a black-box approximation. Server-only secrets remain protected only to the extent that no server-side method or output reveals them. Method identities are routing labels, not tokens. Use signed sessions, strict authorization, input validation, rate limits, monitoring, and deliberate response design. Consider CSRF and CORS policy when relying on same-origin cookies.
