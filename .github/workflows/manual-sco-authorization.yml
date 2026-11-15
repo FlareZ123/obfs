@@ -31,3 +31,5 @@ jobs:
         run: node sims/sco-selective-challenge.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: Strict JSDoc of external research scripts
+        run: npm run typecheck:external
