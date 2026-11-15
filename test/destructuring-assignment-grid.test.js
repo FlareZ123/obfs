@@ -40,6 +40,11 @@ function positive(seed,style) {
     return root+'function forward(value){return value;}const alias=forward(root);'+
       'let captured=0;({'+field+':captured}=alias);module.exports=[captured,root.'+weight+'];';
   }
+  if(style===8) {
+    return root+'let captured=0,falls=0;function fallback(){falls++;return 900;}'+
+      '({'+field+':captured=fallback()}=root);'+
+      'module.exports=[captured,falls,root.'+weight+'];';
+  }
   if(style===7) {
     return root+'let first=0,second=0;({'+field+':first,'+weight+':second}=root);'+
       'module.exports=[first,second];';
@@ -73,7 +78,8 @@ function negative(seed,style) {
       return init+'const leaked=true&&({'+field+':captured}=root);'+
         'module.exports=Object.keys(leaked);';
     case 2:
-      return init+'({'+field+':captured=9}=root);module.exports=[captured,root.'+weight+'];';
+      return init+'const target={};({'+field+':target.value}=root);'+
+        'module.exports=[target.value,root.'+weight+'];';
     case 3:
       return init+'let rest;({'+field+':captured,...rest}=root);'+
         'module.exports=[captured,rest.'+weight+'];';
@@ -91,10 +97,10 @@ function negative(seed,style) {
   }
 }
 
-test('256 deterministic local destructuring assignment flows rename own fields',()=>{
+test('288 deterministic local destructuring assignment flows rename own fields',()=>{
   let candidates=0;
   let covered=0;
-  for(let seed=0;seed<32;seed++)for(let style=0;style<8;style++) {
+  for(let seed=0;seed<32;seed++)for(let style=0;style<9;style++) {
     const original=positive(seed,style);
     const baseline=execute(original);
     for(const mode of /** @type {const} */ (['coo','sno'])) {
@@ -111,8 +117,8 @@ test('256 deterministic local destructuring assignment flows rename own fields',
       covered+=result.metrics.properties;
     }
   }
-  assert.equal(candidates,1024);
-  assert.equal(covered,1024);
+  assert.equal(candidates,1152);
+  assert.equal(covered,1152);
 });
 
 test('256 deterministic ambiguous assignment flows refuse own-field renaming',()=>{
