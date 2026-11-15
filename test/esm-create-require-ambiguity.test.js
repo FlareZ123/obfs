@@ -19,6 +19,7 @@ const {atomicWrite} = require('../src/atomic');
  */
 async function compare(entrySource,expectedRenamedProperties) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-require-'));
+  /** @type {{path:string,sourceType:'module',code:string}[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={secretField:11};'},
     {path:'main.mjs',sourceType:'module',code:entrySource}
