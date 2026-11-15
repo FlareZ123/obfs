@@ -6,7 +6,7 @@ XOR string encoding, locally proven identifier renaming, and seeded names raise 
 
 ## Property-name transformation
 
-The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use.
+The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, visible-scope mismatches, nonprimitive writes, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use.
 
 ## Authorization
 

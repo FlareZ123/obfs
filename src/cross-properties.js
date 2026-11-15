@@ -33,17 +33,30 @@ function renameCrossFileProperties(files,seed) {
   // Without a proof for other language/runtime boundaries, inline scripts,
   // assets, and CommonJS code are potential consumers of any ESM export.
   // Decline the entire closed-world property pass for mixed-format projects.
-  if (files.some(file => file.sourceType !== 'module')) {
+  if (files.some(file => (file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script')) !== 'module')) {
     return {files,objects:0,properties:0};
   }
   /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
   for(const file of files) {
-    if (file.sourceType==='module' && typeof file.code==='string') {
+    if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
       const ast=parse(file.code,'module');
       modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
     }
   }
+  // Query/fragment and percent-encoded ESM URLs can resolve to an input
+  // file through a different spelling. An ordinary path join misses them.
+  // Refuse the complete pass until a URL-aware resolution proof is available.
+  for(const module of modules.values()) {
+    let ambiguous=false;
+    walk(module.ast,node=>{
+      if ((node.type==='ImportDeclaration'||node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration') &&
+          node.source?.type==='Literal' && typeof node.source.value==='string' &&
+          /^[.][.\/]?/.test(node.source.value) && /[?#%]/.test(node.source.value)) ambiguous=true;
+    });
+    if(ambiguous) return {files,objects:0,properties:0};
+  }
+
   /** @type {Map<string,import('./ast').Edit[]>} */
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */

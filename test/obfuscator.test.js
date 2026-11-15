@@ -195,6 +195,30 @@ test('closed-world ESM importer and exporter agree on renamed property',async()=
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
 
+test('method assignment that could observe property names forbids property rename',()=>{
+  const unsafe=[
+    'const state={secret:1};state.secret=function(){return Object.keys(this)[0]};module.exports=state.secret();',
+    'const state={secret:1};state.other=function(){return Object.keys(this)[0]};module.exports=state.other();',
+    'const state={secret:1};const f=function(){return Object.keys(this)[0]};state.secret=f;module.exports=state.secret();',
+    'const state={secret:1};state.secret ||= function(){return Object.keys(this)[0]};module.exports=state.secret;'
+  ];
+  for(const source of unsafe) {
+    const out=obfuscateFiles([{path:'app.cjs',code:source}],{mode:'sno',seed:'method-hazard',strings:false});
+    assert.equal(out.files[0].metrics.objects,0,source);
+    assert.equal(JSON.stringify(evaluate(out.files[0].code)),JSON.stringify(evaluate(source)));
+  }
+  const safe=[
+    'const state={secret:1};state.secret=7;module.exports=state.secret;',
+    'const state={secret:1};state.secret+=7;module.exports=state.secret;',
+    'const state={secret:1};state.secret++;module.exports=state.secret;'
+  ];
+  for(const source of safe) {
+    const out=obfuscateFiles([{path:'app.cjs',code:source}],{mode:'sno',seed:'method-hazard',strings:false});
+    assert.equal(out.files[0].metrics.objects,1,source);
+    assert.equal(evaluate(out.files[0].code),evaluate(source));
+  }
+});
+
 test('literal-key destructuring preserves binding names and can be renamed',()=>{
   const sources=[
     'const state={secret:7,other:11};const {secret,other:second}=state;module.exports=[secret,second,state.secret];',
@@ -216,6 +240,22 @@ test('literal-key destructuring preserves binding names and can be renamed',()=>
     assert.equal(out.files[0].metrics.properties,0,source);
     assert.equal(JSON.stringify(evaluate(source)),JSON.stringify(evaluate(out.files[0].code)));
   }
+});
+
+test('lexical containment prevents accidental global property renaming',()=>{
+  const samples=[
+    "'use strict';globalThis.alias={secretKey:200};const local={secretKey:1};{const alias=local;}module.exports=alias.secretKey;",
+    "'use strict';globalThis.p={secretKey:300};const local={secretKey:2};function f(p){return p.secretKey;}module.exports=[f(local),p.secretKey];",
+    "'use strict';globalThis.local={secretKey:400};function f(){const local={secretKey:3};return local.secretKey;}module.exports=[f(),local.secretKey];"
+  ];
+  for(const source of samples) {
+    const out=obfuscateFiles([{path:'entry.cjs',code:source}],{mode:'sno',seed:'lexical',strings:false});
+    assert.equal(out.files[0].metrics.objects,0,source);
+  }
+  const safe="'use strict';function f(){const local={secretKey:1};{const alias=local;return alias.secretKey}}module.exports=f();";
+  const output=obfuscateFiles([{path:'entry.cjs',code:safe}],{mode:'sno',seed:'lexical',strings:false}).files[0];
+  assert.equal(output.metrics.objects,1);
+  assert.equal(evaluate(output.code),evaluate(safe));
 });
 
 test('closed-world ESM destructuring follows cross-module property names',async()=>{

@@ -51,6 +51,37 @@ function staticName(node) {
 }
 
 /**
+ * Each simple binding's visible lexical region. A unique name alone cannot
+ * prove that a same-spelled free reference outside the region is the binding.
+ * Derived from Agent 2's lexical-containment counterexample and implementation.
+ * @param {AstNode} ast
+ * @returns {Map<string,AstNode>}
+ */
+function collectBindingScopes(ast) {
+  /** @type {Map<string,AstNode>} */
+  const scopes=new Map();
+  const lexical=new Set(['Program','BlockStatement','StaticBlock','SwitchStatement',
+    'ForStatement','ForInStatement','ForOfStatement','CatchClause']);
+  /** @param {AstNode[]} ancestors @returns {AstNode} */
+  function enclosing(ancestors) {
+    return [...ancestors].reverse().find(node=>lexical.has(node.type)) || ast;
+  }
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='VariableDeclarator' && node.id.type==='Identifier') {
+      scopes.set(node.id.name,enclosing(ancestors));
+    } else if(node.type==='FunctionDeclaration') {
+      if(node.id?.type==='Identifier') scopes.set(node.id.name,enclosing(ancestors));
+      for(const param of node.params) if(param.type==='Identifier')scopes.set(param.name,node);
+    } else if(node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression') {
+      for(const param of node.params) if(param.type==='Identifier')scopes.set(param.name,node);
+    } else if(/^Import(?:Default|Namespace)?Specifier$/.test(node.type) && node.local?.type==='Identifier') {
+      scopes.set(node.local.name,ast);
+    }
+  });
+  return scopes;
+}
+
+/**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
  * Rejects reflection, computed keys, escapes, ambiguous calls, and shadowing.
@@ -81,7 +112,7 @@ function proveLocalObject(ast, rootName, bindings) {
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
-      if (node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
+      if (!node.async && !node.generator && node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
           node.body.body[0].argument?.type === 'Identifier') {
         /** @type {AstNode[]} */
         const params = node.params;
@@ -98,10 +129,16 @@ function proveLocalObject(ast, rootName, bindings) {
   });
   if (dynamicScope) return null;
 
+  const scopes=collectBindingScopes(ast);
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!functions.has(node.name)) continue;
+    const scope=scopes.get(node.name);
+    if (!scope || !ancestors.includes(scope)) {
+      unusableFunctions.add(node.name);
+      continue;
+    }
     if (parent?.type === 'FunctionDeclaration' && key === 'id') {
       if (ancestors.some(a => /^Export/.test(a.type))) unusableFunctions.add(node.name);
       continue;
@@ -166,6 +203,8 @@ function proveLocalObject(ast, rootName, bindings) {
   const patterns = [];
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
+    const scope=scopes.get(node.name);
+    if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
     if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
     if (key === 'params' && /^Function/.test(parent.type)) continue;
@@ -202,6 +241,22 @@ function proveLocalObject(ast, rootName, bindings) {
       return null;
     }
     return null;
+  }
+  // Member assignment can install a function whose `this` observes the
+  // owner's property names, even if the assigned field itself is unrenamed.
+  // Preserve hot arithmetic updates while refusing unproven function/object
+  // assignments and method-call receivers.
+  for (const member of members) {
+    const consumer=parents.get(member);
+    if (consumer?.type==='AssignmentExpression' && consumer.left===member) {
+      if (consumer.operator==='=') {
+        const rhs=consumer.right;
+        if (rhs.type!=='Literal' ||
+            !['string','number','boolean','bigint'].includes(typeof rhs.value) && rhs.value!==null) return null;
+      } else if (['&&=','||=','??='].includes(consumer.operator)) return null;
+    }
+    if (consumer?.type==='CallExpression' && consumer.callee===member ||
+        consumer?.type==='TaggedTemplateExpression' && consumer.tag===member) return null;
   }
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifiers.some(({node}) => node.name === 'arguments') &&
