@@ -165,8 +165,8 @@ test('affine native: committed before/after can be reproduced exactly',async()=>
   const fs=require('node:fs/promises');
   const path=require('node:path');
   const root=path.join(__dirname,'../examples/affine-native');
-  const before=await fs.readFile(path.join(root,'before.cjs'),'utf8');
-  const after=await fs.readFile(path.join(root,'after.cjs'),'utf8');
+  const before=(await fs.readFile(path.join(root,'before.cjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const after=(await fs.readFile(path.join(root,'after.cjs'),'utf8')).replace(/\r\n/gu,'\n');
   assert.equal(lowerAffineNative(before,'commonjs',{
     seed:'affine-native-example-v1',names:['encode']
   }).code,after);

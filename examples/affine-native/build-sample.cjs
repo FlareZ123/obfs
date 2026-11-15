@@ -12,14 +12,14 @@ const {atomicWrite}=require('../../src/atomic');
  * @returns {Promise<void>}
  */
 async function buildSample(check=false) {
-  const source=await fs.readFile(path.join(__dirname,'before.cjs'),'utf8');
+  const source=(await fs.readFile(path.join(__dirname,'before.cjs'),'utf8')).replace(/\r\n/gu,'\n');
   const output=lowerAffineNative(source,'commonjs',{
     seed:'affine-native-example-v1',names:['encode']
   });
   assert.equal(output.functions,1);
   assert.equal(output.steps,16);
   const target=path.join(__dirname,'after.cjs');
-  if(check)assert.equal(await fs.readFile(target,'utf8'),output.code);
+  if(check)assert.equal((await fs.readFile(target,'utf8')).replace(/\r\n/gu,'\n'),output.code);
   else await atomicWrite(target,output.code);
 }
 
