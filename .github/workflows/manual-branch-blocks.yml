@@ -20,6 +20,10 @@ jobs:
       - name: Generate real before-and-after sample
         run: node examples/branch-blocks/build.cjs
       - name: Branch differential semantics
-        run: node --test test/branch-blocks.test.js
+        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js
+      - name: Seedless attacker reconstruction
+        run: node sims/branch-block-reconstruction.js
+      - name: Six-trial isolated performance profile
+        run: node sims/branch-block-profile.js
       - name: JSDoc checker
         run: npm run typecheck
