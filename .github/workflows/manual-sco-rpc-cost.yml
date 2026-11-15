@@ -21,10 +21,6 @@ jobs:
         run: node sims/sco-rpc-cost.js
       - name: Profile artificial RTT and concurrent versus batched operations
         run: node sims/sco-rtt-grid.js
-      - name: Strict-check SCO TLS simulation JSDoc
-        run: npx tsc -p jsconfig.sco-tls.json
-      - name: Measure authenticated TLS RPC overhead and replay controls
-        run: node sims/sco-tls-boundary.js
       - name: Test authorized SCO black-box algorithm reconstruction
         run: node sims/sco-oracle-polynomial.js
       - name: Measure SCO response mutation coverage
@@ -38,3 +34,23 @@ jobs:
             rpc-rtt-grid-output.json
             sco-oracle-polynomial-output.json
             sco-response-diversity-output.json
+
+  tls-transport:
+    name: TLS transport on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict-check SCO TLS simulation JSDoc
+        run: npx tsc -p jsconfig.sco-tls.json
+      - name: Measure authenticated TLS RPC overhead and authorization
+        run: node sims/sco-tls-boundary.js
