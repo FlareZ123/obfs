@@ -22,6 +22,6 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Targeted SCO HTTP and partition tests
-        run: node --test test/sco-batch-state-drift.test.js test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js
+        run: node --test test/sco-batch-state-model.test.js test/sco-batch-state-drift.test.js test/sco-batch-policy-closure.test.js test/sco-operation-auth.test.js test/sco-batch.test.js test/sco-partition.test.js test/sco-partition-private-init.test.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
