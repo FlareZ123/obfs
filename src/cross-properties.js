@@ -254,6 +254,27 @@ function renameCrossFileProperties(files,seed) {
         const names=props.map(ownPropertyName);
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
+        // Only direct named const-string exports evaluated before this owner
+        // can be safe keys in an imported owner read. Since the imported
+        // owner's const binding cannot be observed before initialization,
+        // its earlier string keys must already be initialized even in an
+        // ESM cycle. Later keys may still be in TDZ and are excluded.
+        /** @type {Map<string,string>} */
+        const earlierKeyExports=new Map();
+        for(const statement of exporter.ast.body) {
+          if(statement.type!=='ExportNamedDeclaration'||statement.source||
+             statement.declaration?.type!=='VariableDeclaration'||
+             statement.declaration.kind!=='const')continue;
+          for(const keyDecl of statement.declaration.declarations) {
+            if(keyDecl.id.type!=='Identifier'||!keyDecl.init||
+               keyDecl.start>=decl.start||
+               exporter.bindings.get(keyDecl.id.name)!==1)continue;
+            const literalKey=staticString(keyDecl.init);
+            if(literalKey!==null&&names.includes(literalKey)) {
+              earlierKeyExports.set(keyDecl.id.name,literalKey);
+            }
+          }
+        }
         const readers=new Map([.../** @type {Map<string,{member:AstNode,property:string,argIndex:number}>} */ (exportedReaders.get(exporterName)??new Map())]
           .filter(([,reader])=>names.includes(reader.property)));
         /** @type {Set<string>} */
@@ -267,6 +288,8 @@ function renameCrossFileProperties(files,seed) {
           if (failed) break;
           /** @type {string[]} */
           const importedAliases=[];
+          /** @type {Map<string,string>} Proven local binding name to immutable exported string. */
+          const importedKeys=new Map();
           /** @type {Map<string,string>} Local reader alias to original exported reader name. */
           const readerAliases=new Map();
           for(const statement of importer.ast.body) {
@@ -276,6 +299,10 @@ function renameCrossFileProperties(files,seed) {
                 if(spec.type!=='ImportSpecifier')continue;
                 const exportedName=spec.imported.name ?? spec.imported.value;
                 if(exportedName===exportName)importedAliases.push(spec.local.name);
+                const key=earlierKeyExports.get(exportedName);
+                if(key!==undefined&&importer.bindings.get(spec.local.name)===1) {
+                  importedKeys.set(spec.local.name,key);
+                }
                 if(readers.has(exportedName))readerAliases.set(spec.local.name,exportedName);
               }
             }
@@ -297,7 +324,7 @@ function renameCrossFileProperties(files,seed) {
           for(const alias of importedAliases) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
             const proof=proveLocalObject(importer.ast,alias,importer.bindings,
-              importedIdentities.get(importerName),consumerIndices);
+              importedIdentities.get(importerName),consumerIndices,importedKeys);
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size)readerProof=proof;
