@@ -109,6 +109,26 @@ function observesFunctionSource(ast) {
   // Aliased string prefixes and aliased String constructors can coerce
   // functions to their exact source text without a literal at the use site.
   const strings=new Set();
+  // Array#join and Function#toLocaleString can implicitly format functions as
+  // their source text. Track simple aliases and array-element ownership in
+  // addition to direct String/RegExp coercers.
+  const functions=new Set();
+  const arraysWithFunctions=new Set();
+  walk(ast,node=>{
+    if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
+       node.id?.type==='Identifier')functions.add(node.id.name);
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isFunctionValue(node) {
+    return Boolean(node && (node.type==='Identifier'&&functions.has(node.name) ||
+      ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function containsFunction(node) {
+    return Boolean(node && (node.type==='Identifier'&&arraysWithFunctions.has(node.name) ||
+      node.type==='ArrayExpression'&&node.elements.some((/** @type {AstNode|null} */ value)=>
+        value && (isFunctionValue(value)||value.type==='SpreadElement'&&containsFunction(value.argument)))));
+  }
   // These standard builtins coerce a nonprimitive argument to a string.
   // That invokes Function#toString when the argument is a function. A
   // source rewrite can therefore change RegExp.source, Symbol.description,
@@ -169,6 +189,8 @@ function observesFunctionSource(ast) {
         if(isCoercer(value))changed=add(coercers,name)||changed;
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
+        if(isFunctionValue(value))changed=add(functions,name)||changed;
+        if(containsFunction(value))changed=add(arraysWithFunctions,name)||changed;
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
@@ -204,11 +226,14 @@ function observesFunctionSource(ast) {
       // A plain assignment overwrites the property without reading or
       // invoking its previous value. Preserve the source-observation guard
       // for calls, reads, compound writes, and other receiver uses.
-      if((name==='toString'||name==='toSource') &&
+      if((name==='toString'||name==='toSource' ||
+          name==='toLocaleString'&&isFunctionValue(node.object)) &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
+         memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
