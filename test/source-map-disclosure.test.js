@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {obfuscateFiles,createScoHandler}=require('../src');
-const {isSourceMapAsset,isUntransformedSourceAsset,hasSourceMapDirective}=require('../src/source-maps');
+const {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective}=require('../src/source-maps');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
@@ -122,4 +122,48 @@ test('SCO refuses JavaScript relabeled as a static asset',()=>{
   assert.throws(()=>createScoHandler([
     {path:'public.js',sourceType:'asset',code:'globalThis.originalSource="leaked"'}
   ]),/Untransformed source asset/);
+});
+
+test('version 3 source-map JSON is rejected even when the asset filename disguises it',()=>{
+  const payload=JSON.stringify({
+    version:3,sources:['original.js'],sourcesContent:['function privateOne(){}'],
+    names:['privateOne'],mappings:'AAAA'
+  });
+  for(const name of ['bundle.json','metadata.txt','data.bin','asset.PNG']) {
+    const asBuffer=Buffer.from(payload);
+    assert.equal(isSourceMapDocument(asBuffer),true,name);
+    for(const mode of ['coo','sco','sno']) {
+      assert.throws(()=>obfuscateFiles([
+        app,{path:name,sourceType:'asset',code:asBuffer}
+      ],{mode}),/Source-map JSON payload/,name+' '+mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path:name,sourceType:'asset',code:asBuffer}
+    ]),/Source-map JSON payload/,name);
+  }
+});
+
+test('indexed source maps are detected structurally without filename heuristics',()=>{
+  const indexMap=JSON.stringify({
+    version:3,file:'output.js',
+    sections:[{offset:{line:0,column:0},map:{
+      version:3,sources:['original.js'],sourcesContent:['function hidden(){}'],
+      mappings:'AAAA',names:['hidden']
+    }}]
+  });
+  assert.equal(isSourceMapDocument(indexMap),true);
+  assert.throws(()=>obfuscateFiles([
+    app,{path:'index.json',sourceType:'asset',code:indexMap}
+  ],{mode:'coo'}),/Source-map JSON payload/);
+});
+
+test('ordinary JSON remains unmodified even with overlapping source-map field names',()=>{
+  const config=JSON.stringify({
+    version:3,sources:['telemetry'],mappings:{aliases:'server'},notes:'safe data'
+  });
+  assert.equal(isSourceMapDocument(config),false);
+  const result=obfuscateFiles([
+    app,{path:'config.json',sourceType:'asset',code:Buffer.from(config)}
+  ],{mode:'coo'});
+  assert.equal(result.files.find(file=>file.path==='config.json')?.code.toString(),config);
 });
