@@ -60,7 +60,7 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-public-scope-'));
   try {
     await atomicWrite(path.join(root,'index.mjs'),
-      `import {value} from './lib/helper.mjs';globalThis.publicValue=value;async function load(){return import('./lazy.mjs');}`);
+      `import {value} from './lib/helper.mjs';globalThis.publicValue=value;async function load(){return import('./lazy.mjs');}if(false){import('./private/dormant.mjs');}`);
     await atomicWrite(path.join(root,'lib','helper.mjs'),
       'export const value="public-helper";');
     await atomicWrite(path.join(root,'lazy.mjs'),
@@ -69,6 +69,8 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
       'const SERVER_ONLY_SECRET="server-secret-never-ship";module.exports=SERVER_ONLY_SECRET;');
     await atomicWrite(path.join(root,'private','secret.mjs'),
       'export const SERVER_ONLY_SECRET="server-secret-never-ship";');
+    await atomicWrite(path.join(root,'private','dormant.mjs'),
+      'export const DORMANT_SECRET="dormant-import-never-ship";');
     await atomicWrite(path.join(root,'independent.js'),
       'globalThis.independent=true;import("./independent-child.mjs");');
     await atomicWrite(path.join(root,'independent-child.mjs'),
@@ -76,20 +78,22 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
     await atomicWrite(path.join(root,'style.css'),'body{color:red;}');
 
     const paths=['index.mjs','lib/helper.mjs','lazy.mjs','private/secret.cjs',
-      'private/secret.mjs','independent.js','independent-child.mjs','style.css'];
+      'private/secret.mjs','private/dormant.mjs','independent.js','independent-child.mjs','style.css'];
     const baseline=await requestSco(root,[],paths);
-    for(const name of paths.slice(0,3))assert.equal(baseline.get(name)?.status,200,name);
-    for(const name of paths.slice(3))assert.equal(baseline.get(name)?.status,404,name);
+    for(const name of paths.slice(0,2))assert.equal(baseline.get(name)?.status,200,name);
+    for(const name of paths.slice(2))assert.equal(baseline.get(name)?.status,404,name);
     for(const observed of baseline.values()) {
-      assert.ok(!observed.body.includes('server-secret-never-ship'),
+      assert.ok(!observed.body.includes('server-secret-never-ship') &&
+        !observed.body.includes('dormant-import-never-ship'),
         'Private source leaked in an SCO response');
     }
 
-    const explicit=await requestSco(root,['--client','independent.js','--asset','style.css'],paths);
+    const explicit=await requestSco(root,['--client','lazy.mjs','--client','independent.js',
+      '--client','independent-child.mjs','--asset','style.css'],paths);
     for(const name of [...paths.slice(0,3),'independent.js','independent-child.mjs','style.css']) {
       assert.equal(explicit.get(name)?.status,200,name);
     }
-    for(const name of ['private/secret.cjs','private/secret.mjs']) {
+    for(const name of ['private/secret.cjs','private/secret.mjs','private/dormant.mjs']) {
       assert.equal(explicit.get(name)?.status,404,name);
     }
   }finally{
