@@ -250,3 +250,33 @@ for tested objects, with [Linux/Windows run
 43738180843](https://github.com/FlareZ123/obfs/actions/runs/43738180843)
 green. These strengthen the narrow semantic proof; they do not
 establish equivalence for arbitrary JavaScript constructs.
+
+
+## Public COO hostname guard bypass under attacker-controlled runtime
+
+[Source-only host-guard attack](../sims/branch-block-host-bypass.js)
+receives a complete published COO ESM module compiled with native
+superblocks, numeric state blinding and a locked host
+("allowed.example"). It does not know the compiler seed.
+The script simulates an unauthorized origin in a Node ESM loader,
+which is valid evidence about the public client-side guard but is
+**not** a real remote-origin Chrome navigation. With the
+distributed code intact, the module import rejects with
+"Unauthorized execution host". The attacker removes the recognizable
+143-byte in-module guard and imports the identical protected
+function successfully at the unauthorized simulated origin.
+In both Linux and Windows, [pinned focused run
+43738878834](https://github.com/FlareZ123/obfs/actions/runs/43738878834)
+passed **14/14** tests and logged `unmodifiedDenied:true`,
+`modifiedExecuted:true`. The same run passed
+the Chromium dual-variant 4,109-input differential, source-only
+reconstruction, synthetic tampering, the 12-million-call budget
+gate, and strict JSDoc checks.
+
+This is an expected negative authorization result under the
+specified COO threat model: the client can edit any distributed
+source and fabricate its environment. A public JavaScript
+`location.hostname` predicate can gate honest embedding
+but cannot provide an unbypassable runtime authorization boundary.
+SCO server-side authorization and private computation have different
+trust assumptions and are outside this particular attack.
