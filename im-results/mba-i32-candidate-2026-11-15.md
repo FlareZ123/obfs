@@ -33,6 +33,25 @@ These are illustrative steady-state measurements on the local runtime with separ
 - **Unauthorized execution:** this expression pass adds no environment authorization. Existing SCO/SNO/COO boundaries remain unchanged.
 - **Compatibility/performance:** primitive signed Int32, pure-expression tests pass locally. A real string-coercion counterexample proves that a general opt-in without typed-contract enforcement would be unsound. Only this kernel's local hot ratio was sampled.
 
+
+
+## Cross-platform pinned gate
+
+The extended manual VM research workflow [run 43720483855](https://github.com/FlareZ123/obfs/actions/runs/43720483855), pinned to `23444cd280273a6b941e1a349dbe5b23b31d068f`, **passed** on both Ubuntu and Windows Node.js 22. It includes the MBA differential tests, exact before/after sample regeneration after normalizing Git CRLF seed input, strict core JSDoc check, the prior VM comparator, and the paired MBA benchmark. Per-run medians:
+
+| OS | One MBA replacement | Two MBA replacements | Verified scope |
+|---|---:|---:|---|
+| Ubuntu | 0.9990× | 1.0524× | 300,000-call hot kernel, 15 alternating trials |
+| Windows | 0.9992× | 1.0525× | Same selected kernel, warmup and trials |
+
+The fixed source hash is canonicalized for CRLF versus LF for seed selection only; emitted code keeps the source's original line endings. This resolves the earlier Windows generated-sample mismatch seen in full [run 43719732026](https://github.com/FlareZ123/obfs/actions/runs/43719732026). That earlier full run also caught an unrelated external JSDoc nullability failure in `test/sco-real-example.test.js`, reported to Agent 30. It should not be called a passing full-snapshot release.
+
+## A source-only attack that defeats the entire candidate family
+
+`sims/mba-static-normalize.js` is a separate attacker that receives only the emitted JavaScript source. It recognizes fifteen public algebraic identity shapes through Acorn AST unification of two repeated primitive leaves and an optional unknown numeric mask. It neither reads the obfuscator implementation nor needs its seed. The test `test/mba-static-recovery.test.js` uses **225 independently seeded generated versions** of nine input functions and verifies that every one of their **325 replaced operators** is reduced to a native operator, with 250 held-out input comparisons for each candidate, plus a 2,000-input check against the checked-in generated sample. The attacker refused tested getter/call shapes.
+
+On local Linux Node.js 22, three attacker tests passed. This is a **negative static-resistance result**: a straightforward structural normalizer removes all current MBA syntax in a finite tested corpus. It does not recover arbitrary original formatting, solve a semantic equivalence proof, or cover other obfuscation families. Until independently defeated on held-out transformations, MBA must be treated as syntax diversity with favorable tested cost, not a substantive security advance. The attack and the sample stay checked in as future negative controls.
+
 ## Decision and next work
 
 Retain as a **research-only candidate** to test whether direct MBA circuits offer a better cost/security frontier than the documented postfix VM, which was much slower on small hot numeric kernels. Prioritize a seed-independent source-only algebraic normalizer and an independent attack-cost measurement. Only consider integrating this into the public CLI with enforceable trusted type proofs, external-observer controls, held-out real-program tests, and Node/Chromium performance under the 2.5× requirement. No security advantage is claimed from seeded public constants alone.
