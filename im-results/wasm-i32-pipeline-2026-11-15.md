@@ -27,9 +27,33 @@ Real Chromium Ubuntu, one warmed 200k-call sample: native 1.800 ms, Wasm 2.400 m
 
 The first [Windows run 43742735826](https://github.com/FlareZ123/obfs/actions/runs/43742735826) failed the pinned after-file verifier because Windows checkout CRLF altered a source-derived build seed; its four differential tests passed. Normalizing LF in the fixture verifier before recompilation fixed the reproducibility problem. The successful run and the exact source hash above supersede the earlier run.
 
+## Seedless static expression recovery (later extension)
+
+An independent attacker `sims/wasm-i32-static-recover.js` consumes **only the
+delivered JavaScript and public embedded WebAssembly bytes**. It implements
+separate Wasm binary-section and signed/unsigned LEB128 parsing, symbolically
+interprets the exported i32 stack program, folds constant XOR masks,
+recognizes repeated pure-operand Boolean identities, and reconstructs a
+native JavaScript expression without importing compiler implementation
+code, the original source, or the build seed.
+
+`test/wasm-i32-static-recovery.test.js` exercised all **120/120 generated
+expressions** across five independent source graphs and 24 independent seeds
+each. The recovered native expression ASTs were structurally identical
+to the canonical original arithmetic/bitvector trees; every one also matched
+the original and the transformed program on 256 fresh signed-Int32 inputs
+(**30,720** comparisons). The attack additionally rejects an unrelated
+script and malformed public Wasm arrays. This is a **strong negative static
+resistance result for the tested grammar**, beyond the earlier executable
+binary clone. It does not recover arbitrary WebAssembly programs or all
+possible future lowering strategies. The focused manual Windows/Linux
+run [43743685816](https://github.com/FlareZ123/obfs/actions/runs/43743685816)
+passed the expanded attack and real Chromium fixture at source commit
+`a08c5a8e9064cdb10e0ffc9d95a82571d39ba6ab`.
+
 ## Independent threat dimensions
 
-- **Static reconstruction:** the original JS function syntax is replaced by an embedded Wasm binary. A source-only adversary can extract the binary, reinstantiate its export directly, and inspect its numeric opcodes. The sample's executable function is cloned perfectly for all 4,001 tested values. Static reconstruction of the original source text is unresolved, but public binary copying is a complete functional extraction of this compiled function.
+- **Static reconstruction:** the original JS function syntax is replaced by an embedded Wasm binary. A source-only adversary can extract the binary, reinstantiate its export directly, and inspect its numeric opcodes. The sample's executable function is cloned perfectly for all 4,001 tested values. An independent source-only stack interpreter also reconstructed all 120 tested original bitvector ASTs across diversified builds. Binary copying alone is already a complete functional extraction of the compiled function.
 - **Dynamic tracing:** a hostile browser or Node owner can intercept WebAssembly module construction, inspect exports, and instrument the wrapper. The compiler does not attempt to defeat an adversary owning the runtime.
 - **Tamper resistance:** no trusted signature, external attestation, or cryptographic integrity check is introduced. An attacker who can edit the output may modify the embedded bytes or replace the export.
 - **Authorized execution:** no domain, URL, or trustworthy execution restriction is added; existing COO host checks and SNO launcher hashes have only their previously documented limited guarantees.
