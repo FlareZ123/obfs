@@ -106,7 +106,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
   let transformedErrors=0;
   /** @type {number[]} */
   const ratios=[];
-  /** @type {{file:string,caseIndex:number,kind:string}[]} */
+  /** @type {{file:string,caseIndex:number,kind:string,detail?:string}[]} */
   const failures=[];
   for(const item of selected) {
     const candidate=byName.get(item.filename);
@@ -121,7 +121,8 @@ async function compareCorpus(originalFile,transformedFile,options) {
       const original=runSource(item.original,pair[0],options.timeoutMs);
       if(original.timeout||original.status!==0) {
         baselineFailure++;
-        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error'});
+        if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error',
+          detail:'status='+original.status+' timeout='+original.timeout+' stderr='+original.stderr.slice(0,240)});
         continue;
       }
       baselinePass++;
@@ -129,10 +130,12 @@ async function compareCorpus(originalFile,transformedFile,options) {
       const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs);
       if(output.timeout||output.status!==0) {
         transformedErrors++;
-        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error'});
+        if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error',
+          detail:'status='+output.status+' timeout='+output.timeout+' stderr='+output.stderr.slice(0,240)});
       } else if(output.stdout!==original.stdout||output.stderr!==original.stderr) {
         transformedMismatches++;
-        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'differential-output'});
+        if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'differential-output',
+          detail:'expected='+original.stdout.slice(0,120)+' actual='+output.stdout.slice(0,120)});
       } else {
         transformedMatches++;
         ratios.push(output.nanoseconds/original.nanoseconds);
