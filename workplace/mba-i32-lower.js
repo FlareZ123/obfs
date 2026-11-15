@@ -51,25 +51,25 @@ function mixed(operator,a,b,variant,mask) {
   const B='('+b+')';
   switch(operator) {
     case '+':
-      if(variant===0)return \`((\${A}|\${B})+(\${A}&\${B}))\`;
-      if(variant===1)return \`((\${A}^\${B})+((\${A}&\${B})<<1))\`;
-      return \`((\${A}&\${B})-(~\${A}&~\${B})-1)\`;
+      if(variant===0)return `((${A}|${B})+(${A}&${B}))`;
+      if(variant===1)return `((${A}^${B})+((${A}&${B})<<1))`;
+      return `((${A}&${B})-(~${A}&~${B})-1)`;
     case '-':
-      if(variant===0)return \`(\${A}+~\${B}+1)\`;
-      if(variant===1)return \`((\${A}^~\${B})+((\${A}&~\${B})<<1)+1)\`;
-      return \`((\${A}|~\${B})+(\${A}&~\${B})+1)\`;
+      if(variant===0)return `(${A}+~${B}+1)`;
+      if(variant===1)return `((${A}^~${B})+((${A}&~${B})<<1)+1)`;
+      return `((${A}|~${B})+(${A}&~${B})+1)`;
     case '^':
-      if(variant===0)return \`((\${A}|\${B})&~(\${A}&\${B}))\`;
-      if(variant===1)return \`((\${A}&~\${B})|(~\${A}&\${B}))\`;
-      return \`((\${A}^\${mask})^(\${B}^\${mask}))\`;
+      if(variant===0)return `((${A}|${B})&~(${A}&${B}))`;
+      if(variant===1)return `((${A}&~${B})|(~${A}&${B}))`;
+      return `((${A}^${mask})^(${B}^${mask}))`;
     case '&':
-      if(variant===0)return \`((\${A}|\${B})^(\${A}^\${B}))\`;
-      if(variant===1)return \`~(~\${A}|~\${B})\`;
-      return \`((\${A}^\${B})^(\${A}|\${B}))\`;
+      if(variant===0)return `((${A}|${B})^(${A}^${B}))`;
+      if(variant===1)return `~(~${A}|~${B})`;
+      return `((${A}^${B})^(${A}|${B}))`;
     case '|':
-      if(variant===0)return \`((\${A}^\${B})|(\${A}&\${B}))\`;
-      if(variant===1)return \`~(~\${A}&~\${B})\`;
-      return \`((\${A}^\${B})^(\${A}&\${B}))\`;
+      if(variant===0)return `((${A}^${B})|(${A}&${B}))`;
+      if(variant===1)return `~(~${A}&~${B})`;
+      return `((${A}^${B})^(${A}&${B}))`;
     default:throw new TypeError('Not a supported mixed Boolean-arithmetic operation');
   }
 }
