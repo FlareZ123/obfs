@@ -514,8 +514,25 @@ function patternPropertyEdits(source,patterns,mapping) {
  * @returns {AstNode|null}
  */
 function singleUseFactoryObject(ast,bindings,expression) {
-  if(expression.type!=='CallExpression'||expression.optional||expression.arguments.length||
-     expression.callee.type!=='Identifier')return null;
+  if(expression.type!=='CallExpression'||expression.optional||expression.arguments.length)return null;
+  /**
+   * The IIFE function value never escapes; it can create a private owner
+   * directly without a named binding or a separate use-count proof.
+   * @param {AstNode} factory
+   * @returns {AstNode|null}
+   */
+  function returnedLiteral(factory) {
+    if(factory.async||factory.generator||factory.params.length)return null;
+    const body=factory.body.type==='BlockStatement' ?
+      factory.body.body.length===1&&factory.body.body[0].type==='ReturnStatement' ?
+        factory.body.body[0].argument : null :
+      factory.body;
+    return body?.type==='ObjectExpression'?body:null;
+  }
+  if(['ArrowFunctionExpression','FunctionExpression'].includes(expression.callee.type)) {
+    return returnedLiteral(expression.callee);
+  }
+  if(expression.callee.type!=='Identifier')return null;
   const name=expression.callee.name;
   if(bindings.get(name)!==1)return null;
   /** @type {AstNode|null} */
@@ -540,12 +557,9 @@ function singleUseFactoryObject(ast,bindings,expression) {
       }
     }
   }
-  if(!fn||!definition||fn.async||fn.generator||fn.params.length)return null;
-  const body=fn.body.type==='BlockStatement' ?
-    fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement' ?
-      fn.body.body[0].argument : null :
-    fn.body;
-  if(body?.type!=='ObjectExpression')return null;
+  if(!fn||!definition)return null;
+  const body=returnedLiteral(fn);
+  if(!body)return null;
   let references=0;
   walk(ast,(node,parent,key)=>{
     if(node.type!=='Identifier'||node.name!==name||node===definition)return;
