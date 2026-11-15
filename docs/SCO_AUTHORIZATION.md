@@ -145,6 +145,57 @@ are the RPC method names. The bounded finite-state regression in
 `test/sco-batch-state-model.test.js` checks 510 ordered traces; it is a
 model-specific comparison, not a general authorization proof.
 
+
+## Concurrent authorization and RPC isolation
+
+An application-supplied transition model can reject impossible sequences
+**inside one batch**, but a second RPC can change the authoritative session
+state while a permitted batch is executing. The native HTTP interleaving in
+`test/sco-rpc-isolation.test.js` demonstrates the difference: one request
+begins a two-read batch and pauses the first read, then a concurrent request
+revokes the session. Both preflighted reads continue after revocation because
+the second request interleaved between their authorization and execution.
+
+For integrators with stateful permissions, the optional
+`createScoHandler(...,{runRpcIsolated})` hook surrounds the coarse
+`authorizeRpc`, every `authorizeOperation` check and the protected method
+execution. It runs **after** bounded request-body parsing, avoiding holding
+a session lock while a remote client streams its body. Supply a callback that
+acquires the appropriate session or account lock (or begins an application
+transaction), **awaits `execute()` exactly once**, and releases the lock
+after the returned promise settles.
+
+```js
+const handler=createScoHandler(publicFiles,{
+  remoteMethods,
+  authorizeRpc:verifySession,
+  authorizeOperation:checkOperation,
+  runRpcIsolated:async (request,execute)=>{
+    await sessionLockFor(request).runExclusive(execute);
+  }
+});
+```
+
+`publicFiles`, `remoteMethods`, `verifySession`, `checkOperation`
+and `sessionLockFor` are application-supplied placeholders. The lock
+implementation must protect *all* other server operations that may mutate
+the same authorization state, including operations outside this handler.
+Per-session keyed locks can retain concurrency between independent users.
+A database transaction is appropriate only when it also isolates every
+side effect the policy depends on. A callback which invokes `execute` twice,
+returns without awaiting it, or releases its lock early cannot provide the
+promised isolation. Server exceptions are still masked from the client.
+
+The hook is optional. With the hook unset, existing early coarse
+authorization and request behavior remain unchanged. When the hook is
+provided, the body is validated and size-bounded before coarse
+authorization, so a caller might receive a syntax/size response before
+a forbidden response. Unauthorized callers can still send up to
+`maxRpcBytes` of body data. Deploy front-door request limits and
+timeouts as appropriate. A mutex can serialize calls across request
+boundaries, but it is not a general rollback mechanism and does not
+prevent unlimited legitimate oracle queries.
+
 ## Limits
 
 The client still receives executable JavaScript and may retain, trace, debug, modify, replay, or redistribute it. Source delivery authorization only controls which requests the trusted SCO server fulfills. Do not put server secrets inside delivered JavaScript, and do not use the `Host` header as an identity proof. Keep sensitive algorithms or secret-dependent operations on the server through `remoteMethods`; account for network cost under the 2.5x runtime budget.
