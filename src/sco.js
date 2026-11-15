@@ -13,6 +13,7 @@ const {renameCrossFileProperties} = require('./cross-properties');
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
+ * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
  * @property {number} [maxRpcBytes]
  */
@@ -37,7 +38,7 @@ function respondJson(response,status,payload) {
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
  * @param {import('node:http').IncomingMessage} request
  * @param {import('node:http').ServerResponse} response
- * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'>} options
+ * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'>} options
  * @returns {Promise<void>}
  */
 async function handleRpc(request,response,options) {
@@ -79,6 +80,12 @@ async function handleRpc(request,response,options) {
     const task=options.remoteMethods[query.method];
     if (typeof task!=='function') {
       respondJson(response,400,{ok:false,error:'Unknown method'});
+      return;
+    }
+    // Route-aware, argument-aware authorization is an independent gate after
+    // strict JSON and method validation and before any protected side effects.
+    if (options.authorizeOperation && !await options.authorizeOperation(request,query.method,query.args)) {
+      respondJson(response,403,{ok:false,error:'Forbidden'});
       return;
     }
     const result=await task(...query.args);
@@ -138,6 +145,9 @@ function createScoHandler(sourceFiles,options={}) {
   if (options.authorizeRead !== undefined && typeof options.authorizeRead!=='function') {
     throw new TypeError('authorizeRead must be a function');
   }
+  if (options.authorizeOperation !== undefined && typeof options.authorizeOperation!=='function') {
+    throw new TypeError('authorizeOperation must be a function');
+  }
   if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
@@ -162,6 +172,7 @@ function createScoHandler(sourceFiles,options={}) {
       void handleRpc(request,response,{
         remoteMethods:options.remoteMethods,
         authorizeRpc:options.authorizeRpc,
+        authorizeOperation:options.authorizeOperation,
         maxRpcBytes:options.maxRpcBytes
       });
       return;
