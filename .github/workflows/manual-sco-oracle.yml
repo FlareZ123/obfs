@@ -45,6 +45,8 @@ jobs:
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
         run: node sims/sco-key-search.js
+      - name: Demonstrate forged Host routing and separate server authorization
+        run: node --test test/sco-host-header-spoof.test.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
