@@ -36,7 +36,7 @@ test('two independent SCO variants collapse under source-only AST canonicalizati
     assert.equal(a.status,200);
     assert.equal(b.status,200);
     const variants=[await a.text(),await b.text()];
-    assert.notEqual(variants[0],variants[1],'Independent requests should have distinct nonces');
+    assert.notEqual(variants[0],variants[1],'Independent requests should retain literal spelling variation');
     for(const variant of variants)assert.equal(evaluate(variant),evaluate(source));
 
     const normalized=variants.map(value=>normalizeScoVariant(value,'script'));
@@ -45,13 +45,14 @@ test('two independent SCO variants collapse under source-only AST canonicalizati
     assert.ok(normalized[0].includes('"client-polymorphism-secret"'),
       'The attacker can read the original string literal AST value');
     assert.equal(evaluate(normalized[0]),evaluate(source));
-    assert.ok(variants.every(value=>value.includes('/* variant:')));
+    assert.ok(variants.every(value=>!value.includes('/* variant:')),
+      'A served client file must not disclose the internal randomization seed');
   }finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
 
-test('normalizer refuses data without the expected SCO public marker',()=>{
-  assert.throws(()=>normalizeScoVariant("const x='text';"),/variant marker/);
+test('normalizer handles marker-free source and refuses invalid input',()=>{
+  assert.equal(normalizeScoVariant("const x='text';"),'const x="text";');
   assert.throws(()=>normalizeScoVariant(/** @type {any} */ (null)),/served JS string/);
 });
