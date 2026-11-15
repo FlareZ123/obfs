@@ -18,6 +18,6 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Differential proof-subset VM tests
-        run: node --test test/vm-immediate-lowering.test.js
+        run: node --test test/vm-immediate-lowering.test.js test/vm-static-recovery.test.js
       - name: Measure pure numeric VM hot and cold ratios
         run: node sims/vm-hybrid-ratio.js
