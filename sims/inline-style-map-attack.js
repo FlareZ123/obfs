@@ -73,14 +73,14 @@ async function readPublicAsset(handler,name) {
 async function compare(previousRoot,currentRoot) {
   const previous=loadCompiler(previousRoot);
   const current=loadCompiler(currentRoot);
-  const secret='function privateScore(x){return x*173+59;}';
+  const original='function privateScore(x){return x*173+59;}module.exports=privateScore(3);';
   const encoded=Buffer.from(JSON.stringify({
-    version:3,sources:['private-source.js'],sourcesContent:[secret],
+    version:3,sources:['entry.cjs'],sourcesContent:[original],
     names:['privateScore'],mappings:'AAAA'
   })).toString('base64');
   const annotation='/*# sourceMappingURL=data:application/json;base64,'+encoded+' */';
   const entry=/** @type {File} */({
-    path:'entry.cjs',sourceType:'commonjs',code:'module.exports=1;'
+    path:'entry.cjs',sourceType:'commonjs',code:original
   });
   /** @type {File[]} */
   const specimens=[
@@ -100,7 +100,7 @@ async function compare(previousRoot,currentRoot) {
       const result=previous.obfuscateFiles([entry,asset],options);
       const published=result.files.find(file=>file.path===asset.path);
       assert.ok(published);
-      assert.equal(extractOriginal(published.code),secret);
+      assert.equal(extractOriginal(published.code),original);
       extracted++;
       assert.throws(()=>current.obfuscateFiles([entry,asset],options),
         /(?:HTML|SVG) asset contains inline CSS source-map directive|SVG asset contains embedded CSS source-map directive/);
@@ -112,7 +112,7 @@ async function compare(previousRoot,currentRoot) {
   for(const asset of specimens) {
     const response=await readPublicAsset(previous.createScoHandler([asset]),asset.path);
     assert.equal(response.status,200,asset.path);
-    assert.equal(extractOriginal(response.body),secret,asset.path);
+    assert.equal(extractOriginal(response.body),original,asset.path);
     scoExtracted++;
     assert.throws(()=>current.createScoHandler([asset]),
       /(?:HTML|SVG) asset contains (?:inline|embedded) CSS source-map directive/,
