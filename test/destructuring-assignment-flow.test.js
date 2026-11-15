@@ -151,6 +151,42 @@ test('closed-world ESM assignment rewrite preserves cross-file behavior',async()
   }
 });
 
+test('closed-world ESM assignment default retains fallback and owner behavior',async()=>{
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const shared={privateField:17,otherField:5};'},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {shared} from "./state.mjs";',
+      'let captured=0,fallbackCalls=0;',
+      'function fallback(){fallbackCalls++;return 99;}',
+      '({privateField:captured=fallback()}=shared);',
+      'console.log([captured,fallbackCalls,shared.otherField].join(","));'
+    ].join('')}
+  ];
+  const transformed=obfuscateFiles(files,{
+    mode:'coo',seed:'cross-file-default',closedWorld:true,
+    strings:false,identifiers:false
+  });
+  assert.equal(transformed.crossFile.objects,1);
+  assert.equal(transformed.crossFile.properties,2);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cross-default-'));
+  try {
+    /** @param {import('../src/core').SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} inputs */
+    async function run(inputs) {
+      for(const file of inputs)await atomicWrite(path.join(root,file.path),file.code);
+      const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
+        encoding:'utf8',timeout:7000
+      });
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout.trim();
+    }
+    assert.equal(await run(files),'17,0,5');
+    assert.equal(await run(transformed.files),'17,0,5');
+  }finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
 test('closed-world export refuses assignment results that escape to reflection',()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const files=[
