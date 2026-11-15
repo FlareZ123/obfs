@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler,createScoRpcClientSource}=require('../src');
 
 /** @param {string} binary @param {string} url @returns {Promise<string>} */
 async function dumpDom(binary,url) {
@@ -49,6 +49,20 @@ async function main(){
   const bad=obfuscateFiles([{
     path:'blocked.js',sourceType:'script',code:'document.getElementById("answer").textContent="unauthorized";'
   }],{mode:'coo',seed:'chrome-blocked',allowedHosts:['forbidden.example']}).files[0].code;
+  // Exercise server-resident SCO computation from a real Chromium module.
+  // The remote module contains no protected method body. Browser cookies are
+  // passed automatically to same-origin fetch with credentials:'same-origin'.
+  const rpcHandler=createScoHandler([
+    {path:'remote.mjs',sourceType:'module',code:createScoRpcClientSource(['score'])}
+  ],{
+    /** @param {number} value */
+    remoteMethods:{score:value=>value*3},
+    authorizeRead:()=>true,
+    authorizeRpc:request=>request.headers.cookie==='session=accepted',
+    authorizeOperation:(request,method,args)=>method==='score' &&
+      args.length===1 && args[0]===19 &&
+      request.headers.cookie==='session=accepted'
+  });
   const content=new Map([...moduleSet.files,...namedJsSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
@@ -57,10 +71,14 @@ async function main(){
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
+  content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
+  content.set('/rpc-bad.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   const server=http.createServer((request,response)=>{
     const url=new URL(request.url??'/', 'http://127.0.0.1');
+    if(url.pathname.startsWith('/obfs/')){rpcHandler(request,response);return;}
     const body=content.get(url.pathname);
     if(body===undefined){response.writeHead(404).end();return;}
+    if(url.pathname==='/rpc-good.html') response.setHeader('set-cookie','session=accepted; Path=/; SameSite=Lax');
     response.setHeader('content-type',url.pathname.endsWith('.html')?'text/html; charset=utf-8':'text/javascript; charset=utf-8');
     response.end(body);
   });
@@ -71,7 +89,8 @@ async function main(){
     const base=`http://127.0.0.1:${addr.port}`;
     for(const [path,result] of [
       ['/module.html','41'],['/js-module.html','23'],['/cycle.html','browser-cycle-ok'],
-      ['/good.html','permitted'],['/blocked.html','initial']
+      ['/good.html','permitted'],['/blocked.html','initial'],
+      ['/rpc-good.html','57'],['/rpc-bad.html','denied']
     ]){
       const html=await dumpDom(chromium,base+path);
       assert.match(html,new RegExp(`id="answer">${result}<`),`Browser ${path}: ${html}`);
