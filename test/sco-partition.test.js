@@ -128,3 +128,112 @@ test('SCO partition transmits only generated async stubs, keeping server code pr
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+
+test('opt-in SCO partition batch preserves special names, order and server policy',async()=>{
+  const source=[
+    'export async function double(value){return value*2;}',
+    'export async function triple(value){return value*3;}',
+    'export async function __proto__(value){return value+1;}'
+  ].join('\n');
+  assert.throws(()=>partitionScoAsyncModule({
+    path:'special.mjs',code:'export async function batch(){return 1;}'
+  },{batch:true}),/conflicts/);
+  assert.throws(()=>partitionScoAsyncModule({
+    path:'special.mjs',code:source
+  },{maxBatchCalls:3}),/requires batch:true/);
+  assert.throws(()=>partitionScoAsyncModule({
+    path:'special.mjs',code:source
+  },{batch:true,maxBatchCalls:0}),/maxBatchCalls/);
+
+  const partition=partitionScoAsyncModule({path:'special.mjs',code:source},{
+    seed:'special-batch',batch:true,maxBatchCalls:3
+  });
+  assert.ok(partition.batchMethod);
+  assert.ok(Object.hasOwn(partition.methodNames,'__proto__'));
+  assert.notEqual(partition.batchMethod,partition.methodNames.double);
+  assert.doesNotThrow(()=>parse(partition.clientFile.code,'module'));
+
+  /** @type {string[]} */
+  const effects=[];
+  /** @type {Record<string,unknown>} */
+  const serverExports=Object.create(null);
+  serverExports.double=async value=>{effects.push('double');return value*2;};
+  serverExports.triple=async value=>{effects.push('triple');return value*3;};
+  serverExports.__proto__=async value=>{effects.push('__proto__');return value+1;};
+  const serverMethods=bindScoModuleExports(partition,serverExports);
+  assert.equal(Object.keys(serverMethods).length,4);
+
+  const server=http.createServer(createScoHandler([partition.clientFile],{
+    remoteMethods:serverMethods,
+    authorizeRead:()=>true,
+    authorizeRpc:request=>request.headers.cookie==='session=allow',
+    authorizeOperation:(request,method,args)=>{
+      if(request.headers.cookie!=='session=allow'||method!==partition.batchMethod||
+          args.length!==1 || !Array.isArray(args[0]))return false;
+      return args[0].every(item=>item && typeof item.method==='string' &&
+        Array.isArray(item.args) && item.args.length===1 &&
+        Number.isSafeInteger(item.args[0]) && item.args[0]<=9);
+    }
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-batched-partition-'));
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Expected TCP listener');
+    const port=address.port;
+    const response=await fetch('http://127.0.0.1:'+port+'/obfs/special.mjs');
+    assert.equal(response.status,200);
+    const served=await response.text();
+    const clientFile=path.join(directory,'special.mjs');
+    await atomicWrite(clientFile,served);
+
+    const runner=[
+      'const {pathToFileURL}=require("node:url");',
+      'const originalFetch=globalThis.fetch;',
+      'const port=process.argv[2];',
+      'globalThis.fetch=(endpoint,options)=>originalFetch(new URL(endpoint,"http://127.0.0.1:"+port),',
+      '{...options,headers:{...options.headers,cookie:"session=allow"}});',
+      'import(pathToFileURL(process.argv[1]).href).then(async module=>{try{',
+      'const result=await module.batch(JSON.parse(process.argv[3]));',
+      'process.stdout.write(JSON.stringify({ok:true,result}));',
+      '}catch(error){process.stdout.write(JSON.stringify({ok:false,error:error.message}));}',
+      '}).catch(error=>{console.error(error);process.exitCode=1;});'
+    ].join('');
+    /** @param {{name:string,args:number[]}[]} commands @returns {Promise<any>} */
+    async function call(commands) {
+      const output=await runFile(process.execPath,['--eval',runner,clientFile,String(port),JSON.stringify(commands)],{
+        encoding:'utf8',timeout:15000
+      });
+      return JSON.parse(output.stdout);
+    }
+
+    assert.deepEqual(await call([
+      {name:'double',args:[4]},
+      {name:'triple',args:[3]},
+      {name:'__proto__',args:[9]}
+    ]),{ok:true,result:[
+      {ok:true,value:8},
+      {ok:true,value:9},
+      {ok:true,value:10}
+    ]});
+    assert.deepEqual(effects,['double','triple','__proto__']);
+
+    const unauthorized=await call([
+      {name:'double',args:[2]},
+      {name:'triple',args:[999]}
+    ]);
+    assert.deepEqual(unauthorized,{ok:false,error:'Remote operation failed'});
+    assert.deepEqual(effects,['double','triple','__proto__'],'Unauthorized batch must not partially execute');
+
+    const oversized=await call([
+      {name:'double',args:[1]},{name:'double',args:[2]},
+      {name:'double',args:[3]},{name:'double',args:[4]}
+    ]);
+    assert.deepEqual(oversized,{ok:false,error:'Invalid RPC batch'});
+    assert.equal(effects.length,3);
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
