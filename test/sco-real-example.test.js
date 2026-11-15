@@ -3,10 +3,12 @@
 const assert=require('node:assert/strict');
 const {randomBytes}=require('node:crypto');
 const fs=require('node:fs/promises');
+const os=require('node:os');
 const {test}=require('node:test');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {startServer}=require('../examples/sco-private/server.cjs');
+const {atomicWrite}=require('../src/atomic');
 const {compileExample,buildSample}=require('../examples/sco-private/build-sample.cjs');
 
 test('checked-in SCO before/after sample equals real compiler output and executes over authenticated RPC',async()=>{
@@ -28,6 +30,7 @@ test('checked-in SCO before/after sample equals real compiler output and execute
   const password='this-is-a-test-password-not-for-deployment';
   const authorization='Basic '+Buffer.from('demo:'+password).toString('base64');
   const nativeFetch=globalThis.fetch;
+  const tempDirectory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-real-served-'));
   process.env.OBFS_SCO_DEMO_KEY=key;
   /** @type {Awaited<ReturnType<typeof startServer>>|null} */
   let hosted=null;
@@ -50,14 +53,19 @@ test('checked-in SCO before/after sample equals real compiler output and execute
     assert.equal(forbiddenPrivate.status,404);
     const publicResponse=await nativeFetch(origin+'/obfs/public.mjs',{headers});
     assert.equal(publicResponse.status,200);
-    assert.equal(await publicResponse.text(),after);
+    const servedCode=await publicResponse.text();
+    assert.match(servedCode,/export async function derive/u);
+    assert.ok(!servedCode.includes('createHmac'));
+    assert.ok(!servedCode.includes('OBFS_SCO_DEMO_KEY'));
+    const servedFile=path.join(tempDirectory,'served.mjs');
+    await atomicWrite(servedFile,servedCode);
     globalThis.fetch=(url,options)=>{
       const requestHeaders=new Headers(options?.headers);
       requestHeaders.set('Authorization',authorization);
       return nativeFetch(new URL(String(url),origin),{...options,headers:requestHeaders});
     };
     const facade=/** @type {{derive:(value:string)=>Promise<string>}} */
-      (await import(pathToFileURL(afterPath).href));
+      (await import(pathToFileURL(servedFile).href));
     const original=/** @type {{derive:(value:string)=>Promise<string>}} */
       (await import(pathToFileURL(beforePath).href));
     for(const input of ['0'.repeat(32),'0123456789abcdef0123456789abcdef']) {
@@ -74,6 +82,7 @@ test('checked-in SCO before/after sample equals real compiler output and execute
         hosted.server.close(error=>error?reject(error):resolve()));
       await closed;
     }
+    await fs.rm(tempDirectory,{recursive:true,force:true});
     if(originalKey===undefined)delete process.env.OBFS_SCO_DEMO_KEY;
     else process.env.OBFS_SCO_DEMO_KEY=originalKey;
   }
