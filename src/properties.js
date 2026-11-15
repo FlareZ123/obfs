@@ -358,6 +358,9 @@ function renameLocalProperties(source, ast, options) {
       const hash = createHash('sha256').update(`${options.seed}/${candidate.name}/${candidate.node.start}/${old}`).digest('hex').slice(0,10);
       mapping.set(old,`_p${hash}`);
     }
+    // Truncated digests can collide. Duplicating literal keys silently changes
+    // both object contents and all subsequent reads, so decline this object.
+    if (new Set(mapping.values()).size !== mapping.size) continue;
     for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
     for (const member of proof.members) {
       const name = member.computed ? member.property.value : staticName(member.property);
