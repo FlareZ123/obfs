@@ -101,3 +101,30 @@ test('new String(function) also stringifies native function source',()=>{
   assert.equal(result.metrics.literals,0);
   assert.equal(evaluate(result.code),evaluate(code));
 });
+
+test('global String alias observes function source spelling',()=>{
+  const code='function show(){return "protected-literal-value";}module.exports=globalThis["Str"+"ing"](show);';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'global-string-source',strings:true,identifiers:false,properties:false
+  }).files[0];
+  assert.equal(result.metrics.literals,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('String.call observes function source spelling',()=>{
+  const code='function show(){return "protected-literal-value";}module.exports=String.call(null,show);';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'call-string-source',strings:true,identifiers:false,properties:false
+  }).files[0];
+  assert.equal(result.metrics.literals,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('String.apply observes function source spelling',()=>{
+  const code='function show(){return "protected-literal-value";}module.exports=String.apply(null,[show]);';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'apply-string-source',strings:true,identifiers:false,properties:false
+  }).files[0];
+  assert.equal(result.metrics.literals,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
