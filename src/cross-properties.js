@@ -116,8 +116,9 @@ function renameCrossFileProperties(files,seed) {
         // An inherited getter in any importer can inspect the exported
         // object's original own keys even when the reference never escapes.
         const ownNames=new Set(names);
-        if (users.some(user=>user.proof.members.some(member=>
-          !ownNames.has(member.computed ? member.property.value : staticName(member.property))))) continue;
+        if (users.some(user=>
+          user.proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property))) ||
+          user.proof.patterns.some(property=>!ownNames.has(staticName(property.key))))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
