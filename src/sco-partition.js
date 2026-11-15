@@ -17,8 +17,9 @@ const {createScoBatchMethod}=require('./rpc-batch');
  */
 
 /**
- * Partition an explicitly dedicated ESM module containing only direct,
- * exported async function declarations into a public RPC facade. The original
+ * Partition an explicitly dedicated ESM module containing only direct
+ * exported async declarations or immutable async expression bindings into a
+ * public RPC facade. The original
  * function bodies are never included in the returned client file.
  *
  * Accepted functions have simple, non-default identifier parameters and
@@ -47,7 +48,7 @@ function partitionScoAsyncModule(file,options={}) {
     throw new TypeError('RPC endpoint must be a same-origin absolute path');
   }
   const ast=parse(file.code,'module');
-  /** @type {{name:string,params:string[]}[]} */
+  /** @type {{name:string,params:string[],expression:boolean,functionName:string|null}[]} */
   const exported=[];
   /** @type {Set<string>} */
   const used=new Set();
@@ -57,22 +58,46 @@ function partitionScoAsyncModule(file,options={}) {
     // Exporting data or reexporting modules remains forbidden in all cases.
     if(options.serverOnlyInitialization && !statement.type.startsWith('Export')) continue;
     if(statement.type!=='ExportNamedDeclaration' || statement.source ||
-        statement.specifiers?.length || statement.declaration?.type!=='FunctionDeclaration') {
-      throw new TypeError('RPC partition requires only direct exported async function declarations');
+        statement.specifiers?.length || !statement.declaration) {
+      throw new TypeError('RPC partition requires only direct exported async function declarations or const expressions');
     }
-    const fn=statement.declaration;
-    if(!fn.async || fn.generator || fn.id?.type!=='Identifier' ||
-        fn.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier') ||
-        used.has(fn.id.name)) {
-      throw new TypeError('RPC partition requires distinct non-generator async functions with plain parameters');
+    /** @type {{name:string,fn:import('./ast').AstNode,expression:boolean}[]} */
+    const candidates=[];
+    if(statement.declaration.type==='FunctionDeclaration') {
+      const fn=statement.declaration;
+      if(fn.id?.type!=='Identifier')throw new TypeError('RPC partition expects named async functions');
+      candidates.push({name:fn.id.name,fn,expression:false});
+    } else if(statement.declaration.type==='VariableDeclaration' &&
+              statement.declaration.kind==='const') {
+      for(const declaration of statement.declaration.declarations) {
+        if(declaration.id.type!=='Identifier' || !declaration.init ||
+            !['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)) {
+          throw new TypeError('RPC partition requires immutable async function expressions');
+        }
+        candidates.push({name:declaration.id.name,fn:declaration.init,expression:true});
+      }
+    } else {
+      throw new TypeError('RPC partition requires only direct exported async function declarations or const expressions');
     }
-    let receiverAccess=false;
-    walk(fn.body,node=>{
-      if(node.type==='ThisExpression'||node.type==='Super')receiverAccess=true;
-    });
-    if(receiverAccess)throw new TypeError('RPC partition cannot preserve this/super receivers');
-    used.add(fn.id.name);
-    exported.push({name:fn.id.name,params:fn.params.map((/** @type {import('./ast').AstNode} */ param)=>param.name)});
+    for(const {name,fn,expression} of candidates) {
+      if(!fn.async || fn.generator ||
+          fn.params.some((/** @type {import('./ast').AstNode} */ param)=>param.type!=='Identifier') ||
+          used.has(name)) {
+        throw new TypeError('RPC partition requires distinct non-generator async functions with plain parameters');
+      }
+      let receiverAccess=false;
+      walk(fn.body,node=>{
+        if(node.type==='ThisExpression'||node.type==='Super')receiverAccess=true;
+      });
+      if(receiverAccess)throw new TypeError('RPC partition cannot preserve this/super receivers');
+      used.add(name);
+      // An anonymous function expression assigned to a const receives that
+      // binding's name. Explicitly named expressions retain their inner name.
+      const functionName=expression && fn.type==='FunctionExpression' &&
+        fn.id?.type==='Identifier' ? fn.id.name : null;
+      exported.push({name,params:fn.params.map((/** @type {import('./ast').AstNode} */ param)=>param.name),
+        expression,functionName});
+    }
   }
   if(!exported.length)throw new TypeError('RPC partition requires at least one exported async function');
   if(options.batch && used.has('batch'))throw new TypeError('RPC batch export conflicts with original batch function');
@@ -101,7 +126,10 @@ function partitionScoAsyncModule(file,options={}) {
     +'const response=await fetch('+JSON.stringify(endpoint)+',{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({method,args})});'
     +'const payload=await response.json();if(!response.ok||!payload||payload.ok!==true)throw Error("Remote operation failed");return payload.value;};\n';
   for(const item of exported) {
-    code+='export async function '+item.name+'('+item.params.join(',')+'){return await '+helper+'('+JSON.stringify(methodNames[item.name])+',[...arguments]);}\n';
+    const prefix=item.expression ? 'export const '+item.name+'=async function'+
+      (item.functionName ? ' '+item.functionName : '') : 'export async function '+item.name;
+    code+=prefix+'('+item.params.join(',')+'){return await '+helper+'('+JSON.stringify(methodNames[item.name])+',[...arguments]);}'+
+      (item.expression?';':'')+'\n';
   }
   if(batchMethod) {
     const mapName=helper+'map';
