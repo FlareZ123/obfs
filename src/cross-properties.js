@@ -30,9 +30,10 @@ function resolveImport(from,specifier) {
  * @returns {{files:SourceFile[],objects:number,properties:number}}
  */
 function renameCrossFileProperties(files,seed) {
-  // Other executable formats and executable/unknown assets can hide ESM
-  // consumers outside this proof. Inert styles, raster images, and font files
-  // cannot themselves execute JavaScript and need not disable this pass.
+  // Mixed executable formats can hide ESM consumers. The closed-world
+  // integrator additionally promises that these explicitly declared inert
+  // style/image/font assets are served with non-JavaScript MIME types and
+  // never interpreted as source; file extensions alone cannot prove that.
   const inertAssetExtensions=new Set(['.css','.png','.jpg','.jpeg','.gif',
     '.webp','.ico','.woff','.woff2','.ttf','.otf']);
   if (files.some(file => {
