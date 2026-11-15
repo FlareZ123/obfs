@@ -52,6 +52,35 @@ test('HTML5 parser detects inline source across browser execution contexts',()=>
   }
 });
 
+test('HTML inline style elements refuse source-map comments with original source contents',()=>{
+  const map=Buffer.from(JSON.stringify({
+    version:3,sources:['unobfuscated-original.js'],
+    sourcesContent:['const PRIVATE_HTML_STYLE_CANARY=921084;'],
+    names:['PRIVATE_HTML_STYLE_CANARY'],mappings:'AAAA'
+  })).toString('base64');
+  const hostile=[
+    '<!doctype html><style>body{color:red}/*# sourceMappingURL=data:application/json;base64,'+map+' */</style>',
+    '<html><head><style>/*@ sourceMappingURL=../private.css.map */</style></head></html>',
+    '<template><style>/*# sourceMappingURL=./original.map */</style></template>'
+  ];
+  for(const html of hostile) {
+    assert.equal(findInlineHtmlSource(html),'inline CSS source-map directive');
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      assert.throws(()=>compile(html,mode),/HTML asset contains inline CSS source-map directive/,mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path:'index.html',sourceType:'asset',code:html}
+    ]),/HTML asset contains inline CSS source-map directive/);
+  }
+  const safe='<!doctype html><style>body::before{content:"/*# sourceMappingURL=example.map */"}body{color:#123}</style>';
+  assert.equal(findInlineHtmlSource(safe),null);
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const asset=compile(safe,mode).files.find(file=>file.path==='index.html');
+    assert.ok(asset);
+    assert.deepEqual(asset.code,Buffer.from(safe));
+  }
+});
+
 test('external script and module URLs remain publishable without modifying HTML bytes',()=>{
   const html=[
     '<!doctype html><html><head><link rel="stylesheet" href="style.css"></head>',
