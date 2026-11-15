@@ -42,6 +42,34 @@ function isServerEnvironmentRead(expression){
 }
 
 /**
+ * A split client/server module runs in separate JavaScript realms. Access to
+ * a prototype reachable from ambient constructors may mutate or observe
+ * state that the other side can no longer share. Without a whole-program
+ * alias proof, decline explicit prototype access in either half.
+ *
+ * Also refuse direct reflective prototype retrieval/replacement. This is a
+ * conservative syntactic guard; aliases produced by arbitrary functions or
+ * dynamic property keys remain outside its proof.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function touchesRealmPrototype(body){
+  let touched=false;
+  walk(body,node=>{
+    if(node.type!=='MemberExpression')return;
+    const key=node.computed ?
+      (node.property.type==='Literal'?node.property.value:null) :
+      (node.property.type==='Identifier'?node.property.name:null);
+    if(key==='prototype'||key==='__proto__')touched=true;
+    if((key==='getPrototypeOf'||key==='setPrototypeOf')&&
+       node.object.type==='Identifier'&&
+       (node.object.name==='Object'||node.object.name==='Reflect'))touched=true;
+  });
+  return touched;
+}
+
+/**
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
@@ -188,6 +216,9 @@ function partitionScoSelectedAsyncExports(file,options) {
    * @returns {void}
    */
   function inspectPublicFunction(fn,name){
+    if(touchesRealmPrototype(fn.body)) {
+      throw new TypeError('Selective SCO cannot partition realm-local prototype access: '+name);
+    }
     walk(fn,(node,parent,key)=>{
       if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
       if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
@@ -259,6 +290,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   // or mutates a public export can observe the wrong copy after partitioning.
   const publicBindings=new Set([...publicNames,...publicHelperNames]);
   for(const body of privateBodies){
+    if(touchesRealmPrototype(body)) {
+      throw new TypeError('Selective SCO cannot partition realm-local prototype access');
+    }
     walk(body,(node,parent,key)=>{
       if(node.type!=='Identifier'||isStaticKey(parent,key))return;
       if(publicBindings.has(node.name)){
