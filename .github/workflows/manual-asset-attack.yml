@@ -20,6 +20,11 @@ jobs:
         with:
           ref: 5c24cc02066fc27d29fc95d80ea89b005ca9071e
           path: baseline
+      - name: Checkout immediate XML MIME prepatch baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 2cbf1620a8d50919e60deef51cfcafa1e6bb3471
+          path: xml-previous
       - name: Checkout current protected candidate
         uses: actions/checkout@v4
         with:
@@ -31,8 +36,13 @@ jobs:
       - name: Install baseline dependencies
         working-directory: baseline
         run: npm install --no-package-lock --ignore-scripts
+      - name: Install XML MIME prepatch dependencies
+        working-directory: xml-previous
+        run: npm install --no-package-lock --ignore-scripts
       - name: Install protected dependencies
         working-directory: protected
         run: npm install --no-package-lock --ignore-scripts
       - name: Run source-map, inline HTML and opaque-source disclosure attack
         run: node protected/sims/asset-disclosure-attack.js baseline protected
+      - name: Verify XML MIME asset disclosure against immediate prepatch
+        run: node protected/sims/xml-data-url-attack.js xml-previous protected
