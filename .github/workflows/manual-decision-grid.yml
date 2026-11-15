@@ -25,3 +25,5 @@ jobs:
         run: node sims/decision-grid.js
       - name: Test SCO source withholding, authorization and RPC cost
         run: node sims/sco-trust-challenge.js
+      - name: Compare closed-world native ESM graph and offline name normalization
+        run: node sims/multifile-decision-grid.js
