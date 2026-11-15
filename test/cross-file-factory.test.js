@@ -65,6 +65,31 @@ for(const factory of [
   });
 }
 
+for(const expression of [
+  '(()=>({secretField:17,otherField:5}))()',
+  '(function privateMaker(){return {secretField:17,otherField:5};})()'
+]) {
+  test('closed-world exported owner from immediately invoked private literal factory: '+expression.slice(0,38),async()=>{
+    const state='export const shared='+expression+';';
+    const output=compile(state,mainEntry);
+    assert.equal(output.crossFile.objects,1);
+    assert.equal(output.crossFile.properties,2);
+    assert.doesNotMatch(String(output.files[0].code),/secretField|otherField/u);
+    assert.doesNotMatch(String(output.files[1].code),/secretField|otherField/u);
+    const inputs=[
+      {path:'state.mjs',sourceType:/** @type {'module'} */ ('module'),code:state},
+      {path:'entry.mjs',sourceType:/** @type {'module'} */ ('module'),code:mainEntry}
+    ];
+    assert.equal(await execute(inputs),'22');
+    assert.equal(await execute(output.files),'22');
+    const neutralized=normalizeDistributedFiles(output.files.map(file=>({
+      path:file.path,sourceType:'module',code:String(file.code)
+    })));
+    assert.equal(neutralized.properties,2);
+    assert.equal(await execute(neutralized.files),'22');
+  });
+}
+
 for(const [description,state,entry] of [
   ['exported factory', 'function make(){return {secretField:17};}export {make};export const shared=make();',
     'import {shared} from "./state.mjs";console.log(shared.secretField);'],
