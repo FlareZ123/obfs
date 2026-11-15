@@ -51,7 +51,7 @@ for(const [name,source] of [
   ['nested spread',
     "const value={child:7};const root={secret:{...value}};module.exports=root.secret.child;"],
   ['nested constructor call',
-    "const root={secret:{value:Date.now()}};module.exports=root.secret.value;"],
+    "function make(){return 7;}const root={secret:{value:make()}};module.exports=root.secret.value;"],
   ['dynamic computed nested key',
     "const key='child';const root={secret:{[key]:7}};module.exports=root.secret.child;"]
 ]) {
