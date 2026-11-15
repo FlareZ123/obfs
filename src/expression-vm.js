@@ -80,6 +80,47 @@ function emitGraphHelper(helper,initial,instructions,result,entropy) {
 }
 
 /**
+ * Emit a straight-line register graph for hot functions. The same native JS
+ * operators execute in original left-to-right order, while register names
+ * and integer literals are seed-diversified. Public source still reveals the
+ * operation graph; this trades away bytecode concealment for hot-path speed.
+ * @param {string} helper
+ * @param {(number|null)[]} initial
+ * @param {Instruction[]} instructions
+ * @param {number} result
+ * @param {Buffer} entropy
+ * @returns {string}
+ */
+function emitNativeGraphHelper(helper,initial,instructions,result,entropy) {
+  /** @type {Set<string>} */
+  const reserved=new Set(['input']);
+  const registers=initial.map((value,index)=>{
+    let attempt=0;
+    let name='_ng_'+createHash('sha256').update(entropy)
+      .update('/reg/'+index+'/'+attempt).digest('hex').slice(0,12);
+    while(reserved.has(name)) {
+      attempt++;
+      name='_ng_'+createHash('sha256').update(entropy)
+        .update('/reg/'+index+'/'+attempt).digest('hex').slice(0,12);
+    }
+    reserved.add(name);
+    return name;
+  });
+  let body='const '+registers[0]+'=input;';
+  for(let index=1;index<initial.length;index++) {
+    const value=initial[index];
+    if(value===null)continue;
+    const mask=entropy[(index+3)%entropy.length];
+    body+='const '+registers[index]+'=('+(value^mask)+'^'+mask+');';
+  }
+  for(const step of instructions) {
+    body+='const '+registers[step.destination]+'='+registers[step.left]+
+      step.operator+registers[step.right]+';';
+  }
+  return '\nfunction '+helper+'(input){'+body+'return '+registers[result]+';}\n';
+}
+
+/**
  * Virtualize explicitly selected single-return expression trees while
  * retaining native JS binary-operator coercion, evaluation order and errors.
  * All leaves must be the one argument or integer literals in 0..255.
@@ -90,13 +131,14 @@ function emitGraphHelper(helper,initial,instructions,result,entropy) {
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[]}} options
+ * @param {{seed:string,names:string[],backend?:'bytecode'|'native'}} options
  * @returns {GraphVmResult}
  */
 function virtualizeExpressionGraphs(source,sourceType,options) {
   if(typeof source!=='string'||!['module','commonjs'].includes(sourceType)||
      !options||typeof options.seed!=='string'||!options.seed||
-     !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')) {
+     !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')||
+     options.backend!==undefined&&!['bytecode','native'].includes(options.backend)) {
     throw new TypeError('Expected source, module type, seed and explicit function names');
   }
   const targets=new Set(options.names);
@@ -159,7 +201,9 @@ function virtualizeExpressionGraphs(source,sourceType,options) {
     used.add(helper+'Cache');
     edits.push({start:statements[0].argument.start,end:statements[0].argument.end,
       text:helper+'('+param.name+')'});
-    helpers.push(emitGraphHelper(helper,initial,program,result,entropy));
+    helpers.push(options.backend==='native'?
+      emitNativeGraphHelper(helper,initial,program,result,entropy):
+      emitGraphHelper(helper,initial,program,result,entropy));
     functions++;
     instructions+=program.length;
   }
