@@ -1,0 +1,26 @@
+name: Manual SCO RPC latency profile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Measure loopback RPC overhead
+        run: node sims/sco-rpc-cost.js
+      - name: Save reproducible raw timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-rpc-cost
+          path: rpc-cost-output.json
