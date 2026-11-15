@@ -25,6 +25,8 @@ jobs:
         run: node --test test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js test/wasm-i32-early-cycle.test.js
       - name: Verify pinned before/after artifact
         run: node examples/wasm-i32/build.cjs
+      - name: Whole-session initialization cost curve
+        run: node sims/wasm-i32-cold-counterexample.js
       - name: Strict JSDoc checks
         run: npm run typecheck
       - name: Real Chromium COO ESM host API
