@@ -69,6 +69,27 @@ function findInlineHtmlSource(html) {
 }
 
 /**
+ * Decode browser-executable markup only after verifying its byte encoding.
+ * Reject malformed UTF-8 and NUL code units, which can conceal UTF-16 markup
+ * from a UTF-8-only parser before the browser applies a different charset.
+ * @param {string} path
+ * @param {string|Buffer} code
+ * @param {'HTML'|'SVG'} kind
+ * @returns {string}
+ */
+function decodeMarkup(path,code,kind) {
+  /** @type {string} */
+  let markup;
+  try {
+    markup=Buffer.isBuffer(code)?utf8.decode(code):code;
+  } catch (error) {
+    throw new TypeError(kind+' asset is not valid UTF-8: '+path);
+  }
+  if(markup.includes('\\0'))throw new TypeError(kind+' asset contains NUL code units: '+path);
+  return markup;
+}
+
+/**
  * Audit HTML assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
@@ -78,21 +99,9 @@ function findInlineHtmlSource(html) {
  */
 function assertNoInlineHtmlSource(path,code) {
   if(!/\.html?$/iu.test(path))return;
-  /** @type {string} */
-  let html;
-  try {
-    // Buffer#toString('utf8') silently replaces malformed sequences. A
-    // browser may instead decode the same bytes as UTF-16 via its BOM/meta
-    // charset and execute markup invisible to a UTF-8-only HTML parser.
-    html=Buffer.isBuffer(code)?utf8.decode(code):code;
-  } catch (error) {
-    throw new TypeError('HTML asset is not valid UTF-8: '+path);
-  }
-  // Unmarked UTF-16 code units are often valid UTF-8 *bytes* with embedded
-  // NUL characters. Refuse them before parsing the HTML document.
-  if(html.includes('\0'))throw new TypeError('HTML asset contains NUL code units: '+path);
+  const html=decodeMarkup(path,code,'HTML');
   const issue=findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
-module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,assertNoInlineHtmlSource};
+module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,assertNoInlineHtmlSource,decodeMarkup};
