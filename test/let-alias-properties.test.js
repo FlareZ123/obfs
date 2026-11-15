@@ -83,7 +83,7 @@ test('closed-world ESM import permits unmodified let alias flow',async()=>{
     {path:'state.mjs',sourceType:'module',code:
       'export const state={secretField:7,another:9};'},
     {path:'entry.mjs',sourceType:'module',code:
-      'import {state} from "./state.mjs";let alias=state;process.stdout.write(String(alias.secretField+alias.another));'}
+      'import {state} from "./state.mjs";let alias=state;process.stdout.write(JSON.stringify([alias.secretField,alias.another]));'}
   ];
   const expected=await runEsm(files);
   const transformed=obfuscateFiles(files,{
@@ -99,7 +99,7 @@ test('exported let alias exposes ownership and blocks cross-module rewriting',()
     {path:'state.mjs',sourceType:'module',code:
       'export const state={secretField:7};export let alias=state;'},
     {path:'entry.mjs',sourceType:'module',code:
-      'import {state,alias} from "./state.mjs";process.stdout.write(String(alias.secretField+state.secretField));'}
+      'import {state,alias} from "./state.mjs";process.stdout.write(JSON.stringify([alias.secretField,state.secretField]));'}
   ];
   const transformed=obfuscateFiles(files,{
     mode:'coo',seed:'let-alias-export-escape',closedWorld:true,strings:false,identifiers:false
