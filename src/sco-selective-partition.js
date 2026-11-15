@@ -96,14 +96,9 @@ function touchesRealmPrototype(body){
   function isIntrinsic(node){
     return node.type==='Identifier'&&intrinsicNames.has(node.name);
   }
-  /** @param {import('./ast').AstNode} node @returns {boolean} */
-  function isReflector(node){
-    return node.type==='Identifier'&&
-      (node.name==='Object'||node.name==='Reflect'||intrinsicNames.has(node.name)&&
-        // Aliases may refer to Object/Reflect. Refusing reflector methods on
-        // other constructor aliases is a safe overapproximation.
-        node.name!=='');
-  }
+  // A tracked alias can refer to Object or Reflect. Declining the same
+  // method spelling on other constructor aliases only widens refusals.
+  const sensitiveNames=new Set(['prototype','__proto__',...reflectorMethods]);
   /** @param {import('./ast').AstNode} pattern @param {Set<string>} names @returns {boolean} */
   function patternReads(pattern,names){
     return pattern.type==='ObjectPattern'&&pattern.properties.some(
@@ -116,14 +111,12 @@ function touchesRealmPrototype(body){
     if(node.type==='MemberExpression'){
       const key=keyName(node);
       if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)touched=true;
-      if(isReflector(node.object)&&reflectorMethods.has(key??''))touched=true;
+      if(isIntrinsic(node.object)&&reflectorMethods.has(key??''))touched=true;
     }
     if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
-       patternReads(node.id,new Set(['prototype','__proto__',
-         ...reflectorMethods])))touched=true;
+       patternReads(node.id,sensitiveNames))touched=true;
     if(node.type==='AssignmentExpression'&&isIntrinsic(node.right)&&
-       patternReads(node.left,new Set(['prototype','__proto__',
-         ...reflectorMethods])))touched=true;
+       patternReads(node.left,sensitiveNames))touched=true;
   });
   return touched;
 }
