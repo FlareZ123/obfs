@@ -69,6 +69,34 @@ test('unreachable private states make global physical synchronization undecidabl
   assert.equal(observationallySynchronizes(neverGloballySynchronizing,first.word,[0,1,2,3]),true);
 });
 
+test('heldout physical model retains an explicit distinguishable proposed-word counterexample',()=>{
+  // Model 89 of the independent 0x13579bdf / 4567-seed holdout.
+  const model={
+    next:[[1,3],[0,1],[1,0],[2,3]],
+    output:[[0,0],[0,0],[1,0],[0,0]]
+  };
+  const proposed=[1,0,0];
+  const postDiscoveryReachable=reachableStates(model,1);
+  assert.deepEqual(postDiscoveryReachable,[1,0,3,2]);
+  assert.equal(observationallySynchronizes(model,proposed,postDiscoveryReachable),false);
+  const destination=postDiscoveryReachable.map(state=>
+    proposed.reduce((previous,input)=>model.next[previous][input],state));
+  assert.deepEqual(destination,[1,1,1,0]);
+  // Input 100 emits 000 from state 1 and 001 from state 0.
+  const suffix=[1,0,0];
+  function trace(start){
+    let state=start;
+    const outputs=[];
+    for(const symbol of suffix){
+      outputs.push(model.output[state][symbol]);
+      state=model.next[state][symbol];
+    }
+    return outputs;
+  }
+  assert.deepEqual(trace(1),[0,0,0]);
+  assert.deepEqual(trace(0),[0,0,1]);
+});
+
 test('diversified attack reduces false post-search observable resets in two independent corpora',async()=>{
   const result=await runComparison(250);
   assert.equal(result.count,250);
