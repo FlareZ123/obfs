@@ -1,0 +1,25 @@
+name: Manual adversarial decision grid
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  comparison:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned package dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Measure static recovery, coverage and runtime over same source
+        run: node sims/decision-grid.js
