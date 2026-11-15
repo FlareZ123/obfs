@@ -53,7 +53,7 @@ function nontrivial(node) {
  * absence of outside source/stack observers and absence of loader side effects.
  *
  * @param {ModuleFile} file
- * @param {{names:string[],seed:string,reservedPaths?:string[]}} options
+ * @param {{names:string[],seed:string,reservedPaths?:string[],topology?:'split'|'paired'}} options
  * @returns {ShardResult}
  */
 function shardNativeBitvectorModule(file,options) {
@@ -62,6 +62,7 @@ function shardNativeBitvectorModule(file,options) {
       !options||typeof options.seed!=='string'||!options.seed||
       !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string'||!name)||
       new Set(options.names).size!==options.names.length||
+      options.topology!==undefined&&!['split','paired'].includes(options.topology)||
       options.reservedPaths!==undefined&&(!Array.isArray(options.reservedPaths)||
         options.reservedPaths.some(name=>typeof name!=='string'))) {
     throw new TypeError('Expected .mjs module, seed and unique selected names');
@@ -75,6 +76,7 @@ function shardNativeBitvectorModule(file,options) {
     return {files:[file],functions:0,declined:options.names.length,helperCalls:0};
   }
   const reserved=new Set([filename,...(options.reservedPaths??[]).map(safePath)]);
+  const topology=options.topology??'split';
   /** @type {Map<string,AstNode[]>} */
   const functions=new Map();
   for(const stmt of ast.body) {
@@ -126,12 +128,22 @@ function shardNativeBitvectorModule(file,options) {
       file.code.slice(expression.left.start,expression.left.end),
       file.code.slice(expression.right.start,expression.right.end)
     ];
-    for(let side=0;side<2;side++) {
-      const helper=helpers[side];
-      shards.push({path:paths[side],sourceType:'module',
-        code:'export function '+helper+'('+param.name+'){return '+subexpressions[side]+';}\n'});
-      const rel=path.posix.relative(path.posix.dirname(filename),paths[side]);
-      imports.push('import {'+helper+'} from '+JSON.stringify(rel.startsWith('.')?rel:'./'+rel)+';');
+    if(topology==='paired') {
+      const target=paths[0];
+      shards.push({path:target,sourceType:'module',
+        code:helpers.map((helper,side)=>
+          'export function '+helper+'('+param.name+'){return '+subexpressions[side]+';}\n').join('')});
+      const rel=path.posix.relative(path.posix.dirname(filename),target);
+      imports.push('import {'+helpers.join(',')+'} from '+
+        JSON.stringify(rel.startsWith('.')?rel:'./'+rel)+';');
+    } else {
+      for(let side=0;side<2;side++) {
+        const helper=helpers[side];
+        shards.push({path:paths[side],sourceType:'module',
+          code:'export function '+helper+'('+param.name+'){return '+subexpressions[side]+';}\n'});
+        const rel=path.posix.relative(path.posix.dirname(filename),paths[side]);
+        imports.push('import {'+helper+'} from '+JSON.stringify(rel.startsWith('.')?rel:'./'+rel)+';');
+      }
     }
     edits.push({start:fn.body.start,end:fn.body.end,
       text:'{return '+helpers[0]+'('+param.name+')'+expression.operator+
@@ -141,7 +153,7 @@ function shardNativeBitvectorModule(file,options) {
   const code=imports.join('\n')+'\n'+applyEdits(file.code,edits);
   parse(code,'module');
   return {files:[{path:filename,code,sourceType:'module'},...shards],
-    functions:edits.length,declined,helperCalls:shards.length};
+    functions:edits.length,declined,helperCalls:edits.length*2};
 }
 
 module.exports={shardNativeBitvectorModule};
