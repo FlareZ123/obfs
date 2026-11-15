@@ -21,3 +21,5 @@ jobs:
         run: node sims/cold-start.js
       - name: Compare UTF-16 decoder strategies
         run: node sims/decoder-candidates.js
+      - name: Validate offline static string recovery
+        run: node --test test/static-string-recovery.test.js
