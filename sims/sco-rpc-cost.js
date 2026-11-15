@@ -5,7 +5,7 @@ const os=require('node:os');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const {performance}=require('node:perf_hooks');
-const {createScoHandler}=require('../src');
+const {createScoHandler,createScoBatchMethod}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /**
@@ -46,6 +46,20 @@ async function measure(port,iterations,rounds,calls) {
     if (!response.ok || !data.ok) throw new Error('RPC failed during benchmark');
     return data.value;
   }
+  /** @returns {Promise<number[]>} */
+  async function remoteAsOneBatch() {
+    const callsList=Array.from({length:calls},(_,index)=>({
+      method:'compute',args:[iterations+(index%7)]
+    }));
+    const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:'batch',args:[callsList]})});
+    const data=await response.json();
+    if(!response.ok || !data.ok || !Array.isArray(data.value) ||
+       data.value.some(item=>!item.ok)) {
+      throw new Error('Batched RPC failed during benchmark');
+    }
+    return data.value.map(item=>item.value);
+  }
   for(let warm=0;warm<6;warm++) {
     compute(iterations+warm);
     assert.equal(await remote(iterations+warm),compute(iterations+warm));
@@ -55,6 +69,8 @@ async function measure(port,iterations,rounds,calls) {
   const localMs=[];
   /** @type {number[]} */
   const remoteMs=[];
+  /** @type {number[]} */
+  const batchedMs=[];
   for(let round=0;round<rounds;round++) {
     /** @returns {number[]} */
     function localBatch() {
@@ -72,28 +88,51 @@ async function measure(port,iterations,rounds,calls) {
       remoteMs.push(performance.now()-started);
       return result;
     }
-    let original;
-    let transformed;
-    if(round%2===0) {
+    /** @returns {Promise<number[]>} */
+    async function oneBatch() {
+      const started=performance.now();
+      const result=await remoteAsOneBatch();
+      batchedMs.push(performance.now()-started);
+      return result;
+    }
+    /** @type {number[]} */
+    let original=[];
+    /** @type {number[]} */
+    let transformed=[];
+    /** @type {number[]} */
+    let batched=[];
+    if(round%3===0) {
       original=localBatch();
       transformed=await remoteBatch();
+      batched=await oneBatch();
+    }else if(round%3===1) {
+      transformed=await remoteBatch();
+      batched=await oneBatch();
+      original=localBatch();
     }else{
-      transformed=await remoteBatch();
+      batched=await oneBatch();
       original=localBatch();
+      transformed=await remoteBatch();
     }
     assert.deepEqual(transformed,original,'RPC computation must match direct evaluation');
+    assert.deepEqual(batched,original,'Batched RPC must match direct evaluation');
   }
   const baseline=median(localMs);
   const rpc=median(remoteMs);
+  const batch=median(batchedMs);
   return {
     iterationsPerCall:iterations,
     callsPerRound:calls,
     baselineMedianMs:baseline,
     rpcMedianMs:rpc,
+    batchedMedianMs:batch,
     ratio:rpc/baseline,
+    batchedRatio:batch/baseline,
     within2_5x:rpc/baseline<=2.5,
+    batchedWithin2_5x:batch/baseline<=2.5,
     localMs,
-    remoteMs
+    remoteMs,
+    batchedMs
   };
 }
 
@@ -102,7 +141,7 @@ async function main() {
   const server=http.createServer(createScoHandler([
     {path:'client.js',sourceType:'script',code:'globalThis.ready=true;'}
   ],{
-    remoteMethods:{compute},
+    remoteMethods:{compute,batch:createScoBatchMethod({compute},{maxCalls:32})},
     authorizeRpc:()=>true
   }));
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -120,12 +159,13 @@ async function main() {
       arch:process.arch,
       cpu:os.cpus()[0]?.model,
       rounds:7,
-      definition:'median of 7 batches of 12 sequential local or loopback RPC calls; listener warmup excluded',
+      definition:'median of 7 rounds of 12 calls: local, separate RPCs, and one explicit batch RPC; listener warmup excluded',
       results
     };
     await atomicWrite(path.join(process.cwd(),'rpc-cost-output.json'),JSON.stringify(report,null,2)+'\n');
     for(const item of results) {
       process.stdout.write(`${item.iterationsPerCall} iterations: local=${item.baselineMedianMs.toFixed(3)}ms; rpc=${item.rpcMedianMs.toFixed(3)}ms; ratio=${item.ratio.toFixed(2)}x; <=2.5x=${item.within2_5x}\n`);
+      process.stdout.write('batch '+item.iterationsPerCall+' iterations: '+item.batchedMedianMs.toFixed(3)+'ms; ratio='+item.batchedRatio.toFixed(2)+'x; <=2.5x='+item.batchedWithin2_5x+'\n');
     }
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
