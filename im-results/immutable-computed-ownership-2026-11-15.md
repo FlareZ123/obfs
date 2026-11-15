@@ -45,3 +45,13 @@ These are small JIT-optimized hot samples, susceptible to host/JIT variance. The
 ## Scope and next questions
 
 The exact 1:1 semantic contract is tested within the enumerated fixtures and real Node module executions. It remains unproven for arbitrary JavaScript, true browser global/DOM host APIs, reflective techniques beyond the guarded subset, sophisticated runtime instrumentation, or multi-environment performance. Additional coverage should use real browser ESM/Web APIs, adversarial cyclic imports and native error-string fixtures. Upstream [`results/README.md`](../results/README.md) should retain established findings only; these compiler and attack observations belong in `im-results/` until independently reproduced and generalized.
+
+## Real browser CSP and source-observer boundary validation
+
+[Browser integration run 43772099947](https://github.com/FlareZ123/obfs/actions/runs/43772099947) **passed Ubuntu Google Chrome** at pinned SHA `3c0bda2755d3607e274d8aea8809ca1ae93353c4` (the existing manually dispatched multi-case Chromium workflow, including all its earlier tests and type checks). The new [`test/imported-constant-key-browser.js`](../test/imported-constant-key-browser.js) separately loaded native and actual COO emitted multi-file modules over an HTTP server with a restrictive `Content-Security-Policy: default-src 'none'; script-src 'self'; connect-src 'self'`. Its five cases yielded:
+
+- **2 positive graphs** (published two-module imported alias proof and a live `window.hostApi` contract). The transformed program retained exact DOM-visible output and preserved the externally defined property names.
+- **3 refused graphs** (dynamic browser-host key, imported `toString` function source observer, imported `stack` Error source-position observer). All refused graphs had unchanged native output.
+
+The browser job output reports `{"cases":5,"positive":2,"refused":3,"comparisons":5}`. This is a concrete live-browser compatibility boundary, still only five fixtures. It does not measure a whole browser application's runtime cost, defeat instrumented DevTools, or establish general 1:1 JavaScript semantics.
+
