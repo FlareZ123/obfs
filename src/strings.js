@@ -51,6 +51,9 @@ function encodeStrings(source, ast, options) {
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
     if ((parent.type === 'Property' || parent.type === 'MethodDefinition' ||
          parent.type === 'PropertyDefinition') && key === 'key' && !parent.computed) return;
+    // A quoted name in an ESM import/export specifier is a grammar token,
+    // not an ordinary expression; replacing it with decoder[index] is invalid.
+    if (parent.type === 'ImportSpecifier' || parent.type === 'ExportSpecifier') return;
     if (/^(ImportDeclaration|ImportExpression|ExportNamedDeclaration|ExportAllDeclaration|ImportAttribute)$/.test(parent.type)) return;
     if ((parent.type === 'CallExpression' || parent.type === 'NewExpression') && key === 'arguments' &&
         parent.callee.type === 'Identifier' && ['require', 'eval', 'Function'].includes(parent.callee.name)) return;
