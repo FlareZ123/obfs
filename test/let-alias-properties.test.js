@@ -43,6 +43,15 @@ for(const [name,source] of [
   });
 }
 
+test('static nested field names cannot masquerade as forwarded parameter references',()=>{
+  const source='const root={hiddenData:{inner:{value:80711,extra:[51409,3]}},'+
+    'primaryKey:[80711,51409]};function forward(value){return value;}'+
+    'const alias0=forward(root);const alias1=alias0;let alias2=alias1;'+
+    'const alias3=alias2;let alias4=alias3;'+
+    'module.exports=[alias4.hiddenData.inner.value,alias4.primaryKey[1]];';
+  compare(source,1);
+});
+
 for(const [name,source] of [
   ['direct rebinding',
     'const root={secretField:7};let alias=root;alias={secretField:9};module.exports=alias.secretField+root.secretField;'],
