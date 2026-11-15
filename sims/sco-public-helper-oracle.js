@@ -5,19 +5,17 @@ const http=require('node:http');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
+const {inferPublicFacadeClone}=require('./sco-public-helper-attacker');
 
 const ROOT=path.join(__dirname,'../examples/sco-public-helpers');
 const TOKEN='legitimate-public-helper-attack-session';
 
 /**
- * Two-query attacker: receives only the distributed client bytes and
- * authenticated RPC responses. The test harness owns the private source,
- * binds it on the trusted server, and evaluates held-out predictions.
- *
- * The attacker hypothesizes an affine function of string UTF-16 length.
- * Success is evidence only for this simple hidden function family; it
- * does not recover the server's literal secret and says nothing about a
- * cryptographic PRF or other unbounded private computation.
+ * Start an authenticated SCO server with genuinely private source, then
+ * call a separate public-client-only attacker and independently validate
+ * the offline predictions on never-queried native inputs.
+ * The attacker assumes an affine function of UTF-16 string length; success
+ * applies to that simple model family and does not reveal the original key.
  *
  * @returns {Promise<{oracleQueries:number,heldOut:number,matched:number,
  *  deniedStatus:number,sourceWithheld:boolean,methodExposed:boolean,
@@ -56,39 +54,16 @@ async function runOracleAttack(){
       body:JSON.stringify({method:partition.methodNames.secret,args:['unauthorized']})
     });
     assert.equal(denied.status,403);
-    const response=await fetch(origin+'/obfs/mixed.mjs',{
-      headers:{'x-demo-session':TOKEN}
-    });
-    assert.equal(response.status,200);
-    const publicCode=await response.text();
-    const sourceWithheld=!/SCO_PUBLIC_HELPER_PRIVATE_CANARY|privateFold|PRIVATE_KEY/u.test(publicCode);
+    const learned=await inferPublicFacadeClone(origin,TOKEN);
+    const {clientCode,methodId,oracleQueries,slope,intercept,predict}=learned;
+    const sourceWithheld=!/SCO_PUBLIC_HELPER_PRIVATE_CANARY|privateFold|PRIVATE_KEY/u.test(clientCode);
     assert.equal(sourceWithheld,true);
-    const method=publicCode.match(/"(m[0-9a-f]{24})",\[\.\.\.arguments\]/u)?.[1];
-    if(!method)throw Error('Could not recover public RPC method ID');
-    let oracleQueries=0;
-    /** @param {string} value @returns {Promise<number>} */
-    async function oracle(value){
-      oracleQueries++;
-      const result=await fetch(origin+'/obfs/rpc',{
-        method:'POST',
-        headers:{'content-type':'application/json','x-demo-session':TOKEN},
-        body:JSON.stringify({method,args:[value]})
-      });
-      assert.equal(result.status,200);
-      const payload=await result.json();
-      assert.equal(payload.ok,true);
-      assert.equal(typeof payload.value,'number');
-      return payload.value;
-    }
-    const intercept=await oracle('');
-    const slope=(await oracle('x'))-intercept;
-    /** @param {string} input @returns {number} */
-    const clone=input=>intercept+slope*input.length;
+    assert.equal(methodId,partition.methodNames.secret);
     let matched=0;
     const heldOut=64;
     for(let i=0;i<heldOut;i++){
       const input='heldout-'+i+'-'+('Ω'.repeat(i%13))+'x'.repeat((i*i)%29);
-      if(clone(input)===await original.secret(input))matched++;
+      if(predict(input)===await original.secret(input))matched++;
     }
     assert.equal(matched,heldOut);
     assert.equal(privateExecutions,2,'The attacker must not query held-out values');
