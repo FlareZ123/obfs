@@ -51,6 +51,37 @@ function staticName(node) {
 }
 
 /**
+ * Bind each simple name to the lexical region in which its declaration is
+ * visible. Name uniqueness alone is insufficient: a free identifier outside
+ * a block or function can resolve to a separate global with the same name.
+ * @param {AstNode} ast
+ * @returns {Map<string,AstNode>}
+ */
+function collectBindingScopes(ast) {
+  /** @type {Map<string,AstNode>} */
+  const scopes = new Map();
+  const lexical = new Set(['Program','BlockStatement','StaticBlock','SwitchStatement',
+    'ForStatement','ForInStatement','ForOfStatement','CatchClause']);
+  /** @param {AstNode[]} ancestors @returns {AstNode} */
+  function enclosing(ancestors) {
+    return [...ancestors].reverse().find(node => lexical.has(node.type)) || ast;
+  }
+  walk(ast,(node,parent,key,ancestors)=>{
+    if (node.type === 'VariableDeclarator' && node.id.type === 'Identifier') {
+      scopes.set(node.id.name,enclosing(ancestors));
+    } else if (node.type === 'FunctionDeclaration') {
+      if (node.id?.type === 'Identifier') scopes.set(node.id.name,enclosing(ancestors));
+      for (const param of node.params) if (param.type === 'Identifier') scopes.set(param.name,node);
+    } else if (node.type === 'FunctionExpression' || node.type === 'ArrowFunctionExpression') {
+      for (const param of node.params) if (param.type === 'Identifier') scopes.set(param.name,node);
+    } else if (/^Import(?:Default|Namespace)?Specifier$/.test(node.type) && node.local?.type === 'Identifier') {
+      scopes.set(node.local.name,ast);
+    }
+  });
+  return scopes;
+}
+
+/**
  * Closed-world proof of safe uses of a candidate object and its aliases.
  * Recognizes const aliases, direct function parameters, and identity forwarding.
  * Rejects reflection, computed keys, escapes, ambiguous calls, and shadowing.
@@ -98,10 +129,15 @@ function proveLocalObject(ast, rootName, bindings) {
   });
   if (dynamicScope) return null;
 
+  const scopes = collectBindingScopes(ast);
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!functions.has(node.name)) continue;
+    if (!ancestors.includes(scopes.get(node.name))) {
+      unusableFunctions.add(node.name);
+      continue;
+    }
     if (parent?.type === 'FunctionDeclaration' && key === 'id') {
       if (ancestors.some(a => /^Export/.test(a.type))) unusableFunctions.add(node.name);
       continue;
@@ -150,6 +186,8 @@ function proveLocalObject(ast, rootName, bindings) {
   const members = [];
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
+    // A same-spelled reference outside its declaration scope may be a global.
+    if (!ancestors.includes(scopes.get(node.name))) return null;
     if (!parent) return null;
     if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) continue;
     if (key === 'params' && /^Function/.test(parent.type)) continue;
