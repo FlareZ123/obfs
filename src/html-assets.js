@@ -85,7 +85,7 @@ function decodeMarkup(path,code,kind) {
   } catch (error) {
     throw new TypeError(kind+' asset is not valid UTF-8: '+path);
   }
-  if(markup.includes('\\0'))throw new TypeError(kind+' asset contains NUL code units: '+path);
+  if(markup.includes(String.fromCharCode(0)))throw new TypeError(kind+' asset contains NUL code units: '+path);
   return markup;
 }
 
