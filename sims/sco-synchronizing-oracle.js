@@ -47,7 +47,8 @@ function makeSynchronizingMachine(seed) {
  * @param {StepOnlyOracle} api
  * @param {readonly number[]} synchronizingWord
  * @returns {Promise<{machine:LearnedMachine,
- *   rpcSteps:number,logicalRequests:number,resetCalls:number,elapsedMs:number}>}
+ *   rpcSteps:number,logicalRequests:number,resetCalls:number,
+ *   trainingWords:string[],elapsedMs:number}>}
  */
 async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
   if(!synchronizingWord.length||synchronizingWord.some(symbol=>symbol!==0)) {
@@ -69,7 +70,7 @@ async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
     step
   },4,2);
   return {machine:learned.machine,rpcSteps,logicalRequests:learned.requests,
-    resetCalls,elapsedMs:learned.elapsedMs};
+    resetCalls,trainingWords:learned.trainingWords,elapsedMs:learned.elapsedMs};
 }
 
 /**
@@ -77,7 +78,8 @@ async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
  * proxy, while the hidden ESM machine has no reset export.
  * @param {number} index
  * @returns {Promise<{index:number,states:number,rpcSteps:number,logicalRequests:number,
- *   resetCalls:number,heldout:number,publicResetExport:boolean,unauthorizedStatus:number,
+ *   resetCalls:number,heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
+ *   publicResetExport:boolean,unauthorizedStatus:number,
  *   sourceDisclosed:boolean,elapsedMs:number}>}
  */
 async function scenario(index) {
@@ -144,6 +146,13 @@ async function scenario(index) {
     const learned=await recoverWithoutReset(api);
     assert.equal(learned.machine.access.length,4);
     let heldout=0;
+    let strictlyUnseen=0;
+    const trainingWords=new Set(learned.trainingWords);
+    // Include exact full reset-prefix probes as already observed words too.
+    // Each legal synchronizing word begins with three zeros.
+    const resetPrefix=[0,0,0];
+    const probedFullWords=new Set(learned.trainingWords.map(word=>
+      JSON.stringify([...resetPrefix,...JSON.parse(word)])));
     /** @type {number[][]} */
     let layer=[[]];
     for(let length=1;length<=10;length++) {
@@ -153,6 +162,8 @@ async function scenario(index) {
         const word=[...prefix,bit];
         next.push(word);
         assert.deepEqual(learnedTrace(learned.machine,word),privateTrace(secret,word));
+        const written=JSON.stringify(word);
+        if(!trainingWords.has(written)&&!probedFullWords.has(written))strictlyUnseen++;
         heldout++;
       }
       layer=next;
@@ -161,7 +172,8 @@ async function scenario(index) {
     assert.equal(learned.rpcSteps,learned.logicalRequests+2*learned.resetCalls);
     return {index,states:learned.machine.access.length,rpcSteps:learned.rpcSteps,
       logicalRequests:learned.logicalRequests,resetCalls:learned.resetCalls,
-      heldout,publicResetExport:false,unauthorizedStatus:denied.status,
+      heldout,strictlyUnseen,uniqueTrainingWords:trainingWords.size,
+      publicResetExport:false,unauthorizedStatus:denied.status,
       sourceDisclosed:false,elapsedMs:learned.elapsedMs};
   }finally{
     globalThis.fetch=nativeFetch;
@@ -177,7 +189,7 @@ async function scenario(index) {
 
 /**
  * @param {number} [count]
- * @returns {Promise<{scenarios:number,rpcSteps:number,heldout:number,allExact:boolean,
+ * @returns {Promise<{scenarios:number,rpcSteps:number,heldout:number,strictlyUnseen:number,allExact:boolean,
  *   details:Awaited<ReturnType<typeof scenario>>[]}>}
  */
 async function runSynchronizing(count=4) {
@@ -187,6 +199,7 @@ async function runSynchronizing(count=4) {
   for(let index=0;index<count;index++)details.push(await scenario(index));
   return {scenarios:count,rpcSteps:details.reduce((sum,item)=>sum+item.rpcSteps,0),
     heldout:details.reduce((sum,item)=>sum+item.heldout,0),
+    strictlyUnseen:details.reduce((sum,item)=>sum+item.strictlyUnseen,0),
     allExact:details.every(item=>item.states===4 && !item.publicResetExport &&
       item.unauthorizedStatus===403 && !item.sourceDisclosed),
     details};
