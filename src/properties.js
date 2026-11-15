@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse, walk, applyEdits, observesFunctionSource} = require('./ast');
+const {parse, walk, applyEdits, observesFunctionSource, staticString} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -233,7 +233,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
     if (parent.type === 'MemberExpression' && key === 'object') {
-      const property = parent.computed ? (parent.property.type === 'Literal' && typeof parent.property.value === 'string' ? parent.property.value : null) : staticName(parent.property);
+      const property = parent.computed ? staticString(parent.property) : staticName(parent.property);
       if (property === null) return null;
       members.push(parent);
       continue;
@@ -373,7 +373,7 @@ function renameLocalProperties(source, ast, options) {
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(prop=>staticName(prop.key)));
-    if (proof.members.some(member=>!ownNames.has(member.computed ? member.property.value : staticName(member.property))) ||
+    if (proof.members.some(member=>!ownNames.has(member.computed ? staticString(member.property) : staticName(member.property))) ||
         proof.patterns.some(property=>!ownNames.has(staticName(property.key)))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
@@ -386,7 +386,7 @@ function renameLocalProperties(source, ast, options) {
     if (new Set(mapping.values()).size !== mapping.size) continue;
     for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
     for (const member of proof.members) {
-      const name = member.computed ? member.property.value : staticName(member.property);
+      const name = member.computed ? staticString(member.property) : staticName(member.property);
       if (mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
     edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
