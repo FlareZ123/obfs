@@ -210,3 +210,44 @@ test('long left-deep native operation chains decline safely above fixed budget',
     assert.equal(declined.code,original);
   }
 });
+
+
+test('state masking never adds observable user-defined coercion or branch effects',()=>{
+  const source='function f(x){return (x+7)?((x*3)^5):((x-2)|1);}module.exports={f};';
+  const plain=flattenBranchBlocks(source,'commonjs',{
+    seed:'effect-trace',names:['f']
+  });
+  const masked=flattenBranchBlocks(source,'commonjs',{
+    seed:'effect-trace',names:['f'],stateBlinding:true
+  });
+  assert.equal(masked.functions,1);
+  const original=loadFunction(source,'f'),baseline=loadFunction(plain.code,'f'),
+    hardened=loadFunction(masked.code,'f');
+  for(const start of [-7,0,3,99]){
+    /** @param {string[]} steps */
+    function observed(steps){
+      return {[Symbol.toPrimitive](hint){
+        steps.push('coerce:'+hint);
+        return start;
+      }};
+    }
+    const originalSteps=[],plainSteps=[],maskedSteps=[];
+    const native=original(observed(originalSteps));
+    assert.equal(baseline(observed(plainSteps)),native);
+    assert.equal(hardened(observed(maskedSteps)),native);
+    assert.deepEqual(plainSteps,originalSteps);
+    assert.deepEqual(maskedSteps,originalSteps);
+    /** @param {string[]} steps */
+    function throwing(steps){
+      return {[Symbol.toPrimitive](hint){
+        steps.push('throw:'+hint);
+        throw new RangeError('sentinel');
+      }};
+    }
+    for(const [fn,trace] of [[original,originalSteps],[baseline,plainSteps],[hardened,maskedSteps]]){
+      const logs=/** @type {string[]} */ ([]);
+      assert.throws(()=>fn(throwing(logs)),/sentinel/);
+      assert.deepEqual(logs,['throw:number']);
+    }
+  }
+});
