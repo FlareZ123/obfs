@@ -195,6 +195,15 @@ test('SCO private export cannot silently migrate browser-only ambient reads',()=
   }
 });
 
+test('SCO admits browser-global names with proven function-local bindings',()=>{
+  for(const name of ['window','document','navigator','location']){
+    const source=moduleSource('const '+name+'=7;return '+name+';','return 7;');
+    const result=partition(source);
+    assert.deepEqual(result.privateNames,['protectedOp']);
+    assert.deepEqual(result.publicNames,['visible']);
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
