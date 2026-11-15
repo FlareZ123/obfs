@@ -26,7 +26,9 @@ const utf8=new TextDecoder('utf-8',{fatal:true});
 function isEmbeddedExecutableUrl(raw) {
   const value=raw.replace(/[\x00-\x20]/gu,'').toLowerCase();
   return value.startsWith('javascript:') ||
-    /^data:(?:text\/html|(?:text|application)\/(?:javascript|ecmascript)|image\/svg\+xml)(?:[;,]|$)/u.test(value);
+    // XML media types can contain HTML-namespace script elements. These
+    // explicit browser-document types must not ship as opaque data URLs.
+    /^data:(?:text\/html|(?:text|application)\/(?:javascript|ecmascript|xml)|application\/xhtml\+xml|image\/svg\+xml)(?:[;,]|$)/u.test(value);
 }
 
 /**
