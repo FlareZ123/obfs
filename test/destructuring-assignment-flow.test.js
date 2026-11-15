@@ -53,6 +53,33 @@ test('constant computed assignment key is safely rewritten',()=>{
   assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
 });
 
+test('static own-property destructuring default preserves the same fallback condition',()=>{
+  const source=[
+    'const owner={privateField:17,otherField:5};',
+    'let captured=0,fallBackCalls=0;',
+    'function fallback(){fallBackCalls++;return 999;}',
+    '({privateField:captured=fallback()}=owner);',
+    'module.exports=[captured,fallBackCalls,owner.otherField];'
+  ].join('');
+  const output=localOutput(source);
+  assert.equal(output.metrics.objects,1);
+  assert.equal(output.metrics.properties,2);
+  assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
+  assert.equal(evaluateCommonJs(String(output.code)),JSON.stringify([17,0,5]));
+});
+
+test('declarator shorthand default retains its lexical binding name',()=>{
+  const source=[
+    'const owner={privateField:17};',
+    'const {privateField=99}=owner;',
+    'module.exports=[privateField,owner.privateField];'
+  ].join('');
+  const output=localOutput(source);
+  assert.equal(output.metrics.objects,1);
+  assert.equal(output.metrics.properties,1);
+  assert.equal(evaluateCommonJs(String(output.code)),evaluateCommonJs(source));
+});
+
 test('assignment expression result must be discarded before private-field renaming',()=>{
   const source=[
     'const owner={privateField:17};',
@@ -66,14 +93,14 @@ test('assignment expression result must be discarded before private-field renami
 });
 
 for(const [name,pattern] of [
-  ['default field value','({privateField:captured=9}=owner);'],
+  ['member assignment target','({privateField:target.value}=owner);'],
   ['rest field','({privateField:captured,...rest}=owner);'],
   ['nested target','({privateField:[captured]}=owner);']
 ]) {
   test('unproved assignment pattern is refused: '+name,()=>{
     const source=[
       'const owner={privateField:17};',
-      'let captured=0;let rest;',
+      'let captured=0;let rest;let target={};',
       pattern,
       'module.exports=owner.privateField;'
     ].join('');
@@ -117,7 +144,7 @@ test('closed-world ESM assignment rewrite preserves cross-file behavior',async()
       path:file.path,code:String(file.code),sourceType:'module'
     })));
     assert.equal(attacked.properties,2);
-    assert.doesNotMatch(attacked.files[0].code,/_p[a-f0-9]{12}\\b/u);
+    assert.doesNotMatch(attacked.files[0].code,/_p[a-f0-9]{12}\b/u);
     assert.equal(await run(attacked.files),'17,5');
   } finally {
     await fs.rm(root,{recursive:true,force:true});
