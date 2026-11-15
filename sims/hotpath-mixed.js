@@ -31,6 +31,30 @@ function workloads() {
       };`
     },
     {
+      name:'local-immutable-arrow-identity',
+      iterations:1_000_000,
+      source:`'use strict';module.exports=function workload(n){
+        const state={secretMetric:21,adjustment:7};
+        const relay=value=>value;
+        const view=relay(state);
+        let total=0;
+        for(let i=0;i<n;i++){view.secretMetric+=view.adjustment;total^=state.secretMetric;}
+        return total;
+      };`
+    },
+    {
+      name:'local-immutable-function-expression',
+      iterations:1_000_000,
+      source:`'use strict';module.exports=function workload(n){
+        const state={secretMetric:21,adjustment:7};
+        const relay=function(value){return value;};
+        const view=relay(state);
+        let total=0;
+        for(let i=0;i<n;i++){view.secretMetric+=view.adjustment;total^=state.secretMetric;}
+        return total;
+      };`
+    },
+    {
       name:'unicode-length-scan',
       iterations:100_000,
       source:`'use strict';module.exports=function workload(n){
@@ -100,6 +124,7 @@ function run(item) {
   const transformed=obfuscateFiles([
     {path:'module.cjs',sourceType:'commonjs',code:item.source}
   ],{mode:'sno',seed:'hotpath-evaluation',strings:false}).files[0];
+  if(item.name.startsWith('local-immutable-'))assert.equal(transformed.metrics.properties,2);
   const baseline=compile(item.source), obfuscated=compile(transformed.code);
   assert.equal(baseline(item.iterations),obfuscated(item.iterations));
   for(let i=0;i<8;i++){
