@@ -9,6 +9,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
+const {parse,observesFunctionSource}=require('../src/ast');
 
 /** @param {string} code @returns {string} */
 function evaluate(code){
@@ -167,4 +168,20 @@ test('string interpolation in another ESM module protects exported function body
     assert.equal(obfuscated.files[0].metrics.properties,0);
     assert.equal(await execute(obfuscated.files),expected);
   } finally {await fs.rm(dir,{recursive:true,force:true});}
+});
+
+
+test('pure toString property write does not by itself observe function source',()=>{
+  assert.equal(observesFunctionSource(parse('const p={};p.toString=function(){return 2;};','commonjs')),false);
+  assert.equal(observesFunctionSource(parse('const p={};p.toString=function(){return 2;};p.toString();','commonjs')),true);
+  assert.equal(observesFunctionSource(parse('const p={};p.toString+=f;','commonjs')),true);
+});
+
+test('unrelated Number.prototype toString overwrite permits safe SNO string decoding',()=>{
+  const code='const P=Object.getPrototypeOf(7);P.toString=function(){return "number";};module.exports="protected-literal-value";';
+  const result=obfuscateFiles([{path:'case.cjs',code,sourceType:'commonjs'}],{
+    mode:'sno',seed:'overwrite-no-source-observer',properties:false,identifiers:false,strings:true
+  }).files[0];
+  assert.ok(result.metrics.literals>0,'A write-only toString must not suppress unrelated string encoding');
+  assert.equal(evaluate(result.code),evaluate(code));
 });
