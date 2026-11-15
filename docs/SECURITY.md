@@ -24,7 +24,7 @@ a hoisted self-replacing helper that preserves the tested cycle. Its first-call
 compilation must count in COO. Applications with restrictive CSP or no
 WebAssembly must decline.
 
-The native WebAssembly byte array is delivered to the recipient. A
+A hostile-runtime harness additionally intercepted the Wasm Module constructor,\ncaptured the binary without source edits, and replaced the exported function\nthrough an Instance wrapper: the original result 3970 became 7331. A pinned\nreal Chromium test found that CSP `script-src 'self'` blocks this backend\nwith CompileError, while adding `'wasm-unsafe-eval'` permits the same output.\nSee [pinned dynamic/CSP evidence](../im-results/wasm-i32-pipeline-2026-11-15.md#hostile-runtime-interception-and-real-browser-csp-compatibility).\n\nThe native WebAssembly byte array is delivered to the recipient. A
 source-only attacker independently instantiated the public export with the
 native Wasm API and reproduced 4,001 output pairs. A separate seedless source-only Wasm stack interpreter reconstructed all 120 tested diversified original expression trees exactly, with 30,720 additional held-out comparisons. No key or original source
 was needed, and the binary is available for disassembly. This pass provides
