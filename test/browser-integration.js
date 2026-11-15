@@ -73,6 +73,27 @@ async function main(){
   ],{mode:'coo',closedWorld:true,seed:'chrome-default-assignment',
     identifiers:false,strings:false});
   assert.equal(defaultSet.crossFile.properties,2);
+  // The imported reader receives a state object through nested identity
+  // forwarding. Prove both private fields, while preserving the page-owned
+  // window.hostApi.accept interface exactly as written.
+  const readerSet=obfuscateFiles([
+    {path:'reader-state.mjs',sourceType:'module',
+      code:'export const state={secretValue:29,otherValue:12};'+
+        'export const peek=value=>value.secretValue;'},
+    {path:'reader-identity.mjs',sourceType:'module',
+      code:'export const identity=payload=>payload;'},
+    {path:'reader-entry.mjs',sourceType:'module',
+      code:'import {state,peek} from "./reader-state.mjs";'+
+        'import {identity} from "./reader-identity.mjs";'+
+        'const forward=part=>part;'+
+        'window.hostApi.accept(peek(forward(identity(state)))+state.otherValue);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-nested-readers',
+    identifiers:false,strings:false});
+  assert.equal(readerSet.crossFile.properties,2);
+  const readerEntry=readerSet.files.find(file=>file.path==='reader-entry.mjs');
+  assert.ok(readerEntry);
+  assert.ok(String(readerEntry.code).includes('window.hostApi.accept('));
+
   const cycleSet=obfuscateFiles([
     {path:'cycle-a.mjs',sourceType:'module',
       code:'import "./cycle-b.mjs";export function get(){return "browser-cycle-ok";}'},
@@ -114,7 +135,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -129,6 +150,9 @@ async function main(){
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
+  content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
+    '<script type="module" src="/reader-entry.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
@@ -150,6 +174,7 @@ async function main(){
     for(const [path,result] of [
       ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
+      ['/reader.html','41'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
