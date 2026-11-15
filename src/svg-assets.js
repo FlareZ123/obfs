@@ -2,6 +2,7 @@
 
 const {SaxesParser}=require('saxes');
 const {decodeMarkup,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl}=require('./html-assets');
+const {hasCssSourceMapDirective}=require('./css-source-maps');
 
 /**
  * Reject executable constructs in SVG served as ordinary static image assets.
@@ -15,6 +16,8 @@ function findInlineSvgSource(xml) {
   const parser=new SaxesParser({xmlns:true});
   /** @type {string|null} */
   let issue=null;
+  /** @type {string|null} */
+  let stylesheet=null;
   parser.on('xmldecl',declaration=>{
     if(declaration.encoding && !/^utf-?8$/iu.test(declaration.encoding)) {
       issue='non-UTF-8 XML declaration';
@@ -25,6 +28,8 @@ function findInlineSvgSource(xml) {
   parser.on('doctype',()=>{issue='DTD declaration';});
   parser.on('opentag',tag=>{
     const element=tag.local.toLowerCase();
+    if(stylesheet!==null)issue='nested markup inside style element';
+    if(element==='style')stylesheet='';
     if(element==='script')issue='script element';
     const attrs=Object.values(tag.attributes);
     if(element==='meta') {
@@ -49,6 +54,19 @@ function findInlineSvgSource(xml) {
           isEmbeddedExecutableUrl(attr.value)) {
         issue='embedded executable URL';
       }
+    }
+  });
+  // SVG stylesheets are public assets, too. Collect XML text and CDATA
+  // together so an annotation split across parser events cannot escape the
+  // same scanner used for ordinary .css files.
+  parser.on('text',value=>{if(stylesheet!==null)stylesheet+=value;});
+  parser.on('cdata',value=>{if(stylesheet!==null)stylesheet+=value;});
+  parser.on('closetag',tag=>{
+    if(tag.local.toLowerCase()==='style') {
+      if(stylesheet!==null && hasCssSourceMapDirective(stylesheet)) {
+        issue='embedded CSS source-map directive';
+      }
+      stylesheet=null;
     }
   });
   // Surface malformed XML as a build refusal. Unwell-formed SVG behavior
