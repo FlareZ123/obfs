@@ -62,6 +62,27 @@ test('selective SCO rejects split function-object and ambient-state mutation',as
     'export async function privateBump(){globalThis.sharedFlag=42;return 1;}'
   ].join('\n');
   assert.throws(()=>partition(sharedGlobal,['privateBump']),/share ambient state/);
+  const aliasGlobal=[
+    'export function visible(){return window.sharedFlag;}',
+    'export async function privateBump(){globalThis.sharedFlag=42;}'
+  ].join('\n');
+  assert.throws(()=>partition(aliasGlobal,['privateBump']),/share ambient state/);
+
+  const privateSingleton=[
+    'export function visible(){return 7;}',
+    'export async function privateBump(){privateBump.counter=(privateBump.counter||0)+1;return privateBump.counter;}'
+  ].join('\n');
+  const one=await import('data:text/javascript,'+encodeURIComponent(privateSingleton)+'#one');
+  const two=await import('data:text/javascript,'+encodeURIComponent(privateSingleton)+'#two');
+  assert.equal(await one.privateBump(),1);
+  assert.equal(await two.privateBump(),1);
+  assert.throws(()=>partition(privateSingleton,['privateBump']),/stateful private function value/);
+
+  const privateEval=[
+    'export function visible(){return 7;}',
+    'export async function privateBump(){return eval("visible()");}'
+  ].join('\n');
+  assert.throws(()=>partition(privateEval,['privateBump']),/dynamic lexical execution/);
 });
 
 test('selective SCO preserves locally run source and exact generated public module',async()=>{

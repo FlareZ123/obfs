@@ -106,16 +106,26 @@ function partitionScoSelectedAsyncExports(file,options) {
   // or mutates a public export can observe the wrong copy after partitioning.
   const publicBindings=new Set(publicNames);
   for(const body of privateBodies){
-    walk(body,node=>{
-      if(node.type==='Identifier'&&publicBindings.has(node.name)){
+    walk(body,(node,parent,key)=>{
+      if(node.type!=='Identifier')return;
+      if(publicBindings.has(node.name)){
         throw new TypeError('Private SCO export references a separated public binding: '+node.name);
+      }
+      // The original private function is a distinct singleton on each client.
+      // Reading/writing its properties after migration would share the single
+      // server function across clients, silently changing module behavior.
+      if(selected.has(node.name)&&!(parent?.type==='CallExpression'&&key==='callee')){
+        throw new TypeError('Private SCO export exposes a stateful private function value: '+node.name);
+      }
+      if(node.name==='eval'||node.name==='Function'){
+        throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
   }
-  // Both environments also have distinct ambient state objects. Reject a
-  // global-root overlap without attempting to prove which properties alias.
-  for(const name of privateAmbient){
-    if(publicAmbient.has(name))throw new TypeError('Private/public exports share ambient state: '+name);
+  // Global roots can alias across spellings, e.g. window versus globalThis.
+  // Decline any cross-boundary ambient use rather than proving deep aliases.
+  if(privateAmbient.size && publicAmbient.size){
+    throw new TypeError('Private/public exports share ambient state roots');
   }
   const partition=partitionScoAsyncModule({
     path:file.path,sourceType:'module',code:privateChunks.join('\n')
