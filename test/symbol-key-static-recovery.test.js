@@ -36,3 +36,40 @@ test('attacker also recovers private property accesses after ordinary identifier
   assert.equal(recovered.keys,2);
   assert.deepEqual(sample(recovered.code),sample(source));
 });
+
+test('instrumented native Symbol calls disclose all generated private keys',async()=>{
+  // The SCO/COO/SNO threat model lets the attacker instrument its own
+  // runtime before evaluating a distributed module. A proxy retains native
+  // semantics while recording the exact private Symbol values as they arise.
+  const source=await fs.readFile(path.join(__dirname,'../examples/symbol-keys/after.cjs'),'utf8');
+  /** @type {symbol[]} */
+  const captured=[];
+  const trackedSymbol=new Proxy(Symbol,{
+    apply(target,thisArg,args) {
+      const value=Reflect.apply(target,thisArg,args);
+      captured.push(value);
+      return value;
+    }
+  });
+  const context={Symbol:trackedSymbol,module:{exports:null}};
+  vm.runInNewContext(source,context,{timeout:1000});
+  assert.equal(captured.length,2);
+  assert.notEqual(captured[0],captured[1]);
+  assert.equal(typeof captured[0],'symbol');
+  assert.equal(Symbol.keyFor(captured[0]),undefined);
+  const calc=/** @type {(n:number)=>number} */ (context.module.exports);
+  assert.deepEqual([calc(2),calc(4),calc(-3)],[10,12,7]);
+});
+
+test('host can silently collide generated keys without editing protected source',async()=>{
+  const original=await fs.readFile(path.join(__dirname,'../examples/symbol-keys/before.cjs'),'utf8');
+  const emitted=await fs.readFile(path.join(__dirname,'../examples/symbol-keys/after.cjs'),'utf8');
+  const shared=Symbol('attacker-controlled-collision');
+  const context={Symbol:()=>shared,module:{exports:null}};
+  vm.runInNewContext(emitted,context,{timeout:1000});
+  const altered=/** @type {(n:number)=>number} */ (context.module.exports);
+  const baseline=sample(original);
+  const tampered=[altered(2),altered(4),altered(-3),altered(100)];
+  assert.notDeepEqual(tampered,baseline);
+  assert.equal(Object.isFrozen(context),false);
+});
