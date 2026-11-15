@@ -35,3 +35,36 @@ Do not treat any LLM model score as resistance to source-only automation, DevToo
 Publish the compiler and benchmark Git SHAs, input sample IDs and any exclusions, deterministic seed policy, transformation coverage, runnable evaluator version, model configuration, the four metric distributions, per-case failures and confidence bounds. Compare to a public non-LLM deobfuscator and a no-obfuscation baseline under the same visibility. Treat a model output that simply replays an equivalent obfuscated program as an executable clone, while separately measuring whether it genuinely simplifies or reconstructs the logic.
 
 This infrastructure is not an established improvement to security. It belongs in im-results/ until a pinned, independently repeated adversarial run exists.
+
+## Audited external corpus, pinned upstream
+
+The published name-obfuscation JSONL at upstream Git commit
+8b2e1c35dc4ae25a46ea580ea5dcb6b5de5edbe9
+and Git blob SHA 4bde98f958eb81b070f411f39545ea6d5339e8d8
+was inspected directly without executing the third-party source. It contains
+**1,301** valid unique programs with a reference original and test_cases.
+The original-source size has median 512 UTF-16 code units, 95th percentile
+947 and maximum 999. The published already-obfuscated size has median 750
+and maximum 2,258. The per-program reference suite has median 2 and maximum 6
+test cases.
+
+A lexical audit found **1,211 / 1,301 (93.08%)** original programs containing
+the literal /dev/stdin, **1,249 / 1,301 (96.00%)** containing a direct require(
+call, and **168 / 1,301 (12.91%)** containing non-ASCII source text. These are
+lexical counts, not dataflow proofs. The source-usage ratio underscores that
+the upstream dataset is Linux/Docker-oriented. The original test program may
+fail on ordinary Windows Node.js before any obfuscation is applied, so
+Windows native failures of these fixtures must not be blamed on the compiler.
+The repository's own smoke fixtures use file descriptor zero for cross-platform
+validation.
+
+The helper sims/jsdeobsbench-audit.js recomputes the corpus statistics from
+a local copy of this exact JSONL, with no code execution. The audit and adapter
+tests use synthetic data and therefore do not constitute a full benchmark
+execution or validation of every external test case.
+
+A future evaluation must record separately (1) input baseline correctness in
+the chosen Linux container, (2) transformed correctness with identical
+inputs and environment, (3) independent attacker reconstruction scores and
+(4) cold-start, hot-path and end-to-end overhead. Only cases with a working
+native baseline are eligible for a comparative failure rate.
