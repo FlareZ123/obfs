@@ -171,8 +171,26 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
           node.source?.type!=='Literal' || typeof node.source.value!=='string')return;
       const specifier=node.source.value;
       if(!specifier.startsWith('./')&&!specifier.startsWith('../'))return;
-      if(/[\\%]/u.test(specifier))throw new Error('SCO encoded import path unsupported: '+specifier);
-      const clean=specifier.split(/[?#]/u,1)[0];
+      // Module resolution is URL-based. Resolve a single percent-decoding
+      // layer per segment so ordinary encoded Unicode, spaces and # names
+      // remain reachable, while encoded separators/dot segments cannot
+      // change the imported file's publication authority.
+      if(specifier.includes('\\'))throw new Error('SCO encoded import path unsupported: '+specifier);
+      const rawPath=specifier.split(/[?#]/u,1)[0];
+      /** @type {string[]} */
+      const segments=[];
+      for(const part of rawPath.split('/')) {
+        /** @type {string} */
+        let decoded;
+        try {decoded=decodeURIComponent(part);}
+        catch (error) {throw new Error('SCO encoded import path unsupported: '+specifier);}
+        if(/[\\/\x00]/u.test(decoded) ||
+           part.includes('%') && (decoded==='.'||decoded==='..')) {
+          throw new Error('SCO encoded import path unsupported: '+specifier);
+        }
+        segments.push(decoded);
+      }
+      const clean=segments.join('/');
       const target=path.posix.normalize(path.posix.join(path.posix.dirname(filename),clean));
       if(target==='..'||target.startsWith('../')||!byPath.has(target)) {
         throw new Error('SCO dependency missing from root: '+specifier);
