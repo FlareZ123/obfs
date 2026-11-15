@@ -430,6 +430,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (callParent?.type === 'VariableDeclarator' && callParent.init === parent &&
         callParent.id.type === 'Identifier' && aliases.has(callParent.id.name)) continue;
     if (callParent?.type === 'ExpressionStatement') continue;
+    // A forwarding call can feed another already-proven direct consumer.
+    // Both functions must be admitted by the no-escape proof, and the
+    // receiving formal must be a tracked alias. This preserves ownership
+    // through reader(identity(root)) without treating reader results as aliases.
+    if (callParent?.type === 'CallExpression' &&
+        callParent.callee.type === 'Identifier') {
+      const receiver=functions.get(callParent.callee.name);
+      const index=callParent.arguments.indexOf(parent);
+      if(index>=0 && receiver &&
+         (receiver.external && (index===receiver.forwardIndex ||
+           index===receiver.consumerIndex) ||
+          receiver.params[index]?.type==='Identifier' &&
+            aliases.has(receiver.params[index].name))) continue;
+    }
     return null;
   }
   return {aliases,members,patterns};
