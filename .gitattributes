@@ -1,3 +1,5 @@
 # Preserve generated source snapshots exactly across Windows and Linux.
 examples/sco-private/after-public.mjs text eol=lf
 examples/sco-private/before-private.mjs text eol=lf
+examples/coo-shards/before/main.mjs text eol=lf
+examples/coo-shards/after/*.mjs text eol=lf
