@@ -119,7 +119,7 @@ async function main() {
     }
   });
   server.on('secureConnection', () => { tlsConnections++; });
-  await new Promise(resolve => server.listen(0, 'localhost', resolve));
+  await new Promise(resolve => server.listen(0, 'localhost', () => resolve(undefined)));
   const address = server.address();
   assert(address && typeof address !== 'string');
   const port = address.port;
@@ -130,7 +130,7 @@ async function main() {
     assert.equal((await rpc(port, warmAgent, 'Bearer incorrect', 1, 'probe')).status, 403);
     // Verify that the fixture is actually validated rather than disabling TLS.
     await assert.rejects(rpc(port, new https.Agent({keepAlive: false}), auth, 1, 'probe'),
-      error => error && error.code === 'DEPTH_ZERO_SELF_SIGNED_CERT');
+      error => /** @type {NodeJS.ErrnoException} */ (error).code === 'DEPTH_ZERO_SELF_SIGNED_CERT');
     for (let i = 0; i < 3; i++) {
       const result = await rpc(port, warmAgent, auth, 1000, 'warmup-' + i);
       assert.equal(result.payload.value, privateOperation(secret, 'warmup-' + i, 1000));
@@ -172,7 +172,7 @@ async function main() {
   } finally {
     warmAgent.destroy();
     coldAgent.destroy();
-    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve(undefined)));
   }
 }
 

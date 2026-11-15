@@ -20,3 +20,5 @@ Key observation: 1k-round fresh TLS / 0ms case exceeded 2.5× in both runs; 100m
 4. If strict JSDoc is added for this simulation, include it in a targeted jsconfig and address any inferencing errors without changing semantic checks.
 
 Known local limitation: repo cloning failed because container DNS access to github.com is disabled; GitHub connector was used for persistent uploads. Source script itself was run twice in the local container with Node v22.16.0. The full repository test suite was not run locally, and these simulator files do not affect production transforms.
+
+Validated the strict JavaScript/JSDoc checker locally using TypeScript's Node declarations (no errors), corrected Promise<void> callbacks and the NodeJS certificate-error cast, and reproduced the output for a third run. Added the source to the existing manual SCO RPC profile workflow and a targeted jsconfig, without creating a new workflow.

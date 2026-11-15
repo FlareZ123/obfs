@@ -1,0 +1,5 @@
+{
+  "extends": "./jsconfig.json",
+  "include": ["sims/sco-tls-boundary.js"],
+  "exclude": ["node_modules"]
+}
