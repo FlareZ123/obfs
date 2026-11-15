@@ -213,3 +213,40 @@ including the held-out corpus. This argument covers input/result values
 and exception types/messages in the subset studied. Source-level stack
 locations and function-string introspection differ, so external
 observers still need an explicit application contract.
+
+
+## Independent source-only integrity-tampering attack
+
+[Reproducible tamper script](../sims/branch-block-tamper.js) parses only
+the two public compiler-generated files using Acorn. With no access to
+the original source or build seed, it toggles a single ciphertext bit
+in each public encoded immediate and executes the modified source in
+a separate Node VM context. The [pinned Linux/Windows run
+43738417403](https://github.com/FlareZ123/obfs/actions/runs/43738417403)
+reported exactly **7 modified public immediates** in each variant.
+Across **1,025** integer inputs per variant, **all 1,025 returned
+results differed** from the published version, while both altered
+modules continued to execute without any integrity rejection.
+This is a constructive bypass of the sample's absent integrity check.
+It does not demonstrate bypass of a separately configured SCO
+authorization boundary, nor does it imply every arbitrary tamper
+will execute successfully. The experiment's verdict is unequivocal
+for this published COO/SNO-local basic-block format: ciphertext
+diversification alone supplies no tamper resistance.
+
+## Compiler resource-bound proof
+
+The AST lowerer now walks left-deep immediate chains iteratively
+and declines expressions exceeding **32** native operations per
+individual basic block. This avoids unbounded proof recursion and
+caps the emitted arithmetic work per block. A pinned [cross-platform
+gate 43737978022](https://github.com/FlareZ123/obfs/actions/runs/43737978022)
+accepted and compared a 32-operation function against native
+results, then conservatively declined 33, 64, 128 and 512-operation
+examples without modifying their source. Separately, the focused
+coercion-side-effect regression verifies that the runtime-number
+state mask adds no primitive-conversion hook calls or error effects
+for tested objects, with [Linux/Windows run
+43738180843](https://github.com/FlareZ123/obfs/actions/runs/43738180843)
+green. These strengthen the narrow semantic proof; they do not
+establish equivalence for arbitrary JavaScript constructs.
