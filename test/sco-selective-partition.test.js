@@ -23,7 +23,7 @@ function partition(source,privateNames=['protectedDigest']){
 
 test('selective SCO rejects escaped private exports, reflection and ambiguous graphs',()=>{
   const bad=[
-    'const x=7;export async function secret(){return x;}export function local(){return 2;}',
+    'let x=7;export async function secret(){return x;}export function local(){return 2;}',
     'export * from "./secret.mjs";export async function secret(){}export function local(){}',
     'import "./setup.mjs";export async function secret(){}export function local(){}',
     'export let local=1;export async function secret(){}',
@@ -37,7 +37,9 @@ test('selective SCO rejects escaped private exports, reflection and ambiguous gr
     'export async function secret(){}export function local(){return new Function("return secret");}',
     'export async function secret(){}export const local=()=>1,other=()=>2;',
     'export async function secret(){}',
-    'export async function secret(){}export async function secret(){}export function local(){}'
+    'export async function secret(){}export async function secret(){}export function local(){}',
+    'const key={value:7};export async function secret(){return key;}export function local(){return 2;}',
+    'const key=Date.now();export async function secret(){return key;}export function local(){return 2;}'
   ];
   for(const source of bad)assert.throws(()=>partition(source,['secret']),Error,source);
   assert.throws(()=>partition('export async function secret(){}export function local(){}',
@@ -191,4 +193,70 @@ test('selective SCO real HTTP preserves cross-module imports and external APIs',
     if(server)await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
     await fs.rm(dir,{recursive:true,force:true});
   }
+});
+
+test('selective SCO with private primitive constants preserves public and protected HMAC',{
+  timeout:60000
+},async()=>{
+  const dirname=path.join(__dirname,'../examples/sco-private-const');
+  const source=(await fs.readFile(path.join(dirname,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const golden=(await fs.readFile(path.join(dirname,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
+  const selected=partitionScoSelectedAsyncExports({path:'mixed.mjs',sourceType:'module',code:source},{
+    seed:'sco-private-const-20261115',privateNames:['protectedDigest']
+  });
+  assert.equal(selected.clientFile.code,golden);
+  assert.deepEqual(selected.publicNames,['normalize','run']);
+  assert.deepEqual(selected.privateNames,['protectedDigest']);
+  assert.doesNotMatch(golden,/SERVER_KEY|SCO_SERVER_ONLY_HMAC|createHmac/u);
+  assert.match(source,/SCO_SERVER_ONLY_HMAC/u);
+  const original=await import('data:text/javascript,'+encodeURIComponent(source));
+  const remoteMethods=bindScoModuleExports(selected,original);
+  const originalFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    let executions=0;
+    server=http.createServer(createScoHandler([selected.clientFile],{
+      remoteMethods,
+      authorizeRead:req=>req.headers['x-test-session']==='allow',
+      authorizeRpc:req=>req.headers['x-test-session']==='allow',
+      authorizeOperation:(req,method,args)=>{
+        executions++;
+        return req.headers['x-test-session']==='allow' &&
+          method===selected.methodNames.protectedDigest &&
+          args.length===1 && typeof args[0]==='string';
+      }
+    }));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected listening TCP port');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await originalFetch(origin+'/obfs/mixed.mjs')).status,403);
+    const allowed=await originalFetch(origin+'/obfs/mixed.mjs',{
+      headers:{'x-test-session':'allow'}
+    });
+    assert.equal(allowed.status,200);
+    assert.equal(await allowed.text(),golden);
+    globalThis.fetch=(url,options)=>originalFetch(new URL(/** @type {string} */ (url),origin),{
+      ...options,headers:{...options?.headers,'x-test-session':'allow'}
+    });
+    const client=await import('data:text/javascript,'+encodeURIComponent(golden));
+    for(const input of ['  Alpha  ','βeta','42']){
+      assert.equal(client.normalize(input),original.normalize(input));
+      assert.equal(await client.run(input),await original.run(input));
+    }
+    assert.equal(executions,3);
+  }finally{
+    globalThis.fetch=originalFetch;
+    if(server)await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+test('selective SCO rejects retained public reads of private constants',()=>{
+  const cases=[
+    'const SECRET="key";export async function secret(){return SECRET;}export function local(){return SECRET;}',
+    'const SECRET=5;export async function secret(){return SECRET;}export function local(){return String(SECRET);}',
+    'const SECRET=null;export async function secret(){return SECRET;}export const local=()=>SECRET;'
+  ];
+  for(const source of cases)assert.throws(()=>partition(source,['secret']),/server-only constant/);
 });

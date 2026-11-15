@@ -26,8 +26,9 @@ function isStaticKey(parent,key){
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
- * exports. No imports, reexports, data exports, top-level effects, or public
- * references to private function values may be present.
+ * exports, plus unexported primitive-literal const declarations referenced
+ * only by private functions. Imports, reexports, public data exports,
+ * effects in module initializers and public reads of private state are refused.
  *
  * This deliberate limited contract keeps private bodies off the client while
  * local public functions may call selected private functions asynchronously.
@@ -49,6 +50,31 @@ function partitionScoSelectedAsyncExports(file,options) {
   }
   const selected=new Set(options.privateNames);
   const ast=parse(file.code,'module');
+  // Move only immutable, primitive literal bindings into server-only source.
+  // Effectful initializers and shared mutable objects would violate the
+  // original module's client/server state and evaluation-order contracts.
+  /** @type {Set<string>} */
+  const serverConstants=new Set();
+  /** @type {string[]} */
+  const serverConstantChunks=[];
+  for(const statement of ast.body){
+    if(statement.type!=='VariableDeclaration')continue;
+    if(statement.kind!=='const'||statement.declarations.length===0){
+      throw new TypeError('Selective SCO server constants must be immutable const declarations');
+    }
+    for(const declaration of statement.declarations){
+      const value=declaration.init?.value;
+      if(declaration.id.type!=='Identifier'||!declaration.init||
+         declaration.init.type!=='Literal'||
+         !(value===null||typeof value==='string'||typeof value==='number'||
+           typeof value==='boolean'||typeof value==='bigint')||
+         serverConstants.has(declaration.id.name)){
+        throw new TypeError('Selective SCO only admits distinct primitive literal const declarations');
+      }
+      serverConstants.add(declaration.id.name);
+    }
+    serverConstantChunks.push(file.code.slice(statement.start,statement.end));
+  }
   /** @type {string[]} */
   const privateChunks=[];
   /** @type {import('./ast').AstNode[]} */
@@ -65,6 +91,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {Set<string>} */
   const seen=new Set();
   for(const statement of ast.body) {
+    if(statement.type==='VariableDeclaration')continue;
     if(statement.type!=='ExportNamedDeclaration'||statement.source||
        statement.specifiers?.length||!statement.declaration) {
       throw new TypeError('Selective SCO requires direct named function exports only');
@@ -108,6 +135,9 @@ function partitionScoSelectedAsyncExports(file,options) {
            node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
         }
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
+          throw new TypeError('Public SCO export reads server-only constant: '+name);
+        }
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&selected.has(node.name)&&
            !(parent?.type==='CallExpression'&&key==='callee')) {
           throw new TypeError('Public SCO export observes a private function value: '+name);
@@ -143,8 +173,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     throw new TypeError('Private/public exports share ambient state roots');
   }
   const partition=partitionScoAsyncModule({
-    path:file.path,sourceType:'module',code:privateChunks.join('\n')
-  },{seed:options.seed,endpoint:options.endpoint,batch:options.batch,maxBatchCalls:options.maxBatchCalls});
+    path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateChunks.join('\n')
+  },{seed:options.seed,endpoint:options.endpoint,batch:options.batch,maxBatchCalls:options.maxBatchCalls,
+    serverOnlyInitialization:true});
   const clientCode=publicChunks.join('\n')+'\n'+partition.clientFile.code;
   parse(clientCode,'module');
   return {...partition,publicNames,privateNames:[...options.privateNames],
