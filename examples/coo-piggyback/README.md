@@ -65,3 +65,7 @@ output, and exactly two fetched `.mjs` resources in either graph. Set
 `.github/workflows/manual-browser.yml` runs this check with Chrome on Ubuntu
 when manually dispatched. Node-based tests remain useful if a local Chromium
 installation cannot start in the current sandbox.
+
+The compiler also supports a hoisted `message()` invocation during the
+consumer's own top-level evaluation, preserving any initial directive
+prologue. This behavior is verified in the six-case Node differential suite.

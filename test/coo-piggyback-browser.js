@@ -73,8 +73,12 @@ async function main(){
   const sample=buildSample(true);
   assert.equal(sample.transformed,true);
   const chromium=process.env.CHROMIUM_BIN??'chromium';
+  console.log('Browser fixture start: original graph');
   const original=await runBrowser('before',chromium);
+  console.log('Browser fixture passed: original graph');
+  console.log('Browser fixture start: transformed graph');
   const transformed=await runBrowser('after',chromium);
+  console.log('Browser fixture passed: transformed graph');
   assert.equal(transformed.signature,original.signature);
   assert.deepEqual(original.requests.sort(),['/app.mjs','/constants.mjs']);
   assert.deepEqual(transformed.requests.sort(),['/app.mjs','/constants.mjs']);

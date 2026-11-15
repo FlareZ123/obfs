@@ -106,3 +106,31 @@ test('preserves native import evaluation order when donor is second dependency',
     assert.equal(obfs.message(),base.message());
   }finally{Reflect.deleteProperty(globalThis,'__pb_order');fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+
+test('hoisted function called before its declaration and directive prologue remain valid',async()=>{
+  const app='"use client";\nimport {factor} from "./constants.mjs";\n'+
+    'export const initialized=message();\n'+
+    'export function message(){return "early hoisted return";}\n'+
+    'export const score=factor+5;\n';
+  const dep='export const factor=37;\n';
+  const changed=transform(app,dep);
+  assert.equal(changed.transformed,true);
+  assert.ok(changed.files[0].code.startsWith('"use client";'),
+    'Directive prologue must remain in its original position');
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'pb-early-'));
+  try{
+    for(const kind of ['original','changed']){
+      const folder=path.join(dir,kind);
+      fs.mkdirSync(folder);
+      write(folder,'app.mjs',kind==='original'?app:changed.files[0].code);
+      write(folder,'constants.mjs',kind==='original'?dep:changed.files[1].code);
+    }
+    const base=await load(path.join(dir,'original'));
+    const obfs=await load(path.join(dir,'changed'));
+    assert.equal(obfs.initialized,base.initialized);
+    assert.equal(obfs.message(),base.message());
+    assert.equal(obfs.score,base.score);
+    assert.equal(obfs.initialized,'early hoisted return');
+  }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

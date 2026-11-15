@@ -177,15 +177,30 @@ function piggybackShards(input,options) {
   // Insert immediately after the existing import so dependency evaluation
   // order is unchanged. The insertion and literal rewrite use original offsets.
   const replacement=cacheName+'===void 0?('+cacheName+'='+decodeName+'()):'+cacheName;
+  // The original function declaration is hoisted. A consumer can call it
+  // during its own top-level evaluation before reaching the textual function
+  // declaration. Initialize the payload and cache before that evaluation,
+  // while retaining any source directive prologue at the head of the module.
+  let prologueEnd=0;
+  if(consumer.code.startsWith('#!')){
+    const end=consumer.code.indexOf('\n');
+    prologueEnd=end<0?consumer.code.length:end+1;
+  }
+  for(const statement of a.body){
+    if(statement.type==='ExpressionStatement' && statement.directive){
+      prologueEnd=statement.end;
+    }else break;
+  }
+  const prefix='\nconst '+payloadName+'='+JSON.stringify(payload)+';\n'+
+    'let '+cacheName+';\n';
   const edits=[{start:candidate.start,end:candidate.end,text:replacement},
-    {start:existingImport.end,end:existingImport.end,text:'\n'+newImport}]
+    {start:existingImport.end,end:existingImport.end,text:'\n'+newImport},
+    {start:prologueEnd,end:prologueEnd,text:prefix}]
     .sort((left,right)=>right.start-left.start);
   let consumerCode=consumer.code;
   for(const edit of edits)consumerCode=consumerCode.slice(0,edit.start)+
     edit.text+consumerCode.slice(edit.end);
-  consumerCode+='\nconst '+payloadName+'='+JSON.stringify(payload)+';\n'+
-    'let '+cacheName+';\n'+
-    'function '+decodeName+'(){const units=[];for(let i=0;i<'+n+';i++){'+
+  consumerCode+='\nfunction '+decodeName+'(){const units=[];for(let i=0;i<'+n+';i++){'+
     'const at=(i*'+stride+'+'+shift+')%'+n+';units[i]=('+payloadName+'[at]^'+
     maskName+'[at]^((i*'+odd+'+'+salt+')&65535))&65535;}'+
     'return String.fromCharCode(...units);}\n';
