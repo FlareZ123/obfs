@@ -84,6 +84,15 @@ test('unsafe type/effect grammar and direct source observation decline',()=>{
   }
 });
 
+test('explicit Wasm pipeline selection fails closed on refusal or missing target',()=>{
+  const source='function unsafe(x){return x+1;}module.exports=unsafe;';
+  for(const name of ['unsafe','missing']) {
+    assert.throws(()=>obfuscateFiles([{path:'kernel.cjs',sourceType:'commonjs',code:source}],{
+      mode:'sno',seed:'wasm-refusal',strings:false,properties:false,identifiers:false,
+      experimentalWasmI32:{'kernel.cjs':[name]}
+    }),/Wasm i32 declined 1 explicitly selected function/);
+  }
+});
 test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',()=>{
   const cycleSource="import {observed} from './callee.mjs';"+
     "export {observed};export function f(x){return x^1;}";
