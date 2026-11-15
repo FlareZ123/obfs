@@ -124,6 +124,31 @@ test('SCO split must refuse legacy RegExp match state shared between exports',()
   }
 });
 
+test('SCO refuses writes to realm-specific intrinsic static objects',()=>{
+  for(const [write,read,expected] of [
+    ['Math.__obfsRealmCanary=41','Math.__obfsRealmCanary','41'],
+    ['JSON.__obfsRealmCanary=41','JSON.__obfsRealmCanary','41'],
+    ['Error.stackTraceLimit=0','Error.stackTraceLimit','0']
+  ]){
+    const one=vm.createContext({});
+    const two=vm.createContext({});
+    assert.equal(String(vm.runInContext(write+';'+read,one)),expected);
+    assert.notEqual(String(vm.runInContext(read,two)),expected);
+    assert.throws(()=>partition(moduleSource(write+';return 1;','return '+read+';')),
+      /realm.*intrinsic|intrinsic.*realm/i,write);
+  }
+  const aliases=[
+    'const M=Math;M.__obfsRealmCanary=41;',
+    'const E=Error;E.stackTraceLimit=0;',
+    'const J=globalThis.JSON;J.__obfsRealmCanary=41;',
+    'Object.assign(Math,{__obfsRealmCanary:41});'
+  ];
+  for(const write of aliases){
+    assert.throws(()=>partition(moduleSource(write+'return 1;')),
+      /realm.*intrinsic|intrinsic.*realm/i,write);
+  }
+});
+
 test('SCO realm safeguard keeps proven independent public/private functions',()=>{
   const safe=moduleSource('const item={privateField:41};return item.privateField;',
     'const item={publicField:7};return item.publicField;');
