@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {main} = require('../src/cli');
+const {createSnoLauncher} = require('../src');
 const {atomicWrite} = require('../src/atomic');
 
 /**
@@ -44,4 +45,19 @@ test('SNO rejects a nested ESM package even when root is CommonJS',async()=>{
 
 test('SNO accepts nested CommonJS package overriding root ESM scope',async()=>{
   await verify('module','commonjs',false);
+});
+
+
+test('SNO direct launcher API uses the nearest package type for .js entries',()=>{
+  const files=[
+    {path:'package.json',code:'{"type":"commonjs"}'},
+    {path:'child/package.json',code:'{"type":"module"}'},
+    {path:'child/entry.js',code:'module.exports=21;'}
+  ];
+  assert.throws(()=>createSnoLauncher(files,'child/entry.js'),/cannot require an ESM .js entry/);
+  files[1].code='{"type":"commonjs"}';
+  assert.doesNotThrow(()=>createSnoLauncher(files,'child/entry.js'));
+  files[1].code='{"type":"module"}';
+  files[2].path='child/entry.cjs';
+  assert.doesNotThrow(()=>createSnoLauncher(files,'child/entry.cjs'));
 });
