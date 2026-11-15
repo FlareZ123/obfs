@@ -86,6 +86,9 @@ test('differential result separates baseline errors, source mismatches and outpu
     assert.equal(good.transformedErrors,0);
     assert.equal(good.transformedMismatches,0);
     assert.equal(typeof good.processLevelWallRatioMedian,'number');
+    assert.ok(good.processLevelWallRatioP95>=good.processLevelWallRatioMedian);
+    assert.ok(good.processLevelWallRatioMax>=good.processLevelWallRatioP95);
+    assert.ok(good.processLevelWallRatioOverBudget>=0);
 
     transformed[0].obfuscated='console.log(999)';
     await atomicWrite(compiled,transformed.map(item=>JSON.stringify(item)).join('\n')+'\n');
