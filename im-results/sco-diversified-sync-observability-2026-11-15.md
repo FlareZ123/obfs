@@ -1,6 +1,6 @@
 # Diversified public-step SCO synchronizing-word attack (15 November 2026)
 
-**Status:** intermediate, locally reproduced Node.js 22 experiment. This is an attacker improvement, not an obfuscation-strength result. The cross-platform validation gate is [manual SCO oracle run 43753784319](https://github.com/FlareZ123/obfs/actions/runs/43753784319), pinned to source SHA `b34d7f02d8c4116f28b1ec5f4f0f34d6427025a6`; consult the run for its eventual verdict.
+**Status:** intermediate attack result, **reproduced and green on Node.js 22 Ubuntu and Windows** in [manual SCO oracle run 43753784319](https://github.com/FlareZ123/obfs/actions/runs/43753784319), pinned to source SHA `b34d7f02d8c4116f28b1ec5f4f0f34d6427025a6`. Both jobs passed the real authenticated RPC differential, two-corpus comparison, SCO attack regressions, targeted JSDoc, and root JSDoc checks. This is an attacker improvement, not an obfuscation-strength result.
 
 ## Research question
 
