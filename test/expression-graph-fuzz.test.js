@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {virtualizeExpressionGraphs}=require('../src/expression-vm');
+const {recoverBundledExpressionVm}=require('../sims/expression-vm-ast-recover');
+const {recoverNativeGraph}=require('../sims/native-graph-static-recover');
 
 /** Deterministic xorshift32 source for an independently reproducible corpus. */
 let state=0x39a2cf51;
@@ -71,17 +73,24 @@ test('deterministic nested-graph differential fuzz across native and interpreted
       assert.equal(output.functions,1,backend+' '+expression);
       operations+=output.instructions;
       const compiled=load(output.code);
+      const graph=backend==='native'?
+        recoverNativeGraph(output.code):recoverBundledExpressionVm(output.code);
+      const recovered=load('function sample('+graph.parameter+'){return '+graph.expression+
+        ';}module.exports=sample;');
       for(const input of inputs) {
         assert.deepEqual(observed(compiled,input),observed(native,input),
           backend+'/'+index+'/'+expression+'/'+String(input));
+        assert.deepEqual(observed(recovered,input),observed(native,input),
+          'source-only recovery '+backend+'/'+index+'/'+String(input));
         verified++;
       }
       assert.deepEqual(stateful(compiled),stateful(native),backend+'/'+index+'/'+expression);
+      assert.deepEqual(stateful(recovered),stateful(native),'recovery '+backend+'/'+index);
       verified++;
     }
   }
   assert.equal(verified,80*2*(inputs.length+1));
   assert.ok(operations>1000);
-  console.log('Nested expression differential fuzz: '+verified+
+  console.log('Nested expression differential + seedless source-only recovery fuzz: '+verified+
     ' typed/stateful input pairs, '+operations+' emitted operations; seed 0x39a2cf51');
 });
