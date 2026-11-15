@@ -121,7 +121,9 @@ async function execute(root,graphs) {
   }
   const prefix='globalThis.window={api:{offset:5,'+
     'keyFor(index){return "privateMetric"+index;},'+
-    'read(object){return Object.values(object)[0]+9;}}};const results=[];';
+    'read(object){const key=Object.keys(object).find(name=>name.startsWith("privateMetric"));'+
+    'if(key===undefined)throw Error("Missing externally observed private key");'+
+    'return object[key]+9;}}};const results=[];';
   const body=prefix+graphs.map(graph=>
     'results.push((await import("./'+graph.index+'/entry.mjs")).result);'
   ).join('')+'console.log(JSON.stringify(results));';
