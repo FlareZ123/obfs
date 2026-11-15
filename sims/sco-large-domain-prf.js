@@ -51,6 +51,7 @@ async function experiment() {
     },{seed:'sco-large-domain-prf-2026-11-15',
       serverOnlyInitialization:true,batch:true,maxBatchCalls:32});
     let executions=0;
+    let rpcDelayMs=0;
     const instrumented={
       /** @param {string} input */
       authenticate:async input=>{executions++;return privateFunction(input);}
@@ -68,7 +69,10 @@ async function experiment() {
     }
     server=http.createServer(createScoHandler([partition.clientFile],{
       remoteMethods:methods,authorizeRead:authorized,
-      authorizeRpc:authorized,authorizeOperation:operationAuthorized
+      authorizeRpc:async request=>{
+        if(rpcDelayMs)await new Promise(resolve=>setTimeout(resolve,rpcDelayMs));
+        return authorized(request);
+      },authorizeOperation:operationAuthorized
     }));
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const address=server.address();
@@ -176,6 +180,60 @@ async function experiment() {
         assert.deepEqual(received,expected,'SCO result differed from original');
       }
     }
+
+    // Inject 25 ms of authenticated per-request wait as an RTT surrogate.
+    // This is not a real network benchmark, and the CPU work is unchanged.
+    rpcDelayMs=25;
+    /** @type {number[]} */
+    const delayedNativeMs=[];
+    /** @type {number[]} */
+    const delayedSerialMs=[];
+    /** @type {number[]} */
+    const delayedBatchMs=[];
+    for(let round=0;round<5;round++) {
+      for(const strategy of round%2===0 ?
+        ['native','serial','batch'] : ['batch','serial','native']) {
+        const started=performance.now();
+        /** @type {string[]} */
+        let seen=[];
+        if(strategy==='native') {
+          for(const input of inputs)seen.push(await privateFunction(input));
+          delayedNativeMs.push(performance.now()-started);
+        } else if(strategy==='serial') {
+          for(const input of inputs) {
+            const response=await invoke(partition.methodNames.authenticate,[input]);
+            assert.equal(response.status,200);
+            seen.push(response.payload.value);
+          }
+          delayedSerialMs.push(performance.now()-started);
+        } else {
+          const calls=inputs.map(input=>({
+            method:partition.methodNames.authenticate,args:[input]
+          }));
+          const response=await invoke(/** @type {string} */(partition.batchMethod),[calls]);
+          assert.equal(response.status,200);
+          seen=response.payload.value.map(
+            (/** @type {{ok:boolean,value:string}} */ item)=>{
+              assert.equal(item.ok,true);
+              return item.value;
+            }
+          );
+          delayedBatchMs.push(performance.now()-started);
+        }
+        assert.deepEqual(seen,expected);
+      }
+    }
+    rpcDelayMs=0;
+    const delayedBaseline=median(delayedNativeMs);
+    const simulated25ms={
+      requestDelayMs:25,rounds:5,
+      nativeMedianMs:delayedBaseline,
+      serialMedianMs:median(delayedSerialMs),
+      batchMedianMs:median(delayedBatchMs),
+      serialRatio:median(delayedSerialMs)/delayedBaseline,
+      batchRatio:median(delayedBatchMs)/delayedBaseline,
+      nativeMs:delayedNativeMs,serialMs:delayedSerialMs,batchMs:delayedBatchMs
+    };
     const native=median(nativeMs);
     const serial=median(serialMs);
     const batch=median(batchMs);
@@ -193,7 +251,8 @@ async function experiment() {
       serialRatio:serial/native,batchRatio:batch/native,
       serialWithin2_5x:serial/native<=2.5,batchWithin2_5x:batch/native<=2.5,
       nativeSamplesMs:nativeMs,serialSamplesMs:serialMs,batchSamplesMs:batchMs,
-      caveat:'Only offline transcript replay tested. Authorized online calls are unlimited, and actual RTT/TLS and key-guessing success were not measured. Loopback CPU-heavy HMAC is a positive control, not a PRF proof.'
+      simulated25ms,
+      caveat:'Only offline transcript replay tested. Authorized online calls are unlimited, and actual RTT/TLS and key-guessing success were not measured. A separate 25ms auth-wait surrogate is measured. Loopback CPU-heavy HMAC is a positive control, not a PRF proof.'
     };
   }finally{
     if(server)await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
