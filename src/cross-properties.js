@@ -126,6 +126,22 @@ function renameCrossFileProperties(files,seed) {
       });
       if(!additionalReference) exported.add(name);
     }
+    // An exported const arrow with a single identifier expression body is
+    // also a stable pure identity. Unlike a function declaration, the const
+    // binding cannot be reassigned by its declaring module.
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration' || statement.source ||
+          statement.declaration?.type!=='VariableDeclaration' ||
+          statement.declaration.kind!=='const') continue;
+      for(const dec of statement.declaration.declarations) {
+        const fn=dec.init;
+        if(dec.id.type!=='Identifier' || module.bindings.get(dec.id.name)!==1 ||
+            fn?.type!=='ArrowFunctionExpression' || fn.async ||
+            fn.params.length!==1 || fn.params[0].type!=='Identifier' ||
+            fn.body.type!=='Identifier' || fn.body.name!==fn.params[0].name) continue;
+        exported.add(dec.id.name);
+      }
+    }
     identities.set(filename,exported);
   }
   /** @type {Map<string,Map<string,number>>} */
