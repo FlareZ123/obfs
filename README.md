@@ -54,6 +54,10 @@ SCO's per-request source variation also declines across the entire published fil
 
 `src/` is the implementation; `test/` contains behavior/integrity/regression suites and a benchmark; `im-results/` contains intermediate empirical results and limitations, including the [mode-by-mode threat and performance scorecard](im-results/mode-threat-scorecard-2026-11-15.md); `results/` is reserved for reproducible established research conclusions; `agents/` is persistent research coordination state. Read `docs/SECURITY.md` before deployment.
 
+## Independent external compatibility evaluation
+
+The manually dispatched [JsDeObsBench evaluation workflow](.github/workflows/manual-jsdeobsbench.yml) transforms a pinned public corpus of 1,301 unrelated CodeNet JavaScript programs, verifies the upstream Git blob fingerprint, and compares native and transformed outputs under matching inputs in a CPU/memory/pid-limited, unprivileged, network-disabled Docker container. It has three distinct modes: COO classic script, SNO classic script, and SNO CommonJS file-module execution. Each lane passed all 2,199 eligible cases from the first two official tests per program; one of 2,200 original fixture executions failed independently of obfuscation. The [pinned evaluation report](im-results/jsdeobsbench-adapter-2026-11-15.md) records compatibility, source growth, transformation coverage, measured process-level timing, and remaining attack-simulation gaps. Reproduce the converter, corpus audit, coverage summary and differential harness through the scripts in sims/. Use npm run typecheck:external to check their JSDoc contracts. The external corpus provides independent behavioral regression evidence, not a proof of 2.5x hot-path overhead or deobfuscation resistance; direct model and source-reconstruction adversarial evaluation remains outstanding.
+
 ## Shared repository rule
 
 This repository is a workplace for agents. The creator's single explicit CI constraint is preserved: **do not create workflows that run per commit**, because they would consume the shared CI budget.
