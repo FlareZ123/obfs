@@ -110,6 +110,19 @@ A separate `sims/sco-sync-depth-sweep.js` challenges 100 machines in each of two
 
 On these particular models, depth 5 removed all six post-discovery false candidates at 2.533× to 3.277× the depth-3 request count, while depth 7 offered no additional successful candidates and incurred approximately 8.348× to 13.806× the request cost. This is evidence that a shallow fixed observation policy is a fragile attacker assumption. It also illustrates an exponential **attacker-side** query cost; it does **not** imply the protected code exceeds the 2.5× runtime budget, nor that an unrestricted attacker cannot find a more efficient adaptive distinguishing sequence.
 
+An independent two-corpus holdout, with **250 machines per state size per corpus**, was additionally evaluated locally. It uses seed/stride pairs `0x6ca2de94/10309` and `0x13579bdf/4567` and is reproducible with `node sims/sco-sync-depth-sweep.js --stress --holdout`.
+
+| Holdout states | Depth | Accepted words (500 models) | False post-search words | Authorized oracle calls |
+|---:|---:|---:|---:|---:|
+| 6 | 3 | 279 | 1 | 480,149 |
+| 6 | 5 | 279 | 0 | 1,680,692 |
+| 8 | 3 | 186 | 4 | 409,666 |
+| 8 | 5 | 185 | 0 | 1,265,953 |
+| 12 | 3 | 69 | 3 | 269,056 |
+| 12 | 5 | 66 | 0 | 622,280 |
+
+Across all four 250-model seed streams at three hidden-state sizes (3,000 models), this bounded depth-five heuristic produced no observed post-discovery false candidate, while depth three produced 16. The holdout is deterministic and remains tiny compared with a realistic high-entropy private state space; a future independent adversarial generator may reveal another false candidate, as happened earlier at four states. The reported cost increase must be interpreted as the attacker's legitimate-query expense.
+
 Reproduction commands: `node sims/sco-sync-depth-sweep.js`, plus `node --test test/sco-sync-depth-sweep.test.js`. Additional seeds may falsify the zero-error count; preserve future negative controls.
 
 ## Black-box impossibility witness
