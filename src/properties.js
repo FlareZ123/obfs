@@ -62,6 +62,19 @@ function ownPropertyName(property) {
 }
 
 /**
+ * A direct pattern binding can retain its default expression unchanged:
+ * lookup occurs against the same proven own property before and after the
+ * name rewrite, so the default runs under identical value conditions.
+ * The owner-usage scan separately rejects unproved references in defaults.
+ * @param {AstNode} value
+ * @returns {boolean}
+ */
+function isSimplePatternBinding(value) {
+  return value.type === 'Identifier' ||
+    value.type === 'AssignmentPattern' && value.left.type === 'Identifier';
+}
+
+/**
  * Primitive literals and recursively literal-only arrays carry no receiver
  * binding and cannot infer a function name from the enclosing object key.
  * @param {AstNode} node
@@ -328,7 +341,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       /** @type {AstNode[]} */
       const fields = parent.id.properties;
       if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
-          ownPropertyName(p) === null || p.value.type !== 'Identifier')) return null;
+          ownPropertyName(p) === null || !isSimplePatternBinding(p.value))) return null;
       patterns.push(...fields);
       continue;
     }
@@ -342,7 +355,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       /** @type {AstNode[]} */
       const fields = parent.left.properties;
       if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
-          ownPropertyName(p) === null || p.value.type !== 'Identifier')) return null;
+          ownPropertyName(p) === null || !isSimplePatternBinding(p.value))) return null;
       patterns.push(...fields);
       continue;
     }
