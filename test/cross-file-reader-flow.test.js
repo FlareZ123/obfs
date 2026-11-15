@@ -134,6 +134,43 @@ test('imported identity return can forward state into a pure reader',async()=>{
   ],1);
 });
 
+test('closed-world imported reader accepts directly forwarded local identity call',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const forward=value=>value;console.log(peek(forward(state)));',1);
+});
+
+test('closed-world imported reader accepts directly forwarded imported identity call',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'console.log(peek(identity(state)));'}
+  ],1);
+});
+
+test('nested pure identities preserve owner through imported reader',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const first=left=>left;const second=right=>right;'+
+    'console.log(peek(second(first(state))));',1);
+});
+
+test('foreign object inside forwarded expression refuses imported reader',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const identity=value=>value;'+
+    'console.log(peek(identity(state)),peek(identity({secretField:77})));',0);
+});
+
+test('opaque forwarding helper refuses nested imported reader',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const leak=value=>{Object.keys(value);return value;};'+
+    'console.log(peek(leak(state)));',0);
+});
+
 test('opaque reader alias via a callback declines property rewrite',async()=>{
   await check(exposed+reader,
     'import {state,peek} from "./state.mjs";const apply=fn=>fn(state);console.log(apply(peek));',0);
