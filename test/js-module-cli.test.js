@@ -57,14 +57,61 @@ test('COO CLI preserves, renames, and executes ordinary .js ESM graph on opt-in'
   }
 });
 
-test('SCO CLI --js-module accepts browser .js static import syntax',async()=>{
+test('SCO CLI --js-module serves valid browser .js imports via HTTP',async()=>{
+  const http=require('node:http');
+  const net=require('node:net');
+  const {spawn}=require('node:child_process');
+  const {parse}=require('../src/ast');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-cli-sco-js-'));
+  const reservation=net.createServer();
+  await new Promise(resolve=>reservation.listen(0,'127.0.0.1',resolve));
+  const address=reservation.address();
+  assert.ok(address && typeof address!=='string');
+  const port=address.port;
+  await new Promise(resolve=>reservation.close(resolve));
+  /** @type {ReturnType<typeof spawn>|undefined} */
+  let server;
   try {
     await atomicWrite(path.join(root,'entry.js'),'import {value} from "./state.js";export const answer=value;');
     await atomicWrite(path.join(root,'state.js'),'export const value=17;');
-    const parsed=readArgs(['--root',root,'--entry','entry.js','--js-module']);
-    assert.equal(parsed.jsModule,true);
+    server=spawn(process.execPath,[path.join(__dirname,'../bin/sco.js'),
+      '--root',root,'--entry','entry.js','--port',String(port),'--js-module'],{
+      stdio:['ignore','pipe','pipe']
+    });
+    const ready=Promise.race([
+      new Promise((resolve,reject)=>{
+        server.stdout.on('data',data=>{
+          if(String(data).includes('SCO listening'))resolve(undefined);
+        });
+        server.once('exit',code=>reject(Error(`SCO child exited ${code}`)));
+      }),
+      new Promise((resolve,reject)=>setTimeout(()=>reject(Error('SCO startup timeout')),8000).unref())
+    ]);
+    await ready;
+    /** @param {string} name @returns {Promise<{status:number,code:string}>} */
+    function fetch(name) {
+      return new Promise((resolve,reject)=>{
+        http.get({host:'127.0.0.1',port,path:`/obfs/${name}`},res=>{
+          let code='';
+          res.setEncoding('utf8');
+          res.on('data',chunk=>code+=chunk);
+          res.on('end',()=>resolve({status:res.statusCode,code}));
+        }).on('error',reject);
+      });
+    }
+    const entry=await fetch('entry.js');
+    assert.equal(entry.status,200);
+    assert.match(entry.code,/import\s*\{/);
+    assert.match(entry.code,/export\s+const/);
+    assert.doesNotThrow(()=>parse(entry.code,'module'));
+    const state=await fetch('state.js');
+    assert.equal(state.status,200);
+    assert.doesNotThrow(()=>parse(state.code,'module'));
   } finally {
+    if(server) {
+      server.kill();
+      await new Promise(resolve=>server.once('exit',resolve));
+    }
     await fs.rm(root,{recursive:true,force:true});
   }
 });
