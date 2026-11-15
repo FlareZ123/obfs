@@ -63,8 +63,9 @@ test('SCO preserves source spelling of exported functions observed by another mo
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'export function describe(){const local={secretField:7};return local.secretField;}'+
-      'export function stringify(){const message="sensitive-example-text";return message;}'},
+      'function describe(){const local={secretField:7};return local.secretField;}'+
+      'function stringify(){const message="sensitive-example-text";return message;}'+
+      'export {describe,stringify};'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {describe,stringify} from "./state.mjs";'+
       'console.log(JSON.stringify({source1:describe.toString(),'+
