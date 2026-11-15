@@ -54,3 +54,29 @@ test('ordinary relative named imports remain transformable in closed-world mode'
   });
   assert.equal(output.crossFile.properties,1);
 });
+
+test('Node builtin module specifiers do not disable other relative import proofs',()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretValue:31};'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import assert from "node:assert/strict";import {state} from "./state.mjs";assert.equal(state.secretValue,31);'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,seed:'absolute-esm-path'
+  });
+  assert.equal(output.crossFile.properties,1);
+});
+
+test('bare package import is conservatively untracked by the current resolver',()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const state={secretValue:31};'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import {unrelated} from "package-self-reference";import {state} from "./state.mjs";console.log(unrelated,state.secretValue);'}
+  ];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,seed:'absolute-esm-path'
+  });
+  assert.equal(output.crossFile.properties,0);
+});
