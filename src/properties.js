@@ -248,6 +248,12 @@ function proveLocalObject(ast, rootName, bindings) {
   // assignments and method-call receivers.
   for (const member of members) {
     const consumer=parents.get(member);
+    // Pattern and iteration targets can install opaque values without an
+    // ordinary assignment node, allowing reflective methods on the object.
+    if (consumer?.type==='ForOfStatement' && consumer.left===member ||
+        consumer?.type==='ForInStatement' && consumer.left===member ||
+        consumer?.type==='ObjectPattern' || consumer?.type==='ArrayPattern' ||
+        consumer?.type==='Property' && parents.get(consumer)?.type==='ObjectPattern') return null;
     // Deletion can expose an inherited getter/value under the original key.
     // The property shape of Object.prototype is outside the local proof.
     const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
