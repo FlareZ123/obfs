@@ -83,7 +83,10 @@ async function handleRpc(request,response,options) {
       respondJson(response,400,{ok:false,error:'Unknown method or invalid arguments'});
       return;
     }
-    const task=options.remoteMethods[query.method];
+    // Preserve JSON-validation narrowing across the async isolation closure.
+    const method=/** @type {string} */ (query.method);
+    const args=/** @type {unknown[]} */ (query.args);
+    const task=options.remoteMethods[method];
     if (typeof task!=='function') {
       respondJson(response,400,{ok:false,error:'Unknown method'});
       return;
@@ -99,14 +102,14 @@ async function handleRpc(request,response,options) {
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
-      if (!await options.authorizeOperation(request,query.method,query.args)) {
+      if (!await options.authorizeOperation(request,method,args)) {
         respondJson(response,403,{ok:false,error:'Forbidden'});
         return;
       }
       // A permitted batch route is not blanket permission for its individual
       // operations. Check every registered inner method before the batch
       // executes, including later items after an otherwise permitted item.
-      const batchCalls=getScoBatchCalls(task,query.args);
+      const batchCalls=getScoBatchCalls(task,args);
       if (batchCalls) {
         for (const call of batchCalls) {
           // The batch helper independently rejects malformed calls before
@@ -120,7 +123,7 @@ async function handleRpc(request,response,options) {
         }
       }
     }
-    const result=await task(...query.args);
+    const result=await task(...args);
     respondJson(response,200,{ok:true,value:result});
     };
     if(options.runRpcIsolated) {
