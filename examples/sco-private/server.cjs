@@ -61,6 +61,7 @@ async function startServer(options={}) {
 <h1>Server-private SCO example</h1>
 <p>The browser receives a generated RPC facade. The keyed implementation stays on this Node server.</p>
 <pre id="out">Computing...</pre>
+<script>history.replaceState(null,"",location.origin+location.pathname+location.search+location.hash);</script>
 <script type="module">
 import {derive} from '/obfs/public.mjs';
 const output=document.getElementById('out');
