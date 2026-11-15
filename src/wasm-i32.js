@@ -157,6 +157,15 @@ function lowerWasmI32Functions(source,sourceType,options) {
   const targets=new Set(options.names);
   if(!targets.size)return {code:source,functions:0,instructions:0,wasmBytes:0,declined:0};
   const ast=parse(source,sourceType);
+  // An imported module in an ESM cycle may call a hoisted export before
+  // this module evaluates the injected Wasm const initializer. The native
+  // function would already be callable; the transformed helper is still in
+  // its temporal dead zone. Decline this graph unless a cycle proof exists.
+  if(sourceType==='module'&&ast.body.some(node=>
+    node.type==='ImportDeclaration'||node.type==='ExportAllDeclaration'||
+    node.type==='ExportNamedDeclaration'&&Boolean(node.source))) {
+    return {code:source,functions:0,instructions:0,wasmBytes:0,declined:targets.size};
+  }
   /** @type {Set<string>} */
   const used=new Set();
   let dynamic=false;
