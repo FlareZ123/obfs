@@ -74,3 +74,30 @@ test('toString observer elsewhere in a module prevents ESM object key renaming',
     assert.equal(await execute(output.files),expected);
   } finally {await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('constant-folded computed toString name preserves function property spelling',()=>{
+  const code='const a={secretField:9};const show=()=>a.secretField;module.exports=show["to"+"String"]();';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'folded-source-key',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.objects,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('template-computed toString name preserves function source text',()=>{
+  const code='const a={secretField:10};const show=()=>a.secretField;module.exports=show[`toString`]();';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'template-source-key',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.objects,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('new String(function) also stringifies native function source',()=>{
+  const code='function show(){return "protected-literal-value";}module.exports=new String(show).valueOf();';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'new-string-source',strings:true,identifiers:false,properties:false
+  }).files[0];
+  assert.equal(result.metrics.literals,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
