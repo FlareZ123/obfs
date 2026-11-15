@@ -42,6 +42,17 @@ The default SCO handler and batch semantics were intentionally left unchanged. C
 
 The focused [Linux/Windows SCO authorization workflow run #43703657326](https://github.com/FlareZ123/obfs/actions/runs/43703657326) passed on both operating systems at source SHA `e3d1e888d067ced362ffe8d51790a8f7f35f09df`. It ran both new test files with existing SCO operation, batch, partition and JSDoc suites. The preceding [run #43703222704](https://github.com/FlareZ123/obfs/actions/runs/43703222704) independently established the native HTTP snapshot mismatch before the model helper was added. Subsequent documentation-only commits do not have their own full-suite release gate.
 
-The helper performs one model step per member, **O(batch length)** in the simple model. Its incremental time and whole-application end-to-end cost have not yet been measured, so no 2.5x performance claim is made. Its purpose is to clarify and strengthen one SCO trust-boundary integration option. It changes neither static reconstruction resistance nor the ability of an authorized attacker to query a server-resident function. The user-supplied full-control SNO and COO threat models remain unaffected.
+The helper performs one model step per member, **O(batch length)** in the simple model. The paired benchmark `sims/sco-batch-state-cost.js` separately measures HTTP RPCs with and without modeled authorization. It alternates two loopback server variants over nine trials of 35 sequential requests each, with 32 operations per batch, identical native `Math.imul` CPU kernels, warmed Node 22.23.4, and full JSON request/response processing.
+
+| Runner | CPU iterations per operation | Plain median ms per 32-call HTTP batch | Predictive median ms per batch | Predictive/plain |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu x64 | 512 | 0.614319 | 0.618898 | 1.007454× |
+| Ubuntu x64 | 8,192 | 0.820166 | 0.861651 | 1.050580× |
+| Windows x64 | 512 | 0.820634 | 0.846974 | 1.032097× |
+| Windows x64 | 8,192 | 1.025769 | 1.107854 | 1.080024× |
+
+Both full targeted CI and this independent performance step passed in [manual SCO authorization run #43704285261](https://github.com/FlareZ123/obfs/actions/runs/43704285261), pinned to source SHA `5d615b78e9d6450d86f5a529a32e149dc6ac22ed`. The workflow source includes the exact script; the CI job logs preserve per-trial raw timing arrays. These are **incremental overhead ratios relative to the already-batched, already-authenticated-by-fixture RPC**. They are not protected-work-versus-native original ratios. Loopback omits TLS, real identity verification, concurrent state changes and databases. No general end-to-end 2.5× obfuscation claim is made. The low measured incremental cost on these samples supports retaining the helper as an optional policy aid.
+
+Its purpose is to clarify and strengthen one SCO trust-boundary integration option. It changes neither static reconstruction resistance nor the ability of an authorized attacker to query a server-resident function. The user-supplied full-control SNO and COO threat models remain unaffected.
 
 Related background: [OWASP API Security Top 10, API1 Broken Object Level Authorization](https://api-security.owasp.org/editions/2023/en/0xa1-broken-object-level-authorization/), which emphasizes verifying access to each relevant resource. The specific temporal batch-preflight counterexample and model here are established by the repository's executable tests, not claimed as an OWASP finding.
