@@ -1,0 +1,5 @@
+{
+  "extends": "./jsconfig.json",
+  "include": ["test/sco-real-tls-browser.js"],
+  "exclude": ["node_modules"]
+}

@@ -37,6 +37,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-real-browser.js
+      - name: Strict-check pinned TLS Chromium SCO challenge JSDoc
+        run: npx tsc -p jsconfig.sco-tls-browser.json
+      - name: Execute real SCO client over test-pinned HTTPS in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-real-tls-browser.js
       - name: Test experimental COO piggyback sharding in real Chrome
         env:
           CHROMIUM_BIN: google-chrome
