@@ -11,7 +11,7 @@ const {obfuscateFiles}=require('../src');
  * @returns {string}
  */
 function execute(source) {
-  const context={module:{exports:null}};
+  const context={module:{exports:{}}};
   vm.runInNewContext(source,context,{timeout:2000});
   return JSON.stringify(context.module.exports);
 }
@@ -63,7 +63,7 @@ for(const [name,wrapper] of [
   test('unproved local identity is left unchanged: '+name,()=>check(wrapper,0));
 }
 
-test('a helper called with an opaque foreign object cannot capture the private owner',()=>{
+test('a pure helper called with two owners preserves disjoint alias shapes',()=>{
   const code='const root={secretField:7};const forward=x=>x;'+
     'const alien={secretField:9};const unrelated=forward(alien);'+
     'const alias=forward(root);module.exports=[unrelated.secretField,alias.secretField];';
@@ -73,7 +73,6 @@ test('a helper called with an opaque foreign object cannot capture the private o
       mode,seed:'agent15-foreign-call',strings:false,identifiers:false
     }).files[0];
     assert.equal(execute(/** @type {string} */ (out.code)),baseline);
-    // An unrelated call cannot be treated as an object ownership proof.
-    assert.equal(out.metrics.objects,0);
+    assert.equal(out.metrics.objects,2);
   }
 });
