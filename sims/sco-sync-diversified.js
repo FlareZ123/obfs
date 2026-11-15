@@ -25,7 +25,10 @@ async function searchSynchronizingWordDiversified(api,maxWordLength=3,trials=12)
     throw new RangeError('Unexpected bounded search parameters');
   }
   const candidates=binaryWords(maxWordLength);
-  const suffixes=binaryWords(3);
+  // Four-state Mealy inequivalence is visible by depth three. A shorter
+  // distinguishing output prefix remains distinct after extension, so only
+  // length-three suffixes are necessary for this bounded attacker.
+  const suffixes=binaryWords(3).filter(word=>word.length===3);
   const scrambles=binaryWords(4);
   /** @type {number[]} */
   const inputTape=[];
