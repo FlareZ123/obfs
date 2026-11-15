@@ -51,3 +51,10 @@ The additional negatives and immutable arrow/function-expression cases were veri
 ## Implications
 
 A minimal cross-module function contract can enable additional property obfuscation without adding client runtime work. Soundness of a larger set of summaries requires precise alias and mutation tracking, complete loader-resolution assumptions, and an explicit accounting of JavaScript reflection. Expansion should be conditional on differential test coverage and credible ownership proofs.
+
+
+## Constant-computed own-property declarations
+
+Static string expressions in a computed object key are eligible when they are literal strings, no-interpolation template literals, or bounded recursive concatenations of such strings, e.g. `{['secret'+'Field']:7}`. The `ownPropertyName` helper shared by local and ESM cross-file analyses resolves those keys at build time, rejects nonstatic values, duplicate resolved names and magic `__proto__`/`constructor`/`prototype`, and rewrites only the key expression while leaving surrounding computed brackets intact. Therefore the evaluation order and computed-property semantics remain unchanged. Runtime key construction and calls are rejected to protect side effects.
+
+Regression `test/constant-computed-object-key.test.js` covers seven local adversarial positive/negative cases plus a native ESM exported definition and consumer. Manual validation [43683906727](https://github.com/FlareZ123/obfs/actions/runs/43683906727) ran against head `3294d99e1aa5440faaf3138982306acf55a7a7ac`: Node22 Ubuntu and Windows behavioral/adversarial tests, JSDoc typecheck, benchmark all passed; Ubuntu Chromium integration passed. Implementation commits `7125567c` and `8d94cc52`; test commit `3294d99e`.
