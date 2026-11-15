@@ -26,6 +26,8 @@ jobs:
       - name: Held-out seeded attacker corpus
         run: node sims/branch-block-recovery-corpus.js
       - name: Six-trial isolated performance profile
+        env:
+          OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
       - name: Real Chromium COO differential
         env:
@@ -52,6 +54,8 @@ jobs:
       - name: Held-out seeded attacker corpus
         run: node sims/branch-block-recovery-corpus.js
       - name: Six-trial plain and masked hot performance
+        env:
+          OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
       - name: Strict JSDoc
         run: npm run typecheck
