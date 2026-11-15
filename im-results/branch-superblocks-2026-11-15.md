@@ -89,3 +89,26 @@ independent attacker with measured effort, real before/after artifact,
 differential test, and hot-call/whole-app performance. Failed attacks must
 be recorded alongside successful attacks without relabeling reversible
 diversification as cryptographic protection.
+
+
+## Real Chromium COO execution (additional pinned run)
+
+[Focused Linux Chromium run 43735256344](https://github.com/FlareZ123/obfs/actions/runs/43735256344)
+on SHA `98ddb32a0859e4b8cec740613998f4a368b55e3d` passed eight focused
+Node tests and the strict JSDoc checker. The isolated
+[Chrome integration](../test/branch-block-browser.js) generated a COO ESM
+module in-process, served it to headless Chromium beside its native original,
+and compared **4,109** inputs (4,097 consecutive integers, plus twelve
+heterogeneous values and matching exceptions). All were equal. Its embedded
+3,000,000-iteration numeric loop took **30.5 ms native versus 57.1 ms
+flattened, 1.872×**. This is one Chromium JIT sample under its own harness,
+not proof of the 2.5× budget for all browsers or workloads.
+
+A separate repository-wide pinned [Linux/Windows full validation run
+43734294017](https://github.com/FlareZ123/obfs/actions/runs/43734294017)
+was **red**, 6 of 979 tests failing per OS, plus a separate Ubuntu browser
+integration assertion at line 75. At least two failures were expected property
+renaming counts now becoming 0 with the parallel stricter
+`src/properties.js` source-spelling proof; the branch pass is
+opt-in and the failing tests do not request it. This cause remains inferred,
+not definitively bisected. The affected proof owner has been notified.
