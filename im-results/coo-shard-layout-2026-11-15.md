@@ -50,3 +50,18 @@ and a meaningful reconstruction-resistance improvement beyond layout changes.
 
 Cross-platform CI and precise benchmark evidence should be appended here
 only when a pinned successful run has been observed.
+
+## Pinned Linux/Windows verification and runtime cost
+
+The focused, manually dispatched [run 43723084489](https://github.com/FlareZ123/obfs/actions/runs/43723084489) passed five semantic and offline-recovery tests, committed example regeneration, and strict JSDoc on Ubuntu and Windows, pinned at `e4312d8f4eee9f2ce1987e4e06bc2bd60b2e034f`.
+
+The later [run 43723669443](https://github.com/FlareZ123/obfs/actions/runs/43723669443) passed the **same checks plus a paired cost profile** on both systems at exact commit `a4e7701cc88325d34c6a49010ed05b75a95dffb4`. Reproduce using `node sims/coo-shard-profile.js` after installing dependencies. The profile independently loads 40 new original and sharded ESM graphs from prepared files, alternating order, and then calls the already-loaded `get()` 750,000 times per sample across 16 alternating paired trials after warmup.
+
+| Node.js 22 runner | Original graph-load median | Sharded graph-load median | Graph-load ratio | Original hot median | Sharded hot median | Hot ratio |
+|---|---:|---:|---:|---:|---:|---:|
+| Ubuntu | 0.227147 ms | 0.819372 ms | **3.6072×** | 7.559583 ms | 7.585762 ms | **1.0035×** |
+| Windows | 0.612300 ms | 2.321200 ms | **3.7910×** | 7.564000 ms | 7.528400 ms | **0.9953×** |
+
+The output grew from 145 bytes to 1,079 bytes (**7.441×**) for two constants spanning 31 UTF-16 code units. The **hot access** matches the native function, but the tested **graph loading** exceeds 2.5× on both operating systems. Graph-load time includes filesystem, ESM parsing, module graph resolution and caches, and is wall time rather than isolated compute. The experiment does not claim a 2.5× COO initialization/whole-program runtime guarantee. Because COO has no initialization deduction, deployment needs a workload-based complete budget check; this short module graph is a negative launch-cost witness.
+
+The source-only attacker recovered **2/2 protected strings**, so the technique provides layout diversification without demonstrated code secrecy. This is a useful completed baseline for comparing a future fused, lazy, or fewer-module layout and should stay outside the production COO default.
