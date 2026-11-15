@@ -10,6 +10,7 @@ const {atomicWrite}=require('../src/atomic');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
 const {learnMachine,learnedTrace,privateTrace}=require('./sco-stateful-oracle');
 const {searchSynchronizingWord}=require('./sco-sync-search');
+const {searchSynchronizingWordDiversified}=require('./sco-sync-diversified');
 
 /** @typedef {{next:number[][],output:number[][]}} PrivateMachine */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
@@ -79,12 +80,13 @@ async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
  * proxy, while the hidden ESM machine has no reset export.
  * @param {number} index
  * @param {boolean} [discover]
+ * @param {boolean} [diversified]
  * @returns {Promise<{index:number,states:number,rpcSteps:number,networkSteps:number,logicalRequests:number,
  *   resetCalls:number,heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
  *   publicResetExport:boolean,unauthorizedStatus:number,
  *   sourceDisclosed:boolean,elapsedMs:number,discoverySteps:number,discoveredWord:number[]|null}>}
  */
-async function scenario(index,discover=false) {
+async function scenario(index,discover=false,diversified=false) {
   const secret=makeSynchronizingMachine((0x5f3a17d2+Math.imul(index,3317))>>>0);
   const canary='private-sync-canary-'+index;
   const source=[
@@ -145,7 +147,9 @@ async function scenario(index,discover=false) {
     });
     const api=/** @type {StepOnlyOracle & {reset?:()=>unknown}} */(await import(pathToFileURL(publicFile).href));
     assert.equal(api.reset,undefined,'Unexpected public reset method');
-    const discovery=discover ? await searchSynchronizingWord(api) : null;
+    const discovery=discover ? (diversified
+      ? await searchSynchronizingWordDiversified(api)
+      : await searchSynchronizingWord(api)) : null;
     const word=discovery ? discovery.word : [0,0,0];
     assert.ok(word,'No synchronizing candidate found');
     const learned=await recoverWithoutReset(api,word);
@@ -210,15 +214,17 @@ async function scenario(index,discover=false) {
 
 /**
  * @param {number} [count]
+ * @param {boolean} [discover]
+ * @param {boolean} [diversified]
  * @returns {Promise<{scenarios:number,rpcSteps:number,discoverySteps:number,
  *   networkSteps:number,heldout:number,strictlyUnseen:number,allExact:boolean,
  *   details:Awaited<ReturnType<typeof scenario>>[]}>}
  */
-async function runSynchronizing(count=4,discover=false) {
+async function runSynchronizing(count=4,discover=false,diversified=false) {
   if(!Number.isSafeInteger(count)||count<1||count>12)throw new RangeError('count must be 1..12');
   /** @type {Awaited<ReturnType<typeof scenario>>[]} */
   const details=[];
-  for(let index=0;index<count;index++)details.push(await scenario(index,discover));
+  for(let index=0;index<count;index++)details.push(await scenario(index,discover,diversified));
   return {scenarios:count,rpcSteps:details.reduce((sum,item)=>sum+item.rpcSteps,0),
     discoverySteps:details.reduce((sum,item)=>sum+item.discoverySteps,0),
     networkSteps:details.reduce((sum,item)=>sum+item.networkSteps,0),
@@ -235,9 +241,15 @@ async function runSynchronizing(count=4,discover=false) {
  */
 function runDiscovered(count=2){return runSynchronizing(count,true);}
 
+/**
+ * @param {number} [count]
+ * @returns {ReturnType<typeof runSynchronizing>}
+ */
+function runDiscoveredDiversified(count=2){return runSynchronizing(count,true,true);}
+
 if(require.main===module) {
   runSynchronizing().then(result=>console.log(JSON.stringify(result,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={makeSynchronizingMachine,recoverWithoutReset,scenario,runSynchronizing,runDiscovered};
+module.exports={makeSynchronizingMachine,recoverWithoutReset,scenario,runSynchronizing,runDiscovered,runDiscoveredDiversified};
