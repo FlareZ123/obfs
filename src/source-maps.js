@@ -122,6 +122,21 @@ function hasCssSourceMapDirective(code) {
 }
 
 /**
+ * WebAssembly uses a named custom section for source-map URLs under ECMA-426.
+ * Consult the host's binary decoder, rather than trusting the file extension
+ * or searching arbitrary embedded bytes for a magic phrase.
+ *
+ * @param {string|Buffer} code
+ * @returns {boolean}
+ */
+function hasWasmSourceMapDirective(code) {
+  if(!Buffer.isBuffer(code) || code.length<8 ||
+      code[0]!==0 || code[1]!==0x61 || code[2]!==0x73 || code[3]!==0x6d) return false;
+  const module=new WebAssembly.Module(code);
+  return WebAssembly.Module.customSections(module,'sourceMappingURL').length>0;
+}
+
+/**
  * Refuse transformations whose output would disclose an original source map.
  * This is a preflight policy, not a claim of full source confidentiality:
  * arbitrary HTML/JSON assets can still contain source code.
@@ -138,6 +153,15 @@ function assertNoSourceMapDisclosure(file) {
     }
     if (isSourceMapDocument(file.code)) {
       throw new TypeError('Source-map JSON payload would disclose original source: ' + file.path);
+    }
+    let wasmHasMap;
+    try {
+      wasmHasMap=hasWasmSourceMapDirective(file.code);
+    } catch(error) {
+      throw new TypeError('WebAssembly asset cannot be validated for source maps: '+file.path);
+    }
+    if(wasmHasMap) {
+      throw new TypeError('WebAssembly source-map custom section would disclose original source: '+file.path);
     }
     if(/\.css$/iu.test(file.path)) {
       let hasMap;
@@ -159,4 +183,4 @@ function assertNoSourceMapDisclosure(file) {
   }
 }
 
-module.exports = {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective,hasCssSourceMapDirective,assertNoSourceMapDisclosure};
+module.exports = {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective,hasCssSourceMapDirective,hasWasmSourceMapDirective,assertNoSourceMapDisclosure};
