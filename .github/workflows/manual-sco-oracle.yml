@@ -55,6 +55,8 @@ jobs:
         run: node --test test/sco-sync-state-size.test.js
       - name: Publish 4-12-state oracle-observability classifications
         run: node sims/sco-sync-state-size.js
+      - name: Stress eight thousand public SCO machine workloads by state count
+        run: node sims/sco-sync-state-size.js --stress
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
