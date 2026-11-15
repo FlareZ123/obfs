@@ -175,9 +175,10 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,number>} bindings
  * @param {Map<string,number>} [importedIdentityFunctions] Verified direct ESM imports of immutable, pure identity functions.
  * @param {Map<string,number>} [importedConsumers] Verified imported functions that consume an object without returning an alias.
+ * @param {Map<string,string>} [importedConstantKeys] Proven, unique named-import string values initialized before their exported owner.
  * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map()) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map()) {
   if(observesFunctionSource(ast)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
@@ -279,6 +280,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   const scopes=collectBindingScopes(ast);
   const constantKeys=collectOwnedConstantKeys(ast,rootName,bindings,scopes);
+  // Cross-file key facts are supplied only by the owner/ESM import proof,
+  // which checks the immutable export, sequential initialization and local
+  // imported binding. Reject ambiguous shadowed names here as well.
+  for(const [name,value] of importedConstantKeys) {
+    if(bindings.get(name)===1)constantKeys.set(name,value);
+  }
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
