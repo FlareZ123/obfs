@@ -48,9 +48,11 @@ The checked-in `after.cjs` had a different seeded affine encoding when
 compiled from Windows CRLF `before.cjs`, whereas Ubuntu passed. Agent 24
 normalized line endings in both `examples/affine-native/build-sample.cjs`
 and the corresponding exact-output test at source commit
-`6bd0e9d446f797f3c8dc06a671e331b0413e46ac`. The repeat full run
-is [pending](https://github.com/FlareZ123/obfs/actions) as of this report;
-record its actual outcome before claiming resolution.
+`6bd0e9d446f797f3c8dc06a671e331b0413e46ac`. The repeat full [run 43753516849](https://github.com/FlareZ123/obfs/actions/runs/43753516849)
+at commit `6bd0e9d446f797f3c8dc06a671e331b0413e46ac` confirms the
+Windows-only affine failure is resolved. Both platforms now report
+**1,049 passed, 5 failed, 1 skipped out of 1,055**; the remaining five
+failures have the same names on both platforms.
 
 The independent
 [focused transformation suite 43752754825](https://github.com/FlareZ123/obfs/actions/runs/43752754825)
@@ -74,6 +76,6 @@ before/after artifact source but regenerate it with the current compiler
 and document why its seed yields a different representation; preserve the
 attacker reconstruction test.
 
-Full validation remains a release blocker until all five shared failures
+Full validation remains a release blocker until all five remaining failures
 are independently resolved. The separate experimental selective SCO result
 should not be promoted as proof of a globally green obfuscator release.
