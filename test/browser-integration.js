@@ -113,6 +113,30 @@ async function main(){
   assert.ok(patternEntry);
   assert.ok(String(patternEntry.code).includes('window.hostApi.accept('));
 
+  // A private factory-created owner remains private across browser ESM
+  // imports. The host-provided window API key is intentionally untouched.
+  const factorySet=obfuscateFiles([
+    {path:'factory-state.mjs',sourceType:'module',
+      code:'const make=()=>({secretValue:29,otherValue:12});export const state=make();'},
+    {path:'factory-entry.mjs',sourceType:'module',
+      code:'import {state} from "./factory-state.mjs";'+
+        'window.hostApi.accept(state.secretValue+state.otherValue);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-private-factory',
+    identifiers:false,strings:false});
+  assert.equal(factorySet.crossFile.properties,2);
+  const factoryEntry=factorySet.files.find(file=>file.path==='factory-entry.mjs');
+  assert.ok(String(factoryEntry?.code).includes('window.hostApi.accept('));
+
+  const iifeSet=obfuscateFiles([
+    {path:'factory-iife-state.mjs',sourceType:'module',
+      code:'export const state=(()=>({secretValue:29,otherValue:12}))();'},
+    {path:'factory-iife-entry.mjs',sourceType:'module',
+      code:'import {state} from "./factory-iife-state.mjs";'+
+        'window.hostApi.accept(state.secretValue+state.otherValue);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-private-iife',
+    identifiers:false,strings:false});
+  assert.equal(iifeSet.crossFile.properties,2);
+
   const cycleSet=obfuscateFiles([
     {path:'cycle-a.mjs',sourceType:'module',
       code:'import "./cycle-b.mjs";export function get(){return "browser-cycle-ok";}'},
@@ -154,7 +178,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -175,6 +199,12 @@ async function main(){
   content.set('/pattern.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
     '<script type="module" src="/pattern-entry.mjs"></script></body></html>');
+  content.set('/factory.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
+    '<script type="module" src="/factory-entry.mjs"></script></body></html>');
+  content.set('/factory-iife.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
+    '<script type="module" src="/factory-iife-entry.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
@@ -197,7 +227,7 @@ async function main(){
       ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
-      ['/pattern.html','41'],
+      ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
