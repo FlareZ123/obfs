@@ -50,3 +50,8 @@ test('explicitly named default function does not require name inference',()=>{
   compare(`'use strict';function run(callback=function declared(){}){return callback.name;}
     module.exports=run();`,0);
 });
+
+test('simple parameter without defaults remains eligible for local mangling',()=>{
+  compare(`'use strict';function run(value){return value+1;}
+    module.exports=run(17);`,1);
+});
