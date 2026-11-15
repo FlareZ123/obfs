@@ -25,3 +25,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Compare held-out multi-file property graphs in Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/heldout-browser-integration.js
+      - name: Check JSDoc types
+        run: npm run typecheck
