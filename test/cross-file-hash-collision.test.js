@@ -31,7 +31,7 @@ test('a 48-bit shortened SHA-256 collision cannot merge cross-file ESM object fi
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={p787915:13,p3853476:29};'},
     {path:'main.mjs',sourceType:'module',
-      code:'import {state} from "./state.mjs";console.log([state.p787915,state.p3853476].join(","));'}
+      code:'import {state} from "./state.mjs";const first=state.p787915,second=state.p3853476;console.log([first,second].join(","));'}
   ];
   const original=await evaluate(files);
   assert.equal(original,'13,29\n');
@@ -46,7 +46,7 @@ test('noncolliding cross-file properties remain transformable',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={p787915:13,anotherField:29};'},
     {path:'main.mjs',sourceType:'module',
-      code:'import {state} from "./state.mjs";console.log([state.p787915,state.anotherField].join(","));'}
+      code:'import {state} from "./state.mjs";const first=state.p787915,second=state.anotherField;console.log([first,second].join(","));'}
   ];
   const original=await evaluate(files);
   const result=obfuscateFiles(files,{mode:'coo',seed:'cross-collision',

@@ -33,7 +33,7 @@ function makeGraph(index){
     case 0:body='const current='+call+'('+root+');console.log(current.'+key+');';break;
     case 1:body='const first='+call+'('+root+');const second=first;console.log(second["'+key+'"]);';break;
     case 2:body='const current='+call+'('+root+');const {'+key+':value}=current;console.log(value);';break;
-    case 3:body='const current='+call+'('+root+');console.log(current.'+other+'.join(":"));';break;
+    case 3:body='const current='+call+'('+root+');const list=current.'+other+';console.log(list.join(":"));';break;
     default:body='const current='+call+'('+root+');console.log(current["'+key+'"],current.'+other+'[0]);';
   }
   return [

@@ -109,3 +109,41 @@ for(const [name,operation] of [
     assert.equal(await execute(transformed.files),await execute(files));
   });
 }
+
+test('array prototype tampering preserves exact source-spelled member expression',()=>{
+  const original='const owner={privateField:17,otherField:5};'+
+    'const previous=Array.prototype.join;let message="";'+
+    'try{Array.prototype.join=undefined;[owner.privateField,owner.otherField].join(",");}'+
+    'catch(error){message=error.message;}finally{Array.prototype.join=previous;}'+
+    'module.exports=[message,owner.otherField];';
+  const expected=evaluate(original);
+  assert.match(JSON.parse(expected)[0],/owner\.privateField/u);
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+    const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
+      mode,seed:'prototype-spelling',strings:false,identifiers:false
+    }).files[0];
+    assert.equal(result.metrics.objects,0,mode);
+    assert.equal(result.metrics.properties,0,mode);
+    assert.equal(evaluate(result.code),expected,mode);
+  }
+});
+
+test('closed-world ESM preserves array prototype failure operand spelling',async()=>{
+  /** @type {SourceFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export const owner={privateField:17,otherField:5};'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {owner} from "./state.mjs";const previous=Array.prototype.join;'+
+        'try{Array.prototype.join=undefined;[owner.privateField,owner.otherField].join(",");}'+
+        'catch(error){console.log(error.message);}finally{Array.prototype.join=previous;}'}
+  ];
+  const baseline=await execute(files);
+  assert.match(baseline,/owner\.privateField/u);
+  const transformed=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'prototype-spelling-cross',
+    strings:false,identifiers:false
+  });
+  assert.equal(transformed.crossFile.objects,0);
+  assert.equal(transformed.crossFile.properties,0);
+  assert.equal(await execute(transformed.files),baseline);
+});

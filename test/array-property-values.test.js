@@ -27,7 +27,7 @@ function compareLocal(code,renamed){
 }
 
 test('local literal array values can be renamed with all their owning keys',()=>{
-  compareLocal('const a={numbers:[4,5,[6,7]],flag:42};module.exports=a.numbers.flat(Infinity).reduce((x,y)=>x+y,0)+a.flag;',1);
+  compareLocal('const a={numbers:[4,5,[6,7]],flag:42};const values=a.numbers;module.exports=values.flat(Infinity).reduce((x,y)=>x+y,0)+a.flag;',1);
 });
 
 test('array containing recursively inert objects supports outer-key renaming',()=>{
@@ -47,7 +47,7 @@ test('closed-world ESM can rename exported literal-array keys and import reads',
   /** @type {{path:string,sourceType:'module',code:string}[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export const state={numbers:[1,2,3],mode:"ok"};'},
-    {path:'main.mjs',sourceType:'module',code:'import {state} from "./state.mjs";console.log(state.numbers.reduce((x,y)=>x+y,0),state.mode);'}
+    {path:'main.mjs',sourceType:'module',code:'import {state} from "./state.mjs";const values=state.numbers;console.log(values.reduce((x,y)=>x+y,0),state.mode);'}
   ];
   try {
     /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
