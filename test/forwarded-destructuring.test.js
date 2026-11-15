@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const path=require('node:path');
 const {test}=require('node:test');
 const {obfuscateFiles}=require('../src');
+const {neutralizeHashedNames}=require('../sims/offline-normalize');
 const {buildSample}=require('../examples/forwarded-destructuring/build-sample.cjs');
 
 /** @param {string} source @returns {string} */
@@ -106,4 +107,10 @@ test('generated forwarded destructuring sample is byte-exact and behavior preser
   const transformed=await fs.readFile(path.join(directory,'after.cjs'),'utf8');
   assert.notEqual(original,transformed);
   assert.equal(run(original),run(transformed));
+  const attack=neutralizeHashedNames([
+    {path:'sample.cjs',sourceType:'commonjs',code:transformed}
+  ]);
+  assert.equal(attack.properties,2);
+  assert.equal(run(original),run(attack.files[0].code));
+  assert.doesNotMatch(attack.files[0].code,/_p[0-9a-f]{10}/u);
 });
