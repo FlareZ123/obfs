@@ -171,6 +171,37 @@ test('opaque forwarding helper refuses nested imported reader',async()=>{
     'console.log(peek(leak(state)));',0);
 });
 
+test('direct imported identity return can feed a static object-pattern declaration',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'const {secretField:read}=identity(state);console.log(read);'}
+  ],1);
+});
+
+test('dynamic destructuring key on imported identity result declines',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'const key="secretField";const {[key]:read}=identity(state);console.log(read);'}
+  ],0);
+});
+
+test('returned destructuring assignment owner cannot escape as an expression value',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {identity} from "./identity.mjs";'+
+      'let read=0;const copy=({secretField:read}=identity(state));'+
+      'console.log(read,Object.keys(copy));'}
+  ],0);
+});
+
 test('opaque reader alias via a callback declines property rewrite',async()=>{
   await check(exposed+reader,
     'import {state,peek} from "./state.mjs";const apply=fn=>fn(state);console.log(apply(peek));',0);
