@@ -30,6 +30,21 @@ function isEmbeddedExecutableUrl(raw) {
 }
 
 /**
+ * Detect a refresh redirect that embeds executable markup or a script URL.
+ * The HTML parser has already decoded character references in the content
+ * attribute. Ordinary refresh targets remain accepted.
+ * @param {string} content
+ * @returns {boolean}
+ */
+function isEmbeddedRefreshUrl(content) {
+  const match=/(?:^|;)\s*url\s*=\s*(.*)$/iu.exec(content);
+  if(!match)return false;
+  let target=match[1].trim();
+  if(target.startsWith('"')||target.startsWith("'"))target=target.slice(1);
+  return isEmbeddedExecutableUrl(target);
+}
+
+/**
  * Identify executable JavaScript embedded in browser-parsed HTML.
  * External script references are allowed because their targets must be
  * transformed and published separately. The original HTML is left untouched.
@@ -60,6 +75,14 @@ function findInlineHtmlSource(html) {
         node.childNodes?.some(child=>typeof child.value==='string' && /\S/u.test(child.value))) {
       issue='inline script source';
       return;
+    }
+    if(node.tagName==='meta') {
+      const pragma=attrs.find(attr=>attr.name==='http-equiv')?.value.trim().toLowerCase();
+      const content=attrs.find(attr=>attr.name==='content')?.value;
+      if(pragma==='refresh' && content && isEmbeddedRefreshUrl(content)) {
+        issue='embedded executable refresh URL';
+        return;
+      }
     }
     for(const child of node.childNodes??[])visit(child);
     if(node.content)visit(node.content);
@@ -104,4 +127,4 @@ function assertNoInlineHtmlSource(path,code) {
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
-module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,assertNoInlineHtmlSource,decodeMarkup};
+module.exports={findInlineHtmlSource,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl,assertNoInlineHtmlSource,decodeMarkup};

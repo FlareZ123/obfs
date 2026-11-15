@@ -24,6 +24,8 @@ test('static SVG script, event handlers and executable links are refused across 
     ['XLink JS URL','<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"><a xlink:href="javascript:alert(1)"/></svg>'],
     ['embedded HTML data URL','<svg xmlns="http://www.w3.org/2000/svg"><a href="data:text/html;base64,PHNjcmlwdD4="/></svg>'],
     ['animation URL rewrite','<svg xmlns="http://www.w3.org/2000/svg"><set attributeName="href" to="javascript:alert(1)"/></svg>'],
+    ['foreignObject XHTML srcdoc','<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><iframe xmlns="http://www.w3.org/1999/xhtml" srcdoc="&lt;script&gt;window.privateSource=9;&lt;/script&gt;"/></foreignObject></svg>'],
+    ['foreignObject XHTML refresh','<svg xmlns="http://www.w3.org/2000/svg"><foreignObject><meta xmlns="http://www.w3.org/1999/xhtml" http-equiv="refresh" content="0; URL=data:text/html,&lt;script&gt;privateSource()&lt;/script&gt;"/></foreignObject></svg>'],
     ['DTD','<!DOCTYPE svg [<!ENTITY leak "window.privateSource=8">]><svg xmlns="http://www.w3.org/2000/svg"/>'],
     ['conflicting XML encoding','<?xml version="1.0" encoding="UTF-16"?><svg xmlns="http://www.w3.org/2000/svg"/>']
   ];
@@ -45,6 +47,7 @@ test('safe SVG geometry, raster image data, and external references remain byte-
     '<path d="M0 0 L16 16" fill="#000"/>',
     '<image xlink:href="data:image/png;base64,AAAA" width="4" height="4"/>',
     '<use href="icons.svg#check"/>',
+    '<foreignObject><meta xmlns="http://www.w3.org/1999/xhtml" http-equiv="refresh" content="30; URL=https://example.test/next.html"/></foreignObject>',
     '</svg>'
   ].join('');
   assert.equal(findInlineSvgSource(svg),null);

@@ -33,6 +33,8 @@ test('HTML5 parser detects inline source across browser execution contexts',()=>
     ['ASCII controls in javascript URL','<a href="java&#10;script:window.secret=25">go</a>'],
     ['embedded HTML data URL','<iframe src="data:text/html;base64,PHNjcmlwdD4="></iframe>'],
     ['embedded SVG data URL','<object data="data:image/svg+xml,%3Csvg%20onload%3Dalert(1)%3E"></object>'],
+    ['meta refresh embedded HTML','<meta http-equiv="ReFrEsH" content="0; URL=data:text/html,&lt;script&gt;window.secret=27&lt;/script&gt;">'],
+    ['meta refresh javascript URL','<meta content="0; URL=java&#x73;cript:window.secret=28" http-equiv="refresh">'],
     ['embedded source data script','<script src="data:text/javascript,window.secret=26"></script>'],
     ['unrecognized script data MIME still refused','<script src="data:application/octet-stream;base64,AAAA"></script>']
   ];
@@ -54,6 +56,7 @@ test('external script and module URLs remain publishable without modifying HTML 
     '<script type="module" src="./entry.mjs"></script>',
     '<script src="https://cdn.example.test/library.js" defer></script>',
     '<a href="https://example.test/">link</a>',
+    '<meta http-equiv="refresh" content="30; URL=https://example.test/next.html">',
     '<pre>&lt;script&gt;display only&lt;/script&gt;</pre>',
     '</body></html>'
   ].join('');

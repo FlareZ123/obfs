@@ -1,7 +1,7 @@
 'use strict';
 
 const {SaxesParser}=require('saxes');
-const {decodeMarkup,isEmbeddedExecutableUrl}=require('./html-assets');
+const {decodeMarkup,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl}=require('./html-assets');
 
 /**
  * Reject executable constructs in SVG served as ordinary static image assets.
@@ -26,8 +26,17 @@ function findInlineSvgSource(xml) {
   parser.on('opentag',tag=>{
     const element=tag.local.toLowerCase();
     if(element==='script')issue='script element';
-    for(const attr of Object.values(tag.attributes)) {
+    const attrs=Object.values(tag.attributes);
+    if(element==='meta') {
+      const pragma=attrs.find(attr=>attr.local.toLowerCase()==='http-equiv')?.value.trim().toLowerCase();
+      const content=attrs.find(attr=>attr.local.toLowerCase()==='content')?.value;
+      if(pragma==='refresh' && content && isEmbeddedRefreshUrl(content)) {
+        issue='embedded executable refresh URL';
+      }
+    }
+    for(const attr of attrs) {
       const key=attr.local.toLowerCase();
+      if(key==='srcdoc')issue='embedded iframe source';
       if(/^on[a-z]/u.test(key))issue='event handler';
       if(['href','src','data','action','formaction','from','to','by','values'].includes(key) &&
           isEmbeddedExecutableUrl(attr.value)) {
