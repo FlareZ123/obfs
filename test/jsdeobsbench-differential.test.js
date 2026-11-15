@@ -37,6 +37,26 @@ test('runner compares identical native stdout with concrete stdin',()=>{
   assert.ok(response.nanoseconds>0);
 });
 
+test('regular file input lets Linux CodeNet programs reopen /dev/stdin',async t=>{
+  if(process.platform!=='linux') {
+    t.skip('The /dev/stdin path is Linux-specific');
+    return;
+  }
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-dev-stdin-'));
+  const stdinFile=path.join(directory,'stdin.txt');
+  try {
+    await atomicWrite(stdinFile,'21\n');
+    const source="const fs=require('node:fs');console.log(Number(fs.readFileSync('/dev/stdin','utf8'))*2)";
+    const withoutFile=runSource(source,'21\n',3000);
+    const withFile=runSource(source,'21\n',3000,stdinFile);
+    assert.equal(withFile.status,0,withFile.stderr);
+    assert.equal(withFile.stdout,'42\n');
+    if(withoutFile.status!==0)assert.match(withoutFile.stderr,/stdin|ENXIO/);
+  } finally {
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
+
 test('parser requires valid explicit paths and bounds',()=>{
   assert.throws(()=>parseArgs(['--original','a']),/Missing/);
   assert.throws(()=>parseArgs(['--original','a','--transformed','b','--sample','-2']),/numeric/);
