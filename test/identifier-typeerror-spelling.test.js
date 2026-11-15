@@ -89,6 +89,33 @@ test('nullish object rest destructuring retains source spelling',()=>{
   );
 });
 
+test('proven nonnull const object source remains renameable through destructuring',()=>{
+  const source='const fixedSource={entry:7};const {entry}=fixedSource;module.exports=entry;';
+  const result=obfuscateFiles([{path:'nonnull.cjs',code:source,sourceType:'commonjs'}],{
+    mode:'sno',seed:'identifier-nonnull-pattern',strings:false,properties:false
+  }).files[0];
+  assert.equal(evaluate(result.code),evaluate(source),result.code);
+  assert.doesNotMatch(result.code,/\bfixedSource\b/,result.code);
+  assert.ok(result.metrics.bindings>=1);
+});
+
+test('object spread needs no iteration and preserves safe identifier renaming',()=>{
+  const source='const spreadSource={entry:8};const copy={...spreadSource};module.exports=copy.entry;';
+  const result=obfuscateFiles([{path:'object-spread.cjs',code:source,sourceType:'commonjs'}],{
+    mode:'sno',seed:'identifier-noniterating-spread',strings:false,properties:false
+  }).files[0];
+  assert.equal(evaluate(result.code),evaluate(source),result.code);
+  assert.doesNotMatch(result.code,/\bspreadSource\b/,result.code);
+  assert.ok(result.metrics.bindings>=1);
+});
+
+test('mutable object that becomes null still protects original TypeError spelling',()=>{
+  preserve(
+    'let mutableSource={entry:9};mutableSource=null;let result;try{const {entry}=mutableSource;}catch(error){result=error.message;}module.exports=result;',
+    'mutableSource'
+  );
+});
+
 test('safe arithmetic binding remains eligible for transformation',()=>{
   const source='const arithmeticOnly=27;module.exports=arithmeticOnly*2;';
   const result=obfuscateFiles([{path:'safe.cjs',code:source,sourceType:'commonjs'}],{
