@@ -133,3 +133,38 @@ test('unrelated Number prototype mutation keeps String decoder enabled',()=>{
   });
   assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
 });
+
+
+for(const [title,side] of [
+  ['direct Array iterator replacement',
+    'Array.prototype[Symbol.iterator]=function*(){yield 0;};'],
+  ['aliased Array iterator replacement',
+    'const Native=Array;const P=Native.prototype;P[Symbol.iterator]=function*(){yield 0;};'],
+  ['getPrototypeOf Array iterator replacement',
+    'const P=Object.getPrototypeOf([]);P[Symbol.iterator]=function*(){yield 0;};']
+]) {
+  test('chunked string decoder declines earlier '+title,async()=>{
+    const literal='z'.repeat(2048);
+    /** @type {CommonJsFile[]} */
+    const input=[
+      {path:'entry.cjs',sourceType:'commonjs',code:
+        "require('./side.cjs');process.stdout.write(require('./target.cjs'));"},
+      {path:'side.cjs',sourceType:'commonjs',code:side},
+      {path:'target.cjs',sourceType:'commonjs',code:
+        'module.exports='+JSON.stringify(literal)+';'}
+    ];
+    const expected=await execute(input);
+    assert.equal(expected.status,0,expected.stderr);
+    assert.equal(expected.stdout,literal);
+    for(const mode of /** @type {const} */ (['sno','coo'])) {
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'ambient-array-iterator/'+title
+      });
+      assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+      const observed=await execute(output.files);
+      assert.equal(observed.status,0,observed.stderr);
+      assert.equal(observed.stdout,expected.stdout);
+    }
+  });
+}
