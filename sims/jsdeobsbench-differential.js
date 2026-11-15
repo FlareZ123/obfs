@@ -12,6 +12,14 @@ const {spawnSync}=require('node:child_process');
  * @typedef {{filename:string,original:string,test_cases:unknown[]}} OriginalRow
  * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string,obfs_source_type?:'script'|'commonjs'}} ObfuscatedRow
  * @typedef {{sample:number,cases:number,timeoutMs:number,seed:string}} Options
+ * @typedef {{file:string,caseIndex:number,kind:string,detail?:string}} FailureRecord
+ * @typedef {{samplePrograms:number,sourcePrograms:number,commonjsPrograms:number,
+ *   transformedPrograms:number,totalCases:number,baselinePass:number,
+ *   baselineFailure:number,baselineExpectedDisagrees:number,
+ *   transformedMatches:number,transformedMismatches:number,transformedErrors:number,
+ *   processLevelWallRatioMedian:number|null,processLevelWallRatioP95:number|null,
+ *   processLevelWallRatioMax:number|null,processLevelWallRatioOverBudget:number,
+ *   timingScope:string,failures:FailureRecord[]}} DifferentialReport
  */
 
 /**
@@ -52,7 +60,7 @@ function runSource(source,input,timeoutMs,stdinFile,entryFile) {
       status:result.status,
       stdout:result.stdout??'',
       stderr:result.stderr??'',
-      timeout:result.error?.code==='ETIMEDOUT',
+      timeout:(/** @type {NodeJS.ErrnoException|undefined} */ (result.error))?.code==='ETIMEDOUT',
       nanoseconds:elapsed
     };
   } finally {
@@ -68,6 +76,7 @@ function runSource(source,input,timeoutMs,stdinFile,entryFile) {
  */
 function selectSample(rows,count,seed) {
   return [...rows].sort((a,b)=>{
+    /** @param {string} filename @returns {string} */
     const key=filename=>createHash('sha256')
       .update(seed).update('\0').update(filename).digest('hex');
     return key(a.filename).localeCompare(key(b.filename));
@@ -83,7 +92,7 @@ function selectSample(rows,count,seed) {
  * @param {string} originalFile
  * @param {string} transformedFile
  * @param {Options} options
- * @returns {Promise<Record<string,unknown>>}
+ * @returns {Promise<DifferentialReport>}
  */
 async function compareCorpus(originalFile,transformedFile,options) {
   const originals=await readJsonl(originalFile);
@@ -119,7 +128,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
   let transformedErrors=0;
   /** @type {number[]} */
   const ratios=[];
-  /** @type {{file:string,caseIndex:number,kind:string,detail?:string}[]} */
+  /** @type {FailureRecord[]} */
   const failures=[];
   // A pipe passed as a child process's stdin cannot be reopened through
   // /dev/stdin on Linux: open('/proc/self/fd/0') may return ENXIO. Benchmark
