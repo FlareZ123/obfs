@@ -1,7 +1,7 @@
 'use strict';
 
 const {randomBytes,createHash} = require('node:crypto');
-const {parse,walk,applyEdits} = require('./ast');
+const {parse,walk,applyEdits,observesFunctionSource} = require('./ast');
 const {obfuscateFiles} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
 
@@ -108,6 +108,9 @@ async function handleRpc(request,response,options) {
  */
 function varyLiteralSpellings(source,sourceType,nonce) {
   const ast=parse(source,sourceType);
+  // Function#toString exposes exact source spelling. The core passes already
+  // opt out in this case, so SCO's per-request variant pass must follow suit.
+  if(observesFunctionSource(ast))return source;
   const entropy=createHash('sha256').update(nonce).digest();
   /** @type {import('./ast').Edit[]} */
   const edits=[];
