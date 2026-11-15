@@ -261,6 +261,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const patterns = [];
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
+    // An ESTree Identifier used as a noncomputed property name is a grammar
+    // token rather than a reference to the same-spelled lexical binding.
+    // A forwarded parameter called "value" must not be confused with
+    // unrelated literal keys such as {value: 7} or nested .value reads.
+    if (parent?.type==='Property' && key==='key' && !parent.computed ||
+        parent?.type==='MemberExpression' && key==='property' && !parent.computed ||
+        (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition') &&
+          key==='key' && !parent.computed) continue;
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
