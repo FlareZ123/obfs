@@ -22,8 +22,8 @@ jobs:
       - name: Install declared dependencies
         id: install
         run: npm install --no-package-lock --ignore-scripts
-      - name: Behavioral and adversarial suites
-        run: npm test
+      - name: Behavioral and adversarial suites with compact failure diagnostics
+        run: node --test --test-reporter=spec test/*.test.js
       - name: JSDoc type safety
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
