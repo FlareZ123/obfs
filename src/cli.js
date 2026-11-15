@@ -10,14 +10,15 @@ const {atomicWrite} = require('./atomic');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean}} */
-  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false};
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean}} */
+  const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
     if (option === '--closed-world') {opts.closedWorld=true;continue;}
+    if (option === '--js-module') {opts.jsModule=true;continue;}
     const value = argv[++i];
     if (value === undefined) throw new TypeError(`Missing value for ${option}`);
     if (option === '--root') opts.root=value;
@@ -82,9 +83,11 @@ function entryUsesEsmPackage(files,entry) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule} = readArgs(argv);
+  if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   const absRoot = path.resolve(root);
-  const source = await readSourceTree(absRoot);
+  const source = (await readSourceTree(absRoot)).map(file =>
+    jsModule && file.path.endsWith('.js') ? {...file,sourceType:'module'} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
   if (mode === 'sco') {
     const server = http.createServer(createScoHandler(source,{allowedHosts:hosts,closedWorld}));
