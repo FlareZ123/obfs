@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse, walk, applyEdits} = require('./ast');
+const {parse, walk, applyEdits, observesFunctionSource} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -103,6 +103,7 @@ function collectBindingScopes(ast) {
  * @returns {{aliases:Set<string>,members:AstNode[],patterns:AstNode[]}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map()) {
+  if(observesFunctionSource(ast)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,external?:boolean}>} */
   const functions = new Map();
   /** @type {Map<string,AstNode[]>} */
