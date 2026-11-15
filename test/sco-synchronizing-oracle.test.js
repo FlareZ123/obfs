@@ -17,6 +17,30 @@ test('three zero symbols synchronize all four private states',()=>{
   }
 });
 
+test('a step-only permutation machine has no synchronizing input word',()=>{
+  // Every symbol induces a permutation of all states. A composition of
+  // permutations remains bijective, so it cannot map four states to one.
+  const transitions=Array.from({length:4},(_,state)=>
+    [(state+1)%4,(state+3)%4]);
+  for(let symbol=0;symbol<2;symbol++) {
+    assert.equal(new Set(transitions.map(row=>row[symbol])).size,4);
+  }
+  /** @type {number[][]} */
+  let layer=[[]];
+  for(let length=1;length<=7;length++) {
+    /** @type {number[][]} */
+    const next=[];
+    for(const prefix of layer)for(let symbol=0;symbol<2;symbol++) {
+      const word=[...prefix,symbol];
+      next.push(word);
+      const terminal=Array.from({length:4},(_,state)=>
+        word.reduce((current,bit)=>transitions[current][bit],state));
+      assert.equal(new Set(terminal).size,4);
+    }
+    layer=next;
+  }
+});
+
 test('attacker learns stateful behavior from step alone using known synchronizing word',async()=>{
   for(let index=0;index<8;index++) {
     const model=makeSynchronizingMachine(index+744);
