@@ -26,7 +26,8 @@ function normalizeDistributedFiles(files) {
 
   /** @param {string} value @returns {string|null} */
   function replacement(value) {
-    if(/^_p[a-f0-9]{10}(?:[a-f0-9]{2})?$/.test(value)) {
+    if(/^_p[a-f0-9]{10}(?:[a-f0-9]{2})?$/.test(value) ||
+       /^_\$[a-f0-9]{14}$/.test(value)) {
       if(!fields.has(value))fields.set(value,'plainField'+fields.size);
       return fields.get(value)??null;
     }
