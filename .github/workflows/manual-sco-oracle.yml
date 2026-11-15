@@ -51,6 +51,10 @@ jobs:
         run: node sims/sco-sync-diversified-report.js --stress --holdout
       - name: Verify independent four-state behavioral equivalence partition on 60000 cases
         run: node --test test/sco-mealy-refinement.test.js
+      - name: Test fixed SCO public learner across different hidden-state sizes
+        run: node --test test/sco-sync-state-size.test.js
+      - name: Publish 4-12-state oracle-observability classifications
+        run: node sims/sco-sync-state-size.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
