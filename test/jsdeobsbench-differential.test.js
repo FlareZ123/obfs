@@ -66,6 +66,25 @@ test('parser requires valid explicit paths and bounds',()=>{
   assert.equal(parseArgs(['--original','a','--transformed','b']).minimumBaselineRate,0.95);
 });
 
+test('CommonJS benchmark uses actual file-module wrapper semantics',async()=>{
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-commonjs-baseline-'));
+  const native=path.join(directory,'source.jsonl');
+  const compiled=path.join(directory,'compiled.jsonl');
+  const row=fixture('cjs-wrapper','console.log(this===module.exports)',[['','true\n']]);
+  const transformed=convertItem(row,{mode:'sno',seed:'cjs',max:0,sourceType:'commonjs'},0);
+  try {
+    await atomicWrite(native,JSON.stringify(row)+'\n');
+    await atomicWrite(compiled,JSON.stringify(transformed)+'\n');
+    const report=await compareCorpus(native,compiled,{sample:0,cases:1,timeoutMs:3000,seed:'cjs'});
+    assert.equal(report.commonjsPrograms,1);
+    assert.equal(report.baselinePass,1);
+    assert.equal(report.baselineExpectedDisagrees,0);
+    assert.equal(report.transformedMatches,1);
+  } finally {
+    await fs.rm(directory,{recursive:true,force:true});
+  }
+});
+
 test('differential result separates baseline errors, source mismatches and output changes',async()=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-differential-'));
   const native=path.join(directory,'native.jsonl');
