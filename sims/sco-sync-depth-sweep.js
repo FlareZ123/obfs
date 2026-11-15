@@ -43,12 +43,13 @@ async function runDepthSweep(count=100){
       };
       const found=await searchSynchronizingWordDiversified(publicOracle,3,12,depth);
       record.steps+=found.steps;
-      if(!found.word)continue;
+      const word=found.word;
+      if(!word)continue;
       record.candidates++;
       const all=Array.from({length:states},(_,index)=>index);
-      const terminals=all.map(state=>found.word.reduce((s,b)=>privateModel.next[s][b],state));
+      const terminals=all.map(state=>word.reduce((s,b)=>privateModel.next[s][b],state));
       if(new Set(terminals).size===1)record.physical++;
-      if(observableReset(privateModel,found.word,reachableStates(privateModel,current),
+      if(observableReset(privateModel,word,reachableStates(privateModel,current),
         observableStateClasses(privateModel)))record.observableContinuation++;
       else record.falseContinuation++;
     }
