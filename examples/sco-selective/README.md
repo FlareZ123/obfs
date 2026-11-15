@@ -27,11 +27,14 @@ may move server-side. Public exports can call private exports directly but
 cannot treat the private function as a local value. No imports, top-level
 initializers, mutable data exports, reexports, dynamic public imports, `eval`,
 `Function` constructors or source-introspection contracts are admitted.
-Direct top-level synchronous function declarations and single-binding immutable
-`const` arrow/function expressions are permitted as private helpers only if no
-retained public export references them and private code uses their names
-exclusively as direct call targets. Their bodies may call
-one another and private exports, but cannot observe a separated public binding.
+Top-level synchronous function declarations and single-binding immutable
+`const` arrow/function expressions are private by default. An integrator may
+explicitly select public-only local helpers with `publicHelperNames`, alongside
+private async exports selected with `privateNames`. Public helpers stay in the
+client module. Private helper bodies remain server-side, and private helper
+names can only be used as direct call targets in private code. The compiler
+rejects public references to private helpers or private constants, private
+references to split-off public helpers, and cross-boundary ambient state.
 The original private source must be loaded from a server-private path.
 
 The transport is JSON; reflection, arbitrary objects, browser-local state,
