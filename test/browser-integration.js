@@ -12,8 +12,14 @@ async function dumpDom(binary,url) {
     '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
     '--no-first-run','--virtual-time-budget=4000','--dump-dom',url
   ];
-  const {stdout}=await promisify(execFile)(binary,args,{timeout:15000,maxBuffer:4*1024*1024,encoding:'utf8'});
-  return stdout;
+  try {
+    const {stdout}=await promisify(execFile)(binary,args,{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
+    return stdout;
+  } catch(error) {
+    const message=error instanceof Error ? error.message : String(error);
+    const stderr=error && typeof error==='object' && 'stderr' in error ? String(error.stderr) : '';
+    throw new Error(`${message}\nChromium stderr: ${stderr}`);
+  }
 }
 
 async function main(){
