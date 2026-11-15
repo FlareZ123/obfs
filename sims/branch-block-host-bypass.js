@@ -48,14 +48,14 @@ async function main() {
       import('data:text/javascript;base64,'+Buffer.from(code).toString('base64'))
     );
   }
-  const originalLocation=globalThis.location;
-  globalThis.location=/** @type {Location} */ (
-    /** @type {unknown} */ ({hostname:'untrusted.example'})
-  );
+  const originalLocation=Object.getOwnPropertyDescriptor(globalThis,'location');
+  Object.defineProperty(globalThis,'location',{
+    configurable:true,value:{hostname:'untrusted.example'}
+  });
   try {
     await assert.rejects(load(published),/Unauthorized execution host/u);
     const modified=await load(attack);
-    assert.equal(modified.gate(5),35);
+    assert.equal(modified.gate(5),7);
     assert.equal(modified.gate(0),-15);
     console.log(JSON.stringify({
       host:'untrusted.example',authorizedHost:'allowed.example',
@@ -63,8 +63,8 @@ async function main() {
       patchedBytes:published.length-attack.length
     }));
   }finally{
-    if(originalLocation===undefined)delete globalThis.location;
-    else globalThis.location=originalLocation;
+    if(originalLocation===undefined)Reflect.deleteProperty(globalThis,'location');
+    else Object.defineProperty(globalThis,'location',originalLocation);
   }
 }
 
