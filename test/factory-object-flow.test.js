@@ -53,6 +53,36 @@ test('single-use private factory returns a renamable object with aliases and des
   }
 });
 
+for(const factory of [
+  'const make=()=>({secretField:17,otherField:[3,5]});',
+  'const make=()=>{return {secretField:17,otherField:[3,5]};};',
+  'const make=function privateFactory(){return {secretField:17,otherField:[3,5]};};'
+]) {
+  test('immutable expression factory retains exact own-field behavior: '+factory.slice(0,42),()=>{
+    const source=factory+'const owner=make();const alias=owner;'+
+      'module.exports=[alias.secretField,alias.otherField[1]];';
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+      const result=compile(source,mode);
+      assert.equal(result.metrics.objects,1,mode);
+      assert.equal(result.metrics.properties,2,mode);
+      assert.doesNotMatch(String(result.code),/secretField|otherField/u);
+      assert.equal(run(String(result.code)),run(source));
+    }
+  });
+}
+
+test('refuse escaped or mutable expression factories',()=>{
+  for(const source of [
+    'const make=()=>({secretField:17});const owner=make();const leaked=make;module.exports=[owner.secretField,typeof leaked];',
+    'let make=()=>({secretField:17});const owner=make();module.exports=owner.secretField;',
+    'const make=()=>({secretField:17});const owner=make.call(null);module.exports=owner.secretField;'
+  ]){
+    const result=compile(source,'sno');
+    assert.equal(result.metrics.objects,0);
+    assert.equal(run(String(result.code)),run(source));
+  }
+});
+
 const refused=[
   ['repeated calls', 'const second=make();module.exports=[owner.secretField,Object.keys(second)];'],
   ['exported factory', 'module.exports=[owner.secretField,make];'],
