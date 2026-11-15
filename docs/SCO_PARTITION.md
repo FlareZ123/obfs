@@ -69,6 +69,31 @@ Set `batch:true` (optionally with `maxBatchCalls:32`) to add an explicit named `
 For example, given `export async function calculate(value)`, the page may call `await batch([{name:'calculate',args:[10]},{name:'calculate',args:[20]}])` after importing `{batch}` from the generated browser module. Responses contain an ordered array of `{ok:true,value}` or `{ok:false,error:'Operation failed'}` items. This new export is opt-in and cannot be enabled if the original module already exports a function named `batch`.
 
 The outer `authorizeOperation` sees the generated batch method identifier in `partition.batchMethod` and the complete nested call list inside `args[0]`. For batches created by `createScoBatchMethod`, the handler also invokes `authorizeOperation` for each structurally valid nested method ID and its arguments before executing any item. A method-aware policy must approve the outer batch and **every** inner operation. Denying any inner operation prevents all batch side effects. Batching does not roll back side effects from later runtime failures, and per-item failure statuses do not reveal the server's private stack traces. See [the quantitative RPC grid](../im-results/sco-rtt-grid-2026-11-15.md) for the latency benefits and failures under simulated fixed delay.
+## Cross-realm admission requirement
+
+A selected SCO partition has two JavaScript execution realms: the original
+private functions run in the trusted server runtime, while retained public
+functions remain in the browser runtime. These realms do not automatically
+share built-in object mutations, legacy `RegExp` match statics or browser
+globals. The source may therefore change results after relocation even if
+all original code is otherwise valid. For example, mutating
+`Object.prototype` privately and reading inherited properties publicly
+no longer refers to one shared prototype; a private `window` lookup may
+work before splitting and fail in Node.
+
+The compiler conservatively refuses tested forms of prototype reflection,
+legacy `RegExp` static reads, native constructor-object mutations and
+private browser-only ambient access, including simple aliases and global
+destructuring. It is a bounded syntax-level check, not a general proof
+that arbitrary JavaScript has no hidden shared state. Review each
+server-private operation as an explicit server contract, ensure all
+cross-boundary inputs and outputs fit the JSON interface, and test
+the original versus split behavior under the intended browser and
+server environments. A function that requires browser-only state
+should stay client-side or receive an explicit JSON-valued input.
+See [the differential admission report](../im-results/sco-cross-realm-prototypes-2026-11-15.md)
+for positive, negative and CI-pinned evidence.
+
 ## Security and performance boundaries
 
 Original function bodies remain on the trusted server, absent from delivered JS. An attacker controlling the client can still enumerate public method identifiers, invoke every operation authorized to them, modify arguments, measure timing, observe results, and build a black-box approximation. Server-only secrets remain protected only to the extent that no server-side method or output reveals them. Method identities are routing labels, not tokens. Use signed sessions, strict authorization, input validation, rate limits, monitoring, and deliberate response design. Consider CSRF and CORS policy when relying on same-origin cookies.
