@@ -17,7 +17,7 @@ test('Windows reserved device names include ISO-8859-1 superscript digits',()=>{
     ],{mode:'sno',seed:'reserved-paths'}),/Unsafe Windows filename segment/,candidate);
   }
   for (const candidate of [
-    'com4.js','COM⁴.txt','lpt10.js','comic.js','auxiliary/file.js'
+    'com10.js','COM⁴.txt','lpt10.js','comic.js','auxiliary/file.js'
   ]) {
     assert.equal(safePath(candidate),candidate);
   }
