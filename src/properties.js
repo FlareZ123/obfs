@@ -181,8 +181,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // A read-only helper returns a field value, not the object's identity.
   // Its direct calls may consume the owner without allowing alias forwarding.
   for (const [name,index] of importedConsumers) {
-    if (index===0 && bindings.get(name)===1 && !functions.has(name)) {
-      functions.set(name,{node:ast,params:[],forwardIndex:-1,consumerIndex:0,external:true});
+    if (Number.isSafeInteger(index) && index>=0 && bindings.get(name)===1 && !functions.has(name)) {
+      functions.set(name,{node:ast,params:[],forwardIndex:-1,consumerIndex:index,external:true});
     }
   }
 
