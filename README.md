@@ -4,7 +4,7 @@ This repository is an experimental, conservative JavaScript obfuscator targeting
 
 ## Install and verify
 
-Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The project deliberately avoids source-code `eval` and arbitrary custom bytecode execution.
+Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
 ## Entrypoints
 
