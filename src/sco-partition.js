@@ -3,13 +3,16 @@
 const {createHash,randomBytes}=require('node:crypto');
 const {parse,walk}=require('./ast');
 const {safePath}=require('./core');
+const {createScoBatchMethod}=require('./rpc-batch');
 
 /**
  * @typedef {{
  *   clientFile:{path:string,sourceType:'module',code:string},
  *   methodNames:Record<string,string>,
  *   names:string[],
- *   endpoint:string
+ *   endpoint:string,
+ *   batchMethod?:string,
+ *   maxBatchCalls?:number
  * }} ScoModulePartition
  */
 
@@ -28,7 +31,7 @@ const {safePath}=require('./core');
  * and serve only the returned clientFile via createScoHandler.
  *
  * @param {{path:string,code:string,sourceType?:'module'}} file
- * @param {{seed?:string,endpoint?:string}} [options]
+ * @param {{seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number}} [options]
  * @returns {ScoModulePartition}
  */
 function partitionScoAsyncModule(file,options={}) {
@@ -68,6 +71,12 @@ function partitionScoAsyncModule(file,options={}) {
     exported.push({name:fn.id.name,params:fn.params.map((/** @type {import('./ast').AstNode} */ param)=>param.name)});
   }
   if(!exported.length)throw new TypeError('RPC partition requires at least one exported async function');
+  if(options.batch && used.has('batch'))throw new TypeError('RPC batch export conflicts with original batch function');
+  if(options.maxBatchCalls!==undefined && !options.batch)throw new TypeError('maxBatchCalls requires batch:true');
+  const maxBatchCalls=options.batch ? (options.maxBatchCalls??64) : undefined;
+  if(maxBatchCalls!==undefined && (!Number.isSafeInteger(maxBatchCalls) || maxBatchCalls<1 || maxBatchCalls>1024)) {
+    throw new TypeError('maxBatchCalls must be a positive integer up to 1024');
+  }
 
   const seed=options.seed??randomBytes(24).toString('hex');
   const helper='_scorpc_'+createHash('sha256').update(seed+'/'+filename).digest('hex').slice(0,20);
@@ -82,13 +91,23 @@ function partitionScoAsyncModule(file,options={}) {
     methodIds.add(method);
     methodNames[item.name]=method;
   }
+  const batchMethod=options.batch ? 'm'+createHash('sha256').update(seed+'/'+filename+'/$batch').digest('hex').slice(0,24) : undefined;
+  if(batchMethod && methodIds.has(batchMethod))throw new Error('RPC batch method name collision');
   let code='const '+helper+'=async(method,args)=>{'
     +'const response=await fetch('+JSON.stringify(endpoint)+',{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({method,args})});'
     +'const payload=await response.json();if(!response.ok||!payload||payload.ok!==true)throw Error("Remote operation failed");return payload.value;};\n';
   for(const item of exported) {
     code+='export async function '+item.name+'('+item.params.join(',')+'){return await '+helper+'('+JSON.stringify(methodNames[item.name])+',[...arguments]);}\n';
   }
-  return {clientFile:{path:filename,sourceType:'module',code},methodNames,names:exported.map(item=>item.name),endpoint};
+  if(batchMethod) {
+    const mapName=helper+'map';
+    code+='const '+mapName+'='+JSON.stringify(methodNames)+';\n';
+    code+='export async function batch(calls){if(!Array.isArray(calls)||!calls.length||calls.length>'+maxBatchCalls+
+      '||calls.some(call=>!call||typeof call.name!=="string"||!Object.hasOwn('+mapName+',call.name)||!Array.isArray(call.args)))throw TypeError("Invalid RPC batch");'+
+      'return await '+helper+'('+JSON.stringify(batchMethod)+',[calls.map(call=>({method:'+mapName+'[call.name],args:call.args}))]);}\n';
+  }
+  return {clientFile:{path:filename,sourceType:'module',code},methodNames,
+    names:exported.map(item=>item.name),endpoint,batchMethod,maxBatchCalls};
 }
 
 /**
@@ -119,6 +138,10 @@ function bindScoModuleExports(partition,serverExports) {
       throw new TypeError('Invalid or colliding RPC method identity');
     }
     methods[methodName]=(...args)=>task(...args);
+  }
+  if(partition.batchMethod) {
+    if(Object.hasOwn(methods,partition.batchMethod))throw new TypeError('Colliding batch method identity');
+    methods[partition.batchMethod]=createScoBatchMethod(methods,{maxCalls:partition.maxBatchCalls});
   }
   return methods;
 }
