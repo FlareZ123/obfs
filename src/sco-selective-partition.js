@@ -74,9 +74,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   }
   const selected=new Set(options.privateNames);
   const ast=parse(file.code,'module');
-  // Move only immutable, primitive literal bindings into server-only source.
-  // Effectful initializers and shared mutable objects would violate the
-  // original module's client/server state and evaluation-order contracts.
+  // Admit primitive const values, approved environment reads, and inert
+  // function-expression const bindings into private source. Effectful
+  // initializers and mutable shared objects violate the split contract.
   /** @type {Set<string>} */
   const serverConstants=new Set();
   let serverEnvironmentUsed=false;
