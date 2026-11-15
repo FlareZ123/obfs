@@ -7,6 +7,9 @@
     "sims/jsdeobsbench-differential.js",
     "sims/destructuring-assignment-performance.js",
     "sims/external-function-source-contract.js",
+    "examples/sco-private/build-sample.cjs",
+    "examples/sco-private/server.cjs",
+    "test/sco-real-example.test.js",
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js"
   ],
