@@ -8,10 +8,11 @@ const {spawnSync} = require('node:child_process');
 const {obfuscateFiles} = require('../src');
 const {atomicWrite} = require('../src/atomic');
 
+/** @typedef {{path:string,code:string|Buffer}} ExecutableFile */
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 /** @typedef {{localProperties:number,crossProperties:number,totalProperties:number}} Coverage */
 
-/** @param {ModuleFile[]} files @returns {Promise<string>} */
+/** @param {ExecutableFile[]} files @returns {Promise<string>} */
 async function runNativeEsm(files) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'obfs-observer-coverage-'));
   try {
@@ -79,10 +80,10 @@ async function studySourceObserverCoverage(seed = 'source-observer-coverage') {
     ...independent, code:/** @type {string} */ (independentOnly.files[0].code)
   }, withObserver];
 
-  assert.equal(await runNativeEsm(/** @type {ModuleFile[]} */ (normal.files)),
+  assert.equal(await runNativeEsm(normal.files),
     await runNativeEsm(normalInput), 'Unobserved graph changed semantics');
   const reference = await runNativeEsm(observedInput);
-  assert.equal(await runNativeEsm(/** @type {ModuleFile[]} */ (observed.files)),
+  assert.equal(await runNativeEsm(observed.files),
     reference, 'Observed graph changed native function source');
   assert.equal(await runNativeEsm(isolatedInput), reference,
     'Fixture-specific isolated transform changed native output');
