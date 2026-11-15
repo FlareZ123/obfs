@@ -6,6 +6,7 @@ const {binaryWords}=require('../sims/sco-sync-search');
 const {makeGeneralMachine}=require('../sims/sco-sync-search-falsification');
 const {observationallySynchronizes}=require('../sims/sco-sync-diversified-report');
 const {observableStateClasses}=require('../sims/sco-mealy-refinement');
+const {makeVariableMachine}=require('../sims/sco-sync-state-size');
 
 test('independent partition refinement detects a pair requiring a depth-three input',()=>{
   // Smallest witness found in the seeded four-state family at seed 6.
@@ -57,4 +58,36 @@ test('independent partition refinement matches complete suffix evaluator across 
     }
   }
   assert.equal(evaluations,60000);
+});
+
+test('partition refinement agrees with full bounded traces for 6, 8, and 12 states',()=>{
+  for(const {states,cases} of [
+    {states:6,cases:64},{states:8,cases:64},{states:12,cases:8}
+  ]){
+    // A <=n-state deterministic binary Mealy machine can distinguish any
+    // inequivalent pair with some word of length at most n-1.
+    const suffixes=binaryWords(states-1);
+    for(let index=0;index<cases;index++){
+      const model=makeVariableMachine((0x6ca2de94+Math.imul(index,10309))>>>0,states);
+      const classes=observableStateClasses(model);
+      for(let left=0;left<states;left++)for(let right=left+1;right<states;right++){
+        const equivalent=classes[left]===classes[right];
+        let distinguished=false;
+        for(const suffix of suffixes){
+          let a=left,b=right;
+          for(const symbol of suffix){
+            if(model.output[a][symbol]!==model.output[b][symbol]){
+              distinguished=true;
+              break;
+            }
+            a=model.next[a][symbol];
+            b=model.next[b][symbol];
+          }
+          if(distinguished)break;
+        }
+        assert.equal(equivalent,!distinguished,
+          'states='+states+', seedIndex='+index+', pair='+left+','+right);
+      }
+    }
+  }
 });
