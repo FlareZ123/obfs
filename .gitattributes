@@ -9,3 +9,4 @@ examples/sco-graph/after/*.mjs text eol=lf
 examples/coo-native-shards/before/*.mjs text eol=lf
 examples/coo-native-shards/after/*.mjs text eol=lf
 examples/coo-native-shards/after-paired/*.mjs text eol=lf
+examples/primitive-coercer/*.cjs text eol=lf
