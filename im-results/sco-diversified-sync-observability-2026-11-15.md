@@ -69,6 +69,27 @@ The regression `test/sco-mealy-refinement.test.js` evaluates 15 candidate words 
 
 Both Node.js 22 Ubuntu and Windows checks, including the existing authenticated live SCO facade and strict JSDoc, were green in [run 43756117880](https://github.com/FlareZ123/obfs/actions/runs/43756117880), source SHA `5f8fc07de415310fabf36d0e77cf1ee3645cac6d`. This cross-validation verifies the *finite fixture evaluation*, not the absence of attack failures on untested models.
 
+## Hidden-state cardinality sweep: fixed attack, four to twelve states
+
+The same public-query search is applied without knowledge of the private state count to independently generated Mealy machines having 4, 6, 8 or 12 states. The attacker keeps the **same three-symbol candidate bound, three-symbol suffix tests, twelve scrambled probes and two prefix-free probes**. Offline classification uses the independent fixed-point partition refinement, which works for any finite state count. The variable-sized generator matches the original four-state fixture exactly when `states=4`.
+
+Run `node sims/sco-sync-state-size.js` for 250 machines per row and add `--stress` for 1,000 machines per row. The latter yields the following seeded 8,000-model experiment:
+
+| States | Seed base / stride | Proposed words | Physically synchronizing | Globally observable | Observable from initial state | Observable from post-search state | False post-search words | Public step calls |
+|---:|---|---:|---:|---:|---:|---:|---:|---:|
+| 4 | `0x9ab337e1` / 7919 | 760 | 296 | 390 | 621 | 760 | 0 | 996,129 |
+| 4 | `0xdeadbeef` / 21317 | 744 | 258 | 340 | 592 | 744 | 0 | 1,003,230 |
+| 6 | `0x9ab337e1` / 7919 | 505 | 106 | 125 | 324 | 499 | 6 | 964,464 |
+| 6 | `0xdeadbeef` / 21317 | 541 | 116 | 137 | 362 | 535 | 6 | 959,212 |
+| 8 | `0x9ab337e1` / 7919 | 321 | 46 | 52 | 171 | 312 | 9 | 798,170 |
+| 8 | `0xdeadbeef` / 21317 | 350 | 38 | 44 | 188 | 342 | 8 | 804,001 |
+| 12 | `0x9ab337e1` / 7919 | 156 | 5 | 5 | 52 | 153 | 3 | 529,521 |
+| 12 | `0xdeadbeef` / 21317 | 134 | 0 | 1 | 40 | 129 | 5 | 572,715 |
+
+At four states, 554 of 1,504 accepted words physically synchronize every state (36.835%). At twelve states, 5 of 290 accepted words do so (1.724%), with eight candidates additionally failing a post-discovery observable-continuation check. The generator distributions and fixed attack bound both materially influence this observation. This table **must not** be interpreted as a general theorem that increasing private state is a sufficient defense; adaptive attackers can extend suffixes, query schedules, and learned hypotheses. Even a successful server-side state-hiding design may be replicated by authorized online relay.
+
+The 250-model-per-row version passed Node.js 22 Ubuntu and Windows in [run 43757055165](https://github.com/FlareZ123/obfs/actions/runs/43757055165), exact SHA `655f0f6d1f5963016efca45e58a353c712d2c64a`. The 8,000-model extended run and 6-to-12-state independent partition regression are distinct follow-up checks; do not inherit that older pinned verdict without verifying their own run.
+
 ## Black-box impossibility witness
 
 The regression `unreachable private states make global physical synchronization undecidable` constructs two four-state machines with identical public step transcripts from their initial state 0. In the first, every state transitions to 0 on either input; any nonempty word physically synchronizes it. In the second, state 0 loops forever and the three other states form a closed 3-cycle on either input; no word can converge all four states. Both machines emit output 0 for every input from every state. Because the public initial state cannot leave 0, any adaptive black-box step-only attacker receives identical outputs under both models, regardless of query budget. The two global physical-sync answers differ. This is an exact indistinguishability argument for the stated public-access model, separate from the empirical 500-machine comparison.
