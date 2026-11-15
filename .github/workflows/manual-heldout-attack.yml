@@ -25,5 +25,7 @@ jobs:
         run: node --test test/heldout-object-flow-attack.test.js test/attacker-token-normalize.test.js
       - name: Emit attack and protection surface metrics
         run: node sims/heldout-object-flow-attack.js
+      - name: Compare checker compiler on same held-out ESM graphs
+        run: node sims/heldout-compiler-compare.js
       - name: Check JSDoc types
         run: npm run typecheck
