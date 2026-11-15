@@ -31,6 +31,10 @@ jobs:
         run: node sims/coo-native-shards-profile.js
       - name: Two-file ESM graph cold and hot cost
         run: node sims/coo-native-shards-profile.js --paired
+      - name: Whole-session paired two-file ESM cost curve
+        run: node sims/coo-native-shards-session.js
+      - name: Whole-session split three-file ESM cost curve
+        run: node sims/coo-native-shards-session.js --split
       - name: Real Chromium ESM graph with external host API
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
