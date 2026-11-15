@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const http=require('node:http');
+const vm=require('node:vm');
 
 /**
  * @typedef {'coo'|'sco'|'sno'} Mode
@@ -12,6 +13,16 @@ const http=require('node:http');
  *   createScoHandler:(files:File[])=>import('node:http').RequestListener
  * }} Compiler
  */
+
+/**
+ * @param {string} code
+ * @returns {unknown}
+ */
+function runCommonjs(code) {
+  const context={module:{exports:null}};
+  vm.runInNewContext(code,context,{timeout:1500});
+  return context.module.exports;
+}
 
 /** @param {string} root @returns {Compiler} */
 function loadCompiler(root) {
@@ -99,7 +110,11 @@ async function compare(previousRoot,currentRoot) {
     for(const asset of specimens) {
       const result=previous.obfuscateFiles([entry,asset],options);
       const published=result.files.find(file=>file.path===asset.path);
+      const executable=result.files.find(file=>file.path===entry.path);
       assert.ok(published);
+      assert.ok(executable);
+      assert.notEqual(String(executable.code),original,'baseline must have transformed the input');
+      assert.equal(runCommonjs(String(executable.code)),runCommonjs(original));
       assert.equal(extractOriginal(published.code),original);
       extracted++;
       assert.throws(()=>current.obfuscateFiles([entry,asset],options),
