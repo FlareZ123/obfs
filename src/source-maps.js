@@ -26,6 +26,32 @@ function isUntransformedSourceAsset(filename) {
 }
 
 /**
+ * Recognize a version-3 source map by its JSON structure even when the
+ * filename is disguised as .json, .txt or an arbitrary opaque asset. Only
+ * parse content with source-map field names to avoid decoding large images.
+ * Indexed source maps may reference nested maps by URL or map object.
+ * @param {string|Buffer} code
+ * @returns {boolean}
+ */
+function isSourceMapDocument(code) {
+  if(!code.includes('"version"') || !code.includes('"sources"') &&
+      !code.includes('"sections"') || !code.includes('"mappings"') &&
+      !code.includes('"sections"'))return false;
+  /** @type {unknown} */
+  let parsed;
+  try {parsed=JSON.parse(Buffer.isBuffer(code)?code.toString('utf8'):code);}
+  catch(error){return false;}
+  if(!parsed || typeof parsed!=='object' || Array.isArray(parsed))return false;
+  const map=/** @type {{version?:unknown,sources?:unknown,mappings?:unknown,sections?:unknown}} */ (parsed);
+  if(map.version!==3)return false;
+  if(Array.isArray(map.sources)&&typeof map.mappings==='string')return true;
+  if(Array.isArray(map.sections))return map.sections.every(section=>
+    Boolean(section && typeof section==='object' && !Array.isArray(section) &&
+      ('url' in section || 'map' in section)));
+  return false;
+}
+
+/**
  * Recognize both //# and /*# sourceMappingURL directives from real JavaScript
  * comments. Parsing avoids false positives in string/regex/template
  * literals containing the same spelling. All known source-map URL forms,
@@ -63,6 +89,9 @@ function assertNoSourceMapDisclosure(file) {
     if (isUntransformedSourceAsset(file.path)) {
       throw new TypeError('Untransformed source asset would disclose original code: ' + file.path);
     }
+    if (isSourceMapDocument(file.code)) {
+      throw new TypeError('Source-map JSON payload would disclose original source: ' + file.path);
+    }
     assertNoInlineHtmlSource(file.path,file.code);
     assertNoInlineSvgSource(file.path,file.code);
     return;
@@ -72,4 +101,4 @@ function assertNoSourceMapDisclosure(file) {
   }
 }
 
-module.exports = {isSourceMapAsset,isUntransformedSourceAsset,hasSourceMapDirective,assertNoSourceMapDisclosure};
+module.exports = {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective,assertNoSourceMapDisclosure};
