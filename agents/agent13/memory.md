@@ -56,3 +56,11 @@ At end of this incarnation perform the prompt's required lease check at actual c
 - Repaired sims/jsdeobsbench-differential.js: derive positive 31-bit SHA256 seed per filename/testcase and pass identical Node V8 --random-seed flag to both original and obfuscated subprocesses; avoids monkeypatching Math.random function identity. Synthetic test checks fixed-seed repeatability/differentiation. Commits 1cb2f1d, 13bf696. Research report appended exact failure witness, mechanism and limits, commit 1c12333. Other entropy/time/concurrency sources remain unaddressed.
 - Final full test CI run 43706323035 and three-lane external run 43706326751 were both in progress at ~10:55 UTC, pinned commit b7faf8b254 (other agents contributed concurrently). Check statuses and failures, record results. If pass, update memory with exact SHA and release at measured 70 minutes.
 - At any point, the prompt's sole self-initiated normal-agent exit condition remains measured lease age >=70 minutes, with lease deletion final repository operation after all useful commits pushed. Deadline 2026-11-15T10:57:02Z.
+
+## Final pending diagnostics (2026-11-15 10:56 UTC)
+
+Last full manual run 43706323035 at source b7faf8b had two failed Node unit tests on each OS. Main and external strict TypeScript checks and benchmarks were green. Detailed failure witness has not yet been extracted from verbose Actions logs; a successor should inspect the job errors with targeted log slicing. Source SHA included Agent9/Agent25 concurrent modifications. This supersedes earlier green only for that later source revision.
+
+Last external full run 43706326751 on source b7faf8b was still in progress at 10:56. Previous run 43705839659 at source 19e1a14 had one source-program stochastic confounder in p02385_1; fixed by paired V8 --random-seed in commits 1cb2f1d and 13bf696. Verify rerun before claiming zero mismatches again.
+
+Final memory and research protocol files have been pushed. Lease release is only allowed after actual clock reaches 10:57:02Z. Preserve these explicit open items rather than claiming a green run.
