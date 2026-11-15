@@ -1,0 +1,189 @@
+'use strict';
+
+const fs=require('node:fs/promises');
+const {createHash}=require('node:crypto');
+const {spawnSync}=require('node:child_process');
+
+/**
+ * @typedef {{filename:string,original:string,test_cases:unknown[]}} OriginalRow
+ * @typedef {OriginalRow & {obfuscated:string,obfs_source_sha256:string}} ObfuscatedRow
+ * @typedef {{sample:number,cases:number,timeoutMs:number,seed:string}} Options
+ */
+
+/**
+ * @param {string} file
+ * @returns {Promise<Record<string,unknown>[]>}
+ */
+async function readJsonl(file) {
+  const contents=await fs.readFile(file,'utf8');
+  return contents.split(/\r?\n/u).filter(line=>line.trim()).map(line=>{
+    const value=JSON.parse(line);
+    if(!value||typeof value!=='object'||Array.isArray(value)) {
+      throw new TypeError('Invalid JSONL object');
+    }
+    return /** @type {Record<string,unknown>} */ (value);
+  });
+}
+
+/**
+ * @param {string} source
+ * @param {string} input
+ * @param {number} timeoutMs
+ * @returns {{status:number|null,stdout:string,stderr:string,timeout:boolean,nanoseconds:number}}
+ */
+function runSource(source,input,timeoutMs) {
+  const before=process.hrtime.bigint();
+  const result=spawnSync(process.execPath,['-e',source],{
+    input,encoding:'utf8',timeout:timeoutMs,maxBuffer:1024*1024,
+    windowsHide:true
+  });
+  const elapsed=Number(process.hrtime.bigint()-before);
+  return {
+    status:result.status,
+    stdout:result.stdout??'',
+    stderr:result.stderr??'',
+    timeout:result.error?.code==='ETIMEDOUT',
+    nanoseconds:elapsed
+  };
+}
+
+/**
+ * @param {OriginalRow[]} rows
+ * @param {number} count
+ * @param {string} seed
+ * @returns {OriginalRow[]}
+ */
+function selectSample(rows,count,seed) {
+  return [...rows].sort((a,b)=>{
+    const key=filename=>createHash('sha256')
+      .update(seed).update('\0').update(filename).digest('hex');
+    return key(a.filename).localeCompare(key(b.filename));
+  }).slice(0,count===0?rows.length:count);
+}
+
+/**
+ * Execute differential tests for trusted, previously audited benchmark data.
+ * The intended CLI execution environment is a network-disabled, read-only
+ * Docker container with a CPU and memory limit, since dataset source code is
+ * third-party JavaScript. The script itself is not an OS sandbox.
+ *
+ * @param {string} originalFile
+ * @param {string} transformedFile
+ * @param {Options} options
+ * @returns {Promise<Record<string,unknown>>}
+ */
+async function compareCorpus(originalFile,transformedFile,options) {
+  const originals=await readJsonl(originalFile);
+  const transformed=await readJsonl(transformedFile);
+  /** @type {Map<string,ObfuscatedRow>} */
+  const byName=new Map();
+  for(const candidate of transformed) {
+    if(typeof candidate.filename!=='string'||typeof candidate.obfuscated!=='string'||
+        typeof candidate.obfs_source_sha256!=='string'||byName.has(candidate.filename)) {
+      throw new TypeError('Invalid or duplicate transformed benchmark identity');
+    }
+    byName.set(candidate.filename,/** @type {ObfuscatedRow} */ (/** @type {unknown} */ (candidate)));
+  }
+  /** @type {OriginalRow[]} */
+  const compatible=[];
+  for(const source of originals) {
+    if(typeof source.filename!=='string'||typeof source.original!=='string'||
+        !Array.isArray(source.test_cases))throw new TypeError('Malformed original item');
+    const match=byName.get(source.filename);
+    if(!match)continue;
+    const digest=createHash('sha256').update(source.original).digest('hex');
+    if(match.obfs_source_sha256!==digest)throw new Error('Source mismatch: '+source.filename);
+    compatible.push(/** @type {OriginalRow} */ (/** @type {unknown} */ (source)));
+  }
+  if(!compatible.length)throw new Error('No matching input and obfuscated items');
+  const selected=selectSample(compatible,options.sample,options.seed);
+  let total=0;
+  let baselinePass=0;
+  let baselineFailure=0;
+  let baselineExpectedDisagrees=0;
+  let transformedMatches=0;
+  let transformedMismatches=0;
+  let transformedErrors=0;
+  /** @type {number[]} */
+  const ratios=[];
+  /** @type {{file:string,caseIndex:number,kind:string}[]} */
+  const failures=[];
+  for(const item of selected) {
+    const candidate=byName.get(item.filename);
+    if(!candidate)throw new Error('Lost matched row');
+    for(let index=0;index<Math.min(options.cases,item.test_cases.length);index++) {
+      const pair=item.test_cases[index];
+      if(!Array.isArray(pair)||pair.length!==2||
+          typeof pair[0]!=='string'||typeof pair[1]!=='string') {
+        throw new TypeError('Invalid input/output test pair');
+      }
+      total++;
+      const original=runSource(item.original,pair[0],options.timeoutMs);
+      if(original.timeout||original.status!==0) {
+        baselineFailure++;
+        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error'});
+        continue;
+      }
+      baselinePass++;
+      if(original.stdout.trim()!==pair[1].trim())baselineExpectedDisagrees++;
+      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs);
+      if(output.timeout||output.status!==0) {
+        transformedErrors++;
+        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error'});
+      } else if(output.stdout!==original.stdout||output.stderr!==original.stderr) {
+        transformedMismatches++;
+        if(failures.length<30)failures.push({file:item.filename,caseIndex:index,kind:'differential-output'});
+      } else {
+        transformedMatches++;
+        ratios.push(output.nanoseconds/original.nanoseconds);
+      }
+    }
+  }
+  ratios.sort((a,b)=>a-b);
+  return {
+    samplePrograms:selected.length,sourcePrograms:originals.length,
+    transformedPrograms:transformed.length,totalCases:total,
+    baselinePass,baselineFailure,baselineExpectedDisagrees,
+    transformedMatches,transformedMismatches,transformedErrors,
+    processLevelWallRatioMedian:ratios.length?ratios[Math.floor(ratios.length/2)]:null,
+    timingScope:'whole Node process, includes spawn and V8 startup, not a hot-path 2.5x measurement',
+    failures
+  };
+}
+
+/** @param {string[]} args @returns {{originalFile:string,transformedFile:string,options:Options}} */
+function parseArgs(args) {
+  /** @type {Record<string,string>} */
+  const values={};
+  for(let i=0;i<args.length;i+=2) {
+    if(!['--original','--transformed','--sample','--cases','--timeout','--seed'].includes(args[i])||
+        args[i+1]===undefined||Object.hasOwn(values,args[i]))throw new TypeError('Invalid argument pairs');
+    values[args[i]]=args[i+1];
+  }
+  if(!values['--original']||!values['--transformed'])throw new TypeError('Missing benchmark JSONL paths');
+  const options={
+    sample:Number(values['--sample']??50),
+    cases:Number(values['--cases']??2),
+    timeoutMs:Number(values['--timeout']??3000),
+    seed:values['--seed']??'obfs-evaluation-v1'
+  };
+  if(!Number.isSafeInteger(options.sample)||options.sample<0||
+      !Number.isSafeInteger(options.cases)||options.cases<1||
+      !Number.isSafeInteger(options.timeoutMs)||options.timeoutMs<100) {
+    throw new TypeError('Invalid numeric evaluation parameter');
+  }
+  return {originalFile:values['--original'],transformedFile:values['--transformed'],options};
+}
+
+if(require.main===module) {
+  const {originalFile,transformedFile,options}=parseArgs(process.argv.slice(2));
+  compareCorpus(originalFile,transformedFile,options).then(result=>{
+    process.stdout.write(JSON.stringify(result,null,2)+'\n');
+    if(result.baselineFailure||result.transformedMismatches||result.transformedErrors)process.exitCode=1;
+  }).catch(error=>{
+    process.stderr.write(String(error?.stack??error)+'\n');
+    process.exitCode=1;
+  });
+}
+
+module.exports={runSource,selectSample,compareCorpus,parseArgs};
