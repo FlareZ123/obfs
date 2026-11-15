@@ -14,7 +14,8 @@
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js",
     "workplace/mba-i32-lower.js",
-    "sims/mba-i32-profile.js"
+    "sims/mba-i32-profile.js",
+    "sims/mba-static-normalize.js"
   ],
   "exclude": [
     "node_modules"

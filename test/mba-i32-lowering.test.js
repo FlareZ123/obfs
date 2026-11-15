@@ -111,6 +111,15 @@ test('non-Int32 arguments are explicitly outside the correctness contract',()=>{
   assert.ok(witness,'A string-coercion counterexample must remain visible to release gates');
 });
 
+test('seeded MBA output is invariant to source CRLF versus LF layout',()=>{
+  const source='function compute(x,y) {\n  return (((x^y)+(x&127))|0);\n}\nmodule.exports=compute;\n';
+  const options={sourceType:'commonjs',seed:'line-ending-stability',names:['compute'],maxRewrites:2};
+  const lf=mixInt32Functions(source,/** @type {any} */ (options));
+  const crlf=mixInt32Functions(source.replace(/\n/g,'\r\n'),/** @type {any} */ (options));
+  assert.ok(lf.rewrites>0);
+  assert.equal(lf.code,crlf.code.replace(/\r\n/g,'\n'));
+});
+
 test('invalid configuration is rejected',()=>{
   const source='function f(x,y){return x^y;}';
   for(const options of [null,{}, {seed:'',names:['f']},{seed:'ok',names:'f'},

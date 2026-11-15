@@ -77,9 +77,10 @@ test('checked-in SCO before/after sample equals real compiler output and execute
   }finally{
     globalThis.fetch=nativeFetch;
     if(hosted) {
+      const server=hosted.server;
       /** @type {Promise<void>} */
       const closed=new Promise((resolve,reject)=>
-        hosted.server.close(error=>error?reject(error):resolve()));
+        server.close(error=>error?reject(error):resolve()));
       await closed;
     }
     await fs.rm(tempDirectory,{recursive:true,force:true});
