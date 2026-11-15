@@ -1,6 +1,10 @@
 'use strict';
 
 const fs=require('node:fs/promises');
+const fsSync=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {atomicWrite}=require('../src/atomic');
 const {createHash}=require('node:crypto');
 const {spawnSync}=require('node:child_process');
 
@@ -29,22 +33,30 @@ async function readJsonl(file) {
  * @param {string} source
  * @param {string} input
  * @param {number} timeoutMs
+ * @param {string} [stdinFile] If supplied, attach a regular-file stdin for programs that reopen /dev/stdin.
  * @returns {{status:number|null,stdout:string,stderr:string,timeout:boolean,nanoseconds:number}}
  */
-function runSource(source,input,timeoutMs) {
-  const before=process.hrtime.bigint();
-  const result=spawnSync(process.execPath,['-e',source],{
-    input,encoding:'utf8',timeout:timeoutMs,maxBuffer:1024*1024,
-    windowsHide:true
-  });
-  const elapsed=Number(process.hrtime.bigint()-before);
-  return {
-    status:result.status,
-    stdout:result.stdout??'',
-    stderr:result.stderr??'',
-    timeout:result.error?.code==='ETIMEDOUT',
-    nanoseconds:elapsed
-  };
+function runSource(source,input,timeoutMs,stdinFile) {
+  /** @type {number|undefined} */
+  let inputDescriptor;
+  try {
+    if(stdinFile!==undefined)inputDescriptor=fsSync.openSync(stdinFile,'r');
+    const before=process.hrtime.bigint();
+    const result=spawnSync(process.execPath,['-e',source],{
+      ...(inputDescriptor===undefined ? {input}:{stdio:[inputDescriptor,'pipe','pipe']}),
+      encoding:'utf8',timeout:timeoutMs,maxBuffer:1024*1024,windowsHide:true
+    });
+    const elapsed=Number(process.hrtime.bigint()-before);
+    return {
+      status:result.status,
+      stdout:result.stdout??'',
+      stderr:result.stderr??'',
+      timeout:result.error?.code==='ETIMEDOUT',
+      nanoseconds:elapsed
+    };
+  } finally {
+    if(inputDescriptor!==undefined)fsSync.closeSync(inputDescriptor);
+  }
 }
 
 /**
@@ -108,6 +120,13 @@ async function compareCorpus(originalFile,transformedFile,options) {
   const ratios=[];
   /** @type {{file:string,caseIndex:number,kind:string,detail?:string}[]} */
   const failures=[];
+  // A pipe passed as a child process's stdin cannot be reopened through
+  // /dev/stdin on Linux: open('/proc/self/fd/0') may return ENXIO. Benchmark
+  // fixtures often rely on this exact path, so supply a regular read-only
+  // descriptor backed by a bounded temporary filesystem.
+  const tempRoot=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bench-'));
+  const stdinFile=path.join(tempRoot,'stdin.txt');
+  try {
   for(const item of selected) {
     const candidate=byName.get(item.filename);
     if(!candidate)throw new Error('Lost matched row');
@@ -118,7 +137,8 @@ async function compareCorpus(originalFile,transformedFile,options) {
         throw new TypeError('Invalid input/output test pair');
       }
       total++;
-      const original=runSource(item.original,pair[0],options.timeoutMs);
+      await atomicWrite(stdinFile,pair[0]);
+      const original=runSource(item.original,pair[0],options.timeoutMs,stdinFile);
       if(original.timeout||original.status!==0) {
         baselineFailure++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error',
@@ -127,7 +147,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
       }
       baselinePass++;
       if(original.stdout.trim()!==pair[1].trim())baselineExpectedDisagrees++;
-      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs);
+      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs,stdinFile);
       if(output.timeout||output.status!==0) {
         transformedErrors++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error',
@@ -141,6 +161,9 @@ async function compareCorpus(originalFile,transformedFile,options) {
         ratios.push(output.nanoseconds/original.nanoseconds);
       }
     }
+  }
+  } finally {
+    await fs.rm(tempRoot,{recursive:true,force:true});
   }
   ratios.sort((a,b)=>a-b);
   return {
