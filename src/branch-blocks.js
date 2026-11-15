@@ -19,13 +19,21 @@ const OPERATORS=new Set(['+','-','*','^','&','|','<<','>>','>>>','%']);
  * @returns {Steps|null}
  */
 function compileSteps(expression,parameter) {
-  if(expression.type==='Identifier'&&expression.name===parameter)return [];
-  if(expression.type!=='BinaryExpression'||!OPERATORS.has(expression.operator))return null;
-  const rhs=expression.right;
-  if(rhs.type!=='Literal'||typeof rhs.value!=='number'||
-      !Number.isInteger(rhs.value)||rhs.value<0||rhs.value>255)return null;
-  const earlier=compileSteps(expression.left,parameter);
-  return earlier===null?null:[...earlier,{operator:expression.operator,immediate:rhs.value}];
+  /** @type {Steps} */
+  const backwards=[];
+  let node=expression;
+  // Walk rather than recurse through the left spine. A valid but very deep
+  // expression must decline predictably before compiler stack exhaustion.
+  while(node.type==='BinaryExpression') {
+    if(!OPERATORS.has(node.operator)||backwards.length>=32)return null;
+    const rhs=node.right;
+    if(rhs.type!=='Literal'||typeof rhs.value!=='number'||
+       !Number.isInteger(rhs.value)||rhs.value<0||rhs.value>255)return null;
+    backwards.push({operator:node.operator,immediate:rhs.value});
+    node=node.left;
+  }
+  if(node.type!=='Identifier'||node.name!==parameter)return null;
+  return backwards.reverse();
 }
 
 /**
