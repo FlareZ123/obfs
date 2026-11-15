@@ -215,7 +215,9 @@ function createScoHandler(sourceFiles,options={}) {
         const output=/** @type {string} */ (result.files[0].code);
         const varied=varyLiteralSpellings(output,confirmedFile.sourceType,nonce);
         response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
-        response.end(varied+'\n/* variant:'+nonce+' */');
+        // The per-request seed is private server state. Publishing it would
+        // let source-only adversaries verify candidate hashed names offline.
+        response.end(varied);
       } catch (error) {
         response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
         response.end('Obfuscation failed');
