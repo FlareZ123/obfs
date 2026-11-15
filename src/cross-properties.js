@@ -308,9 +308,11 @@ function renameCrossFileProperties(files,seed) {
               const exportedReader=readerAliases.get(node.name);
               const readInfo=exportedReader ? readers.get(exportedReader) : null;
               const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
+              const provenInput=Boolean(input &&
+                (input.type==='Identifier' && readerProof?.aliases.has(input.name) ||
+                 input.type==='CallExpression' && readerProof?.forwardedCalls.has(input)));
               if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
-                  node===parent.callee && input?.type==='Identifier' &&
-                  readerProof?.aliases.has(input.name)) {
+                  node===parent.callee && provenInput) {
                 if(exportedReader)usedReaders.add(exportedReader);
               } else unsafeReaderUse=true;
             });
