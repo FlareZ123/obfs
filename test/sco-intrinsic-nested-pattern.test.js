@@ -32,8 +32,8 @@ test('SCO refuses nested/defaulted intrinsic destructuring with actual cross-rea
       writer:"const root=globalThis;const {'JSON':{stringify:encoder}}=root;encoder.__obfsNestedCanary=41;",
       reader:'JSON.stringify.__obfsNestedCanary??0'
     },{
-      writer:"const {'RegExp':{prototype:rxProto}}=globalThis;rxProto.__obfsNestedCanary=41;",
-      reader:'RegExp.prototype.__obfsNestedCanary??0'
+      writer:"const {'Number':{isFinite:check}}=globalThis;check.__obfsNestedCanary=41;",
+      reader:'Number.isFinite.__obfsNestedCanary??0'
     }
   ];
   for(const {writer,reader} of cases){
