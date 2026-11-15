@@ -20,12 +20,20 @@ async function build(){
   assert.equal(generated.blocks,5);
   const target=path.join(ROOT,'after','gate.cjs');
   await atomicWrite(target,generated.code);
+  const masked=flattenBranchBlocks(original,'commonjs',{
+    seed:SEED,names:['gate'],stateBlinding:true
+  });
+  assert.equal(masked.functions,1);
+  assert.equal(masked.blocks,5);
+  await atomicWrite(path.join(ROOT,'after','gate-masked.cjs'),masked.code);
   return generated.code;
 }
 
 if(require.main===module) {
-  build().then(code=>{
+  build().then(async code=>{
     process.stdout.write('BEGIN_GENERATED_BRANCH_BLOCKS\n'+code+'\nEND_GENERATED_BRANCH_BLOCKS\n');
+    const masked=await fs.readFile(path.join(ROOT,'after','gate-masked.cjs'),'utf8');
+    process.stdout.write('BEGIN_GENERATED_MASKED_BRANCH_BLOCKS\n'+masked+'\nEND_GENERATED_MASKED_BRANCH_BLOCKS\n');
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 
