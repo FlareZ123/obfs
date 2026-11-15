@@ -4,6 +4,7 @@ const {randomBytes,createHash} = require('node:crypto');
 const {parse,walk,applyEdits,observesFunctionSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
+const {getScoBatchCalls} = require('./rpc-batch');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 /**
@@ -84,9 +85,27 @@ async function handleRpc(request,response,options) {
     }
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
-    if (options.authorizeOperation && !await options.authorizeOperation(request,query.method,query.args)) {
-      respondJson(response,403,{ok:false,error:'Forbidden'});
-      return;
+    if (options.authorizeOperation) {
+      if (!await options.authorizeOperation(request,query.method,query.args)) {
+        respondJson(response,403,{ok:false,error:'Forbidden'});
+        return;
+      }
+      // A permitted batch route is not blanket permission for its individual
+      // operations. Check every registered inner method before the batch
+      // executes, including later items after an otherwise permitted item.
+      const batchCalls=getScoBatchCalls(task,query.args);
+      if (batchCalls) {
+        for (const call of batchCalls) {
+          // The batch helper independently rejects malformed calls before
+          // execution. Only valid item shapes can reach policy evaluation.
+          if (!call || typeof call!=='object' ||
+              typeof call.method!=='string' || !Array.isArray(call.args)) continue;
+          if (!await options.authorizeOperation(request,call.method,call.args)) {
+            respondJson(response,403,{ok:false,error:'Forbidden'});
+            return;
+          }
+        }
+      }
     }
     const result=await task(...query.args);
     respondJson(response,200,{ok:true,value:result});
