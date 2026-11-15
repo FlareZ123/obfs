@@ -120,3 +120,48 @@ test('mixed-workload performance is observed without asserting a universal bound
   console.log('Expression VM, 1/512 call density median ratio '+ratio.toFixed(3)+'x');
   assert.ok(Number.isFinite(ratio)&&ratio>0);
 });
+
+test('COO and SNO CLIs emit real, executable VM-protected entries',async()=>{
+  const fs=require('node:fs/promises');
+  const os=require('node:os');
+  const path=require('node:path');
+  const {spawnSync}=require('node:child_process');
+  const {atomicWrite}=require('../src/atomic');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-expression-vm-e2e-'));
+  /** @param {string} executable @param {string[]} argv @returns {string} */
+  const run=(executable,argv)=>{
+    const child=spawnSync(process.execPath,[executable,...argv],{encoding:'utf8'});
+    assert.equal(child.status,0,String(child.stderr));
+    return child.stdout.trim();
+  };
+  try {
+    const cooIn=path.join(root,'coo-input'),cooOut=path.join(root,'coo-output');
+    const snoIn=path.join(root,'sno-input'),snoOut=path.join(root,'sno-output');
+    await fs.mkdir(cooIn);
+    await fs.mkdir(snoIn);
+    await atomicWrite(path.join(cooIn,'worker.mjs'),
+      'export function mix(x){return ((x+7)*(x-5))^((x+3)&255);}\n');
+    await atomicWrite(path.join(cooIn,'index.mjs'),
+      'import {mix} from "./worker.mjs";console.log(mix(11));\n');
+    run(path.join(__dirname,'../bin/coo.js'),[
+      '--root',cooIn,'--entry','index.mjs','--out',cooOut,
+      '--seed','expression-vm-cli-coo','--expression-vm','worker.mjs:mix'
+    ]);
+    assert.match(await fs.readFile(path.join(cooOut,'worker.mjs'),'utf8'),/_egvm_/u);
+    assert.equal(run(path.join(cooOut,'index.mjs'),[]),String(((11+7)*(11-5))^((11+3)&255)));
+
+    await atomicWrite(path.join(snoIn,'index.cjs'),
+      'function mix(x){return ((x+7)*(x-5))^((x+3)&255);}\nmodule.exports=mix(11);\n');
+    run(path.join(__dirname,'../bin/sno.js'),[
+      '--root',snoIn,'--entry','index.cjs','--out',snoOut,
+      '--seed','expression-vm-cli-sno','--expression-vm','index.cjs:mix'
+    ]);
+    assert.match(await fs.readFile(path.join(snoOut,'index.cjs'),'utf8'),/_egvm_/u);
+    const expression='console.log(require('+JSON.stringify(path.join(snoOut,'sno-entry.cjs'))+'))';
+    const result=spawnSync(process.execPath,['-e',expression],{encoding:'utf8'});
+    assert.equal(result.status,0,String(result.stderr));
+    assert.equal(result.stdout.trim(),String(((11+7)*(11-5))^((11+3)&255)));
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
