@@ -211,19 +211,22 @@ async function scenario(index) {
     const privateFile = path.join(directory,'private','implementation.mjs');
     await atomicWrite(privateFile, source);
     const privateModule = await import(pathToFileURL(privateFile).href);
-    server = http.createServer(createScoHandler([partition.clientFile], {
+    const activeServer = http.createServer(createScoHandler([partition.clientFile], {
       remoteMethods:bindScoModuleExports(partition,privateModule),
       authorizeRpc:request=>request.headers.cookie==='session=legitimate',
       authorizeOperation:(request,method,args)=>request.headers.cookie==='session=legitimate' &&
         (method===partition.methodNames.reset && args.length===0 ||
          method===partition.methodNames.step && args.length===1 &&
-         Number.isInteger(args[0]) && args[0]>=0 && args[0]<2)
+         typeof args[0]==='number' && Number.isInteger(args[0]) && args[0]>=0 && args[0]<2)
     }));
-    await new Promise((resolve,reject)=>{
-      server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+    server=activeServer;
+    /** @type {Promise<void>} */
+    const ready=new Promise((resolve,reject)=>{
+      activeServer.once('error',reject);
+      activeServer.listen(0,'127.0.0.1',()=>resolve());
     });
-    const address = server.address();
+    await ready;
+    const address = activeServer.address();
     assert.ok(address && typeof address==='object');
     const origin = 'http://127.0.0.1:' + address.port;
     const response = await nativeFetch(origin+'/obfs/client.mjs');
@@ -265,7 +268,12 @@ async function scenario(index) {
       unauthorizedStatus:unauthenticated.status,elapsedMs:learned.elapsedMs};
   } finally {
     globalThis.fetch=nativeFetch;
-    if (server) await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    if (server) {
+      const activeServer=server;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>activeServer.close(error=>error?reject(error):resolve()));
+      await closed;
+    }
     await fs.rm(directory,{recursive:true,force:true});
   }
 }
