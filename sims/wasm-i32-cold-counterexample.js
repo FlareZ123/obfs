@@ -16,7 +16,7 @@ function median(samples) {
  * Measure one initialized module followed by N calls. JS parsing is
  * deliberately outside the measurement, isolating the runtime startup
  * penalty and hot-path work under the same compiled JavaScript wrappers.
- * @param {(module:{exports:unknown},globalThis:typeof globalThis)=>void} initializer
+ * @param {(module:{exports:unknown},runtime:typeof globalThis)=>void} initializer
  * @param {number} count
  * @returns {{ms:number,checksum:number}}
  */
@@ -43,9 +43,9 @@ function experiment() {
     seed:'wasm-i32-cold-curve-2026-11-15',names:['f']
   });
   assert.equal(lowered.functions,1);
-  const native=/** @type {(module:{exports:unknown},globalThis:typeof globalThis)=>void} */(
+  const native=/** @type {(module:{exports:unknown},runtime:typeof globalThis)=>void} */(
     new Function('module','globalThis',source));
-  const protectedInit=/** @type {(module:{exports:unknown},globalThis:typeof globalThis)=>void} */(
+  const protectedInit=/** @type {(module:{exports:unknown},runtime:typeof globalThis)=>void} */(
     new Function('module','globalThis',lowered.code));
   /** @type {Observation[]} */
   const observations=[];
@@ -58,6 +58,7 @@ function experiment() {
     /** @type {number[]} */
     const obfuscated=[];
     for(let trial=0;trial<101;trial++) {
+      /** @type {[typeof native,number[]][]} */
       const order=trial%2===0?[[native,original],[protectedInit,obfuscated]]:
         [[protectedInit,obfuscated],[native,original]];
       for(const [fn,samples] of order) {
