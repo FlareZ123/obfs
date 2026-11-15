@@ -49,6 +49,18 @@ async function main(){
   const bad=obfuscateFiles([{
     path:'blocked.js',sourceType:'script',code:'document.getElementById("answer").textContent="unauthorized";'
   }],{mode:'coo',seed:'chrome-blocked',allowedHosts:['forbidden.example']}).files[0].code;
+  // An instrumented browser can intercept eager string decoding before the
+  // client script initializes, even when its dormant function never executes.
+  const traceCanary='browser-dormant-plaintext-canary';
+  const traceOutput=obfuscateFiles([{
+    path:'trace.js',sourceType:'script',
+    code:'function dormant(){return '+JSON.stringify(traceCanary)+';}'+
+      'globalThis.__obfsTraceResult=37;'
+  }],{mode:'coo',seed:'chrome-runtime-extraction',strings:true,
+    properties:false,identifiers:false}).files[0];
+  assert.ok(traceOutput.metrics.literals>0);
+  assert.equal(typeof traceOutput.code,'string');
+  assert.ok(!/** @type {string} */ (traceOutput.code).includes(traceCanary));
   // Exercise server-resident SCO computation from a real Chromium module.
   // The remote module contains no protected method body. Browser cookies are
   // passed automatically to same-origin fetch with credentials:'same-origin'.
@@ -68,6 +80,14 @@ async function main(){
   const content=new Map([...moduleSet.files,...namedJsSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
+  content.set('/trace.js',traceOutput.code);
+  content.set('/trace.html','<!doctype html><html><body><span id="answer">initial</span>'+ 
+    '<script>globalThis.__capture=[];const original=String.fromCharCode;'+
+    'String.fromCharCode=function(...values){const part=Reflect.apply(original,String,values);'+
+    '__capture.push(part);return part;};</script>'+ 
+    '<script src="/trace.js"></script>'+ 
+    '<script>document.getElementById("answer").textContent='+
+    'String(globalThis.__obfsTraceResult)+":"+__capture.join("");</script></body></html>');
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
@@ -92,6 +112,7 @@ async function main(){
     for(const [path,result] of [
       ['/module.html','41'],['/js-module.html','23'],['/cycle.html','browser-cycle-ok'],
       ['/good.html','permitted'],['/blocked.html','initial'],
+      ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
     ]){
       const html=await dumpDom(chromium,base+path);
