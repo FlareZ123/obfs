@@ -60,6 +60,28 @@ passed on Ubuntu and Windows. The new selective SCO and RPC authorization
 focused suites also passed including strict JSDoc, demonstrating the full
 validation failures are not reproduced by those narrower test selections.
 
+
+### Narrow proof-veto hypothesis
+
+Inspection of \`src/properties.js\` identifies an explicit safety veto in
+\`proveLocalObject\` for a tracked member nested in a \`CallExpression\`
+callee chain. It preserves observable native TypeError source spelling
+(for example, an error identifying \`owner.key\` as a failed callee).
+The failing fixtures commonly invoke an array member after reading a
+candidate renamed key:
+
+- \`a.numbers.flat(Infinity).reduce(...)\` in the local array case;
+- \`state.numbers.reduce(...)\` in the ESM array case;
+- \`[state.p787915,state.anotherField].join(",")\` in cross-file collision;
+- \`current.sideField3.join(":")\` in the identity-grid case at index 3.
+
+This is a **plausible common admission veto**, not yet an instrumented
+proof that each case declined at exactly that branch. Reopening the gate
+without first proving exception text and method interception invariants
+could reintroduce observable behavior changes. Consider an explicit
+nonthrowing method-call proof or preserving original error text rather
+than skipping this guard wholesale.
+
 ## Interpretation and next actions
 
 The four property-analysis failures are **coverage assertions**: the current
