@@ -78,6 +78,45 @@ test('explicit public helpers stay native while private helpers and constants re
   }
 });
 
+test('explicit async public helpers preserve awaited local work and private async RPC',async()=>{
+  const source=[
+    'const PRIVATE_KEY="SERVER_ONLY_ASYNC_KEY";',
+    'const privateWrap=async value=>value.length+PRIVATE_KEY.length;',
+    'async function visibleNormalize(value){return String(value).trim().toLowerCase();}',
+    'const visibleLen=async value=>value.length;',
+    'export async function secret(value){return await privateWrap(value);}',
+    'export async function combined(value){',
+    '  const normalized=await visibleNormalize(value);',
+    '  return (await visibleLen(normalized))+":"+(await secret(normalized));',
+    '}'
+  ].join('\n');
+  const selected=partitionScoSelectedAsyncExports({path:'mixed.mjs',code:source},{
+    seed:'sco-async-public-helpers',privateNames:['secret'],
+    publicHelperNames:['visibleNormalize','visibleLen']
+  });
+  assert.doesNotMatch(selected.clientFile.code,/SERVER_ONLY_ASYNC_KEY|PRIVATE_KEY|privateWrap/u);
+  assert.match(selected.clientFile.code,/async function visibleNormalize/u);
+  assert.match(selected.clientFile.code,/const visibleLen=async/u);
+  const original=await import('data:text/javascript,'+encodeURIComponent(source));
+  const methods=bindScoModuleExports(selected,original);
+  const fetch0=globalThis.fetch;
+  try{
+    globalThis.fetch=async(_url,options)=>{
+      const request=JSON.parse(/** @type {string} */ (options.body));
+      const value=await methods[request.method](...request.args);
+      return /** @type {Response} */ (/** @type {unknown} */ ({
+        ok:true,json:async()=>({ok:true,value})
+      }));
+    };
+    const client=await import('data:text/javascript,'+encodeURIComponent(selected.clientFile.code));
+    for(const value of [' Alpha ','Ω  ','','mixed']){
+      assert.equal(await client.combined(value),await original.combined(value));
+    }
+  }finally{
+    globalThis.fetch=fetch0;
+  }
+});
+
 test('explicit public helper graph rejects unknown and duplicate selections',()=>{
   assert.throws(()=>partition(SOURCE,['missing']),/Unknown selective SCO public helper/u);
   assert.throws(()=>partition(SOURCE,['formatCount','formatCount']),/distinct privateNames/u);
