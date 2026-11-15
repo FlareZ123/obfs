@@ -8,7 +8,7 @@ const {renameCrossFileProperties}=require('../src/cross-properties');
 const files=[
   {path:'state.mjs',sourceType:'module',code:'const key="secretField";export const bag={secretField:8};console.log("state",bag[key]);'},
   {path:'identity.mjs',sourceType:'module',code:'export const identity=x=>x;'},
-  {path:'main.mjs',sourceType:'module',code:'import {bag} from "./state.mjs";import {identity} from "./identity.mjs";console.log("main",identity(bag).secretField);'}
+  {path:'main.mjs',sourceType:'module',code:'import {bag} from "./state.mjs";import {identity} from "./identity.mjs";const x=identity(bag);console.log("main",x.secretField);'}
 ];
 
 /** @param {string} label @param {string} code @param {string} root @param {Map<string,number>} imports */
