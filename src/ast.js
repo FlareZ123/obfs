@@ -89,7 +89,13 @@ function observesFunctionSource(ast) {
       if(name==='toString'||name==='toSource') observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
-        node.callee.name==='String') observed=true;
+        node.callee.name==='String') {
+      const argument=node.arguments[0];
+      // A literal string/number/regex is never a function whose source is
+      // exposed through coercion. Keep these common primitives eligible.
+      if(argument && argument.type!=='Literal' &&
+          !(argument.type==='TemplateLiteral' && argument.expressions.length===0)) observed=true;
+    }
   });
   return observed;
 }
