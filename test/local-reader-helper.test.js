@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const {obfuscateFiles}=require('../src');
+const {neutralizeHashedNames}=require('../sims/offline-normalize');
 const {buildSample}=require('../examples/local-reader/build-sample.cjs');
 
 /** @param {string} source @returns {string} */
@@ -100,6 +101,22 @@ test('reader return value remains a scalar rather than an owner alias',()=>{
   ],{mode:'coo',seed:'reader-result-not-alias',strings:false,identifiers:false});
   assert.equal(output.files[0].metrics.objects,1);
   assert.equal(execute(/** @type {string} */ (output.files[0].code)),execute(source));
+});
+
+test('seedless source-only adversary neutralizes local reader property hashes',()=>{
+  const source='const root={secretField:7,otherField:5};'+
+    'const reader=x=>x.secretField;module.exports=[reader(root),root.otherField];';
+  const transformed=obfuscateFiles([
+    {path:'reader.cjs',sourceType:'commonjs',code:source}
+  ],{mode:'coo',seed:'unpublished-seed-probe',strings:false,identifiers:false});
+  const output=/** @type {string} */ (transformed.files[0].code);
+  assert.equal(transformed.files[0].metrics.properties,2);
+  const attack=neutralizeHashedNames([
+    {path:'reader.cjs',sourceType:'commonjs',code:output}
+  ]);
+  assert.equal(attack.properties,2);
+  assert.equal(execute(attack.files[0].code),execute(source));
+  assert.doesNotMatch(attack.files[0].code,/_p[0-9a-f]{10}/u);
 });
 
 test('checked-in local reader sample exactly matches emitted code',async()=>{
