@@ -53,14 +53,15 @@ function isServerEnvironmentRead(expression){
 function touchesRealmPrototype(body){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
-    'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView',
+    'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
     'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
     'Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array',
     'BigUint64Array']);
-  /** @param {import('./ast').AstNode} node */
-  function isIntrinsic(node){
-    return node.type==='Identifier'&&intrinsicNames.has(node.name);
-  }
+  const reflectorMethods=new Set(['getPrototypeOf','setPrototypeOf',
+    'getOwnPropertyDescriptor','getOwnPropertyDescriptors','getOwnPropertyNames',
+    'getOwnPropertySymbols','defineProperty','defineProperties','get','set',
+    'ownKeys']);
+  const globalNames=new Set(['globalThis','window','self','global']);
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function keyName(node){
     if(node.type==='MemberExpression'){
@@ -73,36 +74,56 @@ function touchesRealmPrototype(body){
     }
     return null;
   }
-  /** @param {import('./ast').AstNode} pattern @returns {boolean} */
-  function patternReadsPrototype(pattern){
+  // Track simple constructor and Reflect aliases across declarations. This
+  // overapproximates reassigned or shadowed bindings to preserve safe refusal.
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(body,node=>{
+      if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||!node.init||
+         intrinsicNames.has(node.id.name))return;
+      const direct=node.init.type==='Identifier'&&intrinsicNames.has(node.init.name);
+      const globalMember=node.init.type==='MemberExpression'&&
+        node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
+        intrinsicNames.has(keyName(node.init)??'');
+      if(direct||globalMember){
+        intrinsicNames.add(node.id.name);
+        changed=true;
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isIntrinsic(node){
+    return node.type==='Identifier'&&intrinsicNames.has(node.name);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isReflector(node){
+    return node.type==='Identifier'&&
+      (node.name==='Object'||node.name==='Reflect'||intrinsicNames.has(node.name)&&
+        // Aliases may refer to Object/Reflect. Refusing reflector methods on
+        // other constructor aliases is a safe overapproximation.
+        node.name!=='');
+  }
+  /** @param {import('./ast').AstNode} pattern @param {Set<string>} names @returns {boolean} */
+  function patternReads(pattern,names){
     return pattern.type==='ObjectPattern'&&pattern.properties.some(
       (/** @type {import('./ast').AstNode} */ property)=>
         property.type==='RestElement'||keyName(property)===null||
-        keyName(property)==='prototype'||keyName(property)==='__proto__');
+        names.has(keyName(property)??''));
   }
   let touched=false;
   walk(body,node=>{
     if(node.type==='MemberExpression'){
       const key=keyName(node);
       if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)touched=true;
-      if(node.object.type==='Identifier'&&
-         (node.object.name==='Object'||node.object.name==='Reflect')&&
-         (key==='getPrototypeOf'||key==='setPrototypeOf'))touched=true;
-    }
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       node.arguments.length>=2&&isIntrinsic(node.arguments[0])&&
-       node.callee.object.type==='Identifier'&&
-       (node.callee.object.name==='Object'||node.callee.object.name==='Reflect')){
-      const method=keyName(node.callee);
-      const member=staticString(node.arguments[1]);
-      if((method==='getOwnPropertyDescriptor'||method==='get'||
-          method==='set'||method==='defineProperty')&&
-         (member===null||member==='prototype'||member==='__proto__'))touched=true;
+      if(isReflector(node.object)&&reflectorMethods.has(key??''))touched=true;
     }
     if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
-       patternReadsPrototype(node.id))touched=true;
+       patternReads(node.id,new Set(['prototype','__proto__',
+         ...reflectorMethods])))touched=true;
     if(node.type==='AssignmentExpression'&&isIntrinsic(node.right)&&
-       patternReadsPrototype(node.left))touched=true;
+       patternReads(node.left,new Set(['prototype','__proto__',
+         ...reflectorMethods])))touched=true;
   });
   return touched;
 }
