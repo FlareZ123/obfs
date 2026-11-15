@@ -18,9 +18,10 @@ function compile(code) {
   return context.module.exports;
 }
 
-/** @param {string} label @param {string} code @returns {void} */
-function bench(label,code) {
+/** @param {string} label @param {string} code @param {number} [minProperties] @returns {void} */
+function bench(label,code,minProperties=0) {
   const output=obfuscateFiles([{path:'workload.cjs',code}],{mode:'sno',seed:'bench'}).files[0];
+  assert.ok(output.metrics.properties>=minProperties,`${label} did not transform the required properties`);
   const original=compile(code);
   const modified=compile(output.code);
   for(let i=0;i<15;i++) {
@@ -37,10 +38,10 @@ function bench(label,code) {
     transformed.push(performance.now()-after);
   }
   const left=median(baseline),right=median(transformed),ratio=right/left;
-  process.stdout.write(`${label}: baseline ${left.toFixed(2)}ms; obfuscated ${right.toFixed(2)}ms; ratio ${ratio.toFixed(3)}x\n`);
+  process.stdout.write(`${label}: baseline ${left.toFixed(2)}ms; obfuscated ${right.toFixed(2)}ms; ratio ${ratio.toFixed(3)}x; properties ${output.metrics.properties}; bindings ${output.metrics.bindings}; strings ${output.metrics.literals}\n`);
   if(ratio>2.5)process.exitCode=1;
 }
 
 bench('numeric arithmetic',`function run(n){let x=0;for(let i=0;i<n;i++)x+=(i*7)%13;return x;}module.exports=run;`);
-bench('hot object property',`const state={counter:0};function run(n){let x=0;for(let i=0;i<n;i++){x+=i&3;state.counter=x;}return state.counter;}module.exports=run;`);
-bench('hot string comparison',`const state={label:'label-long-constant'};function run(n){let x=0;for(let i=0;i<n;i++){if(state.label==='label-long-constant')x++;}return x;}module.exports=run;`);
+bench('hot object property',`const state={counter:0};function run(n){for(let i=0;i<n;i++){state.counter++;}return state.counter;}module.exports=run;`,1);
+bench('hot string comparison',`const state={label:'label-long-constant'};function run(n){let x=0;for(let i=0;i<n;i++){if(state.label==='label-long-constant')x++;}return x;}module.exports=run;`,1);
