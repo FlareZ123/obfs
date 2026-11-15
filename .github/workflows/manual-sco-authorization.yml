@@ -29,6 +29,11 @@ jobs:
         run: node sims/sco-const-granularity.js
       - name: Selective SCO private-source and authorized-relay challenge
         run: node sims/sco-selective-challenge.js
+      - name: Real Chromium SCO private-constant ESM and cookie-authenticated RPC
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-private-const-browser.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Strict JSDoc of external research scripts
