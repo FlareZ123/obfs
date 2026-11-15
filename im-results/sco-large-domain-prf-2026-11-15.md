@@ -40,6 +40,17 @@ The same protected HMAC experiment was extended with a controlled 25 ms **asynch
 
 Pinned amended source: `dbd53c59ac034c64ce462224e863104836550b72`. Green manual [CI #43700173996](https://github.com/FlareZ123/obfs/actions/runs/43700173996) on both Node.js 22 runners, including the original no-delay control and the new 25 ms simulated check. Differences in CPU-only baseline times relative to the first experiment reflect runner variability and do not alter the observed pattern. This is a direct measured example where batching is **required** to satisfy a 2.5× end-to-end wall-time budget for the same private business operation once moderate request latency is introduced. A real deployment must measure its own RTT/TLS and concurrency.
 
+### Approximate latency budget derived from the zero-delay controls
+
+If each of 12 serial requests adds a fixed delay `L` and all other costs stay constant, the 2.5× threshold is `(2.5 × nativeMedian - serialMedian) / 12`. A single batch pays the delay once, giving `2.5 × nativeMedian - batchMedian`. Applying this **linear model** to the zero-delay medians produces:
+
+| OS | Approximate maximum added per-request delay, 12 serial RPCs | Approximate maximum added single-request delay, 12-call batch |
+|---|---:|---:|
+| Ubuntu | **7.058 ms** | **94.188 ms** |
+| Windows | **5.977 ms** | **83.001 ms** |
+
+These are extrapolated engineering estimates, **not** hard guarantees. Async scheduling, concurrency, CPU turbo/JIT changes, RTT distribution and application work can violate a simple additive model. The directly measured 25 ms simulation above is the stronger evidence point.
+
 ## Five dimensions, independently evaluated
 
 1. **Static program reconstruction:** the private HMAC source and random secret key do not appear in public modules. Only server-retained source is protected, following the explicit SCO trust model.
