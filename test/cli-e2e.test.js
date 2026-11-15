@@ -89,6 +89,12 @@ test('SCO CLI serves distinct valid JavaScript bodies from its Node entrypoint',
     assert.equal(second.status,200);
     assert.notEqual(first.body,second.body);
     assert.match(first.body,/globalThis\.scoMessage/);
+    const vm=require('node:vm');
+    for(const response of [first,second]){
+      const sandbox={};
+      vm.runInNewContext(response.body,sandbox,{timeout:1000});
+      assert.equal(sandbox.scoMessage,'freshly-rendered-value');
+    }
   } finally {
     if(server){server.kill();await new Promise(resolve=>server.once('exit',resolve));}
     await fs.rm(root,{recursive:true,force:true});
