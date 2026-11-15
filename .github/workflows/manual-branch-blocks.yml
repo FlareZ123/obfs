@@ -1,0 +1,23 @@
+name: Manual branch superblock experiment
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  branch-blocks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Branch differential semantics
+        run: node --test test/branch-blocks.test.js
+      - name: JSDoc checker
+        run: npm run typecheck
