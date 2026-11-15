@@ -73,8 +73,9 @@ async function main() {
       });
       request.pipe(upstream);
     });
-    await new Promise(resolve=>tlsServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
-    const address=tlsServer.address();
+    const activeTlsServer=tlsServer;
+    await new Promise(resolve=>activeTlsServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const address=activeTlsServer.address();
     assert(address&&typeof address!=='string');
     const authorizedUrl=new URL('https://127.0.0.1:'+address.port+'/');
     authorizedUrl.username='demo';
@@ -98,10 +99,16 @@ async function main() {
       'Real Chromium must execute compiled HTTPS SCO facade and return native HMAC');
     process.stdout.write('Chromium HTTPS SCO ESM matched private reference; untrusted TLS control blocked\n');
   } finally {
-    if(tlsServer)await new Promise((resolve,reject)=>
-      tlsServer.close(error=>error?reject(error):resolve(undefined)));
-    if(hosted)await new Promise((resolve,reject)=>
-      hosted.server.close(error=>error?reject(error):resolve(undefined)));
+    if(tlsServer){
+      const activeTlsServer=tlsServer;
+      await new Promise((resolve,reject)=>
+        activeTlsServer.close(error=>error?reject(error):resolve(undefined)));
+    }
+    if(hosted){
+      const backendServer=hosted.server;
+      await new Promise((resolve,reject)=>
+        backendServer.close(error=>error?reject(error):resolve(undefined)));
+    }
     await fs.rm(directory,{recursive:true,force:true});
     if(originalKey===undefined)delete process.env.OBFS_SCO_DEMO_KEY;
     else process.env.OBFS_SCO_DEMO_KEY=originalKey;
