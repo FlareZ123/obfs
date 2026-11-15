@@ -42,7 +42,7 @@ test('SCO CLI refuses unsafe explicit publications and noncanonical imports',asy
     rejectsSco(root,['--asset','missing.json'],/SCO public asset not found/);
 
     await atomicWrite(path.join(root,'entry.mjs'),
-      'import "./%70rivate.mjs";');
+      'import "./a%2Fb.mjs";');
     rejectsSco(root,[],/SCO encoded import path unsupported/);
 
     await atomicWrite(path.join(root,'entry.mjs'),
