@@ -149,7 +149,8 @@ async function runComparison(count=250){
 }
 
 if(require.main===module){
-  runComparison().then(value=>console.log(JSON.stringify(value,null,2)))
+  runComparison(process.argv.includes('--stress')?1000:250)
+    .then(value=>console.log(JSON.stringify(value,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 
