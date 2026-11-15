@@ -144,7 +144,8 @@ function mixInt32Functions(source,options) {
       }
     });
     if(!candidates.length){declined++;continue;}
-    const digest=createHash('sha256').update(options.seed+'\0'+fn.id.name+'\0'+source).digest();
+    const canonicalSource=source.replace(/\r\n/g,'\n');
+    const digest=createHash('sha256').update(options.seed+'\0'+fn.id.name+'\0'+canonicalSource).digest();
     const ranked=candidates.map((candidate,index)=>({candidate,index,
       rank:createHash('sha256').update(digest).update(String(index)).digest('hex')}))
       .sort((a,b)=>a.rank.localeCompare(b.rank));
