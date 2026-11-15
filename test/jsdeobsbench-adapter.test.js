@@ -38,6 +38,7 @@ test('adapter refuses ambiguous modes and unsafe input options',()=>{
   assert.throws(()=>parseArgs(['--input','in','--output','out','--mode','sco']),/Only public/);
   assert.throws(()=>parseArgs(['--input','x','--output','y','--max','-1']),/nonnegative/);
   assert.throws(()=>parseArgs(['--input','x','--output','y','--strings','yes']),/strings/);
+  assert.throws(()=>parseArgs(['--input','x','--output','y','--source-type','module']),/source-type/);
   assert.throws(()=>parseArgs(['--input','x','--input','y','--output','z']),/unique/);
   assert.throws(()=>convertItem({filename:'missing-source',test_cases:[]},
     {mode:'coo',seed:'x',max:0},0),/requires/);
@@ -62,6 +63,16 @@ test('SNO benchmark emits directly executable source and retains exact IO',()=>{
   for(const [input,expected] of fixture.test_cases) {
     assert.equal(run(String(item.obfuscated),input),expected);
   }
+});
+
+test('explicit CommonJS grammar permits safely proven local-property rewriting',()=>{
+  const code='const owner={privateKey:41}; console.log(owner.privateKey);';
+  const sample={filename:'local-property',original:code,test_cases:[['','41\n']]};
+  const transformed=convertItem(sample,
+    {mode:'sno',seed:'fixed',max:0,sourceType:'commonjs'},0);
+  assert.equal(transformed.obfs_source_type,'commonjs');
+  assert.ok(transformed.obfs_metrics.properties>0);
+  assert.equal(run(String(transformed.obfuscated),''),'41\n');
 });
 
 test('JSONL generation is deterministic, bounded, atomic and rejects in-place writes',async()=>{
