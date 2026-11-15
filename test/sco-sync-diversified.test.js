@@ -83,6 +83,19 @@ test('diversified attack reduces false post-search observable resets in two inde
   }
 });
 
+test('independent heldout machine corpora preserve explicit false-candidate accounting',async()=>{
+  const result=await runComparison(250,true);
+  assert.equal(result.count,250);
+  assert.deepEqual(result.corpora.map(corpus=>corpus.seedBase),['0xdeadbeef','0x13579bdf']);
+  for(const corpus of result.corpora){
+    assert.equal(corpus.original.proposed,corpus.original.continuationObservable+corpus.original.falseContinuation);
+    assert.equal(corpus.diversified.proposed,corpus.diversified.continuationObservable+corpus.diversified.falseContinuation);
+    assert.ok(corpus.diversified.falseContinuation<corpus.original.falseContinuation);
+    assert.ok(corpus.diversified.continuationObservable>corpus.original.continuationObservable);
+    assert.ok(corpus.diversified.steps>corpus.original.steps);
+  }
+});
+
 test('real authenticated SCO step-only RPC supports diversified discovery and heldout recovery',async()=>{
   const result=await runDiscoveredDiversified(2);
   assert.equal(result.scenarios,2);
