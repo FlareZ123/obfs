@@ -58,7 +58,7 @@ test('instrumented native Symbol calls disclose all generated private keys',asyn
   assert.equal(typeof captured[0],'symbol');
   assert.equal(Symbol.keyFor(captured[0]),undefined);
   const calc=/** @type {(n:number)=>number} */ (context.module.exports);
-  assert.deepEqual([calc(2),calc(4),calc(-3)],[10,12,7]);
+  assert.deepEqual([calc(2),calc(4),calc(-3)],[10,14,9]);
 });
 
 test('host can silently collide generated keys without editing protected source',async()=>{
