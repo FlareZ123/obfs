@@ -57,7 +57,7 @@ function measure(script) {
 function run(workload) {
   const obfuscated=obfuscateFiles([
     {path:'cold.js',sourceType:'script',code:workload.source}
-  ],{mode:'coo',seed:'cold-start-benchmark',properties:false}).files[0];
+  ],{mode:'coo',seed:'cold-start-benchmark',properties:false,strings:true}).files[0];
   const originalScript=new Script(workload.source);
   const obfuscatedScript=new Script(String(obfuscated.code));
   // Alternate evaluation order between two complete sample groups.
@@ -82,7 +82,7 @@ function run(workload) {
 }
 
 const result={
-  purpose:'illustrative COO cold-start runtime, not a universal performance guarantee',
+  purpose:'illustrative opt-in eager COO string-encoder cold-start runtime, not a universal performance guarantee',
   node:process.version,platform:process.platform,arch:process.arch,
   excludes_js_compilation:true,
   samples:workloads().map(run)
