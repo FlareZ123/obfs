@@ -28,14 +28,14 @@ function median(samples){
  *  sessionRatio:number,thinWithinBudget:boolean,sessionWithinBudget:boolean}>}
  */
 async function runCost(){
-  const source=await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8');
+  const source=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const generated=partitionScoSelectedAsyncExports({
     path:'mixed.mjs',sourceType:'module',code:source
   },{
     seed:'sco-public-helpers-20261115-example',
     privateNames:['secret'],publicHelperNames:['normalizeInput','formatCount']
   });
-  const golden=await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8');
+  const golden=(await fs.readFile(path.join(ROOT,'after','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   assert.equal(generated.clientFile.code,golden);
   const original=await import(pathToFileURL(path.join(ROOT,'before','mixed.mjs')).href);
   const methods=bindScoModuleExports(generated,original);
