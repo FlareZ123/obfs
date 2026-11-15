@@ -128,3 +128,43 @@ test('String.apply observes function source spelling',()=>{
   assert.equal(result.metrics.literals,0);
   assert.equal(evaluate(result.code),evaluate(code));
 });
+
+test('string concatenation can inspect function source without explicit toString',()=>{
+  const code='const a={secretField:17};function show(){return a.secretField;}module.exports="preview:"+show;';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'implicit-source-addition',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.properties,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('template interpolation can inspect function source without explicit toString',()=>{
+  const code='const a={secretField:18};function show(){return a.secretField;}module.exports=`preview:${show}`;';
+  const result=obfuscateFiles([{path:'case.cjs',code}],{
+    mode:'sno',seed:'implicit-source-template',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(result.metrics.properties,0);
+  assert.equal(evaluate(result.code),evaluate(code));
+});
+
+test('string interpolation in another ESM module protects exported function body',async()=>{
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-template-observer-'));
+  /** @type {{path:string,sourceType:'module',code:string}[]} */
+  const files=[
+    {path:'util.mjs',sourceType:'module',code:'const a={secretField:19};export function inspect(){return a.secretField;}'},
+    {path:'entry.mjs',sourceType:'module',code:'import {inspect} from "./util.mjs";console.log(`source:${inspect}`);'}
+  ];
+  try {
+    /** @param {typeof files|ReturnType<typeof obfuscateFiles>['files']} sources */
+    async function execute(sources){
+      for(const file of sources)await atomicWrite(path.join(dir,file.path),file.code);
+      const child=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{encoding:'utf8'});
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    }
+    const expected=await execute(files);
+    const obfuscated=obfuscateFiles(files,{mode:'coo',seed:'template-cross-observer',closedWorld:true,strings:false,identifiers:false});
+    assert.equal(obfuscated.files[0].metrics.properties,0);
+    assert.equal(await execute(obfuscated.files),expected);
+  } finally {await fs.rm(dir,{recursive:true,force:true});}
+});
