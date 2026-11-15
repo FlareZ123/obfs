@@ -1,6 +1,6 @@
 # Wasm i32 ESM cycle compatibility regression and repair (2026-11-15)
 
-**Status:** reproducible local minimal witness; focused repository CI pending on commit. This is a compiler compatibility correction, not new reverse-engineering resistance.
+**Status:** verified on pinned Linux/Windows CI with real Chromium at [run 43744545574](https://github.com/FlareZ123/obfs/actions/runs/43744545574), source commit `fbe89c8e2dab1542ef7062c5b4b4acf6a881d1de`. This is a compiler compatibility correction, not new reverse-engineering resistance.
 
 ## Failure
 
@@ -17,3 +17,9 @@ For ESM, the emitter now uses `function _wi_(input) { _wi_ = new WebAssembly.Ins
 ## Performance and security qualification
 
 The first invocation now includes compilation in ESM, even if it occurs during dependency evaluation. Measure this as initialization under the project's COO budget and benchmark workloads with short lifetimes. No general 2.5x guarantee is claimed. The public Wasm bytes remain fully extractable and clonable; this change provides behavioral compatibility and preserves the existing attacker assumptions.
+
+## Pinned validation outcome
+
+The manual typed-Int32 Wasm workflow passed eight focused Node subtests, the additional source-only binary reconstruction suite, checked-in before/after regeneration, strict JSDoc checks on Ubuntu and Windows, and real Chromium COO ESM integration on Ubuntu. The selected hot-loop diagnostics reported ratios of 1.709x Ubuntu, 2.388x Windows, and 1.286x Chromium; these numbers come from different workloads and environments and cannot be combined into an application-wide guarantee. The separate cold-to-hot curve in `im-results/wasm-i32-pipeline-2026-11-15.md` demonstrates 2.5x failures for short module lifetimes.
+
+The first pinned attempts failed because an independently introduced conservative static-import refusal guard prevented the targeted cycle from being compiled, then because a stale regression still expected refusal after replacing that guard. The final successful snapshot includes the hoisted initializer, removal of the obsolete guard, and updated positive tests. Preserve this history to distinguish incompatible snapshots.
