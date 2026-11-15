@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk,applyEdits} = require('./ast');
+const {walk,applyEdits,observesFunctionSource} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -41,6 +41,7 @@ function classifyIdentifier(node,parent,key) {
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
+  if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
