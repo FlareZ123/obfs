@@ -5,6 +5,7 @@ const {test}=require('node:test');
 const vm=require('node:vm');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {parse}=require('../src/ast');
+const {obfuscateFiles}=require('../src/core');
 const {recoverPublicWasmExpression,extractPublicWasm}=
   require('../sims/wasm-i32-static-recover');
 
@@ -81,4 +82,31 @@ test('attacker refuses nonmatching source and malformed Wasm',()=>{
   assert.throws(()=>extractPublicWasm('function safe(){return 1;}'),/No public/);
   assert.throws(()=>extractPublicWasm('Uint8Array.from([1,2,999])'),/Malformed/);
   assert.throws(()=>extractPublicWasm('Uint8Array.from([0,97,115,109])'),/Invalid public/);
+});
+
+
+test('end-to-end COO and SNO transformations still expose recoverable Wasm AST',()=>{
+  const expression='(((x^137)&(x>>>3))|(x<<7))';
+  const source='function f(x){return '+expression+';}module.exports=f;';
+  for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
+    for(const seed of ['pipeline-a','pipeline-b','pipeline-c']) {
+      const result=obfuscateFiles([{
+        path:'bundle.cjs',sourceType:'commonjs',code:source
+      }],{
+        mode,seed,closedWorld:true,
+        experimentalWasmI32:{'bundle.cjs':['f']}
+      });
+      const output=result.files[0];
+      assert.equal(output.metrics.wasmI32Functions,1);
+      const recovered=recoverPublicWasmExpression(String(output.code));
+      assert.equal(recovered.expression,canonical(expression));
+      const original=load(source);
+      const protectedFn=load(String(output.code));
+      const reconstructed=load('function f(x){return '+recovered.expression+';}module.exports=f;');
+      for(let value=-512;value<=512;value++) {
+        assert.equal(protectedFn(value),original(value));
+        assert.equal(reconstructed(value),original(value));
+      }
+    }
+  }
 });
