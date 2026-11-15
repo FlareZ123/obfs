@@ -6,6 +6,8 @@
     "sims/sco-sync-search.js",
     "sims/sco-discovered-oracle-run.js",
     "sims/sco-sync-search-falsification.js",
+    "sims/sco-sync-diversified.js",
+    "sims/sco-sync-diversified-report.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js"
   ],
