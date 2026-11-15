@@ -12,4 +12,5 @@ test('SCO server-resident finite-domain computation can be exhaustively cloned b
   assert.equal(evidence.operations,512);
   assert.ok(evidence.batchMilliseconds>0);
   assert.ok(evidence.serialMilliseconds>0);
+  console.log('SCO finite-oracle evidence '+JSON.stringify(evidence));
 });
