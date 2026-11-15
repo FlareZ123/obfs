@@ -142,3 +142,21 @@ test('invalid names, paths, and ESM metadata are rejected',()=>{
       /** @type {any} */ (options)),TypeError);
   }
 });
+
+test('checked-in public COO before/after graph is the exact generated output',async()=>{
+  const example=path.join(__dirname,'../examples/coo-shards');
+  const original=fs.readFileSync(path.join(example,'before','main.mjs'),'utf8');
+  const output=shardTopLevelStrings({
+    path:'examples/coo-shards/after/main.mjs',code:original,sourceType:'module'
+  },{seed:'agent31-coo-sample-v1',names:['license','feature']});
+  assert.equal(output.sharded,2);
+  assert.equal(output.codeUnits,31);
+  for(const file of output.files) {
+    const stored=fs.readFileSync(path.join(example,'after',path.basename(file.path)),'utf8');
+    assert.equal(stored,file.code,'Stale generated sample: '+file.path);
+  }
+  const native=await esm(path.join(example,'before','main.mjs'));
+  const transformed=await esm(path.join(example,'after','main.mjs'));
+  assert.deepEqual(transformed.get(),native.get());
+  assert.deepEqual(offlineRecover(output),[native.license,native.feature]);
+});
