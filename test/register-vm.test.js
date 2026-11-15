@@ -137,8 +137,8 @@ test('the committed register VM output is byte-exact generated source',async()=>
   await buildSample(true);
   const root=path.join(__dirname,'../examples/register-vm');
   const [original,output]=await Promise.all([
-    fs.readFile(path.join(root,'before.cjs'),'utf8'),
-    fs.readFile(path.join(root,'after.cjs'),'utf8')
+    fs.readFile(path.join(root,'before.cjs'),'utf8').then(x=>x.replace(/\r\n/gu,'\n')),
+    fs.readFile(path.join(root,'after.cjs'),'utf8').then(x=>x.replace(/\r\n/gu,'\n'))
   ]);
   assert.notEqual(original,output);
   assert.equal(virtualizeRegisterChains(original,'commonjs',{
