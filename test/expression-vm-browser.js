@@ -28,7 +28,8 @@ async function main() {
   const binary=process.env.CHROMIUM_BIN??'chromium';
   /** @type {Map<string,{body:string,type:string}>} */
   const content=new Map();
-  const input=(backend)=>[
+  /** @param {Backend} backend */
+  const input=backend=>[
     {path:backend+'-worker.mjs',sourceType:/** @type {const} */ ('module'),
       code:'export function mix(x){return ((x+7)*(x-5))^((x+3)&255);}'},
     {path:backend+'-entry.mjs',sourceType:/** @type {const} */ ('module'),
