@@ -10,7 +10,7 @@ Extend the conservative property-renaming proof beyond direct named ESM imports 
 
 An ESM function is summarized as a pure identity only when all of the following hold:
 
-- A source module directly declares `export function f(x) { return x; }` with exactly one plain identifier parameter, one `return` statement, and no asynchronous or generator behavior.
+- A source module directly declares `export function f(x) { return x; }`, `export const f=x=>x`, an immutable block-body arrow identity, or an immutable function-expression identity. Each has exactly one plain identifier parameter, a single unchanged return of that parameter, and synchronous nongenerator behavior.
 - The exported function has one declared binding and no other identifier references in its source module, excluding its own declaration. Reassignment and other indirect uses are therefore refused.
 - Another supplied ESM module imports this function via a canonical named static import. The imported binding is unique and used only as a direct call.
 - The tracked object enters only as argument 0. Its return value is consumed by an analyzed constant alias or discarded, with unknown use/escape rejected.
@@ -36,9 +36,9 @@ The compiler now consistently renames the definition and the caller's statically
 
 ## Counterexamples and exclusions
 
-`test/cross-file-identity-return.test.js` contains three positive native-ESM cases (plain identity, renamed import, discarded identity return). Negative fixtures include an impure `Object.keys(x)` wrapper, asynchronous return, boxed result escaping the alias set, a reassigned exported function, a default-parameter wrapper, and a function passed through an opaque identifier. These negative fixtures must show zero cross-file property renames.
+`test/cross-file-identity-return.test.js` contains three positive native-ESM cases (plain identity, renamed import, discarded identity return). Negative fixtures include an impure `Object.keys(x)` wrapper, asynchronous return, boxed result escaping the alias set, a reassigned exported function, a default-parameter wrapper, and a function passed through an opaque identifier. These negative fixtures must show zero cross-file property renames. Additional positives cover anonymous/named immutable function expressions and block-body arrow identities, while a generator wrapper remains excluded.
 
-The proof does not recognize general closures, return-object builders, method calls, rest/default parameters, optional invocation, reexports through aggregators, namespace imports, generators or any function whose stable implementation has not been established.
+The proof does not recognize general closures, return-object builders, method calls, rest/default parameters, optional invocation, reexports through aggregators, namespace imports, generators or any function whose stable implementation has not been established. It recognizes constant-computed own keys constructed from literal string concatenation or a no-interpolation template; arbitrary runtime-computed keys still block the proof.
 
 ## Reproduction and validation
 
@@ -46,7 +46,7 @@ Relevant source commits: `93bf9bef3280eff8fb24a78a90b601a616c6c40b` in `src/prop
 
 Manual workflow [43681813023](https://github.com/FlareZ123/obfs/actions/runs/43681813023) ran against head `cba5b7a75aa8fd889bf98edb9c1511f54c9d63e9`, a verified descendant of `a67bd6f6...`. Both Node22 Ubuntu and Windows jobs passed `npm test`, `npm run typecheck`, and `npm run benchmark`. Ubuntu also passed Chromium integration. This is finite reproducible coverage, not a general JavaScript semantic-equivalence proof.
 
-The additional three negative tests in commit `05dc10660bef6ab98040582a8d6bfffe7c061b1a` were added after this successful run and must be verified in a subsequent manual validation.
+The additional negatives and immutable arrow/function-expression cases were verified by subsequent manual validations, including [43683477452](https://github.com/FlareZ123/obfs/actions/runs/43683477452), which completed successfully on Node22 Ubuntu/Windows and Ubuntu Chromium. `test/cross-file-identity-grid.test.js` adds 48 generated real-ESM graphs with differing alias chains, destructuring, literal arrays and computed static reads. All expected transformed program outputs matched their originals; each fixture proved two own keys, yielding 96 independently checked rename sites. CI [43682859451](https://github.com/FlareZ123/obfs/actions/runs/43682859451) passed the generated grid across both operating systems.
 
 ## Implications
 
