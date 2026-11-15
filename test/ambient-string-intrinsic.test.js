@@ -34,7 +34,18 @@ async function runModuleGraph(files) {
 for(const [title,dependency] of [
   ['deleted global String binding','globalThis.String=undefined;'],
   ['modified global String.fromCharCode','globalThis.String.fromCharCode=()=>"?";'],
-  ['direct global String assignment','String=undefined;']
+  ['direct global String assignment','String=undefined;'],
+  ['computed global String assignment','globalThis["Str"+"ing"]=undefined;'],
+  ['Object.defineProperty on global String',
+    'Object.defineProperty(globalThis,"String",{value:undefined});'],
+  ['Object.defineProperty on String.fromCharCode',
+    'Object.defineProperty(String,"fromCharCode",{value:()=>"?!"});'],
+  ['Object.assign on global object',
+    'Object.assign(globalThis,{String:undefined});'],
+  ['Reflect.set on global String','Reflect.set(globalThis,"String",undefined);'],
+  ['Reflect.defineProperty on String.fromCharCode',
+    'Reflect.defineProperty(String,"fromCharCode",{value:()=>"?!"});'],
+  ['String.prototype.charCodeAt assignment','String.prototype.charCodeAt=()=>0;']
 ]) {
   test('SNO/COO string encoding preserves earlier ESM dependency: '+title,async()=>{
     /** @type {ModuleFile[]} */
