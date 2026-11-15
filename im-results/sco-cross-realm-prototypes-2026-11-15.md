@@ -175,6 +175,29 @@ must preserve the pinned unsafe-witness refusals and actual
 original-versus-split equivalence, rather than just improving the
 acceptance fraction. The raw per-case refusal reasons are printed in CI.
 
+## Binding-aware mitigation for two overrefusals
+
+A follow-up admission improvement recognizes explicit top-level local
+function-body declarations that shadow the browser-only identifier names.
+For example, `const window=7;return window;` stays local after relocation
+and should not be mistaken for reading the browser's global `window`.
+Direct `window.externalBridge` without such a binding and
+`globalThis.window` remain rejected. Four locally shadowed names are
+covered by a positive compiler test, while direct and aliased hostile
+ambient fixtures remain in the suite.
+
+In [Ubuntu/Windows focused run 43773817588](https://github.com/FlareZ123/obfs/actions/runs/43773817588),
+commit `e7253d9982bb5636b131c4964e71afdf0efffb33`, all existing
+selective-SCO tests, browser fixtures and type checks passed. Repeating
+the exact 25-case admission script gave **13/18 safe controls admitted
+(72.22%)**, **five safe controls refused (27.78%)**, and **7/7
+unsafe witnesses refused** on both OSes. This is two fewer safe
+overrefusals than the preceding pinned checkpoint, with the same
+seven tested unsafe cases rejected. The five remaining safe
+false refusals concern methods/properties requiring local object-ownership
+proofs. Local shadow recognition is limited to the outermost function-body
+declarations; it is not an interprocedural lexical scope analysis.
+
 ## Limits and follow-up
 
 The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
