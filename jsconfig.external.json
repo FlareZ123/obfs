@@ -10,6 +10,7 @@
     "examples/sco-private/build-sample.cjs",
     "examples/sco-private/server.cjs",
     "test/sco-real-example.test.js",
+    "test/sco-real-browser.js",
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js",
     "workplace/mba-i32-lower.js",
