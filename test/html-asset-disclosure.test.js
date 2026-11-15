@@ -100,3 +100,31 @@ test('HTML CLI source-disclosure refusal occurs before either COO or SNO emits o
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('HTML source audit refuses UTF-16 BOM, NUL padding and malformed UTF-8',()=>{
+  const inline='<script>window.utf16Secret=9</script>';
+  const encoded=[
+    Buffer.concat([Buffer.from([0xff,0xfe]),Buffer.from(inline,'utf16le')]),
+    Buffer.from(inline,'utf16le'),
+    Buffer.from([0xc0,0xaf,0x3c,0x73,0x63,0x72,0x69,0x70,0x74,0x3e])
+  ];
+  for(const bytes of encoded) {
+    for(const mode of ['coo','sco','sno']) {
+      assert.throws(()=>obfuscateFiles([
+        js,{path:'hidden.html',sourceType:'asset',code:bytes}
+      ],{mode}),/HTML asset (?:is not valid UTF-8|contains NUL)/,mode);
+    }
+    assert.throws(()=>createScoHandler([
+      {path:'hidden.html',sourceType:'asset',code:bytes}
+    ]),/HTML asset (?:is not valid UTF-8|contains NUL)/);
+  }
+  const utf8Bom=Buffer.concat([Buffer.from([0xef,0xbb,0xbf]),Buffer.from('<p>safe</p>')]);
+  for(const mode of ['coo','sco','sno']) {
+    const result=obfuscateFiles([
+      js,{path:'safe.html',sourceType:'asset',code:utf8Bom}
+    ],{mode});
+    const asset=result.files.find(file=>file.path==='safe.html');
+    assert.ok(asset);
+    assert.deepEqual(Buffer.from(asset.code),utf8Bom);
+  }
+});
