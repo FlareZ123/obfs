@@ -114,6 +114,8 @@ function observesFunctionSource(ast) {
   // addition to direct String/RegExp coercers.
   const functions=new Set();
   const arraysWithFunctions=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const objectFunctionKeys=new Map();
   // Imported bindings and CommonJS require() results may be functions even
   // when their declarations are in a separate file. A consumer's computed
   // property key can stringify the imported function's original source.
@@ -143,7 +145,10 @@ function observesFunctionSource(ast) {
     return Boolean(node && (node.type==='Identifier'&&
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
-      node.type==='MemberExpression' && isOpaqueNamespace(node.object)));
+      node.type==='MemberExpression' &&
+        (isOpaqueNamespace(node.object) || node.object.type==='Identifier' &&
+          (objectFunctionKeys.get(node.object.name)?.has(memberName(node)??'') ||
+           node.computed && arraysWithFunctions.has(node.object.name)))));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunction(node) {
@@ -208,6 +213,15 @@ function observesFunctionSource(ast) {
   }
   /** @type {boolean} */
   let changed=false;
+  /** @param {string} receiver @param {string} name @returns {void} */
+  function addObjectFunctionKey(receiver,name) {
+    let keys=objectFunctionKeys.get(receiver);
+    if(!keys) {
+      keys=new Set();
+      objectFunctionKeys.set(receiver,keys);
+    }
+    if(!keys.has(name)){keys.add(name);changed=true;}
+  }
   do {
     changed=false;
     walk(ast,node=>{
@@ -222,11 +236,42 @@ function observesFunctionSource(ast) {
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
         if(isFunctionValue(value))changed=add(functions,name)||changed;
+        if(value?.type==='ObjectExpression') {
+          for(const property of value.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key!==null && isFunctionValue(property.value))addObjectFunctionKey(name,key);
+          }
+        }
+        if(value?.type==='Identifier') {
+          for(const key of objectFunctionKeys.get(value.name)??[]) {
+            addObjectFunctionKey(name,key);
+          }
+        }
         if(isOpaqueNamespace(value)) {
           changed=add(opaqueNamespaces,name)||changed;
           changed=add(opaqueFunctions,name)||changed;
         }
         if(containsFunction(value))changed=add(arraysWithFunctions,name)||changed;
+      }
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='MemberExpression' &&
+         node.left.object.type==='Identifier' && isFunctionValue(node.right)) {
+        const key=memberName(node.left);
+        if(key!==null)addObjectFunctionKey(node.left.object.name,key);
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         node.init?.type==='Identifier') {
+        const known=objectFunctionKeys.get(node.init.name);
+        if(known)for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key!==null&&known.has(key)) {
+            changed=add(functions,property.value.name)||changed;
+          }
+        }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isRequireCall(node.init)) {
