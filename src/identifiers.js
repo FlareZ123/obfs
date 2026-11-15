@@ -58,6 +58,19 @@ function renameLocalIdentifiers(source,ast,options) {
   // callee/tag and iteration-source roots rather than disabling every rename.
   /** @type {Set<string>} */
   const errorSpellingNames=new Set();
+  // The identity of a const binding initialized directly to an object literal
+  // cannot become nullish. Object-pattern destructuring TypeErrors that name
+  // their RHS source arise from null/undefined, so this narrowly proven class
+  // can retain identifier mangling without sacrificing the error contract.
+  /** @type {Set<string>} */
+  const knownNonNullObjects=new Set();
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+        node.init?.type==='ObjectExpression' && parent?.type==='VariableDeclaration' &&
+        parent.kind==='const' && counts.get(node.id.name)===1) {
+      knownNonNullObjects.add(node.id.name);
+    }
+  });
   /** @param {AstNode|null|undefined} expression @returns {string|null} */
   function rootIdentifier(expression) {
     let node=expression;
@@ -82,15 +95,20 @@ function renameLocalIdentifiers(source,ast,options) {
     if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
     if(node.type==='CallExpression'||node.type==='NewExpression')markErrorRoot(node.callee);
     if(node.type==='TaggedTemplateExpression')markErrorRoot(node.tag);
-    if(node.type==='SpreadElement')markErrorRoot(node.argument);
+    // Object spread accepts nullish sources and does not perform iteration.
+    if(node.type==='SpreadElement' && parent?.type!=='ObjectExpression')markErrorRoot(node.argument);
     if(node.type==='ForOfStatement')markErrorRoot(node.right);
     if(node.type==='YieldExpression' && node.delegate)markErrorRoot(node.argument);
     // Object destructuring of nullish values may include the RHS binding
     // spelling in a caught TypeError (including object-rest patterns).
     if(node.type==='VariableDeclarator' &&
-        (node.id.type==='ArrayPattern'||node.id.type==='ObjectPattern'))markErrorRoot(node.init);
+        (node.id.type==='ArrayPattern'||node.id.type==='ObjectPattern') &&
+        !(node.id.type==='ObjectPattern' && node.init?.type==='Identifier' &&
+          knownNonNullObjects.has(node.init.name)))markErrorRoot(node.init);
     if(node.type==='AssignmentExpression' &&
-        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern'))markErrorRoot(node.right);
+        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern') &&
+        !(node.left.type==='ObjectPattern' && node.right.type==='Identifier' &&
+          knownNonNullObjects.has(node.right.name)))markErrorRoot(node.right);
     if (node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
         derivesBindingName(node.init)) inferredNames.add(node.id.name);
     if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
