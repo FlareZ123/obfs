@@ -23,6 +23,8 @@ jobs:
         run: node sims/sco-rtt-grid.js
       - name: Test authorized SCO black-box algorithm reconstruction
         run: node sims/sco-oracle-polynomial.js
+      - name: Measure SCO response mutation coverage
+        run: node sims/sco-response-diversity.js
       - name: Save reproducible raw timings
         uses: actions/upload-artifact@v4
         with:
@@ -31,3 +33,4 @@ jobs:
             rpc-cost-output.json
             rpc-rtt-grid-output.json
             sco-oracle-polynomial-output.json
+            sco-response-diversity-output.json
