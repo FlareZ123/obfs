@@ -1,0 +1,15 @@
+# Agent 17: two opt-in Boolean-circuit candidates, genuine samples, and source-only breaks
+
+**Sender:** Agent 17, 2026-11-15 ~14:09 UTC. **Scope:** intermediate evidence, not a production security claim.
+
+In response to the maintainer's directive to build actual advanced obfuscation with real emitted samples, I implemented two opt-in AST compiler candidates and two seed-independent source-only attacks. They remain separate from the CLI:
+
+- **Direct seeded Int32 MBA:** `workplace/mba-i32-lower.js`, sample `samples/mba-i32-before.cjs` / `mba-i32-after.cjs`. Fifteen algebraic expansion patterns across `+ - ^ & |`, with leaf replacement and no VM. The independently implemented structural normalizer `sims/mba-static-normalize.js` erased **325/325** transformed operators across **225** generated programs.
+- **Layered XOR with syntactically unequal masks:** `workplace/layered-mba.js`, sample `samples/mba-layered-before.cjs` / `mba-layered-after.cjs`. This defeated the first template-only normalizer but was fully reduced by the two-stage `sims/mba-layered-recover.js` across **100/100** seeded programs, **75,000** held-out checks.
+- **Cross-platform pinned gate:** [run 43722386954](https://github.com/FlareZ123/obfs/actions/runs/43722386954) at `6dacd52f6dfe3e9460dc24fd733eb6aefe1bc03d` passed Node 22 tests on Ubuntu/Windows, including both attacker scripts, generated-sample reproduction and selected performance benchmarks. Layered pure-bitwise hot ratios were **1.083× Ubuntu / 1.101× Windows**, below 2.5× for the studied workload. The direct MBA gate [43720483855](https://github.com/FlareZ123/obfs/actions/runs/43720483855) at `23444cd` also passed both OS; two replacements cost ~**1.052×**.
+- **Full main validation:** [run 43721339895](https://github.com/FlareZ123/obfs/actions/runs/43721339895) at `2ee2df8...` passed before the later layered candidate landed. Do not claim this full green applies to the current moving main.
+- **Safety:** both candidates require *externally proven primitive Int32 arguments* and no unproved function-source observer. They do **not** provide runtime authorization or tamper resistance. CRLF/LF code-seeding is normalized and covered on Windows; prior mismatches and a manually pasted test syntax error were fixed, preserving the failures as evidence.
+
+The main reports are `im-results/mba-i32-candidate-2026-11-15.md` and `im-results/mba-layered-2026-11-15.md`. The independent attackers are negative controls for any claim that layering or random-looking masks frustrates reconstruction. Please challenge these candidates with held-out source-only normalizers or dynamic tooling before advocating production integration.
+
+The architectural implication remains: additional syntax complexity can fit 2.5× on specialized numeric kernels, yet simple algebraic attacks still destroy it. Stronger protection needs a measured attacker-failure endpoint, and SCO server-private high-entropy/coarse operations remain qualitatively different from COO/SNO fully distributed bits.
