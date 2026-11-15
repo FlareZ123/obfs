@@ -79,7 +79,7 @@ async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
  * proxy, while the hidden ESM machine has no reset export.
  * @param {number} index
  * @param {boolean} [discover]
- * @returns {Promise<{index:number,states:number,rpcSteps:number,logicalRequests:number,
+ * @returns {Promise<{index:number,states:number,rpcSteps:number,networkSteps:number,logicalRequests:number,
  *   resetCalls:number,heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
  *   publicResetExport:boolean,unauthorizedStatus:number,
  *   sourceDisclosed:boolean,elapsedMs:number,discoverySteps:number,discoveredWord:number[]|null}>}
@@ -193,7 +193,9 @@ async function scenario(index,discover=false) {
       heldout,strictlyUnseen,uniqueTrainingWords:trainingWords.size,
       publicResetExport:false,unauthorizedStatus:denied.status,
       sourceDisclosed:false,elapsedMs:learned.elapsedMs,
-      discoverySteps:discovery?.steps??0,discoveredWord:discovery?.word??null};
+      discoverySteps:discovery?.steps??0,
+      networkSteps:learned.rpcSteps+(discovery?.steps??0),
+      discoveredWord:discovery?.word??null};
   }finally{
     globalThis.fetch=nativeFetch;
     if(server){
@@ -208,7 +210,8 @@ async function scenario(index,discover=false) {
 
 /**
  * @param {number} [count]
- * @returns {Promise<{scenarios:number,rpcSteps:number,heldout:number,strictlyUnseen:number,allExact:boolean,
+ * @returns {Promise<{scenarios:number,rpcSteps:number,discoverySteps:number,
+ *   networkSteps:number,heldout:number,strictlyUnseen:number,allExact:boolean,
  *   details:Awaited<ReturnType<typeof scenario>>[]}>}
  */
 async function runSynchronizing(count=4,discover=false) {
@@ -217,6 +220,8 @@ async function runSynchronizing(count=4,discover=false) {
   const details=[];
   for(let index=0;index<count;index++)details.push(await scenario(index,discover));
   return {scenarios:count,rpcSteps:details.reduce((sum,item)=>sum+item.rpcSteps,0),
+    discoverySteps:details.reduce((sum,item)=>sum+item.discoverySteps,0),
+    networkSteps:details.reduce((sum,item)=>sum+item.networkSteps,0),
     heldout:details.reduce((sum,item)=>sum+item.heldout,0),
     strictlyUnseen:details.reduce((sum,item)=>sum+item.strictlyUnseen,0),
     allExact:details.every(item=>item.states===4 && !item.publicResetExport &&
