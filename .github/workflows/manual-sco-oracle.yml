@@ -43,6 +43,8 @@ jobs:
         run: node sims/sco-sync-search-falsification.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
+      - name: Test low-entropy key recovery through authorized SCO RPC
+        run: node sims/sco-key-search.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
