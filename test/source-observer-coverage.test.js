@@ -9,10 +9,10 @@ test('source observer global guard sacrifices unrelated native-ESM property cove
     const result = await studySourceObserverCoverage(seed);
     assert.ok(result.nativeBehaviorPreserved);
     assert.ok(result.normal.totalProperties >= 2,
-      'Normal graph must have at least two transformable own fields');
+      'Normal graph must have at least two transformable own fields: '+JSON.stringify(result));
     assert.equal(result.observed.totalProperties, 0,
       'Current group-wide observer guard must decline all properties');
     assert.ok(result.isolated.totalProperties >= 1,
-      'Hand-segregated independent function must keep one eligible field');
+      'Hand-segregated independent function must keep one eligible field: '+JSON.stringify(result));
   }
 });
