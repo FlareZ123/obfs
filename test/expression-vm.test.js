@@ -165,3 +165,25 @@ test('COO and SNO CLIs emit real, executable VM-protected entries',async()=>{
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('two named targets compile in the same CommonJS file without register collisions',()=>{
+  const source='function left(x){return ((x+2)*(x+3))^17;}'+
+    'function right(y){return ((y-7)|(y+4))&255;}module.exports={left,right};';
+  for(const backend of /** @type {('bytecode'|'native')[]} */ (['bytecode','native'])) {
+    const result=virtualizeExpressionGraphs(source,'commonjs',{
+      seed:'multi-target-graph',names:['left','right'],backend
+    });
+    assert.equal(result.functions,2);
+    assert.equal(result.instructions,8);
+    const loadExports=/** @param {string} code */ code=>{
+      const context={module:{exports:null}};
+      vm.runInNewContext(code,context,{timeout:1500});
+      return /** @type {{left:(x:unknown)=>unknown,right:(x:unknown)=>unknown}} */ (context.module.exports);
+    };
+    const original=loadExports(source),processed=loadExports(result.code);
+    for(const x of [-1,0,2,99,1000,'4',null,3n,Symbol('s')]) {
+      assert.deepEqual(observe(processed.left,x),observe(original.left,x));
+      assert.deepEqual(observe(processed.right,x),observe(original.right,x));
+    }
+  }
+});
