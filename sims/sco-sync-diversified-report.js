@@ -125,13 +125,18 @@ async function summarize(search,count,seedBase,seedStride,trials){
  * deterministic fixture distributions, with private tables used only in
  * the post-attack evaluator.
  * @param {number} [count]
+ * @param {boolean} [holdout]
  * @returns {Promise<{count:number,corpora:{seedBase:string,seedStride:number,
  *   original:Awaited<ReturnType<typeof summarize>>,
  *   diversified:Awaited<ReturnType<typeof summarize>>}[]}>}
  */
-async function runComparison(count=250){
+async function runComparison(count=250,holdout=false){
   if(!Number.isSafeInteger(count)||count<1||count>1000)throw new RangeError('count 1..1000');
-  const configurations=[
+  // Held-out seeds were chosen independently of the original two corpora.
+  const configurations=holdout ? [
+    {seedBase:0xdeadbeef,seedStride:21317},
+    {seedBase:0x13579bdf,seedStride:4567}
+  ] : [
     {seedBase:0x9ab337e1,seedStride:7919},
     {seedBase:0x6ca2de94,seedStride:10309}
   ];
@@ -149,7 +154,7 @@ async function runComparison(count=250){
 }
 
 if(require.main===module){
-  runComparison(process.argv.includes('--stress')?1000:250)
+  runComparison(process.argv.includes('--stress')?1000:250,process.argv.includes('--holdout'))
     .then(value=>console.log(JSON.stringify(value,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
