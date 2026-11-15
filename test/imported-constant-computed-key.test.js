@@ -95,3 +95,26 @@ for(const [name,state,main,extras] of [
   test('imported computed key refuses unproved shape: '+name,
     async()=>compare(graph(state,main,extras),0));
 }
+
+test('imported immutable toString key still exposes original function source',async()=>{
+  await compare(graph(
+    'export const key="toString";export const bag={secretField:8};',
+    'import {bag,key} from "./state.mjs";'+
+      'function inspect(){return bag.secretField;}console.log(inspect[key]());'
+  ),0);
+});
+
+test('imported immutable stack key still disables source-position-changing rewrites',async()=>{
+  await compare(graph(
+    'export const key="stack";export const bag={secretField:8};',
+    'import {bag,key} from "./state.mjs";'+
+      'const error=new Error("test");console.log(error[key].includes("main.mjs"),bag.secretField);'
+  ),0);
+});
+
+test('opaque imported function key continues to refuse private-field renaming',async()=>{
+  await compare(graph(
+    'export const key=function secret(){return 2;};export const bag={secretField:8};',
+    'import {bag,key} from "./state.mjs";console.log(bag.secretField,({})[key]);'
+  ),0);
+});
