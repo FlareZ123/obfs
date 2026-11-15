@@ -4,7 +4,10 @@
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
     "sims/jsdeobsbench-coverage.js",
-    "sims/jsdeobsbench-differential.js"
+    "sims/jsdeobsbench-differential.js",
+    "sims/destructuring-assignment-performance.js"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
