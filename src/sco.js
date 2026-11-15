@@ -132,6 +132,31 @@ function varyLiteralSpellings(source,sourceType,nonce) {
 }
 
 /**
+ * Decode one URL pathname segment at a time. WHATWG URL.pathname still
+ * contains percent escapes, including those for ordinary Unicode filenames.
+ * Never allow an encoded slash or backslash to alias a different public file.
+ * The route namespace is already checked before this helper is used.
+ * @param {string} encodedName
+ * @returns {string|null}
+ */
+function decodePublicName(encodedName) {
+  /** @type {string[]} */
+  const segments=[];
+  for(const encoded of encodedName.split('/')) {
+    /** @type {string} */
+    let segment;
+    try {
+      segment=decodeURIComponent(encoded);
+    } catch (error) {
+      return null;
+    }
+    if(segment==='.'||segment==='..'||/[\\/\x00]/u.test(segment))return null;
+    segments.push(segment);
+  }
+  return segments.join('/');
+}
+
+/**
  * Create a polymorphic SCO handler. The serving machine keeps the obfuscator
  * and optional remoteMethods implementations, mutating client code per GET.
  * RPC is disabled unless BOTH remoteMethods and an authorization callback exist.
@@ -216,7 +241,11 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(405,{'allow':'GET, POST'}).end();
       return;
     }
-    const name = url.pathname.slice(prefix.length);
+    const name=decodePublicName(url.pathname.slice(prefix.length));
+    if(name===null) {
+      response.writeHead(400,{'cache-control':'no-store'}).end();
+      return;
+    }
     const file = inputs.get(name);
     if (!file) {
       response.writeHead(404).end();
