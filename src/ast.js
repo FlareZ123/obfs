@@ -156,8 +156,11 @@ function observesFunctionSource(ast) {
   // source rewrite can therefore change RegExp.source, Symbol.description,
   // or the output of URI encoders even without an explicit String(...) call.
   const builtinCoercers=new Set(['String','RegExp','Symbol','encodeURI',
-    'encodeURIComponent','decodeURI','decodeURIComponent','escape','unescape']);
+    'encodeURIComponent','decodeURI','decodeURIComponent','escape','unescape',
+    'Error','TypeError','RangeError','ReferenceError','SyntaxError',
+    'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  const aggregateErrors=new Set(['AggregateError']);
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -185,6 +188,12 @@ function observesFunctionSource(ast) {
       name==='for' && isSymbolConstructor(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isAggregateError(node) {
+    return Boolean(node && (node.type==='Identifier'&&aggregateErrors.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='AggregateError'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStringValue(node) {
     return Boolean(node && (staticString(node)!==null ||
       node.type==='Identifier'&&strings.has(node.name) ||
@@ -209,6 +218,7 @@ function observesFunctionSource(ast) {
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
         if(isFunctionValue(value))changed=add(functions,name)||changed;
@@ -305,6 +315,19 @@ function observesFunctionSource(ast) {
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
+      // AggregateError's first argument is the iterable of errors; its
+      // optional second message argument is the ToString source observer.
+      if(isAggregateError(callee))argument=node.arguments[1];
+      if(callee.type==='MemberExpression' && isAggregateError(callee.object) &&
+         node.type==='CallExpression') {
+        const name=memberName(callee);
+        if(name==='call'||name==='bind')argument=node.arguments[2];
+        if(name==='apply') {
+          const args=node.arguments[1];
+          if(args?.type==='ArrayExpression')argument=args.elements[1];
+          else if(args)observed=true;
+        }
+      }
       if(callee.type==='MemberExpression' && isCoercer(callee.object) &&
          node.type==='CallExpression') {
         const name=callee.computed?staticString(callee.property):
