@@ -4,6 +4,9 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {performance}=require('node:perf_hooks');
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const {buildSample}=require('../examples/register-vm/build-sample.cjs');
 const {virtualizeRegisterChains,obfuscateFiles}=require('../src');
 
 /** @param {string} code @returns {(x:unknown)=>unknown} */
@@ -128,4 +131,21 @@ test('register VM changes source spelling and records performance without claimi
   const ratio=median(candidate)/median(baseline);
   console.log('Experimental register VM at 1/256 call density median ratio: '+ratio.toFixed(3)+'x');
   assert.ok(Number.isFinite(ratio) && ratio>0);
+});
+
+test('the committed register VM output is byte-exact generated source',async()=>{
+  await buildSample(true);
+  const root=path.join(__dirname,'../examples/register-vm');
+  const [original,output]=await Promise.all([
+    fs.readFile(path.join(root,'before.cjs'),'utf8'),
+    fs.readFile(path.join(root,'after.cjs'),'utf8')
+  ]);
+  assert.notEqual(original,output);
+  assert.equal(virtualizeRegisterChains(original,'commonjs',{
+    seed:'register-vm-example-v1',names:['mix']
+  }).code,output);
+  const native=load(original),compiled=load(output);
+  for(const x of [-100,0,17,999,NaN,'5',3n]) {
+    assert.deepEqual(observe(compiled,x),observe(native,x));
+  }
 });
