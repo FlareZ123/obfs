@@ -25,5 +25,9 @@ jobs:
         run: node sims/branch-block-reconstruction.js
       - name: Six-trial isolated performance profile
         run: node sims/branch-block-profile.js
+      - name: Real Chromium COO differential
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/branch-block-browser.js
       - name: JSDoc checker
         run: npm run typecheck
