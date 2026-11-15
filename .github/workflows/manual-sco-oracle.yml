@@ -45,6 +45,8 @@ jobs:
         run: node --test test/sco-sync-diversified.test.js
       - name: Publish two-corpus physical and observational attack classifications
         run: node sims/sco-sync-diversified-report.js
+      - name: Stress-test public-step-only synchronization on 2,000 models
+        run: node sims/sco-sync-diversified-report.js --stress
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
