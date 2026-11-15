@@ -101,7 +101,9 @@ function partitionScoAsyncModule(file,options={}) {
   }
   if(batchMethod) {
     const mapName=helper+'map';
-    code+='const '+mapName+'='+JSON.stringify(methodNames)+';\n';
+    if(used.has(mapName))throw new Error('RPC batch helper name collision');
+    // JSON.parse creates an own __proto__ key, unlike an object literal.
+    code+='const '+mapName+'=JSON.parse('+JSON.stringify(JSON.stringify(methodNames))+');\n';
     code+='export async function batch(calls){if(!Array.isArray(calls)||!calls.length||calls.length>'+maxBatchCalls+
       '||calls.some(call=>!call||typeof call.name!=="string"||!Object.hasOwn('+mapName+',call.name)||!Array.isArray(call.args)))throw TypeError("Invalid RPC batch");'+
       'return await '+helper+'('+JSON.stringify(batchMethod)+',[calls.map(call=>({method:'+mapName+'[call.name],args:call.args}))]);}\n';
