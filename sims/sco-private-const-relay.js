@@ -61,7 +61,8 @@ function publicKernel(count,normalize){
  *   heldOut:number,matched:number,unauthorizedStatus:number,
  *   publicSourceHasKey:boolean,privateCalls:number,sessionCalls:number,
  *   sourceBytes:number,publicBytes:number,nativeMedianMs:number,
- *   relayMedianMs:number,relayRatio:number
+ *   relayMedianMs:number,relayRatio:number,
+ *   thinNativeMedianMs:number,thinRelayMedianMs:number,thinRelayRatio:number
  * }>}
  */
 async function runChallenge(){
@@ -155,6 +156,20 @@ async function runChallenge(){
     }
     assert.equal(matched,20);
     assert.equal(privateCalls,20);
+    /** @type {number[]} */
+    const thinNativeTimes=[];
+    /** @type {number[]} */
+    const thinRelayTimes=[];
+    for(let trial=0;trial<8;trial++){
+      for(const mode of trial%2?['relay','native']:['native','relay']){
+        const start=performance.now();
+        const digest=mode==='relay'?
+          await clone('fixed-thin-challenge'):
+          await original.run('fixed-thin-challenge');
+        assert.equal(typeof digest,'string');
+        (mode==='relay'?thinRelayTimes:thinNativeTimes).push(performance.now()-start);
+      }
+    }
     const expected=publicKernel(SESSION_CALLS,original.normalize);
     /** @type {number[]} */
     const nativeTimes=[];
@@ -179,7 +194,10 @@ async function runChallenge(){
       publicSourceHasKey:publicCode.includes('SCO_SERVER_ONLY_HMAC'),
       privateCalls,sessionCalls:SESSION_CALLS,sourceBytes:Buffer.byteLength(source),
       publicBytes:Buffer.byteLength(publicCode),nativeMedianMs,relayMedianMs,
-      relayRatio:relayMedianMs/nativeMedianMs};
+      relayRatio:relayMedianMs/nativeMedianMs,
+      thinNativeMedianMs:median(thinNativeTimes),
+      thinRelayMedianMs:median(thinRelayTimes),
+      thinRelayRatio:median(thinRelayTimes)/median(thinNativeTimes)};
   }finally{
     globalThis.fetch=nativeFetch;
     if(attacker)await close(attacker);
