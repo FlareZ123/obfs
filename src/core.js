@@ -108,8 +108,14 @@ function mutatesDecoderIntrinsic(ast) {
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isStringPrototype(node) {
     if(node.type==='Identifier')return prototypeNames.has(node.name);
-    if(node.type==='MemberExpression')return isStringValue(node.object) &&
-      (memberName(node)==='prototype'||memberName(node)===null);
+    if(node.type==='MemberExpression') {
+      // Primitive string instances expose String.prototype through __proto__.
+      // An earlier dependency can mutate the decoder's charCodeAt this way.
+      if(node.object.type==='Literal' && typeof node.object.value==='string' &&
+         memberName(node)==='__proto__')return true;
+      return isStringValue(node.object) &&
+        (memberName(node)==='prototype'||memberName(node)===null);
+    }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&
        ['Object','Reflect'].includes(node.callee.object.name) &&
@@ -127,8 +133,13 @@ function mutatesDecoderIntrinsic(ast) {
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayPrototype(node) {
     if(node.type==='Identifier')return arrayPrototypes.has(node.name);
-    if(node.type==='MemberExpression')return isArrayValue(node.object) &&
-      (memberName(node)==='prototype'||memberName(node)===null);
+    if(node.type==='MemberExpression') {
+      // Array literals inherit the same iterator prototype as Array.prototype.
+      // A patched iterator would corrupt the chunked decoder's spread.
+      if(node.object.type==='ArrayExpression' && memberName(node)==='__proto__')return true;
+      return isArrayValue(node.object) &&
+        (memberName(node)==='prototype'||memberName(node)===null);
+    }
     return node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
       node.callee.object.type==='Identifier' &&
       ['Object','Reflect'].includes(node.callee.object.name) &&
