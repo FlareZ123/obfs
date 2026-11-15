@@ -15,5 +15,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install declared dependencies
+        run: npm ci
+      - name: Differential proof-subset VM tests
+        run: node --test test/vm-immediate-lowering.test.js
       - name: Measure pure numeric VM hot and cold ratios
         run: node sims/vm-hybrid-ratio.js
