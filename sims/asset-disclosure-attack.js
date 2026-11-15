@@ -68,6 +68,10 @@ async function evaluate(baselineRoot,protectedRoot) {
   const disguised=/** @type {File} */ ({
     path:'original.jsx',sourceType:'asset',code:Buffer.from(source)
   });
+  const svg=/** @type {File} */ ({
+    path:'icon.svg',sourceType:'asset',
+    code:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>window.'+secret+'=31;</script></svg>')
+  });
   const safeHtml=/** @type {File} */ ({
     path:'safe.html',sourceType:'asset',
     code:Buffer.from('<!doctype html><script src="./entry.cjs"></script>')
@@ -76,7 +80,7 @@ async function evaluate(baselineRoot,protectedRoot) {
   const rows=[];
   for(const mode of /** @type {Mode[]} */ (['coo','sco','sno'])) {
     const options={mode,seed:'asset-disclosure-attack-control'};
-    const sourceArtifacts=[map,html,disguised];
+    const sourceArtifacts=[map,html,disguised,svg];
     let disclosedByBaseline=0;
     let refusedByProtected=0;
     const startBaseline=performance.now();
@@ -97,7 +101,7 @@ async function evaluate(baselineRoot,protectedRoot) {
     const startProtected=performance.now();
     for(const asset of sourceArtifacts) {
       assert.throws(()=>protectedCompiler.obfuscateFiles([entry,asset],options),
-        /(?:Source-map asset|HTML asset|Untransformed source asset)/);
+        /(?:Source-map asset|HTML asset|SVG asset|Untransformed source asset)/);
       refusedByProtected++;
     }
     const protectedBuildMs=performance.now()-startProtected;
@@ -124,12 +128,16 @@ async function evaluate(baselineRoot,protectedRoot) {
   assert.equal(baselineHtmlResponse.status,200);
   assert.ok(baselineHtmlResponse.body.toString('utf8').includes(secret));
   assert.throws(()=>protectedCompiler.createScoHandler([html]),/HTML asset/);
+  const baselineSvgResponse=await readScoAsset(baseline.createScoHandler([svg]),svg.path);
+  assert.equal(baselineSvgResponse.status,200);
+  assert.ok(baselineSvgResponse.body.toString('utf8').includes(secret));
+  assert.throws(()=>protectedCompiler.createScoHandler([svg]),/SVG asset/);
   const result={
     baselinePath:path.resolve(baselineRoot),
     protectedPath:path.resolve(protectedRoot),
     attack:'Read distributed opaque asset without executing or deobfuscating JavaScript',
     rows,
-    scoAssetExtraction:{sourceMapRecovered:true,htmlRecovered:true,protectedRefusal:true},
+    scoAssetExtraction:{sourceMapRecovered:true,htmlRecovered:true,svgRecovered:true,protectedRefusal:true},
     note:'Timings are cold, tiny preflight samples and are NOT runtime overhead benchmarks.'
   };
   return result;
