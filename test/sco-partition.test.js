@@ -175,8 +175,10 @@ test('opt-in SCO partition batch preserves special names, order and server polic
     authorizeRead:()=>true,
     authorizeRpc:request=>request.headers.cookie==='session=allow',
     authorizeOperation:(request,method,args)=>{
-      if(request.headers.cookie!=='session=allow'||method!==partition.batchMethod||
-          args.length!==1 || !Array.isArray(args[0]))return false;
+      if(request.headers.cookie!=='session=allow')return false;
+      if(method!==partition.batchMethod)return Object.values(partition.methodNames).includes(method) &&
+        args.length===1 && Number.isSafeInteger(args[0]) && args[0]<=9;
+      if(args.length!==1 || !Array.isArray(args[0]))return false;
       return args[0].every(item=>item && typeof item.method==='string' &&
         Array.isArray(item.args) && item.args.length===1 &&
         Number.isSafeInteger(item.args[0]) && item.args[0]<=9);
