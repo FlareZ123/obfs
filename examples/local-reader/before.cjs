@@ -1,4 +1,4 @@
 const root={secretField:7,otherField:5};
-const factor=value=>value.secretField;
-const bits=function(value){return value["otherField"];};
+const factor=first=>first.secretField;
+const bits=function(second){return second["otherField"];};
 module.exports=[factor(root),bits(root),root.otherField];
