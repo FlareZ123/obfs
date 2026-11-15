@@ -25,6 +25,8 @@ jobs:
         run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
       - name: Measure steady-state hot-key performance
         run: node sims/symbol-key-profile.js
+      - name: Report multi-object cold-start cost
+        run: node sims/symbol-key-cold.js
       - name: Real Chromium COO modules and external page API
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
