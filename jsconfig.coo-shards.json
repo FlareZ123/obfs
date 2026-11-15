@@ -1,0 +1,9 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "workplace/coo-shard-strings.js",
+    "test/coo-shard-strings.test.js",
+    "examples/coo-shards/build.cjs"
+  ],
+  "exclude": ["node_modules"]
+}

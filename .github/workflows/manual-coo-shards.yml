@@ -1,0 +1,29 @@
+name: Manual COO shared-string sharding research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Native ESM differential and offline recovery
+        run: node --test test/coo-shard-strings.test.js
+      - name: Reproduce committed before and after samples
+        run: node examples/coo-shards/build.cjs --check
+      - name: Strict JSDoc typecheck for experimental source and tests
+        run: npx tsc -p jsconfig.coo-shards.json
