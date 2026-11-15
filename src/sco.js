@@ -156,7 +156,17 @@ function createScoHandler(sourceFiles,options={}) {
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   return (request,response) => {
-    const url = new URL(request.url ?? '/', 'http://localhost');
+    // Node's HTTP parser accepts some malformed absolute-form request targets.
+    // WHATWG URL parsing may throw; treat the target as a bad request instead
+    // of allowing an uncaught exception to terminate the server process.
+    /** @type {URL} */
+    let url;
+    try {
+      url=new URL(request.url ?? '/', 'http://localhost');
+    } catch (error) {
+      response.writeHead(400,{'cache-control':'no-store'}).end();
+      return;
+    }
     if (!url.pathname.startsWith(prefix)) {
       response.writeHead(404).end();
       return;
