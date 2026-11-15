@@ -23,8 +23,9 @@ async function runBrowser(variant,chromium){
   const requests=[];
   const html='<!doctype html><html><head><meta charset="utf-8"></head><body><div id="out">loading</div>'+
     '<script type="module">import {message,render} from "/app.mjs";'+
-    'const value=message();let codes="";for(let i=0;i<value.length;i++)codes+=value.charCodeAt(i).toString(16)+",";'+
-    'document.getElementById("out").textContent=codes+"/"+render(19);</script></body></html>';
+    'function signature(value){let codes="";for(let i=0;i<value.length;i++)codes+=value.charCodeAt(i).toString(16)+",";return codes;}'+
+    'document.getElementById("out").textContent=signature(message())+"/"+signature(render(19));'+
+    '</script></body></html>';
   const server=http.createServer((req,res)=>{
     const requestPath=req.url??'';
     if(requestPath.endsWith('.mjs')){
