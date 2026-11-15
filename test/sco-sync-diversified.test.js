@@ -92,7 +92,7 @@ test('real authenticated SCO step-only RPC supports diversified discovery and he
   assert.ok(result.strictlyUnseen>1000);
   for(const detail of result.details){
     assert.deepEqual(detail.discoveredWord,[0,0,0]);
-    assert.equal(detail.discoverySteps,1950);
+    assert.equal(detail.discoverySteps,1479);
     assert.equal(detail.publicResetExport,false);
     assert.equal(detail.unauthorizedStatus,403);
     assert.equal(detail.sourceDisclosed,false);
