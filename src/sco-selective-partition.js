@@ -181,6 +181,20 @@ function realmStateObservation(body){
     }
     if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
        patternReads(node.id,sensitiveNames))prototypeTouched=true;
+    // A nested or defaulted binding pattern can silently extract a builtin
+    // function, object, or prototype from the global object. Flat simple
+    // aliases are tracked above, but deep patterns need a real provenance
+    // analysis before we could safely admit them.
+    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+       node.init?.type==='Identifier'&&globalNames.has(node.init.name)){
+      for(const property of node.id.properties){
+        if(property.type!=='Property')continue;
+        const name=keyName(property);
+        if(name!==null&&intrinsicNames.has(name)&&property.value.type!=='Identifier'){
+          intrinsicTouched=true;
+        }
+      }
+    }
     if(node.type==='AssignmentExpression'&&isIntrinsic(node.right)&&
        patternReads(node.left,sensitiveNames))prototypeTouched=true;
     if(node.type==='AssignmentExpression'&&writesIntrinsic(node.left)||
