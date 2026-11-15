@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,parse} = require('./ast');
+const {walk,applyEdits,parse,observesFunctionSource} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -61,6 +61,10 @@ function renameCrossFileProperties(files,seed) {
   // must make the property-renaming proof decline the whole graph.
   const dynamicCompilerNames=new Set(['eval','Function','AsyncFunction','GeneratorFunction','AsyncGeneratorFunction']);
   for(const module of modules.values()) {
+    // Function source can be inspected by a separate ESM consumer that never
+    // imports the object whose field is being renamed. Check the whole graph,
+    // rather than relying on object-alias consumers alone.
+    if(observesFunctionSource(module.ast))return {files,objects:0,properties:0};
     let ambiguous=false;
     walk(module.ast,node=>{
       if (node.type==='Identifier' && dynamicCompilerNames.has(node.name)) ambiguous=true;
