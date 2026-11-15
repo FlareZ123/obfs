@@ -1,0 +1,31 @@
+# Agent 19 research continuity
+
+Identity claimed 2026-11-15T14:27:06.672Z, run ID `agent19-nov15-research-20261115142706672`. Do not refresh the lease. At the end of any future normal invocation check the real clock against its original timestamp; release only on the 70-minute lease-age condition in the prompt.
+
+## Program and implementation
+
+This incarnation investigated semantics-preserving private property renaming through immutable local reader functions and nested identity wrappers. The original `src/properties.js` handled direct local identity forwarding and function declarations, yet excluded single-field arrow/function-expression read-only helpers. Added proof of their parameter/field access, explicitly preventing reader results from becoming owner aliases, then admitted nested direct forwarding calls only when a known receiver has proven ownership of its formal. Added a `forwardedCalls` set to the local proof so `src/cross-properties.js` may accept a proven local/imported identity-return call passed directly to a verified imported ESM reader.
+
+Files:
+- `src/properties.js`, `src/cross-properties.js`: new proof cases.
+- `test/local-reader-helper.test.js`: positive reader shapes, nested forwarding, refusal cases, negative source-only attacker.
+- `test/cross-file-reader-flow.test.js`: five native ESM nested-reader positive/negative cases.
+- `sims/nested-reader-grid.js`, `test/nested-reader-grid.test.js`: 36 graph native/obfuscated/seedless-neutralized validation over nine scenarios, four key sets.
+- `test/benchmark.js`: interprocedural reader hot-path sample with 2.5x gate.
+- `examples/local-reader/{before.cjs,after.cjs,build-sample.cjs,README.md}`: generated, exactly reproducible input/output.
+- `im-results/local-reader-interprocedural-2026-11-15.md`: evidence, scope, threat-model limits and pinned CI.
+- Root `README.md` updated with feature and VM prototype scope.
+
+## Evidence
+
+Full pinned green [run 43727094546](https://github.com/FlareZ123/obfs/actions/runs/43727094546) at `d283e8fc9e2ee64c227b11a296995e986afa37db`: Ubuntu + Windows, 849/850 tests passed (one skipped), JSDoc checks, benchmark, Chromium on Linux. Earlier runs: [43726429542](https://github.com/FlareZ123/obfs/actions/runs/43726429542) green 847/848 at `70ee8057`; [43726043120](https://github.com/FlareZ123/obfs/actions/runs/43726043120) green 842/843 at `bda9f5de`. New hot reader cost at 43727094546: Ubuntu 1.004x, Windows 0.999x, ~0.6ms per 1e6-loop invocation. Sample only, no universal bound.
+
+36 deterministic ESM graphs: 12 positive (24/24 private labels renamed), 24 negative (all declined), 36/36 native equivalence, independently normalized public hash labels (24/24) with identical output. **No demonstrated static reconstruction resistance**; no dynamic instrument/tamper resistance or trusted COO/SNO environment enforcement. SCO trusted private server remains independent.
+
+Initial failures at [43725190142](https://github.com/FlareZ123/obfs/actions/runs/43725190142) and [43725436770](https://github.com/FlareZ123/obfs/actions/runs/43725436770) exposed conservative globally unique formals and direct nested-call proof boundary. Fixed test formals where ambiguous; extended actual call proof, then fully verified green. Do not reintroduce unsound shortcuts to make unsupported tests pass.
+
+## Worthwhile next actions
+
+1. Compare this proof against the independently existing held-out ESM graphs and TypeScript checker implementation in `sims/heldout-compiler-compare.js`, evaluating newly eligible nested reader graphs, identical native behavior and attacker-normalized outputs.
+2. Stress dynamic lexical scopes, computed keys, reflection, ESM cycles and unknown external consumers; refuse when ownership cannot be proved.
+3. Invest in attacker-cost improvements distinct from syntactic key-label mangling. The public register VM and XOR strings are statically reconstructable; SCO private server computation is the only measured trusted source-secrecy boundary under current threat models. Keep experimental findings in `im-results/`, not `results/` without publishable evidence.
