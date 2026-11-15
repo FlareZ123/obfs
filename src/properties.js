@@ -134,7 +134,8 @@ function proveLocalObject(ast, rootName, bindings) {
   const unusableFunctions = new Set();
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!functions.has(node.name)) continue;
-    if (!ancestors.includes(scopes.get(node.name))) {
+    const scope = scopes.get(node.name);
+    if (!scope || !ancestors.includes(scope)) {
       unusableFunctions.add(node.name);
       continue;
     }
@@ -187,7 +188,8 @@ function proveLocalObject(ast, rootName, bindings) {
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
     // A same-spelled reference outside its declaration scope may be a global.
-    if (!ancestors.includes(scopes.get(node.name))) return null;
+    const scope = scopes.get(node.name);
+    if (!scope || !ancestors.includes(scope)) return null;
     if (!parent) return null;
     if (key === 'id' && /^(VariableDeclarator|FunctionDeclaration|FunctionExpression|ClassDeclaration|ClassExpression)$/.test(parent.type)) {
       // An exported immutable alias is visible to consumers outside this proof.
