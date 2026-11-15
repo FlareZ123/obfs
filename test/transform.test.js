@@ -132,6 +132,24 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('indirect global eval through bracket access protects lexical key names', () => {
+  const code='const a={secret:11};console.log(globalThis["eval"]("a.secret"));';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('indirect eval through aliased global and computed key remains protected', () => {
+  const code='const a={secret:12};const g=globalThis;const key="ev"+"al";console.log(g[key]("a.secret"));';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
+test('Function constructor accessed by computed global key preserves script shape', () => {
+  const code='const a={secret:13};const f=globalThis["Function"]("return a.secret");console.log(f());';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('function-valued property rewrite may reflect on this', () => {
   const code='const a={secret:1};a.secret=function(){return Object.keys(this)[0]};console.log(a.secret());';
   const out=compare({'a.js':code});
