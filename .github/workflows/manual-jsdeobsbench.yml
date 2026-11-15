@@ -32,7 +32,7 @@ jobs:
       - name: Audit external corpus without executing samples
         run: node sims/jsdeobsbench-audit.js ./jsdeobsbench-native.jsonl
       - name: Generate deterministic public source candidates
-        run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --seed pinned-jsdeobsbench-20261115 --max 100
+        run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --seed pinned-jsdeobsbench-20261115 --max 1301
       - name: Independently execute paired baseline and transformed code in restricted Docker
         shell: bash
         run: |
@@ -44,5 +44,5 @@ jobs:
             node sims/jsdeobsbench-differential.js \
               --original /work/jsdeobsbench-native.jsonl \
               --transformed /work/jsdeobsbench-obfuscated.jsonl \
-              --sample 50 --cases 2 --timeout 3000 \
+              --sample 0 --cases 2 --timeout 3000 \
               --seed pinned-jsdeobsbench-20261115
