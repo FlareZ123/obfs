@@ -178,7 +178,7 @@ function observesFunctionSource(ast) {
   // That invokes Function#toString when the argument is a function. A
   // source rewrite can therefore change RegExp.source, Symbol.description,
   // or the output of URI encoders even without an explicit String(...) call.
-  const builtinCoercers=new Set(['String','RegExp','Symbol','encodeURI',
+  const builtinCoercers=new Set(['String','BigInt','RegExp','Symbol','encodeURI',
     'encodeURIComponent','decodeURI','decodeURIComponent','escape','unescape',
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
@@ -460,6 +460,29 @@ function observesFunctionSource(ast) {
       }
     } while(progress);
   }
+  /**
+   * Recognize immutable, uniquely-bound constant string keys at a consumer.
+   * Local variables used as computed member names are common around native
+   * toString/Reflect.get observers. Ambiguous bindings remain unresolved.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {string|null}
+   */
+  function sourceStringKey(node,depth=0) {
+    if(!node || depth>32)return null;
+    const literal=staticString(node);
+    if(literal!==null)return literal;
+    if(node.type==='Identifier' && !dynamicScope &&
+       bindingCounts.get(node.name)===1) {
+      return sourceStringKey(primitiveCandidates.get(node.name),depth+1);
+    }
+    if(node.type==='BinaryExpression' && node.operator==='+') {
+      const left=sourceStringKey(node.left,depth+1);
+      const right=sourceStringKey(node.right,depth+1);
+      return left!==null && right!==null ? left+right : null;
+    }
+    return null;
+  }
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function mayCoerceSourceWithinWebRecord(node,depth=0) {
     if(!node || depth>16)return true;
@@ -526,8 +549,10 @@ function observesFunctionSource(ast) {
           containsFunction(node.right)) && staticString(node)===null) observed=true;
     }
     if(node.type==='MemberExpression') {
-      const name=node.computed ? staticString(node.property) :
+      const name=node.computed ? sourceStringKey(node.property) :
         (node.property.type==='Identifier' ? node.property.name : null);
+      // A function's unknown computed key might evaluate to toString.
+      if(node.computed && name===null && isFunctionValue(node.object)) observed=true;
       // A plain assignment overwrites the property without reading or
       // invoking its previous value. Preserve the source-observation guard
       // for calls, reads, compound writes, and other receiver uses.
@@ -599,12 +624,18 @@ function observesFunctionSource(ast) {
           ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') &&
           node.arguments.length>=2 &&
           ['toString','toSource','toLocaleString'].includes(
-            staticString(node.arguments[1])??'')) observed=true;
+            sourceStringKey(node.arguments[1])??'')) observed=true;
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
+      // BigInt.asIntN/asUintN apply ToBigInt to argument 1. A function
+      // can appear verbatim in the resulting SyntaxError's message.
+      if(callee.type==='MemberExpression' && isCoercer(callee.object) &&
+         ['asIntN','asUintN'].includes(memberName(callee)??'')) {
+        argument=node.arguments[1];
+      }
       // AggregateError's first argument is the iterable of errors; its
       // optional second message argument is the ToString source observer.
       if(isAggregateError(callee))argument=node.arguments[1];
