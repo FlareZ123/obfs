@@ -15,22 +15,24 @@ function isSourceMapAsset(filename) {
 
 /**
  * Recognize both //# and /*# sourceMappingURL directives from real JavaScript
- * comments. Tokenization avoids false positives in string/regex/template
+ * comments. Parsing avoids false positives in string/regex/template
  * literals containing the same spelling. All known source-map URL forms,
  * including embedded data: URLs, are rejected without fetching remote URLs.
  * @param {string} source
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {boolean}
  */
-function hasSourceMapDirective(source) {
+function hasSourceMapDirective(source,sourceType='module') {
   let detected = false;
-  const tokenizer = acorn.tokenizer(source, {
+  acorn.parse(source, {
     ecmaVersion: 'latest',
+    sourceType: sourceType === 'commonjs' ? 'script' : sourceType,
+    allowReturnOutsideFunction: sourceType === 'commonjs',
     allowHashBang: true,
     onComment(_block, value) {
       if (/^\s*[#@]\s*sourceMappingURL\s*=/u.test(value)) detected = true;
     }
   });
-  while (tokenizer.getToken().type.label !== 'eof') {}
   return detected;
 }
 
@@ -48,7 +50,7 @@ function assertNoSourceMapDisclosure(file) {
     }
     return;
   }
-  if (typeof file.code === 'string' && hasSourceMapDirective(file.code)) {
+  if (typeof file.code === 'string' && hasSourceMapDirective(file.code,file.sourceType)) {
     throw new TypeError('Source-map directive would disclose original source: ' + file.path);
   }
 }
