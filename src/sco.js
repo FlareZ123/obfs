@@ -12,6 +12,7 @@ const {renameCrossFileProperties} = require('./cross-properties');
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
+ * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
  * @property {number} [maxRpcBytes]
  */
 
@@ -94,6 +95,9 @@ function createScoHandler(sourceFiles,options={}) {
   if (options.remoteMethods && typeof options.authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
   }
+  if (options.authorizeRead !== undefined && typeof options.authorizeRead!=='function') {
+    throw new TypeError('authorizeRead must be a function');
+  }
   if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
@@ -132,6 +136,8 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
+    /** Serve the confirmed file after any trusted, server-side authorization. */
+    function serve() {
     if (file.sourceType === 'asset') {
       const contentType = name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' :
         name.endsWith('.html') ? 'text/html' : 'application/octet-stream';
@@ -149,6 +155,23 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
       response.end('Obfuscation failed');
     }
+    }
+    if (!options.authorizeRead) {
+      serve();
+      return;
+    }
+    // Authentication runs before delivering source or assets; failure closes access.
+    void Promise.resolve().then(()=>options.authorizeRead(request)).then(allowed=>{
+      if (response.destroyed) return;
+      if (!allowed) {
+        response.writeHead(403,{'cache-control':'no-store'}).end();
+        return;
+      }
+      serve();
+    }).catch(()=>{
+      if (!response.headersSent && !response.destroyed) response.writeHead(500).end();
+      else response.destroy();
+    });
   };
 }
 
