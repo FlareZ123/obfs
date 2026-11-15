@@ -60,11 +60,13 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-public-scope-'));
   try {
     await atomicWrite(path.join(root,'index.mjs'),
-      `import {value} from './lib/helper.mjs';import {greeting} from './café/hello world.mjs';globalThis.publicValue=value;globalThis.greeting=greeting;async function load(){return import('./lazy.mjs');}if(false){import('./private/dormant.mjs');}`);
+      `import {value} from './lib/helper.mjs';import {greeting} from './café/hello world.mjs';import {version} from './assets/r%C3%A9sum%C3%A9%23v1.mjs';globalThis.publicValue=value;globalThis.greeting=greeting;globalThis.version=version;async function load(){return import('./lazy.mjs');}if(false){import('./private/dormant.mjs');}`);
     await atomicWrite(path.join(root,'lib','helper.mjs'),
       'export const value="public-helper";');
     await atomicWrite(path.join(root,'café','hello world.mjs'),
       'export const greeting="bonjour";');
+    await atomicWrite(path.join(root,'assets','résumé#v1.mjs'),
+      'export const version="encoded-path";');
     await atomicWrite(path.join(root,'lazy.mjs'),
       'export const value="public-lazy";');
     await atomicWrite(path.join(root,'private','secret.cjs'),
@@ -79,11 +81,11 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
       'export const worker="public-child";');
     await atomicWrite(path.join(root,'style.css'),'body{color:red;}');
 
-    const paths=['index.mjs','lib/helper.mjs','café/hello world.mjs','lazy.mjs','private/secret.cjs',
+    const paths=['index.mjs','lib/helper.mjs','café/hello world.mjs','assets/résumé#v1.mjs','lazy.mjs','private/secret.cjs',
       'private/secret.mjs','private/dormant.mjs','independent.js','independent-child.mjs','style.css'];
     const baseline=await requestSco(root,[],paths);
-    for(const name of paths.slice(0,3))assert.equal(baseline.get(name)?.status,200,name);
-    for(const name of paths.slice(3))assert.equal(baseline.get(name)?.status,404,name);
+    for(const name of paths.slice(0,4))assert.equal(baseline.get(name)?.status,200,name);
+    for(const name of paths.slice(4))assert.equal(baseline.get(name)?.status,404,name);
     for(const observed of baseline.values()) {
       assert.ok(!observed.body.includes('server-secret-never-ship') &&
         !observed.body.includes('dormant-import-never-ship'),
@@ -92,7 +94,7 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
 
     const explicit=await requestSco(root,['--client','lazy.mjs','--client','independent.js',
       '--client','independent-child.mjs','--asset','style.css'],paths);
-    for(const name of [...paths.slice(0,4),'independent.js','independent-child.mjs','style.css']) {
+    for(const name of [...paths.slice(0,5),'independent.js','independent-child.mjs','style.css']) {
       assert.equal(explicit.get(name)?.status,200,name);
     }
     for(const name of ['private/secret.cjs','private/secret.mjs','private/dormant.mjs']) {
