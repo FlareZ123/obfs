@@ -61,6 +61,12 @@ SVG assets have a separate XML-conformant, namespace-aware preflight using pinne
 
 This guard remains bounded. It does not inspect arbitrary `.json`, CSS, XML outside SVG, generated strings, or externally hosted response bodies for embedded source. It cannot prove that other HTML text/attributes do not contain the original program, nor can it ensure that every externally referenced script has been obfuscated. It does not establish resistance to execution-time extraction or reverse engineering of distributed scripts. Integrators must audit the complete published asset set and any independent source-map hosting themselves.
 
+## Public native ESM shard experiment
+
+The opt-in `workplace/coo-native-shards.js` splits explicitly selected typed bitvector functions into public ESM helpers, with generated samples in `examples/coo-native-shards/`. The seed changes names and module layout; it does not add any secret. A seedless attacker reconstructs all tested expression trees by following the published imports. There is no new authorization, trusted integrity, or dynamic extraction barrier.
+
+Two output layouts were compared on Node 22 Linux and Windows. The two-file **paired** layout stayed below 2.5x in six sampled end-to-end fresh-module lifetimes on both systems, while the three-file **split** layout exceeded the target in five Windows workloads. These timing ratios are workload-specific and include Node ESM loading; the experiment is outside the default pipeline. A Chromium functional gate passed, but a separate browser HTTP-loading profile suffered 10ms/20ms virtual-clock quantization and cannot establish the browser runtime budget. See [the pinned report](../im-results/coo-native-shards-2026-11-15.md) and [CI validation](https://github.com/FlareZ123/obfs/actions/runs/43748684953).
+
 ## Performance
 
 The CLI emits executable JavaScript using normal JS operations. String decoding incurs startup cost (especially in COO). Hot-loop string sites are excluded, but the 2.5x runtime requirement is empirical and workload-specific. `test/benchmark.js` samples arithmetic, property read/write, and string comparisons; it fails if any observed median exceeds 2.5x. This does not exhaust possible programs or timing distributions.
