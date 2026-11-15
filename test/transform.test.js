@@ -132,6 +132,12 @@ test('duplicate normalized paths are rejected', () => {
   assert.throws(()=>transform({'dir\\a.js':'const a={x:1};','dir/a.js':'const b={y:2};'}),/Duplicate normalized/);
 });
 
+test('function-valued property rewrite may reflect on this', () => {
+  const code='const a={secret:1};a.secret=function(){return Object.keys(this)[0]};console.log(a.secret());';
+  const out=compare({'a.js':code});
+  assert.equal(out.renamed,0);
+});
+
 test('tracked function return passed through implicit arrow remains unchanged', () => {
   const code='const a={"$name":907,other:908};function f(x){return x;}const b=()=>f(a);console.log(b().$name);';
   const out=compare({'a.js':code});
