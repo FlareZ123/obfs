@@ -46,3 +46,11 @@ The benchmark addresses performance only. It does not establish resistance to st
 ## Evidence standard
 
 This is an intermediate empirical observation. Establishing a general performance theorem, robust confidence interval across runner architectures, or measured comparison of optimized decoder alternatives remains open. The result belongs in `im-results/`.
+
+## Subsequent implementation change: optional eager COO strings
+
+Later on 2026-11-15, `src/core.js` was changed so COO/SCO client files **skip eager string encoding by default**; callers must specify `strings:true` to opt in. The historical measured CI run 43677098108 was executed before that default changed, when eager decoding occurred automatically. The research harness `sims/cold-start.js` now explicitly passes `strings:true`, preserving direct comparability to the historical decoder behavior and avoiding accidental measurements of the no-op default.
+
+This distinction matters for the project's claim: **the current default COO/SCO string policy avoids these specific eager-decoder costs by leaving literals unencoded**. The optional `strings:true` feature still requires a performance guard or warning for short-lived workloads. Encoding omission has its own static readability tradeoff. The SCO remote-method architecture can avoid distributing server-resident sensitive implementations; it remains outside this local string benchmark.
+
+Do not cite the historical 30.6×/32.2× observations as measurements of the current default COO configuration without noting the version change.
