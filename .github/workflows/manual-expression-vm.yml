@@ -25,3 +25,8 @@ jobs:
         run: node --test test/expression-vm.test.js test/expression-vm-static-recovery.test.js test/native-graph.test.js test/native-graph-static-recovery.test.js
       - name: Strict main-library JSDoc check
         run: npm run typecheck
+      - name: Real Chromium ESM and page-owned API execution
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/expression-vm-browser.js
