@@ -37,6 +37,7 @@ jobs:
         shell: bash
         run: |
           docker run --rm --network none --read-only --cpus 2 --memory 1g --pids-limit 64 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=32m,mode=1777 \
             --user 65534:65534 \
             --mount "type=bind,src=${{ github.workspace }},dst=/work,readonly" \
             --workdir /work node:22-alpine \
