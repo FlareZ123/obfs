@@ -109,6 +109,22 @@ test('real ESM two-file caller observes native values after local Symbol transfo
   } finally {await fs.rm(root,{force:true,recursive:true});}
 });
 
+
+test('private property read inside an observable failed callee remains unrenamed',()=>{
+  // The failed .join call prints the complete callee, including the nested
+  // private member's original source spelling in V8's TypeError message.
+  const source='const bag={secretField:4};'+
+    'Array.prototype.join=null;'+
+    'try{[bag.secretField].join(",");}catch(error){module.exports=error.message;}';
+  const out=symbolizeLocalProperties(source,parse(source,'commonjs'),
+    {seed:'symbol-typeerror-callee'});
+  assert.equal(out.objects,0);
+  assert.equal(out.code,source);
+  const context={module:{exports:null}};
+  vm.runInNewContext(out.code,context,{timeout:1000});
+  assert.match(String(context.module.exports),/bag\.secretField/u);
+});
+
 test('generated before-and-after sample is byte-for-byte reproducible',async()=>{
   await buildSample(true);
   const original=await fs.readFile(path.join(__dirname,'../examples/symbol-keys/before.cjs'),'utf8');
