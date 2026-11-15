@@ -52,7 +52,7 @@ async function requestSco(root,additionalArgs,names) {
     return results;
   }finally{
     child.kill();
-    await new Promise(resolve=>child.once('exit',resolve));
+    if(child.exitCode===null)await new Promise(resolve=>child.once('exit',resolve));
   }
 }
 
@@ -69,11 +69,14 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
       'const SERVER_ONLY_SECRET="server-secret-never-ship";module.exports=SERVER_ONLY_SECRET;');
     await atomicWrite(path.join(root,'private','secret.mjs'),
       'export const SERVER_ONLY_SECRET="server-secret-never-ship";');
-    await atomicWrite(path.join(root,'independent.js'),'globalThis.independent=true;');
+    await atomicWrite(path.join(root,'independent.js'),
+      'globalThis.independent=true;import("./independent-child.mjs");');
+    await atomicWrite(path.join(root,'independent-child.mjs'),
+      'export const worker="public-child";');
     await atomicWrite(path.join(root,'style.css'),'body{color:red;}');
 
     const paths=['index.mjs','lib/helper.mjs','lazy.mjs','private/secret.cjs',
-      'private/secret.mjs','independent.js','style.css'];
+      'private/secret.mjs','independent.js','independent-child.mjs','style.css'];
     const baseline=await requestSco(root,[],paths);
     for(const name of paths.slice(0,3))assert.equal(baseline.get(name)?.status,200,name);
     for(const name of paths.slice(3))assert.equal(baseline.get(name)?.status,404,name);
@@ -83,7 +86,7 @@ test('SCO CLI withholds unreferenced JS and only exposes graph or explicitly sel
     }
 
     const explicit=await requestSco(root,['--client','independent.js','--asset','style.css'],paths);
-    for(const name of [...paths.slice(0,3),'independent.js','style.css']) {
+    for(const name of [...paths.slice(0,3),'independent.js','independent-child.mjs','style.css']) {
       assert.equal(explicit.get(name)?.status,200,name);
     }
     for(const name of ['private/secret.cjs','private/secret.mjs']) {
