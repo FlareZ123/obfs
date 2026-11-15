@@ -76,6 +76,7 @@ test('potentially active SVG assets remain outside the inert whitelist',()=>{
 });
 
 test('inline executable HTML and SVG assets are explicitly refused by source audit',()=>{
+  /** @type {import('../src/core').SourceFile[]} */
   const active=[
     {path:'index.html',sourceType:'asset',
       code:'<script type="module">import {state} from "./lib/state.mjs"</script>'},
