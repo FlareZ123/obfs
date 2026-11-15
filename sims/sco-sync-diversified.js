@@ -17,18 +17,21 @@ const {binaryWords}=require('./sco-sync-search');
  * @param {StepOnlyOracle} api
  * @param {number} [maxWordLength]
  * @param {number} [trials]
+ * @param {number} [suffixDepth] Bounded exact-depth future-observation probes.
  * @returns {Promise<{word:number[]|null,steps:number,inputTape:number[]}>}
  */
-async function searchSynchronizingWordDiversified(api,maxWordLength=3,trials=12) {
+async function searchSynchronizingWordDiversified(api,maxWordLength=3,trials=12,suffixDepth=3) {
   if(!Number.isSafeInteger(maxWordLength)||maxWordLength<1||maxWordLength>4 ||
-     !Number.isSafeInteger(trials)||trials<2||trials>64) {
+     !Number.isSafeInteger(trials)||trials<2||trials>64 ||
+     !Number.isSafeInteger(suffixDepth)||suffixDepth<1||suffixDepth>7) {
     throw new RangeError('Unexpected bounded search parameters');
   }
   const candidates=binaryWords(maxWordLength);
-  // Four-state Mealy inequivalence is visible by depth three. A shorter
-  // distinguishing output prefix remains distinct after extension, so only
-  // length-three suffixes are necessary for this bounded attacker.
-  const suffixes=binaryWords(3).filter(word=>word.length===3);
+  // Four-state Mealy inequivalence is visible by depth three. An optional
+  // longer depth probes larger state spaces at exponentially greater cost.
+  // A shorter distinguishing output prefix persists after extension, so
+  // only full-length suffixes are needed.
+  const suffixes=binaryWords(suffixDepth).filter(word=>word.length===suffixDepth);
   const scrambles=binaryWords(4);
   /** @type {number[]} */
   const inputTape=[];
