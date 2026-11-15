@@ -63,3 +63,8 @@ for(const profile of profiles){
     samples:timing});
 }
 console.log(JSON.stringify(results,null,2));
+if(process.env.OBFS_ENFORCE_BUDGET==='1' &&
+    results.some(result=>result.withinBudget!==true||result.maskedWithinBudget!==true)) {
+  process.stderr.write('Native superblock experiment exceeds 2.5x in measured hot profile\n');
+  process.exitCode=1;
+}
