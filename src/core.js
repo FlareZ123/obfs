@@ -8,15 +8,16 @@ const {encodeStrings} = require('./strings');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
+const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,branchFunctions?:number,branchBlocks?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,branchFunctions?:number,branchBlocks?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean}} ObfuscationOptions
  */
 
 /**
@@ -359,6 +360,18 @@ function obfuscateFiles(files, options = {}) {
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
+    const expressionNames=options.experimentalExpressionVm?.[filename]??[];
+    let expressionVmFunctions=0,expressionVmInstructions=0;
+    if(expressionNames.length) {
+      if(sourceType==='script'||remoteSourceObserver) {
+        throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
+      }
+      const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
+      code=virtualized.code;
+      expressionVmFunctions=virtualized.functions;
+      expressionVmInstructions=virtualized.instructions;
+      ast=parse(code,sourceType);
+    }
     const branchNames=options.experimentalBranchBlocks?.[filename]??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
@@ -407,6 +420,10 @@ function obfuscateFiles(files, options = {}) {
     if(vmNames.length) {
       metrics.vmFunctions=vmFunctions;
       metrics.vmInstructions=vmInstructions;
+    }
+    if(expressionNames.length) {
+      metrics.expressionVmFunctions=expressionVmFunctions;
+      metrics.expressionVmInstructions=expressionVmInstructions;
     }
     if(branchNames.length) {
       metrics.branchFunctions=branchFunctions;
