@@ -25,6 +25,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Verify executable XML document URL behavior in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/xml-data-url-browser.js
       - name: Compare held-out multi-file property graphs in Chrome
         env:
           CHROMIUM_BIN: google-chrome
