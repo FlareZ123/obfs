@@ -131,6 +131,8 @@ function renameCrossFileProperties(files,seed) {
           const token=createHash('sha256').update(`${seed}/${exporterName}/${exportName}/${old}`).digest('hex').slice(0,12);
           mapping.set(old,`_p${token}`);
         }
+        // Keep the exported object's shape intact if truncated digests collide.
+        if (new Set(mapping.values()).size !== mapping.size) continue;
         // The export binding name is unchanged; its public object shape is
         // changed only when callers opted into closed-world semantics.
         for(const prop of props) add(exporterName,{start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(staticName(prop.key)))});
