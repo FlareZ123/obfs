@@ -200,6 +200,18 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           if (index>=0 || returnsRoot) functions.set(node.id.name,{
             node:value,params:value.params,forwardIndex:index,returnsRoot
           });
+        } else if (body?.type === 'MemberExpression' &&
+                   body.object.type === 'Identifier' &&
+                   (body.computed ? staticString(body.property) :
+                     staticName(body.property)) !== null &&
+                   value.params.some((/** @type {AstNode} */ p)=>p.name===body.object.name)) {
+          // A local, immutable reader consumes the tracked owner but returns
+          // the field value, never an alias to the owner. The existing proof
+          // requires every call to receive that same owner, checks the field
+          // against its own keys, and rejects escaping function references.
+          functions.set(node.id.name,{
+            node:value,params:value.params,forwardIndex:-1,returnsRoot:false
+          });
         }
       }
     }
