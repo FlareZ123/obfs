@@ -128,7 +128,7 @@ function collectBindingScopes(ast) {
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map()) {
   if(observesFunctionSource(ast)) return null;
-  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,external?:boolean,consumerIndex?:number}>} */
+  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   /** @type {Map<string,AstNode[]>} */
   const calls = new Map();
@@ -154,18 +154,21 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
+      let returnsRoot = false;
       if (!node.async && !node.generator && node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
           node.body.body[0].argument?.type === 'Identifier') {
         /** @type {AstNode[]} */
         const params = node.params;
-        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === node.body.body[0].argument.name);
+        const returned=node.body.body[0].argument.name;
+        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
+        returnsRoot = !params.length && returned === rootName;
       }
-      functions.set(node.id.name,{node,params:node.params,forwardIndex});
+      functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
     }
-    // Immutable local identity expressions are as predictable as direct
-    // function declarations when their only result is one plain parameter.
-    // The existing use proof separately rejects exported, reassigned,
-    // reflected or callback-escaped helper bindings.
+    // Immutable local forwarding expressions return one plain parameter,
+    // or a captured immutable root through a zero-argument getter.
+    // The use proof rejects exported getters, callback escape, reflection,
+    // and unproved consumption of returned objects.
     if (node.type === 'VariableDeclarator' && parent?.type === 'VariableDeclaration' &&
         parent.kind === 'const' && node.id.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
@@ -180,8 +183,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           : value.body;
         if (body?.type === 'Identifier') {
           const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
-          if (index>=0) functions.set(node.id.name,{
-            node:value,params:value.params,forwardIndex:index
+          const returnsRoot=!value.params.length && body.name===rootName;
+          if (index>=0 || returnsRoot) functions.set(node.id.name,{
+            node:value,params:value.params,forwardIndex:index,returnsRoot
           });
         }
       }
@@ -225,7 +229,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       continue;
     }
     if (parent?.type === 'VariableDeclarator' && key === 'id' &&
-        parent.init===functions.get(node.name)?.node) continue;
+        parent.init===functions.get(node.name)?.node) {
+      // Exported zero-argument getters disclose the entire owner to unknown
+      // external callers, even when their local call sites are all proven.
+      if(functions.get(node.name)?.returnsRoot &&
+          ancestors.some(a=>/^Export/.test(a.type)))unusableFunctions.add(node.name);
+      continue;
+    }
     if (functions.get(node.name)?.external && /^Import(?:Default|Namespace)?Specifier$/.test(parent?.type??'')) continue;
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
@@ -238,7 +248,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (expression.type === 'Identifier') return aliases.has(expression.name);
     if (expression.type === 'CallExpression' && expression.callee.type === 'Identifier') {
       const fn = functions.get(expression.callee.name);
-      return Boolean(fn && fn.forwardIndex >= 0 && resolves(expression.arguments[fn.forwardIndex]));
+      return Boolean(fn && (fn.returnsRoot ||
+        fn.forwardIndex >= 0 && resolves(expression.arguments[fn.forwardIndex])));
     }
     return false;
   }
@@ -344,11 +355,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if (parent.type === 'ReturnStatement' && key === 'argument') {
       const enclosing = [...ancestors].reverse().find(a => /^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(a.type));
-      if (enclosing && [...functions.values()].some(fn=>fn.node===enclosing && fn.forwardIndex>=0)) continue;
+      if (enclosing && [...functions.values()].some(fn=>
+        fn.node===enclosing && (fn.forwardIndex>=0 || fn.returnsRoot))) continue;
       return null;
     }
     if (parent.type === 'ArrowFunctionExpression' && key === 'body' &&
-        [...functions.values()].some(fn=>fn.node===parent && fn.forwardIndex>=0)) continue;
+        [...functions.values()].some(fn=>
+          fn.node===parent && (fn.forwardIndex>=0 || fn.returnsRoot))) continue;
     return null;
   }
   // Member assignment can install a function whose `this` observes the
@@ -385,7 +398,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent?.type !== 'CallExpression' || key !== 'callee') continue;
     const fn = functions.get(node.name);
     if(!fn) continue;
-    if (fn.forwardIndex < 0 || !resolves(parent.arguments[fn.forwardIndex])) continue;
+    if (!fn.returnsRoot &&
+        (fn.forwardIndex < 0 || !resolves(parent.arguments[fn.forwardIndex]))) continue;
     // Other returned values (including members of the call) are opaque.
     const callParent = parents.get(parent);
     if (callParent?.type === 'VariableDeclarator' && callParent.init === parent &&
