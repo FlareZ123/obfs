@@ -49,12 +49,13 @@ function isServerEnvironmentRead(expression){
  * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
- * @returns {'prototype'|'RegExp match'|null}
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|null}
  */
 function realmStateObservation(body){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
     'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
+    'Math','JSON','Intl','Atomics','WebAssembly',
     'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
     'Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array',
     'BigUint64Array']);
@@ -107,7 +108,9 @@ function realmStateObservation(body){
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isIntrinsic(node){
-    return node.type==='Identifier'&&intrinsicNames.has(node.name);
+    return node.type==='Identifier'&&intrinsicNames.has(node.name)||
+      node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+      globalNames.has(node.object.name)&&intrinsicNames.has(keyName(node)??'');
   }
   // A tracked alias can refer to Object or Reflect. Declining the same
   // method spelling on other constructor aliases only widens refusals.
@@ -121,6 +124,11 @@ function realmStateObservation(body){
   }
   let prototypeTouched=false;
   let regexpTouched=false;
+  let intrinsicTouched=false;
+  /** @param {import('./ast').AstNode} member @returns {boolean} */
+  function writesIntrinsic(member){
+    return member.type==='MemberExpression'&&isIntrinsic(member.object);
+  }
   walk(body,node=>{
     if(node.type==='MemberExpression'){
       const key=keyName(node);
@@ -133,8 +141,19 @@ function realmStateObservation(body){
        patternReads(node.id,sensitiveNames))prototypeTouched=true;
     if(node.type==='AssignmentExpression'&&isIntrinsic(node.right)&&
        patternReads(node.left,sensitiveNames))prototypeTouched=true;
+    if(node.type==='AssignmentExpression'&&writesIntrinsic(node.left)||
+       node.type==='UpdateExpression'&&writesIntrinsic(node.argument)||
+       node.type==='UnaryExpression'&&node.operator==='delete'&&
+         writesIntrinsic(node.argument))intrinsicTouched=true;
+    if(node.type==='CallExpression'&&node.arguments.length&&
+       node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&
+       node.callee.object.name==='Object'&&
+       ['assign','freeze','seal','preventExtensions'].includes(keyName(node.callee)??'')&&
+       isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
-  return prototypeTouched?'prototype':regexpTouched?'RegExp match':null;
+  return prototypeTouched?'prototype':regexpTouched?'RegExp match':
+    intrinsicTouched?'intrinsic state':null;
 }
 
 /**
