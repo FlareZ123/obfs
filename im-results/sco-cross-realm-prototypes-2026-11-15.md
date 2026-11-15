@@ -32,8 +32,27 @@ The issue is a semantic admission condition, independent of whether private func
 
 The guard now refuses direct `.prototype` / `.__proto__`, known intrinsic computed-key ambiguity, direct `Object` and `Reflect` prototype reflectors, prototype reflection against known constructors, and destructuring their prototype. The static key reader reuses `src/ast.js::staticString` for bounded concatenated literals. The existing accepted safe sample remains admitted. These checks add parser cost at compiler/build time; runtime protected-work overhead of accepted output is unchanged by this admission guard, but this was **not** separately benchmarked.
 
+## First-class reflective method follow-up
+
+A subsequent independent alias-oriented regression added nine further
+first-class or immutable-alias spellings: `const reflect=Object.getOwnPropertyDescriptor`,
+`const reflect=Reflect.get`, `const alias=Reflect;alias.get(...)`,
+`const alias=Object;Reflect.get(alias,...)`, a locally bound constructor
+with a computed key, `globalThis.Object` aliasing, and destructured method
+aliases from `Object` and `Reflect`. These patterns do not all carry the
+literal `.prototype` spellings previously recognized.
+
+The compiler now follows straightforward constructor and Reflect variable
+aliases to a fixed point before examining body uses, and conservatively
+refuses direct references to reflective methods and known prototype keys.
+The [targeted SCO Ubuntu/Windows run 43770705761](https://github.com/FlareZ123/obfs/actions/runs/43770705761)
+passed at immutable `9d53eb3147dec7011e5e2f92ada7c6346d34a219`
+with the nine-case addition, strict JSDoc and browser SCO fixtures. This
+extends the tested refusal coverage while reducing admission for some
+legitimate introspective functions. No universal completeness claim follows.
+
 ## Limits and follow-up
 
-The checker is syntactic and can still miss aliased accessors (for example `const method=Object.getOwnPropertyDescriptor;method(Object,'prototype')`), opaque function calls that mutate intrinsic prototypes, computed constructor aliases or other mutable realm state. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
+The checker remains syntactic and can still miss dynamic method aliases, opaque function calls that mutate intrinsic prototypes, alternate access paths through unmodeled native APIs, or other mutable realm state. Known first-class intrinsic method aliases are now refused; arbitrary alias graphs are outside this proof. Declining a known spelling is neither a general purity proof nor evidence of tamper resistance. The strict 2.5× runtime budget still requires representative whole-session measurement for each deployment.
 
 Next: challenge the guard with independent alias-generation fixtures; improve refusal for first-class reflective methods without indiscriminately disabling useful object APIs; audit accepted clients for remaining cross-realm side effects. The private-source boundary remains subject to authorized chosen-input oracle and relay attacks.
