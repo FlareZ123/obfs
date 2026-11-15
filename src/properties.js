@@ -58,7 +58,7 @@ function staticName(node) {
  */
 function isLiteralValue(node) {
   return node.type==='Literal' || node.type==='ArrayExpression' &&
-    node.elements.every(element=>element && isLiteralValue(element));
+    node.elements.every((/** @type {AstNode|null} */ element)=>element && isLiteralValue(element));
 }
 
 /**
