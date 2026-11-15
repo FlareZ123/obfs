@@ -61,3 +61,9 @@ test('closed-world ESM can rename an own key that shadows an inherited getter',a
   await check(`Object.defineProperty(Object.prototype,'secretField',{get(){return 99;}});
     console.log(state.secretField);`,1);
 });
+
+test('closed-world ESM rejects destructuring of an inherited reflective getter',async()=>{
+  await check(`Object.defineProperty(Object.prototype,'inspect',{
+    get(){return Object.keys(this)[0];}
+  });const {inspect}=state;console.log(inspect,state.secretField);`,0);
+});
