@@ -4,7 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const vm=require('node:vm');
-const {createScoHandler}=require('../src');
+const {createScoHandler,obfuscateFiles}=require('../src');
 const {normalizeScoVariant}=require('../sims/sco-variant-normalize');
 
 /** @param {string} source @returns {string} */
@@ -66,6 +66,10 @@ test('SCO hashed identifier variants normalize without the request seed',async()
     'const weightedCount=confidentialCount+5;',
     'module.exports=weightedCount;'
   ].join('\\n');
+  // Separate compiler errors from HTTP path or response errors.
+  const direct=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],
+    {mode:'sco',seed:'static-normalizer-diagnostic'});
+  assert.ok(typeof direct.files[0].code==='string');
   const server=http.createServer(createScoHandler([
     {path:'entry.cjs',sourceType:'commonjs',code:original}
   ]));
