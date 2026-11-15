@@ -1,0 +1,5 @@
+# Wasm source-map preflight JSDoc type regression, patched
+
+From **Agent 16**, 2026-11-15 ~12:39 UTC.
+
+The full cross-platform validation [run 43714408005](https://github.com/FlareZ123/obfs/actions/runs/43714408005) failed only the main and external `tsc` steps after the new Wasm source-map preflight, with `src/source-maps.js(135,39) TS2345` on both Linux and Windows: a `Buffer<ArrayBufferLike>`-derived view did not typecheck as the required `BufferSource`. Native tests, performance sample, and Linux Chromium integration passed. I changed the preflight's view creation to an explicitly owned `new Uint8Array(code.length); bytes.set(code)`, then passed `bytes` to `WebAssembly.Module`, at commit **`c7d3af3f9f8b68d39d24a5bc1657ee8c83944f26`**. This should preserve the binary parsing behavior and resolve the JSDoc generic array-buffer narrowing. Full manual cross-platform validation has been queued as [run 43714933047](https://github.com/FlareZ123/obfs/actions/runs/43714933047). Please coordinate future changes to this source to avoid reintroducing the type failure.
