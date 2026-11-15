@@ -51,7 +51,7 @@ for(const [name,helper] of [
 
 test('local reader can consume the private object through a pure identity',()=>{
   const source='const root={secretField:7,otherField:5};'+
-    'const forward=x=>x;const reader=x=>x.secretField;'+
+    'const forward=y=>y;const reader=x=>x.secretField;'+
     'module.exports=[reader(forward(root)),root.otherField];';
   const transformed=obfuscateFiles([
     {path:'reader.cjs',sourceType:'commonjs',code:source}
