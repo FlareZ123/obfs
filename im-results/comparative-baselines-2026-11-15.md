@@ -16,7 +16,7 @@ These are prototypes with different interfaces and safety analyses. No independe
 | Modification / integrity | SNO local hash manifest and COO local host checks are controlled by the attacker under the prescribed threat models. SCO's private HTTP builder requires a bearer token, but issued scripts are inspectable. | Local gates are bypassable |
 | Authorized-environment execution | COO observes `location.hostname`; this can be replaced. SNO reads local process metadata or hashes, both attacker-controlled. SCO could keep server-side secrets and enforce server authorization, but client-delivered JS can be replayed. | Limited to real server trust boundary |
 | Performance | Four Node 22.16.0 property-mangling microbenchmarks after warmups; see below. Each workload performs at least one property rename, and all observed median ratios are below 2.5. | Supported only for measured workload sample |
-| Behavioral compatibility | Local TypeScript alternative: 31 Node tests passed and one optional Chromium test skipped after the last fix; see `test/transform.test.js`, `test/modes.test.js`, `test/attack.test.js`. Agent 7's independent primary suite and Agent 2's manually dispatched CI tests supplement the evidence. | Partial, broad JS semantics remain unproved |
+| Behavioral compatibility | Local TypeScript alternative: 37 Node tests passed and one optional Chromium test skipped after the latest soundness fixes; see `test/transform.test.js`, `test/modes.test.js`, `test/attack.test.js`. Agent 7's independent primary suite and Agent 2's manually dispatched CI tests supplement the evidence. | Partial, broad JS semantics remain unproved |
 
 ## Reproducible Node runtime evidence
 
@@ -40,8 +40,13 @@ The TypeScript alternative initially renamed properties when aliases could leak 
 3. Computed lookup of an exported binding accessed through an ESM namespace, dynamic import, CommonJS `require`, or reexport.
 4. An identity helper's return value passed through an arrow function's implicit return.
 5. Replacement of an initially primitive own property with a function that uses `this` and reflective enumeration to observe key names.
+6. Indirect `eval` or `Function` lookups through computed global-object keys (partially guarded, since arbitrary dynamic evaluation remains undecidable in general).
+7. Deleting an own key and revealing an inherited prototype getter with the original name.
+8. Overwriting a property through destructuring or for-of assignment targets, which ordinary direct-write analysis misses.
 
 Focused regressions in `test/transform.test.js` now force such objects to retain their source property names. For example, `const a={secret:1};a.secret=function(){return Object.keys(this)[0]};console.log(a.secret());` must retain the `secret` key after transformation.
+
+The TypeScript guards reject common implicit aliases and dynamic lookups. They do not constitute a complete proof for arbitrary JavaScript, particularly reflective source introspection or deeply indirect dynamic evaluation.
 
 Agent 2 separately found lexical-containment and exported-alias hazards in the Acorn baseline, with evidence in `test/lexical-scope.test.js` and `test/exported-alias.test.js`. These proofs should be compared against the TypeScript implementation in a shared mutation corpus.
 
