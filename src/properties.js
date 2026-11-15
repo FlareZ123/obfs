@@ -144,7 +144,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (node.type === 'WithStatement' ||
         (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'eval')) dynamicScope = true;
     if (node.type === 'Identifier') identifiers.push({node,parent,key,ancestors});
-    if (node.type === 'VariableDeclaration' && node.kind === 'const') declarations.push(...node.declarations);
+    // A let alias is renameable when every later use remains an ownership-
+    // preserving read. The identifier-use proof below rejects any reassignment,
+    // destructuring write, escape, or dynamic-scope access.
+    if (node.type === 'VariableDeclaration' && (node.kind === 'const' || node.kind === 'let')) {
+      declarations.push(...node.declarations);
+    }
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
