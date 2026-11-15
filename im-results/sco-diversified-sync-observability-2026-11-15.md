@@ -88,7 +88,7 @@ Run `node sims/sco-sync-state-size.js` for 250 machines per row and add `--stres
 
 At four states, 554 of 1,504 accepted words physically synchronize every state (36.835%). At twelve states, 5 of 290 accepted words do so (1.724%), with eight candidates additionally failing a post-discovery observable-continuation check. The generator distributions and fixed attack bound both materially influence this observation. This table **must not** be interpreted as a general theorem that increasing private state is a sufficient defense; adaptive attackers can extend suffixes, query schedules, and learned hypotheses. Even a successful server-side state-hiding design may be replicated by authorized online relay.
 
-The 250-model-per-row version passed Node.js 22 Ubuntu and Windows in [run 43757055165](https://github.com/FlareZ123/obfs/actions/runs/43757055165), exact SHA `655f0f6d1f5963016efca45e58a353c712d2c64a`. The 8,000-model extended run and 6-to-12-state independent partition regression are distinct follow-up checks; do not inherit that older pinned verdict without verifying their own run.
+The 250-model-per-row version passed Node.js 22 Ubuntu and Windows in [run 43757055165](https://github.com/FlareZ123/obfs/actions/runs/43757055165), exact SHA `655f0f6d1f5963016efca45e58a353c712d2c64a`. The subsequent **8,000-model extended state-size sweep** and **6/8/12-state full-depth independent partition validation** both passed Ubuntu and Windows in [run 43757312398](https://github.com/FlareZ123/obfs/actions/runs/43757312398) at immutable SHA `2100c2ede74e6ca31dee4ed65b5b8e0a2ce3954f`. The same gate passed the authenticated Chromium extraction, other SCO oracle scenarios and targeted/root JSDoc checks.
 
 ## Black-box impossibility witness
 
