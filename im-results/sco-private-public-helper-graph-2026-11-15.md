@@ -62,8 +62,11 @@ The subsequent explicit public-helper graph and exact generated fixture passed
 the focused Linux/Windows SCO gate
 [43766832567](https://github.com/FlareZ123/obfs/actions/runs/43766832567)
 at exact source `a0630c1054e0f933a95fa7123021e70ae1ca4abd`.
-The new mixed-helper full-suite run is recorded separately once concluded;
-a scoped test success must not be conflated with general proof of security.
+The subsequent identical-source integrated [Linux/Windows full suite 43766952020](https://github.com/FlareZ123/obfs/actions/runs/43766952020)
+passed at exact source `20f2c6271d89063f72789fac8fc63564d21f7eda`:
+both native Node test lanes, library/external strict JSDoc checks, sampled
+benchmark, and Ubuntu Chromium integration. The generated fixture is covered
+by these tests. Scoped passes do not establish a general security theorem.
 
 The existing authenticated relay reproduces all 20 out of 20 held-out outputs.
 The same trusted server still performs those private operations; with an
