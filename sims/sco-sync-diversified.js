@@ -44,8 +44,11 @@ async function searchSynchronizingWordDiversified(api,maxWordLength=3,trials=12)
       const suffix=suffixes[suffixIndex];
       /** @type {string|null} */
       let reference=null;
-      for(let trial=0;trial<trials;trial++) {
-        const scramble=scrambles[(trial*97+suffixIndex*17+candidateIndex*31)%scrambles.length];
+      // Two prefix-free repetitions check the candidate in the current
+      // state before perturbing it. Scrambled probes then exercise states
+      // reached from both input symbols.
+      for(let trial=-2;trial<trials;trial++) {
+        const scramble=trial<0 ? [] : scrambles[(trial*97+suffixIndex*17+candidateIndex*31)%scrambles.length];
         for(const symbol of scramble)await send(symbol);
         for(const symbol of candidate)await send(symbol);
         /** @type {number[]} */
