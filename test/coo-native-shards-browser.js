@@ -22,15 +22,17 @@ async function dumpDom(binary,url) {
  * @returns {Promise<void>}
  */
 async function main() {
+  const topology=process.argv.includes('--paired')?'paired':'split';
   const root=path.join(__dirname,'..','examples','coo-native-shards');
   /** @type {Map<string,{type:string,body:string}>} */
   const assets=new Map();
   const original=await fs.readFile(path.join(root,'before','main.mjs'),'utf8');
   assets.set('/original.mjs',{type:'text/javascript; charset=utf-8',body:original});
-  const names=(await fs.readdir(path.join(root,'after'))).filter(x=>x.endsWith('.mjs'));
-  assert.equal(names.length,3);
+  const folder=topology==='paired'?'after-paired':'after';
+  const names=(await fs.readdir(path.join(root,folder))).filter(x=>x.endsWith('.mjs'));
+  assert.equal(names.length,topology==='paired'?2:3);
   for(const name of names) {
-    const body=await fs.readFile(path.join(root,'after',name),'utf8');
+    const body=await fs.readFile(path.join(root,folder,name),'utf8');
     assets.set('/after/'+name,{type:'text/javascript; charset=utf-8',body});
   }
   const html='<!doctype html><html><body><div id="answer">pending</div>'+
@@ -65,7 +67,7 @@ async function main() {
     const match=dom.match(/id="answer">pass:(\d+):([0-9.]+):([0-9.]+)/u);
     assert.ok(match,'Chromium native sharding failed: '+dom.slice(-1800));
     assert.equal(Number(match[1]),4097);
-    console.log(JSON.stringify({browser:'chromium',typedInputs:4097,
+    console.log(JSON.stringify({browser:'chromium',topology,typedInputs:4097,
       nativeMs:Number(match[2]),shardMs:Number(match[3]),
       hotRatio:Number(match[3])/Number(match[2])}));
   } finally {

@@ -78,8 +78,10 @@ function recover(publicFiles) {
     const shard=publicFiles.find(file=>file.path===filename);
     assert.ok(shard);
     const parsed=parse(shard.code,'module');
-    const fn=parsed.body[0].declaration;
-    reconstructed.push(canonical(fn.body.body[0].argument));
+    const owner=parsed.body.find((/** @type {import('../src/ast').AstNode} */ node)=>
+      node.declaration?.id?.name===side.callee.name);
+    assert.ok(owner);
+    reconstructed.push(canonical(owner.declaration.body.body[0].argument));
   }
   return '('+reconstructed[0]+result.operator+reconstructed[1]+')';
 }
@@ -95,6 +97,21 @@ test('three-file bitvector kernel matches 12 seeds and 519 typed inputs',async()
     assert.equal(generated.files.length,3);
     assert.deepEqual(await load(generated.files),baseline);
     assert.equal(recover(generated.files),canonical(original));
+  }
+});
+
+test('paired topology matches source and is recovered seedlessly',async()=>{
+  const baseline=await load([{path:'main.mjs',code:before,sourceType:'module'}]);
+  const original=parse(before,'module').body[0].declaration.body.body[0].argument;
+  for(let n=0;n<12;n++) {
+    const output=shardNativeBitvectorModule(
+      {path:'main.mjs',code:before,sourceType:'module'},
+      {seed:'paired-native-'+n,names:['scramble'],topology:'paired'});
+    assert.equal(output.functions,1);
+    assert.equal(output.helperCalls,2);
+    assert.equal(output.files.length,2);
+    assert.deepEqual(await load(output.files),baseline);
+    assert.equal(recover(output.files),canonical(original));
   }
 });
 

@@ -27,10 +27,17 @@ jobs:
         run: node examples/coo-native-shards/build.cjs
       - name: Strict JSDoc contracts
         run: npx tsc -p jsconfig.native-shards.json
-      - name: Paired ESM graph cold and hot cost
+      - name: Three-file ESM graph cold and hot cost
         run: node sims/coo-native-shards-profile.js
+      - name: Two-file ESM graph cold and hot cost
+        run: node sims/coo-native-shards-profile.js --paired
       - name: Real Chromium ESM graph with external host API
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/coo-native-shards-browser.js
+      - name: Real Chromium paired ESM graph with external host API
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-native-shards-browser.js --paired

@@ -24,6 +24,7 @@ function work(fn,calls) {
 
 /** @returns {Promise<void>} */
 async function main() {
+  const topology=process.argv.includes('--paired')?'paired':'split';
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-native-shard-profile-'));
   try {
     /** @type {number[]} */
@@ -31,7 +32,7 @@ async function main() {
     /** @type {number[]} */
     const sharded=[];
     const graph=shardNativeBitvectorModule({path:'main.mjs',code:source,sourceType:'module'},
-      {seed:'native-shard-cost',names:['scramble']}).files;
+      {seed:'native-shard-cost',names:['scramble'],topology}).files;
     /**
      * @param {string} folder
      * @param {{path:string,code:string}[]} files
@@ -91,7 +92,7 @@ async function main() {
     // Discard the first 16 imports to avoid startup JIT/loader warmup.
     const graphNative=median(native.slice(16)),graphSharded=median(sharded.slice(16));
     const hotN=median(hotNative),hotS=median(hotSharded);
-    console.log(JSON.stringify({node:process.version,importPairs:72,hotTrials:21,hotCalls:600000,
+    console.log(JSON.stringify({topology,node:process.version,importPairs:72,hotTrials:21,hotCalls:600000,
       nativeLoadMs:graphNative,shardLoadMs:graphSharded,loadRatio:graphSharded/graphNative,
       nativeHotMs:hotN,shardHotMs:hotS,hotRatio:hotS/hotN},null,2));
   } finally {
