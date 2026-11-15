@@ -54,3 +54,5 @@ jobs:
         run: npx tsc -p jsconfig.sco-tls.json
       - name: Measure authenticated TLS RPC overhead and authorization
         run: node sims/sco-tls-boundary.js
+      - name: Challenge compiler-generated HTTPS SCO facade with authorized relay
+        run: node sims/sco-tls-facade-relay.js
