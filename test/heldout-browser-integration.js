@@ -22,7 +22,9 @@ function runner(graphs,flavor) {
   return [
     'globalThis.window.api={offset:5,',
     'keyFor(index){return "privateMetric"+index;},',
-    'read(object){return Object.values(object)[0]+9;}};',
+    'read(object){const key=Object.keys(object).find(name=>name.startsWith("privateMetric"));',
+    'if(key===undefined)throw Error("Missing externally observed private key");',
+    'return object[key]+9;}};',
     'const results=[];',
     'try{',imports,
     'document.getElementById("answer").textContent=JSON.stringify(results);',
