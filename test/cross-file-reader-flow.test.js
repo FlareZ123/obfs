@@ -153,3 +153,18 @@ test('reader called with another object from an importer declines all renames',a
       'import "./other.mjs";import {state,peek} from "./state.mjs";console.log(peek(state));'}
   ],0);
 });
+
+test('two-argument ESM reader can consume the owned state in parameter two',async()=>{
+  await check(exposed+'export function peek(label,x){return x.secretField;}',
+    'import {state,peek} from "./state.mjs";console.log(peek("tag",state));',1);
+});
+
+test('reader with unused second parameter preserves first-argument ownership',async()=>{
+  await check(exposed+'export function peek(x,unused){return x.secretField;}',
+    'import {state,peek} from "./state.mjs";console.log(peek(state,99));',1);
+});
+
+test('two-argument reader refuses a non-owned object passed to the reading parameter',async()=>{
+  await check(exposed+'export function peek(label,x){return x.secretField;}',
+    'import {state,peek} from "./state.mjs";console.log(peek("tag",{secretField:44}),state.secretField);',0);
+});
