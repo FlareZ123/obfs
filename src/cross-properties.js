@@ -327,7 +327,7 @@ function renameCrossFileProperties(files,seed) {
         // object's original own keys even when the reference never escapes.
         const ownNames=new Set(names);
         if (users.some(user=>
-          user.proof.members.some(member=>!ownNames.has(user.proof.memberNames.get(member)??null)) ||
+          user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
           user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
