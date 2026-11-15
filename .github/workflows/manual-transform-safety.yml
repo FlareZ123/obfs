@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Source observation, ambient intrinsic and property semantics
         run: node --test test/ambient-string-alias.test.js test/ambient-string-intrinsic.test.js test/source-introspection-safety.test.js test/cross-file-source-introspection.test.js test/cross-file-source-observer-global.test.js test/sco-source-observation.test.js test/semantic-boundaries.test.js test/property-reflection.test.js test/string-shadowing.test.js test/source-observer-coverage.test.js test/primitive-coercer-source-precision.test.js test/interfile-api-fuzz.test.js test/interfile-normalization-attack.test.js test/source-map-disclosure.test.js test/source-map-json-escapes.test.js test/css-source-map-annotation.test.js test/wasm-source-map-annotation.test.js test/html-asset-disclosure.test.js test/svg-asset-disclosure.test.js test/inert-assets.test.js test/obfuscator.test.js test/local-identity-wrapper.test.js test/local-root-getter.test.js test/cross-file-local-identity.test.js test/destructuring-assignment-flow.test.js test/destructuring-assignment-grid.test.js
+      - name: Print actual deterministic primitive-coercer sample
+        run: node examples/primitive-coercer/build-sample.cjs --emit
       - name: Verify identifier names observable in V8 error messages
         run: node --test test/identifier-typeerror-spelling.test.js test/tdz-identifier-names.test.js
       - name: Report exact observer-driven property-coverage counts
