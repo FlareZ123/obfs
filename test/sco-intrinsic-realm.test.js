@@ -183,9 +183,14 @@ test('SCO private export cannot silently migrate browser-only ambient reads',()=
     'indexedDB.open("x")',
     'globalThis.window.externalBridge.value',
     'globalThis["doc"+"ument"].title',
-    'typeof window'
+    'typeof window',
+    'const root=globalThis;return root.window.externalBridge.value',
+    'const root=globalThis;const alias=root;return alias.document.title',
+    'const {window:privateWindow}=globalThis;return privateWindow.externalBridge.value',
+    'const root=globalThis;const {location:loc}=root;return loc.hostname',
+    'const root=globalThis;const key="window";return root[key].externalBridge.value'
   ]){
-    const source=moduleSource('return '+expression+';','return 7;');
+    const source=moduleSource((expression.includes('return ')?expression:'return '+expression+';'),'return 7;');
     assert.throws(()=>partition(source),/browser.*ambient|ambient.*browser/i,expression);
   }
 });
