@@ -90,6 +90,61 @@ const results=await remote.batch([
 
 The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. For a batch created by `createScoBatchMethod`, an installed `authorizeOperation` callback now runs for the outer batch and **each structurally valid inner call**, before any batch side effects. The callback must permit both the batch method and every authorized inner method. Denying a later call blocks execution of the entire batch. An inner policy exception returns a generic HTTP 500 without exposing the exception. Invalid batch structures are still rejected by the batch helper. A batch helper may not be registered inside another batch helper even under a different operation name; this rejects nested recognized helpers whose deeper operations would otherwise bypass the single-level policy preflight. Custom wrappers around batch functions remain outside automatic recognition and must implement their own authorization preflight. Custom batch functions that do not originate from `createScoBatchMethod` have no automatic inner inspection; implement their own preflight authorization. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
 
+
+## Authorization state changes within one batch
+
+The handler checks a recognized batch's outer method and all inner calls **before**
+executing any member. This preserves the no-partial-effect behavior for initially
+denied calls, but the checks describe the state at preflight time. A batch
+containing `revoke` followed by `read` can therefore execute `read` after
+`revoke` has invalidated the permission that previously allowed it. Two
+separate RPC requests, with revocation first, reject the second request under
+the same state-dependent policy. The behavior is reproduced in
+`test/sco-batch-state-drift.test.js`. The batch helper does not implement
+transaction isolation or mid-batch reauthorization.
+
+Applications that need sequential permission semantics can supply a pure
+transition model to `preflightScoBatchState(calls, initialState, policy)` from
+`require('./src')`. Call it in `authorizeOperation` for the outer batch
+method, before any protected operations execute. The helper checks each
+modeled step against the state **after all preceding modeled transitions**:
+
+```js
+const {preflightScoBatchState}=require('./src');
+
+const policy={
+  authorize:(active,method,args)=>active &&
+    (method==='read'||method==='revoke') && args.length===0,
+  transition:(active,method)=>method==='revoke'?false:active
+};
+
+function authorizeOperation(request,method,args) {
+  const active=readConsistentSessionSnapshot(request);
+  if(method==='batch') {
+    return args.length===1 &&
+      preflightScoBatchState(args[0],active,policy);
+  }
+  return policy.authorize(active,method,args);
+}
+```
+
+`readConsistentSessionSnapshot` is an application-defined placeholder.
+The modeled `read,revoke` sequence is admitted, whereas `revoke,read` is
+rejected before any operation runs. The policy callbacks must be synchronous,
+pure and complete for every state-changing operation. The integrator must
+also ensure the snapshot remains consistent between preflight and execution
+through an application transaction, serialization, or equivalent control.
+Without this guarantee, another request may change permissions after the
+check. The helper cannot ensure rollback, prevent concurrent changes, or
+verify that the model matches the real methods. A simpler safe policy is
+to prohibit permission-mutating operations in batches altogether.
+
+For partitioned RPC methods, the policy must use the actual method IDs
+from `partition.methodNames` rather than assuming public export names
+are the RPC method names. The bounded finite-state regression in
+`test/sco-batch-state-model.test.js` checks 510 ordered traces; it is a
+model-specific comparison, not a general authorization proof.
+
 ## Limits
 
 The client still receives executable JavaScript and may retain, trace, debug, modify, replay, or redistribute it. Source delivery authorization only controls which requests the trusted SCO server fulfills. Do not put server secrets inside delivered JavaScript, and do not use the `Host` header as an identity proof. Keep sensitive algorithms or secret-dependent operations on the server through `remoteMethods`; account for network cost under the 2.5x runtime budget.
