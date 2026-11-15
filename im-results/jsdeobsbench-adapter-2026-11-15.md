@@ -68,3 +68,29 @@ the chosen Linux container, (2) transformed correctness with identical
 inputs and environment, (3) independent attacker reconstruction scores and
 (4) cold-start, hot-path and end-to-end overhead. Only cases with a working
 native baseline are eligible for a comparative failure rate.
+
+## Verified 1,301-program full-corpus differential result
+
+Pinned [manual external CI run 43703432496](https://github.com/FlareZ123/obfs/actions/runs/43703432496) at obfs commit 20eeb56e8da64877dd3d1a6f9deb5a7fe6c51d7e executed the complete verified name-obfuscation source corpus in the Linux node:22-alpine image. The workflow had an explicit SHA-1 Git-object check for the pinned external JSONL. The generated public-source COO and SNO sets each contained all 1,301 programs. Each mode's test selected **up to 2** official input/output cases per program, 2,200 reference cases total, in deterministic hashed order.
+
+| Outcome | COO | SNO |
+| --- | ---: | ---: |
+| Input programs | 1,301 | 1,301 |
+| Official candidate cases attempted | 2,200 | 2,200 |
+| Baseline original executions succeeding | 2,199 | 2,199 |
+| Baseline expected-output disagreements | 0 | 0 |
+| Matched original vs obfuscated stdout/stderr and status | **2,199** | **2,199** |
+| Obfuscated execution errors | 0 | 0 |
+| Obfuscated output mismatches | 0 | 0 |
+| Baseline-invalid reference cases excluded | 1 | 1 |
+| Median whole-process elapsed ratio, conditional on matched cases | 0.9990880766x | 0.9997033821x |
+
+The single original-program failure is official fixture p02618_1, test index 0: its original source evaluates main(input) with undeclared input, producing ReferenceError before any transformation. It was excluded from the paired verdict. All remaining reference outputs matched the provided expected text after trim. Raw differential failure witnesses (limited to ten) and all counts are visible in the CI job logs. The measured ratios include Node process startup and spawn overhead, and are not standalone hot-loop ratios or proof of the 2.5x requirement on every program.
+
+Important limitation: the differential evaluator reports native equivalence over at most two official test cases per source file. It does not prove semantic equivalence over other input branches, external API contracts, reflection, or arbitrary runtime modification. This experiment is not evidence of program secrecy against automated reverse engineering or LLMs; it is a compatibility gate for future attack experiments.
+
+### Critical harness repair retained as negative evidence
+
+Earlier pinned manual runs 43702918423 (source 18b48aa) and 43703061283 (source b646e89) initially found 89/94 baseline original executions failing on the 50-program subset while five paired cases matched. The follow-up run captured the exact Linux error ENXIO reopening /dev/stdin from subprocess stdin. This was a harness artifact because a pipe descriptor is not reliably reopenable through /proc/self/fd/0. The evaluator now writes each reference input through the project's atomic locked writer into a container-private 32-MB tmpfs file and attaches that regular file as the child process's read-only stdin. The container remains network-disabled, read-only outside the bounded tmpfs, nonroot, CPU/memory/pids-limited. The corrected 50-program run 43703293828 proved 94/94 eligible and 94/94 matches for both COO and SNO before the full 1,301-program run.
+
+The full manual Node 22 Ubuntu/Windows validation run 43703443619 at the same source SHA 20eeb56 passed the standard test, JSDoc, benchmark and Ubuntu browser integration gates. These results are pinned; later edits to coverage reporting are not implicitly certified.
