@@ -174,15 +174,15 @@ function renameCrossFileProperties(files,seed) {
     importedIdentities.set(filename,imported);
   }
 
-  // A very restricted cross-module reader has one plain parameter and a
-  // single return of that parameter's statically named property. Its own
+  // A very restricted cross-module reader has plain parameters and a
+  // single return of one parameter's statically named property. Its own
   // exporter must not otherwise use the function binding. Call-site proof
   // below additionally requires every importer invocation to pass the
   // candidate object, so other receiver shapes cannot be changed.
-  /** @type {Map<string,Map<string,{member:AstNode,property:string}>>} */
+  /** @type {Map<string,Map<string,{member:AstNode,property:string,argIndex:number}>>} */
   const exportedReaders=new Map();
   for(const [filename,module] of modules) {
-    /** @type {Map<string,{member:AstNode,property:string}>} */
+    /** @type {Map<string,{member:AstNode,property:string,argIndex:number}>} */
     const readers=new Map();
     for(const statement of module.ast.body) {
       if(statement.type!=='ExportNamedDeclaration' || statement.source ||
@@ -190,12 +190,13 @@ function renameCrossFileProperties(files,seed) {
       const fn=statement.declaration;
       const name=fn.id?.name;
       if(typeof name!=='string'||module.bindings.get(name)!==1 ||
-          fn.async||fn.generator||fn.params.length!==1 ||
-          fn.params[0].type!=='Identifier'||fn.body.body.length!==1 ||
-          fn.body.body[0].type!=='ReturnStatement')continue;
+          fn.async||fn.generator||fn.params.length===0 ||
+          fn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier') ||
+          fn.body.body.length!==1||fn.body.body[0].type!=='ReturnStatement')continue;
       const member=fn.body.body[0].argument;
-      if(member?.type!=='MemberExpression'||member.object.type!=='Identifier' ||
-          member.object.name!==fn.params[0].name)continue;
+      if(member?.type!=='MemberExpression'||member.object.type!=='Identifier')continue;
+      const argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>param.name===member.object.name);
+      if(argIndex<0)continue;
       const property=member.computed ? staticString(member.property) : staticName(member.property);
       if(property===null)continue;
       let usedInExporter=false;
@@ -203,7 +204,7 @@ function renameCrossFileProperties(files,seed) {
         if(node.type==='Identifier' && node.name===name &&
             !(node===fn.id&&parent===fn&&key==='id'))usedInExporter=true;
       });
-      if(!usedInExporter)readers.set(name,{member,property});
+      if(!usedInExporter)readers.set(name,{member,property,argIndex});
     }
     exportedReaders.set(filename,readers);
   }
@@ -233,7 +234,7 @@ function renameCrossFileProperties(files,seed) {
         const names=props.map(ownPropertyName);
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
-        const readers=new Map([.../** @type {Map<string,{member:AstNode,property:string}>} */ (exportedReaders.get(exporterName)??new Map())]
+        const readers=new Map([.../** @type {Map<string,{member:AstNode,property:string,argIndex:number}>} */ (exportedReaders.get(exporterName)??new Map())]
           .filter(([,reader])=>names.includes(reader.property)));
         /** @type {Set<string>} */
         const usedReaders=new Set();
@@ -269,7 +270,8 @@ function renameCrossFileProperties(files,seed) {
           // separately proved state bindings, has insufficient call ownership
           // evidence. Refuse rather than treating the reader as a free alias.
           if(readerAliases.size && importedAliases.length!==1) {failed=true;break;}
-          const consumerIndices=new Map([...readerAliases.keys()].map(name=>[name,0]));
+          const consumerIndices=new Map([...readerAliases].map(([name,exported])=>
+            [name,/** @type {{member:AstNode,property:string,argIndex:number}} */ (readers.get(exported)).argIndex]));
           /** @type {NonNullable<ReturnType<typeof proveLocalObject>>|null} */
           let readerProof=null;
           for(const alias of importedAliases) {
@@ -286,10 +288,12 @@ function renameCrossFileProperties(files,seed) {
             walk(importer.ast,(node,parent,key)=>{
               if(node.type!=='Identifier'||!readerAliases.has(node.name))return;
               if(parent?.type==='ImportSpecifier')return;
+              const exportedReader=readerAliases.get(node.name);
+              const readInfo=exportedReader ? readers.get(exportedReader) : null;
+              const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
               if(parent?.type==='CallExpression' && key==='callee' && !parent.optional &&
-                  node===parent.callee && parent.arguments[0]?.type==='Identifier' &&
-                  readerProof?.aliases.has(parent.arguments[0].name)) {
-                const exportedReader=readerAliases.get(node.name);
+                  node===parent.callee && input?.type==='Identifier' &&
+                  readerProof?.aliases.has(input.name)) {
                 if(exportedReader)usedReaders.add(exportedReader);
               } else unsafeReaderUse=true;
             });
