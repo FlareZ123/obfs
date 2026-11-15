@@ -7,14 +7,19 @@ const {walk, applyEdits} = require('./ast');
 
 /**
  * @param {string} source
+ * @param {AstNode} ast
  * @param {string} seed
  * @returns {string}
  */
-function unusedName(source, seed) {
+function unusedName(source, ast, seed) {
+  // Escaped Unicode identifiers do not appear verbatim in the source text,
+  // but Acorn normalizes their names. Reserve those bindings as well.
+  const names = new Set();
+  walk(ast, node => {if (node.type === 'Identifier') names.add(node.name);});
   const digest = createHash('sha256').update(seed).digest('hex');
   for (let n = 0; n < 16; n++) {
     const name = `_o${digest.slice(n, n + 12)}`;
-    if (!new RegExp(`\\b${name}\\b`, 'u').test(source)) return name;
+    if (!names.has(name) && !new RegExp(`\\b${name}\\b`, 'u').test(source)) return name;
   }
   throw new Error('Failed to allocate a collision-free helper name');
 }
@@ -31,7 +36,7 @@ function encodeStrings(source, ast, options) {
   const values = new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits = [];
-  const helper = unusedName(source, options.seed + 'strings');
+  const helper = unusedName(source, ast, options.seed + 'strings');
   const minimumLength = options.minimumLength ?? 4;
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
