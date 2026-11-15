@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {binaryWords,searchSynchronizingWord}=require('../sims/sco-sync-search');
 const {makeSynchronizingMachine,runDiscovered}=require('../sims/sco-synchronizing-oracle');
+const {runFalsification}=require('../sims/sco-sync-search-falsification');
 
 test('binary candidate enumeration is breadth-first and deterministic',()=>{
   assert.deepEqual(binaryWords(2),[[0],[1],[0,0],[0,1],[1,0],[1,1]]);
@@ -62,4 +63,15 @@ test('actual authenticated SCO proxy permits observed sync-word discovery withou
     assert.equal(detail.heldout,2046);
     assert.ok(detail.strictlyUnseen>500);
   }
+});
+
+test('observational sync-word search falsifies itself on general random machines',async()=>{
+  const result=await runFalsification(250);
+  assert.equal(result.count,250);
+  assert.equal(result.modelsWithShortSync,155);
+  assert.equal(result.candidates,189);
+  assert.equal(result.genuine,33);
+  assert.equal(result.falsePositive,156);
+  assert.equal(result.missed,0);
+  assert.equal(result.examples.length,8);
 });
