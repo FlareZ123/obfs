@@ -1,0 +1,46 @@
+'use strict';
+
+/**
+ * @typedef {{method:string,args:unknown[]}} ScoBatchCall
+ */
+
+/**
+ * Evaluate the authorization of a complete batch against a *pure*, synchronous
+ * application-supplied transition model before executing any operation.
+ *
+ * The caller must obtain an authoritative state snapshot, model every
+ * permission-changing operation, and prevent concurrent state changes between
+ * this check and execution (for example inside one application transaction).
+ * This helper never executes the operations and cannot provide isolation.
+ * It is intended for use in the outer batch branch of authorizeOperation.
+ *
+ * @template State
+ * @param {unknown} calls
+ * @param {State} initialState
+ * @param {{
+ *   authorize:(state:State,method:string,args:unknown[])=>boolean,
+ *   transition:(state:State,method:string,args:unknown[])=>State
+ * }} policy
+ * @returns {boolean}
+ */
+function preflightScoBatchState(calls,initialState,policy) {
+  if(!policy || typeof policy.authorize!=='function' ||
+      typeof policy.transition!=='function') {
+    throw new TypeError('Expected synchronous batch authorization and transition functions');
+  }
+  if(!Array.isArray(calls)||calls.length<1||calls.length>1024)return false;
+  let state=initialState;
+  for(const call of calls) {
+    if(!call || typeof call!=='object' ||
+        typeof call.method!=='string' || !Array.isArray(call.args))return false;
+    const permitted=policy.authorize(state,call.method,call.args);
+    if(typeof permitted!=='boolean') {
+      throw new TypeError('Batch state authorization must return a boolean synchronously');
+    }
+    if(!permitted)return false;
+    state=policy.transition(state,call.method,call.args);
+  }
+  return true;
+}
+
+module.exports={preflightScoBatchState};
