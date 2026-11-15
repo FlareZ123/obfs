@@ -58,3 +58,19 @@ test('explicitly named function expression remains safe for binding mangling',()
 test('primitive local const still permits mangling',()=>{
   compare(`'use strict';const counter=17;module.exports=counter+1;`,1);
 });
+
+test('anonymous function introduced through assignment preserves inferred name',()=>{
+  compare(`'use strict';let worker;worker=function(){};module.exports=worker.name;`,0);
+});
+
+test('anonymous arrow introduced through logical assignment preserves inferred name',()=>{
+  compare(`'use strict';let task;task ||= ()=>7;module.exports=task.name;`,0);
+});
+
+test('explicitly named function assigned later permits binding mangling',()=>{
+  compare(`'use strict';let action;action=function named(){};module.exports=action.name;`,1);
+});
+
+test('conditional branch functions with no inferred name permit binding mangling',()=>{
+  compare(`'use strict';const callback=true?function(){}:function(){};module.exports=callback.name;`,1);
+});
