@@ -9,6 +9,7 @@ const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
 const {learnMachine,learnedTrace,privateTrace}=require('./sco-stateful-oracle');
+const {searchSynchronizingWord}=require('./sco-sync-search');
 
 /** @typedef {{next:number[][],output:number[][]}} PrivateMachine */
 /** @typedef {{step:(symbol:number)=>Promise<number>}} StepOnlyOracle */
@@ -77,12 +78,13 @@ async function recoverWithoutReset(api,synchronizingWord=[0,0,0]) {
  * Recover all observable states through a real authenticated step-only SCO
  * proxy, while the hidden ESM machine has no reset export.
  * @param {number} index
+ * @param {boolean} [discover]
  * @returns {Promise<{index:number,states:number,rpcSteps:number,logicalRequests:number,
  *   resetCalls:number,heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
  *   publicResetExport:boolean,unauthorizedStatus:number,
- *   sourceDisclosed:boolean,elapsedMs:number}>}
+ *   sourceDisclosed:boolean,elapsedMs:number,discoverySteps:number,discoveredWord:number[]|null}>}
  */
-async function scenario(index) {
+async function scenario(index,discover=false) {
   const secret=makeSynchronizingMachine((0x5f3a17d2+Math.imul(index,3317))>>>0);
   const canary='private-sync-canary-'+index;
   const source=[
@@ -143,14 +145,26 @@ async function scenario(index) {
     });
     const api=/** @type {StepOnlyOracle & {reset?:()=>unknown}} */(await import(pathToFileURL(publicFile).href));
     assert.equal(api.reset,undefined,'Unexpected public reset method');
-    const learned=await recoverWithoutReset(api);
+    const discovery=discover ? await searchSynchronizingWord(api) : null;
+    const word=discovery ? discovery.word : [0,0,0];
+    assert.ok(word,'No synchronizing candidate found');
+    const learned=await recoverWithoutReset(api,word);
     assert.equal(learned.machine.access.length,4);
     let heldout=0;
     let strictlyUnseen=0;
     const trainingWords=new Set(learned.trainingWords);
-    // Include exact full reset-prefix probes as already observed words too.
-    // Each legal synchronizing word begins with three zeros.
-    const resetPrefix=[0,0,0];
+    // Distinguishing all substrings of the pre-learning discovery transcript
+    // is conservative when the entry state was not externally reset.
+    /** @type {Set<string>} */
+    const discoveryWords=new Set();
+    if(discovery){
+      const tape=discovery.inputTape;
+      for(let length=1;length<=10;length++)for(let start=0;start+length<=tape.length;start++){
+        discoveryWords.add(JSON.stringify(tape.slice(start,start+length)));
+      }
+    }
+    // Include reset-shim prefixes among already observed words.
+    const resetPrefix=word;
     const probedFullWords=new Set(learned.trainingWords.map(word=>
       JSON.stringify([...resetPrefix,...JSON.parse(word)])));
     for(let length=1;length<=resetPrefix.length;length++){
@@ -166,7 +180,8 @@ async function scenario(index) {
         next.push(word);
         assert.deepEqual(learnedTrace(learned.machine,word),privateTrace(secret,word));
         const written=JSON.stringify(word);
-        if(!trainingWords.has(written)&&!probedFullWords.has(written))strictlyUnseen++;
+        if(!trainingWords.has(written)&&!probedFullWords.has(written)&&
+           !discoveryWords.has(written))strictlyUnseen++;
         heldout++;
       }
       layer=next;
@@ -177,7 +192,8 @@ async function scenario(index) {
       logicalRequests:learned.logicalRequests,resetCalls:learned.resetCalls,
       heldout,strictlyUnseen,uniqueTrainingWords:trainingWords.size,
       publicResetExport:false,unauthorizedStatus:denied.status,
-      sourceDisclosed:false,elapsedMs:learned.elapsedMs};
+      sourceDisclosed:false,elapsedMs:learned.elapsedMs,
+      discoverySteps:discovery?.steps??0,discoveredWord:discovery?.word??null};
   }finally{
     globalThis.fetch=nativeFetch;
     if(server){
@@ -195,11 +211,11 @@ async function scenario(index) {
  * @returns {Promise<{scenarios:number,rpcSteps:number,heldout:number,strictlyUnseen:number,allExact:boolean,
  *   details:Awaited<ReturnType<typeof scenario>>[]}>}
  */
-async function runSynchronizing(count=4) {
+async function runSynchronizing(count=4,discover=false) {
   if(!Number.isSafeInteger(count)||count<1||count>12)throw new RangeError('count must be 1..12');
   /** @type {Awaited<ReturnType<typeof scenario>>[]} */
   const details=[];
-  for(let index=0;index<count;index++)details.push(await scenario(index));
+  for(let index=0;index<count;index++)details.push(await scenario(index,discover));
   return {scenarios:count,rpcSteps:details.reduce((sum,item)=>sum+item.rpcSteps,0),
     heldout:details.reduce((sum,item)=>sum+item.heldout,0),
     strictlyUnseen:details.reduce((sum,item)=>sum+item.strictlyUnseen,0),
@@ -208,9 +224,15 @@ async function runSynchronizing(count=4) {
     details};
 }
 
+/**
+ * @param {number} [count]
+ * @returns {ReturnType<typeof runSynchronizing>}
+ */
+function runDiscovered(count=2){return runSynchronizing(count,true);}
+
 if(require.main===module) {
   runSynchronizing().then(result=>console.log(JSON.stringify(result,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={makeSynchronizingMachine,recoverWithoutReset,scenario,runSynchronizing};
+module.exports={makeSynchronizingMachine,recoverWithoutReset,scenario,runSynchronizing,runDiscovered};
