@@ -99,6 +99,54 @@ function renameCrossFileProperties(files,seed) {
     if(ambiguous) return {files,objects:0,properties:0};
   }
 
+  // Prove a very small inter-module function summary: an exported function
+  // with exactly one plain parameter and exactly "return parameter" in its
+  // body. The exporting module must never reference that mutable function
+  // binding again, so its implementation cannot be reassigned behind an
+  // importer's live binding. An impure or async wrapper is never summarized.
+  /** @type {Map<string,Set<string>>} */
+  const identities=new Map();
+  for(const [filename,module] of modules) {
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration' || statement.source ||
+          statement.declaration?.type!=='FunctionDeclaration') continue;
+      const fn=statement.declaration;
+      const name=fn.id?.name;
+      if(typeof name!=='string' || module.bindings.get(name)!==1 ||
+          fn.async || fn.generator || fn.params.length!==1 ||
+          fn.params[0].type!=='Identifier' || fn.body.body.length!==1 ||
+          fn.body.body[0].type!=='ReturnStatement' ||
+          fn.body.body[0].argument?.type!=='Identifier' ||
+          fn.body.body[0].argument.name!==fn.params[0].name) continue;
+      let additionalReference=false;
+      walk(module.ast,(node,parent,key)=>{
+        if(node.type==='Identifier' && node.name===name &&
+            !(node===fn.id && parent===fn && key==='id')) additionalReference=true;
+      });
+      if(!additionalReference) exported.add(name);
+    }
+    identities.set(filename,exported);
+  }
+  /** @type {Map<string,Map<string,number>>} */
+  const importedIdentities=new Map();
+  for(const [filename,module] of modules) {
+    const imported=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration') continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const target=origin ? identities.get(origin) : null;
+      if(!target) continue;
+      for(const spec of statement.specifiers) {
+        const exportedName=spec.type==='ImportSpecifier' ?
+          (spec.imported.name ?? spec.imported.value) : null;
+        if(typeof exportedName==='string' && target.has(exportedName) &&
+            module.bindings.get(spec.local.name)===1) imported.set(spec.local.name,0);
+      }
+    }
+    importedIdentities.set(filename,imported);
+  }
+
   /** @type {Map<string,import('./ast').Edit[]>} */
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */
@@ -124,7 +172,7 @@ function renameCrossFileProperties(files,seed) {
         const names=props.map(p=>staticName(p.key));
         if (new Set(names).size!==names.length) continue;
         const exportName=decl.id.name;
-        const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings);
+        const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,importedIdentities.get(exporterName));
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
         const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
@@ -149,7 +197,7 @@ function renameCrossFileProperties(files,seed) {
           if (hasDynamic) {failed=true;break;}
           for(const alias of importedAliases) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
-            const proof=proveLocalObject(importer.ast,alias,importer.bindings);
+            const proof=proveLocalObject(importer.ast,alias,importer.bindings,importedIdentities.get(importerName));
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
           }
