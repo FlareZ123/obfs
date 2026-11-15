@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk, applyEdits} = require('./ast');
+const {walk, applyEdits, observesFunctionSource} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -38,6 +38,7 @@ function unusedName(source, ast, seed, reservedNames, reservedSources) {
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
+  if(observesFunctionSource(ast)) return {code:source,count:0};
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return {code:source,count:0};
