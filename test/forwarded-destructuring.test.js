@@ -27,7 +27,9 @@ function preserve(source,expectedObjects){
     assert.equal(run(output),expected,mode+'/'+source);
     if(expectedObjects){
       assert.equal(result.files[0].metrics.properties,2);
-      assert.doesNotMatch(output,/\bsecretField\b|\botherField\b/u);
+      // Shorthand destructuring must retain its public local binding names,
+      // while the source object's own property keys are consistently hashed.
+      assert.match(output,/const root=\{"_p[0-9a-f]{10}":7,"_p[0-9a-f]{10}":5\}/u);
       assert.match(output,/_p[0-9a-f]{10}/u);
     }else assert.equal(output,source);
   }
