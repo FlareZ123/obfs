@@ -49,3 +49,9 @@ bench('interprocedural local reader',`const state={secretField:7,otherField:5};
 const read=value=>value.secretField;
 function run(n){let x=0;for(let i=0;i<n;i++)x+=read(state)+state.otherField;return x;}
 module.exports=run;`,2);
+bench('forwarded object-pattern read',`const state={secretField:7,otherField:5};
+const identity=value=>value;
+function run(n){let sum=0;for(let i=0;i<n;i++){
+  const {secretField:read}=identity(state);sum+=read;
+}return sum;}
+module.exports=run;`,2);
