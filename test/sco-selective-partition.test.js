@@ -85,6 +85,29 @@ test('selective SCO rejects split function-object and ambient-state mutation',as
   assert.throws(()=>partition(privateEval,['privateBump']),/dynamic lexical execution/);
 });
 
+
+test('selective SCO distinguishes private binding references from ordinary property labels',()=>{
+  const labels=[
+    'export async function secret(){return {local:12,secret:1};}',
+    'export function local(){const record={secret:7};return record.secret;}'
+  ].join('\n');
+  const generated=partition(labels,['secret']);
+  assert.deepEqual(generated.publicNames,['local']);
+  assert.ok(generated.clientFile.code.includes('record.secret'));
+
+  const shorthand=[
+    'export async function secret(){return 1;}',
+    'export function local(){const record={secret};return record.secret;}'
+  ].join('\n');
+  assert.throws(()=>partition(shorthand,['secret']),/observes a private function value/);
+
+  const computed=[
+    'export async function secret(){return 1;}',
+    'export function local(){const record={[secret]:1};return record;}'
+  ].join('\n');
+  assert.throws(()=>partition(computed,['secret']),/observes a private function value/);
+});
+
 test('selective SCO preserves locally run source and exact generated public module',async()=>{
   const original=(await fs.readFile(path.join(ROOT,'before','mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const actual=partition(original);

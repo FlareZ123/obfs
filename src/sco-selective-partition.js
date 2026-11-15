@@ -8,6 +8,21 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[]}} ScoSelectivePartition */
 
 /**
+ * Uncomputed object and member keys are property labels, not variable reads.
+ * Shorthand properties still visit their separate value nodes as references.
+ * @param {import('./ast').AstNode|null} parent
+ * @param {string|null} key
+ * @returns {boolean}
+ */
+function isStaticKey(parent,key){
+  return Boolean(parent&&(
+    parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
+    (parent.type==='Property'||parent.type==='MethodDefinition'||
+     parent.type==='PropertyDefinition')&&key==='key'&&!parent.computed
+  ));
+}
+
+/**
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
@@ -81,19 +96,19 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
       privateBodies.push(fn.body);
-      walk(fn.body,node=>{
-        if(node.type==='Identifier'&&ambientRoots.has(node.name))privateAmbient.add(node.name);
+      walk(fn.body,(node,parent,key)=>{
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))privateAmbient.add(node.name);
       });
     }else{
       publicNames.push(name);
       publicChunks.push(text);
       walk(fn,(node,parent,key)=>{
-        if(node.type==='Identifier'&&ambientRoots.has(node.name))publicAmbient.add(node.name);
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
         if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
            node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
         }
-        if(node.type==='Identifier'&&selected.has(node.name)&&
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&selected.has(node.name)&&
            !(parent?.type==='CallExpression'&&key==='callee')) {
           throw new TypeError('Public SCO export observes a private function value: '+name);
         }
@@ -107,7 +122,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   const publicBindings=new Set(publicNames);
   for(const body of privateBodies){
     walk(body,(node,parent,key)=>{
-      if(node.type!=='Identifier')return;
+      if(node.type!=='Identifier'||isStaticKey(parent,key))return;
       if(publicBindings.has(node.name)){
         throw new TypeError('Private SCO export references a separated public binding: '+node.name);
       }
