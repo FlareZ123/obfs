@@ -43,15 +43,18 @@ async function readJsonl(file) {
  * @param {number} timeoutMs
  * @param {string} [stdinFile] If supplied, attach a regular-file stdin for programs that reopen /dev/stdin.
  * @param {string} [entryFile] If supplied, execute a Node.js file with CommonJS wrapper semantics.
+ * @param {number} [randomSeed] Fixed positive V8 PRNG seed, without overriding JS globals.
  * @returns {{status:number|null,stdout:string,stderr:string,timeout:boolean,nanoseconds:number}}
  */
-function runSource(source,input,timeoutMs,stdinFile,entryFile) {
+function runSource(source,input,timeoutMs,stdinFile,entryFile,randomSeed) {
   /** @type {number|undefined} */
   let inputDescriptor;
   try {
     if(stdinFile!==undefined)inputDescriptor=fsSync.openSync(stdinFile,'r');
     const before=process.hrtime.bigint();
-    const result=spawnSync(process.execPath,entryFile?[entryFile]:['-e',source],{
+    const args=[...(randomSeed===undefined?[]:['--random-seed='+randomSeed]),
+      ...(entryFile?[entryFile]:['-e',source])];
+    const result=spawnSync(process.execPath,args,{
       ...(inputDescriptor===undefined ? {input}:{stdio:[inputDescriptor,'pipe','pipe']}),
       encoding:'utf8',timeout:timeoutMs,maxBuffer:1024*1024,windowsHide:true
     });
@@ -163,8 +166,14 @@ async function compareCorpus(originalFile,transformedFile,options) {
         throw new TypeError('Invalid input/output test pair');
       }
       total++;
+      // The upstream corpus contains algorithms using Math.random(). Give the
+      // two independently executed processes identical V8 PRNG state, without
+      // altering function identity or patching the Math.random intrinsic.
+      const randomSeed=(parseInt(createHash('sha256')
+        .update(options.seed).update('\0').update(item.filename)
+        .update('\0').update(String(index)).digest('hex').slice(0,8),16)&0x7fffffff)||1;
       await atomicWrite(stdinFile,pair[0]);
-      const original=runSource(item.original,pair[0],options.timeoutMs,stdinFile,commonjs?originalFile:undefined);
+      const original=runSource(item.original,pair[0],options.timeoutMs,stdinFile,commonjs?originalFile:undefined,randomSeed);
       if(original.timeout||original.status!==0) {
         baselineFailure++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'baseline-error',
@@ -173,7 +182,7 @@ async function compareCorpus(originalFile,transformedFile,options) {
       }
       baselinePass++;
       if(original.stdout.trim()!==pair[1].trim())baselineExpectedDisagrees++;
-      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs,stdinFile,commonjs?transformedFile:undefined);
+      const output=runSource(candidate.obfuscated,pair[0],options.timeoutMs,stdinFile,commonjs?transformedFile:undefined,randomSeed);
       if(output.timeout||output.status!==0) {
         transformedErrors++;
         if(failures.length<10)failures.push({file:item.filename,caseIndex:index,kind:'transformed-error',
