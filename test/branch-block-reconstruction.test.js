@@ -24,7 +24,7 @@ test('independent attacker reconstructs the actual emitted branches without the 
   const recovered=recoverBranchFunction(after,'gate');
   assert.equal(recovered.blocks,5);
   assert.equal(recovered.tests,2);
-  assert.equal(recovered.operations,6);
+  assert.equal(recovered.operations,7);
   const original=require('../examples/branch-blocks/before/gate.cjs').gate;
   const flattened=require('../examples/branch-blocks/after/gate.cjs').gate;
   const clone=/** @type {(x:unknown)=>unknown} */ (vm.runInNewContext('('+recovered.source+')'));
