@@ -123,6 +123,7 @@ test('selective SCO preserves locally run source and exact generated public modu
   assert.ok(expected.includes('export async function protectedDigest(value)'));
   assert.ok(!expected.includes(CANARY));
   assert.ok(!expected.includes('createHmac'));
+  assert.doesNotMatch(expected,/privateRound|privateKeyBytes|privateHex/u);
   assert.ok(!expected.includes('16000'));
   assert.deepEqual(Object.keys(actual.methodNames),['protectedDigest']);
 });
