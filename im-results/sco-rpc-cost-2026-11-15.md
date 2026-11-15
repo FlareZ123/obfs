@@ -29,3 +29,19 @@ The implementation should expose high-value **coarse** server-owned operations w
 SCO can withhold server-resident implementation and secrets from static extraction of delivered client files. This measurement says nothing about cryptographic resistance, dynamic instrumentation, black-box oracle attacks, or production authorization policy. Authorized adversaries in the prompt can submit unlimited legitimate requests and observe all results. `authorizeRpc:()=>true` is only an experimental control, **never an acceptable production authorization policy for privileged methods**.
 
 Re-run this experiment across more CPUs, real browsers, remote network links, authenticated sessions, and batched and concurrent execution profiles before adopting a performance policy. The per-run raw timings are preserved in the workflow artifact, and the source script generates its own `rpc-cost-output.json` with system metadata.
+
+## Bounded batch follow-up: independent run
+
+We added `createScoBatchMethod` to preserve ordered server-side execution while transporting up to a configured number of RPC operations in a single JSON request. This is opt-in and uses the same outer `authorizeRpc` check. A new run of the original local/unbatched baseline **and** 12-operations-per-request batching was made on the same Node 22 Ubuntu runner configuration. The relevant reproducible source is the revised `sims/sco-rpc-cost.js`; [successful execution](https://github.com/FlareZ123/obfs/actions/runs/43680424702), with [raw 7-round data](https://github.com/FlareZ123/obfs/actions/runs/43680424702/artifacts/14148147002).
+
+| Hash iterations per call | Local 12-call median | 12 separate RPC calls | One 12-operation batch | Batch / local |
+|---:|---:|---:|---:|---:|
+| 32 | 0.002 ms | 10.584 ms (5,594.27×) | 0.873 ms | 461.65× |
+| 4,096 | 0.065 ms | 9.602 ms (148.29×) | 0.811 ms | 12.52× |
+| 65,536 | 1.041 ms | 9.327 ms (8.96×) | 1.742 ms | 1.67× |
+| 524,288 | 8.193 ms | 16.238 ms (1.98×) | 8.902 ms | 1.09× |
+| 2,097,152 | 32.790 ms | 40.442 ms (1.23×) | 33.524 ms | 1.02× |
+
+Batching cut measured loopback overhead markedly, and in this sample **65,536 hash iterations per call** entered the 2.5× wall-clock budget despite failing when sent as separate RPCs. This is an empirical gain, not universal compliance. Cross-machine RTT, TLS, authorization, response sizes, congestion, retries, and computation mix are not represented. Small calls still fail because even a single request imposes large relative overhead. A batch can offer attackers a more efficient oracle, too; its configured operation cap is not a substitute for authorization, server-side usage quotas, or access controls.
+
+This is not a transaction engine: operations execute sequentially and earlier side effects remain if later operations fail. Invalid batches reject before any operation runs, whereas runtime exceptions produce generic item-level error statuses. No claim about secrecy or resistance to black-box inference follows from the latency improvements.
