@@ -150,7 +150,30 @@ function realmStateObservation(body){
   function writesIntrinsic(member){
     return member.type==='MemberExpression'&&isIntrinsic(member.object);
   }
-  walk(body,node=>{
+  walk(body,(node,parent,key,ancestors)=>{
+    // A builtin identity copied into an array/object, returned or passed to
+    // an opaque function can be mutated through that carrier without any
+    // syntactically direct write to Math/JSON/etc. Decline such first-class
+    // escapes rather than silently splitting their state between realms.
+    // Direct member access, direct invocation and simple recognized aliases
+    // retain their existing, more precise write/read checks.
+    if((isIntrinsic(node)||node.type==='Identifier'&&globalNames.has(node.name))&&
+       parent&&!isStaticKey(parent,key)&&
+       !(parent.type==='MemberExpression'&&key==='object')&&
+       !(parent.type==='VariableDeclarator'&&
+         (key==='id'||key==='init'&&
+           (parent.id.type==='Identifier'||parent.id.type==='ObjectPattern'&&
+             parent.id.properties.every((/** @type {import('./ast').AstNode} */ property)=>
+               property.type==='Property'&&property.value.type==='Identifier'&&
+               intrinsicNames.has(keyName(property)??'')))))&&
+       !(parent.type==='CallExpression'&&key==='callee')&&
+       !(parent.type==='NewExpression'&&key==='callee')&&
+       !(key==='id'&&['FunctionDeclaration','FunctionExpression','ClassDeclaration',
+         'ClassExpression'].includes(parent.type))&&
+       !(parent.type==='Property'&&key==='value'&&
+         ancestors.some(ancestor=>ancestor.type==='ObjectPattern'))){
+      intrinsicTouched=true;
+    }
     if(node.type==='MemberExpression'){
       const key=keyName(node);
       if(key==='prototype'||key==='__proto__'||isIntrinsic(node.object)&&key===null)prototypeTouched=true;
