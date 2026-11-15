@@ -14,7 +14,7 @@ test('four-file ESM dataflow preserves named imports, nested calls and external 
     {path:'state.mjs',code:'export const state={secretValue:3,otherKey:5};export function internal(){return state.secretValue;}'},
     {path:'workerA.mjs',code:'import {state} from "./state.mjs";function worker(param){const alias=param;return alias.secretValue+alias.otherKey;}export const partial=worker(state);'},
     {path:'workerB.mjs',code:'import {state} from "./state.mjs";const {secretValue:factor,otherKey}=state;export const partial=factor*otherKey;'},
-    {path:'index.mjs',code:'import {state,internal} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=a+b+internal()+state.secretValue+globalThis.window.api.bridge;'}
+    {path:'index.mjs',code:'import {state,internal} from "./state.mjs";import {partial as a} from "./workerA.mjs";import {partial as b} from "./workerB.mjs";export const value=(+a)+(+b)+internal()+state.secretValue+globalThis.window.api.bridge;'}
   ];
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-four-esm-'));
   try{
