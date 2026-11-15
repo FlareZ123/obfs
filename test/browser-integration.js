@@ -60,6 +60,19 @@ async function main(){
       code:'import {state} from "./js-state.js";document.getElementById("answer").textContent=state.internalValue;'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-js-modules'});
   assert.equal(namedJsSet.crossFile.properties,1);
+  const defaultSet=obfuscateFiles([
+    {path:'default-state.mjs',sourceType:'module',
+      code:'export const state={privateScore:17,cacheWeight:5};'},
+    {path:'default-entry.mjs',sourceType:'module',
+      code:'import {state} from "./default-state.mjs";'+
+        'let captured=0,fallbackCalls=0;'+
+        'function fallback(){fallbackCalls++;return 99;}'+
+        '({privateScore:captured=fallback()}=state);'+
+        'document.getElementById("answer").textContent='+
+        '[captured,fallbackCalls,state.cacheWeight].join(",");'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-default-assignment',
+    identifiers:false,strings:false});
+  assert.equal(defaultSet.crossFile.properties,2);
   const cycleSet=obfuscateFiles([
     {path:'cycle-a.mjs',sourceType:'module',
       code:'import "./cycle-b.mjs";export function get(){return "browser-cycle-ok";}'},
@@ -101,7 +114,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -114,6 +127,7 @@ async function main(){
     'String(globalThis.__obfsTraceResult)+":"+__capture.join("");</script></body></html>');
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
+  content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
@@ -134,7 +148,8 @@ async function main(){
     if(typeof addr==='string'||!addr)throw Error('Missing TCP address');
     const base=`http://127.0.0.1:${addr.port}`;
     for(const [path,result] of [
-      ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],['/cycle.html','browser-cycle-ok'],
+      ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],
+      ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
