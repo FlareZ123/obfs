@@ -30,6 +30,30 @@ async function main(){
   ];
   const moduleSet=obfuscateFiles(sources,{mode:'coo',closedWorld:true,seed:'chrome-modules'});
   assert.equal(moduleSet.crossFile.properties,1);
+  // The published HTML remains opaque, so the compiler conservatively avoids
+  // private-key renames in the adjacent module graph. A real browser must
+  // still execute the audited page and its separately emitted module files.
+  const auditedHtml='<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script type="module" src="/audited-entry.mjs"></script></body></html>';
+  /** @type {import('../src/core').SourceFile[]} */
+  const auditedSources=[
+    {path:'audited-state.mjs',sourceType:'module',code:'export const state={privateValue:41};'},
+    {path:'audited-entry.mjs',sourceType:'module',
+      code:'import {state} from "./audited-state.mjs";document.getElementById("answer").textContent=state.privateValue;'},
+    {path:'audited-module.html',sourceType:'asset',code:Buffer.from(auditedHtml)}
+  ];
+  const auditedSet=obfuscateFiles(auditedSources,{
+    mode:'coo',closedWorld:true,seed:'chrome-audited-html'
+  });
+  assert.equal(auditedSet.crossFile.properties,0);
+  assert.deepEqual(auditedSet.files.find(file=>file.path==='audited-module.html')?.code,
+    Buffer.from(auditedHtml));
+  assert.throws(()=>obfuscateFiles([
+    ...auditedSources.slice(0,2),
+    {path:'inline.html',sourceType:'asset',
+      code:'<script type="module">window.leakedSource=41;</script>'}
+  ],{mode:'coo',closedWorld:true}),/HTML asset contains inline script source/);
+
   const namedJsSet=obfuscateFiles([
     {path:'js-state.js',sourceType:'module',code:'export const state={internalValue:23};'},
     {path:'js-entry.js',sourceType:'module',
@@ -77,7 +101,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...namedJsSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -110,7 +134,7 @@ async function main(){
     if(typeof addr==='string'||!addr)throw Error('Missing TCP address');
     const base=`http://127.0.0.1:${addr.port}`;
     for(const [path,result] of [
-      ['/module.html','41'],['/js-module.html','23'],['/cycle.html','browser-cycle-ok'],
+      ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],['/cycle.html','browser-cycle-ok'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
