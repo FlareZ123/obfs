@@ -62,6 +62,8 @@ test('parser requires valid explicit paths and bounds',()=>{
   assert.throws(()=>parseArgs(['--original','a','--transformed','b','--sample','-2']),/numeric/);
   assert.throws(()=>parseArgs(['--original','a','--transformed','b','--timeout','50']),/numeric/);
   assert.throws(()=>parseArgs(['--original','a','--transformed','b','--seed','x','--seed','y']),/pairs/);
+  assert.throws(()=>parseArgs(['--original','a','--transformed','b','--min-baseline-rate','2']),/\[0,1\]/);
+  assert.equal(parseArgs(['--original','a','--transformed','b']).minimumBaselineRate,0.95);
 });
 
 test('differential result separates baseline errors, source mismatches and output changes',async()=>{
