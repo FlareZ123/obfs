@@ -61,6 +61,11 @@ jobs:
         run: node examples/sco-private/build-sample.cjs --check
       - name: Execute authenticated real before-and-after SCO example
         run: node --test test/sco-real-example.test.js
+      - name: Recover SCO private state machine through generated ESM in real Chromium
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-sync-diversified-browser.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
