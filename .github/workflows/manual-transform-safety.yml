@@ -27,5 +27,9 @@ jobs:
         run: node --test test/identifier-typeerror-spelling.test.js test/tdz-identifier-names.test.js
       - name: Report exact observer-driven property-coverage counts
         run: node sims/source-observer-coverage.js
+      - name: Report unobserved opaque host source and stack contracts
+        run: node sims/external-function-source-contract.js
+      - name: Strict external research JSDoc
+        run: npm run typecheck:external
       - name: Strict JSDoc type checking
         run: npm run typecheck
