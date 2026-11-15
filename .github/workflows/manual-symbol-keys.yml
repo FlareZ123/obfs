@@ -1,0 +1,29 @@
+name: Manual private Symbol-key backend
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  symbol-keys:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Native and attacker differential tests
+        run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
+      - name: Strict JSDoc typecheck
+        run: npm run typecheck
+      - name: Measure steady-state hot-key performance
+        run: node sims/symbol-key-profile.js
