@@ -3,7 +3,8 @@
   "include": [
     "workplace/coo-shard-strings.js",
     "test/coo-shard-strings.test.js",
-    "examples/coo-shards/build.cjs"
+    "examples/coo-shards/build.cjs",
+    "sims/coo-shard-profile.js"
   ],
   "exclude": ["node_modules"]
 }
