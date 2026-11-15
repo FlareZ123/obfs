@@ -202,6 +202,18 @@ test('returned destructuring assignment owner cannot escape as an expression val
   ],0);
 });
 
+test('closed-world imported reader accepts captured zero-arg owner getter',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const get=()=>state;console.log(peek(get()));',1);
+});
+
+test('escaped captured owner getter prevents imported reader rewrite',async()=>{
+  await check(exposed+reader,
+    'import {state,peek} from "./state.mjs";'+
+    'const get=()=>state;const escaped=get;console.log(peek(get()),escaped===get);',0);
+});
+
 test('opaque reader alias via a callback declines property rewrite',async()=>{
   await check(exposed+reader,
     'import {state,peek} from "./state.mjs";const apply=fn=>fn(state);console.log(apply(peek));',0);
