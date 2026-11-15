@@ -136,32 +136,33 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    /** Serve the confirmed file after any trusted, server-side authorization. */
+    /** Serve the confirmed file after trusted authorization. */
     function serve() {
-    if (file.sourceType === 'asset') {
-      const contentType = name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' :
-        name.endsWith('.html') ? 'text/html' : 'application/octet-stream';
-      response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
-      response.end(file.code);
-      return;
+      if (file.sourceType === 'asset') {
+        const contentType = name.endsWith('.json') ? 'application/json' : name.endsWith('.css') ? 'text/css' :
+          name.endsWith('.html') ? 'text/html' : 'application/octet-stream';
+        response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
+        response.end(file.code);
+        return;
+      }
+      try {
+        const result = obfuscateFiles([file],{
+          mode:'sco',seed:randomBytes(24).toString('hex'),allowedHosts:options.allowedHosts
+        });
+        response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
+        response.end(result.files[0].code);
+      } catch (error) {
+        response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
+        response.end('Obfuscation failed');
+      }
     }
-    try {
-      const result = obfuscateFiles([file],{
-        mode:'sco',seed:randomBytes(24).toString('hex'),allowedHosts:options.allowedHosts
-      });
-      response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
-      response.end(result.files[0].code);
-    } catch (error) {
-      response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
-      response.end('Obfuscation failed');
-    }
-    }
-    if (!options.authorizeRead) {
+    const authorizeRead=options.authorizeRead;
+    if (!authorizeRead) {
       serve();
       return;
     }
     // Authentication runs before delivering source or assets; failure closes access.
-    void Promise.resolve().then(()=>options.authorizeRead(request)).then(allowed=>{
+    void Promise.resolve().then(()=>authorizeRead(request)).then(allowed=>{
       if (response.destroyed) return;
       if (!allowed) {
         response.writeHead(403,{'cache-control':'no-store'}).end();
