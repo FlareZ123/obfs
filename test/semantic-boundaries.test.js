@@ -28,7 +28,7 @@ async function compareCycle(files) {
     const original=await execute(files);
     assert.equal(original.status,0,original.stderr);
     const result=obfuscateFiles(files,{
-      mode:'coo',seed:'esm-cycle-hoisting',properties:false,identifiers:false
+      mode:'coo',seed:'esm-cycle-hoisting',properties:false,identifiers:false,strings:true
     });
     const modified=await execute(result.files);
     assert.equal(modified.status,0,modified.stderr);
@@ -59,7 +59,7 @@ test('hoisted function default parameter also executes before module initializer
 test('ESM function literals remain transformable without eager dependencies',()=>{
   const file={path:'standalone.mjs',sourceType:'module',code:`export function get(){return 'safe-module-literal';}`};
   const result=obfuscateFiles([file],{
-    mode:'coo',seed:'esm-cycle-no-deps',properties:false,identifiers:false
+    mode:'coo',seed:'esm-cycle-no-deps',properties:false,identifiers:false,strings:true
   });
   assert.equal(result.files[0].metrics.literals,1);
 });
