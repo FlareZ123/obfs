@@ -163,10 +163,7 @@ function realmStateObservation(body){
        !(parent.type==='MemberExpression'&&key==='object')&&
        !(parent.type==='VariableDeclarator'&&
          (key==='id'||key==='init'&&
-           (parent.id.type==='Identifier'||parent.id.type==='ObjectPattern'&&
-             parent.id.properties.every((/** @type {import('./ast').AstNode} */ property)=>
-               property.type==='Property'&&property.value.type==='Identifier'&&
-               intrinsicNames.has(keyName(property)??'')))))&&
+           (parent.id.type==='Identifier'||parent.id.type==='ObjectPattern')))&&
        !(parent.type==='CallExpression'&&key==='callee')&&
        !(parent.type==='NewExpression'&&key==='callee')&&
        !(key==='id'&&['FunctionDeclaration','FunctionExpression','ClassDeclaration',
