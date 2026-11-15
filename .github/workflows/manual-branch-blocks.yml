@@ -27,6 +27,8 @@ jobs:
         run: node sims/branch-block-recovery-corpus.js
       - name: Public ciphertext-bit tamper attack
         run: node sims/branch-block-tamper.js
+      - name: Public browser-lock bypass under simulated Node origin
+        run: node sims/branch-block-host-bypass.js
       - name: Six-trial isolated performance profile
         env:
           OBFS_ENFORCE_BUDGET: '1'
@@ -57,6 +59,8 @@ jobs:
         run: node sims/branch-block-recovery-corpus.js
       - name: Public ciphertext-bit tamper attack
         run: node sims/branch-block-tamper.js
+      - name: Public browser-lock bypass under simulated Node origin
+        run: node sims/branch-block-host-bypass.js
       - name: Six-trial plain and masked hot performance
         env:
           OBFS_ENFORCE_BUDGET: '1'
