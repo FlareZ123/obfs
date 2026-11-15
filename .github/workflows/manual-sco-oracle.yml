@@ -35,7 +35,11 @@ jobs:
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
         run: node sims/sco-synchronizing-oracle.js
-      - name: Strict JSDoc check for both state-machine attack simulators
+      - name: Search for synchronizing input by observed step-only behavior
+        run: node --test test/sco-sync-search.test.js
+      - name: Print live authenticated SCO sync-word discovery evidence
+        run: node sims/sco-discovered-oracle-run.js
+      - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
         run: npm run typecheck
