@@ -211,9 +211,20 @@ function lowerWasmI32Functions(source,sourceType,options) {
     }
     used.add(helper);
     // COO client-side synchronous compilation must count toward cold budget.
-    init.push('const '+helper+'=new globalThis.WebAssembly.Instance(new '+
+    const instance='new globalThis.WebAssembly.Instance(new '+
       'globalThis.WebAssembly.Module(globalThis.Uint8Array.from('+
-      JSON.stringify(binary)+'))).exports.f;');
+      JSON.stringify(binary)+'))).exports.f';
+    if(sourceType==='module') {
+      // A cyclic importer may call this exported function before this
+      // module's body has evaluated. A hoisted function binding exists during
+      // module instantiation, whereas an eager const helper is still in TDZ.
+      // Replace the helper with the Wasm export on its first invocation so
+      // subsequent hot calls have no per-call initialization branch.
+      init.push('function '+helper+'(input){'+helper+'='+instance+
+        ';return '+helper+'(input);}');
+    } else {
+      init.push('const '+helper+'='+instance+';');
+    }
     const unsigned=expression.type==='BinaryExpression'&&expression.operator==='>>>';
     edits.push({start:fn.body.start,end:fn.body.end,
       text:'{return '+(unsigned?'('+helper+'('+parameter.name+')>>>0)':
