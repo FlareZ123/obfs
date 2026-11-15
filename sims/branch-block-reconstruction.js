@@ -32,6 +32,42 @@ function recoverBranchFunction(source,functionName){
   const switchNode=loop.body.body[0];
   if(stateDecl?.id.type!=='Identifier'||stateDecl.init?.type!=='Literal'||
       switchNode?.type!=='SwitchStatement')throw new TypeError('Missing dispatcher');
+  const scratchName=declaration.declarations[0]?.id.name;
+  if(typeof scratchName!=='string')throw new TypeError('Missing VM scratch register');
+  /**
+   * A matching number-only mask is used when dispatching and when storing a
+   * target state. Symbolically cancel it without evaluating the input or
+   * knowing its runtime value. This routine accepts the exact supported
+   * compiler grammar, with no compiler import or seed access.
+   * @param {AstNode} expression
+   * @returns {AstNode}
+   */
+  function unmask(expression){
+    if(expression.type!=='BinaryExpression'||expression.operator!=='>>>')return expression;
+    const xor=expression.left,zero=expression.right;
+    if(zero.type!=='Literal'||zero.value!==0||
+       xor.type!=='BinaryExpression'||xor.operator!=='^') {
+      throw new TypeError('Unsupported dispatcher mask encoding');
+    }
+    const mask=xor.right;
+    if(mask.type!=='ConditionalExpression')throw new TypeError('Unknown operand mask');
+    const condition=mask.test,read=mask.consequent,other=mask.alternate;
+    if(condition.type!=='BinaryExpression'||condition.operator!=='==='||
+       condition.left.type!=='UnaryExpression'||condition.left.operator!=='typeof'||
+       condition.left.argument.type!=='Identifier'||condition.left.argument.name!==scratchName||
+       condition.right.type!=='Literal'||condition.right.value!=='number'||
+       read.type!=='BinaryExpression'||read.operator!=='|'||
+       read.left.type!=='Identifier'||read.left.name!==scratchName||
+       read.right.type!=='Literal'||read.right.value!==0||
+       other.type!=='Literal'||other.value!==0) {
+      throw new TypeError('Unrecognized state mask');
+    }
+    return xor.left;
+  }
+  const dispatched=unmask(switchNode.discriminant);
+  if(dispatched.type!=='Identifier'||dispatched.name!==stateDecl.id.name) {
+    throw new TypeError('Nonlinear state switch');
+  }
   const stateName=stateDecl.id.name,initial=stateDecl.init.value;
   if(typeof initial!=='number')throw new TypeError('Invalid initial state');
   /** @type {Map<number,RecoveredBlock>} */
@@ -71,8 +107,9 @@ function recoverBranchFunction(source,functionName){
         operations++;
       } else if(node.left.name===stateName&&node.operator==='='&&
                 node.right.type==='ConditionalExpression') {
-        const choice=node.right;
-        if(choice.test.type!=='Identifier'||choice.test.name!==valueName||
+        const choice=unmask(node.right);
+        if(choice.type!=='ConditionalExpression'||
+           choice.test.type!=='Identifier'||choice.test.name!==valueName||
            choice.consequent.type!=='Literal'||choice.alternate.type!=='Literal'||
            typeof choice.consequent.value!=='number'||typeof choice.alternate.value!=='number') {
           throw new TypeError('Unsupported edge encoding');
