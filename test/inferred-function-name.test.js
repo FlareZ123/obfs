@@ -74,3 +74,13 @@ test('explicitly named function assigned later permits binding mangling',()=>{
 test('conditional branch functions with no inferred name permit binding mangling',()=>{
   compare(`'use strict';const callback=true?function(){}:function(){};module.exports=callback.name;`,1);
 });
+
+test('array destructuring default arrow function retains its target name',()=>{
+  compare(`'use strict';let callback;[callback=()=>9]=[];
+    module.exports=callback.name;`,0);
+});
+
+test('array destructuring default class retains its target name',()=>{
+  compare(`'use strict';let Widget;[Widget=class{}]=[];
+    module.exports=Widget.name;`,0);
+});
