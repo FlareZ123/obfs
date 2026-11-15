@@ -27,3 +27,5 @@ jobs:
         run: node sims/sco-trust-challenge.js
       - name: Compare closed-world native ESM graph and offline name normalization
         run: node sims/multifile-decision-grid.js
+      - name: Prove bounded SCO algorithm cloning through authorized oracle
+        run: node sims/sco-oracle-clone.js
