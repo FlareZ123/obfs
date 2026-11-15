@@ -41,6 +41,10 @@ jobs:
         run: node sims/sco-discovered-oracle-run.js
       - name: Publish bounded sync-word search false-positive counts
         run: node sims/sco-sync-search-falsification.js
+      - name: Challenge public-step-only SCO oracle with diversified synchronization search
+        run: node --test test/sco-sync-diversified.test.js
+      - name: Publish two-corpus physical and observational attack classifications
+        run: node sims/sco-sync-diversified-report.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
