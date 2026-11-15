@@ -98,10 +98,16 @@ test('public helper dependency checks reject private source exposure and cross-b
     [
       'const PRIVATE_KEY=process.env.OBFS_KEY;function publicReader(){return this.process;}'+
       'export async function secret(){return PRIVATE_KEY;}export function visible(){return publicReader();}',
-      /cannot share server environment/u
+      /primitive literal/u
     ]
   ];
   for(const [source,error] of cases){
     assert.throws(()=>partition(source,['publicReader']),error,source);
   }
+  const envSource=cases[cases.length-1][0];
+  assert.throws(()=>partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:envSource
+  },{privateNames:['secret'],publicHelperNames:['publicReader'],
+    allowServerEnvConstants:true,seed:'sco-public-helper-env'}),
+  /cannot share server environment/u);
 });
