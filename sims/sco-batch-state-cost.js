@@ -10,9 +10,10 @@ const {createScoHandler,createScoBatchMethod,preflightScoBatchState}=require('..
 /**
  * @param {number} iterations
  * @param {boolean} predictive
+ * @param {boolean} [isolated]
  * @returns {import('node:http').Server}
  */
-function makeServer(iterations,predictive) {
+function makeServer(iterations,predictive,isolated=false) {
   const operations={
     /** @param {number} seed @returns {number} */
     work:seed=>{
@@ -24,6 +25,27 @@ function makeServer(iterations,predictive) {
     }
   };
   const batch=createScoBatchMethod(operations);
+  let tail=Promise.resolve();
+  /**
+   * Hold an application lock until coarse authorization, the full batch,
+   * and response writing have finished. The timing fixture uses a global
+   * lock so its uncongested cost is independently reproducible.
+   * @param {import('node:http').IncomingMessage} request
+   * @param {()=>Promise<void>} execute
+   * @returns {Promise<void>}
+   */
+  async function runRpcIsolated(request,execute) {
+    const previous=tail;
+    /** @type {()=>void} */
+    let unlock=()=>{};
+    tail=new Promise(resolve=>{unlock=()=>resolve();});
+    await previous;
+    try{
+      await execute();
+    }finally{
+      unlock();
+    }
+  }
   const policy={
     /** @param {boolean} active @param {string} method @param {unknown[]} args */
     authorize:(active,method,args)=>active && method==='work' &&
@@ -40,7 +62,8 @@ function makeServer(iterations,predictive) {
         return !predictive || preflightScoBatchState(args[0],true,policy);
       }
       return policy.authorize(true,method,args);
-    }
+    },
+    ...(isolated?{runRpcIsolated}:{})
   }));
 }
 
@@ -99,28 +122,39 @@ function median(data) {
  * @returns {Promise<object>}
  */
 async function benchmark(iterations) {
-  const plain=makeServer(iterations,false);
-  const predicted=makeServer(iterations,true);
-  const ports=await Promise.all([listen(plain),listen(predicted)]);
+  const servers=[
+    makeServer(iterations,false),
+    makeServer(iterations,true),
+    makeServer(iterations,true,true)
+  ];
+  const ports=await Promise.all(servers.map(server=>listen(server)));
   /** @type {Call[]} */
   const calls=Array.from({length:32},(_,i)=>({method:'work',args:[i+1]}));
-  const samples={plain:/** @type {number[]} */ ([]),predicted:/** @type {number[]} */ ([])};
+  const names=/** @type {('plain'|'predicted'|'isolated')[]} */ (['plain','predicted','isolated']);
+  const samples={
+    plain:/** @type {number[]} */ ([]),
+    predicted:/** @type {number[]} */ ([]),
+    isolated:/** @type {number[]} */ ([])
+  };
   try{
-    await runRequests(ports[0],calls,25);
-    await runRequests(ports[1],calls,25);
+    for(const port of ports)await runRequests(port,calls,25);
     for(let t=0;t<9;t++) {
-      const first=t%2===0?0:1;
-      const a=await runRequests(ports[first],calls,35);
-      const b=await runRequests(ports[1-first],calls,35);
-      assert.equal(a.checksum,b.checksum);
-      samples[first===0?'plain':'predicted'].push(a.ms/35);
-      samples[first===1?'plain':'predicted'].push(b.ms/35);
+      const sequence=[t%3,(t+1)%3,(t+2)%3];
+      /** @type {number|null} */
+      let expected=null;
+      for(const index of sequence) {
+        const trial=await runRequests(ports[index],calls,35);
+        if(expected!==null)assert.equal(trial.checksum,expected);
+        expected=trial.checksum;
+        samples[names[index]].push(trial.ms/35);
+      }
     }
   }finally{
-    await Promise.all([close(plain),close(predicted)]);
+    await Promise.all(servers.map(server=>close(server)));
   }
   const plainMs=median(samples.plain);
   const predictedMs=median(samples.predicted);
+  const isolatedMs=median(samples.isolated);
   return {
     iterationsPerMethod:iterations,
     callsPerBatch:calls.length,
@@ -128,7 +162,10 @@ async function benchmark(iterations) {
     requestsPerTrial:35,
     loopbackPlainMedianMs:Number(plainMs.toFixed(6)),
     loopbackPredictiveMedianMs:Number(predictedMs.toFixed(6)),
+    loopbackIsolatedMedianMs:Number(isolatedMs.toFixed(6)),
     predictiveOverheadRatio:Number((predictedMs/plainMs).toFixed(6)),
+    isolationOverPredictiveRatio:Number((isolatedMs/predictedMs).toFixed(6)),
+    isolationOverPlainRatio:Number((isolatedMs/plainMs).toFixed(6)),
     rawPerTrialMs:samples
   };
 }
