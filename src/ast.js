@@ -117,7 +117,7 @@ function observesFunctionSource(ast) {
         node.left.type==='TemplateLiteral' && !node.left.expressions.length;
       const rightText=node.right.type==='Literal' && typeof node.right.value==='string' ||
         node.right.type==='TemplateLiteral' && !node.right.expressions.length;
-      if(leftText || rightText) observed=true;
+      if((leftText || rightText) && staticString(node)===null) observed=true;
     }
     if(node.type==='MemberExpression') {
       const name=node.computed ? staticString(node.property) :
