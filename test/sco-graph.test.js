@@ -82,6 +82,7 @@ test('real private SCO graph preserves authenticated remote behavior and withhol
   try{
     sample=await startServer({token:'integration-demo-token-31'});
     const {origin,token,graph}=sample;
+    /** @param {string} name @returns {string} */
     const clientPath=name=>path.join(ROOT,'after',name);
     const authenticated={headers:{'x-demo-token':token}};
     assert.equal((await fetch(origin+'/obfs/api.mjs')).status,403);
@@ -116,9 +117,11 @@ test('real private SCO graph preserves authenticated remote behavior and withhol
       'api.mjs':originalApi,'audit.mjs':originalAudit
     });
     assert.equal(Object.keys(serverRegistry).length,2);
+    /** @type {{native:number[],remote:number[]}} */
     const timings={native:[],remote:[]};
     for(let trial=0;trial<5;trial++){
-      for(const kind of trial%2===0?['native','remote']:['remote','native']){
+      const order=/** @type {('native'|'remote')[]} */ (trial%2===0?['native','remote']:['remote','native']);
+      for(const kind of order){
         const start=performance.now();
         const actual=kind==='native'?await originalApi.derive(INPUT):await remoteApi.derive(INPUT);
         assert.equal(actual,expected);
@@ -133,8 +136,10 @@ test('real private SCO graph preserves authenticated remote behavior and withhol
         ratio:median(timings.remote)/median(timings.native)}));
   }finally{
     globalThis.fetch=previousFetch;
-    if(sample)await new Promise((resolve,reject)=>
-      sample.server.close(error=>error?reject(error):resolve()));
+    if(sample){
+      const server=sample.server;
+      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    }
     if(oldKey===undefined)delete process.env.OBFS_SCO_GRAPH_KEY;
     else process.env.OBFS_SCO_GRAPH_KEY=oldKey;
   }
