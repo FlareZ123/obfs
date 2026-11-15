@@ -32,12 +32,29 @@ function resolveImport(from,specifier) {
 function renameCrossFileProperties(files,seed) {
   /** @type {Map<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} */
   const modules=new Map();
+  let ambiguousConsumer=false;
   for(const file of files) {
-    if (file.sourceType==='module' && typeof file.code==='string') {
-      const ast=parse(file.code,'module');
-      modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
-    }
+    const sourceType=file.sourceType ??
+      (file.path.endsWith('.mjs') ? 'module' : file.path.endsWith('.cjs') ? 'commonjs' :
+        file.path.endsWith('.js') ? 'script' : 'asset');
+    if(sourceType==='asset'||typeof file.code!=='string') continue;
+    const ast=parse(file.code,sourceType);
+    // The filename-oriented resolver cannot prove URL query/fragment/percent
+    // aliases. Dynamic imports and CommonJS require can consume ESM exports
+    // outside the direct named-import graph, so decline the entire rename.
+    walk(ast,node=>{
+      if(node.type==='ImportExpression') ambiguousConsumer=true;
+      if(['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) &&
+          typeof node.source?.value==='string' &&
+          (node.source.value.startsWith('./')||node.source.value.startsWith('../')) &&
+          /[?#%]/.test(node.source.value)) ambiguousConsumer=true;
+      if(node.type==='CallExpression' && node.callee.type==='Identifier' && node.callee.name==='require' &&
+          node.arguments.some(argument=>argument.type!=='Literal'||typeof argument.value!=='string' ||
+            argument.value.startsWith('./')||argument.value.startsWith('../'))) ambiguousConsumer=true;
+    });
+    if(sourceType==='module') modules.set(file.path,{file,ast,bindings:collectBindings(ast)});
   }
+  if(ambiguousConsumer) return {files,objects:0,properties:0};
   /** @type {Map<string,import('./ast').Edit[]>} */
   const allEdits = new Map();
   /** @param {string} file @param {import('./ast').Edit} edit */
