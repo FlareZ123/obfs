@@ -163,7 +163,7 @@ function partitionScoSelectedAsyncExports(file,options) {
           throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
         }
         if(serverEnvironmentUsed&&node.type==='Identifier'&&!isStaticKey(parent,key)&&
-           node.name==='process'){
+           ambientRoots.has(node.name)){
           throw new TypeError('Public SCO export cannot share server environment: '+name);
         }
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&serverConstants.has(node.name)){
