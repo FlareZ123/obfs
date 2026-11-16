@@ -324,14 +324,67 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     });
+    // A statically identifiable local call transfers ambient provenance
+    // into formal parameters, including computed ObjectPattern extraction.
+    // This is a bounded may-alias pass: ambiguous calls may still require
+    // refusal elsewhere; this does not establish whole-program effect closure.
+    /** @type {Map<string,AstNode>} */
+    const localCallables=new Map();
+    walk(source.ast,node=>{
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier' &&
+         source.bindings.get(node.id.name)===1) {
+        localCallables.set(node.id.name,node);
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression') &&
+         source.bindings.get(node.id.name)===1) {
+        localCallables.set(node.id.name,node.init);
+      }
+    });
+    // A root argument may be forwarded through multiple local functions;
+    // iterate both ordinary aliases and callsite-to-parameter edges until
+    // the overapproximating provenance sets reach a fixed point.
     do {
       aliasChanged=false;
       for(const [target,origin] of aliasEdges) {
+        if(hostRoots.has(origin) && !hostRoots.has(target)) {
+          hostRoots.add(target);
+          aliasChanged=true;
+        }
         if(hostCallAliases.has(origin) && !hostCallAliases.has(target)) {
           hostCallAliases.add(target);
           aliasChanged=true;
         }
+        if(localCallables.has(origin) && !localCallables.has(target) &&
+           source.bindings.get(target)===1) {
+          localCallables.set(target,/** @type {AstNode} */ (localCallables.get(origin)));
+          aliasChanged=true;
+        }
       }
+      walk(source.ast,node=>{
+        if(node.type!=='CallExpression'||node.callee.type!=='Identifier')return;
+        const fn=localCallables.get(node.callee.name);
+        if(!fn)return;
+        for(let index=0;index<fn.params.length;index++) {
+          const argument=node.arguments[index];
+          if(argument?.type!=='Identifier'||!hostRoots.has(argument.name))continue;
+          const parameter=fn.params[index];
+          if(parameter.type==='Identifier' && !hostRoots.has(parameter.name)) {
+            hostRoots.add(parameter.name);
+            aliasChanged=true;
+          }else if(parameter.type==='ObjectPattern') {
+            for(const property of parameter.properties) {
+              if(property.type==='Property' &&
+                 property.value.type==='Identifier' &&
+                 !hostCallAliases.has(property.value.name)) {
+                hostCallAliases.add(property.value.name);
+                aliasChanged=true;
+              }
+            }
+          }
+        }
+      });
     } while(aliasChanged);
     /**
      * A local holder of a global root may carry the same mutable intrinsic.
