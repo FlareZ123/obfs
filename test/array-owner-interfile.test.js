@@ -100,14 +100,14 @@ test('directly exported holder retains externally observable private key spellin
       'export const holder=[vault];',
       'const alias=holder[0];',
       'export function inner(v){return alias.privateCount+v;}'
-    ].join('\\n')},
+    ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {holder,inner} from "./owner.mjs";',
       'export function observe(v){return inner(v)+holder[0].privateCount;}'
-    ].join('\\n')}
+    ].join('\n')}
   ];
   const compiled=transform(exposed);
-  const texts=compiled.files.map(file=>String(file.code)).join('\\n');
+  const texts=compiled.files.map(file=>String(file.code)).join('\n');
   assert.match(texts,/privateCount/u,
     'An ESM export of the entire holder allows external callers to read the old key');
   const native=await importGroup(exposed);
