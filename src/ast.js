@@ -165,8 +165,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
            (objectFunctionKeys.get(node.object.name)?.has(memberName(node)??'') ||
             node.computed && arraysWithFunctions.has(node.object.name))) ||
       node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-        node.callee.object.type==='Identifier' &&
-        reflectiveReceivers.has(node.callee.object.name) &&
+        (node.callee.object.type==='Identifier' &&
+           reflectiveReceivers.has(node.callee.object.name) ||
+         node.callee.object.type==='MemberExpression' &&
+           isGlobal(node.callee.object.object) &&
+           ['Reflect','Object'].includes(memberName(node.callee.object)??'')) &&
         memberName(node.callee)==='getPrototypeOf' &&
         isFunctionValue(node.arguments[0])));
   }
