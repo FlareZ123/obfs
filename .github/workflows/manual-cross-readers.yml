@@ -38,5 +38,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/closed-graph-host-browser.js
+      - name: Independent Chromium import-map pre-guard dependency attack
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/closed-graph-host-import-map-attack.js
       - name: Strict JSDoc type safety
         run: npm run typecheck

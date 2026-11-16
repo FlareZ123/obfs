@@ -97,6 +97,19 @@ test('cyclic ESM module graph still guards the first evaluated module body',asyn
   ],['b','a','entry'],'b');
 });
 
+test('top-level await across static module dependencies still guards every body',async()=>{
+  await verify([
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {answer} from "./logic.mjs";await Promise.resolve();'+
+      'globalThis.events.push("entry");globalThis.result=answer;'},
+    {path:'logic.mjs',sourceType:'module',code:
+      'import {value} from "./state.mjs";await Promise.resolve();'+
+      'globalThis.events.push("logic");export const answer=value;'},
+    {path:'state.mjs',sourceType:'module',code:
+      'await Promise.resolve();globalThis.events.push("state");export const value=32;'}
+  ],['state','logic','entry'],32);
+});
+
 test('undeclared, imported external, ambiguous and mixed graphs decline',()=>{
   const entry=(/** @type {string} */ code)=>({path:'entry.mjs',sourceType:/** @type {'module'} */('module'),code});
   const dep={path:'dep.mjs',sourceType:/** @type {'module'} */('module'),code:'export const n=4;'};
