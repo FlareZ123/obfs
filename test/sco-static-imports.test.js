@@ -56,7 +56,7 @@ test('SCO keeps server-only imported bindings out of every public function',()=>
   }),/server-only constant: helper/);
 });
 
-test('SCO accepts multiple explicit named Node builtin imports without client disclosure',()=>{
+test('SCO accepts multiple explicit named Node builtin imports without client disclosure',async()=>{
   const code=[
     'import {createHash} from "node:crypto";',
     'import {Buffer as PrivateBuffer} from "node:buffer";',
