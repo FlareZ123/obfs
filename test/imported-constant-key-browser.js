@@ -30,6 +30,37 @@ function fixtures() {
       files:graph('export const key="secretField";export const bag={secretField:23};',
         'import {key,bag} from "./state.mjs";'+
         'window.hostApi.accept(bag[key]+Number(window.hostApi.fieldKey===key));')},
+    {name:'named-export-key',expectedFields:1,expectedText:'24',
+      files:[
+        {path:'state.mjs',sourceType:'module',code:
+          'export const bag={secretField:23};'},
+        {path:'keys.mjs',sourceType:'module',code:
+          'const privateKey="secretField";export {privateKey as publicKey};'},
+        {path:'main.mjs',sourceType:'module',code:
+          'import {bag} from "./state.mjs";import {publicKey} from "./keys.mjs";'+
+          'window.hostApi.accept(bag[publicKey]+Number(window.hostApi.fieldKey===publicKey));'}
+      ]},
+    {name:'named-export-mutable',expectedFields:0,expectedText:'9',
+      files:[
+        {path:'state.mjs',sourceType:'module',code:
+          'export const bag={secretField:9};'},
+        {path:'keys.mjs',sourceType:'module',code:
+          'let privateKey="secretField";export {privateKey as publicKey};'},
+        {path:'main.mjs',sourceType:'module',code:
+          'import {bag} from "./state.mjs";import {publicKey} from "./keys.mjs";'+
+          'window.hostApi.accept(bag[publicKey]);'}
+      ]},
+    {name:'named-export-source',expectedFields:0,expectedText:'true:8',
+      files:[
+        {path:'state.mjs',sourceType:'module',code:
+          'export const bag={secretField:8};'},
+        {path:'keys.mjs',sourceType:'module',code:
+          'const privateKey="toString";export {privateKey as publicKey};'},
+        {path:'main.mjs',sourceType:'module',code:
+          'import {bag} from "./state.mjs";import {publicKey} from "./keys.mjs";'+
+          'function observe(){return bag.secretField;}'+
+          'window.hostApi.accept(observe[publicKey]().includes("secretField")+":"+bag.secretField);'}
+      ]},
     {name:'esm-cycle-safe',expectedFields:1,expectedText:'15',
       files:graph('import {probe} from "./main.mjs";export const key="secretField";'+
         'export const bag={secretField:15};console.log(probe());',
