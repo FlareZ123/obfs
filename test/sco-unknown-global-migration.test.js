@@ -1,0 +1,66 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const vm=require('node:vm');
+const {partitionScoSelectedAsyncExports}=require('../src');
+
+/** @param {string} privateBody @param {string} [publicBody] */
+function source(privateBody,publicBody='return 7;'){
+  return 'export async function protectedOp(){'+privateBody+'}\n'+
+    'export function visible(){'+publicBody+'}\n';
+}
+
+/** @param {string} privateBody @param {string} [publicBody] */
+function partition(privateBody,publicBody){
+  return partitionScoSelectedAsyncExports(
+    {path:'custom-ambient.mjs',code:source(privateBody,publicBody),sourceType:'module'},
+    {privateNames:['protectedOp'],seed:'custom-ambient-20261116'});
+}
+
+test('Native custom browser-owned global is absent in independent server realm',()=>{
+  const browser=vm.createContext({externalBridge:{value:41}});
+  const server=vm.createContext({});
+  assert.equal(vm.runInContext('globalThis.externalBridge.value',browser),41);
+  assert.equal(vm.runInContext('typeof globalThis.externalBridge',server),'undefined');
+  assert.throws(()=>vm.runInContext('globalThis.externalBridge.value',server),/Cannot read properties of undefined/);
+});
+
+test('SCO private extraction refuses unknown host-global application properties',()=>{
+  const bodies=[
+    'return globalThis.externalBridge.value;',
+    'return globalThis.customConfig;',
+    "return globalThis['externalBridge'].value;",
+    'const root=globalThis;return root.externalBridge.value;',
+    'const root=globalThis;const alias=root;return alias.customConfig;',
+    'return globalThis.externalBridge?.value;',
+    'return typeof globalThis.externalBridge;',
+    "const {externalBridge:bridge}=globalThis;return bridge.value;",
+    "const root=globalThis;const key='externalBridge';return root[key].value;"
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partition(body),/Private SCO export uses unproved host-global state|Private SCO export uses browser-only ambient state/,
+      body);
+  }
+});
+
+test('SCO admits deterministic standard global access and lexical local objects',()=>{
+  for(const body of [
+    'return globalThis.Math.imul(7,9);',
+    'return globalThis.Number.isFinite(41);',
+    'return Math.PI;',
+    'const local={externalBridge:41};return local.externalBridge;',
+    'const globalThis={externalBridge:{value:41}};return globalThis.externalBridge.value;'
+  ]){
+    const emitted=partition(body);
+    assert.deepEqual(emitted.privateNames,['protectedOp'],body);
+  }
+  const emitted=partition('return 7;','return globalThis.externalBridge.value;');
+  assert.match(emitted.clientFile.code,/globalThis.externalBridge.value/);
+});
+
+test('Cross-boundary ambient access retains the established refusal diagnostic',()=>{
+  assert.throws(()=>partition(
+    'return globalThis.sharedState;',
+    'return globalThis.sharedState;'),/share ambient state/u);
+});
