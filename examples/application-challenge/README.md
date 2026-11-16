@@ -56,3 +56,38 @@ using a per-path lock. The profiler records paired hot and whole-process
 measurements and does not enforce a general throughput guarantee.
 
 [Detailed intermediate report](../../im-results/application-challenge-refusal-2026-11-16.md).
+
+## Server-controlled source-private comparison
+
+The [dedicated async SCO wrapper](sco-before/api.mjs) calls the same frozen
+synchronous computation on a trusted server. A [graph partition builder](sco-build.cjs)
+uses the production `partitionScoAsyncGraph` compiler to produce the
+[exact 515-byte public facade](sco-public/sco-before/api.mjs). The
+[authenticated Node server](sco-server.cjs) publishes only this facade
+and a checked RPC method; five implementation modules stay server-side.
+
+The [pinned Ubuntu/Windows Node integration gate](https://github.com/FlareZ123/obfs/actions/runs/43806967633)
+at exact source `b0c759fec74580c5b2ae906bb0367ce221c90db1`
+passed 36 differential calls per platform and an independent authorized
+online attacker cloned 40/40 held-out calls through the original server.
+The generated public bytes matched the checked-in facade on both systems.
+Nine-trial warm 120,000-event RPC ratios were 1.4373× Ubuntu and
+1.6338× Windows; thin 1-event calls cost 133.62× and 169.24×, exceeding
+the application's 2.5× maximum. These timings use localhost HTTP
+without TLS or WAN RTT.
+
+The SCO mode therefore demonstrates actual source withholding while
+the permitted legitimate online relay remains effective. The async
+adapter changes the external interface of the frozen synchronous
+application, and is an explicit SCO variant rather than an identical
+browser-facing API. The [bounded threat/cost analysis](../../im-results/application-challenge-sco-source-relay-2026-11-16.md)
+and [test](../../test/application-challenge-sco.test.js) preserve these
+distinctions.
+
+To independently verify the checked-in generated SCO facade and
+integration under Node 22:
+
+```powershell
+node examples/application-challenge/sco-build.cjs --check
+node --test test/application-challenge-sco.test.js
+```
