@@ -61,6 +61,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-coo-browser.js
+      - name: Real Chromium host reflection callback adversarial ESM boundary
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/host-reflection-callback-browser.js
       - name: Real Chromium own-key-only transformed COO application differential
         if: runner.os == 'Linux'
         env:
