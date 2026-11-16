@@ -64,3 +64,16 @@ test('four-file stateful ESM graph retains imported helper effects under native 
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('cross-file imported function source reader denies native CFG selection',()=>{
+  const files=[
+    {path:'service.mjs',sourceType:'module',
+      code:'export function f(x){var a=x;if(a>4){a++;}else{a--;}return a;}'},
+    {path:'consumer.mjs',sourceType:'module',
+      code:'import {f} from "./service.mjs";export const source=String(f);'}
+  ];
+  assert.throws(()=>obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'statement-source-reader-20261116',
+    experimentalStatementFlow:{'service.mjs':['f']}
+  }),/without cross-file source observation/);
+});
