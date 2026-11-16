@@ -17,6 +17,15 @@ server the original import chain runs as usual. Public facades import neither
 façades. This allows client imports of `derive` and `verify` while their
 implementation remains on the trusted server.
 
+The graph partitioner now attaches server-side `privateModulePaths` metadata
+for each unexposed original module to every generated facade. If an integrator
+accidentally co-publishes `secret.mjs` alongside either facade,
+`createScoHandler` rejects the configuration before serving HTTP source.
+This metadata is not emitted in the browser JavaScript. Independently
+reviewed `publicPaths` remains the stronger positive publication boundary.
+The [real HTTP negative control](../../im-results/sco-graph-publication-manifest-2026-11-16.md)
+reproduces the source leak when the metadata is deliberately omitted.
+
 From Windows 11 PowerShell, with Node.js 22 and dependencies installed:
 
 ```powershell
