@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: Cross-file exported clone-alias ESM differential
+        run: node --test test/clone-exported-alias-esm.test.js
       - name: Closed ESM clone-error observer native graph differential
         run: node --test test/clone-source-esm-graph.test.js
       - name: V8 Serializer.writeValue source-error differential
