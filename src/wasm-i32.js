@@ -136,8 +136,13 @@ function emit(node,parameters,entropy,state,conditionalStrategy) {
     const predicate=emit(node.test,parameters,entropy,state,conditionalStrategy);
     const shortest=Math.min(yes.length,no.length);
     const longest=Math.max(yes.length,no.length);
+    const combined=longest+shortest;
+    // A second expensive branch also merits lazy evaluation even when
+    // the two branches have comparable byte lengths. The threshold comes
+    // from workload sampling and does not certify arbitrary runtimes.
     const lazy=conditionalStrategy==='if'||
-      conditionalStrategy==='auto'&&longest+shortest>=48&&longest>=3*shortest;
+      conditionalStrategy==='auto'&&
+      (combined>=96||combined>=48&&longest>=3*shortest);
     state.steps+=lazy?3:1;
     if(lazy) {
       // The result type 0x7f is i32. Unlike select, Wasm if only executes
