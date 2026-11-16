@@ -160,9 +160,27 @@ function mutatesDecoderIntrinsic(ast) {
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayValue(node) {
     if(node.type==='Identifier')return arrayNames.has(node.name);
-    return node.type==='MemberExpression' && (
-      isGlobal(node.object) && (memberName(node)==='Array'||memberName(node)===null) ||
-      memberName(node)==='constructor' && isArrayInstance(node.object));
+    if(node.type==='MemberExpression') {
+      if(isGlobal(node.object) &&
+         (memberName(node)==='Array'||memberName(node)===null) ||
+         memberName(node)==='constructor' && isArrayInstance(node.object))return true;
+      // A data descriptor of globalThis.Array exposes that same mutable
+      // constructor through its .value. A prior module can patch its prototype.
+      const descriptor=node.object;
+      return memberName(node)==='value' &&
+        descriptor.type==='CallExpression' &&
+        descriptor.callee.type==='MemberExpression' &&
+        isObjectIntrinsic(descriptor.callee.object) &&
+        memberName(descriptor.callee)==='getOwnPropertyDescriptor' &&
+        descriptor.arguments[0] && isGlobal(descriptor.arguments[0]) &&
+        descriptor.arguments[1] && staticString(descriptor.arguments[1])==='Array';
+    }
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      isReflectIntrinsic(node.callee.object) &&
+      memberName(node.callee)==='get' &&
+      node.arguments[0] && isGlobal(node.arguments[0]) &&
+      node.arguments[1] && staticString(node.arguments[1])==='Array';
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayPrototype(node) {
@@ -171,14 +189,36 @@ function mutatesDecoderIntrinsic(ast) {
       // Array literals inherit the same iterator prototype as Array.prototype.
       // A patched iterator would corrupt the chunked decoder's spread.
       if(isArrayInstance(node.object) && memberName(node)==='__proto__')return true;
-      return isArrayValue(node.object) &&
-        (memberName(node)==='prototype'||memberName(node)===null);
+      if(isArrayValue(node.object) &&
+         (memberName(node)==='prototype'||memberName(node)===null))return true;
+      if(memberName(node)==='value') {
+        const descriptor=node.object;
+        if(descriptor.type==='CallExpression' &&
+           descriptor.callee.type==='MemberExpression' &&
+           isObjectIntrinsic(descriptor.callee.object) &&
+           memberName(descriptor.callee)==='getOwnPropertyDescriptor' &&
+           descriptor.arguments[0] && isArrayValue(descriptor.arguments[0]) &&
+           descriptor.arguments[1] && staticString(descriptor.arguments[1])==='prototype') {
+          return true;
+        }
+        if(descriptor.type==='MemberExpression' &&
+           memberName(descriptor)==='prototype' &&
+           descriptor.object.type==='CallExpression' &&
+           descriptor.object.callee.type==='MemberExpression' &&
+           isObjectIntrinsic(descriptor.object.callee.object) &&
+           memberName(descriptor.object.callee)==='getOwnPropertyDescriptors' &&
+           descriptor.object.arguments[0] &&
+           isArrayValue(descriptor.object.arguments[0]))return true;
+      }
+      return false;
     }
     return node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-      node.callee.object.type==='Identifier' &&
-      ['Object','Reflect'].includes(node.callee.object.name) &&
-      memberName(node.callee)==='getPrototypeOf' &&
-      node.arguments[0] && isArrayInstance(node.arguments[0]);
+      (memberName(node.callee)==='getPrototypeOf' &&
+       (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)) &&
+       node.arguments[0] && isArrayInstance(node.arguments[0]) ||
+       memberName(node.callee)==='get' && isReflectIntrinsic(node.callee.object) &&
+       node.arguments[0] && isArrayValue(node.arguments[0]) &&
+       node.arguments[1] && staticString(node.arguments[1])==='prototype');
   }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
