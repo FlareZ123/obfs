@@ -87,9 +87,14 @@ function partitionScoAsyncModule(file,options={}) {
       }
       let receiverAccess=false;
       walk(fn.body,node=>{
-        if(node.type==='ThisExpression'||node.type==='Super')receiverAccess=true;
+        // Direct eval can observe the original function's receiver without a
+        // syntactic ThisExpression (for example eval("this")). The RPC stub
+        // cannot reproduce both namespace-method and detached-call receivers.
+        if(node.type==='ThisExpression'||node.type==='Super'||
+            node.type==='CallExpression'&&node.callee?.type==='Identifier'&&
+              node.callee.name==='eval')receiverAccess=true;
       });
-      if(receiverAccess)throw new TypeError('RPC partition cannot preserve this/super receivers');
+      if(receiverAccess)throw new TypeError('RPC partition cannot preserve this/super/direct eval receivers');
       used.add(name);
       // An anonymous function expression assigned to a const receives that
       // binding's name. Explicitly named expressions retain their inner name.
