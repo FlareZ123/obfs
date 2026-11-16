@@ -211,3 +211,25 @@ test('strict receiver, arguments, closure and parameter-default semantics stay n
     }
   }
 });
+
+test('source-only attacker reconstructs full COO pipeline with default transforms and lock',()=>{
+  const {obfuscateFiles}=require('../src');
+  const original='export function f(x){var a=x|0;if(a>9){a+=3;}else{a^=7;}return a;}';
+  const native=load(original.replace(/^export /u,''));
+  for(let index=0;index<16;index++){
+    const result=obfuscateFiles([{
+      path:'sample.mjs',sourceType:'module',code:original
+    }],{
+      mode:'coo',seed:'full-layered-reconstruction-'+index,
+      strings:true,properties:true,identifiers:true,
+      allowedHosts:['127.0.0.1'],
+      experimentalStatementFlow:{'sample.mjs':['f']}
+    });
+    assert.equal(result.files[0].metrics.statementFlowFunctions,1);
+    const clone=recoverStatementFlow(String(result.files[0].code),'f','module');
+    const extracted=load(clone.code.replace(/^export /u,''));
+    for(let x=-128;x<=128;x++){
+      assert.equal(extracted(x),native(x),'Full-pipeline static recovery failed '+index+':'+x);
+    }
+  }
+});
