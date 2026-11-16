@@ -50,16 +50,23 @@ test('SCO refuses known private realm-dependent entropy and host-clock reads',()
     'return globalThis.Math.random();',
     'const random=Math.random;return random();',
     'const {random:draw}=Math;return draw();',
+    'let draw;({random:draw}=Math);return draw();',
+    'const {Math:RandomMath}=globalThis;return RandomMath.random();',
     "return Math['ran'+'dom']();",
     'return crypto.randomUUID();',
     'return globalThis.crypto.randomUUID();',
     'return Array.from(crypto.getRandomValues(new Uint8Array(4)));',
     'const c=crypto;return c.randomUUID();',
     'const c=globalThis.crypto;return c.randomUUID();',
+    'const {randomUUID:draw}=crypto;return draw();',
+    'const {crypto:host}=globalThis;return host.randomUUID();',
+    'let draw;({randomUUID:draw}=crypto);return draw();',
     'return performance.now();',
     'return globalThis.performance.timeOrigin;',
     'const p=performance;return p.now();',
     'const p=globalThis.performance;return p.timeOrigin;',
+    'const {now:clock}=performance;return clock();',
+    'const {performance:clock}=globalThis;return clock.timeOrigin;',
     'const r=performance.now;return r.call(performance);'
   ];
   for(const body of bodies){
