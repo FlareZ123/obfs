@@ -781,7 +781,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       if((leftText || rightText || isStringValue(node.left) ||
           isStringValue(node.right) || isFunctionValue(node.left) ||
           isFunctionValue(node.right) || containsFunction(node.left) ||
-          containsFunction(node.right)) && staticString(node)===null) observed=true;
+          containsFunction(node.right)) && !isDefinitelyPrimitive(node)) observed=true;
     }
     // Stack observation can also be expressed without a .stack member access.
     // A destructuring pattern reads the error's captured source location.
