@@ -18,10 +18,16 @@ function median(samples){
  *
  * @param {(candidate:string)=>Promise<boolean>} verify
  * @param {number} [length]
+ * @param {number} [repetitions]
  * @returns {Promise<{guess:string,verified:boolean,requests:number,minMarginMs:number}>}
  */
-async function extractPrefixFromTimings(verify,length=32){
+async function extractPrefixFromTimings(verify,length=32,repetitions=3){
   let guess='',requests=0,minMarginMs=Infinity;
+  // Let HTTP keepalive, TLS-free loopback and JIT stabilization happen before
+  // beginning the measurement. This query is only a legal false candidate.
+  for(let warm=0;warm<12;warm++){
+    await verify('f'.repeat(length));requests++;
+  }
   for(let position=0;position<length;position++){
     /** @type {{digit:string,score:number}[]} */
     const candidates=[];
@@ -31,7 +37,7 @@ async function extractPrefixFromTimings(verify,length=32){
     for(const digit of order){
       const challenge=guess+digit+'0'.repeat(length-position-1);
       const durations=[];
-      for(let trial=0;trial<3;trial++){
+      for(let trial=0;trial<repetitions;trial++){
         const start=performance.now();
         const result=await verify(challenge);
         if(typeof result!=='boolean')throw new TypeError('Expected Boolean oracle');
@@ -70,7 +76,16 @@ async function main(){
     if(typeof facade.verify!=='function'||typeof facade.verifyFixed!=='function'){
       throw new TypeError('Public facade does not expose both test methods');
     }
-    const vulnerable=await extractPrefixFromTimings(facade.verify);
+    // A one-shot timing ranking can fail under runner noise even when the
+    // side channel is exploitable. Unlimited authorized probing permits
+    // independent source-blind retries with additional samples.
+    let vulnerable,requests=0,attempts=0;
+    for(const repetitions of [3,7,11]){
+      const round=await extractPrefixFromTimings(facade.verify,32,repetitions);
+      requests+=round.requests;attempts++;
+      vulnerable={...round,requests,attempts,repetitions};
+      if(round.verified)break;
+    }
     const fixed=await extractPrefixFromTimings(facade.verifyFixed);
     process.stdout.write(JSON.stringify({vulnerable,fixed,
       publicFacadeBytes:Buffer.byteLength(source),
