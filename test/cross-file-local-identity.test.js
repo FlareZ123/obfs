@@ -97,9 +97,18 @@ for(const [name,logic,expected] of [
   ['exported getter leaks private owner to unknown imports',
     'export const get=()=>state;const alias=get();'+
     'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
-  ['inline getter result cannot be rewritten without a tracked alias',
+  ['inline getter result is proven',
     'const get=()=>state;'+
-    'export const outcome=get().privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
+    'export const outcome=get().privateMetric+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['inline identity forwarding result is proven',
+    'const relay=value=>value;'+
+    'export const outcome=relay(state).privateMetric+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['computed inline getter result is proven',
+    'const get=()=>state;'+
+    'export const outcome=get()["privateMetric"]+state.weightedFactor+globalThis.window.api.offset;',2],
+  ['unknown computed field on immediate getter is refused',
+    'const get=()=>state;const key=globalThis.window.api.dynamicKey;'+
+    'export const outcome=get()[key]+state.weightedFactor+globalThis.window.api.offset;',0],
   ['reflecting wrapper',
     'const relay=value=>(Object.keys(value),value);const alias=relay(state);'+
     'export const outcome=alias.privateMetric+state.weightedFactor+globalThis.window.api.offset;',0],
