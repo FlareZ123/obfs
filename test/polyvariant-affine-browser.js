@@ -52,16 +52,16 @@ async function main() {
     'for(const value of sample){const expected=result(native,value);'+
       'for(const fn of [v2,v4,v8]){const actual=result(fn,value);'+
       'if(JSON.stringify(expected)!==JSON.stringify(actual))throw Error("mismatch "+String(value));}count++;}'+
-    'function work(fn){let checksum=0;for(let i=0;i<250000;i++)checksum^=fn((Math.imul(i,1103515245)^12345)|0);return checksum;}'+
-    'for(let i=0;i<4;i++){const n=work(native);'+
+    'function work(fn){let checksum=0;for(let i=0;i<2000000;i++)checksum^=fn((Math.imul(i,1103515245)^12345)|0);return checksum;}'+
+    'for(let i=0;i<8;i++){const n=work(native);'+
       'if(n!==work(v2)||n!==work(v4)||n!==work(v8))throw Error("checksum");}'+
     'function timed(fn){const start=performance.now();const checksum=work(fn);return [performance.now()-start,checksum];}'+
     'const resultMap={};const baseline=[];'+
-    'for(let k=0;k<7;k++)baseline.push(timed(native)[0]);'+
-    'baseline.sort((a,b)=>a-b);const nativeMs=baseline[3];'+
+    'for(let k=0;k<11;k++)baseline.push(timed(native)[0]);'+
+    'baseline.sort((a,b)=>a-b);const nativeMs=baseline[5];'+
     'for(const entry of [[2,v2],[4,v4],[8,v8]]){'+
-      'const trials=[];for(let k=0;k<7;k++)trials.push(timed(entry[1])[0]);'+
-      'trials.sort((a,b)=>a-b);resultMap[entry[0]]=(trials[3]/nativeMs).toFixed(3);}'+
+      'const trials=[];for(let k=0;k<11;k++)trials.push(timed(entry[1])[0]);'+
+      'trials.sort((a,b)=>a-b);resultMap[entry[0]]=(trials[5]/nativeMs).toFixed(3);}'+
     'document.getElementById("answer").textContent="pass:"+count+":"+JSON.stringify(resultMap);'+
     '</script></body></html>';
   assets.set('/index.html',page);
