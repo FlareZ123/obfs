@@ -85,6 +85,18 @@ test('primitive Intl inputs preserve unrelated safe property transformations',()
   assert.equal(output.metrics.objects,1,output.code);
 });
 
+test('known primitive arguments to indirect Collator compare retain independent owner rename',()=>{
+  const original="'use strict';const state={secretField:17};"+
+    "const compare=new Intl.Collator('en').compare;"+
+    "const compared=compare.apply(null,['a','b']);"+
+    "module.exports=state.secretField+compared;";
+  const output=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
+    mode:'sno',seed:'intl-indirect-primitive',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),execute(original),output.code);
+  assert.equal(output.metrics.objects,1,output.code);
+});
+
 test('AST source observer recognizes Intl calls and keeps primitive calls eligible',()=>{
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.Collator().compare(f,"x");','commonjs')),true);
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.Segmenter().segment(f);','commonjs')),true);
