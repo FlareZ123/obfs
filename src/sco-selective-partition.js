@@ -1,10 +1,11 @@
 'use strict';
 
 const {parse,walk,staticString}=require('./ast');
+const {isBuiltin}=require('node:module');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean}} ScoSelectiveOptions */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
 
 /**
@@ -300,6 +301,8 @@ function realmStateObservation(body){
  * An explicit opt-in admits direct process.env uppercase-key reads, refusing public
  * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
+ * With explicit allowServerImports, named imports from Node builtin modules
+ * may remain server-only, provided no public function references their bindings.
  *
  * This deliberate limited contract keeps private bodies off the client while
  * local public functions may call selected private functions asynchronously.
@@ -322,7 +325,9 @@ function partitionScoSelectedAsyncExports(file,options) {
        options.publicHelperNames.some(n=>typeof n!=='string'||!n)||
        new Set(options.publicHelperNames).size!==options.publicHelperNames.length)||
       options.allowServerEnvConstants!==undefined &&
-      typeof options.allowServerEnvConstants!=='boolean') {
+      typeof options.allowServerEnvConstants!=='boolean'||
+      options.allowServerImports!==undefined &&
+      typeof options.allowServerImports!=='boolean') {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
@@ -339,6 +344,25 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {{name:string,fn:import('./ast').AstNode,text:string}[]} */
   const privateHelperCandidates=[];
   for(const statement of ast.body){
+    if(statement.type==='ImportDeclaration'){
+      const specifier=statement.source.value;
+      if(options.allowServerImports!==true||typeof specifier!=='string'||
+         !specifier.startsWith('node:')||!isBuiltin(specifier)||
+         !statement.specifiers.length||
+         statement.specifiers.some(item=>item.type!=='ImportSpecifier'||
+           item.local.type!=='Identifier')){
+        throw new TypeError('Selective SCO only admits explicitly enabled named Node builtin imports');
+      }
+      for(const imported of statement.specifiers){
+        const name=imported.local.name;
+        if(serverConstants.has(name)){
+          throw new TypeError('Selective SCO requires distinct server-only import bindings');
+        }
+        serverConstants.add(name);
+      }
+      serverConstantChunks.push(file.code.slice(statement.start,statement.end));
+      continue;
+    }
     if(statement.type!=='VariableDeclaration')continue;
     if(statement.kind!=='const'||statement.declarations.length===0){
       throw new TypeError('Selective SCO server constants must be immutable const declarations');
