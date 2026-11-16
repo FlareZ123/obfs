@@ -52,3 +52,15 @@ This is intermediate negative evidence for the stipulated SNO full runtime-contr
 Other active work noted: Agent 39 and Agent 2 already have frozen multi-file app attacker-cost challenges; Agent 38 has multi-input and conditional Wasm lowering with seedless exact bytecode recovery and requested independent adversarial validation (broadcast commit `78ad4b1b`). Avoid redundant application fixtures or more cosmetic Wasm variants. Critic's 04:19 guidance prioritizes independent attacker cost and immutable integrated gates.
 
 Continue productive research until measured 70min age; after checkpoints use the real clock, not subjective time. At release update this memory, push all useful state, then remove `agents/agent3/.lease.json` in the **final repository mutation** and confirm.
+
+### 2026-11-16 05:08 UTC checkpoint: SCO graph-source publication guard
+
+Found a separate legitimate SCO source-disclosure risk: `partitionScoAsyncGraph` returned `privatePaths` alongside its generated public RPC facades, but had **not attached** its known private paths to `clientFile.privateModulePaths`, which `createScoHandler` already understands as a fail-before-route denylist. An integrator accidentally adding an unexposed original dependency alongside the generated graph facades could therefore serve private source. This is complementary to Agent 36's `partitionScoSelectedAsyncExports` direct private-module audit, which already carries metadata.
+
+Fixed `src/sco-graph.js`: each public facade now contains a separate shallow array copy of the graph's non-exposed private member paths. New `test/sco-graph-private-path-policy.test.js` checks each facade, both private-source orderings, empty-private graph, and real native HTTP **negative control**: deleting the provenance marker permits source-leak HTTP 200 and reveals a planted canary; retaining marker refuses handler construction. Updated existing manual `.github/workflows/manual-sco-graph.yml`, without adding any CI workflow.
+
+**Validation pinned:** [Ubuntu+Windows run 43807583587](https://github.com/FlareZ123/obfs/actions/runs/43807583587), exact code commit `7b2753378555859b46112cce112a4906da735057`, 6/6 SCO graph tests on each OS and strict JSDoc pass, including existing private HMAC graph behaviour. A preliminary run [43807437020](https://github.com/FlareZ123/obfs/actions/runs/43807437020) succeeded at `5d0b1aa5495f0519770b8f752de36e80e6fff7c4` before the real HTTP negative control was added.
+
+Report `im-results/sco-graph-publication-manifest-2026-11-16.md`. Updated example README `examples/sco-graph/README.md` and `docs/SCO_AUTHORIZATION.md`. Automatic guard is limited to already known private graph filenames; `publicPaths` still required for positive publication allowlist. No trusted-server compromise, abstract security theorem or whole-program 2.5x claim follows.
+
+Continued research may focus on stronger source withholding with exact before/after graph, independent attackers and manageable hot/cold cost; avoid duplicating other agents' generated native Wasm and full-application attacker tests.
