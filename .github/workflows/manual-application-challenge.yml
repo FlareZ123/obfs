@@ -49,3 +49,18 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-coo-browser.js
+
+  legacy-node22:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.0.0'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Exercise original Node 22.0 ESM loader and frozen SNO graphs
+        run: node --test test/polyvariant-app-sno.test.js test/application-challenge-sno.test.js
+      - name: Strict JSDoc for frozen SNO tools
+        run: npm run typecheck:external
