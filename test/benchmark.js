@@ -74,3 +74,8 @@ bench('fixed-slot private-tuple owner access',`const state={secretField:7,otherF
 const holder=[false,"private-metadata",state,0];const alias=holder[2];
 function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
 module.exports=run;`,2);
+
+bench('fixed-field private-record owner access',`const state={secretField:7,otherField:5};
+const holder={tag:"private-metadata",owned:state,nonce:0};const alias=holder.owned;
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+module.exports=run;`,2);
