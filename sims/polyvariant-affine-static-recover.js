@@ -84,8 +84,8 @@ function recover(code,name='guardedTotal',sourceType='script') {
   const tree=/** @type {AstNode} */ (acorn.parse(code,{
     ecmaVersion:'latest',sourceType
   }));
-  const fn=tree.body.map(statement=>statement.type==='ExportNamedDeclaration'?
-    statement.declaration:statement).find(statement=>statement?.type==='FunctionDeclaration'&&
+  const fn=tree.body.map((/** @type {AstNode} */ statement)=>statement.type==='ExportNamedDeclaration'?
+    statement.declaration:statement).find((/** @type {AstNode|null} */ statement)=>statement?.type==='FunctionDeclaration'&&
     statement.id?.name===name);
   if(!fn)throw new TypeError('Target not found');
   const statements=fn.body.body;
@@ -94,7 +94,7 @@ function recover(code,name='guardedTotal',sourceType='script') {
   const binding=statements[0].declarations[0];
   if(binding.id.type!=='Identifier'||!binding.init||
      fn.params[0]?.type!=='Identifier')throw new TypeError('Unexpected input normalization');
-  const cases=statements[1].cases.filter(entry=>entry.test);
+  const cases=statements[1].cases.filter((/** @type {AstNode} */ entry)=>entry.test);
   if(!cases.length||![2,4,8].includes(cases.length))throw new TypeError('Unexpected variant count');
   /** @type {Set<number>} */
   const offsets=new Set();
