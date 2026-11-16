@@ -91,8 +91,12 @@ test('SCO host and source-read policy cannot be changed through caller options a
 test('SCO preserves frozen remote method registry and authorization callbacks',{
   timeout:15000
 },async()=>{
+  /** @type {Record<string,()=>number>} */
   const registry={
-    value:()=>17
+    // Existing SCO dispatch invokes each operation with its registry as
+    // receiver. Copying function references to a new object changes `this`;
+    // the snapshot must retain the original receiver identity.
+    value(){return this===registry?17:9999;}
   };
   const options={
     publicPaths:['style.css'],
