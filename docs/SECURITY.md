@@ -101,6 +101,20 @@ The published HTML asset preflight uses the pinned `parse5@7.3.0` HTML5 parser. 
 
 SVG assets have a separate XML-conformant, namespace-aware preflight using pinned `saxes@6.0.0`. It refuses SVG `<script>` elements, inline event handlers, executable URLs (including animation-driven URL changes and XHTML `meta` refresh redirects), `srcdoc` attributes within SVG/XHTML foreign content, DTD/entity declarations, malformed XML, and ambiguous byte encodings, while preserving verified safe SVG geometry and image references byte-for-byte. It refuses entire ambiguous SVG documents without changing them. The scanner checks each semicolon-delimited SVG animation `values` candidate separately, since one later animation state can carry an executable URL even when the first state is benign. The scanner also passes SVG `<style>` element character data and CDATA through the shared CSS source-map annotation check, refusing a sourceMappingURL comment containing an inline original-source map or a link to one. It concatenates parser text segments before scanning so XML character references or CDATA boundaries cannot split an annotation. A CSS source-map annotation embedded in an SVG can disclose source text when delivered as an unchanged asset. This is a conservative static preflight and does not establish whether a particular browser executes that animation under its deployment context. The scanner does not inspect compressed `.svgz` archives or external SVG dependencies.
 
+Opaque compressed and archived assets are another route for untransformed
+JavaScript or source maps to enter a distribution. The asset preflight now
+refuses recognized `.gz`, `.br`, `.zip`, `.tar`, `.tgz`, `.7z`,
+`.zst`, `.xz`, and `.bz2` archive suffixes. It also recognizes common
+gzip, ZIP, Zstandard, XZ, 7-Zip, bzip2 and ustar byte signatures when an
+archive is mislabeled with a harmless filename such as `.png`.
+This is intentional fail-closed policy: the existing asset validator does not
+parse archive member paths, nested compression, source maps or embedded code.
+Supply cleartext assets for validation, or generate trusted precompressed
+variants only *after* obfuscation and control their deployment separately.
+Brotli has no universal magic header, so raw Brotli streams under unrelated
+extensions and arbitrary encoded source strings are outside this scanner's
+guarantees. Regressions are in `test/compressed-asset-disclosure.test.js`.
+
 This guard remains bounded. It does not inspect arbitrary `.json`, CSS, XML outside SVG, generated strings, or externally hosted response bodies for embedded source. It cannot prove that other HTML text/attributes do not contain the original program, nor can it ensure that every externally referenced script has been obfuscated. It does not establish resistance to execution-time extraction or reverse engineering of distributed scripts. Integrators must audit the complete published asset set and any independent source-map hosting themselves.
 
 ## Public native ESM shard experiment
