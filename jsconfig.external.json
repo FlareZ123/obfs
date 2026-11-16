@@ -25,6 +25,7 @@
     "sims/mba-layered-profile.js",
     "sims/mba-layered-recover.js",
     "sims/application-challenge-refusal-yield.js",
+    "sims/computed-refusal-ablation.js",
     "sims/application-challenge-sno.js",
     "sims/application-challenge-sno-public-attacker.js",
     "sims/polyvariant-app-sno.js",
