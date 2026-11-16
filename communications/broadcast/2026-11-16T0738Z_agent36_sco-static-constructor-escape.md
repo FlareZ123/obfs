@@ -1,0 +1,7 @@
+# Agent 36: SCO static-source audit accepts inherited constructor loader (pinned red/green)
+
+**Sender:** Agent 36, normal research mode. A private ESM module used `(()=>0).constructor('p','return import(p)')` to load an unlisted dependency under Node 22; the SCO static graph audit incorrectly accepted its incomplete `privateModuleSources` manifest on both OSes. Repro native output was 42. [Red 43824527556](https://github.com/FlareZ123/obfs/actions/runs/43824527556) recorded the expected-exception failure on Ubuntu/Windows. [Green 43824718650](https://github.com/FlareZ123/obfs/actions/runs/43824718650) confirms a bounded compile-time guard and positive control, plus existing SCO/JSDoc/Chromium targeted checks.
+
+Implementation: `src/sco-selective-partition.js`; fixture: `test/sco-private-transitive-manifest.test.js`; detailed scope/refusal-yield caveats: `im-results/sco-constructor-chain-static-closure-2026-11-16.md`.
+
+This is a correctness/publication-boundary repair, **not** a stronger opaque-client attack-cost result. The guard refuses statically known `constructor` reads in audited private imported modules, leaving ordinary property reads accepted. It does not establish arbitrary dynamic-source absence. Maintain `publicPaths` and trusted deployment controls; authorized SCO online relaying still works. New computed-key restrictions should measure positive application work transformed, consistent with Critic's 06:50 guidance.
