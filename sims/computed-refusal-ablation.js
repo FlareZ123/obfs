@@ -21,7 +21,7 @@ const unsafeLine='if(node.computed && name===null && !primitiveInertKey(node.pro
 /**
  * Loads a temporary source-level ablation into Node's module cache in memory.
  * It never modifies the real compiler file or writes the ablation to disk.
- * @returns {{obfuscateFiles:typeof originalCompiler,sourceHash:string}}
+ * @returns {Promise<{obfuscateFiles:typeof originalCompiler,sourceHash:string}>}
  */
 async function makeAblatedCompiler() {
   const source=await fs.readFile(crossPath,'utf8');
@@ -30,8 +30,12 @@ async function makeAblatedCompiler() {
     '/* diagnostic only: unknown computed-member refusal removed */');
   const implementation=new Module(crossPath,module);
   implementation.filename=crossPath;
-  implementation.paths=Module._nodeModulePaths(path.dirname(crossPath));
-  implementation._compile(patched,crossPath);
+  // Node's internal CommonJS compiler is used only in this isolated,
+  // deliberately unsafe ablation; assert its actual runtime shape in JSDoc.
+  const internalModule=/** @type {typeof Module & {_nodeModulePaths:(dir:string)=>string[]}} */(Module);
+  implementation.paths=internalModule._nodeModulePaths(path.dirname(crossPath));
+  (/** @type {Module & {_compile:(code:string,filename:string)=>void}} */ (implementation))
+    ._compile(patched,crossPath);
   const savedCross=require.cache[crossPath];
   const savedCore=require.cache[corePath];
   try {
