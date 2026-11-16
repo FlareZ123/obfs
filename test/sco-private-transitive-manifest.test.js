@@ -210,3 +210,21 @@ test('actual three-file private ESM graph matches generated authenticated browse
     await fs.rm(folder,{recursive:true,force:true});
   }
 });
+
+test('explicit SCO publicPaths and audited private graph are independent publication gates',()=>{
+  const directOnly=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:entry},
+    {seed:'public-source-defense-in-depth-20261116',
+      privateNames:['protectedDigest'],privateModuleImports:['./private/engine.mjs']}
+  );
+  assert.throws(()=>createScoHandler([directOnly.clientFile,leaf],{
+    publicPaths:['mixed.mjs']
+  }),/source is not in publicPaths/);
+  const audited=emit([engine,leaf]);
+  assert.throws(()=>createScoHandler([audited.clientFile,leaf],{
+    publicPaths:['mixed.mjs',leaf.path]
+  }),/must not serve private source/);
+  assert.doesNotThrow(()=>createScoHandler([audited.clientFile],{
+    publicPaths:['mixed.mjs']
+  }));
+});
