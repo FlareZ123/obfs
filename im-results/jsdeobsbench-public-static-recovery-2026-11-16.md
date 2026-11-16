@@ -22,6 +22,12 @@ The separately invoked `--verify` stage takes the private compiled benchmark and
 
 The manual gate passed both SNO source grammars. The static attack recovered every compiler-reported encoded literal reference across the supplied SNO corpus, and its verifier/sample execution gate passed. The COO lane tests ordinary compatibility, but its default encoder is disabled, so this result does not establish a COO decoding pass.
 
+## Explicit filesystem isolation and attacker cost counters
+
+The strengthened pinned [manual run 43830887347](https://github.com/FlareZ123/obfs/actions/runs/43830887347) at `533f84e9a98c8c72dc1247fb1ec5ee63fb00f3fc` passed all three lanes after moving the attacker to an actual filesystem-isolated Docker process. The `--stage` protocol generates exactly five atomic files: public source JSONL, attacker JavaScript, its generic atomic-file helper, Acorn's package manifest and its standalone parser implementation. The attacker runs as an unprivileged UID in a read-only container, with no network, only those source-only files mounted read-only and a separate writable output mount. The original programs, compiler metrics, seed and official answers remain outside the attacker's mounted filesystem. The private verifier later rejoins them and checks exact per-program literal coverage.
+
+A subsequent attacker instrumentation revision reports source byte totals, number of rewritten programs, and measured static parse/rewrite wall time, including per-program median and p95. Those timings exclude attacker implementation effort, runtime startup, input JSON parsing and file I/O. They diagnose the cost of this particular static algorithm and must not be treated as a general adversarial capability or a defender hot-path performance measurement.
+
 ## Reproduce and challenge
 
 The [manual external workflow](../.github/workflows/manual-jsdeobsbench.yml) contains the complete generation, public-only projection, attack, private verification and Docker differential sequence. The five regression tests in [test/jsdeobsbench-public-static-attack.test.js](../test/jsdeobsbench-public-static-attack.test.js) cover independent script/CommonJS decoding, long chunked Unicode, unpaired surrogates, false-pattern refusal, public/private input isolation, stale hash rejection, deliberate incomplete recovery and deterministic output. Run the workflow manually, never per commit. The exact source SHA and upstream blob are pinned above.
