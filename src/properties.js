@@ -195,8 +195,23 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
 
   walk(ast, (node, parent, key, ancestors) => {
     if (parent) parents.set(node,parent);
-    if (node.type === 'WithStatement' ||
-        (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'eval')) dynamicScope = true;
+    // A classic script's global lexical bindings are visible to indirect
+    // eval and Function-generated code. Even with no AST identifier reference,
+    // `Function("return holder[0].originalKey")()` can observe a formerly
+    // confined owner through its known global variable name. Constructor
+    // chains and aliased evaluators expose the same dynamic code capability.
+    // The safe proof is deliberately refused for syntactic capabilities
+    // whose generated source cannot be statically accounted for.
+    if(node.type==='WithStatement' ||
+       node.type==='Identifier' &&
+         ['eval','Function','AsyncFunction','GeneratorFunction',
+          'AsyncGeneratorFunction'].includes(node.name) ||
+       node.type==='MemberExpression' &&
+         ['eval','Function','constructor','AsyncFunction',
+          'GeneratorFunction','AsyncGeneratorFunction'].includes(
+           node.computed?staticString(node.property)??'':
+           node.property.type==='Identifier'?node.property.name:'')
+    )dynamicScope=true;
     if (node.type === 'Identifier') identifiers.push({node,parent,key,ancestors});
     // A let alias is renameable when every later use remains an ownership-
     // preserving read. The identifier-use proof below rejects any reassignment,
