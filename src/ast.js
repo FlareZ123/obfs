@@ -223,7 +223,12 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   const intlKinds=[
     {name:'Collator',constructors:new Set(),instances:new Set()},
     {name:'ListFormat',constructors:new Set(),instances:new Set()},
-    {name:'Segmenter',constructors:new Set(),instances:new Set()}
+    {name:'Segmenter',constructors:new Set(),instances:new Set()},
+    {name:'DisplayNames',constructors:new Set(),instances:new Set()},
+    {name:'RelativeTimeFormat',constructors:new Set(),instances:new Set()},
+    {name:'Locale',constructors:new Set(),instances:new Set()},
+    {name:'DateTimeFormat',constructors:new Set(),instances:new Set()},
+    {name:'NumberFormat',constructors:new Set(),instances:new Set()}
   ];
   const boundCollatorCompares=new Set();
   const symbols=new Set(['Symbol']);
@@ -782,8 +787,24 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       }
       // Collator/Segmenter stringify inputs, while ListFormat can expose a
       // function's exact text through its non-string-element TypeError.
+      // Constructors can process locale strings and string-valued option
+      // records. Only syntactically proven primitive inputs are excluded.
+      // This covers locale, timeZone and unit TypeError/RangeError messages
+      // that can otherwise carry the exact spelling of a function.
+      if(intlKinds.some(kind=>isIntlConstructor(callee,kind)) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(callee.type==='MemberExpression' && isIntlNamespace(callee.object) &&
+         ['getCanonicalLocales','supportedValuesOf'].includes(memberName(callee)??'') &&
+         node.arguments[0] &&
+         mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
       if(callee.type==='MemberExpression') {
         const method=memberName(callee);
+        if(isIntlInstance(callee.object,intlKinds[3]) && method==='of' &&
+           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        if(isIntlInstance(callee.object,intlKinds[4]) &&
+           ['format','formatToParts'].includes(method??'') &&
+           node.arguments[1] && !isDefinitelyPrimitive(node.arguments[1]))observed=true;
         if(method==='compare' && isIntlInstance(callee.object,intlKinds[0]) &&
            node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
              !isDefinitelyPrimitive(value)))observed=true;
