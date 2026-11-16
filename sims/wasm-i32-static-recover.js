@@ -133,9 +133,39 @@ function symbolicDecode(bytes) {
       if(reader.unsigned()!==0)throw new TypeError('Expected zero local variables');
       /** @type {Expr[]} */
       const stack=[];
+      /** @type {{test:Expr,stackHeight:number,consequent:Expr|null}[]} */
+      const frames=[];
       while(reader.position<bodyEnd) {
         const opcode=reader.take();
-        if(opcode===0x0b)break;
+        if(opcode===0x0b) {
+          if(!frames.length)break;
+          const frame=frames.pop();
+          if(!frame||!frame.consequent)throw new TypeError('Malformed Wasm if without else');
+          const alternate=stack.pop();
+          if(!alternate||stack.length!==frame.stackHeight) {
+            throw new TypeError('Unbalanced Wasm if result stack');
+          }
+          stack.push({type:'conditional',test:frame.test,
+            consequent:frame.consequent,alternate});
+          continue;
+        }
+        if(opcode===0x04) {
+          if(reader.take()!==0x7f)throw new TypeError('Unsupported Wasm if result type');
+          const test=stack.pop();
+          if(!test)throw new TypeError('Missing Wasm if predicate');
+          frames.push({test,stackHeight:stack.length,consequent:null});
+          continue;
+        }
+        if(opcode===0x05) {
+          const frame=frames[frames.length-1];
+          if(!frame||frame.consequent)throw new TypeError('Unexpected Wasm else');
+          const consequent=stack.pop();
+          if(!consequent||stack.length!==frame.stackHeight) {
+            throw new TypeError('Unbalanced Wasm then stack');
+          }
+          frame.consequent=consequent;
+          continue;
+        }
         if(opcode===0x20) {
           const index=reader.unsigned();
           if(index>3)throw new TypeError('Unsupported parameter index');
@@ -152,7 +182,7 @@ function symbolicDecode(bytes) {
           stack.push({type:'binary',operator,left,right});
         } else throw new TypeError('Unsupported Wasm opcode '+opcode);
       }
-      if(reader.position!==bodyEnd||stack.length!==1)throw new TypeError('Invalid function body');
+      if(reader.position!==bodyEnd||stack.length!==1||frames.length)throw new TypeError('Invalid function body');
       expression=normalize(stack[0]);
     }
     reader.seek(end);
