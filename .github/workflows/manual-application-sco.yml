@@ -29,3 +29,8 @@ jobs:
         run: node sims/application-challenge-sco-cold-session.js
       - name: Reproduce pinned cold-profile sample uncertainty
         run: node sims/application-challenge-sco-cold-bootstrap.js
+      - name: Execute private SCO application facade in real Chromium
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/application-challenge-sco-browser.js
