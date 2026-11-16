@@ -64,6 +64,27 @@ async function execute(files) {
   }
 }
 
+/**
+ * Evaluate the real six-module ESM application in a fresh native Node loader.
+ * @param {ModuleFile[]} files
+ * @param {number[][]} cases
+ * @returns {Promise<string>}
+ */
+async function executeApplication(files,cases) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-ablation-app-'));
+  try {
+    for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
+    const child=spawnSync(process.execPath,[
+      path.join(dir,'entry.mjs'),JSON.stringify(cases)
+    ],{encoding:'utf8',timeout:30000});
+    if(child.error)throw child.error;
+    assert.equal(child.status,0,child.stderr);
+    return child.stdout;
+  }finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
 /** @returns {Promise<void>} */
 async function main(){
   const compiler=await makeAblatedCompiler();
@@ -80,6 +101,15 @@ async function main(){
     'The incident was already repaired upstream; do not assert a stale regression');
   assert.equal(patchedPositive.crossFile.properties,2,
     'Unknown computed-key refusal was not the sole 2/2 coverage blocker');
+  const positiveCases=[[0,0],[0,1],[1,1],[4294967295,3],
+    ...Array.from({length:80},(_,index)=>[
+      Math.imul(index+37,2654435761)>>>0,(index*317)%5000
+    ])];
+  const nativePositive=await executeApplication(positive,positiveCases);
+  const emittedPositive=await executeApplication(
+    /** @type {ModuleFile[]} */ (patchedPositive.files),positiveCases);
+  assert.equal(emittedPositive,nativePositive,
+    'Ablated positive app must actually preserve native ESM execution');
   // A separate actual dynamic-loader graph probes the safety necessity of
   // the removed refusal rule. The runtime chooses "constructor" dynamically.
   /** @type {ModuleFile[]} */
@@ -112,7 +142,8 @@ async function main(){
   const summary={
     sourceHash:compiler.sourceHash,
     positive:{originalRenamed:unpatchedPositive.crossFile.properties,
-      ablatedRenamed:patchedPositive.crossFile.properties},
+      ablatedRenamed:patchedPositive.crossFile.properties,
+      differentialCases:positiveCases.length,behaviorPreserved:true},
     unsafe:{originalRenamed:baselineUnsafe.crossFile.properties,
       ablatedRenamed:ablatedUnsafe.crossFile.properties,
       native:native.trim(),ablated:compiledAblated.trim(),
