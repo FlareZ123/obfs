@@ -1093,6 +1093,26 @@ function partitionScoSelectedAsyncExports(file,options) {
   const browserOnlyRoots=new Set(['window','document','navigator','location',
     'localStorage','sessionStorage','indexedDB','self','history','screen',
     'customElements','DOMParser','XMLHttpRequest']);
+  // ECMAScript permits host-defined properties on the global object. Values
+  // such as globalThis.externalBridge cannot be migrated to an independent
+  // server realm without an application-specific contract.
+  const standardRealmGlobals=new Set([
+    'globalThis','Infinity','NaN','undefined','eval','isFinite','isNaN',
+    'parseFloat','parseInt','decodeURI','decodeURIComponent',
+    'encodeURI','encodeURIComponent','escape','unescape',
+    'Object','Function','Boolean','Symbol','Error','AggregateError',
+    'EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
+    'URIError','Number','BigInt','Math','Date','String','RegExp','Array',
+    'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
+    'Int32Array','Uint32Array','Float32Array','Float64Array',
+    'BigInt64Array','BigUint64Array','Map','Set','WeakMap','WeakSet',
+    'ArrayBuffer','SharedArrayBuffer','DataView','JSON','Promise',
+    'Reflect','Proxy','Intl','Atomics','WebAssembly',
+    'WeakRef','FinalizationRegistry'
+  ]);
+  // Preserve the previously established shared-state diagnostic when the
+  // same ambient root is consumed on both sides of the partition.
+  const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   for(const body of privateBodies){
     const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
@@ -1117,7 +1137,16 @@ function partitionScoSelectedAsyncExports(file,options) {
         }
       }
     }
-    const globalAliases=new Set(['globalThis']);
+    // Only declarations in the enclosing function body reliably shadow the
+    // ambient globalThis for all references in this bounded source scan.
+    const localGlobalThis=body.type==='BlockStatement'&&body.body.some(
+      (/** @type {import('./ast').AstNode} */ statement)=>
+        statement.type==='VariableDeclaration'&&statement.declarations.some(
+          (/** @type {import('./ast').AstNode} */ declaration)=>
+            declaration.id.type==='Identifier'&&declaration.id.name==='globalThis') ||
+        (statement.type==='FunctionDeclaration'||statement.type==='ClassDeclaration')&&
+        statement.id?.name==='globalThis');
+    const globalAliases=new Set(localGlobalThis?[]:['globalThis']);
     let aliasesChanged=true;
     while(aliasesChanged){
       aliasesChanged=false;
@@ -1138,6 +1167,9 @@ function partitionScoSelectedAsyncExports(file,options) {
         if(member===null||browserOnlyRoots.has(member)){
           throw new TypeError('Private SCO export uses browser-only ambient state: '+member);
         }
+        if(!standardRealmGlobals.has(member)&&!sharedAmbient){
+          throw new TypeError('Private SCO export uses unproved host-global state: '+member);
+        }
       }
       if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
          globalAliases.has(node.init.name)&&node.id.type==='ObjectPattern'){
@@ -1147,6 +1179,9 @@ function partitionScoSelectedAsyncExports(file,options) {
               property.key.type==='Identifier'?property.key.name:staticString(property.key)):null;
           if(member===null||browserOnlyRoots.has(member)){
             throw new TypeError('Private SCO export uses browser-only ambient state: '+member);
+          }
+          if(!standardRealmGlobals.has(member)&&!sharedAmbient){
+            throw new TypeError('Private SCO export uses unproved host-global state: '+member);
           }
         }
       }
