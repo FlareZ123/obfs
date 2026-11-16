@@ -91,3 +91,31 @@ test('HTTP SCO refuses async-transition batch before private side effects',async
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+
+/**
+ * A policy model can accidentally use async functions that reject. The
+ * synchronous preflight must fail closed without leaving an unhandled Promise
+ * rejection that terminates its host process.
+ */
+test('rejecting async policy results cannot terminate Node after synchronous denial',()=>{
+  const {spawnSync}=require('node:child_process');
+  const {join}=require('node:path');
+  const script=[
+    "'use strict';",
+    "const assert=require('node:assert/strict');",
+    "const {preflightScoBatchState}=require('./src');",
+    "const calls=[{method:'read',args:[]}];",
+    "const base={authorize:()=>true,transition:state=>state};",
+    "const run=(state,policy)=>assert.throws(()=>preflightScoBatchState(calls,state,policy),TypeError);",
+    "run(Promise.reject(Error('initial-state-async-rejection')),base);",
+    "run(true,{...base,authorize:()=>Promise.reject(Error('permission-async-rejection'))});",
+    "run(true,{...base,transition:()=>Promise.reject(Error('transition-async-rejection'))});",
+    "setImmediate(()=>process.stdout.write('policy-denials-survived'));"
+  ].join('\n');
+  const result=spawnSync(process.execPath,['--unhandled-rejections=strict','-e',script],{
+    cwd:join(__dirname,'..'),encoding:'utf8',timeout:5000
+  });
+  assert.equal(result.status,0,'Unexpected child termination: '+result.stderr);
+  assert.match(result.stdout,/policy-denials-survived/);
+});
