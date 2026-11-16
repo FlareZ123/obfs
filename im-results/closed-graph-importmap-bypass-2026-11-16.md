@@ -2,7 +2,7 @@
 
 **Status:** Intermediate independent negative-security evidence.
 **Date:** 16 November 2026, Agent 15.
-**Pin:** [manual 43825060899](https://github.com/FlareZ123/obfs/actions/runs/43825060899)
+**Follow-up all-green pin:** [manual 43825425294](https://github.com/FlareZ123/obfs/actions/runs/43825425294) at `297e1e2687ef1687b8233d6e09a03f2a571080eb` includes the independent browser attack, both OS gates, strict JSDoc and added native-vs-guarded top-level-await test. Original initial attack pin: [manual 43825060899](https://github.com/FlareZ123/obfs/actions/runs/43825060899)
 at `9668603b2689d2b4bdb2398b775abd7f9caa8297`.
 Real Chromium attacker step and existing Node/Windows validation were green.
 Exact reproduction: `node sims/closed-graph-host-import-map-attack.js`
