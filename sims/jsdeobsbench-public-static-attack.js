@@ -156,7 +156,10 @@ async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
   const output=[];
   for(const line of lines) {
     const row=JSON.parse(line);
+    const publishedKeys=['filename','obfuscated','obfs_source_type','obfs_output_sha256'];
     if(!row||typeof row!=='object'||Array.isArray(row)||
+       Object.keys(row).length!==publishedKeys.length||
+       publishedKeys.some(key=>!Object.hasOwn(row,key))||
        typeof row.filename!=='string'||!row.filename||
        typeof row.obfuscated!=='string'||typeof row.obfs_output_sha256!=='string'||
        row.original!==undefined||row.test_cases!==undefined||row.obfs_metrics!==undefined||
