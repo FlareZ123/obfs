@@ -14,7 +14,7 @@ const {types:{isPromise}}=require('node:util');
  */
 function isThenable(value) {
   return value!==null && (typeof value==='object'||typeof value==='function') &&
-    typeof /** @type {{then?:unknown}} */ (value).then==='function';
+    (isPromise(value) || typeof /** @type {{then?:unknown}} */ (value).then==='function');
 }
 
 /**
