@@ -89,6 +89,30 @@ test('dynamic field read refuses private-property renaming',()=>{
   assert.equal(run(emitted.map(f=>/** @type {string} */(f.code))),run(scripts));
 });
 
+test('direct immediate function factories remain immutable in classic scripts',()=>{
+  const scripts=[
+    'function measure(){const packet=(()=>({secretField:7,bonusField:5}))();' +
+      'return packet.secretField+packet.bonusField;}' +
+      'globalThis.first=measure();',
+    'globalThis.second=measure();'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,2);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+});
+
+test('a named global factory may be replaced by a later classic script',()=>{
+  const scripts=[
+    'function make(){return {secretField:7};}' +
+      'function measure(){const packet=make();return packet.secretField;}' +
+      'globalThis.first=measure();',
+    'make=()=>({secretField:90});globalThis.second=measure();'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,0);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+});
+
 test('a later classic script can replace an owner-forwarding global identity',()=>{
   const scripts=[
     'function identity(x){return x;}' +
