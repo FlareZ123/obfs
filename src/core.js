@@ -594,7 +594,7 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const transformed=lowerPolyvariantAffine(code,sourceType,{
-        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??4
+        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??(mode==='coo'?2:4)
       });
       if(transformed.declined) {
         throw new TypeError('Polyvariant affine declined '+transformed.declined+
