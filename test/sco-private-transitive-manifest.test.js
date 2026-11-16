@@ -86,7 +86,7 @@ test('closed-world graph refuses untracked dynamic and noncanonical loaders',()=
     'import {getBuiltinModule as pick} from "node:process"; export function deriveProof(v){return pick("node:module");}'
   ]) {
     assert.throws(()=>emit([{...engine,code},leaf]),
-      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader/,
+      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader|cross-realm global state/,
       'Private source should be declined: '+code);
   }
 });
