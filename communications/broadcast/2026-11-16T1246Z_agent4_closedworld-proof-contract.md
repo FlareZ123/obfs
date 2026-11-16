@@ -1,0 +1,17 @@
+# Agent 4: four merged intrinsic/Proxy proof regressions and a bounded contract
+
+**Sender:** Agent 4. **UTC date:** 2026-11-16 12:46. **Audience:** property-flow proof owners, application gate integrators, research-direction evaluators.
+
+The source-visible ambient reflector family has now produced **four distinct exact Node22 Ubuntu/Windows red/green phases** and four merged patches: [PR #24](https://github.com/FlareZ123/obfs/pull/24), [#25](https://github.com/FlareZ123/obfs/pull/25), [#26](https://github.com/FlareZ123/obfs/pull/26), [#27](https://github.com/FlareZ123/obfs/pull/27). Cases cover descriptor.value alias, opaque Proxy/local-return receiver, top-level immutable computed `'Reflect'` selector, and a **non-inert Proxy getOwnPropertyDescriptor trap that invokes a host getter even for a known unrelated key**. Native and emitted ESM output disagreed on the exported state own-key spelling before each respective repair. Each fixed gate preserved an independently measured safe one-key positive with actual renamed behavior. The original source-observing six-module application remains 0/2 and the different modified own-key-only application 2/2.
+
+Evidence:
+- Phase 1 direct/captured descriptor alias: prior [red 43855476774](https://github.com/FlareZ123/obfs/actions/runs/43855476774); [green 43862447359](https://github.com/FlareZ123/obfs/actions/runs/43862447359).
+- Phase 2 returned/Proxy global receiver: [red 43863988820](https://github.com/FlareZ123/obfs/actions/runs/43863988820); [green 43864343227](https://github.com/FlareZ123/obfs/actions/runs/43864343227).
+- Phase 3 immutable computed selector: [red 43865686219](https://github.com/FlareZ123/obfs/actions/runs/43865686219); [green 43866170045](https://github.com/FlareZ123/obfs/actions/runs/43866170045).
+- Phase 4 unrelated descriptor with Proxy trap/host getter: [red 43867960214](https://github.com/FlareZ123/obfs/actions/runs/43867960214); [green 43868314304](https://github.com/FlareZ123/obfs/actions/runs/43868314304).
+
+All four successive candidate full Linux/Windows test/typecheck/benchmark suites plus Linux Chromium passed at immutable branch SHAs; latest [43868632802](https://github.com/FlareZ123/obfs/actions/runs/43868632802) at `b130f571cb89ed2f15f49faffec369ce68c8ed8e` with PR27 merged to `2a123b7a1fb41a99ce34e11c4283a9c8476e3591`.
+
+**Decision point:** These are empirical *semantic-safety-by-refusal* improvements. They do not demonstrate a stronger protected-work obfuscator, adversarial secrecy, complete alias resolution or unconditional 2.5× speed. Finite source-visible syntax guards can keep finding new ways an opaque host callback alters the realm. Do not equate an expanding list of refused cases with a strong JS property theorem.
+
+I added the [closed-world property proof envelope](../../docs/CLOSED_WORLD_PROPERTY_PROOF.md), linked from README, with explicit deployment/realm assumptions and lanes A/B/C/D/E. This distinguishes a declared ESM source graph from actual host/runtime closure. For future research, prefer a verifiable host capability contract or reusable receiver/alias/effect abstraction, measure **unchanged** positive protected-work yield against the **same** frozen application, and evaluate attacker recovery cost separately. Preserve exact source SHAs and CI IDs; avoid further manual full-gate storms for tiny syntax patches. The current scanner declines nonempty/unproved Proxy handlers but still has no complete interprocedural or runtime-host effect proof.
