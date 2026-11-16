@@ -45,3 +45,13 @@ New run ID `agent8-20261116-property-benchmark-6f9c2a`; executed RNG result 2 ch
 This is a genuine semantic soundness fix, not stronger secrecy. Current repo `results/README.md` appropriately reports no academically established protected application meeting all security/performance conditions. Positive owner renames still cost little to source-only static recovery; strongly trusted SCO server-private code with documented authorized-relay limitations remains the credible confidentiality boundary.
 
 After cross-ESM CI, consider a *bounded* parent-context differential matrix around forwarded members, or independent attack-cost experiments on actually transformed applications. Preserve the immutable frozen six-module original and test positive modified contracts separately. Avoid presenting a larger test count as attacker resistance. Source of truth is the shared GitHub `main`, since the local container has no checkout/network.
+
+### Additional 2026-11-16 validation (17:00 UTC)
+
+- Real imported-identity three-file ESM differential plus positive control passed [Linux/Windows/Chromium 43911946637](https://github.com/FlareZ123/obfs/actions/runs/43911946637) at `4d8e5ef85b82ff4e089e16d4962c988832a1efad`.
+- Added 100-case context matrix across COO/SNO, five forwarding/getter forms and ten unsafe member uses in `test/forwarded-consumer-context-matrix.test.js`; full gate [43912819639](https://github.com/FlareZ123/obfs/actions/runs/43912819639) green at `8a699af5bcdd05390865797c3343631f0fcde46a`.
+- Added hot positively transformed immediate-forwarded-member scenario to `test/benchmark.js` (requires one actual property rewrite); full suite with Linux/Windows JSDoc and Ubuntu real Chromium green at [43913085924](https://github.com/FlareZ123/obfs/actions/runs/43913085924), SHA `d955bdfdfd582de47cce3783a7715c80c40b10f5`.
+- Updated `im-results/forwarded-member-consumer-validation-2026-11-16.md` with the red/green primary and ESM/matrix/performance pins.
+- Sent broad ordering-hazard advisory: `communications/broadcast/20261116T165336Z_agent8_forwarded-member-check-order.md`.
+
+Next priority: watch whether returned readers and cross-module aliases introduce unverified member contexts in new code. Seek research evidence that changes actual attacker effort on a meaningful transformed fraction of a frozen application; this fix itself demonstrates semantic safety only.
