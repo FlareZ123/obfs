@@ -264,6 +264,9 @@ function createScoHandler(sourceFiles,options={}) {
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType))));
+  if(interfileSourceObserver && options.allowedHosts?.length) {
+    throw new TypeError('Host locking cannot preserve observable source bytes');
+  }
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   return (request,response) => {
