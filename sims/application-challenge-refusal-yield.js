@@ -10,6 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
 const {ablate}=require('./application-challenge-observer-ablation');
+const {copyAttack}=require('./application-challenge-offline-copy');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
 
@@ -46,6 +47,10 @@ async function main(){
       Math.imul(index+37,2654435761)>>>0,(index*317)%5000
     ])
   ];
+  const heldout=Array.from({length:160},(_,index)=>[
+    (Math.imul(index+0x1234,0x9e3779b1)^(index<<7))>>>0,
+    (index*317)%5000
+  ]);
   const working=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-refusal-yield-'));
   const rows=[];
   try {
@@ -66,6 +71,11 @@ async function main(){
       const native=evaluate(rawFolder,cases);
       const delivered=evaluate(emittedFolder,cases);
       assert.deepEqual(delivered,native,'Native application semantics must match for '+variant);
+      // This independent public-directory attacker imports neither original
+      // source nor compiler. Any authorized offline client can copy COO.
+      const expectedHeldout=evaluate(rawFolder,heldout);
+      assert.deepEqual(copyAttack(emittedFolder,heldout),expectedHeldout,
+        'Offline public-directory copy must preserve held-out behavior for '+variant);
       const inputBytes=input.reduce((total,file)=>total+Buffer.byteLength(file.code),0);
       const outputBytes=output.files.reduce((total,file)=>total+Buffer.byteLength(file.code),0);
       const changedFiles=input.filter((file,index)=>file.code!==output.files[index].code);
@@ -80,6 +90,8 @@ async function main(){
         inputBytes,outputBytes,changedFiles:changedFiles.map(file=>file.path),
         changedInputBytes,changedInputByteFraction:changedInputBytes/inputBytes,
         differentialCases:cases.length,
+        heldoutOfflineCloneCases:heldout.length,
+        publicOnlyOfflineCloneMatched:true,
         allOutputsMatched:true
       });
     }
