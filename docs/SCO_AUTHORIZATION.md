@@ -385,9 +385,13 @@ integer `maxPendingPerPrincipal` to cap the total active **plus waiting** RPC
 calls for each account. Set `maxPendingTotal` to cap the aggregate across
 **all** accounts in the current process. Either cap denies admission before
 authorization or private method execution and returns generic HTTP **429**.
-Both limits are unlimited by default for existing integrations. These
-caps bound retained queue state after request-body parsing and principal
-verification, which still consume resources before admission.
+Both limits are unlimited by default for existing integrations. A finite
+`maxPendingTotal` now reserves a global slot **before** awaiting the
+asynchronous identity resolver. This bounds unresolved identity lookups as
+well as running and queued operations. In contrast,
+`maxPendingPerPrincipal` cannot apply until the principal is resolved.
+Request parsing still occurs before either cap and consumes memory and CPU;
+deploy front-door request limits, timeouts and suitable body-size caps.
 
 ```js
 const {createScoHandler,createScoKeyedIsolation}=require('./src');

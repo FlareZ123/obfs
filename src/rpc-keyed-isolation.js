@@ -22,11 +22,12 @@ class ScoIsolationBusyError extends Error {
  * not make external storage transactional or validate state transitions inside
  * a batch. The supplied execute callback must settle; no timeout or
  * reentrant execution is introduced here. An optional per-principal limit
- * counts running and waiting operations. An optional global capacity limits
- * all principals' outstanding calls. Both default to unlimited for backward
- * compatibility. A rejected request
- * does not enter the queue or invoke protected work. FIFO applies after the
- * asynchronous principal resolver has settled.
+ * counts running and waiting operations after identity resolution. An optional
+ * global capacity reserves a slot before invoking the identity resolver,
+ * bounding outstanding asynchronous lookups as well as all principals'
+ * running and waiting calls. Both limits default to unlimited.
+ * A rejected request never enters a principal queue or executes private work.
+ * FIFO applies after the asynchronous principal resolver has settled.
  *
  * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
  * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number}} [options]
@@ -48,30 +49,38 @@ function createScoKeyedIsolation(principalOf,options={}) {
   /** @type {Map<string,number>} */
   const pending=new Map();
   return async function runRpcIsolated(request,execute) {
-    const principal=await principalOf(request);
-    if(typeof principal!=='string'||principal.length<1||principal.length>256) {
-      throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
-    }
-    const count=pending.get(principal)??0;
-    if(count>=limit||totalPending>=totalLimit)throw new ScoIsolationBusyError();
-    pending.set(principal,count+1);
+    // Reserve global capacity before awaiting an identity provider. Otherwise
+    // arbitrary unresolved lookups bypass maxPendingTotal and occupy memory.
+    if(totalPending>=totalLimit)throw new ScoIsolationBusyError();
     totalPending++;
-    const previous=tails.get(principal);
-    /** @type {()=>void} */
-    let release=()=>{};
-    /** @type {Promise<void>} */
-    const finished=new Promise(resolve=>{release=()=>resolve();});
-    tails.set(principal,finished);
-    if(previous)await previous;
-    try {
-      await execute();
+    try{
+      const principal=await principalOf(request);
+      if(typeof principal!=='string'||principal.length<1||principal.length>256) {
+        throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
+      }
+      const count=pending.get(principal)??0;
+      if(count>=limit)throw new ScoIsolationBusyError();
+      pending.set(principal,count+1);
+      const previous=tails.get(principal);
+      /** @type {()=>void} */
+      let release=()=>{};
+      /** @type {Promise<void>} */
+      const finished=new Promise(resolve=>{release=()=>resolve();});
+      tails.set(principal,finished);
+      try {
+        if(previous)await previous;
+        await execute();
+      }finally{
+        if(tails.get(principal)===finished)tails.delete(principal);
+        const outstanding=pending.get(principal)??1;
+        if(outstanding===1)pending.delete(principal);
+        else pending.set(principal,outstanding-1);
+        release();
+      }
     }finally{
-      if(tails.get(principal)===finished)tails.delete(principal);
-      const outstanding=pending.get(principal)??1;
-      if(outstanding===1)pending.delete(principal);
-      else pending.set(principal,outstanding-1);
+      // Also release on failed, invalid and rejected identity resolutions,
+      // including requests that never enter a principal-specific queue.
       totalPending--;
-      release();
     }
   };
 }

@@ -223,3 +223,97 @@ test('SCO aggregate cap denies authenticated third-account HTTP work',{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+
+test('SCO total cap reserves capacity before async principal resolution finishes',async()=>{
+  const started=gate();
+  const release=gate();
+  let resolutions=0;
+  /** @type {string[]} */
+  const effects=[];
+  const isolate=createScoKeyedIsolation(async()=>{
+    resolutions++;
+    started.resolve();
+    await release.promise;
+    return 'verified';
+  },{maxPendingTotal:1,maxPendingPerPrincipal:2});
+  const first=isolate(requestFor('first'),async()=>{effects.push('first');});
+  await started.promise;
+  const second=isolate(requestFor('second'),async()=>{effects.push('second');});
+  const secondOutcome=second.then(()=>null,error=>error);
+  try{
+    await Promise.resolve();
+    assert.equal(resolutions,1,'A full queue must refuse before another resolver runs');
+    const error=await secondOutcome;
+    assert.ok(error instanceof ScoIsolationBusyError);
+    assert.deepEqual(effects,[]);
+    release.resolve();
+    await first;
+    await isolate(requestFor('recovered'),async()=>{effects.push('recovered');});
+    assert.deepEqual(effects,['first','recovered']);
+  }finally{
+    release.resolve();
+    await Promise.allSettled([first,second]);
+  }
+});
+
+test('SCO global cap is released after failed asynchronous principal resolution',async()=>{
+  let attempts=0;
+  const isolate=createScoKeyedIsolation(async()=>{
+    attempts++;
+    if(attempts===1)throw Error('private-principal-resolution');
+    return 'verified';
+  },{maxPendingTotal:1});
+  let effects=0;
+  await assert.rejects(isolate(requestFor('first'),async()=>{effects++;}),
+    /private-principal-resolution/);
+  await isolate(requestFor('second'),async()=>{effects++;});
+  assert.equal(attempts,2);
+  assert.equal(effects,1);
+});
+
+test('SCO HTTP 429 is enforced while a global-cap principal lookup is unresolved',{
+  timeout:15000
+},async()=>{
+  const started=gate();
+  const release=gate();
+  let lookups=0;
+  let privateEffects=0;
+  const isolate=createScoKeyedIsolation(async()=>{
+    lookups++;
+    started.resolve();
+    await release.promise;
+    return 'verified-account';
+  },{maxPendingTotal:1});
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{read:()=>{privateEffects++;return 17;}},
+    authorizeRpc:()=>true,
+    runRpcIsolated:isolate
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected HTTP listener');
+    const url='http://127.0.0.1:'+address.port+'/obfs/rpc';
+    const init={method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:'read',args:[]})};
+    const first=fetch(url,init);
+    await started.promise;
+    const second=await fetch(url,{...init,signal:AbortSignal.timeout(3000)});
+    assert.equal(second.status,429);
+    assert.deepEqual(await second.json(),{ok:false,error:'Too many requests'});
+    assert.equal(lookups,1,'The overflow must not enter the identity resolver');
+    assert.equal(privateEffects,0);
+    release.resolve();
+    const firstReply=await first;
+    assert.equal(firstReply.status,200);
+    assert.equal((await firstReply.json()).value,17);
+    const recovered=await fetch(url,init);
+    assert.equal(recovered.status,200);
+    assert.equal((await recovered.json()).value,17);
+    assert.equal(privateEffects,2);
+  }finally{
+    release.resolve();
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
