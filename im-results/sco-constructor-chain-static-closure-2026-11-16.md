@@ -72,3 +72,31 @@ A separate executable `sims/sco-private-dynamic-loader-grid.js` uses the actual 
 **Consequence:** The broadened guard demonstrably covers its red/green constructor-alias cases but is **not** a sound complete dynamic-source scanner for general JavaScript. Additional syntactic blacklist entries may reduce a particular missed class; they will not establish soundness against arbitrary introspection, alias flow, native dynamic loading or runtime-generated code. The existing independent `createScoHandler({publicPaths})` positive publication allowlist can refuse accidental `sourceFiles` even when the private static closure is incomplete. For a trusted SCO deployment, do not enumerate public sources from the inferred private graph alone.
 
 The grid measures source-audit admission and semantics only. It does **not** measure obfuscation reconstruction difficulty, whole-session 2.5× performance, or a real HTTP leak for the five individual loader variants. Existing separate HTTP tests demonstrate that unlisted private source mistakenly supplied in public `sourceFiles` is served when no `publicPaths` positive allowlist is configured.
+
+## Five real HTTP disclosures versus an independently reviewed public allowlist
+
+The above native-only grid was extended to start the production `createScoHandler`
+on localhost for **each** compiler-admitted unsafe graph, while deliberately
+supplying an unlisted `private/deep/secret.mjs` leaf as an additional public
+source file. For all five missed loaders, `GET /obfs/private/deep/secret.mjs`
+returned HTTP **200** with the secret canary source text, proving an actual
+publication misconfiguration consequence rather than merely inferred reachability.
+Adding the independent `publicPaths:['entry.mjs']` allowlist caused handler
+construction to reject that same two-file serving configuration in **5/5**
+cases; constructing with only the generated public facade succeeded.
+
+This follow-up preserved the eight native dynamic-source checks, four accepted
+benign source controls and explicit error propagation on HTTP assertion
+failures. [Ubuntu/Windows targeted workflow 43827534775](https://github.com/FlareZ123/obfs/actions/runs/43827534775),
+exact SHA `931cc9381e35358a63ec25547c05d8d988211a00`, passed:
+Ubuntu 118/118 Node tests, Windows 117/118 plus one skip, both strict JSDoc
+suites, and the remaining existing SCO and Chromium workflow checks. In both
+OSes the emitted structured summary was
+`unsafeCases=8, unsafeAdmittedWithMissingLeaf=5, missedAndPubliclyServed=5,
+publicAllowlistBlocked=5, safeControls=4, safeAdmitted=4`.
+
+The `publicPaths` boundary only protects the designated HTTP handler. A real
+deployment that mounts the private source directory elsewhere, manually
+allowlists secret files, or runs with compromised trusted-server filesystem
+can still leak those bytes. SCO authenticating operations is also separate
+from HTTP publication policy and cannot stop an authorized relay.
