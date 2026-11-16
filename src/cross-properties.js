@@ -386,8 +386,12 @@ function renameCrossFileProperties(files,seed) {
           let readerProof=null;
           for(const alias of importedAliases) {
             if(importer.bindings.get(alias)!==1) {failed=true;break;}
+            // Source-observation safety can use every independently proven imported
+            // string. Object-field rewriting remains limited to keys that
+            // were initialized before the owner and match its own fields.
             const proof=proveLocalObject(importer.ast,alias,importer.bindings,
-              importedIdentities.get(importerName),consumerIndices,importedKeys);
+              importedIdentities.get(importerName),consumerIndices,importedKeys,
+              verifiedStrings.get(importerName));
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size)readerProof=proof;
