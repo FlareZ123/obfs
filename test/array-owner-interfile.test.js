@@ -90,3 +90,29 @@ test('interfile reflective owner consumer prevents unsafe renaming',{
     assert.equal(after.observe(n),before.observe(n));
   }
 });
+
+test('directly exported holder retains externally observable private key spellings',{
+  timeout:30000
+},async()=>{
+  const exposed=[
+    {path:'owner.mjs',sourceType:'module',code:[
+      'const vault={privateCount:41,hiddenAddend:5};',
+      'export const holder=[vault];',
+      'const alias=holder[0];',
+      'export function inner(v){return alias.privateCount+v;}'
+    ].join('\\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {holder,inner} from "./owner.mjs";',
+      'export function observe(v){return inner(v)+holder[0].privateCount;}'
+    ].join('\\n')}
+  ];
+  const compiled=transform(exposed);
+  const texts=compiled.files.map(file=>String(file.code)).join('\\n');
+  assert.match(texts,/privateCount/u,
+    'An ESM export of the entire holder allows external callers to read the old key');
+  const native=await importGroup(exposed);
+  const output=await importGroup(/** @type {typeof modules} */(compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }))));
+  for(let n=-12;n<=12;n++)assert.equal(output.observe(n),native.observe(n));
+});
