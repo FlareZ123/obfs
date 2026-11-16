@@ -159,7 +159,9 @@ async function profile(rounds=9){
     ];
     const output=[];
     for(const workload of workloads){
+      /** @type {number[]} */
       const nativeMs=[];
+      /** @type {number[]} */
       const snoMs=[];
       const expected=runJson(native,workload.cases);
       assert.deepEqual(runJson(sno,workload.cases),expected);
