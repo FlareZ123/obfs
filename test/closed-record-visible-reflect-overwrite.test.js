@@ -192,7 +192,15 @@ for(const [method,write] of [
   ['captured descriptor method call',
     "const get=Object.getOwnPropertyDescriptor;get.call(null,globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
   ['nested global root container',
-    "const nested={box:{host:globalThis}};Object.getOwnPropertyDescriptor(nested.box.host,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
+    "const nested={box:{host:globalThis}};Object.getOwnPropertyDescriptor(nested.box.host,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['proxy-wrapped root',
+    "const proxy=new Proxy(globalThis,{});Object.getOwnPropertyDescriptor(proxy,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['inline proxy root',
+    "Object.getOwnPropertyDescriptor(new Proxy(globalThis,{}),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['returned global root',
+    "const getRoot=()=>globalThis;Object.getOwnPropertyDescriptor(getRoot(),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['identity-forwarded root',
+    "const identity=input=>input;Object.getOwnPropertyDescriptor(identity(globalThis),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
 ]){
   test('ambient intrinsic capability from '+method+' preserves published owner keys',async()=>{
     const original=graph().map(file=>file.path==='entry.mjs'?{
