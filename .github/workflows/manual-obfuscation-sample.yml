@@ -76,6 +76,10 @@ jobs:
         run: |
           node examples/register-vm/build-sample.cjs
           node -e "process.stdout.write('=== GENERATED REGISTER VM ===\\n'+require('node:fs').readFileSync('examples/register-vm/after.cjs','utf8')+'\\n=== END REGISTER VM ===\\n')"
+      - name: Generate exact one-slot private owner array sample
+        run: |
+          node examples/array-owner-flow/build-sample.cjs
+          node -e "process.stdout.write('=== GENERATED ARRAY OWNER ===\\n'+require('node:fs').readFileSync('examples/array-owner-flow/after.cjs','utf8')+'\\n=== END ARRAY OWNER ===\\n')"
       - name: Upload actual generated source
         if: always()
         uses: actions/upload-artifact@v4
@@ -85,4 +89,6 @@ jobs:
             obfs-output-sample/
             examples/register-vm/before.cjs
             examples/register-vm/after.cjs
+            examples/array-owner-flow/before.cjs
+            examples/array-owner-flow/after.cjs
           if-no-files-found: error
