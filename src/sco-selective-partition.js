@@ -2,10 +2,12 @@
 
 const {parse,walk,staticString}=require('./ast');
 const {isBuiltin}=require('node:module');
+const path=require('node:path');
+const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[]}} ScoSelectiveOptions */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
 
 /**
@@ -291,6 +293,24 @@ function realmStateObservation(body){
 }
 
 /**
+ * An opt-in project import must resolve to one canonical child path under the
+ * source filename's own directory. This rejects URL query/fragment aliases,
+ * percent encoding, traversal, ambiguous spelling, and unsafe platform names.
+ * Only the original trusted Node server loads this source dependency.
+ * @param {string} sourcePath
+ * @param {string} specifier
+ * @returns {boolean}
+ */
+function isCanonicalPrivateModulePath(sourcePath,specifier){
+  if(!specifier.startsWith('./')||/[\\%?#]/u.test(specifier))return false;
+  const directory=path.posix.dirname(sourcePath);
+  const resolved=path.posix.normalize(path.posix.join(directory,specifier));
+  if(resolved===sourcePath||!/\.mjs$/u.test(resolved))return false;
+  try{safePath(resolved);}catch{return false;}
+  return './'+path.posix.relative(directory,resolved)===specifier;
+}
+
+/**
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
@@ -302,7 +322,8 @@ function realmStateObservation(body){
  * ambient-global access. Imports, reexports, public data exports,
  * effects in module initializers and public reads of private state are refused.
  * With explicit allowServerImports, named imports from Node builtin modules
- * may remain server-only, provided no public function references their bindings.
+ * may remain server-only. Exact opt-in privateModuleImports permits canonical
+ * relative .mjs child paths, provided no public function uses their bindings.
  *
  * This deliberate limited contract keeps private bodies off the client while
  * local public functions may call selected private functions asynchronously.
@@ -327,12 +348,22 @@ function partitionScoSelectedAsyncExports(file,options) {
       options.allowServerEnvConstants!==undefined &&
       typeof options.allowServerEnvConstants!=='boolean'||
       options.allowServerImports!==undefined &&
-      typeof options.allowServerImports!=='boolean') {
+      typeof options.allowServerImports!=='boolean'||
+      options.privateModuleImports!==undefined &&
+      (!Array.isArray(options.privateModuleImports)||
+       options.privateModuleImports.some(value=>typeof value!=='string')||
+       new Set(options.privateModuleImports).size!==options.privateModuleImports.length)) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
+  const privateModuleImports=new Set(options.privateModuleImports??[]);
+  for(const specifier of privateModuleImports){
+    if(!isCanonicalPrivateModulePath(file.path,specifier)){
+      throw new TypeError('Selective SCO private module import must be a canonical relative .mjs path');
+    }
+  }
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
   // initializers and mutable shared objects violate the split contract.
@@ -346,8 +377,10 @@ function partitionScoSelectedAsyncExports(file,options) {
   for(const statement of ast.body){
     if(statement.type==='ImportDeclaration'){
       const specifier=statement.source.value;
-      if(options.allowServerImports!==true||typeof specifier!=='string'||
-         !specifier.startsWith('node:')||!isBuiltin(specifier)||
+      if(typeof specifier!=='string'||
+         !(options.allowServerImports===true&&
+           specifier.startsWith('node:')&&isBuiltin(specifier)||
+           privateModuleImports.has(specifier))||
          !statement.specifiers.length||
          statement.specifiers.some((/** @type {import('./ast').AstNode} */ item)=>
            item.type!=='ImportSpecifier'||
