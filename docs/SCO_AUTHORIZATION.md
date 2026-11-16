@@ -347,6 +347,15 @@ side effect the policy depends on. A callback which invokes `execute` twice,
 returns without awaiting it, or releases its lock early cannot provide the
 promised isolation. Server exceptions are still masked from the client.
 
+The handler invalidates the supplied execution callback once the isolation
+wrapper returns or throws. A detached callback invoked later rejects before
+private work begins, even if the original HTTP request has already failed.
+The [two-platform red/green regression](../im-results/sco-isolation-expired-callback-2026-11-16.md)
+demonstrates this bounded safety property. This does not repair an integrator
+that **starts** execution before returning but fails to await completion and
+releases its application lock prematurely. The original await/locking
+contract remains mandatory.
+
 The hook is optional. With the hook unset, existing early coarse
 authorization and request behavior remain unchanged. When the hook is
 provided, the body is validated and size-bounded before coarse
