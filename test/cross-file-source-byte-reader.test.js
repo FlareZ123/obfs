@@ -1,0 +1,113 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {obfuscateFiles}=require('../src');
+const {atomicWrite}=require('../src/atomic');
+
+/** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
+
+/**
+ * Execute the exact input files from a fresh ESM graph, so a source reader
+ * resolves the same relative file URL that the original application uses.
+ * @param {ModuleFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
+ */
+async function execute(files) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-bytes-'));
+  try {
+    for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
+    const child=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{
+      encoding:'utf8',timeout:20000
+    });
+    if(child.error)throw child.error;
+    return {status:child.status,stdout:child.stdout,stderr:child.stderr};
+  } finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
+/**
+ * @param {string} observer
+ * @returns {ModuleFile[]}
+ */
+function graph(observer) {
+  return [
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:23};\n'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import {state} from "./state.mjs";\n'+observer}
+  ];
+}
+
+test('closed-world property rewriting remains enabled when no source reader exists',async()=>{
+  const files=graph('console.log(state.secretField);');
+  const baseline=await execute(files);
+  assert.equal(baseline.status,0,baseline.stderr);
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'source-reader-positive',strings:false,identifiers:false
+  });
+  assert.equal(output.crossFile.properties,1);
+  assert.deepEqual(await execute(output.files),baseline);
+});
+
+for(const [label,observer] of [
+  ['node:fs readFileSync',
+    'import {readFileSync} from "node:fs";\n'+
+    'const code=readFileSync(new URL("./state.mjs",import.meta.url),"utf8");\n'+
+    'console.log(state.secretField,code.includes("secretField"));'],
+  ['node:fs/promises readFile',
+    'import {readFile} from "node:fs/promises";\n'+
+    'const code=await readFile(new URL("./state.mjs",import.meta.url),"utf8");\n'+
+    'console.log(state.secretField,code.includes("secretField"));']
+]) {
+  test('native ESM source inspection preserves original file spelling: '+label,async()=>{
+    const files=graph(observer);
+    const baseline=await execute(files);
+    assert.equal(baseline.status,0,baseline.stderr);
+    assert.equal(baseline.stdout,'23 true\n');
+    const output=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'source-reader/'+label,strings:false,identifiers:true
+    });
+    assert.equal(output.crossFile.properties,0,
+      'Reading distributed source must disable whole-graph property renames');
+    assert.deepEqual(await execute(output.files),baseline);
+  });
+}
+
+test('a single module reading its own bytes declines local rewrites',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[{path:'main.mjs',sourceType:'module',code:
+    'import {readFileSync} from "node:fs";\n'+
+    'const localObject={secretField:31};\n'+
+    'const bytes=readFileSync(new URL(import.meta.url),"utf8");\n'+
+    'console.log(localObject.secretField,bytes.includes("localObject"));\n'}];
+  const native=await execute(files);
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'31 true\n');
+  const output=obfuscateFiles(files,{
+    mode:'sno',seed:'self-source-read',strings:true,identifiers:true,properties:true
+  });
+  assert.equal(output.files[0].code,files[0].code);
+  assert.deepEqual(await execute(output.files),native);
+});
+
+for(const observer of [
+  'fetch("./state.mjs").then(response=>response.text());',
+  'globalThis["fetch"]("./state.mjs");',
+  'const X=XMLHttpRequest;new X();'
+]) {
+  test('browser source-fetch API conservatively declines distributed rewrites: '+observer,()=>{
+    const files=graph(observer+'console.log(state.secretField);');
+    const output=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'browser-source-read/'+observer,
+      strings:false,identifiers:true
+    });
+    assert.equal(output.crossFile.properties,0);
+    assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+  });
+}
