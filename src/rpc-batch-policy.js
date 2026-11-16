@@ -16,6 +16,19 @@ function isThenable(value) {
 }
 
 /**
+ * A mistakenly asynchronous policy can reject after the synchronous caller
+ * has already thrown. Observe genuine Promise rejections so that a rejected
+ * policy input cannot surface later as an unhandled process-level exception.
+ * Arbitrary thenables are still refused without invoking their then method.
+ * This does not cancel asynchronous side effects already started by a policy.
+ * @param {unknown} value
+ * @returns {void}
+ */
+function consumeRejectedPromise(value) {
+  if(value instanceof Promise)void value.catch(()=>{});
+}
+
+/**
  * Evaluate the authorization of a complete batch against a *pure*, synchronous
  * application-supplied transition model before executing any operation.
  *
@@ -41,6 +54,7 @@ function preflightScoBatchState(calls,initialState,policy) {
   }
   if(!Array.isArray(calls)||calls.length<1||calls.length>1024)return false;
   if(isThenable(initialState)) {
+    consumeRejectedPromise(initialState);
     throw new TypeError('Batch initial state must be synchronous');
   }
   let state=initialState;
@@ -49,11 +63,13 @@ function preflightScoBatchState(calls,initialState,policy) {
         typeof call.method!=='string' || !Array.isArray(call.args))return false;
     const permitted=policy.authorize(state,call.method,call.args);
     if(typeof permitted!=='boolean') {
+      consumeRejectedPromise(permitted);
       throw new TypeError('Batch state authorization must return a boolean synchronously');
     }
     if(!permitted)return false;
     state=policy.transition(state,call.method,call.args);
     if(isThenable(state)) {
+      consumeRejectedPromise(state);
       throw new TypeError('Batch state transition must return synchronously');
     }
   }
