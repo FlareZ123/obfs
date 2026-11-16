@@ -183,8 +183,11 @@ function renameCrossFileProperties(files,seed) {
       if (node.type==='Identifier' &&
           (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
       if (node.type==='MemberExpression') {
-        const name=node.computed ? (node.property.type==='Literal' ? node.property.value : null) :
-          staticName(node.property);
+        // A computed constant spelling such as globalThis['Fun'+'ction']
+      // is a loader just as globalThis.Function is. Reuse the pure string
+      // evaluator instead of inspecting Literal nodes only; otherwise dynamic
+      // ESM consumers can escape this closed-world graph proof.
+      const name=node.computed ? staticString(node.property) : staticName(node.property);
         if (typeof name==='string' &&
             (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
       }
@@ -196,8 +199,7 @@ function renameCrossFileProperties(files,seed) {
         const callee=node.callee;
         const name=callee.type==='Identifier' ? callee.name :
           callee.type==='MemberExpression' ?
-            (callee.computed ? (callee.property.type==='Literal' ? callee.property.value : null) :
-              staticName(callee.property)) : null;
+            (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
         if (typeof name==='string' && ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
       }
       if (!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type) ||
