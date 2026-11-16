@@ -60,7 +60,15 @@ const paths=[
   ['reflective require cache','Reflect.get(require,"cache")[__filename].constructor._load("node:fs")',false],
   ['descriptor require cache','Object.getOwnPropertyDescriptor(require,"cache").value[__filename].constructor._load("node:fs")',false],
   ['enumerated module children','Object.getOwnPropertyDescriptors(module).children.value[0].constructor._load("node:fs")',true],
-  ['static key alias','(function(){const key="cache";return require[key][__filename].constructor._load("node:fs")})()',false]
+  ['static key alias','(function(){const key="cache";return require[key][__filename].constructor._load("node:fs")})()',false],
+  ['global process root','globalThis.process.mainModule.constructor._load("node:fs")',false],
+  ['global process bracket','globalThis["process"].mainModule.constructor._load("node:fs")',false],
+  ['global process alias','(function(){const p=globalThis.process;return p.mainModule.constructor._load("node:fs")})()',false],
+  ['global alias chain','(function(){const root=globalThis;const p=root.process;return p.mainModule.constructor._load("node:fs")})()',false],
+  ['global computed alias','(function(){const key="process";const p=globalThis[key];return p.mainModule.constructor._load("node:fs")})()',false],
+  ['global computed root','(function(){const key="pro"+"cess";return globalThis[key].mainModule.constructor._load("node:fs")})()',false],
+  ['reflected global process','Reflect.get(globalThis,"process").mainModule.constructor._load("node:fs")',false],
+  ['descriptor global process','Object.getOwnPropertyDescriptor(globalThis,"process").get.call(globalThis).mainModule.constructor._load("node:fs")',false]
 ];
 
 for(const [name,expression,withChild] of paths) {
@@ -114,4 +122,14 @@ test('unrelated ordinary CommonJS private property remains transformable',()=>{
   assert.equal(observesDistributedSource(parse(clean[0].code,'commonjs')),false);
   assert.equal(output.files[0].metrics.properties,1);
   assert.doesNotMatch(String(output.files[0].code),/secretField/u);
+});
+
+test('ordinary process environment reads do not suppress own-field renaming',()=>{
+  const code='const privateObject={secretField:31};console.log(privateObject.secretField,globalThis.process.env.NODE_ENV);';
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'main.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'process-env-positive',strings:false,
+    properties:true,identifiers:false
+  });
+  assert.equal(output.files[0].metrics.properties,1);
 });
