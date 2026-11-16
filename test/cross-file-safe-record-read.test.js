@@ -128,3 +128,21 @@ test('aliased Reflect.ownKeys mutation cannot smuggle a host Function loader',as
   assert.equal(compiled.crossFile.properties,0,
     'The aliased intrinsic can return an untracked runtime Function constructor');
 });
+
+test('computed global Reflect alias cannot expose renamed owner keys',async()=>{
+  const files=graph([
+    "const ctor=inspectRecord('auditCount').keys[0];",
+    "const remote=await ctor(\"return import('./state.mjs')\")();",
+    'const result=[Object.keys(remote.state),remote.state.secretField];'
+  ].join('\n'),
+    "const intrinsic='Reflect';const reflection=globalThis[intrinsic];"+
+    'reflection.ownKeys=()=>[globalThis.RUNTIME_FACTORY];');
+  const native=await execute(files,true);
+  assert.equal(native,'[41,[["secretField"],41]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'computed-reflect-loader-20261116',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(await execute(compiled.files,true),native);
+  assert.equal(compiled.crossFile.properties,0);
+});
