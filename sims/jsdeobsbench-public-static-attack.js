@@ -140,76 +140,75 @@ function recoverPublicStrings(source,sourceType='script') {
  * SHA before parsing, and preserves all test cases for separate Docker checks.
  * @param {string} inputFile
  * @param {string|null} outputFile
- * @param {boolean} requireExact
- * @returns {Promise<{programs:number,encodedLiterals:number,recoveredLiterals:number,
- *   tables:number,incompletePrograms:number,unrecognizedTables:number,sourceOnly:boolean}>}
+ * @param {boolean} requireProgress
+ * @returns {Promise<{programs:number,recoveredLiterals:number,
+ *   tables:number,unrecognizedTables:number,sourceOnly:boolean}>}
  */
-async function attackCorpus(inputFile,outputFile=null,requireExact=false) {
+async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
   if(outputFile!==null&&path.resolve(inputFile)===path.resolve(outputFile)) {
     throw new TypeError('Attack output must differ from input');
   }
   const lines=(await fs.readFile(inputFile,'utf8')).split(/\r?\n/u).filter(Boolean);
   if(!lines.length)throw new TypeError('Empty benchmark dataset');
-  const report={programs:0,encodedLiterals:0,recoveredLiterals:0,
-    tables:0,incompletePrograms:0,unrecognizedTables:0,sourceOnly:true};
+  const report={programs:0,recoveredLiterals:0,
+    tables:0,unrecognizedTables:0,sourceOnly:true};
   /** @type {string[]} */
   const output=[];
   for(const line of lines) {
     const row=JSON.parse(line);
     if(!row||typeof row!=='object'||Array.isArray(row)||
+       typeof row.filename!=='string'||!row.filename||
        typeof row.obfuscated!=='string'||typeof row.obfs_output_sha256!=='string'||
-       !row.obfs_metrics||!Number.isSafeInteger(row.obfs_metrics.literals)||
-       row.obfs_metrics.literals<0||
+       row.original!==undefined||row.test_cases!==undefined||row.obfs_metrics!==undefined||
        !['script','commonjs'].includes(row.obfs_source_type)) {
-      throw new TypeError('Malformed obfuscated benchmark row');
+      throw new TypeError('Public attack input must contain only delivered source and identity');
     }
     const hash=createHash('sha256').update(row.obfuscated).digest('hex');
     if(hash!==row.obfs_output_sha256)throw new Error('Distributed source hash mismatch');
     const attempt=recoverPublicStrings(row.obfuscated,row.obfs_source_type);
     report.programs++;
-    report.encodedLiterals+=row.obfs_metrics.literals;
     report.recoveredLiterals+=attempt.literals;
     report.tables+=attempt.tables;
     report.unrecognizedTables+=attempt.unrecognized;
-    if(attempt.literals!==row.obfs_metrics.literals)report.incompletePrograms++;
     if(outputFile!==null)output.push(JSON.stringify({
       ...row,obfuscated:attempt.code,
+      attack_input_sha256:row.obfs_output_sha256,
       obfs_output_sha256:createHash('sha256').update(attempt.code).digest('hex'),
       attack_kind:'public-static-xor-table',attack_recovered_literals:attempt.literals,
       attack_recovered_tables:attempt.tables
     }));
   }
-  if(requireExact&&(report.incompletePrograms!==0||report.encodedLiterals===0)) {
-    throw new Error('Incomplete public static recovery: '+JSON.stringify(report));
+  if(requireProgress && (report.recoveredLiterals===0||report.unrecognizedTables!==0)) {
+    throw new Error('No proven full public-table recovery: '+JSON.stringify(report));
   }
   if(outputFile!==null)await atomicWrite(outputFile,output.join('\n')+'\n');
   return report;
 }
 
-/** @param {string[]} args @returns {{input:string,output:string|null,requireExact:boolean}} */
+/** @param {string[]} args @returns {{input:string,output:string|null,requireProgress:boolean}} */
 function parseArgs(args) {
   /** @type {Record<string,string>} */
   const values={};
   for(let i=0;i<args.length;i++) {
-    if(args[i]==='--require-exact') {
+    if(args[i]==='--require-progress') {
       if(Object.hasOwn(values,args[i]))throw new TypeError('Duplicate argument');
       values[args[i]]='true';
     }else{
       const key=args[i];
       if(!['--input','--output'].includes(key)||!args[i+1]||Object.hasOwn(values,key)) {
-        throw new TypeError('Required: --input JSONL [--output JSONL] [--require-exact]');
+        throw new TypeError('Required: --input JSONL [--output JSONL] [--require-progress]');
       }
       values[key]=args[++i];
     }
   }
   if(!values['--input'])throw new TypeError('Required --input JSONL');
   return {input:values['--input'],output:values['--output']??null,
-    requireExact:values['--require-exact']==='true'};
+    requireProgress:values['--require-progress']==='true'};
 }
 
 if(require.main===module) {
   const config=parseArgs(process.argv.slice(2));
-  attackCorpus(config.input,config.output,config.requireExact).then(result=>{
+  attackCorpus(config.input,config.output,config.requireProgress).then(result=>{
     process.stdout.write('PUBLIC_STATIC_ATTACK '+JSON.stringify(result)+'\n');
   }).catch(error=>{
     process.stderr.write(String(error?.stack??error)+'\n');
