@@ -1,0 +1,26 @@
+name: Manual Array source coercion differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Array source and neighboring implicit conversion regressions
+        run: node --test test/array-sort-function-source.test.js test/source-coercion-array.test.js test/source-coercion-alias.test.js test/string-method-source-observation.test.js test/implicit-comparison-source.test.js
+      - name: JSDoc check
+        run: npm run typecheck
