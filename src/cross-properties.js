@@ -356,7 +356,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       // methods through descriptor.value, a collection, or Reflect.get.
       // Decline the proof at acquisition rather than trying to enumerate
       // later aliases, container writes, callbacks, and returns.
-      if(node.type==='CallExpression' && mayBeGlobalReceiver(node.arguments[0])) {
+      if(node.type==='CallExpression') {
         let method=null;
         if(node.callee.type==='Identifier') {
           method=nativeDescriptorAliases.get(node.callee.name)??null;
@@ -372,8 +372,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
         if(method) {
           const field=node.arguments[1]?staticString(node.arguments[1]):null;
-          if(method==='getOwnPropertyDescriptors' || field===null ||
-             field==='Reflect' || field==='Object')changedIntrinsic=true;
+          // A known sensitive selector is sufficient: the receiver may be
+          // a Proxy, a factory result, or an interprocedural forwarding
+          // expression whose ambient provenance this scanner cannot prove.
+          // Preserve ordinary unrelated literal descriptor calls.
+          if(field==='Reflect' || field==='Object' ||
+             mayBeGlobalReceiver(node.arguments[0]) &&
+               (method==='getOwnPropertyDescriptors' || field===null))changedIntrinsic=true;
         }
       }
       // A captured native global mutator remains capable of replacing an
