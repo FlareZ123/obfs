@@ -46,7 +46,17 @@ function median(values) {
   return sorted[Math.floor(sorted.length/2)];
 }
 
-/** @returns {Promise<{rows:unknown[]}>} */
+/**
+ * @typedef {{
+ *   variant:string,workload:string,cases:number,nativeMs:number,
+ *   emittedMs:number,ratio:number,within2point5:boolean,samples:number,
+ *   sourceObserverFree:boolean,ownKeysOnly:boolean,
+ *   recordHasDeclaredNullPrototype:boolean,privateFieldsRenamed:number,
+ *   allOutputsEqual:boolean
+ * }} ProfileRow
+ */
+
+/** @returns {Promise<{rows:ProfileRow[]}>} */
 async function main() {
   /** @type {ModuleFile[]} */
   const original=await Promise.all(NAMES.map(async name=>({
@@ -58,7 +68,7 @@ async function main() {
       Math.imul(index+37,2654435761)>>>0,(index*317)%5000
     ])}
   ];
-  /** @type {unknown[]} */
+  /** @type {ProfileRow[]} */
   const rows=[];
   // These are separate modified application contracts. The unchanged
   // original source remains a 0/2 owner-field negative control.
@@ -112,7 +122,7 @@ async function main() {
     node:process.version,platform:process.platform,rows,
     scope:'Paired full ESM processes on two distinct modified six-module application contracts'
   })+'\n');
-  assert.ok(rows.every((/** @type {{within2point5:boolean}} */ row)=>row.within2point5),
+  assert.ok(rows.every(row=>row.within2point5),
     'At least one measured application variant exceeded 2.5x full-session budget');
   return {rows};
 }
