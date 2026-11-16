@@ -189,7 +189,7 @@ test('atomic native loops, switch, labels, and finally blocks survive CFG reloca
 test('strict receiver, arguments, closure and parameter-default semantics stay native',()=>{
   const examples=[
     'function f(x){"use strict";var a=arguments.length;if(this&&this.flag){a+=x;}else{a-=x;}return function(){return a+1;};}',
-    'function f(x=7,y=3){"use strict";var a=x+y;if(arguments.length===0){a++;}else{a--;}return [a,x,y].join(":");}',
+    'function f(x=7,y=3){var a=x+y;if(arguments.length===0){a++;}else{a--;}return [a,x,y].join(":");}',
     'function f({value:x=5}={}){var a=x;if(a>0){a*=3;}else{a-=7;}return a;}'
   ];
   for(const original of examples){
