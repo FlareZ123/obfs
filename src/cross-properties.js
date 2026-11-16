@@ -176,6 +176,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostCallAliases=new Set();
     /** @type {Set<string>} */
     const nativeMutatorAliases=new Set();
+    /** @type {Map<string,string>} */
+    const nativeDescriptorAliases=new Map();
     /** @type {Set<string>} */
     const hostContainers=new Set();
     /** @type {[string,string][]} */
@@ -202,6 +204,14 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
            owner==='Reflect' && ['defineProperty','set','deleteProperty'].includes(method??'')) {
           nativeMutatorAliases.add(binding.name);
         }
+        // A captured native descriptor/accessor method can retrieve an
+        // ambient reflection object without any later mention of Reflect.
+        if(owner==='Object' &&
+             ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(method??'') ||
+           owner==='Reflect' &&
+             ['get','getOwnPropertyDescriptor'].includes(method??'')) {
+          nativeDescriptorAliases.set(binding.name,method??'');
+        }
       }
     });
     let aliasChanged;
@@ -216,6 +226,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           nativeMutatorAliases.add(target);
           aliasChanged=true;
         }
+        if(nativeDescriptorAliases.has(origin) && !nativeDescriptorAliases.has(target)) {
+          nativeDescriptorAliases.set(target,/** @type {string} */ (nativeDescriptorAliases.get(origin)));
+          aliasChanged=true;
+        }
       }
     } while(aliasChanged);
     // An ordinary object/array literal can hold a host capability. A
@@ -225,7 +239,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
          !node.init || !['ObjectExpression','ArrayExpression'].includes(node.init.type))return;
       let includesHost=false;
       walk(node.init,child=>{
-        if(child.type==='MemberExpression' &&
+        if(child.type==='Identifier' && hostRoots.has(child.name) ||
+           child.type==='MemberExpression' &&
            child.object.type==='Identifier' &&
            hostRoots.has(child.object.name))includesHost=true;
       });
@@ -289,7 +304,78 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    /**
+     * A local holder of a global root may carry the same mutable intrinsic.
+     * Only known unrelated literal keys are excluded from this capability
+     * acquisition guard.
+     * @param {AstNode|undefined} receiver
+     * @returns {boolean}
+     */
+    function mayBeGlobalReceiver(receiver) {
+      if(!receiver)return false;
+      let root=receiver;
+      while(root.type==='MemberExpression')root=root.object;
+      if(root.type==='Identifier')return hostRoots.has(root.name) ||
+        hostContainers.has(root.name);
+      if(root.type==='ObjectExpression'||root.type==='ArrayExpression') {
+        let captured=false;
+        walk(root,node=>{
+          if(node.type==='Identifier' && hostRoots.has(node.name))captured=true;
+        });
+        return captured;
+      }
+      return false;
+    }
     walk(source.ast,(node,parent)=>{
+      // Extracted descriptor methods are first-class function values.
+      // A direct call is already examined below. Opaque higher-order use,
+      // .call/.apply/.bind, or nontrivial escape can recover a mutable
+      // ambient object with arguments unavailable to this local proof.
+      if(node.type==='Identifier' && nativeDescriptorAliases.has(node.name) &&
+         !(parent?.type==='VariableDeclarator' &&
+           (parent.id===node || parent.init===node &&
+            parent.id.type==='Identifier')) &&
+         !(parent?.type==='AssignmentExpression' && parent.right===node &&
+           parent.operator==='=' && parent.left.type==='Identifier') &&
+         !(parent?.type==='CallExpression' && parent.callee===node)) {
+        changedIntrinsic=true;
+      }
+      if(node.type==='MemberExpression' &&
+         node.object.type==='MemberExpression' &&
+         node.object.object.type==='Identifier') {
+        const owner=node.object.object.name;
+        const nested=node.object.computed?
+          staticString(node.object.property):staticName(node.object.property);
+        if(owner==='Object' &&
+             ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(nested??'') ||
+           owner==='Reflect' &&
+             ['get','getOwnPropertyDescriptor'].includes(nested??''))changedIntrinsic=true;
+      }
+      // A descriptor is an aliasing path to its value. Acquiring the global
+      // Reflect/Object object permits mutation of its native inspection
+      // methods through descriptor.value, a collection, or Reflect.get.
+      // Decline the proof at acquisition rather than trying to enumerate
+      // later aliases, container writes, callbacks, and returns.
+      if(node.type==='CallExpression' && mayBeGlobalReceiver(node.arguments[0])) {
+        let method=null;
+        if(node.callee.type==='Identifier') {
+          method=nativeDescriptorAliases.get(node.callee.name)??null;
+        }else if(node.callee.type==='MemberExpression' &&
+                 node.callee.object.type==='Identifier') {
+          const owner=node.callee.object.name;
+          const selected=node.callee.computed?
+            staticString(node.callee.property):staticName(node.callee.property);
+          if(owner==='Object' &&
+               ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(selected??'') ||
+             owner==='Reflect' &&
+               ['get','getOwnPropertyDescriptor'].includes(selected??''))method=selected;
+        }
+        if(method) {
+          const field=node.arguments[1]?staticString(node.arguments[1]):null;
+          if(method==='getOwnPropertyDescriptors' || field===null ||
+             field==='Reflect' || field==='Object')changedIntrinsic=true;
+        }
+      }
       // A captured native global mutator remains capable of replacing an
       // ambient binding even when the callee is only an alias identifier.
       // Its parameter/side-effect proof is intentionally conservative.

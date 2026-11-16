@@ -165,3 +165,65 @@ test('irrelevant global descriptor write preserves proved own-key transformation
   assert.equal(expected,'[41,"audit-v1",null]');
   assert.equal(await execute(compiled.files),expected);
 });
+
+
+/**
+ * A descriptor's value is the original ambient object. In particular,
+ * Object.getOwnPropertyDescriptor(globalThis, 'Reflect').value aliases the
+ * same Reflect object used by the independent record reader. Native and
+ * emitted ESM modules must agree even when this alias is passed through
+ * descriptor collections and captured accessor methods.
+ */
+for(const [method,write] of [
+  ['direct descriptor value',
+    "Object.getOwnPropertyDescriptor(globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured descriptor method',
+    "const descriptorMethod=Object.getOwnPropertyDescriptor;const getDescriptor=descriptorMethod;getDescriptor(globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['descriptor dictionary',
+    "Object.getOwnPropertyDescriptors(globalThis).Reflect.value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['Reflect.get ambient object',
+    "Reflect.get(globalThis,'Reflect').ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured Reflect.get',
+    "const getter=Reflect.get;const alias=getter;alias(globalThis,'Reflect').ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured method through Reflect.apply',
+    "const get=Object.getOwnPropertyDescriptor;Reflect.apply(get,null,[globalThis,'Reflect']).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['descriptor method call',
+    "Object.getOwnPropertyDescriptor.call(null,globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured descriptor method call',
+    "const get=Object.getOwnPropertyDescriptor;get.call(null,globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['nested global root container',
+    "const nested={box:{host:globalThis}};Object.getOwnPropertyDescriptor(nested.box.host,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
+]){
+  test('ambient intrinsic capability from '+method+' preserves published owner keys',async()=>{
+    const original=graph().map(file=>file.path==='entry.mjs'?{
+      ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',write)
+    }:file);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'ambient-descriptor-'+method,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.equal(expected,'[41,"audit-v1",["secretField"]]');
+    const observed=await execute(compiled.files);
+    assert.equal(observed,expected,
+      'Ambient descriptor or reflective retrieval may replace the builtin and observe exported keys');
+    assert.equal(compiled.crossFile.properties,0,
+      'Do not assume pristine Reflect methods after acquiring a mutable ambient object');
+  });
+}
+
+test('unrelated literal global descriptor read still admits one proven property rename',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "const descriptor=Object.getOwnPropertyDescriptor(globalThis,'UNRELATED_FIXTURE');void descriptor;")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'unrelated-global-descriptor-read',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Known unrelated global property reads must preserve positive transformation yield');
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",null]');
+  assert.equal(await execute(compiled.files),expected);
+});
