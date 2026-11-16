@@ -29,6 +29,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/xml-data-url-browser.js
+      - name: Verify public-only XOR string decoding under real Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/jsdeobsbench-public-browser.js
+      - name: Strict-check external benchmark and browser harness JSDoc
+        run: npm run typecheck:external
       - name: Compare held-out multi-file property graphs in Chrome
         env:
           CHROMIUM_BIN: google-chrome

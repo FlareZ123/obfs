@@ -280,18 +280,25 @@ prevent unlimited legitimate oracle queries.
 
 ### Reusable per-principal isolation helper
 
-`createScoKeyedIsolation(principalOf)` provides a small in-process FIFO queue
-compatible with `createScoHandler`'s `runRpcIsolated` hook. Each verified
-principal's authorization checks and method execution are serialized, while
-different principals retain independent queues. A failed operation releases
-its queue, and the last completed request removes the idle queue entry.
+`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?})` provides a
+small in-process FIFO queue compatible with `createScoHandler`'s
+`runRpcIsolated` hook. Each verified principal's authorization checks and
+method execution are serialized, while different principals retain independent
+queues. A failed operation releases its queue, and the last completed request
+removes the idle queue entry. Set a positive integer `maxPendingPerPrincipal`
+to limit the total active **plus waiting** RPC calls for an account. Exceeding
+it rejects the request before authorization or method execution; the handler
+returns HTTP **429** with a generic response. The default is unlimited for
+existing integrations. A bounded queue can contain memory pressure from
+authenticated bursts, but request-body parsing and principal verification
+happen before admission and still consume resources.
 
 ```js
 const {createScoHandler,createScoKeyedIsolation}=require('./src');
 const runRpcIsolated=createScoKeyedIsolation(async request=>{
   const session=await authenticateRequest(request);
   return session.accountId;
-});
+},{maxPendingPerPrincipal:8});
 const handler=createScoHandler(publicFiles,{
   remoteMethods,
   authorizeRpc:authenticateRequest,
@@ -308,6 +315,12 @@ key proliferation and defeats per-account serialization. Invalid identity
 values cause the generic RPC 500 path; reject invalid credentials explicitly
 through application policy. Keep lock and authorization identity aligned.
 
+A busy error raised by the isolated **private method** is still a generic
+HTTP 500; only a queue rejection before any protected work begins is 429.
+Finite queue sizes do not set a global process-wide concurrency limit and
+cannot stop a principal from sending unlimited *serial* authorized requests.
+Use front-door limits and verified authentication in addition to this helper.
+
 This helper protects only calls through the same in-process instance. It
 cannot synchronize Node workers, cluster processes, other services, database
 writers or permission changes outside this handler. For those deployments
@@ -319,8 +332,10 @@ resolution and queue registration, not a network arrival guarantee.
 
 An isolator does not make a batch transactionally safe. Continue using
 `preflightScoBatchState` or disallow state-changing operations in batches.
-See `test/sco-keyed-isolation.test.js` for a real parallel HTTP revocation
-test and independent-principal FIFO/failure regressions. This is an SCO
+See `test/sco-keyed-isolation.test.js` for parallel HTTP revocation and
+independent-principal FIFO/failure regressions, and
+`test/sco-keyed-capacity.test.js` for bounded-queue and 429/500 classification
+regressions. This is an SCO
 server authorization control, not client-side anti-debugging or a proof
 of the project's universal 2.5× compute target.
 

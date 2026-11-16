@@ -49,16 +49,29 @@ jobs:
       - name: Publish source-only attacker view without native programs
         if: matrix.mode == 'sno'
         run: node sims/jsdeobsbench-public-protocol.js --publish ./jsdeobsbench-obfuscated.jsonl ./jsdeobsbench-public-only.jsonl
-      - name: Reconstruct encoded strings using only distributed public bytes
+      - name: Stage strictly public attacker filesystem
         if: matrix.mode == 'sno'
         run: |
-          node sims/jsdeobsbench-public-static-attack.js \
-            --input ./jsdeobsbench-public-only.jsonl \
-            --output ./jsdeobsbench-public-recovered.jsonl \
-            --require-progress
+          node sims/jsdeobsbench-public-protocol.js --stage ./jsdeobsbench-public-only.jsonl ./isolated-attacker
+          mkdir ./isolated-attacker-out
+          chmod 0777 ./isolated-attacker-out
+      - name: Recover strings in unprivileged networkless isolated attacker
+        if: matrix.mode == 'sno'
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --cpus 2 --memory 512m --pids-limit 64 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=32m,mode=1777 \
+            --user 65534:65534 \
+            --mount "type=bind,src=${{ github.workspace }}/isolated-attacker,dst=/attacker,readonly" \
+            --mount "type=bind,src=${{ github.workspace }}/isolated-attacker-out,dst=/output" \
+            --workdir /attacker node:22-alpine \
+            node sims/jsdeobsbench-public-static-attack.js \
+              --input /attacker/public.jsonl \
+              --output /output/recovered.jsonl \
+              --require-progress
       - name: Verify recovered code against withheld compiler metrics
         if: matrix.mode == 'sno'
-        run: node sims/jsdeobsbench-public-protocol.js --verify ./jsdeobsbench-obfuscated.jsonl ./jsdeobsbench-public-recovered.jsonl ./jsdeobsbench-verified-recovered.jsonl
+        run: node sims/jsdeobsbench-public-protocol.js --verify ./jsdeobsbench-obfuscated.jsonl ./isolated-attacker-out/recovered.jsonl ./jsdeobsbench-verified-recovered.jsonl
       - name: Compare recovered public code with native behavior in restricted Docker
         if: matrix.mode == 'sno'
         shell: bash
@@ -71,7 +84,7 @@ jobs:
             node sims/jsdeobsbench-differential.js \
               --original /work/jsdeobsbench-native.jsonl \
               --transformed /work/jsdeobsbench-verified-recovered.jsonl \
-              --sample 100 --cases 2 --timeout 3000 \
+              --sample 0 --cases 2 --timeout 3000 \
               --seed pinned-jsdeobsbench-20261115
       - name: Independently execute paired baseline and transformed code in restricted Docker
         shell: bash

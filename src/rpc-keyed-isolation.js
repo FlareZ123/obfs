@@ -1,6 +1,18 @@
 'use strict';
 
 /**
+ * Rejection used when the optional per-principal outstanding-call limit is
+ * reached before protected authorization or execution begins. The SCO HTTP
+ * handler translates this specific pre-execution failure into HTTP 429.
+ */
+class ScoIsolationBusyError extends Error {
+  constructor() {
+    super('SCO principal queue is full');
+    this.name='ScoIsolationBusyError';
+  }
+}
+
+/**
  * Construct a per-principal FIFO isolation callback for createScoHandler.
  * The principal resolver must derive a stable identifier from an authenticated
  * server-side session, never from an unverified request header. Each principal
@@ -9,20 +21,34 @@
  * This serializes authorization and execution for one principal only. It does
  * not make external storage transactional or validate state transitions inside
  * a batch. The supplied execute callback must settle; no timeout or
- * reentrant execution is introduced here.
+ * reentrant execution is introduced here. An optional finite limit counts
+ * both the active operation and requests waiting for that principal. The
+ * default remains unlimited for backward compatibility. A rejected request
+ * does not enter the queue or invoke protected work. FIFO applies after the
+ * asynchronous principal resolver has settled.
  *
  * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
+ * @param {{maxPendingPerPrincipal?:number}} [options]
  * @returns {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>}
  */
-function createScoKeyedIsolation(principalOf) {
+function createScoKeyedIsolation(principalOf,options={}) {
   if(typeof principalOf!=='function')throw new TypeError('principalOf must be a function');
+  const limit=options.maxPendingPerPrincipal??Infinity;
+  if(limit!==Infinity&&(!Number.isSafeInteger(limit)||limit<1)) {
+    throw new TypeError('maxPendingPerPrincipal must be a positive safe integer');
+  }
   /** @type {Map<string,Promise<void>>} */
   const tails=new Map();
+  /** @type {Map<string,number>} */
+  const pending=new Map();
   return async function runRpcIsolated(request,execute) {
     const principal=await principalOf(request);
     if(typeof principal!=='string'||principal.length<1||principal.length>256) {
       throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
     }
+    const count=pending.get(principal)??0;
+    if(count>=limit)throw new ScoIsolationBusyError();
+    pending.set(principal,count+1);
     const previous=tails.get(principal);
     /** @type {()=>void} */
     let release=()=>{};
@@ -34,9 +60,12 @@ function createScoKeyedIsolation(principalOf) {
       await execute();
     }finally{
       if(tails.get(principal)===finished)tails.delete(principal);
+      const outstanding=pending.get(principal)??1;
+      if(outstanding===1)pending.delete(principal);
+      else pending.set(principal,outstanding-1);
       release();
     }
   };
 }
 
-module.exports={createScoKeyedIsolation};
+module.exports={createScoKeyedIsolation,ScoIsolationBusyError};

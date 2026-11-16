@@ -5,6 +5,7 @@ const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} =
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
+const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -135,11 +136,21 @@ async function handleRpc(request,response,options) {
       // A trusted integrator callback MUST await execute exactly once and
       // hold whatever transaction or lock is needed until it settles.
       let invoked=false;
-      await options.runRpcIsolated(request,async()=>{
-        if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
-        invoked=true;
-        await execute();
-      });
+      try{
+        await options.runRpcIsolated(request,async()=>{
+          if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
+          invoked=true;
+          await execute();
+        });
+      }catch(error){
+        // A capacity refusal happens before any protected operation starts.
+        // Do not expose errors raised by a running private method as 429.
+        if(!invoked && error instanceof ScoIsolationBusyError){
+          respondJson(response,429,{ok:false,error:'Too many requests'});
+          return;
+        }
+        throw error;
+      }
       if(!invoked)throw new TypeError('RPC isolation callback omitted execute');
     } else await execute();
   } catch (error) {
@@ -312,7 +323,8 @@ function createScoHandler(sourceFiles,options={}) {
   const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
-      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType))));
+      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
+        importedKeyProof.get(file.path))));
   if(interfileSourceObserver && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }

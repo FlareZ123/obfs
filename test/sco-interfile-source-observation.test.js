@@ -177,3 +177,94 @@ for(const [name,reader] of /** @type {[string,string][]} */ ([
     assert.equal(delivered[0].code,files[0].code,'The native function source must remain exact');
   });
 }
+
+test('SCO imported safe Reflect.get key retains private-property renaming',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:'export const lookupKey="value";'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";'+
+      'import {lookupKey} from "./key.mjs";'+
+      'console.log(compute()+Reflect.get({value:9},lookupKey));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  const protectedFile=delivered.find(file=>file.path==='state.mjs');
+  assert.ok(protectedFile);
+  assert.doesNotMatch(protectedFile.code,/secretField/u,
+    'A proved non-source key must not suppress unrelated private-field renaming');
+});
+
+test('SCO imported toString Reflect.get key still protects original function source',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:'export const lookupKey="toString";'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";'+
+      'import {lookupKey} from "./key.mjs";'+
+      'console.log(Reflect.get(compute,lookupKey).call(compute));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.equal(delivered.find(file=>file.path==='state.mjs')?.code,files[0].code,
+    'An imported source-observing key must preserve exact original function source');
+});
+
+test('SCO mutable imported Reflect.get key conservatively protects function source',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:'export let lookupKey="toString";'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";'+
+      'import {lookupKey} from "./key.mjs";'+
+      'console.log(Reflect.get(compute,lookupKey).call(compute));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.equal(delivered.find(file=>file.path==='state.mjs')?.code,files[0].code,
+    'An unproved mutable imported key must never be treated as a safe constant');
+});
+
+test('SCO named-exported safe key preserves renaming of a private ESM owner',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:13};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:
+      'const internal="value";export {internal as lookupKey};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";import {lookupKey} from "./key.mjs";'+
+      'console.log(compute()+Reflect.get({value:7},lookupKey));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.doesNotMatch(delivered.find(file=>file.path==='state.mjs')?.code??'',
+    /secretField/u,'The safe named-export key must preserve SCO property-renaming coverage');
+});
+
+test('SCO named-exported toString key preserves cross-module function source',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:13};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:
+      'const internal="toString";export {internal as lookupKey};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";import {lookupKey} from "./key.mjs";'+
+      'console.log(Reflect.get(compute,lookupKey).call(compute));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.equal(delivered.find(file=>file.path==='state.mjs')?.code,files[0].code);
+});

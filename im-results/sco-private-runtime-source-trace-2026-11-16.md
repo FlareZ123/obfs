@@ -103,3 +103,30 @@ need its own whole-session 2.5× performance and compatibility evaluation.
   independent human-reviewed `publicPaths`.
 - Distinguish a static underapproximation that is expected by design from
   an actual trusted-server publication configuration mistake.
+
+## Authenticated end-to-end SCO differential extension
+
+The diagnostic was extended to materialize the native `entry.mjs` and the
+actual generated public `client.mjs` facade, bind the original private
+export using `bindScoModuleExports`, and run the public facade through a
+localhost `createScoHandler` with `authorizeRpc`, `authorizeRead`,
+`authorizeOperation` and the exact `publicPaths:['entry.mjs']` policy.
+It checks that unauthenticated RPC returns 403, that an authenticated
+direct source GET for the odd private leaf returns 404, and that both
+private operations and the retained synchronous public export match the
+native module.
+
+[Updated pinned cross-platform gate 43830107211](https://github.com/FlareZ123/obfs/actions/runs/43830107211)
+at SHA `05991af0ba66f0f2933e2c92461ba1a8f4c1d0b2` passed SCO tests,
+both strict JSDoc suites and applicable Chromium tasks on Linux/Windows.
+Both platforms reported `nativeValues:[13,20]`,
+`clientValues:[13,20]`, `uncoveredOddHttpStatus:200` in the deliberately
+misconfigured *partial-trace* handler, and an accepted policy rejecting the
+extra private source in the protected full-trace handler.
+
+The tested output identities establish exactly two branch outputs and the
+read/authentication/publication outcomes. The RPC facade adds JSON and
+network semantics to the original private module, and no calibrated
+short/sustained original-to-facade overhead ratio was taken in this
+experiment. Do not interpret these passing functional checks as compliance
+with the 2.5× limit for general SCO calls.

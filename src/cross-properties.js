@@ -42,16 +42,40 @@ function collectVerifiedImportedStrings(files) {
   const exported=new Map();
   for(const [filename,module] of modules) {
     /** @type {Map<string,string>} */
+    const localConsts=new Map();
+    // Accept only uniquely named top-level primitive consts. Named export
+    // specifiers may expose one of these under a different public name.
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration' ? statement :
+        statement.type==='ExportNamedDeclaration' && !statement.source ?
+          statement.declaration : null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations) {
+        if(item.id.type!=='Identifier'||!item.init||
+           module.bindings.get(item.id.name)!==1)continue;
+        const value=staticString(item.init);
+        if(value!==null)localConsts.set(item.id.name,value);
+      }
+    }
+    /** @type {Map<string,string>} */
     const names=new Map();
     for(const statement of module.ast.body) {
-      if(statement.type!=='ExportNamedDeclaration'||statement.source||
-         statement.declaration?.type!=='VariableDeclaration'||
-         statement.declaration.kind!=='const')continue;
-      for(const declaration of statement.declaration.declarations) {
-        if(declaration.id.type!=='Identifier'||!declaration.init||
-           module.bindings.get(declaration.id.name)!==1)continue;
-        const value=staticString(declaration.init);
-        if(value!==null)names.set(declaration.id.name,value);
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const item of statement.declaration.declarations) {
+          if(item.id.type!=='Identifier')continue;
+          const value=localConsts.get(item.id.name);
+          if(value!==undefined)names.set(item.id.name,value);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier')continue;
+          const value=localConsts.get(spec.local.name);
+          const publicName=spec.exported.name??spec.exported.value;
+          if(value!==undefined && typeof publicName==='string') {
+            names.set(publicName,value);
+          }
+        }
       }
     }
     exported.set(filename,names);
@@ -659,17 +683,42 @@ function renameCrossFileProperties(files,seed) {
         // ESM cycle. Later keys may still be in TDZ and are excluded.
         /** @type {Map<string,string>} */
         const earlierKeyExports=new Map();
+        /** @type {Map<string,string>} */
+        const earlierLocalConsts=new Map();
+        // The ESM binding's initializer, rather than the position of an
+        // export specifier, decides whether a reentrant cyclic importer can
+        // read this key after the owner has initialized.
         for(const statement of exporter.ast.body) {
-          if(statement.type!=='ExportNamedDeclaration'||statement.source||
-             statement.declaration?.type!=='VariableDeclaration'||
-             statement.declaration.kind!=='const')continue;
-          for(const keyDecl of statement.declaration.declarations) {
+          const declaration=statement.type==='VariableDeclaration' ? statement :
+            statement.type==='ExportNamedDeclaration' && !statement.source ?
+              statement.declaration : null;
+          if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+          for(const keyDecl of declaration.declarations) {
             if(keyDecl.id.type!=='Identifier'||!keyDecl.init||
                keyDecl.start>=decl.start||
                exporter.bindings.get(keyDecl.id.name)!==1)continue;
             const literalKey=staticString(keyDecl.init);
             if(literalKey!==null&&names.includes(literalKey)) {
-              earlierKeyExports.set(keyDecl.id.name,literalKey);
+              earlierLocalConsts.set(keyDecl.id.name,literalKey);
+            }
+          }
+        }
+        for(const statement of exporter.ast.body) {
+          if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+          if(statement.declaration?.type==='VariableDeclaration') {
+            for(const keyDecl of statement.declaration.declarations) {
+              if(keyDecl.id.type!=='Identifier')continue;
+              const literalKey=earlierLocalConsts.get(keyDecl.id.name);
+              if(literalKey!==undefined)earlierKeyExports.set(keyDecl.id.name,literalKey);
+            }
+          } else if(!statement.declaration) {
+            for(const spec of statement.specifiers) {
+              if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier')continue;
+              const literalKey=earlierLocalConsts.get(spec.local.name);
+              const publicName=spec.exported.name??spec.exported.value;
+              if(literalKey!==undefined && typeof publicName==='string') {
+                earlierKeyExports.set(publicName,literalKey);
+              }
             }
           }
         }

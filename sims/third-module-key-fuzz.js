@@ -23,7 +23,7 @@ function random(){
 }
 
 /**
- * Generate three positive DAGs and three unsafe owners. The cycle case
+ * Generate five positive graphs and five conservative-refusal graphs. The cycle case
  * intentionally invokes an importer function before its sibling key module
  * initializes, exercising an observable TDZ ReferenceError.
  *
@@ -31,13 +31,13 @@ function random(){
  * @returns {{files:ModuleFile[],properties:number,kind:number}}
  */
 function fixture(index){
-  const kind=index%6;
+  const kind=index%10;
   const field='private_'+random().toString(16)+'_'+index;
   const value=(random()%1000)+1;
   const literal=JSON.stringify(field);
   let owner='export const bag={'+literal+':'+value+',otherField:3};';
   let key='export const key='+literal+';';
-  const imports='import {bag} from "./state.mjs";import {key} from "./key.mjs";';
+  let imports='import {bag} from "./state.mjs";import {key} from "./key.mjs";';
   let main='';
   /** @type {ModuleFile[]} */
   const extra=[];
@@ -60,10 +60,26 @@ function fixture(index){
   } else if(kind===4) {
     key='export const source='+literal+';export const key=source;';
     main=imports+'console.log(bag[key]+bag.otherField);';
-  } else {
+  } else if(kind===5) {
     main=imports+'console.log(Object.keys(bag).length,bag[key]+bag.otherField);';
+  } else if(kind===6) {
+    key='const hidden='+literal+';export {hidden as key};';
+    main=imports+'const alias=bag;console.log(alias[key]+bag.otherField);';
+  } else if(kind===7) {
+    key='let hidden='+literal+';export {hidden as key};';
+    main=imports+'console.log(bag[key]+bag.otherField);';
+  } else if(kind===8) {
+    owner='const hidden='+literal+';export {hidden as key};'+owner;
+    key='export const unrelated=1;';
+    imports='import {bag,key} from "./state.mjs";';
+    main=imports+'const alias=bag;console.log(alias[key]+bag.otherField);';
+  } else {
+    owner=owner+'const hidden='+literal+';export {hidden as key};';
+    key='export const unrelated=1;';
+    imports='import {bag,key} from "./state.mjs";';
+    main=imports+'console.log(bag[key]+bag.otherField);';
   }
-  return {kind,properties:kind<3?2:0,files:[
+  return {kind,properties:kind<3||kind===6||kind===8?2:0,files:[
     {path:'state.mjs',sourceType:'module',code:owner},
     {path:'key.mjs',sourceType:'module',code:key},
     ...extra,
@@ -94,7 +110,7 @@ async function execute(files,directory){
  * @param {number} [cases]
  * @returns {Promise<{seed:string,cases:number,accepted:number,declined:number,normalized:number}>}
  */
-async function run(cases=48){
+async function run(cases=60){
   if(!Number.isSafeInteger(cases)||cases<6||cases>600){
     throw new TypeError('cases must be an integer between 6 and 600');
   }

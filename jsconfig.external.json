@@ -10,6 +10,7 @@
     "sims/jsdeobsbench-differential.js",
     "sims/jsdeobsbench-public-static-attack.js",
     "sims/jsdeobsbench-public-protocol.js",
+    "test/jsdeobsbench-public-browser.js",
     "sims/destructuring-assignment-performance.js",
     "sims/external-function-source-contract.js",
     "examples/sco-private/build-sample.cjs",
@@ -35,6 +36,7 @@
     "test/polyvariant-app-sno.test.js",
     "sims/sco-private-dynamic-loader-grid.js",
     "sims/sco-private-runtime-source-trace.js",
+    "sims/sco-audience-bound-relay.js",
     "sims/verified-record-session-profile.js",
     "sims/ownkey-comment-static-attacker.js",
     "test/ownkey-comment-static-recovery.test.js"

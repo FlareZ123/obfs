@@ -4,6 +4,12 @@
 
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
+## Public eager XOR string encoding: independent offline extraction
+
+The default SNO eager string encoder and opt-in COO/SCO encoder distribute the XOR key, literal table and decoder in generated JavaScript. An [independent Acorn-only offline attack](../im-results/jsdeobsbench-public-static-recovery-2026-11-16.md) statically recovers every compiler-counted encoded literal reference in a pinned 1,301-program JsDeObsBench corpus for both SNO script and CommonJS. The attacker runs in a read-only, network-disabled, unprivileged container with only the distributed code, attack script and Acorn mounted; the original code, compiler metrics and official answers are withheld until a separate verifier stage. Both recovered-code full-corpus differential lanes passed at [pinned CI 43831549024](https://github.com/FlareZ123/obfs/actions/runs/43831549024), as did the separate COO native compatibility lane. A distinct real Node ESM test recovers the same pattern from opt-in COO/SCO and default SNO modules, preserving a host-owned callback.
+
+This result supports a narrow conclusion: the supplied string encoder has no static confidentiality for the observed literals under the documented threat models. Recovering literals does not recover all source structure, server-private SCO implementation, or authorization keys. Source-only parse/rewrite wall time excludes attacker development and defender runtime; the 2.5× hot-path budget still requires separate measurements. Alternate public encoders need independent attacker comparisons before security-benefit claims.
+
 ## Native multi-statement control-flow backend (negative security and performance control)
 
 The opt-in `experimentalStatementFlow` backend turns certain ordinary
