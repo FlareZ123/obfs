@@ -672,7 +672,9 @@ function renameLocalProperties(source, ast, options) {
     // A globally declared factory can be reassigned by a later classic
     // script. Its freshly returned shape is no longer the literal proven
     // from this file, so keep classic-script owners as direct literals only.
-    if (options.sourceType === 'script' && node.type !== 'ObjectExpression') return;
+    if (options.sourceType === 'script' && node.type !== 'ObjectExpression' &&
+        !(node.type === 'CallExpression' &&
+          ['ArrowFunctionExpression','FunctionExpression'].includes(node.callee.type))) return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
