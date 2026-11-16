@@ -791,7 +791,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       // for calls, reads, compound writes, and other receiver uses.
       if(((name==='toString'||name==='toSource') &&
             !isDefinitelyPrimitive(node.object) ||
-          name==='toLocaleString'&&isFunctionValue(node.object)) &&
+          name==='toLocaleString'&&(isFunctionValue(node.object)||containsFunction(node.object))) &&
           !(parent?.type==='AssignmentExpression' && key==='left' && parent.operator==='=')) observed=true;
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
@@ -830,6 +830,20 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
             node.arguments.slice(0,3):node.arguments.slice(0,1);
           if(positions.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
+        }
+      }
+      // Native Number/BigInt/Date locale-formatters and String#localeCompare
+      // forward locales/options into ECMA-402. A function-valued option can
+      // be exposed verbatim through V8's diagnostics. Arrays containing a
+      // function can also invoke its toLocaleString without a source reader.
+      if(callee.type==='MemberExpression') {
+        const method=memberName(callee);
+        if(['toLocaleString','toLocaleDateString','toLocaleTimeString',
+             'localeCompare'].includes(method??'')) {
+          const inputs=method==='localeCompare'?
+            node.arguments.slice(1,3):node.arguments.slice(0,2);
+          if(inputs.some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
         }
       }
       // Collator/Segmenter stringify inputs, while ListFormat can expose a
