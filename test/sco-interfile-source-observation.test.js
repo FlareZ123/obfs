@@ -150,3 +150,30 @@ for(const [name,reader] of /** @type {[string,string][]} */ ([
     assert.equal(await execute(delivered),expected,name);
   });
 }
+
+
+for(const [name,reader] of /** @type {[string,string][]} */ ([
+  ['Intl.Collator compare',
+    'console.log(new Intl.Collator("en").compare(inspect,'+
+    JSON.stringify('function inspect(){const local={secretField:23};return local.secretField;}')+'));'],
+  ['Intl.Segmenter segment',
+    'console.log([...new Intl.Segmenter("en").segment(inspect)].map(x=>x.segment).join(""));'],
+  ['Intl.ListFormat invalid element',
+    'try{new Intl.ListFormat("en").format([inspect]);}catch(error){console.log(error.message);}'],
+  ['Intl.supportedValuesOf invalid key',
+    'try{Intl.supportedValuesOf(inspect);}catch(error){console.log(error.message);}']
+])) {
+  test('SCO refuses cross-file Intl source mutation: '+name,async()=>{
+    /** @type {ModuleFile[]} */
+    const files=[
+      {path:'state.mjs',sourceType:'module',code:
+        'export function inspect(){const local={secretField:23};return local.secretField;}'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {inspect} from "./state.mjs";'+reader}
+    ];
+    const native=await execute(files);
+    const delivered=await receive(files);
+    assert.equal(await execute(delivered),native,name);
+    assert.equal(delivered[0].code,files[0].code,'The native function source must remain exact');
+  });
+}
