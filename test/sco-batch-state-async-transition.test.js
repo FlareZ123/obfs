@@ -119,3 +119,50 @@ test('rejecting async policy results cannot terminate Node after synchronous den
   assert.equal(result.status,0,'Unexpected child termination: '+result.stderr);
   assert.match(result.stdout,/policy-denials-survived/);
 });
+
+
+/**
+ * A rejected asynchronous transition must be refused before any private work,
+ * and a real SCO HTTP server must survive its later Promise rejection.
+ */
+test('SCO HTTP survives rejecting async policy transitions under strict Node rejection handling',()=>{
+  const {spawnSync}=require('node:child_process');
+  const {join}=require('node:path');
+  const script=[
+    "'use strict';",
+    "const assert=require('node:assert/strict');",
+    "const http=require('node:http');",
+    "const {createScoHandler,createScoBatchMethod,preflightScoBatchState}=require('./src');",
+    "let effects=0;",
+    "const methods={read:()=>{effects++;return 'private';}};",
+    "const batch=createScoBatchMethod(methods);",
+    "const policy={authorize:()=>true,transition:()=>Promise.reject(Error('async-policy-rejection'))};",
+    "const server=http.createServer(createScoHandler([],{",
+    "  remoteMethods:{batch},authorizeRpc:()=>true,",
+    "  authorizeOperation:(_req,method,args)=>method==='batch' &&",
+    "    preflightScoBatchState(args[0],true,policy)",
+    "}));",
+    "async function run(){",
+    "  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));",
+    "  try{",
+    "    const address=server.address();",
+    "    assert(address && typeof address==='object');",
+    "    const url='http://127.0.0.1:'+address.port+'/obfs/rpc';",
+    "    for(let i=0;i<2;i++){",
+    "      const response=await fetch(url,{method:'POST',headers:{'content-type':'application/json'},",
+    "        body:JSON.stringify({method:'batch',args:[[{method:'read',args:[]}]]})});",
+    "      assert.equal(response.status,500);",
+    "      assert.deepEqual(await response.json(),{ok:false,error:'Operation failed'});",
+    "    }",
+    "    assert.equal(effects,0);",
+    "  }finally{await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));}",
+    "  setImmediate(()=>process.stdout.write('http-denials-survived'));",
+    "}",
+    "run().catch(error=>{console.error(error);process.exitCode=1;});"
+  ].join('\n');
+  const result=spawnSync(process.execPath,['--unhandled-rejections=strict','-e',script],{
+    cwd:join(__dirname,'..'),encoding:'utf8',timeout:10000
+  });
+  assert.equal(result.status,0,'Unexpected child termination: '+result.stderr);
+  assert.match(result.stdout,/http-denials-survived/);
+});
