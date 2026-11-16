@@ -83,7 +83,7 @@ for(const [title,side] of [
   ['Object.getPrototypeOf direct string prototype mutation',
     'Object.getPrototypeOf("").charCodeAt=()=>0;'],
   ['Reflect.getPrototypeOf direct string prototype mutation',
-    'Reflect.getPrototypeOf("").charCodeAt=()=>0;'],
+    'Reflect.getPrototypeOf(new String("x")).charCodeAt=()=>0;'],
   ['Object.getOwnPropertyDescriptor of global String',
     'Object.getOwnPropertyDescriptor(globalThis,"String").value.fromCharCode=()=>"?";'],
   ['Object.getOwnPropertyDescriptors of global String',
