@@ -82,6 +82,58 @@ test('acyclic ESM graph proves an immutable key exported from a third module',as
   ),1);
 });
 
+
+test('top-level immutable key exported through a named alias remains provable',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookupKey as property} from "./key.mjs";'+
+      'console.log(bag[property]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'const internalKey="secretField";export {internalKey as lookupKey};'}]
+  ),1);
+});
+
+test('top-level immutable key named export preserves separate alias spellings',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {publicKey} from "./key.mjs";'+
+      'console.log(bag[publicKey]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'const internalKey="secret"+"Field";export {internalKey as publicKey};'}]
+  ),1);
+});
+
+test('mutable named export cannot enter the immutable imported key proof',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {publicKey} from "./key.mjs";'+
+      'console.log(bag[publicKey]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'let internalKey="secretField";export {internalKey as publicKey};'}]
+  ),0);
+});
+
+test('shadowed name is conservatively excluded from named export key proof',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {publicKey} from "./key.mjs";'+
+      'console.log(bag[publicKey]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'const internalKey="secretField";function shadow(){const internalKey="x";return internalKey;}'+
+        'export {internalKey as publicKey};'}]
+  ),0);
+});
+
+test('named export of toString key continues to preserve original function text',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {publicKey} from "./key.mjs";'+
+      'function probe(){return bag.secretField;}console.log(probe[publicKey]());',
+    [{path:'key.mjs',sourceType:'module',
+      code:'const internalKey="toString";export {internalKey as publicKey};'}]
+  ),0);
+});
+
 test('acyclic key proof survives a deferred top-level-await dependency',async()=>{
   await compare(graph(
     'export const bag={secretField:8};',
