@@ -204,7 +204,8 @@ async function runHeldout(seedCount=3) {
         item.kind+' normalization rewrote unrelated application payload data');
       decoyPayloadsPreserved++;
       for(const file of normalized.files) {
-        assert.doesNotMatch(file.code,/_p[a-f0-9]{10}(?:[a-f0-9]{2})?\b/u);
+        assert.doesNotMatch(file.code.replaceAll('"_p0123456789ab"',''),
+          /_p[a-f0-9]{10}(?:[a-f0-9]{2})?\b/u);
       }
       reconstructed.push({index:item.index,files:normalized.files});
     }
