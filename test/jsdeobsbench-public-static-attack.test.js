@@ -82,6 +82,11 @@ test('public-only input isolation, hash verification and exact recovery join',as
     assert.equal(metrics.programs,1);
     assert.ok(metrics.recoveredLiterals>0);
     assert.equal(metrics.sourceOnly,true);
+    assert.equal(metrics.changedPrograms,1);
+    assert.ok(metrics.originalPublicBytes>0);
+    assert.ok(metrics.recoveredSourceBytes>0);
+    assert.ok(metrics.staticDecodeWallMs>=0);
+    assert.ok(metrics.perProgramP95Ms>=metrics.perProgramMedianMs);
     const output=JSON.parse(await fs.readFile(recovered,'utf8'));
     assert.equal(output.attack_recovered_literals,metrics.recoveredLiterals);
     assert.equal(output.attack_input_sha256,row.obfs_output_sha256);
