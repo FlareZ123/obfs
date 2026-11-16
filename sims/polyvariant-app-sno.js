@@ -131,7 +131,7 @@ function runJson(executable,cases,inputFile){
 /**
  * Verify actual transformed SNO application, independent public SNO attacker,
  * plus direct ESM execution with no SNO manifest invoked.
- * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean}>}
+ * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean,staticRecovered:number,staticComparisons:number,staticOffsets:number[]}>}
  */
 async function runEvidence(){
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-sno-'));
@@ -170,6 +170,17 @@ async function runEvidence(){
     const directResult=JSON.parse(direct.stdout);
     assert.equal(directResult.output,native[0].value);
     assert.equal(directResult.intercepted,cases[0][1].length);
+    const staticChild=spawnSync(process.execPath,[
+      path.join(__dirname,'polyvariant-app-sno-static-attacker.js'),
+      protectedDir
+    ],{encoding:'utf8',timeout:90000});
+    if(staticChild.error)throw staticChild.error;
+    assert.equal(staticChild.status,0,staticChild.stderr);
+    assert.match(staticChild.stdout,/^SNO_POLYVARIANT_STATIC_ATTACK /);
+    const staticEvidence=/** @type {{recovered:number,comparisons:number,offsets:number[]}} */(
+      JSON.parse(staticChild.stdout.slice('SNO_POLYVARIANT_STATIC_ATTACK '.length)));
+    assert.equal(staticEvidence.recovered,3);
+    assert.equal(staticEvidence.comparisons,12288);
     return {
       cases:cases.length,
       changedFiles:compiled.changedFiles,
@@ -181,7 +192,10 @@ async function runEvidence(){
       selectedPaths:compiled.selectedPaths,
       manifestForged:result.manifestRewritten,
       offlineClone:result.copyMatches,
-      directEsmClone:true
+      directEsmClone:true,
+      staticRecovered:staticEvidence.recovered,
+      staticComparisons:staticEvidence.comparisons,
+      staticOffsets:staticEvidence.offsets
     };
   }finally{
     await fs.rm(temp,{recursive:true,force:true});
