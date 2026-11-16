@@ -118,14 +118,22 @@ test('finite reflective function-source differential across three deployment mod
   }
 });
 
-test('known benign static Reflect.get key leaves unrelated obfuscation possible',()=>{
-  const source="const text='source-observation-literal';const value=Reflect.get({known:2},'known');globalThis.out={value:text,source:'benign'};globalThis.count=value;";
-  const native=execute(source);
-  const transformed=obfuscateFiles([{path:'entry.js',sourceType:'script',code:source}],{
-    mode:'coo',seed:'benign-reflect-get',properties:true,identifiers:true,strings:true
+for(const [name,read] of /** @type {[string,string][]} */ ([
+  ['direct Reflect.get', "const value=Reflect.get({known:2},'known');"],
+  ['captured Reflect.get', "const get=Reflect.get;const value=get({known:2},'known');"],
+  ['assigned Reflect.get', "let get;get=Reflect.get;const value=get({known:2},'known');"],
+  ['direct descriptor', "const value=Object.getOwnPropertyDescriptor({known:2},'known').value;"]
+])) {
+  test('known benign reflective key still transforms unrelated text: '+name,()=>{
+    const source="const text='source-observation-literal';"+read+
+      "globalThis.out={value:text,source:'benign'};globalThis.count=value;";
+    const native=execute(source);
+    const transformed=obfuscateFiles([{path:'entry.js',sourceType:'script',code:source}],{
+      mode:'coo',seed:'benign-reflect-'+name,properties:true,identifiers:true,strings:true
+    });
+    const output=/** @type {string} */(transformed.files[0].code);
+    assert.deepEqual(JSON.parse(JSON.stringify(execute(output))),JSON.parse(JSON.stringify(native)));
+    assert.equal(output.includes("'source-observation-literal'"),false,
+      'Proved non-source reflection must retain unrelated string transformation');
   });
-  const output=/** @type {string} */(transformed.files[0].code);
-  assert.deepEqual(JSON.parse(JSON.stringify(execute(output))),JSON.parse(JSON.stringify(native)));
-  assert.equal(output.includes("'source-observation-literal'"),false,
-    'Proved non-source reflection must retain unrelated string transformation');
-});
+}
