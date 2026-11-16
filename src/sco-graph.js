@@ -1,7 +1,7 @@
 'use strict';
 
 const path=require('node:path');
-const {randomBytes}=require('node:crypto');
+const {randomBytes,createHash}=require('node:crypto');
 const {parse,walk,staticString}=require('./ast');
 const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
@@ -127,6 +127,11 @@ function partitionScoAsyncGraph(files,options) {
     clientFiles.push(partition.clientFile);
   }
   const privatePaths=[...names].filter(filename=>!selected.has(filename));
+  // Original input bytes are never a public facade, including originals of
+  // explicitly exposed modules. Fingerprints also catch unmodified sources
+  // that were accidentally copied under a different public filename.
+  const privateOriginalDigests=[...modules.values()].map(file=>
+    createHash('sha256').update(file.code,'utf8').digest('hex'));
   // The handler already refuses to co-publish explicitly marked private
   // paths. Carry the closed graph's non-exposed paths on each generated
   // facade, so accidentally adding an original private dependency to the
@@ -134,6 +139,7 @@ function partitionScoAsyncGraph(files,options) {
   // independently retain this proof even if the caller selects just one.
   for(const clientFile of clientFiles) {
     clientFile.privateModulePaths=[...privatePaths];
+    clientFile.privateOriginalDigests=[...privateOriginalDigests];
   }
   return {
     clientFiles,partitions,exposedPaths:[...selected],privatePaths
