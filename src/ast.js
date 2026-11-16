@@ -720,27 +720,32 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
  */
 function observesDistributedSource(ast) {
   const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
+  const loaderModules=new Set(['module','node:module','vm','node:vm']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
        node.type==='ExportNamedDeclaration' && node.source) {
-      if(fileModules.has(node.source?.value))observed=true;
+      if(fileModules.has(node.source?.value) ||
+         loaderModules.has(node.source?.value))observed=true;
     }
     if(node.type==='ImportExpression') {
       const source=staticString(node.source);
-      if(source!==null && fileModules.has(source))observed=true;
+      if(source===null || fileModules.has(source) || loaderModules.has(source))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
        node.callee.name==='require' && node.arguments[0]) {
       const source=staticString(node.arguments[0]);
-      if(source!==null && fileModules.has(source))observed=true;
+      if(source===null || fileModules.has(source) || loaderModules.has(source))observed=true;
     }
+    if(node.type==='VariableDeclarator' && node.init?.type==='Identifier' &&
+       node.init.name==='require')observed=true;
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
     if(node.type==='MemberExpression') {
       const key=node.computed ? staticString(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
-      if(key!==null && (browserReaders.has(key) || key==='getBuiltinModule')) {
+      if(key!==null && (browserReaders.has(key) ||
+        ['getBuiltinModule','createRequire','require'].includes(key))) {
         observed=true;
       }
     }
