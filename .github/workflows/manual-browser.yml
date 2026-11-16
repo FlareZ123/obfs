@@ -21,6 +21,10 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
+      - name: Verify native COO and SCO V8 failed-operand text under Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/string-failed-operand-browser.js
       - name: Run live browser integration suite
         env:
           CHROMIUM_BIN: google-chrome
