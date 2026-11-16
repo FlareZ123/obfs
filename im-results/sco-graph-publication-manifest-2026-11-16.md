@@ -46,3 +46,17 @@ The added [real HTTP regression](../test/sco-graph-private-path-policy.test.js) 
 This is source-publication hygiene under a trusted integrator, with no claim of adversarial source confidentiality. Source changes, a removed marker, intentionally reapproved filenames and separately configured HTTP servers remain outside its enforcement. For that reason, an independently reviewed `publicPaths` allowlist continues to be recommended. Work is one SHA-256 digest per original graph module at partition time, one list copy per facade, and one digest per candidate file when the handler is created; the request-time RPC hot path is unchanged. No general performance bound is established by this startup-only test.
 
 The earlier section's statement that the **pathname marker** alone cannot detect arbitrary aliases remains historically correct. The new byte-fingerprint guard closes the specific exact-copy alias case while preserving that limitation for modified content.
+
+
+## Composed graph handler follow-up (Agent 31, 2026-11-16)
+
+**Pinned exact source:** `b8ba88d3a337cd3a03ed588a0b34deeedd65cd3d`.
+**Validation:** [two-platform Node 22 multi-module SCO run 43856454956](https://github.com/FlareZ123/obfs/actions/runs/43856454956): Linux and Windows targeted workflow jobs passed, including checked-in generated facades, the private graph integration and negative HTTP tests, and strict SCO-graph JSDoc.
+
+The previous application wiring required callers to supply `graph.clientFiles` directly to `createScoHandler`, build `remoteMethods` separately through `bindScoGraphExports`, and remember `publicPaths`. Those steps were technically supported but created avoidable opportunities to insert original source files or mismatched RPC registries.
+
+The new optional `createScoGraphHandler(graph,namespaces,options)` in `src/sco-graph.js` composes existing trusted functions and refuses independently supplied `publicPaths` or `remoteMethods`. It always supplies the compiler-generated `clientFiles`, derives exact public paths from explicitly selected `exposedPaths`, binds the original loaded ESM namespaces, and refuses a generated RPC endpoint inconsistent with `routePrefix+'rpc'`. The [runnable example](../examples/sco-graph/server.cjs) now exercises this API through authenticated localhost GET/POST.
+
+A new test injects an additional original private file into a derived graph, substitutes an original exposed module for one facade, proposes an unauthorized publication allowlist, proposes an unrelated RPC method map, and mismatches its endpoint. All are refused before the HTTP listener starts. The positive live HTTP test serves the intended facades, returns 404 for both unexposed and aliased private names, and returns the expected synthetic native operation result for the generated method ID.
+
+**Scope:** The helper is a safer composition of existing primitives, with no new obfuscation technique. It cannot stop a malicious trusted operator from altering generated code or bypassing this handler, nor can it prevent an authenticated adversary from relaying RPC output. Its exact public-path list is derived from graph selection rather than an independent audit of desired exported operations; a reviewer must still assess `exposedPaths` and server-side authorization. No universal 2.5x proof follows from the targeted pass.
