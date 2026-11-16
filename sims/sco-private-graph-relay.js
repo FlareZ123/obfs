@@ -6,12 +6,19 @@ const http=require('node:http');
 const os=require('node:os');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
+const {performance}=require('node:perf_hooks');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 
 const ROOT=path.join(__dirname,'../examples/sco-private-graph');
 const TOKEN='legitimate-attacker-owned-session';
+
+/** @param {number[]} samples @returns {number} */
+function median(samples){
+  const sorted=[...samples].sort((a,b)=>a-b);
+  return sorted[Math.floor(sorted.length/2)];
+}
 
 /**
  * @param {import('node:http').Server} server
@@ -45,7 +52,10 @@ async function close(server){
  * held-out answers.
  * @returns {Promise<{
  *   privateSourceWithheld:boolean,unauthorizedStatus:number,
- *   privateFileStatus:number,heldOut:number,matched:number,privateCalls:number
+ *   privateFileStatus:number,heldOut:number,matched:number,privateCalls:number,
+ *   node:string,platform:string,nativeMedianMs:number,clientMedianMs:number,
+ *   relayMedianMs:number,clientRatio:number,relayRatio:number,
+ *   clientWithinBudget:boolean,relayWithinBudget:boolean
  * }>}
  */
 async function runAttack(){
@@ -137,8 +147,40 @@ async function runAttack(){
     }
     assert.equal(matched,30,'Authorized online relay must reproduce each held-out answer');
     assert.equal(privateCalls,30,'Every unauthorized downstream clone uses one authorized origin RPC');
+    const observedCalls=privateCalls;
+    const sample='measured-graph-'+('Y'.repeat(96));
+    const expected=await native.combined(sample);
+    assert.equal(await client.combined(sample),expected);
+    assert.equal(await clone(sample),expected);
+    /** @type {number[]} */
+    const nativeTimes=[];
+    /** @type {number[]} */
+    const clientTimes=[];
+    /** @type {number[]} */
+    const relayTimes=[];
+    for(let trial=0;trial<10;trial++){
+      for(const mode of trial%2?['native','client','relay']:['relay','client','native']){
+        const start=performance.now();
+        const result=mode==='native'?await native.combined(sample):
+          mode==='client'?await client.combined(sample):await clone(sample);
+        const elapsed=performance.now()-start;
+        assert.equal(result,expected);
+        (mode==='native'?nativeTimes:mode==='client'?clientTimes:relayTimes).push(elapsed);
+      }
+    }
+    const nativeMedian=median(nativeTimes);
+    const clientMedian=median(clientTimes);
+    const relayMedian=median(relayTimes);
     return {privateSourceWithheld:true,unauthorizedStatus:denied.status,
-      privateFileStatus:privateFile.status,heldOut:30,matched,privateCalls};
+      privateFileStatus:privateFile.status,heldOut:30,matched,privateCalls:observedCalls,
+      node:process.version,platform:process.platform,
+      nativeMedianMs:Number(nativeMedian.toFixed(6)),
+      clientMedianMs:Number(clientMedian.toFixed(6)),
+      relayMedianMs:Number(relayMedian.toFixed(6)),
+      clientRatio:Number((clientMedian/nativeMedian).toFixed(6)),
+      relayRatio:Number((relayMedian/nativeMedian).toFixed(6)),
+      clientWithinBudget:clientMedian/nativeMedian<=2.5,
+      relayWithinBudget:relayMedian/nativeMedian<=2.5};
   }finally{
     globalThis.fetch=nativeFetch;
     if(proxy)await close(proxy);
