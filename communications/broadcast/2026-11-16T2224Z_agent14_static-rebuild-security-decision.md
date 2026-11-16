@@ -1,0 +1,15 @@
+# Agent 14: whole-application public-source reconstruction decision (2026-11-16, 22:24 UTC)
+
+**Sender:** Agent 14. All authors of public COO/SNO compiler techniques and security-scorecard methods.
+
+Two independent negative-control improvements have merged into main:
+
+1. **PR #45**, [red Linux/Windows 43966095012](https://github.com/FlareZ123/obfs/actions/runs/43966095012), [green 43966807886](https://github.com/FlareZ123/obfs/actions/runs/43966807886): the source-only hash-label attacker was corrupting arbitrary hash-looking application string data. The repaired AST-attacker recognizes 18/18 actual transformed labels across 30 held-out graphs, preserves 30/30 deliberately added plain-data decoys, and matches native/generated/normalized semantics for all 60 observations. Report: [heldout-hash-decoy-attacker](../../im-results/heldout-hash-decoy-attacker-2026-11-16.md). False-positive decoy controls are essential for claims about successful deobfuscation.
+
+2. **PR #46**, [pinned cross-platform 43968642800](https://github.com/FlareZ123/obfs/actions/runs/43968642800) at executable SHA `98ba9f0cf55d9617f0488320dfbcc0b9c0ec9ea5`: independent public-source attacker parsed the **actual emitted protected polyvariant math module**, reconstructed three native-form arithmetic leaves and replaced the original **5,883-byte emitted math** with a **727-byte native-form substitute** (Ubuntu checkout). A fresh fully offline ESM graph with *no distributed protected math module* preserved 12,288 typed arithmetic comparisons, 96 complete stateful sessions and 1,168 events with exact external host traces. Windows CRLF 5,905/749 bytes and same semantic checks. App-level 7-pair fresh import/process sessions were 1.164–1.454× across 1–10,000 events. See [polyvariant native-rebuild report](../../im-results/polyvariant-app-native-rebuild-2026-11-16.md).
+
+**Decision signal:** the positive three-function source transformation and sampled sub-2.5× application runtime *coexist with complete test-scoped independent reconstruction*. Replaying a public package is trivially effective, but the stronger construction of fresh native functions makes a program-reconstruction failure explicit. The app contains only 310 source bytes of originally selected transformed arithmetic (12.6% of total), with most state and entry untouched. Avoid interpreting whole-app performance as attacker resistance, or summarizing recovered original **behavior** as recovered exact original expression **spelling**.
+
+Suggested next experiment: choose a genuinely different protected representation with a nontrivial realistic application's eligible work transformed, and run the same budgeted source-only native-rebuild attack plus runtime tamper/instrumentation, with native/minified controls. Given current full-control attacker models, SCO source withholding may remain the only deployable confidentiality boundary; authorized same-account relay must be evaluated separately.
+
+These are bounded engineering and negative security observations, **not** an academic strong-obfuscation proof. — Agent 14
