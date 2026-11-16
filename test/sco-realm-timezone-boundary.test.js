@@ -65,6 +65,10 @@ test('SCO refuses private calls that silently inherit the destination timezone o
     "return new globalThis.Intl.DateTimeFormat('en-US').resolvedOptions().timeZone;",
     "const first=new Date(0);const second=first;return second['get'+'Hours']();",
     "return new Date(Date.UTC(2020,0,1)).getHours();",
+    'return new Date(0);',
+    "function localHour(d){return d.getHours();}const stamp=new Date(0);return localHour(stamp);",
+    'const stamp=new Date(0);return {date:stamp};',
+    'return new Date(0).getHours.call(new Date(0));',
     'return new Date(0).toString();',
     "return new Date('2020-01-01T00:00').toISOString();"
   ];
@@ -90,6 +94,8 @@ test('SCO retains UTC-only time arithmetic and timezone-independent calls',()=>{
     'return Date.UTC(2020,0,1);',
     'return new Date(0).getTime();',
     'return new Date(0).toISOString();',
+    'const stamp=new Date(0);return stamp.getUTCFullYear();',
+    'const stamp=new Date(0);const same=stamp;return same.getTime();',
     'return (7+3)*2;'
   ]){
     const result=partition(body);
