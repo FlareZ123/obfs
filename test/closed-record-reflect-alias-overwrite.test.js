@@ -105,6 +105,36 @@ const cases=[
     '  return native(receiver);',
     '};'
   ].join('\n'),true],
+  ['Object.defineProperty overwrites ambient Reflect via alias',[
+    'const R=Reflect;',
+    'const native=R.ownKeys;',
+    "Object.defineProperty(R,'ownKeys',{configurable:true,writable:true,value:function(receiver){",
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=globalThis.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '}});'
+  ].join('\n'),true],
+  ['Reflect.set overwrites ownKeys through alias',[
+    'const R=Reflect;',
+    'const native=R.ownKeys;',
+    "Reflect.set(R,'ownKeys',function(receiver){",
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=globalThis.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '});'
+  ].join('\n'),true],
+  ['Object.assign overwrites ownKeys through alias',[
+    'const R=Reflect;',
+    'const native=R.ownKeys;',
+    'Object.assign(R,{ownKeys:function(receiver){',
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=globalThis.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '}});'
+  ].join('\n'),true],
   ['unrelated local ownKeys overwrite',[
     'const local={ownKeys(){return 0;}};',
     'local.ownKeys=function(){return 1;};'
