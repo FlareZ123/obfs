@@ -8,7 +8,8 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls}=require('../sims/application-challenge-observer-ablation');
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
+  require('../sims/application-challenge-observer-ablation');
 
 const exec=promisify(execFile);
 const CASES=[[0,0],[0,1],[0xffffffff,3],
@@ -27,9 +28,10 @@ function externalValue(value){
 }
 
 /**
- * Real Chromium verification of two complete ESM graphs from distinct
- * source-only and transformed own-record applications. The browser installs
- * the same caller-owned host API before evaluating either graph.
+ * Real Chromium evaluation of two separate legitimate six-module application
+ * source contracts, each paired with its own emitted COO graph. The null-
+ * prototype variant deliberately retains the dynamic missing-key call and
+ * runs against a caller-injected Object.prototype host Function.
  * @returns {Promise<void>}
  */
 async function main(){
@@ -38,31 +40,50 @@ async function main(){
     path:name,sourceType:'module',
     code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
-  const native=withOwnKeyCalls(ablate(original,'both'));
-  const compiled=obfuscateFiles(native,{
-    mode:'coo',closedWorld:true,seed:SEED,identifiers:true,
-    properties:true,strings:false
-  });
-  assert.equal(compiled.crossFile.properties,2,
-    'Chromium must execute genuinely transformed private properties');
+  const withoutObservers=ablate(original,'both');
+  const ownNative=withOwnKeyCalls(withoutObservers);
+  const nullNative=withNullPrototypeRecord(withoutObservers);
+  const compile=(/** @type {{path:string,sourceType:'module',code:string}[]} */ files)=>
+    obfuscateFiles(files,{mode:'coo',closedWorld:true,seed:SEED,
+      identifiers:true,properties:true,strings:false});
+  const ownCompiled=compile(ownNative);
+  const nullCompiled=compile(nullNative);
+  assert.equal(ownCompiled.crossFile.properties,2,
+    'Own-key-only application must rename two genuinely private fields');
+  assert.equal(nullCompiled.crossFile.properties,2,
+    'Null-prototype application must retain its missing-key call and rename two fields');
+  /** @type {Map<string,string>} */
   const sources=new Map();
-  for(const file of native)sources.set('/native/'+file.path,file.code);
-  for(const file of compiled.files)sources.set('/compiled/'+file.path,
-    /** @type {string} */(file.code));
+  /** @type {[string,ReadonlyArray<{path:string,code:string|Buffer}>][]} */
+  const fileSets=[
+    ['/own-native/',ownNative],['/own-compiled/',ownCompiled.files],
+    ['/null-native/',nullNative],['/null-compiled/',nullCompiled.files]
+  ];
+  for(const [prefix,files] of fileSets) {
+    for(const file of files)sources.set(prefix+file.path,
+      /** @type {string} */(file.code));
+  }
   const html=[
     '<!doctype html><html><head><meta charset="utf-8"></head><body>',
     '<script type="module">',
     'try {',
+    'Object.prototype.noSuchField=Function;',
     'window.externalValue='+externalValue.toString()+';',
-    'const [original,emitted]=await Promise.all([',
-    '  import("/native/app.mjs"),import("/compiled/app.mjs")',
+    'const [ownNative,ownCompiled,nullNative,nullCompiled]=await Promise.all([',
+    '  import("/own-native/app.mjs"),import("/own-compiled/app.mjs"),',
+    '  import("/null-native/app.mjs"),import("/null-compiled/app.mjs")',
     ']);',
     'const cases='+JSON.stringify(CASES)+';',
-    'const raw=cases.map(([seed,count])=>original.evaluate(seed,count));',
-    'const changed=cases.map(([seed,count])=>emitted.evaluate(seed,count));',
+    'const ownRaw=cases.map(([seed,count])=>ownNative.evaluate(seed,count));',
+    'const ownChanged=cases.map(([seed,count])=>ownCompiled.evaluate(seed,count));',
+    'const nullRaw=cases.map(([seed,count])=>nullNative.evaluate(seed,count));',
+    'const nullChanged=cases.map(([seed,count])=>nullCompiled.evaluate(seed,count));',
+    'const missingTypes=[typeof nullRaw[0].missing.value,',
+    '  typeof nullChanged[0].missing.value];',
     'const pre=document.createElement("pre");',
-    'pre.id="result";pre.textContent=btoa(JSON.stringify({raw,changed}));',
-    'document.body.append(pre);',
+    'pre.id="result";pre.textContent=btoa(JSON.stringify({',
+    '  ownRaw,ownChanged,nullRaw,nullChanged,missingTypes',
+    '}));document.body.append(pre);',
     '} catch(error) {',
     'const pre=document.createElement("pre");pre.id="failure";',
     'pre.textContent=String(error.stack||error);document.body.append(pre);',
@@ -90,16 +111,19 @@ async function main(){
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing HTTP port');
     const origin='http://127.0.0.1:'+address.port;
-    const emittedSource=await fetch(origin+'/compiled/private.mjs');
-    assert.equal(emittedSource.status,200);
-    const bytes=await emittedSource.text();
-    assert.ok(bytes.includes('_p'),'Expected emitted private-property spellings');
-    assert.ok(!bytes.includes('secretOffset:19') && !bytes.includes('secretSalt:37'),
-      'Browser-delivered owner literal must use renamed keys');
-    const nativeSource=await fetch(origin+'/native/private.mjs');
-    assert.equal(nativeSource.status,200);
-    assert.notEqual(await nativeSource.text(),bytes,
-      'Both browser graphs must have genuinely different source bytes');
+    for(const variant of ['own','null']){
+      const emittedSource=await fetch(origin+'/'+variant+'-compiled/private.mjs');
+      assert.equal(emittedSource.status,200);
+      const bytes=await emittedSource.text();
+      assert.ok(bytes.includes('_p'),'Expected emitted private-property spellings');
+      assert.ok(!bytes.includes('secretOffset:19') &&
+        !bytes.includes('secretSalt:37'),
+        'Browser-delivered owner literal must use renamed keys');
+      const nativeSource=await fetch(origin+'/'+variant+'-native/private.mjs');
+      assert.equal(nativeSource.status,200);
+      assert.notEqual(await nativeSource.text(),bytes,
+        'Both browser graphs must have genuinely different source bytes');
+    }
     const chromium=process.env.CHROMIUM_BIN??'google-chrome';
     const {stdout}=await exec(chromium,[
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -108,13 +132,21 @@ async function main(){
     const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
     assert.ok(encoded,'Chromium did not evaluate both graph variants: '+stdout.slice(0,1800));
     const result=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
-    assert.equal(result.raw.length,countCases());
-    assert.deepEqual(result.changed,result.raw,
+    assert.equal(result.ownRaw.length,countCases());
+    assert.equal(result.nullRaw.length,countCases());
+    assert.deepEqual(result.ownChanged,result.ownRaw,
       'Real Chromium must preserve own-key-only ESM app outputs exactly');
+    assert.deepEqual(result.nullChanged,result.nullRaw,
+      'Real Chromium must preserve null-prototype ESM app outputs exactly');
+    assert.deepEqual(result.missingTypes,['undefined','undefined'],
+      'Host Function injected on Object.prototype must not reach a null-prototype record');
     process.stdout.write('VERIFIED_RECORD_CHROMIUM '+JSON.stringify({
-      cases:CASES.length,renamedPrivateFields:compiled.crossFile.properties,
+      cases:CASES.length,renamedPrivateFields:ownCompiled.crossFile.properties,
+      nullPrototypePrivateFieldsRenamed:nullCompiled.crossFile.properties,
+      nullPrototypeMissingKeyWithHostFunction:'undefined',
       privateSourcePubliclyFetchable:true,allOutputsMatch:true,
-      originalGraphFiles:native.length,emittedGraphFiles:compiled.files.length
+      originalGraphFiles:ownNative.length,emittedGraphFiles:ownCompiled.files.length,
+      distinctSourceVariants:2
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(

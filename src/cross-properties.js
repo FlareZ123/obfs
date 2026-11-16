@@ -581,15 +581,29 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }
   }
   if(!declaration || !declaration.init ||
-      declaration.init.type!=='ObjectExpression' ||
-      !declaration.init.properties.every((/** @type {AstNode} */ property)=>
-        property.type==='Property' && property.kind==='init' &&
-        !property.method && !property.shorthand && !property.computed &&
-        property.value.type==='Literal' &&
-        (property.value.value===null ||
-          ['string','number','boolean','bigint'].includes(typeof property.value.value)) &&
-        ownPropertyName(property)!==null &&
-        !['__proto__','constructor','prototype'].includes(String(ownPropertyName(property)))))return false;
+      declaration.init.type!=='ObjectExpression')return false;
+  const recordEntries=declaration.init.properties;
+  // An ordinary literal has an inherited Object.prototype: unknown or
+  // missing keys can resolve to a host-installed Function. The special,
+  // noncomputed __proto__:null initializer has no inherited properties and
+  // creates no own __proto__ field. Do not confuse this syntax with
+  // ['__proto__']:null, a normal computed own property.
+  const nullPrototype=recordEntries.some((/** @type {AstNode} */ property)=>
+    property.type==='Property' && property.kind==='init' &&
+    !property.method && !property.shorthand && !property.computed &&
+    ownPropertyName(property)==='__proto__' &&
+    property.value.type==='Literal' && property.value.value===null);
+  if(!recordEntries.every((/** @type {AstNode} */ property)=>{
+    if(property.type!=='Property' || property.kind!=='init' ||
+        property.method || property.shorthand || property.computed ||
+        property.value.type!=='Literal' ||
+        !(property.value.value===null ||
+          ['string','number','boolean','bigint'].includes(typeof property.value.value)))return false;
+    const name=ownPropertyName(property);
+    if(name===null)return false;
+    if(name==='__proto__')return nullPrototype && property.value.value===null;
+    return nullPrototype || !['constructor','prototype'].includes(String(name));
+  }))return false;
   // Only these unescaped read-only uses of the private record are admissible.
   let receiverStable=true;
   walk(module.ast,(node,parent,key)=>{
@@ -650,8 +664,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     '__defineGetter__','__defineSetter__','__lookupGetter__','__lookupSetter__',
     'hasOwnProperty','isPrototypeOf','propertyIsEnumerable',
     'toLocaleString','toString','valueOf']);
-  const ownNames=new Set(declaration.init.properties.map(ownPropertyName));
-  return [...keys].every(key=>ownNames.has(key) && !inherited.has(key));
+  const ownNames=new Set(recordEntries.filter((/** @type {AstNode} */ property)=>
+    ownPropertyName(property)!=='__proto__').map(ownPropertyName));
+  return [...keys].every(key=>nullPrototype ||
+    ownNames.has(key) && !inherited.has(key));
 }
 
 /**

@@ -33,8 +33,16 @@ jobs:
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
+      - name: Paired own-key and null-prototype six-module startup-and-session profiles
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/verified-record-session-profile.js
       - name: Real Chromium module and host-lock integration
         if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Real Chromium null-prototype protected-key and host-inheritance parity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/verified-record-browser.js

@@ -49,6 +49,24 @@ function withOwnKeyCalls(files) {
   });
 }
 
+/**
+ * Separate diagnostic application: its source already declares a null
+ * prototype for a closed record. Missing keys cannot select an inherited
+ * host Function. This is an intentional source change, not a transformation
+ * the compiler performs on the frozen original application.
+ * @param {{path:string,sourceType:'module',code:string}[]} files
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function withNullPrototypeRecord(files){
+  return files.map(file=>{
+    if(file.path!=='reflect.mjs')return file;
+    const original="const schema={externalFormat:'audit-v1',auditCount:3};";
+    assert.ok(file.code.includes(original),'Expected original private record');
+    return {...file,code:file.code.replace(original,
+      "const schema={__proto__:null,externalFormat:'audit-v1',auditCount:3};")};
+  });
+}
+
 /** @returns {Promise<unknown[]>} */
 async function main(){
   const originals=await Promise.all(NAMES.map(async name=>({
@@ -56,10 +74,12 @@ async function main(){
     code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
   const rows=[];
-  for(const variant of ['none','reflect','entry','both','own-only']){
+  for(const variant of ['none','reflect','entry','both','own-only','null-proto']){
     const withoutObservers=ablate(originals,
-      /** @type {'none'|'reflect'|'entry'|'both'} */(variant==='own-only'?'both':variant));
-    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):withoutObservers;
+      /** @type {'none'|'reflect'|'entry'|'both'} */(
+        variant==='own-only'||variant==='null-proto'?'both':variant));
+    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):
+      variant==='null-proto'?withNullPrototypeRecord(withoutObservers):withoutObservers;
     const observerPaths=sources.filter(file=>observesFunctionSource(
       parse(file.code,'module'))).map(file=>file.path);
     const compiled=obfuscateFiles(sources,{
@@ -73,14 +93,14 @@ async function main(){
     });
   }
   assert.deepEqual(rows.map(row=>row.observerPaths),[
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[]
+    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[],[]
   ]);
-  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2],
-    'Missing-key inheritance must decline; own-key-only calls restore coverage');
+  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2,2],
+    'Plain missing keys decline; changed own-key-only and null-prototype programs retain coverage');
   process.stdout.write('APPLICATION_SOURCE_OBSERVER_ABLATION '+JSON.stringify(rows)+'\n');
   return rows;
 }
 if(require.main===module){
   main().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={main,ablate,withOwnKeyCalls};
+module.exports={main,ablate,withOwnKeyCalls,withNullPrototypeRecord};
