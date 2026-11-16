@@ -350,19 +350,27 @@ function mutatesDecoderIntrinsic(ast) {
       mutated=true;
       return;
     }
-    // Reading a descriptor of globalThis.String can expose the mutable
-    // constructor through .value or a deferred consumer. The value might be
-    // modified after alias analysis, so decline the decoder conservatively.
+    // Reflective getters of global constructors and the Array prototype
+    // can return mutable references or descriptors. An alias held by another
+    // function can mutate them after this syntax-only analysis.
     const name=node.arguments[1];
     const mayReadString=!name||name.type!=='Literal'||name.value==='String';
-    if(isObjectIntrinsic(receiver) && isGlobal(first) &&
-       (method==='getOwnPropertyDescriptors' ||
-         method==='getOwnPropertyDescriptor' && mayReadString)) {
+    const mayReadArray=!name||name.type!=='Literal'||name.value==='Array';
+    const mayReadPrototype=!name||name.type!=='Literal'||name.value==='prototype';
+    if(isObjectIntrinsic(receiver) &&
+       (isGlobal(first) &&
+          (method==='getOwnPropertyDescriptors' ||
+           method==='getOwnPropertyDescriptor' &&
+             (mayReadString||mayReadArray)) ||
+        isArrayValue(first) &&
+          (method==='getOwnPropertyDescriptors' ||
+           method==='getOwnPropertyDescriptor' && mayReadPrototype))) {
       mutated=true;
       return;
     }
-    if(isReflectIntrinsic(receiver) && isGlobal(first) &&
-       method==='get' && mayReadString) {
+    if(isReflectIntrinsic(receiver) && method==='get' &&
+       (isGlobal(first) && (mayReadString||mayReadArray) ||
+        isArrayValue(first) && mayReadPrototype)) {
       mutated=true;
       return;
     }
