@@ -727,13 +727,14 @@ function observesDistributedSource(ast) {
        node.type==='ExportNamedDeclaration' && node.source) {
       if(fileModules.has(node.source?.value))observed=true;
     }
-    if(node.type==='ImportExpression' && fileModules.has(staticString(node.source))) {
-      observed=true;
+    if(node.type==='ImportExpression') {
+      const source=staticString(node.source);
+      if(source!==null && fileModules.has(source))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
-       node.callee.name==='require' && node.arguments[0] &&
-       fileModules.has(staticString(node.arguments[0]))) {
-      observed=true;
+       node.callee.name==='require' && node.arguments[0]) {
+      const source=staticString(node.arguments[0]);
+      if(source!==null && fileModules.has(source))observed=true;
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
     if(node.type==='MemberExpression') {
