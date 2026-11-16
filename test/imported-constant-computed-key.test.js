@@ -95,7 +95,8 @@ test('acyclic independent key and owner survive proven identity forwarding',asyn
   await compare(graph(
     'export const bag={secretField:8};',
     'import {bag} from "./state.mjs";import {key} from "./key.mjs";'+
-      'import {identity} from "./identity.mjs";console.log(identity(bag)[key]);',
+      'import {identity} from "./identity.mjs";'+
+      'const alias=identity(bag);console.log(alias[key]);',
     [
       {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
       {path:'identity.mjs',sourceType:'module',code:'export function identity(x){return x;}'}
