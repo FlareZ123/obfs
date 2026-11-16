@@ -82,3 +82,24 @@ and other reported checks; its single failure was in contemporaneous
 The failing application graph did not originate in the private-array
 proof. The run cannot be called green; another full run is needed after
 the separate example is corrected.
+
+## Warm hot-loop measurement (same full-suite CI)
+
+The [full Linux+Windows run 43804439189](https://github.com/FlareZ123/obfs/actions/runs/43804439189)
+did reach the `npm run benchmark` step after its unrelated behavioral
+test failure. Both OS benchmark steps themselves passed the 2.5× gate.
+For the newly added `single-slot private-array owner access` workload,
+the reported medians of nine alternating warm runs, each with one million
+loop iterations, were:
+
+| Runner | Native | Transformed | Reported ratio | Properties |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu Node 22 | 0.62 ms | 0.62 ms | 0.999× | 2 |
+| Windows Node 22 | 0.64 ms | 0.62 ms | 0.958× | 2 |
+
+These rounded displays coexist with unrounded internal values used in
+ratio calculations. The numbers support only this hot-loop fixture, not
+the universal 2.5× contract for all programs, cold initialization or
+mixed workloads. This table is benchmark-step evidence from a red
+full-suite run; the integrated run remains red for the separate
+polyvariant-app failure described above.
