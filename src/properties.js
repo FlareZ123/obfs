@@ -667,6 +667,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       patterns.push(...fields);
       continue;
     }
+    // A verified return of the owner may feed one immediate, statically
+    // keyed member read without first creating an alias variable.  Record
+    // that member in the same edit/TypeError checks used for direct aliases.
+    // Optional calls and unknown computed keys retain the original shape.
+    if (callParent?.type === 'MemberExpression' &&
+        callParent.object === parent && !callParent.optional && !parent.optional) {
+      const property = callParent.computed ?
+        staticString(callParent.property) ??
+          (callParent.property.type === 'Identifier' ?
+            constantKeys.get(callParent.property.name) ?? null : null) :
+        staticName(callParent.property);
+      if (property === null) return null;
+      memberNames.set(callParent,property);
+      members.push(callParent);
+      continue;
+    }
     // A forwarding call can feed another already-proven direct consumer.
     // Both functions must be admitted by the no-escape proof, and the
     // receiving formal must be a tracked alias. This preserves ownership
