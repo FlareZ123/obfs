@@ -35,6 +35,12 @@ jobs:
         env:
           OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
+      - name: Statement CFG native-versus-host callback workload profile
+        run: node sims/statement-flow-profile.js
+      - name: Real Chromium multi-statement CFG native differential
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/statement-flow-browser.js
       - name: Real Chromium COO differential
         env:
           CHROMIUM_BIN: google-chrome
@@ -67,5 +73,7 @@ jobs:
         env:
           OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
+      - name: Statement CFG native-versus-host callback workload profile
+        run: node sims/statement-flow-profile.js
       - name: Strict JSDoc
         run: npm run typecheck
