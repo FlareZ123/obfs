@@ -1041,7 +1041,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       (key===null || ['cache','main','extensions'].includes(key)) ||
       moduleRoots.has(receiver) &&
       (key===null || ['children','parent','constructor'].includes(key)) ||
-      processRoots.has(receiver) && (key===null || key==='mainModule');
+      processRoots.has(receiver) &&
+        (key===null || ['mainModule','binding','_linkedBinding','dlopen'].includes(key));
   }
   /** @param {AstNode} receiver @param {string|null} key @returns {boolean} */
   function canReadLoaderRoot(receiver,key) {
