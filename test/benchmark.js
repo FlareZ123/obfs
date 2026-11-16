@@ -56,6 +56,10 @@ function run(n){let sum=0;for(let i=0;i<n;i++){
 }return sum;}
 module.exports=run;`,2);
 
+bench('forwarded immediate member read',`const state={secretField:7};const identity=value=>value;
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=identity(state).secretField;return sum;}
+module.exports=run;`,1);
+
 bench('single-use function factory',`function make(){return {secretField:7,otherField:5};}
 const state=make();
 function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
