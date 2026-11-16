@@ -134,6 +134,52 @@ test('named export of toString key continues to preserve original function text'
   ),0);
 });
 
+
+test('same-module earlier local const named export aliases a private owner key',async()=>{
+  await compare(graph(
+    'const internalKey="secretField";export {internalKey as publicKey};'+
+      'export const bag={secretField:8};',
+    'import {bag,publicKey} from "./state.mjs";console.log(bag[publicKey]);'
+  ),1);
+});
+
+test('same-module export specifier may appear before its proven initializer',async()=>{
+  await compare(graph(
+    'export {internalKey as publicKey};const internalKey="secretField";'+
+      'export const bag={secretField:8};',
+    'import {bag,publicKey} from "./state.mjs";console.log(bag[publicKey]);'
+  ),1);
+});
+
+test('same-module later local key stays outside the private-owner proof',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};const internalKey="secretField";'+
+      'export {internalKey as publicKey};',
+    'import {bag,publicKey} from "./state.mjs";console.log(bag[publicKey]);'
+  ),0);
+});
+
+test('cyclic earlier named local key is safe after exported owner initialization',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";const internalKey="secretField";'+
+      'export const bag={secretField:8};export {internalKey as publicKey};'+
+      'console.log("cycle",probe());',
+    'import {bag,publicKey} from "./state.mjs";'+
+      'export function probe(){return bag[publicKey];}'
+  ),1);
+});
+
+test('cyclic later named local key preserves early TDZ ReferenceError',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const bag={secretField:8};'+
+      'try{console.log(probe());}catch(error){console.log(error.name);}'+
+      'const internalKey="secretField";export {internalKey as publicKey};'+
+      'console.log("ready",probe());',
+    'import {bag,publicKey} from "./state.mjs";'+
+      'export function probe(){return bag[publicKey];}'
+  ),0);
+});
+
 test('acyclic key proof survives a deferred top-level-await dependency',async()=>{
   await compare(graph(
     'export const bag={secretField:8};',
