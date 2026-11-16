@@ -25,7 +25,8 @@ const generatedGraphSnapshots=new WeakMap();
  *   clientFiles:ScoModulePartition['clientFile'][],
  *   partitions:Record<string,ScoModulePartition>,
  *   exposedPaths:string[],
- *   privatePaths:string[]
+ *   privatePaths:string[],
+ *   privateSourceDigests:{path:string,sha256:string}[]
  * }} ScoGraphPartition
  */
 
@@ -141,8 +142,11 @@ function partitionScoAsyncGraph(files,options) {
   // Original input bytes are never a public facade, including originals of
   // explicitly exposed modules. Fingerprints also catch unmodified sources
   // that were accidentally copied under a different public filename.
-  const privateOriginalDigests=[...modules.values()].map(file=>
-    createHash('sha256').update(file.code,'utf8').digest('hex'));
+  const privateSourceDigests=[...modules.values()].map(file=>({
+    path:file.path,
+    sha256:createHash('sha256').update(file.code,'utf8').digest('hex')
+  }));
+  const privateOriginalDigests=privateSourceDigests.map(item=>item.sha256);
   // The handler already refuses to co-publish explicitly marked private
   // paths. Carry the closed graph's non-exposed paths on each generated
   // facade, so accidentally adding an original private dependency to the
@@ -152,7 +156,8 @@ function partitionScoAsyncGraph(files,options) {
     clientFile.privateModulePaths=[...privatePaths];
     clientFile.privateOriginalDigests=[...privateOriginalDigests];
   }
-  const graph={clientFiles,partitions,exposedPaths:[...selected],privatePaths};
+  const graph={clientFiles,partitions,exposedPaths:[...selected],privatePaths,
+    privateSourceDigests};
   // Preserve the generated publication and method identities independently
   // of the mutable manifest returned to integrators. This is startup-only.
   generatedGraphSnapshots.set(graph,JSON.stringify(graph));
