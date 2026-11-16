@@ -108,3 +108,41 @@ focusing private SCO work on coarse calls with measured network cost,
 and demanding independently proven source-observer precision improvements
 before claiming broader coverage. It provides no release-ready
 full-control reconstruction or tamper-resistance claim.
+
+## SNO single-entry application comparisons (16 November)
+
+These two SNO app comparisons use an actually generated launcher and a
+single OS-invoked CommonJS entry. They probe separate compiler-coverage
+conditions under complete filesystem and runtime ownership.
+
+| Evidence | Frozen six-module SNO original | Frozen three-module, transformed SNO polyvariant |
+|---|---|---|
+| Source shipped | All 2,786 bytes of original six-file ESM graph unchanged | 2,467 original ESM graph bytes expand to 7,495; one of three modules transformed |
+| Protected coverage | 0 transformed fields, literals, identifiers or modules because entire graph refused | 3 arithmetic leaves, 6 paths; 310 selected source bytes (12.6% of original graph) |
+| Node entry | SHA-256-checking CJS launcher with CJS dynamic-import bridge, seven application/bridge file hashes | Same SNO entry pattern, four app/bridge file hashes |
+| Native behavioral match | 85/85 deterministic scenarios, Ubuntu and Windows | 96/96 stateful scenarios, including external host callbacks and reflection |
+| Static reconstruction | Exact original source distributed | 3/3 selected affine leaves independently reconstructed from public AST; 12,288 held-out signed Int32 checks |
+| Independent local owner | Copies eight published files, clones outputs, edits public hash manifest to execute forged code | Copies five published files, clones outputs, rewrites public hash, bypasses launcher by direct ESM import |
+| Runtime instrumentation | Not independently exercised in this fixed application; separate Agent 3 CJS counterexample exists | Node 22 ESM load-hook replaces transformed math source in memory, outputs attacker-chosen digest 777 after successful disk hashing; 0 changed published bytes |
+| Paired whole-session costs | Ubuntu 1.106x / 1.076x, Windows 1.101x / 1.097x for 1 / 120k events | Pinned 1/50/1k/10k event medians within 1.049x–1.164x across Ubuntu and Windows |
+| Decision | Compatible wrapper and accidental-change detector, 0 obfuscation benefit in original graph | Demonstrable code transformation at bounded sampled overhead; still full-control static/functional/integrity failures |
+
+The [six-module SNO source/refusal report](application-challenge-sno-owner-attack-2026-11-16.md)
+is pinned to [CI 43811902422](https://github.com/FlareZ123/obfs/actions/runs/43811902422)
+at 2578e34886705c40a6006fd2bba50ea99db6fe4f.
+The [transformed polyvariant SNO report](polyvariant-app-sno-attack-cost-2026-11-16.md)
+is pinned to [CI 43814631907](https://github.com/FlareZ123/obfs/actions/runs/43814631907)
+at 61e7143ddaca118aef3206aa915cf7cc7ce1d0b1.
+The emitted graph and launcher SHA-256 digests match byte-for-byte across
+both OSs after canonical source newline normalization.
+
+These SNO observations confirm the earlier SNO full-control attacker
+warning using a nontrivial transformed ESM app. Public-file copying
+reproduces behavior without algorithm recovery; seedless AST recovery is
+possible here because the selected affine backend exposes a recognizable
+finite path grammar; runtime ESM substitution tests a distinct capability
+from manifest edits. The chosen-input workloads meet the sampled 2.5x
+budget, but neither SNO application demonstrates actual authorization
+or reconstruction resistance against the stated owner. This is an
+engineering decision aid, not an asserted universal impossibility proof
+or an academically established result.
