@@ -27,6 +27,24 @@ calls to the real server. None of these intermediate observations
 establishes a general obfuscation-security theorem or full-mode
 performance guarantee.
 
+The [SNO six-module counterpart](../im-results/application-challenge-sno-owner-attack-2026-11-16.md)
+uses the frozen application under an actual single-entry CommonJS launcher;
+all 85/85 cases matched, although the compiler's source-observer proof
+left its 2,786 original application bytes unchanged. The independently
+executed public-files attacker copied and ran all distributed modules,
+then rewrote its own public SHA-256 manifest to execute changed code.
+The [transformed three-module SNO comparison](../im-results/polyvariant-app-sno-attack-cost-2026-11-16.md)
+improves on this no-transform control: three arithmetic functions were
+genuinely lowered into six public paths and emitted 7,495 bytes from
+2,467 original source bytes. All 96 application cases matched on
+Ubuntu and Windows at [exact pinned gate 43813786492](https://github.com/FlareZ123/obfs/actions/runs/43813786492).
+Independent source-only recovery reconstructed all three affine leaves
+and passed 12,288 typed checks; an independent full-file copy and
+manifest-bypass attack also succeeded. Eight tested whole-process
+medians met 2.5x, but this is **negative attacker-cost evidence** for
+a narrow transformed island, not protection against a filesystem owner.
+Both SNO studies remain intermediate engineering research.
+
 ## Newly reproduced evidence and unresolved coverage
 
 The [external JsDeObsBench differential study](../im-results/jsdeobsbench-adapter-2026-11-15.md) compiled a pinned corpus of **1,301** public CodeNet-style JavaScript programs in COO script, SNO script, and SNO CommonJS modes. Pinned [three-lane run 43704598450](https://github.com/FlareZ123/obfs/actions/runs/43704598450) matched the **2,199 executable original cases** in each lane out of 2,200 selected official cases; the complete upstream corpus offers 2,984 cases, so 784 published inputs were untested. The same experiment counted **zero renamed private-property keys** in all three modes, despite nonzero identifier changes and SNO literal encodings. This is valuable independent compatibility evidence, with minimal coverage of the project's central cross-file property-flow requirement and no measured reconstruction resistance. A later seeded [run 43706326751](https://github.com/FlareZ123/obfs/actions/runs/43706326751) passed all three lanes after a Math.random-dependent comparison had exposed a nondeterministic baseline confounder. These results must not be treated as a hot-path performance bound or full JavaScript semantic proof.
