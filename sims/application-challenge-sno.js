@@ -1,0 +1,230 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {createHash}=require('node:crypto');
+const {obfuscateFiles,createSnoLauncher}=require('../src');
+const {atomicWrite}=require('../src/atomic');
+const {ROOT,NAMES}=require('../examples/application-challenge/build.cjs');
+
+const SEED='application-challenge-sno-20261116';
+const ENTRY='entry.cjs';
+const BOOT="'use strict';\nimport('./entry.mjs').catch(error=>{console.error(error);process.exitCode=1;});\n";
+
+/** @param {string|Buffer} data @returns {string} */
+function sha256(data){
+  return createHash('sha256').update(data).digest('hex');
+}
+
+/** @returns {number[][]} */
+function heldoutCases(){
+  return [
+    [0,0],[0,1],[1,1],[4294967295,0],[4294967295,3],
+    ...Array.from({length:80},(_,i)=>[
+      (Math.imul(i+0x1234,0x9e3779b1)^(i<<7))>>>0,
+      (i*317)%5000
+    ])
+  ];
+}
+
+/**
+ * Compile exactly the frozen ESM application with one CommonJS SNO entry.
+ * ESM modules remain .mjs and execute through Node dynamic import, while
+ * sno-entry.cjs is the only OS-invoked entry point. No source is edited.
+ * @param {string} destination
+ * @returns {Promise<{paths:string[],launcher:string,changed:number,encoded:number,properties:number,bindings:number}>}
+ */
+async function emitSno(destination){
+  const originals=await Promise.all(NAMES.map(async name=>({
+    path:name,
+    sourceType:/** @type {'module'} */('module'),
+    code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
+  })));
+  const sourceFiles=[
+    ...originals,
+    {path:ENTRY,sourceType:/** @type {'commonjs'} */('commonjs'),code:BOOT}
+  ];
+  const compiled=obfuscateFiles(sourceFiles,{
+    mode:'sno',seed:SEED,closedWorld:false,
+    strings:true,identifiers:true,properties:true
+  });
+  const launcher=createSnoLauncher(compiled.files,ENTRY);
+  for(const file of compiled.files){
+    await atomicWrite(path.join(destination,file.path),file.code);
+  }
+  await atomicWrite(path.join(destination,'sno-entry.cjs'),launcher);
+  return {
+    paths:compiled.files.map(file=>file.path),
+    launcher,
+    changed:compiled.files.filter((file,i)=>file.code!==sourceFiles[i].code).length,
+    encoded:compiled.files.reduce((sum,file)=>sum+file.metrics.literals,0),
+    properties:compiled.crossFile.properties+compiled.files.reduce(
+      (sum,file)=>sum+file.metrics.properties,0),
+    bindings:compiled.files.reduce((sum,file)=>sum+file.metrics.bindings,0)
+  };
+}
+
+/**
+ * Run an entry as an isolated Node process. The attacker only requires
+ * the distributed files and a Node runtime.
+ * @param {string} entry
+ * @param {number[][]} cases
+ * @returns {{status:number|null,stdout:string,stderr:string}}
+ */
+function runRaw(entry,cases){
+  const child=spawnSync(process.execPath,[entry,JSON.stringify(cases)],{
+    encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024
+  });
+  if(child.error)throw child.error;
+  return {status:child.status,stdout:child.stdout,stderr:child.stderr};
+}
+
+/** @param {string} entry @param {number[][]} cases @returns {unknown} */
+function runJson(entry,cases){
+  const child=runRaw(entry,cases);
+  assert.equal(child.status,0,child.stderr);
+  return JSON.parse(child.stdout);
+}
+
+/**
+ * Republish public output without access to the original application or
+ * obfuscator. This is an offline copy, not source deobfuscation.
+ * @param {string} source
+ * @param {string} destination
+ * @param {readonly string[]} paths
+ * @returns {Promise<void>}
+ */
+async function copyPublic(source,destination,paths){
+  for(const name of [...paths,'sno-entry.cjs']){
+    await atomicWrite(path.join(destination,name),
+      await fs.readFile(path.join(source,name)));
+  }
+}
+
+/**
+ * Attack the public manifest, without asking the compiler to regenerate it.
+ * The initial one-byte-level code change is rejected. Updating the digest
+ * disclosed in the launcher then admits an arbitrary attacker replacement.
+ * @param {string} target
+ * @param {string} launcher
+ * @returns {Promise<{rejected:boolean,forged:boolean}>}
+ */
+async function forgeManifest(target,launcher){
+  const entryPath=path.join(target,'entry.mjs');
+  const original=await fs.readFile(entryPath,'utf8');
+  const injected='process.stdout.write("FORGED\\n");process.exit(0);\n'+original;
+  await atomicWrite(entryPath,injected);
+  const rejected=runRaw(path.join(target,'sno-entry.cjs'),[[1,10]]);
+  assert.notEqual(rejected.status,0);
+  assert.match(rejected.stderr,/Integrity check failed: entry\.mjs/);
+  const oldDigest=sha256(original);
+  const newDigest=sha256(injected);
+  assert.equal(launcher.split(oldDigest).length-1,1);
+  await atomicWrite(path.join(target,'sno-entry.cjs'),
+    launcher.replace(oldDigest,newDigest));
+  const forged=runRaw(path.join(target,'sno-entry.cjs'),[[1,10]]);
+  assert.equal(forged.status,0,forged.stderr);
+  assert.equal(forged.stdout,'FORGED\n');
+  return {rejected:true,forged:true};
+}
+
+/**
+ * Run native, transformed, copied and forged variants for the same app.
+ * All generated data lives in disposable temporary directories.
+ * @returns {Promise<{cases:number,offlineCloneMatches:boolean,changedFiles:number,encodedLiterals:number,renamedProperties:number,renamedBindings:number,manifestRejected:boolean,forgedExecution:boolean}>}
+ */
+async function runEvidence(){
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-frozen-sno-'));
+  try {
+    const protectedDir=path.join(temp,'protected');
+    const copiedDir=path.join(temp,'copied');
+    const tamperedDir=path.join(temp,'tampered');
+    const compiled=await emitSno(protectedDir);
+    const cases=heldoutCases();
+    const native=runJson(path.join(ROOT,'before','entry.mjs'),cases);
+    assert.deepEqual(runJson(path.join(protectedDir,'sno-entry.cjs'),cases),native);
+    await copyPublic(protectedDir,copiedDir,compiled.paths);
+    assert.deepEqual(runJson(path.join(copiedDir,'sno-entry.cjs'),cases),native);
+    await copyPublic(protectedDir,tamperedDir,compiled.paths);
+    const tamper=await forgeManifest(tamperedDir,compiled.launcher);
+    return {
+      cases:cases.length,
+      offlineCloneMatches:true,
+      changedFiles:compiled.changed,
+      encodedLiterals:compiled.encoded,
+      renamedProperties:compiled.properties,
+      renamedBindings:compiled.bindings,
+      manifestRejected:tamper.rejected,
+      forgedExecution:tamper.forged
+    };
+  } finally {
+    await fs.rm(temp,{recursive:true,force:true});
+  }
+}
+
+/** @param {number[]} values @returns {number} */
+function median(values){
+  const sorted=[...values].sort((a,b)=>a-b);
+  return sorted[Math.floor(sorted.length/2)];
+}
+
+/**
+ * Paired whole-process wall times include Node startup, SNO hash
+ * verification, ESM import, eager decoder initialization and application
+ * computation. Compilation at build time is deliberately excluded.
+ * @param {number} [rounds]
+ * @returns {Promise<{workload:string,nativeMs:number,snoMs:number,ratio:number}[]>}
+ */
+async function profile(rounds=9){
+  const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-frozen-sno-profile-'));
+  try {
+    await emitSno(temp);
+    const native=path.join(ROOT,'before','entry.mjs');
+    const sno=path.join(temp,'sno-entry.cjs');
+    const workloads=[
+      {name:'one-event',cases:[[0x9e3779b9,1]]},
+      {name:'120k-events',cases:[[0x9e3779b9,120000]]}
+    ];
+    const output=[];
+    for(const workload of workloads){
+      const nativeMs=[];
+      const snoMs=[];
+      const expected=runJson(native,workload.cases);
+      assert.deepEqual(runJson(sno,workload.cases),expected);
+      for(let i=0;i<rounds;i++){
+        for(const isSno of i%2===0?[false,true]:[true,false]){
+          const start=process.hrtime.bigint();
+          const result=runJson(isSno?sno:native,workload.cases);
+          const elapsed=Number(process.hrtime.bigint()-start)/1e6;
+          assert.deepEqual(result,expected);
+          (isSno?snoMs:nativeMs).push(elapsed);
+        }
+      }
+      const base=median(nativeMs);
+      const transformed=median(snoMs);
+      output.push({
+        workload:workload.name,nativeMs:base,snoMs:transformed,
+        ratio:transformed/base
+      });
+    }
+    return output;
+  } finally {
+    await fs.rm(temp,{recursive:true,force:true});
+  }
+}
+
+if(require.main===module){
+  (async()=>{
+    const evidence=await runEvidence();
+    process.stdout.write('APPLICATION_SNO_EVIDENCE '+JSON.stringify(evidence)+'\n');
+    if(process.argv.includes('--profile')){
+      process.stdout.write('APPLICATION_SNO_PROFILE '+
+        JSON.stringify(await profile())+'\n');
+    }
+  })().catch(error=>{console.error(error);process.exitCode=1;});
+}
+
+module.exports={emitSno,runEvidence,profile,heldoutCases};
