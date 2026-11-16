@@ -9,9 +9,12 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 ## Handler-owned authorization configuration
 
 SCO retains a private, construction-time snapshot of request policy wiring:
-`allowedHosts` is copied, callable `remoteMethods` entries are
-captured while preserving their original registry as the `this` receiver,
-and each authorization callback is captured by reference. Mutating the original
+`allowedHosts` is copied, the original callable `remoteMethods`
+references are copied into a handler-private operation map, and each
+authorization callback is captured by reference. The dispatcher retains
+its existing strict-mode unbound function invocation: preserving the
+original function object is also necessary for nested batch-policy
+preflight, whose verified operation metadata is attached by identity. Mutating the original
 options object, its host array or its operation-method registry after
 handler construction can no longer redirect a deployed handler's
 route restriction or replace its registered server functions. Live
