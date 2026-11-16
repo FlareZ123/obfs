@@ -8,6 +8,8 @@ test('SNO mutable public integrity manifest cannot enforce full-control tamper r
   const result=await runEvidence();
   assert.equal(result.native,'39');
   assert.equal(result.protected,result.native);
+  assert.equal(result.runtimeBypassed,'777');
+  assert.equal(result.distributedUnmodified,true);
   assert.equal(result.mutationRejected,true);
   assert.equal(result.bypassed,'999');
   assert.equal(result.digests,2);
