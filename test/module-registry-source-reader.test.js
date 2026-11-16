@@ -43,7 +43,7 @@ function graph(expression,withChild=false) {
     'const io='+expression+';\n'+
     'const privateObject={secretField:31};\n'+
     "const bytes=io.readFileSync(__filename,'utf8');\n"+
-    "console.log(privateObject.secretField,bytes.includes('secretField'));\n";
+    "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
   return [
     {path:'main.cjs',sourceType:'commonjs',code:source},
     ...(withChild?[{path:'child.cjs',sourceType:/** @type {const} */('commonjs'),
@@ -101,7 +101,7 @@ test('module.parent exposes the Node loader from a child CommonJS module',async(
       "const io=module.parent.constructor._load('node:fs');\n"+
       'const secretObject={secretField:57};\n'+
       "const bytes=io.readFileSync(__filename,'utf8');\n"+
-      "console.log(secretObject.secretField,bytes.includes('secretField'));\n"}
+      "console.log(secretObject.secretField,bytes.includes('secret'+'Field'));\n"}
   ];
   const native=await execute(files,'main.cjs');
   assert.equal(native.status,0,native.stderr);
@@ -139,7 +139,7 @@ for(const [name,expression] of internalFsRoutes) {
       'const io='+expression+';\n'+
       'const privateObject={secretField:31};\n'+
       "const bytes=io.readFileUtf8(__filename,0);\n"+
-      "console.log(privateObject.secretField,bytes.includes('secretField'));\n";
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
     /** @type {Source[]} */
     const files=[{path:'main.cjs',sourceType:'commonjs',code}];
     const native=await execute(files,'main.cjs');
