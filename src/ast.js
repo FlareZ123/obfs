@@ -204,6 +204,9 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  // Failed structured cloning can expose a function's exact source spelling
+  // in DataCloneError.message, including functions nested in clone inputs.
+  const cloneFunctions=new Set(['structuredClone']);
   const aggregateErrors=new Set(['AggregateError']);
   // Web IDL string arguments and string-valued record/sequence entries also
   // invoke ToString, so exposed source can cross a browser API boundary.
@@ -262,6 +265,12 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='for' && isSymbolConstructor(node.object);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStructuredClone(node) {
+    return Boolean(node && (node.type==='Identifier' && cloneFunctions.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='structuredClone'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isAggregateError(node) {
@@ -338,6 +347,12 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isStructuredClone(value) || value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isStructuredClone(value.callee.object)) {
+          changed=add(cloneFunctions,name)||changed;
+        }
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
         if(isWebConstructor(value,webScalars,webScalarNames)) {
@@ -467,6 +482,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
+          if(name==='structuredClone')changed=add(cloneFunctions,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
             if(name==='Symbol')changed=add(symbols,property.value.name)||changed;
@@ -811,6 +827,21 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // WHATWG structured cloning throws a source-bearing DataCloneError
+      // when a function is submitted directly or through an object graph.
+      // Unknown inputs may contain functions; keep primitive-only calls safe.
+      if(node.type==='CallExpression' && isStructuredClone(callee) &&
+         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isStructuredClone(callee.object)) {
+        const method=memberName(callee);
+        if(method==='call' && node.arguments[1] &&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(method==='apply'||method==='bind')observed=true;
+      }
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         isStructuredClone(node.arguments[0]))observed=true;
       if(node.arguments.some((/** @type {AstNode} */ value)=>
         isIntlSourceCallback(value)))observed=true;
       // Enumerating descriptors can disclose Function.prototype.toString
