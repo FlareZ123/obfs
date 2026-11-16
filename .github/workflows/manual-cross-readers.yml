@@ -25,5 +25,18 @@ jobs:
         run: node --test test/local-root-getter.test.js test/cross-file-local-identity.test.js test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js test/cross-file-source-byte-reader.test.js test/node-loader-source-reader.test.js test/module-registry-source-reader.test.js test/module-registry-source-sample.test.js
       - name: Verify exact immediate-owner getter before/after ESM artifact
         run: node examples/direct-owner-read/build-sample.cjs
+      - name: Native and emitted ESM host-lock graph behavior
+        run: node --test test/closed-graph-host-lock.test.js test/obfuscator.test.js
+      - name: Verify generated multi-module host lock before/after graph
+        run: node examples/closed-graph-host/build-sample.cjs
+      - name: Reproduce public-only guard removal attack
+        run: node sims/closed-graph-host-bypass.js
+      - name: Profile original versus guarded whole-process workloads
+        run: node sims/closed-graph-host-cost.js
+      - name: Real Chromium ESM graph authorized and denied origins
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/closed-graph-host-browser.js
       - name: Strict JSDoc type safety
         run: npm run typecheck

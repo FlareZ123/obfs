@@ -44,14 +44,54 @@ function safePath(file) {
   return normalized;
 }
 
-/** @param {string} source @param {import('./ast').AstNode} ast @param {string[]} hosts @returns {string} */
-function injectHostLock(source, ast, hosts) {
-  // Static ESM dependencies execute before this module's body. A body-level
-  // host guard cannot protect them, so fail closed instead of claiming a lock.
-  if ((/** @type {import('./ast').AstNode[]} */ (ast.body)).some(statement => statement.type === 'ImportDeclaration' ||
+/**
+ * A body-level ESM host guard can precede every executable module statement
+ * only if every statically imported dependency is present in the same guarded
+ * output group. A dependency outside that group would run before its importer
+ * checks the host and could perform arbitrary effects.
+ *
+ * This deliberately excludes opaque assets, scripts, bare package imports,
+ * URL/query/fragment specifiers, case-mismatched filenames, and undeclared
+ * dependencies. Module cycles are safe for this boundary because each module
+ * body starts with its own guard, irrespective of evaluation order.
+ *
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {boolean}
+ */
+function completeGuardedModuleGraph(files) {
+  if (!files.length || files.some(file=>file.sourceType!=='module' || typeof file.code!=='string')) return false;
+  const known=new Set(files.map(file=>file.path));
+  for (const file of files) {
+    const ast=parse(/** @type {string} */ (file.code),'module');
+    for (const statement of ast.body) {
+      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type) ||
+          !statement.source)continue;
+      const specifier=statement.source.value;
+      if(typeof specifier!=='string' ||
+          (!specifier.startsWith('./')&&!specifier.startsWith('../')) ||
+          /[?#%\\\\]/u.test(specifier))return false;
+      const target=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
+      if(!known.has(target))return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * @param {string} source
+ * @param {import('./ast').AstNode} ast
+ * @param {string[]} hosts
+ * @param {boolean} [completeStaticGraph]
+ * @returns {string}
+ */
+function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
+  // ESM dependencies run before this module body. The closed graph proof
+  // allows static imports only when every dependency receives its own guard.
+  if (!completeStaticGraph &&
+      (/** @type {import('./ast').AstNode[]} */ (ast.body)).some(statement => statement.type === 'ImportDeclaration' ||
       statement.type === 'ExportAllDeclaration' ||
       statement.type === 'ExportNamedDeclaration' && statement.source)) {
-    throw new TypeError('Host locking ESM static imports or reexports is unsupported');
+    throw new TypeError('Host locking ESM static imports or reexports requires a complete closed-world module group');
   }
   const allowed = [...new Set(hosts.map(host => host.toLowerCase()))];
   if (!allowed.length || allowed.some(host => !/^[a-z0-9.-]+$/.test(host))) {
@@ -428,6 +468,10 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code:file.code,sourceType};
   });
+  // Validate the entire published static graph before permitting a host
+  // guard below an ESM import. Each dependency is independently guarded.
+  const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
+    completeGuardedModuleGraph(prepared));
   // Fail before any output is generated: source maps can undo an entire
   // transformation by retaining original text and symbol mappings.
   for (const file of prepared) assertNoSourceMapDisclosure(file);
@@ -638,7 +682,7 @@ function obfuscateFiles(files, options = {}) {
     }
     if (options.allowedHosts?.length) {
       if (sourceType === 'commonjs') throw new TypeError(`Host lock unavailable for CommonJS file ${filename}`);
-      code = injectHostLock(code,ast,options.allowedHosts);
+      code = injectHostLock(code,ast,options.allowedHosts,completeStaticHostGraph);
       parse(code,sourceType);
     }
     /** @type {OutputFile['metrics']} */
@@ -676,6 +720,11 @@ function obfuscateFiles(files, options = {}) {
     }
     return {path:filename,code,sourceType,metrics};
   });
+  // Recheck final emitted module dependencies after optional backends run:
+  // a future transformation must not silently introduce an unguarded import.
+  if(completeStaticHostGraph && !completeGuardedModuleGraph(output)) {
+    throw new TypeError('Transformed host-lock module graph is no longer closed');
+  }
   return {files:output,seed,mode,crossFile:{objects:cross.objects,properties:cross.properties}};
 }
 
