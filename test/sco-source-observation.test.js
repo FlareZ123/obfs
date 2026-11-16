@@ -49,7 +49,11 @@ for(const [name,source] of [
   ['aliased prefix string coercion',
     "const prefix='';function observed(){const text='source-observation-literal';return text;}globalThis.out={value:observed(),source:prefix+observed};"],
   ['aliased String constructor coercion',
-    "const Text=String;function observed(){const text='source-observation-literal';return text;}globalThis.out={value:observed(),source:Text(observed)};"]
+    "const Text=String;function observed(){const text='source-observation-literal';return text;}globalThis.out={value:observed(),source:Text(observed)};"],
+  ['conditional Reflect.get source observer',
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';globalThis.out={value:observed(),source:Reflect.get(observed,key)()};"],
+  ['conditional descriptor source observer',
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const getter=Object.getOwnPropertyDescriptor(Function.prototype,key).value;globalThis.out={value:observed(),source:getter.call(observed)};"]
 ]) {
   test('SCO response preserves observable function source: '+name,async()=>{
     const variant=await fetchVariant(source);
