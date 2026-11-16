@@ -70,13 +70,13 @@ test('SCO refuses private calls that silently inherit the destination timezone o
 });
 
 test('SCO retains local-time operations when the function remains on the client',()=>{
-  const code='export async function protectedOp(){return 7;}\\n'+
+  const code='export async function protectedOp(){return 7;}\n'+
     'export function visible(){return new Date(2020,0,1).toISOString()+"/"+'+
-    'Intl.DateTimeFormat("en-US").resolvedOptions().timeZone;}\\n';
+    'Intl.DateTimeFormat("en-US").resolvedOptions().timeZone;}\n';
   const result=partitionScoSelectedAsyncExports(
     {path:'client-clock.mjs',code,sourceType:'module'},
     {seed:'client-clock-preserved',privateNames:['protectedOp']});
-  assert.match(result.clientFile.code,/new Date\\(2020,0,1\\)/);
+  assert.match(result.clientFile.code,/new Date\(2020,0,1\)/);
   assert.match(result.clientFile.code,/Intl.DateTimeFormat/);
 });
 
