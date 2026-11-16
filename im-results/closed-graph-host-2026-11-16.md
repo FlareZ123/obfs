@@ -47,6 +47,15 @@ client-side `location.hostname` checks.
   authorized emitted and denied emitted graph served from the same local
   HTTP site. This is independently gated from the Node checks.
 
+The later [Linux/Windows/Chromium gate 43824200447](https://github.com/FlareZ123/obfs/actions/runs/43824200447)
+at exact commit `c6f91c6bacd9e3632d711ec38261c27a98243baa`
+was fully green. Real headless Chrome loaded the three-module original
+and guarded graphs from an actual localhost HTTP server: both recorded
+`["state","logic","entry"]` and answer 24. The denied compilation
+targeted a different hostname and recorded **zero** events with
+`Unauthorized execution host`. Linux executed the browser case; both
+runners executed the Node/attacker/performance and JSDoc cases.
+
 The source-observer preflight deliberately rejects some imported-value
 coercions even when paths are declared. The first test run encountered this
 condition, and tests were changed to isolate the host-lock boundary while
