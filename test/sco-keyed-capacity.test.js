@@ -26,9 +26,11 @@ function principalOf(request){
 }
 
 test('SCO optional queue cap validates input and counts active plus waiting',async()=>{
-  for(const maxPendingPerPrincipal of [0,-1,1.5,Number.NaN,Number.MAX_SAFE_INTEGER+1]){
-    assert.throws(()=>createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal}),
-      /maxPendingPerPrincipal/);
+  for(const invalid of [0,-1,1.5,Number.NaN,Number.MAX_SAFE_INTEGER+1]){
+    assert.throws(()=>createScoKeyedIsolation(principalOf,{
+      maxPendingPerPrincipal:invalid}),/maxPendingPerPrincipal/);
+    assert.throws(()=>createScoKeyedIsolation(principalOf,{
+      maxPendingTotal:invalid}),/maxPendingTotal/);
   }
   const isolate=createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal:2});
   const firstStarted=gate();
@@ -58,6 +60,52 @@ test('SCO optional queue cap validates input and counts active plus waiting',asy
   assert.deepEqual(events,['first-start','independent','first-end','second']);
   await isolate(requestFor('p'),async()=>{events.push('after-release');});
   assert.equal(events.at(-1),'after-release');
+});
+
+test('SCO global queue cap bounds all principals and releases after errors',{
+  timeout:10000
+},async()=>{
+  const isolate=createScoKeyedIsolation(principalOf,{
+    maxPendingPerPrincipal:3,maxPendingTotal:2
+  });
+  const startedA=gate();
+  const startedB=gate();
+  const releaseA=gate();
+  const releaseB=gate();
+  /** @type {string[]} */
+  const events=[];
+  const a=isolate(requestFor('A'),async()=>{
+    startedA.resolve();
+    events.push('A-start');
+    await releaseA.promise;
+    events.push('A-end');
+  });
+  const b=isolate(requestFor('B'),async()=>{
+    startedB.resolve();
+    events.push('B-start');
+    await releaseB.promise;
+    events.push('B-end');
+  });
+  try{
+    await Promise.all([startedA.promise,startedB.promise]);
+    await assert.rejects(isolate(requestFor('C'),async()=>{
+      events.push('should-not-execute');
+    }),ScoIsolationBusyError,'Aggregate cap applies across distinct principals');
+    releaseA.resolve();
+    await a;
+    await isolate(requestFor('C'),async()=>{events.push('C-start');});
+    assert.equal(events.includes('C-start'),true);
+    await assert.rejects(isolate(requestFor('D'),async()=>{
+      throw Error('private-method-error');
+    }),/private-method-error/);
+    await isolate(requestFor('D'),async()=>{events.push('D-retried');});
+    assert.equal(events.includes('D-retried'),true);
+  }finally{
+    releaseA.resolve();
+    releaseB.resolve();
+    await Promise.allSettled([a,b]);
+  }
+  assert.equal(events.includes('should-not-execute'),false);
 });
 
 test('SCO queue cap returns HTTP 429 without protected work and recovers',{
