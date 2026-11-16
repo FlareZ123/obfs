@@ -104,6 +104,16 @@ deployed files immutable during that load, and do not treat a digest as a
 secret-key authentication mechanism. Manually supplemented private paths
 outside the audited source snapshot have no generated digest.
 
+In the optional private-source audit, the global Node `process` object is treated
+as an ambient capability. Node 22 exposes `process.getBuiltinModule('module')`,
+which can retrieve `createRequire` without a static `node:module` import or a
+literal `require` reference. The scanner now refuses direct, aliased, and
+simple destructured escapes of this global capability, while retaining
+narrow direct uppercase environment-value reads. This is a conservative
+admission restriction, not an exhaustive detector for every indirect loader.
+See [the process-loader admission regression](../test/sco-private-process-loader.test.js)
+and [Node's documented API](https://nodejs.org/docs/latest-v22.x/api/process.html#processgetbuiltinmoduleid).
+
 The static audit is **opt-in**. Without `privateModuleSources`, the manifest
 still covers only direct imports and explicit `additionalPrivateModulePaths`.
 Even with the opt-in, this is a bounded *static* path audit, not proof that a
