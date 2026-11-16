@@ -171,6 +171,22 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
     let changedIntrinsic=false;
+    // Top-level immutable primitive string selectors may be recognized even
+    // when passed by identifier. Refuse unproved/shadowed/returned keys.
+    /** @type {Map<string,string>} */
+    const literalSelectors=new Map();
+    for(const statement of source.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration' && !statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations) {
+        if(item.id.type!=='Identifier'||!item.init||
+           source.bindings.get(item.id.name)!==1)continue;
+        const value=staticString(item.init);
+        if(value!==null)literalSelectors.set(item.id.name,value);
+      }
+    }
     const hostRoots=new Set(['globalThis','window','self','global']);
     /** @type {Set<string>} */
     const hostCallAliases=new Set();
@@ -371,14 +387,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
                ['get','getOwnPropertyDescriptor'].includes(selected??''))method=selected;
         }
         if(method) {
-          const field=node.arguments[1]?staticString(node.arguments[1]):null;
-          // A known sensitive selector is sufficient: the receiver may be
-          // a Proxy, a factory result, or an interprocedural forwarding
-          // expression whose ambient provenance this scanner cannot prove.
-          // Preserve ordinary unrelated literal descriptor calls.
-          if(field==='Reflect' || field==='Object' ||
-             mayBeGlobalReceiver(node.arguments[0]) &&
-               (method==='getOwnPropertyDescriptors' || field===null))changedIntrinsic=true;
+          const selector=node.arguments[1];
+          const field=selector?.type==='Identifier'?
+            literalSelectors.get(selector.name)??null:
+            selector?staticString(selector):null;
+          // An unknown selector may evaluate to Reflect or Object through
+          // a Proxy, local closure, cross-module factory or dynamic string.
+          // Decline rather than asserting that an opaque receiver is inert.
+          // An unrelated unique top-level immutable literal remains proven.
+          if(method==='getOwnPropertyDescriptors') {
+            if(mayBeGlobalReceiver(node.arguments[0]))changedIntrinsic=true;
+          }else if(field===null || field==='Reflect' || field==='Object') {
+            changedIntrinsic=true;
+          }
         }
       }
       // A captured native global mutator remains capable of replacing an
