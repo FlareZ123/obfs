@@ -102,12 +102,13 @@ function staticString(node,depth=0){
  * coercion or reflective indirection still requires a richer proof.
  * @param {AstNode} ast
  * @param {Map<string,string>} [importedStrings] Proven direct ESM string imports.
+ * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!importedStrings.size) {
+  if(!importedStrings.size&&!importedCloneFunctions.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -224,7 +225,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   const coercers=new Set(builtinCoercers);
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
-  const cloneFunctions=new Set(['structuredClone']);
+  const cloneFunctions=new Set(['structuredClone',...importedCloneFunctions]);
   const aggregateErrors=new Set(['AggregateError']);
   // Web IDL string arguments and string-valued record/sequence entries also
   // invoke ToString, so exposed source can cross a browser API boundary.
@@ -1215,7 +1216,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       if(argument && !isDefinitelyPrimitive(argument)) observed=true;
     }
   });
-  if(!importedStrings.size)sourceObservationCache.set(ast,observed);
+  if(!importedStrings.size&&!importedCloneFunctions.size)sourceObservationCache.set(ast,observed);
   return observed;
 }
 
