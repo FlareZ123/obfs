@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Diagnose private-field proof refusal and positive control
         run: node sims/application-challenge-proof-diagnosis.js
+      - name: Isolate independent whole-graph source-observer vetoes
+        run: node sims/application-challenge-observer-ablation.js
       - name: Build exact generated public bytes for snapshot review
         run: node examples/application-challenge/build.cjs --dump
       - name: Differential semantics and offline attacker baseline
