@@ -107,6 +107,32 @@ for(const [title,side] of [
   });
 }
 
+test('single-file transformation reproduces actual corrupted runtime when a preceding mutation is omitted',async()=>{
+  const files=graph('const mutate=Reflect.set;mutate(String,"fromCharCode",()=>"?");');
+  const original=await execute(files);
+  assert.equal(original.stdout,'protected-literal-value');
+
+  // A single-file compile cannot inspect the omitted side module. Splicing
+  // that emitted output into the larger execution graph is an intentional
+  // negative control demonstrating why whole-group provenance matters.
+  const isolated=obfuscateFiles([files[2]],{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-mutator/unguarded-single-file'
+  });
+  assert.ok(isolated.files[0].metrics.literals>0);
+  const corrupted=await execute([files[0],files[1],isolated.files[0]]);
+  assert.equal(corrupted.status,0,corrupted.stderr);
+  assert.notEqual(corrupted.stdout,original.stdout,
+    'Mutation of String.fromCharCode must corrupt the unsafe generated decoder');
+
+  const whole=obfuscateFiles(files,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-mutator/unguarded-single-file'
+  });
+  assert.equal(whole.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+  assert.deepEqual(await execute(whole.files),original);
+});
+
 for(const [title,side] of [
   ['direct Reflect.set on unrelated object','Reflect.set({},"answer",41);'],
   ['aliased Reflect.set on unrelated object','const R=Reflect;R.set({},"answer",41);'],
