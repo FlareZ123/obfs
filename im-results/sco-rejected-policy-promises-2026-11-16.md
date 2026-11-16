@@ -12,12 +12,12 @@ Node.js documents the `--unhandled-rejections=strict` process-failure behavior a
 
 - Immutable **red** source `8350ed6bc9df92a6a351ad689c21006728af099e`, [Ubuntu and Windows targeted gate 43981582296](https://github.com/FlareZ123/obfs/actions/runs/43981582296): both target jobs failed in the newly added process-level `test/sco-batch-state-async-transition.test.js` regression. Each job reported one failed test. Only the new test changed relative to this branch base.
 - Immutable first **green** executable source `1ae5bf3de7e940c84fbe51d1b407b65791955553`, [Ubuntu and Windows targeted gate 43981638381](https://github.com/FlareZ123/obfs/actions/runs/43981638381): both jobs succeeded. Each passed targeted SCO behavior tests, strict JSDoc, external static checking, SCO attack demonstrations, and (Ubuntu) Chromium.
-- The test runs child Node with `--unhandled-rejections=strict`, feeds all three Promise rejection sites (also from a foreign VM realm) into the synchronous helper and asserts that synchronous denial is followed by a normally surviving process.
-- A separate newly added real-HTTP child test sends two invalid authenticated batches whose transition policy returns a rejecting Promise, checks generic HTTP 500, zero private `read` effects and continued Node process survival. This later extension requires its own pinned green run.
+- The test runs child Node with `--unhandled-rejections=strict`, feeds all three Promise rejection sites (also from a foreign VM realm and with masked `then` fields) into the synchronous helper and asserts that synchronous denial is followed by a normally surviving process.
+- A separate newly added real-HTTP child test sends two invalid authenticated batches whose transition policy returns a rejecting Promise, checks generic HTTP 500, zero private `read` effects and continued Node process survival. The native HTTP extension passed a separate [Ubuntu/Windows targeted gate 43982059187](https://github.com/FlareZ123/obfs/actions/runs/43982059187) at exact `336bf1d2d828159cd5c7f8aa72d22ad070c13d32`.
 
 ## Repair
 
-`src/rpc-batch-policy.js` observes rejections on **native Promise, including cross-realm VM Promises** values when it refuses them. For genuinely synchronous policy values the path is unchanged. A rejected async policy still produces a synchronous TypeError and the SCO HTTP adapter still reports its generic failure, with protected operations skipped. The observed Promise's rejection is consumed to avoid a later process-level crash.
+`src/rpc-batch-policy.js` observes rejections on **native Promise values, including cross-realm VM Promises** when it refuses them. The native Promise classifier also refuses objects whose own `then` member masks the inherited method. For genuinely synchronous policy values the path is unchanged. A rejected async policy still produces a synchronous TypeError and the SCO HTTP adapter still reports its generic failure, with protected operations skipped. The observed Promise's rejection is consumed to avoid a later process-level crash.
 
 ## Limits
 
