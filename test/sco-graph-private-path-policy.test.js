@@ -6,6 +6,7 @@ const http=require('node:http');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
+const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {partitionScoAsyncGraph,createScoHandler,createScoGraphHandler,
   verifyScoPrivateSourceDigests}=require('../src');
@@ -375,6 +376,35 @@ test('SCO graph audits deployed source bytes for both exposed and private origin
       /SCO private source bytes changed since partition: api\.mjs/u);
     await atomicWrite(path.join(root,'api.mjs'),files[0].code);
     await assert.doesNotReject(()=>verifyScoPrivateSourceDigests(graph,root));
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('real Node ESM dynamic code evaluators can reach imports omitted from a static graph',async()=>{
+  const original=
+    'export async function inspect(){return (await eval(\'import("./hidden.mjs")\')).secret;}';
+  const aliased=
+    'const make=Function;export async function inspect(){return (await make(\'return import("./hidden.mjs")\')()).secret;}';
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-graph-dynamic-import-'));
+  try{
+    await atomicWrite(path.join(root,'api.mjs'),original);
+    await atomicWrite(path.join(root,'alias.mjs'),aliased);
+    await atomicWrite(path.join(root,'hidden.mjs'),'export const secret=137;');
+    const originalNamespace=await import(pathToFileURL(path.join(root,'api.mjs')).href);
+    const aliasNamespace=await import(pathToFileURL(path.join(root,'alias.mjs')).href);
+    assert.equal(await originalNamespace.inspect(),137);
+    assert.equal(await aliasNamespace.inspect(),137);
+
+    for(const file of [{path:'api.mjs',code:original},
+      {path:'alias.mjs',code:aliased}]){
+      // Compiler input intentionally lacks hidden.mjs. Native source resolves
+      // it at runtime through a string the ordinary import walker cannot see.
+      assert.throws(()=>partitionScoAsyncGraph([file],{
+        seed:'sco-graph-hidden-native-loader-20261116',exposedPaths:[file.path]
+      }),/Private SCO graph cannot prove imports through eval or Function/u);
+    }
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
