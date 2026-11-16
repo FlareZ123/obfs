@@ -1,7 +1,7 @@
 # Frozen transformed three-module SNO application: static recovery and offline owner clone
 
 **Date:** 2026-11-16. **Classification:** Intermediate reproducible negative security evidence.  
-**Pinned source:** 61e7143ddaca118aef3206aa915cf7cc7ce1d0b1  
+**Primary performance and synchronous hook source:** 61e7143ddaca118aef3206aa915cf7cc7ce1d0b1  
 **Pinned Ubuntu/Windows CI:** [manual frozen-app workflow 43814631907](https://github.com/FlareZ123/obfs/actions/runs/43814631907), both jobs successful.
 
 ## Threat question and original frozen application
@@ -62,6 +62,21 @@ transformed ESM graph, separate from public-file copying and the digest
 replacement attack. It depends on the attacker's stipulated control
 of Node process flags. A trusted launch policy or externally protected
 loader could exclude this capability, but the SNO threat model grants it.
+
+### Node 22.0 loader compatibility follow-up
+
+The [later three-job manual gate 43816370969](https://github.com/FlareZ123/obfs/actions/runs/43816370969)
+at exact source fb5fc123b7e03f9ed90f72c57e58efa60051fa37
+passes Ubuntu and Windows on current Node 22, plus a separate
+Ubuntu **Node 22.0.0** job, the project's earliest declared Node major
+release. The attacker tests both synchronous registerHooks and the
+older asynchronous module.register loader on current Node; Node 22.0
+uses the [documented asynchronous register API](https://nodejs.org/download/release/v22.0.0/docs/api/module.html#customization-hooks)
+to substitute the same ESM source without modifying any disk hashes.
+The original 96-case behavior and independent attackers pass on that
+legacy job too. The 22.0 job does **not** run the paired performance
+profile, so the table below remains a measurement of the current Node
+22 runner versions at the primary pinned gate.
 
 ## Seven paired whole-process measurements
 
