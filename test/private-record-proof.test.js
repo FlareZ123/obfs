@@ -167,3 +167,30 @@ test('experimental Symbol-key backend retains private tuple and record ownership
     for(let n=-45;n<=45;n++)assert.equal(protectedFn(n),native(n));
   }
 });
+
+test('exported record holder with external reflective consumer retains original field names',{
+  timeout:30000
+},async()=>{
+  const files=[
+    {path:'owner.mjs',sourceType:'module',code:[
+      'const vault={hiddenCount:41,secretDelta:2};',
+      'export const record={owner:vault,tag:0};',
+      'const alias=record.owner;',
+      'export function read(n){return alias.hiddenCount*n+vault.secretDelta;}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {record,read} from "./owner.mjs";',
+      'export function calculate(n){return read(n)+Object.keys(record.owner).join(",").length;}'
+    ].join('\n')}
+  ];
+  const compiled=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+    seed:'public-record-reflection-boundary',strings:false,identifiers:false,properties:true});
+  const text=compiled.files.map(file=>String(file.code)).join('\n');
+  assert.match(text,/hiddenCount/u);
+  assert.match(text,/secretDelta/u);
+  const native=await loadGroup(files);
+  const encoded=await loadGroup(compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  })));
+  for(let n=-80;n<=80;n++)assert.equal(encoded(n),native(n));
+});
