@@ -16,3 +16,5 @@ examples/imported-constant-key/after/*.mjs text eol=lf
 
 examples/application-challenge/before/*.mjs text eol=lf
 examples/application-challenge/after/*.mjs text eol=lf
+examples/application-challenge/sco-before/*.mjs text eol=lf
+examples/application-challenge/sco-public/**/*.mjs text eol=lf
