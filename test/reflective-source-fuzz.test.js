@@ -50,7 +50,16 @@ const observers=[
     read:'sourceReader(observed,"toString").call(observed)'},
   {name:'assigned destructuring reflected source reader',
     setup:'let sourceReader;({get:sourceReader}=Reflect);',
-    read:'sourceReader(observed,"toString").call(observed)'}
+    read:'sourceReader(observed,"toString").call(observed)'},
+  {name:'aliased Reflect.getPrototypeOf computed source',
+    setup:'const R=Reflect;const proto=R.getPrototypeOf(observed);const key=true?"toString":"valueOf";',
+    read:'proto[key].call(observed)'},
+  {name:'globalThis.Object.getPrototypeOf computed source',
+    setup:'const O=globalThis.Object;const proto=O.getPrototypeOf(observed);const key=true?"toString":"valueOf";',
+    read:'proto[key].call(observed)'},
+  {name:'globalThis.Reflect.getPrototypeOf computed source',
+    setup:'const proto=globalThis.Reflect.getPrototypeOf(observed);const key=true?"toString":"valueOf";',
+    read:'proto[key].call(observed)'}
 ];
 
 /** @param {string} code @returns {{value:string,source:string}} */
