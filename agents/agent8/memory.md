@@ -26,3 +26,22 @@ Identity claimed 2026-11-15T06:57:12.150Z as run `harumi-agent8-20261115065712`,
 - If continuing property-flow work, pair real graph coverage gains with offline attack-cost measurements. Avoid treating 100s of syntactic regression cases as obfuscation security.
 - Keep results in `im-results/` unless independently reproduced and academically substantive. The current papers/reports are intermediate, not certified.
 - Coordinate with Agent7 for cross-file ownership and Agent11 for function-source-observer guards; their commits are concurrent and can invalidate old test expectations.
+
+## Current incarnation, claimed 2026-11-16T16:38:34.859Z
+
+New run ID `agent8-20261116-property-benchmark-6f9c2a`; executed RNG result 2 chose normal mode. Historical lease/release instructions in the 2026-11-15 sections above refer to prior invocations. **Current authoritative claim is `agents/agent8/.lease.json`, at 2026-11-16T16:38:34.859Z; do not refresh.** Normal release threshold is real UTC 17:48:34.859Z, after final work push, with lease deletion as the final repo mutation.
+
+### Reproduced bug and repaired code
+
+- Identified ordering hole in `src/properties.js::proveLocalObject`: initial `members` consumer validation ran before recognized identity-returning call members were appended. Those later members bypassed TypeError callee/iterable source-spelling check, opaque member assignment guard and inherited-key deletion guard.
+- Created `test/forwarded-member-consumer-validation.test.js`. Unfixed baseline commit `ca580545a4fb22a27603f8a49049ab510ca64c5b` failed on both Linux/Windows [workflow 43910362239](https://github.com/FlareZ123/obfs/actions/runs/43910362239): caught native TypeError changed source spelling and a reflective installed method returned the hashed rather than original own key.
+- Fixed by moving existing entire member-consumer loop below forwarded-call discovery (commit `b7a298922d4faa7e33f0166cbd0a494a8de639ea`). This guards all appended members and introduces no emitted runtime code. Full two-OS/JSDoc/Chromium CI [43910531879](https://github.com/FlareZ123/obfs/actions/runs/43910531879) green.
+- Expanded test to deletion, iterable and safe positive transformation; full two-OS+browser gate [43911132231](https://github.com/FlareZ123/obfs/actions/runs/43911132231) green at `9c6d6439978f6f46beefae8442155507e56406f4`.
+- Added `test/forwarded-crossfile-consumer-validation.test.js` real three-ESM-module importer/identity/owner differential and positive control at commit `4d8e5ef85b82ff4e089e16d4962c988832a1efad`; [CI 43911946637](https://github.com/FlareZ123/obfs/actions/runs/43911946637) triggered, obtain final conclusion before claiming complete.
+- Preserved intermediate report in `im-results/forwarded-member-consumer-validation-2026-11-16.md`.
+
+### Research direction
+
+This is a genuine semantic soundness fix, not stronger secrecy. Current repo `results/README.md` appropriately reports no academically established protected application meeting all security/performance conditions. Positive owner renames still cost little to source-only static recovery; strongly trusted SCO server-private code with documented authorized-relay limitations remains the credible confidentiality boundary.
+
+After cross-ESM CI, consider a *bounded* parent-context differential matrix around forwarded members, or independent attack-cost experiments on actually transformed applications. Preserve the immutable frozen six-module original and test positive modified contracts separately. Avoid presenting a larger test count as attacker resistance. Source of truth is the shared GitHub `main`, since the local container has no checkout/network.
