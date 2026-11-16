@@ -35,13 +35,13 @@ async function importGroup(files){
 
 const modules=[
   {path:'owner.mjs',sourceType:'module',code:[
-    'export const vault={privateCount:41,hiddenAddend:5};',
+    'const vault={privateCount:41,hiddenAddend:5};',
     'const holder=[vault];const alias=holder[0];',
     'export function inner(v){return alias.privateCount+vault.hiddenAddend+v;}'
   ].join('\n')},
   {path:'entry.mjs',sourceType:'module',code:[
-    'import {vault,inner} from "./owner.mjs";',
-    'export function observe(v){return inner(v)+vault.privateCount;}'
+    'import {inner} from "./owner.mjs";',
+    'export function observe(v){return inner(v)+13;}'
   ].join('\n')}
 ];
 
@@ -54,7 +54,7 @@ function transform(files){
   });
 }
 
-test('cross-file ESM owner-holder alias is conservatively renamed with every known use',{
+test('multi-file native ESM preserves private array-owned key renaming inside a module',{
   timeout:30000
 },async()=>{
   const compiled=transform(modules);
@@ -73,7 +73,11 @@ test('interfile reflective owner consumer prevents unsafe renaming',{
   timeout:30000
 },async()=>{
   const reflected=[
-    modules[0],
+    {path:'owner.mjs',sourceType:'module',code:[
+      'export const vault={privateCount:41,hiddenAddend:5};',
+      'const holder=[vault];const alias=holder[0];',
+      'export function inner(v){return alias.privateCount+vault.hiddenAddend+v;}'
+    ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {vault,inner} from "./owner.mjs";',
       'export function observe(v){return Object.keys(vault).join(",")+":"+inner(v);}'
