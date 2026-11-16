@@ -4,7 +4,7 @@ const http=require('node:http');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {randomBytes,timingSafeEqual}=require('node:crypto');
-const {createScoGraphHandler}=require('../../src');
+const {createScoGraphHandler,verifyScoPrivateSourceDigests}=require('../../src');
 const {build}=require('./build.cjs');
 
 /**
@@ -23,6 +23,10 @@ async function startServer(options={}){
   const token=options.token??randomBytes(24).toString('hex');
   if(typeof token!=='string'||token.length<12)throw new TypeError('Invalid demo token');
   const graph=await build();
+  // Verify every reviewed original module, including the public facade's
+  // private implementation, before Node imports its server-only bytes.
+  // Integrators must prevent concurrent source replacement during import.
+  await verifyScoPrivateSourceDigests(graph,path.join(__dirname,'before'));
   const namespaces=Object.create(null);
   for(const filename of graph.exposedPaths){
     namespaces[filename]=await import(pathToFileURL(
