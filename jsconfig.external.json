@@ -41,7 +41,9 @@
     "sims/verified-record-session-profile.js",
     "sims/ownkey-comment-static-attacker.js",
     "test/ownkey-comment-static-recovery.test.js",
-    "test/closed-record-reflect-descriptor-browser.js"
+    "test/closed-record-reflect-descriptor-browser.js",
+    "sims/esm-observation-matrix.js",
+    "test/esm-observation-matrix.test.js"
   ],
   "exclude": [
     "node_modules"
