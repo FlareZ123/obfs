@@ -131,7 +131,7 @@ function runJson(executable,cases,inputFile){
 /**
  * Verify actual transformed SNO application, independent public SNO attacker,
  * plus direct ESM execution with no SNO manifest invoked.
- * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean,staticRecovered:number,staticComparisons:number,staticOffsets:number[]}>}
+ * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean,staticRecovered:number,staticComparisons:number,staticOffsets:number[],runtimeHooked:boolean,runtimeDiskMutations:number}>}
  */
 async function runEvidence(){
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-sno-'));
@@ -181,6 +181,17 @@ async function runEvidence(){
       JSON.parse(staticChild.stdout.slice('SNO_POLYVARIANT_STATIC_ATTACK '.length)));
     assert.equal(staticEvidence.recovered,3);
     assert.equal(staticEvidence.comparisons,12288);
+    const hook=spawnSync(process.execPath,[
+      path.join(__dirname,'sno-esm-runtime-hook-attack.js'),protectedDir
+    ],{encoding:'utf8',timeout:90000});
+    if(hook.error)throw hook.error;
+    assert.equal(hook.status,0,hook.stderr);
+    assert.match(hook.stdout,/^SNO_RUNTIME_HOOK_ATTACK /);
+    const hooked=/** @type {{modifiedFiles:number,hookedLast:number,hookedManifestAccepted:boolean}} */(
+      JSON.parse(hook.stdout.slice('SNO_RUNTIME_HOOK_ATTACK '.length)));
+    assert.equal(hooked.modifiedFiles,0);
+    assert.equal(hooked.hookedLast,777);
+    assert.equal(hooked.hookedManifestAccepted,true);
     return {
       cases:cases.length,
       changedFiles:compiled.changedFiles,
@@ -195,7 +206,9 @@ async function runEvidence(){
       directEsmClone:true,
       staticRecovered:staticEvidence.recovered,
       staticComparisons:staticEvidence.comparisons,
-      staticOffsets:staticEvidence.offsets
+      staticOffsets:staticEvidence.offsets,
+      runtimeHooked:hooked.hookedManifestAccepted,
+      runtimeDiskMutations:hooked.modifiedFiles
     };
   }finally{
     await fs.rm(temp,{recursive:true,force:true});
