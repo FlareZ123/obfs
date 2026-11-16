@@ -44,6 +44,10 @@ function families(index) {
         'return alias.'+field+'+alias.'+other+';}' +
         'globalThis.first=measure();'
     ]},
+    {name:'immediate-iife-factory',expected:2,code:[
+      'function measure(){const packet=(()=>('+literal+'))();' +
+        'return '+access+';}globalThis.first=measure();'
+    ]},
     {name:'global-lexical',expected:0,code:[
       'const packet='+literal+';globalThis.first='+access+';',
       'globalThis.second=packet.'+field+';'
@@ -73,11 +77,17 @@ function families(index) {
         'function measure(){const packet='+literal+';return peek(packet);}' +
         'globalThis.first=measure();',
       'peek=x=>x.'+field+'+10;globalThis.second=measure();'
+    ]},
+    {name:'mutable-global-factory',expected:0,code:[
+      'function make(){return '+literal+';}' +
+        'function measure(){const packet=make();return packet.'+field+';}' +
+        'globalThis.first=measure();',
+      'make=()=>({'+field+':99});globalThis.second=measure();'
     ]}
   ];
 }
 
-test('270 generated ordered classic-script graphs match native execution and proof coverage',()=>{
+test('330 generated ordered classic-script graphs match native execution and proof coverage',()=>{
   let accepted=0,refused=0;
   for(let trial=0;trial<30;trial++) {
     for(const graph of families(trial)) {
@@ -97,6 +107,6 @@ test('270 generated ordered classic-script graphs match native execution and pro
       else refused++;
     }
   }
-  assert.equal(accepted,90);
-  assert.equal(refused,180);
+  assert.equal(accepted,120);
+  assert.equal(refused,210);
 });
