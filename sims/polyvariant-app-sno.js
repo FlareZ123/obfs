@@ -71,7 +71,7 @@ async function emitSno(destination,native=false){
   const originals=await Promise.all(NAMES.map(async filename=>({
     path:filename,
     sourceType:/** @type {'module'} */('module'),
-    code:await fs.readFile(path.join(ROOT,'native',filename),'utf8')
+    code:(await fs.readFile(path.join(ROOT,'native',filename),'utf8')).replace(/\r\n/g,'\n')
   })));
   const math=obfuscateFiles(originals.slice(0,1),{
     mode:'sno',seed:SEED,closedWorld:false,strings:false,
