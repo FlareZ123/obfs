@@ -1,0 +1,29 @@
+name: Manual frozen application adversary challenge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  challenge:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Build exact generated public bytes for snapshot review
+        run: node examples/application-challenge/build.cjs --dump
+      - name: Differential semantics and offline attacker baseline
+        run: node --test test/application-challenge.test.js
+      - name: Independent public-file copy attack
+        run: node sims/application-challenge-offline-copy.js examples/application-challenge/after
