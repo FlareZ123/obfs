@@ -14,12 +14,14 @@ const {atomicWrite} = require('../src/atomic');
 /**
  * Execute the actual SNO launcher in a separate Node process.
  * @param {string} directory
+ * @param {string} [preloadPath]
  * @returns {{status:number|null,stdout:string,stderr:string}}
  */
-function execute(directory) {
+function execute(directory,preloadPath) {
   const entry=path.join(directory,'sno-entry.cjs');
+  const args=preloadPath ? ['--require',preloadPath] : [];
   const child=spawnSync(process.execPath,[
-    '-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',entry
+    ...args,'-e','process.stdout.write(JSON.stringify(require(process.argv[1])()))',entry
   ],{encoding:'utf8',timeout:10000});
   if(child.error)throw child.error;
   return {status:child.status,stdout:child.stdout,stderr:child.stderr};
@@ -60,8 +62,10 @@ async function rewritePublicManifest(directory) {
 
 /**
  * Build a real two-module obfuscated SNO bundle and demonstrate three states:
- * (1) original passes; (2) mutation fails; (3) public manifest rewrite passes.
- * @returns {Promise<{native:string,protected:string,mutationRejected:boolean,
+ * (1) original passes; (2) runtime hook changes behavior without modifying
+ * distributed bytes; (3) file mutation fails; (4) manifest rewrite passes.
+ * @returns {Promise<{native:string,protected:string,runtimeBypassed:string,
+ *                   distributedUnmodified:boolean,mutationRejected:boolean,
  *                   bypassed:string,attackerMs:number,digests:number}>}
  */
 async function runEvidence() {
@@ -93,8 +97,32 @@ async function runEvidence() {
     const protectedRun=execute(transformedDirectory);
     assert.equal(protectedRun.status,0,protectedRun.stderr);
     assert.equal(protectedRun.stdout,nativeChild.stdout);
-    // An attacker with filesystem access can replace the exported entry value.
+    // This is a distinct SNO threat-model attack. An adversary controlling
+    // the Node runtime can preload a CommonJS loader hook without touching
+    // any distributed source file or any expected digest.
+    const launcherPath=path.join(transformedDirectory,'sno-entry.cjs');
     const entryPath=path.join(transformedDirectory,'entry.cjs');
+    const launcherBytes=await fs.readFile(launcherPath);
+    const entryBytes=await fs.readFile(entryPath);
+    const attackerPreload=path.join(directory,'attacker','preload.cjs');
+    const preloadCode=[
+      "'use strict';",
+      "const Module=require('node:module');",
+      'const load=Module._load;',
+      'Module._load=function(request,parent,isMain){',
+      '  const value=load.apply(this,arguments);',
+      "  if(typeof request==='string' && request.endsWith('entry.cjs'))return ()=>777;",
+      '  return value;',
+      '};'
+    ].join('\n');
+    await atomicWrite(attackerPreload,preloadCode);
+    const injected=execute(transformedDirectory,attackerPreload);
+    assert.equal(injected.status,0,injected.stderr);
+    assert.equal(injected.stdout,'777');
+    const distributedUnmodified=launcherBytes.equals(await fs.readFile(launcherPath)) &&
+      entryBytes.equals(await fs.readFile(entryPath));
+    assert.equal(distributedUnmodified,true);
+    // An attacker with filesystem access can replace the exported entry value.
     const originalOutput=await fs.readFile(entryPath,'utf8');
     await atomicWrite(entryPath,originalOutput+'\nmodule.exports=()=>999;\n');
     const rejected=execute(transformedDirectory);
@@ -108,6 +136,7 @@ async function runEvidence() {
     assert.match(finalLauncher,/for\(const \[file,expected\] of checks\)/u);
     return {
       native:nativeChild.stdout,protected:protectedRun.stdout,
+      runtimeBypassed:injected.stdout,distributedUnmodified,
       mutationRejected:true,bypassed:bypassed.stdout,
       attackerMs:attack.elapsedMs,digests:attack.digests
     };
