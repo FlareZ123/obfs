@@ -6,7 +6,7 @@
  * This handles the deliberately restricted one-export module layout.
  */
 
-/** @typedef {{type:'parameter',index:number}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}} Expr */
+/** @typedef {{type:'parameter',index:number}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}|{type:'conditional',test:Expr,consequent:Expr,alternate:Expr}} Expr */
 
 /** @param {string} source @returns {Uint8Array} */
 function extractPublicWasm(source) {
@@ -74,6 +74,12 @@ function same(a,b) {
   if(a.type==='parameter')return a.index===/** @type {typeof a} */(b).index;
   if(a.type==='literal')return a.value===/** @type {typeof a} */(b).value;
   if(a.type==='unary')return same(a.argument,/** @type {typeof a} */(b).argument);
+  if(a.type==='conditional') {
+    const other=/** @type {typeof a} */ (b);
+    return same(a.test,other.test) &&
+      same(a.consequent,other.consequent) &&
+      same(a.alternate,other.alternate);
+  }
   const rhs=/** @type {typeof a} */(b);
   return a.operator===rhs.operator&&same(a.left,rhs.left)&&same(a.right,rhs.right);
 }
@@ -82,6 +88,9 @@ function same(a,b) {
 function normalize(node) {
   if(node.type==='parameter'||node.type==='literal')return node;
   if(node.type==='unary')return {type:'unary',argument:normalize(node.argument)};
+  if(node.type==='conditional')return {type:'conditional',
+    test:normalize(node.test),consequent:normalize(node.consequent),
+    alternate:normalize(node.alternate)};
   const left=normalize(node.left),right=normalize(node.right),operator=node.operator;
   if(operator==='^'&&left.type==='literal'&&right.type==='literal') {
     return {type:'literal',value:left.value^right.value};
@@ -132,7 +141,11 @@ function symbolicDecode(bytes) {
           if(index>3)throw new TypeError('Unsupported parameter index');
           stack.push({type:'parameter',index});
         } else if(opcode===0x41)stack.push({type:'literal',value:reader.signed()});
-        else if(opcode>=0x71&&opcode<=0x76) {
+        else if(opcode===0x1b) {
+          const test=stack.pop(),alternate=stack.pop(),consequent=stack.pop();
+          if(!test||!alternate||!consequent)throw new TypeError('Invalid select operands');
+          stack.push({type:'conditional',test,consequent,alternate});
+        } else if(opcode>=0x71&&opcode<=0x76) {
           const right=stack.pop(),left=stack.pop();
           if(!left||!right)throw new TypeError('Invalid stack expression');
           const operator=['&','|','^','<<','>>','>>>'][opcode-0x71];
@@ -157,6 +170,10 @@ function printExpression(expr,parameters) {
   }
   if(expr.type==='literal')return String(expr.value);
   if(expr.type==='unary')return '(~'+printExpression(expr.argument,parameters)+')';
+  if(expr.type==='conditional')return '('+
+    printExpression(expr.test,parameters)+'?'+
+    printExpression(expr.consequent,parameters)+':'+
+    printExpression(expr.alternate,parameters)+')';
   return '('+printExpression(expr.left,parameters)+expr.operator+
     printExpression(expr.right,parameters)+')';
 }
