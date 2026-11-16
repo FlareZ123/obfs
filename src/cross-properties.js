@@ -271,21 +271,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
     } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
-      // Reflect.apply/construct can invoke an opaque host capability even
-      // though the call's syntactic callee is the trusted Reflect builtin.
-      // Its first operand may be an inline host member or a declared alias.
-      if(node.type==='CallExpression' &&
-         node.callee.type==='MemberExpression' &&
-         node.callee.object.type==='Identifier' &&
-         node.callee.object.name==='Reflect') {
-        const method=node.callee.computed?
-          staticString(node.callee.property):staticName(node.callee.property);
-        const target=node.arguments[0];
-        if((method==='apply'||method==='construct') && target &&
-           (readsHostCallable(target) ||
-            target.type==='Identifier' && hostCallAliases.has(target.name))) {
-          changedIntrinsic=true;
-        }
+      // A host callable used as an argument may be invoked or retained by
+      // any otherwise unproved call/constructor. This includes Reflect.apply,
+      // microtask and Promise callbacks, not only direct host callees.
+      if((node.type==='CallExpression'||node.type==='NewExpression') &&
+         node.arguments.some(argument=>readsHostCallable(argument) ||
+           argument.type==='Identifier' && hostCallAliases.has(argument.name))) {
+        changedIntrinsic=true;
       }
       if(node.type==='CallExpression' &&
          (node.callee.type==='Identifier' && hostCallAliases.has(node.callee.name) ||
