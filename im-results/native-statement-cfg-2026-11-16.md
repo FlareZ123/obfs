@@ -115,6 +115,39 @@ Its nine-batch `vm.Script` cold compile median ratios were **1.681×
 Ubuntu / 1.610× Windows**. Cold compile measurements isolate V8 compiler
 startup and should not be treated as end-to-end browser loading cost.
 
+## Tight CPU-loop counterexample: budget violation
+
+A further [Linux/Windows targeted run 43804836672](https://github.com/FlareZ123/obfs/actions/runs/43804836672)
+passed all workflow stages, including the deliberately **non-enforcing**
+`sims/statement-flow-pure-hot.js` performance diagnostic. A generated
+82-byte native arithmetic function and its 596-byte flattened counterpart
+were each invoked 12 million times per trial, with six alternating warm
+trials and matching checksums:
+
+| CPU-only metric | Node 22 Ubuntu | Node 22 Windows |
+| --- | ---: | ---: |
+| Original median, 12 million calls | 56.282205 ms | 56.7162 ms |
+| Flattened median | 121.702815 ms | 157.7443 ms |
+| **Hot compute slowdown** | **2.16237×** | **2.78129×** |
+| Meets project 2.5× hard requirement | Yes, sampled | **No** |
+
+The Windows result is a reproducible counterexample for the current
+opt-in experimental backend. A fast whole-application benchmark with
+expensive host callbacks cannot validate a universal bound on hot-path
+function overhead. Do not automatically enable this backend for
+high-frequency small arithmetic functions; performance profiling and
+runtime-specific admission are essential.
+
+**Research decision:** The existing backend remains an opt-in,
+executable negative-control experiment in `im-results/`. Its full-control
+static reconstruction has already succeeded, and a measured Windows
+workload violates the hard hot-compute budget. Under the current evidence,
+it is inappropriate to promote this backend as a general preferred
+obfuscation strategy or claim robust resistance to either static recovery
+or runtime tampering. New work should prioritize trusted SCO withholding
+and clearly bounded whole-session measurements rather than additional
+state-label randomization.
+
 ## Security interpretation
 
 This is a native control-flow obfuscation *compatibility* result. It does not
