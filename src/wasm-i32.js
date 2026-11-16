@@ -57,6 +57,13 @@ function accepted(node,parameters,depth=0) {
   if(node.type==='Identifier')return parameters.includes(node.name);
   if(node.type==='Literal')return typeof node.value==='number' &&
     Number.isInteger(node.value)&&node.value>=-2147483648&&node.value<=2147483647;
+  if(node.type==='ConditionalExpression') {
+    // All three operands are pure primitive-i32 expressions. Evaluating both
+    // arms eagerly with Wasm select cannot trigger source-level side effects.
+    return accepted(node.test,parameters,depth+1) &&
+      accepted(node.consequent,parameters,depth+1) &&
+      accepted(node.alternate,parameters,depth+1);
+  }
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='~') {
     return accepted(node.argument,parameters,depth+1);
   }
@@ -67,6 +74,24 @@ function accepted(node,parameters,depth=0) {
   }
   return node.type==='BinaryExpression'&&Object.hasOwn(OPS,node.operator)&&
     accepted(node.left,parameters,depth+1)&&accepted(node.right,parameters,depth+1);
+}
+
+/**
+ * Native >>> produces an unsigned Number while other allowed terminal bitwise
+ * expressions and typed inputs produce signed Int32 Numbers. An outer ternary
+ * can return either representation, so only a uniform result kind may cross
+ * the Wasm i32 boundary. Inner ternaries are safe when a bitwise parent
+ * performs ToInt32 on their selected value before returning.
+ * @param {AstNode} node
+ * @returns {'signed'|'unsigned'|'mixed'}
+ */
+function resultKind(node) {
+  if(node.type==='ConditionalExpression') {
+    const yes=resultKind(node.consequent);
+    const no=resultKind(node.alternate);
+    return yes===no?yes:'mixed';
+  }
+  return node.type==='BinaryExpression'&&node.operator==='>>>'?'unsigned':'signed';
 }
 
 /** @param {AstNode} node @returns {boolean} */
@@ -99,6 +124,16 @@ function emit(node,parameters,entropy,state) {
     const mask=entropy.readInt32LE((state.position++%8)*4);
     state.steps+=3;
     return [0x41,...sleb((constant^mask)|0),0x41,...sleb(mask),0x73];
+  }
+  if(node.type==='ConditionalExpression') {
+    // Wasm select takes (trueValue,falseValue,condition) from the operand
+    // stack. Source expressions are pure typed i32 values; eager evaluation
+    // is observationally equivalent under the explicit contract.
+    const yes=emit(node.consequent,parameters,entropy,state);
+    const no=emit(node.alternate,parameters,entropy,state);
+    const predicate=emit(node.test,parameters,entropy,state);
+    state.steps++;
+    return [...yes,...no,...predicate,0x1b];
   }
   if(node.type==='UnaryExpression') {
     const body=emit(node.argument,parameters,entropy,state);
@@ -203,7 +238,8 @@ function lowerWasmI32Functions(source,sourceType,options) {
     if(fn.async||fn.generator||!validParameters||
       statements.length!==1||statements[0].type!=='ReturnStatement'||
       !expression||!accepted(expression,names)||
-      expression.type!=='BinaryExpression'&&expression.type!=='UnaryExpression') {
+      !['BinaryExpression','UnaryExpression','ConditionalExpression'].includes(expression.type)||
+       resultKind(expression)==='mixed') {
       declined++;continue;
     }
     const entropy=createHash('sha256').update(options.seed).update('\0')
@@ -234,7 +270,7 @@ function lowerWasmI32Functions(source,sourceType,options) {
     } else {
       init.push('const '+helper+'='+instance+';');
     }
-    const unsigned=expression.type==='BinaryExpression'&&expression.operator==='>>>';
+    const unsigned=resultKind(expression)==='unsigned';
     edits.push({start:fn.body.start,end:fn.body.end,
       text:'{return '+(unsigned?'('+helper+'('+callParameters+')>>>0)':
         helper+'('+callParameters+')')+';}'});
