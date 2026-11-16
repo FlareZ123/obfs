@@ -200,7 +200,13 @@ for(const [method,write] of [
   ['returned global root',
     "const getRoot=()=>globalThis;Object.getOwnPropertyDescriptor(getRoot(),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
   ['identity-forwarded root',
-    "const identity=input=>input;Object.getOwnPropertyDescriptor(identity(globalThis),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
+    "const identity=input=>input;Object.getOwnPropertyDescriptor(identity(globalThis),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with immutable local sensitive selector',
+    "const k='Reflect';Object.getOwnPropertyDescriptor(new Proxy(globalThis,{}),k).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with runtime-constructed sensitive selector',
+    "const k=['Ref','lect'].join('');Object.getOwnPropertyDescriptor(new Proxy(globalThis,{}),k).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with indirect descriptor collection',
+    "Object.getOwnPropertyDescriptors(new Proxy(globalThis,{})).Reflect.value.ownKeys=globalThis.HOST_REFLECT;"]
 ]){
   test('ambient intrinsic capability from '+method+' preserves published owner keys',async()=>{
     const original=graph().map(file=>file.path==='entry.mjs'?{
