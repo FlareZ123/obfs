@@ -190,6 +190,17 @@ function collectImportedHostCallRoots(modules) {
     /** @type {Map<string,AstNode[][]>} */
     const visible=new Map();
     for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration') {
+        const definition=statement.declaration;
+        if(['FunctionDeclaration','FunctionExpression',
+             'ArrowFunctionExpression'].includes(definition.type)) {
+          addParams(visible,'default',definition.params);
+        }else if(definition.type==='Identifier') {
+          for(const params of local.get(definition.name)??[])
+            addParams(visible,'default',params);
+        }
+        continue;
+      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       const definition=statement.declaration;
       if(definition?.type==='FunctionDeclaration' &&
@@ -220,6 +231,8 @@ function collectImportedHostCallRoots(modules) {
   for(const [filename,module] of modules) {
     /** @type {Map<string,{file:string,name:string}>} */
     const imported=new Map();
+    /** @type {Map<string,string>} */
+    const namespaces=new Map();
     for(const statement of module.ast.body) {
       if(statement.type!=='ImportDeclaration' ||
          statement.source.type!=='Literal' ||
@@ -228,10 +241,15 @@ function collectImportedHostCallRoots(modules) {
       const target=resolveImport(filename,statement.source.value);
       if(!target || !modules.has(target))continue;
       for(const specifier of statement.specifiers) {
-        if(specifier.type!=='ImportSpecifier')continue;
-        const name=specifier.imported.name??specifier.imported.value;
-        if(typeof name==='string')
-          imported.set(specifier.local.name,{file:target,name});
+        if(specifier.type==='ImportNamespaceSpecifier') {
+          namespaces.set(specifier.local.name,target);
+        }else if(specifier.type==='ImportDefaultSpecifier') {
+          imported.set(specifier.local.name,{file:target,name:'default'});
+        }else if(specifier.type==='ImportSpecifier') {
+          const name=specifier.imported.name??specifier.imported.value;
+          if(typeof name==='string')
+            imported.set(specifier.local.name,{file:target,name});
+        }
       }
     }
     walk(module.ast,node=>{
@@ -241,12 +259,20 @@ function collectImportedHostCallRoots(modules) {
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier' && node.right.type==='Identifier')
         edges.push({source:filename,actual:node.right.name,target:filename,formal:node.left});
-      if(node.type!=='CallExpression' || node.callee.type!=='Identifier')return;
-      const route=imported.get(node.callee.name);
+      if(node.type!=='CallExpression')return;
+      const callee=node.callee;
+      let route=callee.type==='Identifier'?imported.get(callee.name):undefined;
+      if(callee.type==='MemberExpression' && callee.object.type==='Identifier') {
+        const source=namespaces.get(callee.object.name);
+        const name=callee.computed?staticString(callee.property):
+          staticName(callee.property);
+        if(source && name!==null)route={file:source,name};
+      }
       const target=route?.file??filename;
       const candidates=route?
         exported.get(target)?.get(route.name)??[]:
-        declared.get(filename)?.get(node.callee.name)??[];
+        callee.type==='Identifier'?
+          declared.get(filename)?.get(callee.name)??[]:[];
       for(const parameters of candidates) {
         for(let index=0;index<parameters.length;index++) {
           const actual=node.arguments[index],parameter=parameters[index];
