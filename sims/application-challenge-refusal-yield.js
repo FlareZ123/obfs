@@ -9,7 +9,7 @@ const {createHash}=require('node:crypto');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate}=require('./application-challenge-observer-ablation');
+const {ablate,withOwnKeyCalls}=require('./application-challenge-observer-ablation');
 const {copyAttack}=require('./application-challenge-offline-copy');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
@@ -55,9 +55,12 @@ async function main(){
   const rows=[];
   try {
     for(const [variant,expected] of /** @type {[string,number][]} */ ([
-      ['none',0],['both',2]
+      ['none',0],['both',0],['own-only',2]
     ])){
-      const input=ablate(original,/** @type {'none'|'both'} */(variant));
+      const withoutObservers=ablate(original,/** @type {'none'|'both'} */(
+        variant==='own-only'?'both':variant));
+      const input=variant==='own-only'?
+        withOwnKeyCalls(withoutObservers):withoutObservers;
       const output=obfuscateFiles(input,{
         mode:'coo',closedWorld:true,seed:SEED,
         identifiers:true,properties:true,strings:false
@@ -84,6 +87,7 @@ async function main(){
       rows.push({
         variant,
         sourceObserverPresent:variant==='none',
+        removedMissingKeyCall:variant==='own-only',
         originalSha256:digest(input),
         emittedSha256:digest(/** @type {ModuleFile[]} */(output.files)),
         files:input.length,candidatePrivateFields:2,renamedPrivateFields:output.crossFile.properties,
@@ -99,7 +103,8 @@ async function main(){
     await fs.rm(working,{recursive:true,force:true});
   }
   assert.equal(rows[0].changedInputByteFraction,0);
-  assert.ok(rows[1].changedInputByteFraction>0);
+  assert.equal(rows[1].changedInputByteFraction,0);
+  assert.ok(rows[2].changedInputByteFraction>0);
   process.stdout.write('APPLICATION_REFUSAL_YIELD '+JSON.stringify(rows)+'\n');
   return {rows,sampleCount:cases.length};
 }
