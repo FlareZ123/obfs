@@ -232,6 +232,19 @@ function createScoHandler(sourceFiles,options={}) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
+  // Generated selective SCO files carry direct server-private module paths.
+  // Refuse an accidentally co-served private dependency before constructing
+  // any HTTP route, even if the private entry appears before its public facade.
+  const forbidden=new Set();
+  for(const file of sourceFiles){
+    if(file.privateModulePaths===undefined)continue;
+    if(!Array.isArray(file.privateModulePaths)){
+      throw new TypeError('SCO privateModulePaths must be an array');
+    }
+    for(const privatePath of file.privateModulePaths){
+      forbidden.add(safePath(privatePath).toLowerCase());
+    }
+  }
   // Validate the public route namespace before creating the HTTP handler.
   // Exact duplicates silently overwrite Map values, and case-folded aliases
   // may collide when the source group is deployed on Windows.
@@ -240,6 +253,7 @@ function createScoHandler(sourceFiles,options={}) {
   const normalized=sourceFiles.map(file=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
+    if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
     if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
     seen.add(collisionKey);
     if(typeof file.code!=='string'&&!Buffer.isBuffer(file.code)) {
