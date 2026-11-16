@@ -56,7 +56,7 @@ function isServerEnvironmentRead(expression){
  *
  * @param {import('./ast').AstNode} body
  * @param {boolean} [checkHostConfiguration] Only relocated private code inherits a new host configuration.
- * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|null}
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|'entropy'|'clock'|null}
  */
 function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
@@ -243,6 +243,47 @@ function realmStateObservation(body,checkHostConfiguration=false){
       receiver.object.type==='Identifier' &&
       globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
   }
+  // ECMA-262 gives each realm's Math.random a distinct pseudorandom
+  // sequence. Browser crypto and performance also observe host-specific
+  // entropy/clock state that the server does not share with the client.
+  /** @type {Map<string,'entropy'|'clock'>} */
+  const hostSources=new Map([['crypto','entropy'],['performance','clock']]);
+  let sourceChanged=true;
+  while(sourceChanged){
+    sourceChanged=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type!=='Identifier'||!initial)return;
+      const kind=initial.type==='Identifier'?hostSources.get(initial.name):
+        initial.type==='MemberExpression' &&
+        initial.object.type==='Identifier' &&
+        globalNames.has(initial.object.name)?hostSources.get(keyName(initial)??''):undefined;
+      if(kind&&!hostSources.has(binding.name)){
+        hostSources.set(binding.name,kind);
+        sourceChanged=true;
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isMathRoot(expression){
+    return expression.type==='Identifier'&&intrinsicKinds.get(expression.name)==='Math' ||
+      expression.type==='MemberExpression' &&
+      expression.object.type==='Identifier' &&
+      globalNames.has(expression.object.name)&&keyName(expression)==='Math';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {'entropy'|'clock'|undefined} */
+  function hostSourceKind(expression){
+    if(expression.type==='Identifier')return hostSources.get(expression.name);
+    if(expression.type==='MemberExpression' &&
+       expression.object.type==='Identifier' &&
+       globalNames.has(expression.object.name)){
+      return hostSources.get(keyName(expression)??'');
+    }
+    return undefined;
+  }
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function pinnedIsoUtcLiteral(expression){
     return expression.type==='Literal' && typeof expression.value==='string' &&
@@ -305,6 +346,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
   });
   let configurationTouched=false;
+  let entropyTouched=false;
+  let clockTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
@@ -323,11 +366,43 @@ function realmStateObservation(body,checkHostConfiguration=false){
     // reference itself rather than requiring a direct CallExpression.
     if(node.type==='MemberExpression'){
       const member=keyName(node);
+      if(isMathRoot(node.object)&&member==='random')entropyTouched=true;
+      const hostKind=hostSourceKind(node.object);
+      if(hostKind==='entropy')entropyTouched=true;
+      if(hostKind==='clock')clockTouched=true;
       if(localePrototypeMethods.has(member??''))configurationTouched=true;
       if(member==='supportedLocalesOf'&&
          (isIntlConstructor(node.object)||
           node.object.type==='Identifier'&&intlAliases.has(node.object.name))){
         configurationTouched=true;
+      }
+    }
+    // Extracting a random function or a host timing/crypto function through
+    // destructuring has the same cross-realm effect as a direct member read.
+    // Include assignment patterns and global-object destructuring aliases.
+    const pattern=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const source=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(pattern?.type==='ObjectPattern'&&source){
+      const properties=pattern.properties.filter(
+        (/** @type {import('./ast').AstNode} */ property)=>property.type==='Property');
+      if(isMathRoot(source)&&properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='random')){
+        entropyTouched=true;
+      }
+      const origin=hostSourceKind(source);
+      if(origin==='entropy')entropyTouched=true;
+      if(origin==='clock')clockTouched=true;
+      if(source.type==='Identifier'&&globalNames.has(source.name)){
+        if(properties.some(
+          (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='crypto')){
+          entropyTouched=true;
+        }
+        if(properties.some(
+          (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='performance')){
+          clockTouched=true;
+        }
       }
     }
     if((node.type==='CallExpression'||node.type==='NewExpression')&&
@@ -447,7 +522,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
        isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
   return prototypeTouched?'prototype':regexpTouched?'RegExp match':
-    intrinsicTouched?'intrinsic state':checkHostConfiguration&&configurationTouched?'configuration':null;
+    intrinsicTouched?'intrinsic state':checkHostConfiguration&&entropyTouched?'entropy':
+    checkHostConfiguration&&clockTouched?'clock':
+    checkHostConfiguration&&configurationTouched?'configuration':null;
 }
 
 /**
