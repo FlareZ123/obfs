@@ -40,7 +40,7 @@ const observedCode=[
   "  session.post('Debugger.getScriptSource',{scriptId:ownScript},(failure,answer)=>{",
   '    if(failure) throw failure;',
   '    process.stdout.write(JSON.stringify({value:owner.secretField,',
-  "      matchesSource:answer.scriptSource.includes('secretField:7')}));",
+  "      matchesSource:answer.scriptSource.includes(['secret','Field',':7'].join(''))}));",
   '    session.disconnect();',
   '  });',
   '});'
