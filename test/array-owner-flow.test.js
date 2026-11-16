@@ -109,3 +109,20 @@ test('checked-in private array before/after is exactly reproducible',async()=>{
   assert.equal(report.properties,2);
   assert.equal(report.bytes,452);
 });
+
+test('seedless source-only normalizer removes array-owner labels and clones behavior',()=>{
+  const {neutralizeHashedNames}=require('../sims/offline-normalize');
+  const obfuscated=compile(positive,'coo');
+  const output=String(obfuscated.files[0].code);
+  assert.equal(obfuscated.files[0].metrics.properties,2);
+  const attack=neutralizeHashedNames([{
+    path:'entry.cjs',sourceType:'commonjs',code:output
+  }]);
+  assert.equal(attack.properties,2);
+  assert.doesNotMatch(attack.files[0].code,/_p[0-9a-f]{10}/u);
+  const native=load(positive),clone=load(String(attack.files[0].code));
+  for(let input=-300;input<=300;input++){
+    assert.equal(clone(input),native(input),
+      'Client-only hashed owner labels are recoverable without build seed');
+  }
+});
