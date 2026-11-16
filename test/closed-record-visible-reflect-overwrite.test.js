@@ -200,7 +200,13 @@ for(const [method,write] of [
   ['returned global root',
     "const getRoot=()=>globalThis;Object.getOwnPropertyDescriptor(getRoot(),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
   ['identity-forwarded root',
-    "const identity=input=>input;Object.getOwnPropertyDescriptor(identity(globalThis),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
+    "const identity=input=>input;Object.getOwnPropertyDescriptor(identity(globalThis),'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with immutable local sensitive selector',
+    "const k='Reflect';Object.getOwnPropertyDescriptor(new Proxy(globalThis,{}),k).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with runtime-constructed sensitive selector',
+    "const k=['Ref','lect'].join('');Object.getOwnPropertyDescriptor(new Proxy(globalThis,{}),k).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['opaque receiver with indirect descriptor collection',
+    "Object.getOwnPropertyDescriptors(new Proxy(globalThis,{})).Reflect.value.ownKeys=globalThis.HOST_REFLECT;"]
 ]){
   test('ambient intrinsic capability from '+method+' preserves published owner keys',async()=>{
     const original=graph().map(file=>file.path==='entry.mjs'?{
@@ -231,6 +237,23 @@ test('unrelated literal global descriptor read still admits one proven property 
   });
   assert.equal(compiled.crossFile.properties,1,
     'Known unrelated global property reads must preserve positive transformation yield');
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",null]');
+  assert.equal(await execute(compiled.files),expected);
+});
+
+
+test('unrelated immutable descriptor selector through an opaque receiver preserves real transformation yield',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "const k='UNRELATED_FIXTURE';const proxy=new Proxy(globalThis,{});const d=Object.getOwnPropertyDescriptor(proxy,k);void d;")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'unrelated-opaque-descriptor-const',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A proved immutable unrelated selector must not cause a vacuous full graph refusal');
   const expected=await execute(original);
   assert.equal(expected,'[41,"audit-v1",null]');
   assert.equal(await execute(compiled.files),expected);
