@@ -9,6 +9,7 @@ const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 const {obfuscateFiles}=require('../src');
+const {recover}=require('../sims/polyvariant-affine-static-recover');
 
 test('frozen stateful multi-file COO app retains host callbacks, reflection and 96 held-out runs',async()=>{
   const full=await Promise.all(['math.mjs','state.mjs','entry.mjs'].map(async file=>({
@@ -30,6 +31,13 @@ test('frozen stateful multi-file COO app retains host callbacks, reflection and 
     const native=await import(pathToFileURL(path.join(__dirname,
       '../examples/polyvariant-app/native/entry.mjs')).href);
     const guarded=await import(pathToFileURL(path.join(dir,'entry.mjs')).href);
+    const publishedMath=await import(pathToFileURL(path.join(dir,'math.mjs')).href);
+    for(const name of ['round1','round2','round3']) {
+      const attack=recover(/** @type {string} */ (result.files[0].code),name,'module');
+      assert.equal(attack.cases,2);
+      const reconstructed=Function('return ('+attack.source+')')();
+      for(let n=-1000;n<=1000;n+=7)assert.equal(reconstructed(n),publishedMath[name](n));
+    }
     let seed=0x4fd2ac19;
     /** @returns {number} */
     const next=()=>{seed=(Math.imul(seed,1664525)+1013904223)|0;return seed;};
