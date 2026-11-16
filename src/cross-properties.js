@@ -171,7 +171,29 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
     let changedIntrinsic=false;
-    walk(source.ast,node=>{
+    walk(source.ast,(node,parent)=>{
+      // A direct-member write guard is insufficient when the global
+      // reflection object can escape through an alias or argument. Such a
+      // reference can replace ownKeys/getOwnPropertyDescriptor and return a
+      // host-provided Function, enabling an untracked runtime module import.
+      if(node.type==='Identifier' &&
+         (node.name==='Reflect'||node.name==='Object') &&
+         !(parent?.type==='MemberExpression'&&parent.object===node)) {
+        changedIntrinsic=true;
+      }
+      if(node.type==='MemberExpression') {
+        const field=node.computed?staticString(node.property):staticName(node.property);
+        if(field==='Reflect'||field==='Object')changedIntrinsic=true;
+        // A constant string stored in a binding can resolve a mutable
+        // intrinsic through globalThis[key] without spelling Reflect as an
+        // AST Identifier. The broader graph may prove the key's spelling
+        // but cannot prove the returned global intrinsic remains native.
+        if(node.computed && node.property.type!=='Literal' &&
+           node.object.type==='Identifier' &&
+           ['globalThis','window','self','global'].includes(node.object.name)) {
+          changedIntrinsic=true;
+        }
+      }
       const target=node.type==='AssignmentExpression'?node.left:
         node.type==='UpdateExpression'?node.argument:
         node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
