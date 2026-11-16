@@ -32,7 +32,9 @@
     "sims/polyvariant-app-sno-static-attacker.js",
     "sims/sno-esm-runtime-hook-attack.js",
     "test/application-challenge-sno.test.js",
-    "test/polyvariant-app-sno.test.js"
+    "test/polyvariant-app-sno.test.js",
+    "sims/sco-private-dynamic-loader-grid.js",
+    "sims/sco-private-runtime-source-trace.js"
   ],
   "exclude": [
     "node_modules"
