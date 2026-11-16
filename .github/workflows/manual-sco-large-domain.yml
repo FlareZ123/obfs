@@ -25,3 +25,5 @@ jobs:
         run: node sims/sco-large-domain-prf.js
       - name: Measure live third-party relay of an attacker-authorized session
         run: node sims/sco-relay-attack.js
+      - name: Authorized remote timing leak versus constant-time private comparison
+        run: node --test test/sco-timing-oracle.test.js
