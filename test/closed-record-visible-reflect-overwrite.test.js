@@ -60,6 +60,7 @@ async function execute(files){
       "  }",
       "  return native(receiver);",
       "};",
+      "Object.defineProperty(globalThis,'HOST_GETTER',{configurable:true,get(){globalThis.HOST_REFLECT({externalFormat:'audit-v1'});return null;}});",
       "globalThis.HOST_REPLACED_REFLECT=Object.create(Reflect);",
       "globalThis.HOST_REPLACED_REFLECT.ownKeys=globalThis.HOST_REFLECT;"
     ].join('\n');
@@ -257,4 +258,31 @@ test('unrelated immutable descriptor selector through an opaque receiver preserv
   const expected=await execute(original);
   assert.equal(expected,'[41,"audit-v1",null]');
   assert.equal(await execute(compiled.files),expected);
+});
+
+
+/**
+ * The descriptor selector is statically unrelated to any intrinsic, yet
+ * the Proxy's getOwnPropertyDescriptor trap has an opaque host side effect.
+ * A closed import graph cannot infer that reading that descriptor is inert.
+ */
+test('source-visible Proxy descriptor trap can invoke opaque host source observer',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',[
+      'const proxy=new Proxy(globalThis,{',
+      '  getOwnPropertyDescriptor(target,key){void target.HOST_GETTER;return undefined;}',
+      '});',
+      "Object.getOwnPropertyDescriptor(proxy,'UNRELATED_FIXTURE');"
+    ].join('\n'))
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'proxy-hidden-host-descriptor-trap',
+    identifiers:false,strings:false,properties:true
+  });
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",["secretField"]]');
+  assert.equal(await execute(compiled.files),expected,
+    'An unrelated descriptor key cannot prove a Proxy trap has no host effects');
+  assert.equal(compiled.crossFile.properties,0,
+    'Unknown Proxy handler effects must not permit cross-file exported property renaming');
 });
