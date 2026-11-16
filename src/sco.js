@@ -312,7 +312,8 @@ function createScoHandler(sourceFiles,options={}) {
   const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
-      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType))));
+      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
+        importedKeyProof.get(file.path))));
   if(interfileSourceObserver && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
