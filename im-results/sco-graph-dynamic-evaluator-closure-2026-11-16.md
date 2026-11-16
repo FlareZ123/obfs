@@ -25,3 +25,12 @@ The guard does not prove the absence of arbitrary indirect dynamic code: prototy
 It adds AST source preflight work during trusted SCO server construction and has no per-client RPC execution cost. The observed success concerns semantic source admission under the restricted examples. No whole-application 2.5× proof, universal source confidentiality, or authenticated-client anti-relay claim follows.
 
 **Source:** [src/sco-graph.js](../src/sco-graph.js), [negative admission tests](../test/sco-graph.test.js), [native runtime counterexample](../test/sco-graph-private-path-policy.test.js), [deployment guidance](../docs/SCO_PARTITION.md).
+
+
+## Broader evaluator-reference preflight (Agent 18, same day)
+
+**Exact source:** `c6adae0376616a199b3879d1340d193aca63dc13`. The [Linux/Windows manual graph run 43923571909](https://github.com/FlareZ123/obfs/actions/runs/43923571909) passed the same 13/13 graph tests per OS, checked generated facades, and strict graph JSDoc.
+
+A trivially aliased code factory can use `(0,Function)` or `Function.call(...)` without a direct `CallExpression` or assignment whose callee/initializer is exactly `Function`. The first narrow guard left these visible paths admitted. We amended the source audit to reject *runtime identifier references* to `Function` or `eval`, except ordinary uncomputed static property labels, and to reject direct global member access to their names even when part of a larger member/call chain. Global object destructuring remains covered. New rejection cases include a sequence alias, `Function.call` and computed `globalThis['F'+'unction'].call`.
+
+This is a deliberate overapproximation. A local binding shadowing the built-in name may also be refused because the graph audit does not attempt a lexical identity proof for those dangerous spellings. That affects admission yield; it does not mutate accepted source. More complex constructor derivations, host-object aliases, `Reflect.get`, imports of native loader APIs and runtime script construction still defeat general closure. The threat/evidence scope of the earlier report remains unchanged.
