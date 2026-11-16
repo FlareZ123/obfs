@@ -128,6 +128,10 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // property key can stringify the imported function's original source.
   const opaqueFunctions=new Set();
   const opaqueNamespaces=new Set();
+  // Track simple aliases before the function-valued-expression fixed point.
+  // Function.prototype getters invoked through Reflect/Object aliases can
+  // otherwise hide later exact-source reads through dynamic property keys.
+  const reflectiveReceivers=new Set(['Reflect','Object']);
   walk(ast,node=>{
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
        node.id?.type==='Identifier')functions.add(node.id.name);
@@ -162,7 +166,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
             node.computed && arraysWithFunctions.has(node.object.name))) ||
       node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
         node.callee.object.type==='Identifier' &&
-        ['Reflect','Object'].includes(node.callee.object.name) &&
+        reflectiveReceivers.has(node.callee.object.name) &&
         memberName(node.callee)==='getPrototypeOf' &&
         isFunctionValue(node.arguments[0])));
   }
@@ -312,6 +316,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
+        if(value?.type==='Identifier'&&reflectiveReceivers.has(value.name) ||
+           value?.type==='MemberExpression'&&isGlobal(value.object)&&
+             ['Reflect','Object'].includes(memberName(value)??'')) {
+          changed=add(reflectiveReceivers,name)||changed;
+        }
         if(isFunctionValue(value))changed=add(functions,name)||changed;
         if(value?.type==='ObjectExpression') {
           for(const property of value.properties) {
@@ -536,7 +545,6 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // Function#toString without any direct reflective call at the use site.
   // Overapproximate named aliases: shadowing or mutation can only cause a
   // conservative refusal, never an unsafe source rewrite.
-  const reflectiveReceivers=new Set(['Reflect','Object']);
   const reflectiveReaders=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
