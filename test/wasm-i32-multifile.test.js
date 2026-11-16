@@ -11,6 +11,7 @@ const {obfuscateFiles}=require('../src/core');
 const {atomicWrite}=require('../src/atomic');
 const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 
+/** @type {Array<{path:string,sourceType:'module',code:string}>} */
 const files=[
   {path:'kernel.mjs',sourceType:'module',
     code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'},
