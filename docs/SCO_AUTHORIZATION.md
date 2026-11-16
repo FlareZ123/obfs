@@ -32,7 +32,13 @@ private source even when its runtime dependency cannot be statically inferred.
 It does **not** authenticate requests, discover missing private paths, prevent
 an operator from approving a private file as public, or protect any separate
 web server route. It adds no per-request transformation/runtime computation;
-all comparisons occur at handler construction. Omitting `publicPaths` keeps
+all comparisons occur at handler construction. SCO also takes a byte-exact
+owned snapshot of any caller-supplied asset `Buffer` when constructing the
+handler, before source-disclosure preflight. Mutating the caller's original
+buffer or an alias after setup cannot silently change the bytes delivered by
+later GET requests. The one-time copy consumes memory proportional to the
+asset size; behavior is covered by
+[`test/sco-asset-buffer-snapshot.test.js`](../test/sco-asset-buffer-snapshot.test.js). Omitting `publicPaths` keeps
 legacy behavior. A real HTTP demonstration of the default accidental
 publication and positive-allowlist refusal is in
 [`test/sco-public-file-allowlist.test.js`](../test/sco-public-file-allowlist.test.js).
