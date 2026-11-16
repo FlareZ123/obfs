@@ -30,6 +30,8 @@ jobs:
         run: node sims/polyvariant-affine-static-recover.js
       - name: Measure deterministic dense and mixed protected workloads
         run: node sims/polyvariant-affine-benchmark.js
+      - name: Measure fresh parse and compilation overhead
+        run: node sims/polyvariant-affine-cold-start.js
       - name: Real Chromium COO ES module and host observation
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
