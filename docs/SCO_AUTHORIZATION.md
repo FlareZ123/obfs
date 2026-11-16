@@ -8,6 +8,25 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 
 **Boolean authorization contract:** All three callbacks must return `true` to grant permission. A truthy object (such as a verified session record), string, number or Boolean wrapper is refused even when it evaluates truthy in JavaScript; `false`, `null` and `undefined` are also refused. If your verifier returns a principal object, explicitly use `return Boolean(await verifyUserSession(request));` after independently validating that identity. This is a deliberate behavior change from the previous truthiness-based gate and may require integrator migration. Denied requests return 403; callback exceptions retain their generic 500 handling. This enforcement protects against accidental return-type confusion, not a compromised trusted SCO server or an authorization callback that intentionally returns `true` for an attacker.
 
+## JSON transport byte validity
+
+The SCO RPC handler requires the `application/json` media type and validates the
+complete body as UTF-8 before JSON parsing. Malformed UTF-8 octets are rejected
+as HTTP 400 `{"ok":false,"error":"Malformed JSON"}` without calling any
+authorization callback or private operation. Node's permissive
+`Buffer.toString('utf8')` normally replaces invalid sequences with U+FFFD;
+a caller-supplied literal U+FFFD remains valid when encoded as its actual
+three UTF-8 bytes. Validation occurs **after concatenating all body chunks**,
+so a valid code point may span individual HTTP chunks.
+
+This preserves an unambiguous raw-byte-to-JSON boundary for security-sensitive
+argument validation and signing. It does not authenticate the caller, impose
+additional method-argument schemas or prevent legitimate query relaying.
+A bounded body-size check runs before UTF-8 validation. This extra validation
+scans the received bytes, and its effect on the 2.5× runtime budget requires
+application-specific profiling. The byte-exact Node HTTP regression is in
+`test/sco-malformed-utf8-rpc.test.js`.
+
 ## Handler-owned authorization configuration
 
 SCO retains a private, construction-time snapshot of request policy wiring:
