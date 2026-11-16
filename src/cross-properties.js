@@ -171,7 +171,44 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
     let changedIntrinsic=false;
+    const hostRoots=new Set(['globalThis','window','self','global']);
+    /** @type {Set<string>} */
+    const hostCallAliases=new Set();
+    /** @type {[string,string][]} */
+    const aliasEdges=[];
+    // A host-supplied callable has unknown behavior, including the ability
+    // to invoke Function and import a module not represented by static ESM
+    // dependencies. Follow simple first-class aliases before admitting a
+    // graph-wide property rename.
+    walk(source.ast,node=>{
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' && node.init) {
+        if(node.init.type==='MemberExpression' &&
+           node.init.object.type==='Identifier' &&
+           hostRoots.has(node.init.object.name))hostCallAliases.add(node.id.name);
+        if(node.init.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
+      }
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='Identifier' && node.right.type==='Identifier') {
+        aliasEdges.push([node.left.name,node.right.name]);
+      }
+    });
+    let aliasChanged;
+    do {
+      aliasChanged=false;
+      for(const [target,origin] of aliasEdges) {
+        if(hostCallAliases.has(origin) && !hostCallAliases.has(target)) {
+          hostCallAliases.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
+      if(node.type==='CallExpression' &&
+         (node.callee.type==='Identifier' && hostCallAliases.has(node.callee.name) ||
+          node.callee.type==='MemberExpression' &&
+          node.callee.object.type==='Identifier' &&
+          (hostRoots.has(node.callee.object.name) ||
+           hostCallAliases.has(node.callee.object.name))))changedIntrinsic=true;
       // A direct-member write guard is insufficient when the global
       // reflection object can escape through an alias or argument. Such a
       // reference can replace ownKeys/getOwnPropertyDescriptor and return a
