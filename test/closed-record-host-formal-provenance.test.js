@@ -231,3 +231,47 @@ test('unrelated local bound function retains one genuine exported owner rename',
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+
+/**
+ * bind() without a captured argument returns a locally callable adapter
+ * whose later arguments still flow into the original function's formals.
+ * Existing direct-call provenance must not lose these remaining parameters.
+ */
+for(const [name,code] of [
+  ['uncaptured bound function',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);bound(globalThis);"],
+  ['uncaptured bound function forwarded alias',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);const alias=bound;alias(globalThis);"],
+  ['partially bound two-parameter function',
+    "function rewire(unrelated,{['Ref'+'lect']:cap}){void unrelated;cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null,7);bound(globalThis);"],
+  ['uncaptured bound function invoked by Reflect.apply',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);Reflect.apply(bound,null,[globalThis]);"]
+]){
+  test('partially bound local host provenance: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-partial-bind/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'Bound local callable must retain the original remaining formal parameters');
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('partially bound local non-host callable keeps real owner-key rename',async()=>{
+  const original=graph(
+    "function read(unrelated,{['UNRELATED_FIXTURE']:k}){void unrelated;return k;}const bound=read.bind(null,7);void bound(globalThis);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-partial-bind/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A safe partial bind must retain nonvacuous cross-file private work');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
