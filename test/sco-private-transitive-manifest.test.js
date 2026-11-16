@@ -272,7 +272,9 @@ test('static constructor key aliases must not hide runtime imports',{timeout:150
     'const key="constructor"; const load=({})[key][key]("p","return import(p)");',
     'const first="con"+"structor"; const key=first; const load=({})[key][key]("p","return import(p)");',
     'const key=\`con\${"structor"}\`; const load=({})[key][key]("p","return import(p)");',
-    'const key="constructor"; const { [key]:Maker }=(()=>0); const load=Maker("p","return import(p)");'
+    'const key="constructor"; const { [key]:Maker }=(()=>0); const load=Maker("p","return import(p)");',
+    'const key=["con","structor"].join(""); const load=(()=>0)[key]("p","return import(p)");',
+    'const key=["con","structor"].join(""); const fn=()=>0; const load=fn[key]("p","return import(p)");'
   ];
   const suffix='export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}';
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-key-alias-'));
@@ -292,4 +294,7 @@ test('static constructor key aliases must not hide runtime imports',{timeout:150
   assert.doesNotThrow(()=>emit([{path:engine.path,
     code:'const key="answer"; const record={answer:41}; export function deriveProof(v){return record[key]+v;}'}]),
     'A statically safe ordinary computed field stays eligible');
+  assert.doesNotThrow(()=>emit([{path:engine.path,
+    code:'const fn=(v)=>v; export function deriveProof(v){return fn["name"].length+v;}'}]),
+    'Known non-constructor properties of callables stay eligible');
 });
