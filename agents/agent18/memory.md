@@ -32,3 +32,14 @@ Compatibility change: `createScoGraphHandler` requires exact original object ret
 A proposed independent blind LLM reconstruction attempt against `examples/polyvariant-app/generated/math.mjs` using Workers_API did not run: worker tool returned unavailable 404. No new attack result or reconstruction claim should be inferred.
 
 Important follow-ups: (1) have graph API owner review the sealed same-process contract; (2) broaden representative app attack cost only with a genuinely independent attacker, not a new emitter variant; (3) verify further SCO source exposure boundaries under real HTTP rather than implying arbitrary code confidentiality. 
+
+
+## 2026-11-16 continuation: deployed graph source commitments
+
+The closed graph compiler previously had bare SHA-256 fingerprints for private original sources but no path-addressed commitment that the example server could verify against its deployed files before ESM import. Reused the existing `verifyScoPrivateSourceDigests` selective-SCO preflight:
+- `src/sco-graph.js` adds `privateSourceDigests:[{path,sha256}]` for all original members (including originals of public facade modules), and derives each facade's prior digest-only list from those same input bytes. Graph snapshots include these new commitments.
+- `examples/sco-graph/server.cjs` calls the verifier before any original ESM namespace imports.
+- `test/sco-graph-private-path-policy.test.js` uses atomic temp file writes to show that either the private dependency or the selected original facade implementation changes trigger specific filename errors; source restores pass. An additional sealed-manifest mutation is refused.
+- Strict Node22/JSDoc targeted Linux/Windows gate [43919220894](https://github.com/FlareZ123/obfs/actions/runs/43919220894) passed at exact `c8767efce6e033a99dba0f958f11137a3969f24c` (12 tests across two files on each OS). `im-results/sco-graph-deployment-source-integrity-2026-11-16.md` documents the evidence and limitations; README and docs/SCO_PARTITION.md updated.
+
+This is a trusted-server **deployment consistency** check. The verifier has an admitted TOCTOU filesystem race; do not claim tamper-resistance against an untrusted server or general 2.5× proof. No per-RPC operations were added.
