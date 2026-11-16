@@ -977,6 +977,25 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           }
         }
       }
+      // Object-pattern extraction can also carry the global process root.
+      // Key expressions must be constant before we infer a builtin alias.
+      const pattern=node.type==='VariableDeclarator' ? node.id :
+        node.type==='AssignmentExpression'&&node.operator==='=' ? node.left : null;
+      if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
+         globals.has(initial.name)) {
+        for(const prop of pattern.properties) {
+          if(prop.type!=='Property'||prop.value.type!=='Identifier')continue;
+          const field=prop.computed ? staticString(prop.key) :
+            prop.key.type==='Identifier'?prop.key.name:
+            prop.key.type==='Literal'?prop.key.value:null;
+          const roots=field==='process'?processRoots:
+            field==='require'?requireRoots:field==='module'?moduleRoots:null;
+          if(roots&&!roots.has(prop.value.name)){
+            roots.add(prop.value.name);
+            changed=true;
+          }
+        }
+      }
       // Node also exposes process on globalThis. An alias of that property
       // can later reach mainModule without spelling process at the use site.
       if(binding?.type==='Identifier' && initial?.type==='MemberExpression' &&
@@ -1116,6 +1135,28 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='VariableDeclarator' && node.init?.type==='Identifier' &&
        node.init.name==='require')observed=true;
+    // Destructuring reads a field even when no MemberExpression is present.
+    // Opaque computed keys and rest patterns can expose a loader or fetch API.
+    const pattern=node.type==='VariableDeclarator' ? node.id :
+      node.type==='AssignmentExpression'&&node.operator==='=' ? node.left : null;
+    const target=node.type==='VariableDeclarator' ? node.init :
+      node.type==='AssignmentExpression' ? node.right : null;
+    if(pattern?.type==='ObjectPattern' && target?.type==='Identifier') {
+      for(const property of pattern.properties) {
+        if(property.type!=='Property') {
+          if(globals.has(target.name)||moduleRoots.has(target.name)||
+             processRoots.has(target.name)||requireRoots.has(target.name))observed=true;
+          continue;
+        }
+        const field=property.computed ? knownKey(property.key) :
+          property.key.type==='Identifier' ? property.key.name :
+          property.key.type==='Literal'&&typeof property.key.value==='string' ?
+            property.key.value : null;
+        if(canReachLoader(target.name,field) || globals.has(target.name) &&
+           (field===null || browserReaders.has(field) ||
+            ['require','module'].includes(field)))observed=true;
+      }
+    }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
