@@ -132,13 +132,23 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // Function.prototype getters invoked through Reflect/Object aliases can
   // otherwise hide later exact-source reads through dynamic property keys.
   const reflectiveReceivers=new Set(['Reflect','Object']);
+  // Resolve native serializer imports before walking the AST. ESM imports
+  // may appear before later source-observation helper declarations.
+  const v8Modules=new Set();
+  const v8Serializers=new Set();
+  const v8SerializerConstructors=new Set();
+  const v8SerializerInstances=new Set();
+  const v8WriteMethods=new Set();
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' &&
        ['v8','node:v8'].includes(String(node.source?.value??''))) {
       for(const spec of node.specifiers) {
         if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))v8Modules.add(spec.local.name);
-        if(spec.type==='ImportSpecifier' &&
-           (spec.imported.name??spec.imported.value)==='serialize')v8Serializers.add(spec.local.name);
+        if(spec.type==='ImportSpecifier') {
+          const name=spec.imported.name??spec.imported.value;
+          if(name==='serialize')v8Serializers.add(spec.local.name);
+          if(['Serializer','DefaultSerializer'].includes(name))v8SerializerConstructors.add(spec.local.name);
+        }
       }
     }
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
@@ -215,8 +225,6 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
   const cloneFunctions=new Set(['structuredClone']);
-  const v8Modules=new Set();
-  const v8Serializers=new Set();
   const aggregateErrors=new Set(['AggregateError']);
   // Web IDL string arguments and string-valued record/sequence entries also
   // invoke ToString, so exposed source can cross a browser API boundary.
@@ -295,6 +303,28 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       isV8Module(node.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isV8SerializerConstructor(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      v8SerializerConstructors.has(node.name) ||
+      node.type==='MemberExpression' &&
+      ['Serializer','DefaultSerializer'].includes(memberName(node)??'') &&
+      isV8Module(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isV8SerializerInstance(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      v8SerializerInstances.has(node.name) ||
+      node.type==='NewExpression' &&
+      isV8SerializerConstructor(node.callee)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isV8SerializerWrite(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      v8WriteMethods.has(node.name) ||
+      node.type==='MemberExpression' && memberName(node)==='writeValue' &&
+      isV8SerializerInstance(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isAggregateError(node) {
     return Boolean(node && (node.type==='Identifier'&&aggregateErrors.has(node.name) ||
       node.type==='MemberExpression' && isGlobal(node.object) &&
@@ -370,6 +400,14 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
         if(isV8Module(value))changed=add(v8Modules,name)||changed;
+        if(isV8SerializerConstructor(value))changed=add(v8SerializerConstructors,name)||changed;
+        if(isV8SerializerInstance(value))changed=add(v8SerializerInstances,name)||changed;
+        if(isV8SerializerWrite(value) || value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isV8SerializerWrite(value.callee.object)) {
+          changed=add(v8WriteMethods,name)||changed;
+        }
         if(isV8Serialize(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -490,6 +528,9 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='serialize')changed=add(v8Serializers,property.value.name)||changed;
+          if(name==='Serializer'||name==='DefaultSerializer') {
+            changed=add(v8SerializerConstructors,property.value.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -896,6 +937,20 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
          (callee.type==='Identifier' && callee.name==='postMessage' ||
           callee.type==='MemberExpression' && memberName(callee)==='postMessage') &&
          node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
+      // Both the convenience serializer and stateful Serializer.writeValue
+      // throw messages containing the exact native function-source spelling.
+      if(node.type==='CallExpression' && isV8SerializerWrite(callee) &&
+         node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isV8SerializerWrite(callee.object)) {
+        const method=memberName(callee);
+        if(method==='call' && node.arguments[1] &&
+           !isInertCloneInput(node.arguments[1]))observed=true;
+        if(method==='apply'||method==='bind')observed=true;
+      }
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         isV8SerializerWrite(node.arguments[0]))observed=true;
       // Node's V8 serializer reuses structured clone rules and can expose the
       // exact source of a failed function operand in its error message.
       if(node.type==='CallExpression' && isV8Serialize(callee) &&
