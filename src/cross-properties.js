@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,parse,observesFunctionSource,staticString} = require('./ast');
+const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -131,7 +131,8 @@ function renameCrossFileProperties(files,seed) {
     // Function source can be inspected by a separate ESM consumer that never
     // imports the object whose field is being renamed. Check the whole graph,
     // rather than relying on object-alias consumers alone.
-    if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
+    if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path)) ||
+       observesDistributedSource(module.ast))return {files,objects:0,properties:0};
     let ambiguous=false;
     walk(module.ast,node=>{
       if (node.type==='Identifier' &&
