@@ -3,7 +3,12 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {partitionScoAsyncGraph,createScoHandler,createScoGraphHandler}=require('../src');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {atomicWrite}=require('../src/atomic');
+const {partitionScoAsyncGraph,createScoHandler,createScoGraphHandler,
+  verifyScoPrivateSourceDigests}=require('../src');
 
 const originals=[
   {path:'api.mjs',
@@ -298,7 +303,8 @@ test('composed SCO graph seals facades and method metadata against post-partitio
     g=>{g.clientFiles[0].privateOriginalDigests=[];},
     g=>{g.partitions['api.mjs'].methodNames.calculate='mForgedMethod';},
     g=>{g.partitions['api.mjs'].names[0]='inspect';},
-    g=>{g.privatePaths.push('unreviewed.mjs');}
+    g=>{g.privatePaths.push('unreviewed.mjs');},
+    g=>{g.privateSourceDigests[0].sha256='0'.repeat(64);}
   ];
   for(const alter of mutate){
     const graph=make();
@@ -337,4 +343,39 @@ test('composed SCO graph seals facades and method metadata against post-partitio
     /** @type {ReturnType<typeof partitionScoAsyncGraph>} */ (JSON.parse(JSON.stringify(intact))),
     namespaces,options
   ),/requires a graph generated in this process/u);
+});
+
+
+test('SCO graph audits deployed source bytes for both exposed and private original ESM modules',async()=>{
+  const files=[
+    {path:'api.mjs',
+      code:'import {secret} from "./private/engine.mjs";export async function evaluate(value){return secret+value;}'},
+    {path:'private/engine.mjs',code:'export const secret=137;'}
+  ];
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-source-digests-20261116',exposedPaths:['api.mjs']
+  });
+  assert.deepEqual(graph.privateSourceDigests.map(item=>item.path),
+    ['api.mjs','private/engine.mjs']);
+  for(const item of graph.privateSourceDigests){
+    assert.match(item.sha256,/^[0-9a-f]{64}$/u);
+  }
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-graph-integrity-'));
+  try{
+    for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
+    await assert.doesNotReject(()=>verifyScoPrivateSourceDigests(graph,root));
+
+    await atomicWrite(path.join(root,'private/engine.mjs'),files[1].code+'\n');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(graph,root),
+      /SCO private source bytes changed since partition: private\/engine\.mjs/u);
+    await atomicWrite(path.join(root,'private/engine.mjs'),files[1].code);
+
+    await atomicWrite(path.join(root,'api.mjs'),files[0].code+' // accidentally changed');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(graph,root),
+      /SCO private source bytes changed since partition: api\.mjs/u);
+    await atomicWrite(path.join(root,'api.mjs'),files[0].code);
+    await assert.doesNotReject(()=>verifyScoPrivateSourceDigests(graph,root));
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
 });
