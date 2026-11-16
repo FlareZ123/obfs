@@ -10,7 +10,7 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles,createScoHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
-/** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
+/** @typedef {{path:string,sourceType:'module'|'commonjs',code:string}} ModuleFile */
 
 /**
  * Execute the exact input files from a fresh ESM graph, so a source reader
@@ -22,7 +22,8 @@ async function execute(files) {
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-source-bytes-'));
   try {
     for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
-    const child=spawnSync(process.execPath,[path.join(dir,'main.mjs')],{
+    const entry=files.some(file=>file.path==='main.cjs')?'main.cjs':'main.mjs';
+    const child=spawnSync(process.execPath,[path.join(dir,entry)],{
       encoding:'utf8',timeout:20000
     });
     if(child.error)throw child.error;
@@ -148,4 +149,47 @@ test('SCO delivers byte-exact source when its browser client can fetch that sour
   } finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
+});
+
+for(const [label,observer] of [
+  ['variable-based dynamic import',
+    'const name="node:fs";const io=await import(name);'+
+    'const code=io.readFileSync(new URL("./state.mjs",import.meta.url),"utf8");'+
+    'console.log(state.secretField,code.includes("secretField"));'],
+  ['createRequire from node:module',
+    'import {createRequire} from "node:module";'+
+    'const load=createRequire(import.meta.url);const io=load("node:fs");'+
+    'const code=io.readFileSync(new URL("./state.mjs",import.meta.url),"utf8");'+
+    'console.log(state.secretField,code.includes("secretField"));']
+]) {
+  test('dynamic Node source-loader aliases preserve original ESM source: '+label,async()=>{
+    const files=graph(observer);
+    const baseline=await execute(files);
+    assert.equal(baseline.status,0,baseline.stderr);
+    assert.equal(baseline.stdout,'23 true\n');
+    const output=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'dynamic-loader/'+label,
+      strings:false,identifiers:true
+    });
+    assert.equal(output.crossFile.properties,0);
+    assert.deepEqual(await execute(output.files),baseline);
+  });
+}
+
+test('CommonJS dynamic require indirection cannot expose renamed self bytes',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[{path:'main.cjs',sourceType:'commonjs',code:
+    'const builtin="node:fs";const loader=require;const io=loader(builtin);'+
+    'const object={secretField:31};'+
+    'const bytes=io.readFileSync(__filename,"utf8");'+
+    'console.log(object.secretField,bytes.includes("secretField"));'}];
+  const native=await execute(files);
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'31 true\n');
+  const output=obfuscateFiles(files,{
+    mode:'sno',seed:'dynamic-require-source-read',
+    strings:true,identifiers:true,properties:true
+  });
+  assert.equal(output.files[0].code,files[0].code);
+  assert.deepEqual(await execute(output.files),native);
 });
