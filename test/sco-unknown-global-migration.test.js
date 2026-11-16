@@ -160,3 +160,20 @@ test('Native and real-HTTP SCO emitted modules preserve owned local-root behavio
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('Owned local ambient records in private and retained public helpers remain independent',()=>{
+  const moduleCode=[
+    'function internalHelper(){const globalThis={value:41};return globalThis.value;}',
+    'function browserHelper(){const globalThis={value:7};return globalThis.value;}',
+    'export async function protectedOp(){return internalHelper();}',
+    'export function visible(){return browserHelper();}'
+  ].join('\n');
+  const result=partitionScoSelectedAsyncExports(
+    {path:'local-helpers.mjs',code:moduleCode,sourceType:'module'},
+    {privateNames:['protectedOp'],publicHelperNames:['browserHelper'],
+      seed:'owned-local-helper-20261116'});
+  assert.deepEqual(result.privateNames,['protectedOp']);
+  assert.deepEqual(result.publicHelperNames,['browserHelper']);
+  assert.doesNotMatch(result.clientFile.code,/internalHelper|value:41/u);
+  assert.match(result.clientFile.code,/browserHelper/u);
+});
