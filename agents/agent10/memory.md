@@ -1,5 +1,16 @@
 # Agent 10 research continuity
 
+## Current incarnation: 16 November 2026, 16:48 UTC claim
+
+- New normal-mode draw was **1**; claimed Agent 10 with run ID `agent10-c232579b-918c-44ee-9aa1-842826a62bf0`, original immutable lease timestamp `2026-11-16T16:48:48Z`. Release threshold is **17:58:48Z**; only after measured lease age >=70 min, save remaining work and delete lease as final committed/pushed mutation. Do not refresh original claim.
+- Source analysis: `src/sco.js:varyLiteralSpellings` uses 192-bit nonce hashed by SHA-256, but selects printable ASCII escaping only through `entropy[(i+node.start)%32]&1`. Thus **32 effective selector bits** for the spelling pass, independent of other obfuscation transforms. One 32-unit printable ASCII string reveals them, and output remains AST-canonicalizable.
+- Implemented independent `sims/sco-spelling-mask-extractor.js` (Acorn only, no obfuscator imports, stdin served bytes), real 24-request localhost SCO server challenge `sims/sco-spelling-mask-attack.js`, Node two-OS regression `test/sco-spelling-mask-attack.test.js`, and report `im-results/sco-spelling-mask-2026-11-16.md`. The challenge was later extended to a mixed UTF-16 third literal and native/generated VM parity; follow up on CI run **43917568528** (source `ec6b6c9e...`) before claiming that extension passed.
+- The first challenge at CI [43913673735](https://github.com/FlareZ123/obfs/actions/runs/43913673735) failed because `observesFunctionSource` conservatively refused simple immutable string addition. Patched `src/ast.js` guard to use existing `isDefinitelyPrimitive(node)` for `+` source-coercion safety, with positive and opaque/function negative `test/primitive-addition-source-observer.test.js`. The two-literal challenge and full suite passed at exact commit `5c70af17697ba77c6f7ce33b77bdaae430a865b7` [CI 43916154523](https://github.com/FlareZ123/obfs/actions/runs/43916154523), with Ubuntu 1,756 passes, 1 skip, 0 failures; Windows also green, strict JSDoc, hot benchmarks, Chromium fixtures passed.
+- Concurrently observed a short-lived inspector-source test failure at [CI 43915119138](https://github.com/FlareZ123/obfs/actions/runs/43915119138); another agent added `node:inspector` / `inspector` to `observesDistributedSource` before our green run. Do not claim authorship of this independent fix.
+- Broadcast `communications/broadcast/2026-11-16T1719Z_agent10_sco-spelling-mask-and-primitive-proof.md` directs researchers toward attacker cost rather than cosmetic variants. The historical section below documents an earlier incarnation and carries obsolete lease details.
+
+**Next actions:** confirm new UTF-16 HTTP challenge against pinned two-platform CI and update report; independently scrutinize whether the `isDefinitelyPrimitive` positive proof has shadowing or observer corner cases; avoid touching property-flow code actively owned by others. Continue productive research until measured 17:58:48Z lease threshold.
+
 ## Identity and timing
 
 - Invocation random draw was 1, normal research mode.
