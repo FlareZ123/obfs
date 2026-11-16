@@ -360,7 +360,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // Plain global-object mutation is also observable by a retained client
     // function in the original shared realm. Overapproximate simple aliases
     // and reject direct writes rather than trusting a server-only side effect.
-    const globalRoots=new Set(['globalThis','window','self','global']);
+    // Node's process is an ambient module-loader capability, not an inert
+    // private value: getBuiltinModule('module') gives createRequire without
+    // spelling a static node:module import or the require identifier.
+    const globalRoots=new Set(['globalThis','window','self','global','process']);
     let aliasesChanged=true;
     while(aliasesChanged) {
       aliasesChanged=false;
@@ -370,7 +373,9 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
             node.left.type==='Identifier'?node.left:null;
         const initial=node.type==='VariableDeclarator'?node.init:
           node.type==='AssignmentExpression'?node.right:null;
-        if(binding&&initial?.type==='Identifier'&&globalRoots.has(initial.name)&&
+        if(binding&&initial&&
+           (initial.type==='Identifier'||initial.type==='MemberExpression')&&
+           rootedInGlobal(initial)&&!isServerEnvironmentRead(initial)&&
            !globalRoots.has(binding.name)){
           globalRoots.add(binding.name);
           aliasesChanged=true;
@@ -383,7 +388,13 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         node.type==='MemberExpression'&&rootedInGlobal(node.object);
     }
     walk(ast,node=>{
-      if(node.type==='AssignmentExpression'&&rootedInGlobal(node.left) ||
+      // Destructuring can carry process.getBuiltinModule or a global root
+      // into an untracked binding. Refuse these opaque first-class escapes.
+      if(node.type==='VariableDeclarator'&&node.id.type!=='Identifier'&&
+           node.init&&rootedInGlobal(node.init) ||
+         node.type==='AssignmentExpression'&&node.left.type==='ObjectPattern'&&
+           rootedInGlobal(node.right) ||
+         node.type==='AssignmentExpression'&&rootedInGlobal(node.left) ||
          node.type==='UpdateExpression'&&rootedInGlobal(node.argument) ||
          node.type==='UnaryExpression'&&node.operator==='delete'&&
            rootedInGlobal(node.argument) ||
