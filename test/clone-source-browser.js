@@ -38,7 +38,7 @@ async function browser(filename) {
 async function page(directory,label,javascript) {
   const filename=path.join(directory,label+'.html');
   const html='<!doctype html><meta charset="utf-8">'+
-    '<pre id="result"></pre><script>'+javascript+'</script>';
+    '<pre id="result"></pre><script type="module">'+javascript+'</script>';
   await atomicWrite(filename,html);
   return filename;
 }
@@ -74,7 +74,7 @@ async function main() {
   try {
     for(const item of scenarios){
       const emitted=obfuscateFiles([{
-        path:item.name+'.js',sourceType:'script',code:item.code
+        path:item.name+'.mjs',sourceType:'module',code:item.code
       }],{mode:'coo',seed:'browser-clone/'+item.name,strings:true}).files[0];
       assert.equal(emitted.metrics.properties,item.denied?0:1,
         'Source-observer protected-work yield: '+item.name);
