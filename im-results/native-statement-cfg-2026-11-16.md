@@ -72,6 +72,49 @@ passed after adding a real four-file stateful ESM graph, including a retained
 public entry and an imported helper incrementing a shared counter. It checks
 400 native and transformed sequential calls per module group.
 
+## Measured full-client static attack and direct tamper
+
+A later [Linux/Windows/Chromium targeted run 43804565469](https://github.com/FlareZ123/obfs/actions/runs/43804565469)
+passed at immutable source SHA `ebb1c5dc0ef7a654fc269f1498200cd4c160bd44`.
+The attacker used only each of 80 different *fully layered*, public COO
+outputs, including ordinary identifier/property/string transforms and
+browser-host guard. The separate `sims/statement-flow-attack-cost.js`
+recovered **80/80 executable source clones**, with **20,560/20,560**
+held-out checks matching their originals. It received neither the original
+source nor compiler seed as an attack input; the native version was used for
+independent outcome comparison.
+
+| Metric | Node 22 Ubuntu | Node 22 Windows |
+| --- | ---: | ---: |
+| Median source-only recovery wall time per protected function | 0.176901 ms | 0.178900 ms |
+| 95th-percentile recovery wall time | 0.405328 ms | 0.401900 ms |
+| Total automated recovery time, 80 variants | 18.154134 ms | 17.163700 ms |
+| Original AST parse median | 0.056947 ms | 0.059000 ms |
+| Original source bytes | 92 | 92 |
+| Delivered layered median source bytes | 769 | 769 |
+
+These parser measurements are local Node wall timings using an attack routine
+*designed for this published emitter*. They exclude an adversary's initial
+engineering effort and do not establish the cost of unanticipated tools or
+larger functions. They do establish a strong **negative control** against
+claims that the tested state randomization or host guard obstructs automated
+program reconstruction.
+
+The same run executed `sims/statement-flow-tamper.js`: a public-source
+attacker changed a single `score += 31` instruction into `score += 32`
+without any compiler secret or state-map knowledge. **129/258** control
+inputs changed their returned values and **129/258** retained their
+values, while all branch event hooks remained identical. This validates an
+unauthorized mutation within the distributed COO code. It makes no
+claim about SNO launcher digest checks, which have their own separately
+documented filesystem-control bypass boundary.
+
+The run also passed the full 8,218-observation Chromium comparison of
+original, switch-lowered, and standard-layered+host-locked ESM modules.
+Its nine-batch `vm.Script` cold compile median ratios were **1.681×
+Ubuntu / 1.610× Windows**. Cold compile measurements isolate V8 compiler
+startup and should not be treated as end-to-end browser loading cost.
+
 ## Security interpretation
 
 This is a native control-flow obfuscation *compatibility* result. It does not
