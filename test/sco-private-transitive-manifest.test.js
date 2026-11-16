@@ -2,6 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const http=require('node:http');
 const {partitionScoSelectedAsyncExports,createScoHandler}=require('../src');
 
 const entry=[
@@ -37,7 +38,8 @@ test('closed-world private ESM graph tracks transitive import and reexport paths
   assert.throws(()=>createScoHandler([generated.clientFile,leaf]),/must not serve private source/);
   assert.throws(()=>createScoHandler([leaf,generated.clientFile]),/must not serve private source/);
   const throughReexport=emit([
-    {...engine,code:'export {secretValue as deriveProof} from "./deep/secret.mjs";'},leaf
+    {...engine,code:'export {deriveProof} from "./deep/secret.mjs";'},
+    {...leaf,code:'export function deriveProof(value){return value.length+41;}'}
   ]);
   assert.ok(throughReexport.clientFile.privateModulePaths.includes(leaf.path));
 });
@@ -73,4 +75,47 @@ test('private static graph audit remains optional for legacy caller-reviewed pat
       privateModuleImports:['./private/engine.mjs']}
   );
   assert.deepEqual(generated.clientFile.privateModulePaths,['private/engine.mjs']);
+});
+
+test('direct-only manifest permits accidentally served transitive source, audited closure refuses it',{
+  timeout:15000
+},async()=>{
+  const directOnly=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:entry},
+    {seed:'unprotected-direct-only-20261116',
+      privateNames:['protectedDigest'],privateModuleImports:['./private/engine.mjs']}
+  );
+  assert.deepEqual(directOnly.clientFile.privateModulePaths,['private/engine.mjs']);
+  // A mistakenly published private leaf is invisible to the older direct-only
+  // manifest. Its actual source is delivered by the real HTTP handler.
+  const server=http.createServer(createScoHandler([directOnly.clientFile,leaf]));
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/'+leaf.path);
+    assert.equal(response.status,200);
+    assert.match(response.headers.get('content-type')??'',/text\/javascript/u);
+    assert.match(await response.text(),/secretValue/u);
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+  }
+  const audited=emit([engine,leaf]);
+  assert.throws(()=>createScoHandler([audited.clientFile,leaf]),
+    /must not serve private source/);
+});
+
+test('static private closure supports canonical cycles without repeated scanning',()=>{
+  const first={
+    path:'private/engine.mjs',
+    code:'import {leaf} from "./leaf.mjs"; export function deriveProof(v){return leaf(v);}'
+  };
+  const second={
+    path:'private/leaf.mjs',
+    code:'import {deriveProof} from "./engine.mjs"; export function leaf(v){return v+1;}'
+  };
+  const generated=emit([first,second]);
+  assert.deepEqual(generated.clientFile.privateModulePaths,
+    ['private/engine.mjs','private/leaf.mjs']);
 });
