@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: Native Intl source counterexample on unmodified compiler
+        run: node --test test/intl-source-observation.test.js
       - name: Exact-function-source native differential (COO/SNO/SCO)
         run: node --test test/sco-source-observation.test.js test/sco-interfile-source-observation.test.js test/reflective-source-fuzz.test.js
       - name: Other source observation, ambient intrinsic and property semantics
