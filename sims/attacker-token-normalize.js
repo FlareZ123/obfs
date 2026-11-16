@@ -1,6 +1,7 @@
 'use strict';
 
 const acorn=require('acorn');
+const walk=require('acorn-walk');
 
 /** @typedef {'script'|'module'|'commonjs'} SourceType */
 /** @typedef {{path:string,code:string,sourceType?:SourceType}} File */
@@ -43,10 +44,25 @@ function normalizeDistributedFiles(files) {
       file.path.endsWith('.cjs')?'commonjs':'script');
     /** @type {import('acorn').Token[]} */
     const tokens=[];
-    acorn.parse(file.code,{
+    const ast=acorn.parse(file.code,{
       ecmaVersion:'latest',sourceType:type==='commonjs'?'script':type,
       allowReturnOutsideFunction:type==='commonjs',allowHashBang:true,
       onToken:tokens
+    });
+    // A hash-shaped string can be program data. Rewrite only literal keys
+    // used directly in the syntax of a property definition or member read.
+    // This is a syntactic source-only attack, not a general dataflow proof.
+    /** @type {Set<number>} */
+    const keyStringStarts=new Set();
+    walk.ancestor(ast,{
+      Literal(node,_state,ancestors) {
+        if(typeof node.value!=='string')return;
+        const parent=ancestors[ancestors.length-2];
+        if((parent?.type==='Property'&&parent.key===node)||
+           (parent?.type==='MemberExpression'&&parent.computed&&parent.property===node)) {
+          keyStringStarts.add(node.start);
+        }
+      }
     });
     /** @type {Edit[]} */
     const edits=[];
@@ -54,6 +70,7 @@ function normalizeDistributedFiles(files) {
       if(token.type!==acorn.tokTypes.name && token.type!==acorn.tokTypes.string)continue;
       const value='value' in token ? token.value : undefined;
       if(typeof value!=='string')continue;
+      if(token.type===acorn.tokTypes.string&&!keyStringStarts.has(token.start))continue;
       const next=replacement(value);
       if(next===null)continue;
       edits.push({start:token.start,end:token.end,
