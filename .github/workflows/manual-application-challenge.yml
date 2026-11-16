@@ -26,7 +26,7 @@ jobs:
       - name: Strict compiler JSDoc and verified dynamic record regressions
         run: |
           npm run typecheck
-          node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js test/closed-record-host-hook-attack.test.js
+          node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js test/closed-record-host-hook-attack.test.js test/closed-record-visible-reflect-overwrite.test.js
       - name: Diagnose private-field proof refusal and positive control
         run: node sims/application-challenge-proof-diagnosis.js
       - name: Quantify refusal and protected-work yield on distinct frozen graphs
