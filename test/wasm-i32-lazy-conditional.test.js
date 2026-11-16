@@ -139,3 +139,37 @@ test('invalid conditional strategies fail closed before compilation',()=>{
     }
   ),/Expected source, module type, seed and explicit function names/u);
 });
+
+test('large balanced conditional arms use lazy Wasm if with exact independent recovery',()=>{
+  const heavyB='((((b^d)&(c>>>2))^((c|b)<<(d&7)))|'+
+    '((((b^c)<<3)&(d|1))^((c^d)>>>5)))';
+  const source='function f(a,b,c,d){return (a?'+heavy+':'+heavyB+');}module.exports=f;';
+  const original=load(source);
+  const automatic=lowerWasmI32Functions(source,'commonjs',{
+    seed:'balanced-lazy-grid-20261116',names:['f']
+  });
+  const lazy=lowerWasmI32Functions(source,'commonjs',{
+    seed:'balanced-lazy-grid-20261116',names:['f'],conditionalStrategy:'if'
+  });
+  const eager=lowerWasmI32Functions(source,'commonjs',{
+    seed:'balanced-lazy-grid-20261116',names:['f'],conditionalStrategy:'select'
+  });
+  assert.equal(automatic.functions,1);
+  assert.ok(hasIfI32(extractPublicWasm(automatic.code)));
+  assert.equal(automatic.code,lazy.code);
+  assert.notEqual(automatic.code,eager.code);
+  const recovered=recoverPublicWasmExpression(automatic.code,['a','b','c','d']);
+  const reconstructed=load('function f(a,b,c,d){return '+
+    recovered.expression+';}module.exports=f;');
+  const compiled=load(automatic.code);
+  const select=load(eager.code);
+  for(let i=0;i<1024;i++){
+    const args=/** @type {[number,number,number,number]} */([
+      i%2?(i*17)|0:0,(i*1664525)|0,(i*1013904223)|0,(i*69069)|0
+    ]);
+    const expected=original(...args);
+    assert.equal(compiled(...args),expected);
+    assert.equal(select(...args),expected);
+    assert.equal(reconstructed(...args),expected);
+  }
+});
