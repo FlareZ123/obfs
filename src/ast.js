@@ -228,9 +228,12 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     {name:'RelativeTimeFormat',constructors:new Set(),instances:new Set()},
     {name:'Locale',constructors:new Set(),instances:new Set()},
     {name:'DateTimeFormat',constructors:new Set(),instances:new Set()},
-    {name:'NumberFormat',constructors:new Set(),instances:new Set()}
+    {name:'NumberFormat',constructors:new Set(),instances:new Set()},
+    {name:'PluralRules',constructors:new Set(),instances:new Set()},
+    {name:'DurationFormat',constructors:new Set(),instances:new Set()}
   ];
   const boundCollatorCompares=new Set();
+  const intlStaticStringCalls=new Set();
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -353,6 +356,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           changed=add(formInstances,name)||changed;
         }
         if(isIntlNamespace(value))changed=add(intlNamespaces,name)||changed;
+        if(value?.type==='MemberExpression'&&isIntlNamespace(value.object)&&
+           ['supportedValuesOf','getCanonicalLocales'].includes(memberName(value)??'') ||
+           value?.type==='Identifier'&&intlStaticStringCalls.has(value.name)) {
+          changed=add(intlStaticStringCalls,name)||changed;
+        }
         for(const kind of intlKinds) {
           if(isIntlConstructor(value,kind))changed=add(kind.constructors,name)||changed;
           if(isIntlInstance(value,kind))changed=add(kind.instances,name)||changed;
@@ -429,6 +437,9 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           const kind=intlKinds.find(item=>item.name===name);
           if(kind)changed=add(kind.constructors,property.value.name)||changed;
+          if(['supportedValuesOf','getCanonicalLocales'].includes(name??'')) {
+            changed=add(intlStaticStringCalls,property.value.name)||changed;
+          }
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -437,6 +448,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           if(property.type!=='Property' || property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
             if(name==='Symbol')changed=add(symbols,property.value.name)||changed;
@@ -794,6 +806,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       if(intlKinds.some(kind=>isIntlConstructor(callee,kind)) &&
          node.arguments.some((/** @type {AstNode} */ value)=>
            mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(callee.type==='Identifier' && intlStaticStringCalls.has(callee.name) &&
+         node.arguments[0] &&
+         mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
+      if(callee.type==='MemberExpression' &&
+         callee.object.type==='Identifier' &&
+         intlStaticStringCalls.has(callee.object.name) &&
+         ['call','apply','bind'].includes(memberName(callee)??''))observed=true;
       if(callee.type==='MemberExpression' && isIntlNamespace(callee.object) &&
          ['getCanonicalLocales','supportedValuesOf'].includes(memberName(callee)??'') &&
          node.arguments[0] &&
