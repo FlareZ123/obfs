@@ -80,15 +80,15 @@ function compile(traced){
 async function getOddStatus(files){
   const server=http.createServer(createScoHandler(files));
   try{
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    await /** @type {Promise<void>} */ (new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve())));
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const response=await fetch('http://127.0.0.1:'+
       address.port+'/obfs/private/deep/odd.mjs');
     return response.status;
   }finally{
-    await new Promise((resolve,reject)=>
-      server.close(error=>error?reject(error):resolve()));
+    await /** @type {Promise<void>} */ (new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve())));
   }
 }
 
