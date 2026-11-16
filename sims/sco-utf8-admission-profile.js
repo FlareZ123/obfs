@@ -6,9 +6,8 @@ const {performance}=require('node:perf_hooks');
 
 /** @param {Buffer} bytes @returns {number} */
 function permissive(bytes){
-  const parsed=JSON.parse(bytes.toString('utf8'));
-  assert.ok(Array.isArray(parsed.args));
-  return /** @type {string} */ (parsed.args[0]).length;
+  const parsed=/** @type {{args:[string]}} */ (JSON.parse(bytes.toString('utf8')));
+  return parsed.args[0].length;
 }
 
 /** @param {Buffer} bytes @returns {number} */
