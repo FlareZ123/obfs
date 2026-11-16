@@ -101,3 +101,11 @@ test('single-slot array supports direct owner references and safe aliases in one
     for(let n=-21;n<=21;n++)assert.equal(encoded(n),native(n));
   }
 });
+
+test('checked-in private array before/after is exactly reproducible',async()=>{
+  const {buildSample}=require('../examples/array-owner-flow/build-sample.cjs');
+  const report=await buildSample(true);
+  assert.equal(report.objects,1);
+  assert.equal(report.properties,2);
+  assert.equal(report.bytes,452);
+});
