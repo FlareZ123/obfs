@@ -26,7 +26,11 @@ for(const [name,expression] of [
   ['aliased direct','(()=>{const copy=structuredClone;return copy(inspect);})()'],
   ['aliased global member','(()=>{const Root=globalThis;const copy=Root.structuredClone;return copy(inspect);})()'],
   ['global destructuring','(()=>{const {structuredClone:copy}=globalThis;return copy(inspect);})()'],
-  ['nested function','structuredClone({callback:inspect})']
+  ['nested function','structuredClone({callback:inspect})'],
+  ['indirect call','structuredClone.call(null,inspect)'],
+  ['indirect apply','structuredClone.apply(null,[inspect])'],
+  ['bound call','(()=>{const clone=structuredClone.bind(null);return clone(inspect);})()'],
+  ['reflective apply','Reflect.apply(structuredClone,null,[inspect])']
 ]) {
   test('structuredClone function-source error: '+name,()=>{
     const source=fixture('let observed;try{'+expression+'}catch(error){observed=error.message}');
