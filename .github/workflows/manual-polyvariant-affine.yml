@@ -40,6 +40,8 @@ jobs:
         run: node sims/polyvariant-affine-cold-start.js
       - name: Measure startup-inclusive end-to-end short and long COO sessions
         run: node sims/polyvariant-affine-session-budget.js
+      - name: Measure full three-module app import and stateful workload cost
+        run: node sims/polyvariant-app-budget.js
       - name: Real Chromium COO ES module and host observation
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
