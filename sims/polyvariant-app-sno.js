@@ -14,7 +14,8 @@ const NAMES=['math.mjs','state.mjs','entry.mjs'];
 const CJS_ENTRY='entry.cjs';
 const SEED='polyvariant-app-sno-20261116';
 const BRIDGE="'use strict';\n"+
-  "const cases=JSON.parse(process.argv[2]||'[]');\n"+
+  "const arg=process.argv[2]||'[]';\n"+
+  "const cases=JSON.parse(arg.startsWith('@')?require('node:fs').readFileSync(arg.slice(1),'utf8'):arg);\n"+
   "import('./entry.mjs').then(({runScenario})=>{\n"+
   "const output=cases.map(([seed,records])=>{\n"+
   "const external=[];\n"+
@@ -105,19 +106,20 @@ async function emitSno(destination,native=false){
 /**
  * @param {string} executable
  * @param {Scenario[]} cases
+ * @param {string} [inputFile]
  * @returns {{status:number|null,stdout:string,stderr:string}}
  */
-function execute(executable,cases){
-  const child=spawnSync(process.execPath,[executable,JSON.stringify(cases)],{
+function execute(executable,cases,inputFile){
+  const child=spawnSync(process.execPath,[executable,inputFile?'@'+inputFile:JSON.stringify(cases)],{
     encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024
   });
   if(child.error)throw child.error;
   return {status:child.status,stdout:child.stdout,stderr:child.stderr};
 }
 
-/** @param {string} executable @param {Scenario[]} cases @returns {any[]} */
-function runJson(executable,cases){
-  const result=execute(executable,cases);
+/** @param {string} executable @param {Scenario[]} cases @param {string} [inputFile] @returns {any[]} */
+function runJson(executable,cases,inputFile){
+  const result=execute(executable,cases,inputFile);
   assert.equal(result.status,0,result.stderr);
   return JSON.parse(result.stdout);
 }
@@ -208,8 +210,10 @@ async function profile(rounds=7){
           kind:i%2?'tick':'open',
           payload:'field:'+i+':β'
         }))]];
-      const expected=runJson(path.join(native,CJS_ENTRY),cases);
-      assert.deepEqual(runJson(path.join(protectedDir,'sno-entry.cjs'),cases),expected);
+      const inputFile=path.join(root,'profile-input.json');
+      await atomicWrite(inputFile,JSON.stringify(cases));
+      const expected=runJson(path.join(native,CJS_ENTRY),cases,inputFile);
+      assert.deepEqual(runJson(path.join(protectedDir,'sno-entry.cjs'),cases,inputFile),expected);
       const nativeTimings=[];
       const snoTimings=[];
       for(let trial=0;trial<rounds;trial++){
@@ -217,7 +221,7 @@ async function profile(rounds=7){
           const executable=isSno?path.join(protectedDir,'sno-entry.cjs'):
             path.join(native,CJS_ENTRY);
           const start=process.hrtime.bigint();
-          const observed=runJson(executable,cases);
+          const observed=runJson(executable,cases,inputFile);
           const elapsed=Number(process.hrtime.bigint()-start)/1e6;
           assert.deepEqual(observed,expected);
           (isSno?snoTimings:nativeTimings).push(elapsed);
