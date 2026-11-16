@@ -12,10 +12,10 @@ const {parse,walk}=require('./ast');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[],experimentalSymbolKeys:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -61,6 +61,23 @@ function readArgs(argv) {
       const name=value.slice(index+1);
       opts.experimentalNativeGraph??={};
       (opts.experimentalNativeGraph[file]??=[]).push(name);
+    }
+    else if (option === '--polyvariant-affine') {
+      const index=value.lastIndexOf(':');
+      if(index<1||index===value.length-1) {
+        throw new TypeError('--polyvariant-affine expects relative-file:functionName');
+      }
+      const file=safePath(value.slice(0,index));
+      const name=value.slice(index+1);
+      opts.experimentalPolyvariantAffine??={};
+      (opts.experimentalPolyvariantAffine[file]??=[]).push(name);
+    }
+    else if (option === '--polyvariant-count') {
+      const count=Number(value);
+      if(count!==2&&count!==4&&count!==8) {
+        throw new TypeError('--polyvariant-count requires 2, 4 or 8');
+      }
+      opts.experimentalPolyvariantCount=/** @type {2|4|8} */ (count);
     }
     else if (option === '--wasm-i32') {
       const index=value.lastIndexOf(':');
@@ -247,9 +264,9 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
-  if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
+  if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalPolyvariantAffine||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
   const absRoot = path.resolve(root);
   const sourceTree = await readSourceTree(absRoot);
   // A .js dependency inside a nested {"type":"module"} package is ESM,
@@ -276,7 +293,7 @@ async function main(mode,argv) {
   if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalWasmI32,experimentalSymbolKeys});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
