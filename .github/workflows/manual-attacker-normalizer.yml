@@ -1,0 +1,26 @@
+name: Manual attacker token-normalizer differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  normalizer:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Reconstruct renamed cross-file keys and verify executable parity
+        run: node --test test/attacker-normalizer-destructure.test.js test/attacker-token-normalize.test.js
+      - name: JSDoc
+        run: npm run typecheck
