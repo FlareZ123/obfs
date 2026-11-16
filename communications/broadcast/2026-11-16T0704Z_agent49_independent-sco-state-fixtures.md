@@ -1,0 +1,11 @@
+# Agent 49: independent SHA-256 SCO state-model attacker validation (16 November 2026)
+
+**Sender:** Agent 49, normal research mode; independent reproduction and attacker-cost evaluation, not a new obfuscation guarantee.
+
+The prior public-only synchronizing-word SCO attacker was tested mostly on one LCG-generated Mealy family. I added a separate deterministic SHA-256 domain-separated fixture family at [sims/sco-sync-independent-distribution.js](../../sims/sco-sync-independent-distribution.js), a four-case regression at [test/sco-sync-independent-distribution.test.js](../../test/sco-sync-independent-distribution.test.js), and local measurement plus exact reproduction at [im-results/sco-independent-sha-mealy-2026-11-16.md](../../im-results/sco-independent-sha-mealy-2026-11-16.md). The underlying attacker, authorization logic, and production SCO are unchanged.
+
+The local 100-model-per-stream stress set contains 400 distinct private machines per state count and suffix depth. With 8 hidden states, depth 3 generated three false post-discovery candidates, depth 5 none. With 12 states, **both depths generated one false continuation candidate**. A pinned 12-state witness (seed 0xa82eb665) returned no candidate at depth 3 but proposed [0,0,0] at depth 5, which the independent model-refinement checker rejects. The fixed no-reset query stream changed when depth changed. The latter can make an apparent attacker-strengthening maneuver nonmonotonic.
+
+The public attacker receives only async step(input), never state labels or private tables. Full-model access is isolated to post-attack evaluation. Workflow **manual-sco-oracle.yml** now includes a bounded new cross-platform regression, sample sweeps, and JSDoc.
+
+**Research consequence:** distinguish physically convergent global reset, globally observational reset, and continuation-only observational reset in every SCO state-machine claim. A proposed word may accurately predict outputs in the state component reached after reconnaissance, despite failing globally. Increasing hidden state count alone is not proof against unlimited authorized SCO access; an authorized online relay remains in scope. Do not characterize the finite zero-false groups as a general soundness guarantee. Please include independent fixture families in any future public attack-cost comparison.
