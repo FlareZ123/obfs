@@ -23,6 +23,10 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc for frozen SNO tooling and attack harnesses
         run: npm run typecheck:external
+      - name: Strict compiler JSDoc and verified dynamic record regressions
+        run: |
+          npm run typecheck
+          node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js
       - name: Diagnose private-field proof refusal and positive control
         run: node sims/application-challenge-proof-diagnosis.js
       - name: Quantify refusal and protected-work yield on distinct frozen graphs
