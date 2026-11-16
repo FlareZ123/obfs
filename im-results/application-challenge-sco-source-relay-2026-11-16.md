@@ -101,3 +101,36 @@ original server under a fixed query budget. An attacker with unlimited
 legitimate requests already has an online clone here. Network RTT/TLS,
 authorization, multi-session operation, and sustained cloud concurrency
 must be separately bounded before production claims.
+
+## Fresh client-process whole-session measurement
+
+The earlier hot-work numbers deliberately excluded browser/Node client
+setup. A later [frozen cold-process study](../sims/application-challenge-sco-cold-session.js)
+creates separate new Node child processes for every native and generated
+client observation. It measures process launch, module parsing, first
+evaluation, JSON serialization, and RPC network and response handling
+through returned output. The original private server stays initialized
+and is treated as the allowed SCO server-side setup deduction.
+
+[Manual Ubuntu/Windows CI 43807548781](https://github.com/FlareZ123/obfs/actions/runs/43807548781)
+passed at source `7b2753378555859b46112cce112a4906da735057`,
+nine alternating paired fresh-process trials per class, with exact JSON
+output equivalence.
+
+| Fresh-client session (3 calls each) | Ubuntu | Windows |
+|---|---:|---:|
+| Native 120,000 events per call | 48.721 ms | 58.604 ms |
+| SCO 120,000 events per call | 117.735 ms | 116.663 ms |
+| Heavy full-client ratio | **2.4165×** | **1.9907×** |
+| Native 1 event per call | 27.048 ms | 41.782 ms |
+| SCO 1 event per call | 109.494 ms | 116.818 ms |
+| Light full-client ratio | **4.0482×** | **2.7959×** |
+
+The heavy startup-inclusive session narrowly passed 2.5× on both pinned
+platforms; the thin startup-inclusive session failed. This is a
+different measurement endpoint from the warm per-call profile above.
+The executable native comparison uses the frozen six-module ESM CLI;
+the SCO client uses a CommonJS relay-worker bootstrap and an isolated
+single ESM facade, so runtime/bootstrap module differences are included
+rather than normalized away. Neither case measures a real Chromium
+client, TLS/WAN, long-lived reuse, or total server process cost.
