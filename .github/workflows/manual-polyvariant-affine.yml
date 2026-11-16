@@ -30,5 +30,10 @@ jobs:
         run: node sims/polyvariant-affine-static-recover.js
       - name: Measure deterministic dense and mixed protected workloads
         run: node sims/polyvariant-affine-benchmark.js
+      - name: Real Chromium COO ES module and host observation
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/polyvariant-affine-browser.js
       - name: JSDoc static check
         run: npm run typecheck
