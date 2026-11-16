@@ -61,3 +61,50 @@ Keep unproven VM and heavy string decoders behind explicit experimental options 
 4. Repeat independent Windows/Linux/Chromium release validation and track manual CI head hashes; preserve failed cases and false refusals as regression evidence.
 
 This matrix resides in `im-results/` by design. Its concrete reproducible negative findings are useful engineering evidence, but no peer-review-level novel mathematical result is claimed in `results/`.
+
+## 2026-11-16 frozen six-module application stress test
+
+The [original application, exact emitted COO files, and private SCO adapter](../examples/application-challenge/README.md)
+offer a newer application-level counterpoint to the earlier atomic decision
+grid. The reference has a 32-bit stateful mixer, two private ESM fields,
+caller-provided `globalThis.window.externalValue`, and an unrelated dynamic
+reflected schema. The SCO case adds an **explicit asynchronous contract**;
+it is a trust-boundary variant of the same protected computation, rather
+than a transparent conversion of the synchronous original interface.
+
+| Application endpoint | COO conservative AST | SCO private graph + async RPC |
+|---|---|---|
+| Distributed source | 6/6 original modules, 2,786 bytes | One exact 515-byte facade; 5 implementation modules withheld |
+| Protected field transformation | 0 of 2 candidate owner fields | Full protected implementation remains server-side |
+| Independent adversary | Every original source byte available; 160/160 public-only offline tests + 128/128 additional vectors cloned | 40/40 fresh test vectors produced through authorized online relay, without private modules |
+| Functional comparison | 102 native/output application cases | 36 native/RPC calls on each platform |
+| Warm hot 120k events per invocation | 1.007× Ubuntu / 1.000× Windows (unchanged source) | 1.437× Ubuntu / 1.634× Windows |
+| Client cold process, 3 × 120k event calls | Not separately measured in same experiment | 2.417× Ubuntu / 1.991× Windows (server already initialized) |
+| 1-event invocation | Unchanged source | 133.62× Ubuntu / 169.24× Windows warm; 4.048× / 2.796× cold client process |
+| Source/clone decision | Zero static security benefit from no-op compiler output | Genuine source withholding, successful authorized online functional clone; thin calls fail 2.5× |
+
+The exact COO [cross-platform gate 43805835201](https://github.com/FlareZ123/obfs/actions/runs/43805835201)
+is pinned to `57badde3d2b3e660a0a7b17c1477c4eea57f31a3`.
+A conservative whole-group function-source observation guard prevented
+all file transformations. A separate [ablation gate 43807339621](https://github.com/FlareZ123/obfs/actions/runs/43807339621)
+at `6aa5bfc677bcb7f31dfc401aab3cc1cc40858a14` confirms the two
+independent veto points, with the important limitation that ablated
+programs **do not preserve the original's exact behavior**.
+
+The exact SCO facade and localhost relay [gate 43806967633](https://github.com/FlareZ123/obfs/actions/runs/43806967633)
+passed at `b0c759fec74580c5b2ae906bb0367ce221c90db1`; the startup-inclusive
+fresh-client [gate 43807548781](https://github.com/FlareZ123/obfs/actions/runs/43807548781)
+passed at `7b2753378555859b46112cce112a4906da735057`.
+The 2.417× Ubuntu cold-process result is close to the 2.5× budget
+threshold, and one sample is insufficient for a deployment guarantee.
+None of these runs includes real TLS, WAN RTT, browser startup or
+multi-tenant production authorization.
+
+Supporting methods, source artifacts and complete limitations:
+[COO observer refusal](application-challenge-refusal-2026-11-16.md) and
+[SCO withholding and online relay](application-challenge-sco-source-relay-2026-11-16.md).
+The comparison supports retaining conservative semantics as a default,
+focusing private SCO work on coarse calls with measured network cost,
+and demanding independently proven source-observer precision improvements
+before claiming broader coverage. It provides no release-ready
+full-control reconstruction or tamper-resistance claim.
