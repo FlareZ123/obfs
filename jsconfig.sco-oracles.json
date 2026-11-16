@@ -11,6 +11,7 @@
     "sims/sco-mealy-refinement.js",
     "sims/sco-sync-state-size.js",
     "sims/sco-sync-depth-sweep.js",
+    "sims/sco-sync-independent-distribution.js",
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js"
