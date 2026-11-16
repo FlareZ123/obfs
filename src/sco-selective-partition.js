@@ -215,6 +215,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
     'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
     'DurationFormat']);
+  // ECMAScript's locale-sensitive prototype methods implicitly construct
+  // Intl formatters from the executing host's defaults. They can return
+  // different JSON-visible strings across client/server locales even if no
+  // identifier named Intl appears in the original private body.
+  const localePrototypeMethods=new Set(['toLocaleString','toLocaleLowerCase',
+    'toLocaleUpperCase','localeCompare']);
   const dateLocalMethods=new Set(['getDate','getDay','getFullYear','getHours',
     'getMilliseconds','getMinutes','getMonth','getSeconds','getTimezoneOffset',
     'getYear','setDate','setFullYear','setHours','setMilliseconds','setMinutes',
@@ -312,6 +318,18 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // A locale-dependent method may be extracted and invoked later through
+    // Function.call/apply, an alias, or a callback. Inspect the member
+    // reference itself rather than requiring a direct CallExpression.
+    if(node.type==='MemberExpression'){
+      const member=keyName(node);
+      if(localePrototypeMethods.has(member??''))configurationTouched=true;
+      if(member==='supportedLocalesOf'&&
+         (isIntlConstructor(node.object)||
+          node.object.type==='Identifier'&&intlAliases.has(node.object.name))){
+        configurationTouched=true;
+      }
+    }
     if((node.type==='CallExpression'||node.type==='NewExpression')&&
        (isIntlConstructor(node.callee)||
          node.callee.type==='Identifier'&&intlAliases.has(node.callee.name))) {
