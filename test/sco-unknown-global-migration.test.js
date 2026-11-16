@@ -193,3 +193,10 @@ test('Owned local-root proof refuses subsequent host-derived property mutation',
     'const globalThis={publicValue:7};return globalThis.publicValue;'),
     /share ambient state|unproved host-global state|realm-local/u);
 });
+
+test('Owned-local record proof does not admit unproved inherited realm properties',()=>{
+  assert.throws(()=>partition(
+    'const globalThis={privateValue:41};return globalThis.toString();',
+    'const globalThis={publicValue:7};return globalThis.publicValue;'),
+    /share ambient state|unproved host-global state|realm-local/u);
+});
