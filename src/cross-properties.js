@@ -106,6 +106,107 @@ function collectVerifiedImportedStrings(files) {
 }
 
 /**
+ * Find uniquely imported ESM bindings that resolve to a top-level immutable
+ * alias of the native structuredClone source observer. This is a conservative
+ * source-preservation proof: a false positive only declines obfuscation.
+ * It intentionally excludes wildcard imports, indirect reexports, and
+ * arbitrary call returns. The proof does not treat an unknown imported
+ * function as the clone intrinsic.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedCloneAliases(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    }
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exportsByFile=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,AstNode>} */
+    const candidates=new Map();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        if(entry.id.type==='Identifier'&&entry.init&&
+           module.bindings.get(entry.id.name)===1) {
+          candidates.set(entry.id.name,entry.init);
+        }
+      }
+    }
+    const native=new Set(['structuredClone']);
+    /** @param {AstNode} node @returns {boolean} */
+    function isCloneRef(node) {
+      if(node.type==='Identifier')return native.has(node.name);
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier'||
+         !['globalThis','window','self','global'].includes(node.object.name))return false;
+      const name=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      return name==='structuredClone';
+    }
+    let progress;
+    do {
+      progress=false;
+      for(const [name,value] of candidates) {
+        if(!native.has(name)&&isCloneRef(value)) {
+          native.add(name);
+          progress=true;
+        }
+      }
+    }while(progress);
+    const publicNames=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration' &&
+         isCloneRef(statement.declaration))publicNames.add('default');
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const entry of statement.declaration.declarations) {
+          if(entry.id.type==='Identifier'&&native.has(entry.id.name))publicNames.add(entry.id.name);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !native.has(spec.local.name))continue;
+          const exported=spec.exported.name??spec.exported.value;
+          if(typeof exported==='string')publicNames.add(exported);
+        }
+      }
+    }
+    exportsByFile.set(filename,publicNames);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration' ||
+         statement.source.type!=='Literal'||typeof statement.source.value!=='string'||
+         /[?#%\\]/u.test(statement.source.value))continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const exported=origin?exportsByFile.get(origin):null;
+      if(!exported)continue;
+      for(const spec of statement.specifiers) {
+        const importedName=spec.type==='ImportSpecifier'?
+          spec.imported.name??spec.imported.value:
+          spec.type==='ImportDefaultSpecifier'?'default':null;
+        if(importedName!==null && exported.has(importedName) &&
+           module.bindings.get(spec.local.name)===1)names.add(spec.local.name);
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
+
+/**
  * Require an acyclic static ESM graph before replacing a read of an imported
  * key from a different module with a literal. In a cycle, a reentrant importer
  * function can run before a sibling key module initializes, and the original
@@ -1452,4 +1553,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases};
