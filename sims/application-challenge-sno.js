@@ -35,7 +35,7 @@ function heldoutCases(){
  * ESM modules remain .mjs and execute through Node dynamic import, while
  * sno-entry.cjs is the only OS-invoked entry point. No source is edited.
  * @param {string} destination
- * @returns {Promise<{paths:string[],launcher:string,changed:number,encoded:number,properties:number,bindings:number}>}
+ * @returns {Promise<{paths:string[],launcher:string,changed:number,originalBytes:number,emittedBytes:number,encoded:number,properties:number,bindings:number}>}
  */
 async function emitSno(destination){
   const originals=await Promise.all(NAMES.map(async name=>({
@@ -60,6 +60,9 @@ async function emitSno(destination){
     paths:compiled.files.map(file=>file.path),
     launcher,
     changed:compiled.files.filter((file,i)=>file.code!==sourceFiles[i].code).length,
+    originalBytes:originals.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0),
+    emittedBytes:compiled.files.filter(file=>NAMES.includes(file.path)).reduce(
+      (sum,file)=>sum+Buffer.byteLength(file.code),0),
     encoded:compiled.files.reduce((sum,file)=>sum+file.metrics.literals,0),
     properties:compiled.crossFile.properties+compiled.files.reduce(
       (sum,file)=>sum+file.metrics.properties,0),
@@ -134,7 +137,7 @@ async function forgeManifest(target,launcher){
 /**
  * Run native, transformed, copied and forged variants for the same app.
  * All generated data lives in disposable temporary directories.
- * @returns {Promise<{cases:number,offlineCloneMatches:boolean,changedFiles:number,encodedLiterals:number,renamedProperties:number,renamedBindings:number,manifestRejected:boolean,forgedExecution:boolean}>}
+ * @returns {Promise<{cases:number,offlineCloneMatches:boolean,changedFiles:number,originalBytes:number,emittedBytes:number,encodedLiterals:number,renamedProperties:number,renamedBindings:number,manifestRejected:boolean,forgedExecution:boolean}>}
  */
 async function runEvidence(){
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-frozen-sno-'));
@@ -154,6 +157,8 @@ async function runEvidence(){
       cases:cases.length,
       offlineCloneMatches:true,
       changedFiles:compiled.changed,
+      originalBytes:compiled.originalBytes,
+      emittedBytes:compiled.emittedBytes,
       encodedLiterals:compiled.encoded,
       renamedProperties:compiled.properties,
       renamedBindings:compiled.bindings,
