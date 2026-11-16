@@ -332,7 +332,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     const name=safePath(source.path);
     const caseName=name.toLowerCase();
-    if(!/\\.mjs$/u.test(name) || caseNames.has(caseName)) {
+    if(!/\.mjs$/u.test(name) || caseNames.has(caseName)) {
       throw new TypeError('SCO privateModuleSources requires distinct .mjs paths');
     }
     caseNames.add(caseName);
