@@ -152,7 +152,9 @@ for(const [name,operation] of [
   ['computed failed call','state["privateField"]();'],
   ['computed failed constructor','new state["privateField"]();'],
   ['computed failed tag','state["privateField"]\x60tag\x60;'],
-  ['nested computed failure','target[state["privateField"]]();']
+  ['nested computed failure','target[state["privateField"]]();'],
+  ['spread array operand','[...state["privateField"]];'],
+  ['spread call operand','Math.max(...state["privateField"]);']
 ]){
   test('string decoder keeps source-spelled failed operand: '+name,()=>{
     const original='const state={};const target={};let observed="";'+
