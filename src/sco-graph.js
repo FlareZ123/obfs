@@ -56,48 +56,41 @@ function verifyPrivateImport(source,specifier,known) {
 }
 
 const dynamicEvaluatorNames=new Set(['eval','Function']);
-const dynamicEvaluatorGlobals=new Set(['globalThis','global']);
+const dynamicEvaluatorGlobals=new Set(['globalThis','global','self','window']);
 /**
- * Refuse direct dynamic-code evaluation and simple aliases of evaluator
- * globals in a private graph. Evaluator expressions can manufacture imports
- * outside the manifest. Derived constructor chains remain unproved.
+ * Refuse source-level access to ordinary dynamic evaluators in private SCO
+ * graphs. Overapproximate shadowed bindings instead of claiming a lexical
+ * identity proof. Static property labels are harmless by themselves, whereas
+ * computed/global references may manufacture unlisted runtime ESM imports.
+ * Derived constructor chains and opaque host aliases remain unproved.
  * @param {import('./ast').AstNode} node
+ * @param {import('./ast').AstNode|null} parent
+ * @param {string|null} childKey
  * @returns {boolean}
  */
-function isDirectDynamicEvaluator(node){
-  if(!['CallExpression','NewExpression','VariableDeclarator',
-    'AssignmentExpression'].includes(node.type))return false;
-  const evaluatorNames=dynamicEvaluatorNames;
-  const globalNames=dynamicEvaluatorGlobals;
-  /** @param {import('./ast').AstNode|null|undefined} expression @returns {boolean} */
-  function directEvaluator(expression){
-    if(!expression)return false;
-    if(expression.type==='Identifier')return evaluatorNames.has(expression.name);
-    if(expression.type!=='MemberExpression'||expression.object.type!=='Identifier'||
-        !globalNames.has(expression.object.name))return false;
-    const key=expression.computed?staticString(expression.property):
-      expression.property.type==='Identifier'?expression.property.name:null;
-    return key!==null&&evaluatorNames.has(key);
+function isDirectDynamicEvaluator(node,parent,childKey){
+  if(node.type==='Identifier'&&dynamicEvaluatorNames.has(node.name)){
+    const staticMember=parent?.type==='MemberExpression'&&
+      childKey==='property'&&!parent.computed;
+    const staticObjectKey=(
+      parent?.type==='Property'||parent?.type==='MethodDefinition'||
+      parent?.type==='PropertyDefinition')&&childKey==='key'&&!parent.computed;
+    return !staticMember&&!staticObjectKey;
   }
-  if(node.type==='CallExpression'||node.type==='NewExpression'){
-    return directEvaluator(node.callee);
-  }
-  // Catch simple aliases before the dynamic evaluator is invoked indirectly.
-  // More complex derived constructors remain outside this syntactic proof.
-  if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'){
-    return directEvaluator(node.init);
-  }
-  if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'){
-    return directEvaluator(node.right);
+  if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+      dynamicEvaluatorGlobals.has(node.object.name)){
+    const label=node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+    return label!==null&&dynamicEvaluatorNames.has(label);
   }
   if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
-      node.init?.type==='Identifier'&&globalNames.has(node.init.name)){
+      node.init?.type==='Identifier'&&dynamicEvaluatorGlobals.has(node.init.name)){
     return node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
       if(property.type!=='Property')return true;
-      const key=property.computed?staticString(property.key):
+      const label=property.computed?staticString(property.key):
         property.key.type==='Identifier'?property.key.name:
           property.key.type==='Literal'?property.key.value:null;
-      return key===null||evaluatorNames.has(key);
+      return label===null||dynamicEvaluatorNames.has(label);
     });
   }
   return false;
@@ -149,8 +142,8 @@ function partitionScoAsyncGraph(files,options) {
   const names=new Set(modules.keys());
   for(const [filename,file] of modules) {
     const ast=parse(file.code,'module');
-    walk(ast,node=>{
-      if(isDirectDynamicEvaluator(node)){
+    walk(ast,(node,parent,key)=>{
+      if(isDirectDynamicEvaluator(node,parent,key)){
         throw new TypeError('Private SCO graph cannot prove imports through eval or Function');
       }
       if(['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type)&&
