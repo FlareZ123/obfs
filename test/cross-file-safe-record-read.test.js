@@ -208,3 +208,26 @@ for(const [label,setup] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+for(const [label,setup] of [
+  ['object-literal host capability',
+    'const holder={ctor:globalThis.RUNTIME_FACTORY};const ctor=holder.ctor;'],
+  ['array host capability',
+    'const holder=[globalThis.RUNTIME_FACTORY];const ctor=holder[0];']
+]) {
+  test('host loader via '+label+' must preserve ESM owner reflection',async()=>{
+    const files=graph([
+      setup,
+      "const remote=await ctor(\"return import('./state.mjs')\")();",
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-container-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
