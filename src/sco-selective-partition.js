@@ -238,12 +238,17 @@ function realmStateObservation(body,checkHostConfiguration=false){
       globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
   }
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function pinnedIsoUtcLiteral(expression){
+    return expression.type==='Literal' && typeof expression.value==='string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u.test(expression.value);
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function fixedDateConstruction(expression){
     if(expression.type!=='NewExpression'||!isDateConstructor(expression.callee)||
        expression.arguments.length!==1)return false;
     const argument=expression.arguments[0];
     return argument.type==='Literal'&&typeof argument.value==='number' ||
-      argument.type==='CallExpression'&&
+      pinnedIsoUtcLiteral(argument)||argument.type==='CallExpression'&&
       argument.callee.type==='MemberExpression'&&
       isDateConstructor(argument.callee.object)&&keyName(argument.callee)==='UTC';
   }
@@ -339,7 +344,10 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
       const method=keyName(node.callee);
       if(isDateConstructor(node.callee.object)&&
-         (method==='now'||method==='parse'))configurationTouched=true;
+         (method==='now'||method==='parse'&&
+           !(node.arguments.length===1&&pinnedIsoUtcLiteral(node.arguments[0])))){
+        configurationTouched=true;
+      }
       const receiver=node.callee.object;
       if(dateLocalMethods.has(method??'')&&
          (receiver.type==='NewExpression'&&isDateConstructor(receiver.callee)||
