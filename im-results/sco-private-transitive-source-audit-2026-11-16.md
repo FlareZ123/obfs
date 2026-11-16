@@ -60,6 +60,18 @@ A distinct Node child process obtains **only the generated public client ESM fil
 
 The **2.5×** performance objective is met for this one warm loopback HMAC/relay workload. It is not demonstrated for thin calls, WAN/TLS, cold boot, or broad application mixes. Crucially, an attacker can relay functions that the original application authorizes them to call, even when static source withholding, deployed-byte verification, and per-operation access checks all behave correctly. No static manifest hardening can change that online-oracle fact under the stated unlimited legitimate-request threat model.
 
+## Independent evaluation against the primary rubric
+
+| Dimension | Evidence for this specific SCO configuration | Supported assessment |
+| --- | --- | --- |
+| Static reconstruction | Generated client JS omits original private engine and leaf. Trusted handler returns 404 for the two declared private ESM files. The unaudited direct-only counterexample served a transitive leaf with 200, and the audited manifest rejects that file group. | **Improved deployment-level source withholding** while snapshots and operator routes agree; no general program-obfuscation theorem. |
+| Dynamic instrumentation and extraction | Separate authorized attacker process invokes public RPC and reproduces 20/20 held-out results. RPC method identities and observable outputs remain available to the authorized caller. | **Functional anti-cloning fails** under the unlimited legitimate-request model; server source bytes were not reconstructed in the test. |
+| Unauthorized modification and integrity | Metadata preflight rejects any static private path included in handler's served files; server-side SHA-256 plus realpath verification detects changed private/root bytes and symlink escapes. | **Bounded startup deployment consistency**, with known metadata-snapshot, TOCTOU and custom-route limitations. |
+| Execution outside allowed environment | Operation-specific token check rejects unauthenticated RPC with 403; protected source returns 404. Attacker with a genuine token can relay computation to an unrelated endpoint. | **Server authorization works in the tested policy**; authorized service sharing remains possible. |
+| Compatibility and runtime | Native/generated three-file differential tests, 32 seeded graph positives, 24 independent negative mutations, Linux/Windows tests and strict JSDoc pass. Emitted client JS bytes equal those from the same-seed direct-only compiler. Heavy-HMAC authorized relay medians are 1.404× Linux and 1.392× Windows native. | **Finite compatibility and workload-specific under-2.5× warm localhost runtime evidence**; browser RTT/TLS, cold start, arbitrary JS and multi-client state need further evidence. |
+
+The combined engineering result is a stronger SCO source-publication control with a reproducible startup snapshot check. This pass leaves the broader static-plus-dynamic program reconstruction and anti-relay goals of the primary research objective unresolved. It makes no security claim for COO or SNO, whose attacker capabilities differ.
+
 ## Limits, threat model and next work
 
 - The caller supplies a claimed *exact* private source snapshot. The compiler does not fetch it from disk; if the real deployed server graph differs, metadata can be incomplete.
