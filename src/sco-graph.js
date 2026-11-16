@@ -30,6 +30,8 @@ const generatedGraphSnapshots=new WeakMap();
  * }} ScoGraphPartition
  */
 
+const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
+  'node:worker_threads','node:child_process']);
 /**
  * Reject ambiguous module specifiers before promising that the supplied graph
  * is closed over its relative imports. Native Node resolution must still load
@@ -39,8 +41,6 @@ const generatedGraphSnapshots=new WeakMap();
  * @param {ReadonlySet<string>} known
  * @returns {void}
  */
-const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
-  'node:worker_threads','node:child_process']);
 function verifyPrivateImport(source,specifier,known) {
   if(specifier.startsWith('node:')){
     if(dynamicLoaderBuiltins.has(specifier)){
