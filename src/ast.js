@@ -1067,7 +1067,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
  */
 function observesDistributedSource(ast,importedStrings=new Map()) {
   const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
-  const loaderModules=new Set(['module','node:module','vm','node:vm']);
+  // Inspector sessions can request Debugger.getScriptSource from V8 for an
+  // already-loaded script. This observes exact distributed source bytes
+  // without using fs, module loaders, or a browser source-fetch API.
+  const loaderModules=new Set(['module','node:module','vm','node:vm',
+    'inspector','node:inspector','node:inspector/promises']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   const globals=new Set(['globalThis','window','self','global']);
   // Module-registry objects can reach Node's internal source-file loader.
