@@ -22,6 +22,6 @@ jobs:
       - name: Install pinned dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Emit actual single public facade and inspect exact bytes
-        run: node examples/application-challenge/sco-build.cjs --write --dump
+        run: node examples/application-challenge/sco-build.cjs --check --dump
       - name: Test source withholding, authorization, online relay, and paired costs
         run: node --test test/application-challenge-sco.test.js
