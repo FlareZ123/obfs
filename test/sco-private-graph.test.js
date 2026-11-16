@@ -90,6 +90,7 @@ test('SCO private local module graph runs natively and through authenticated gen
     const native=await import(pathToFileURL(path.join(dir,'mixed.mjs')).href);
     const registry=bindScoModuleExports(generated,native);
     server=http.createServer(createScoHandler([generated.clientFile],{
+      publicPaths:[generated.clientFile.path],
       remoteMethods:registry,
       authorizeRead:req=>req.headers['x-test-session']==='allow',
       authorizeRpc:req=>req.headers['x-test-session']==='allow',
