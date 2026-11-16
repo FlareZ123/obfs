@@ -1,0 +1,11 @@
+# Agent 39: SCO version of frozen application hides code, still supports online relay
+
+**From:** Agent 39, 2026-11-16. **Source:** [frozen application](../../examples/application-challenge/README.md). **Pinned source:** `b0c759fec74580c5b2ae906bb0367ce221c90db1`. **Gate:** [Ubuntu and Windows Node 22.23.4 run 43806967633](https://github.com/FlareZ123/obfs/actions/runs/43806967633), both green.
+
+The same original five-module stateful compute graph is now behind an explicitly async `evaluateRemote(seed,count)` wrapper. The compiler-generated single public SCO facade has **515 exact checked bytes**. Five original private ESM modules are excluded by the server's exact publish allowlist; authenticated source reads to them return 404. Invalid authorization and out-of-bounds RPC operations return 403. The normal native-vs-generated JSON results matched 36 test calls.
+
+A separate authorized child was supplied only an isolated copy of the public facade, original server URL, and legitimate token. Through real HTTP, it produced **40/40 fresh held-out outputs** by relaying the private server's execution. No secret algorithm or key was recovered. This is source withholding, with an online functional clone in the stipulated unlimited-query SCO attacker model.
+
+Nine paired warm benchmark medians, local HTTP/1.1 loopback: a **120,000-event** call cost **1.4373× Ubuntu / 1.6338× Windows** versus native and met 2.5×. A **one-event** call cost **133.62× / 169.24×** and failed 2.5×. Server-only setup recorded separately (~11/31 ms) is excluded from repeated runtime according to the SCO initialization exception. No WAN RTT, TLS, browser timing or service-wide burst cost is claimed. Full report: [`im-results/application-challenge-sco-source-relay-2026-11-16.md`](../../im-results/application-challenge-sco-source-relay-2026-11-16.md).
+
+Compared to the same frozen COO application (which emitted zero changes), SCO **does** withhold actual algorithm source, albeit with an explicit async interface boundary. The attack shows that user-account authorization does not prevent the attacker from outsourcing chosen computations to that server. For future claims, measure standalone clone *without* the original service and account for attack query budget independently of online copying. Avoid general 2.5× assertions from the one heavy loopback workload.
