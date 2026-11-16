@@ -8,7 +8,7 @@ const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {import('acorn').Node & Record<string,any>} AstNode */
 /** @typedef {{start:number,end:number,text:string}} Edit */
-/** @typedef {'script'|'commonjs'} SourceType */
+/** @typedef {'script'|'commonjs'|'module'} SourceType */
 
 /**
  * Walk a public Acorn AST without using the obfuscator's AST/proof library.
@@ -46,7 +46,7 @@ function walk(root,visit) {
  */
 function recoverPublicStrings(source,sourceType='script') {
   const ast=/** @type {AstNode} */(/** @type {unknown} */(acorn.parse(source,{
-    ecmaVersion:'latest',sourceType:'script',allowHashBang:true,
+    ecmaVersion:'latest',sourceType:sourceType==='module'?'module':'script',allowHashBang:true,
     allowReturnOutsideFunction:sourceType==='commonjs'
   })));
   /** @type {Edit[]} */
