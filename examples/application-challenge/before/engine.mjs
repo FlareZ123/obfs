@@ -1,6 +1,10 @@
 import {state,readOffset,readSalt,identity} from './private.mjs';
 import {hostValue} from './host.mjs';
 
+// Module initialization reads private fields across ESM ownership boundaries.
+const offset=readOffset(identity(state));
+const salt=readSalt(state);
+
 /**
  * Stateful 32-bit native arithmetic with observable host interactions.
  * @param {number} seed
@@ -12,8 +16,6 @@ export function createEngine(seed){
     /** @param {number} input @returns {number} */
     next(input){
       const host=hostValue(input);
-      const offset=readOffset(identity(state));
-      const salt=readSalt(state);
       let a=(host^offset^accumulator)>>>0;
       let b=(input+salt+sequence)>>>0;
       a=Math.imul(a^(a>>>16),0x7feb352d)>>>0;
