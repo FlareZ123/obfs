@@ -29,7 +29,8 @@ test('Node timezone changes distinguish original client and relocated server obs
       localDate:new Date(2020,0,1).toISOString(),
       localHour:new Date(0).getHours(),
       formatter:new Intl.DateTimeFormat('en-US').resolvedOptions().timeZone,
-      stableUTC:new Date(0).getUTCFullYear()
+      stableUTC:new Date(0).getUTCFullYear(),
+      pinnedIso:new Date('2020-01-01T00:00:00.000Z').toISOString()
     };
   }
   try{
@@ -39,6 +40,7 @@ test('Node timezone changes distinguish original client and relocated server obs
     assert.notEqual(browser.localHour,server.localHour);
     assert.notEqual(browser.formatter,server.formatter);
     assert.equal(browser.stableUTC,server.stableUTC);
+    assert.equal(browser.pinnedIso,server.pinnedIso);
   }finally{
     if(originalZone===undefined)delete process.env.TZ;
     else process.env.TZ=originalZone;
@@ -92,6 +94,8 @@ test('SCO retains UTC-only time arithmetic and timezone-independent calls',()=>{
   for(const body of [
     'return new Date(0).getUTCFullYear();',
     'return Date.UTC(2020,0,1);',
+    "return new Date('2020-01-01T00:00:00.000Z').toISOString();",
+    "return Date.parse('2020-01-01T00:00:00.000Z');",
     'return new Date(0).getTime();',
     'return new Date(0).toISOString();',
     'const stamp=new Date(0);return stamp.getUTCFullYear();',
