@@ -25,7 +25,9 @@ function median(values){
  */
 async function listen(handler){
   const server=http.createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await ready;
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   return {server,url:'http://127.0.0.1:'+address.port};
@@ -246,7 +248,10 @@ async function experiment(){
     };
   }finally{
     for(const server of servers.reverse()){
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve()));
+      await closed;
     }
   }
 }
