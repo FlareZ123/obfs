@@ -538,37 +538,48 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // conservative refusal, never an unsafe source rewrite.
   const reflectiveReceivers=new Set(['Reflect','Object']);
   const reflectiveReaders=new Set();
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isReflectiveReceiver(expression) {
+    return Boolean(expression && (expression.type==='Identifier' &&
+      reflectiveReceivers.has(expression.name) ||
+      expression.type==='MemberExpression' && isGlobal(expression.object) &&
+      ['Reflect','Object'].includes(memberName(expression)??'')));
+  }
   let reflectiveChanged;
   do {
     reflectiveChanged=false;
     walk(ast,node=>{
-      if(node.type!=='VariableDeclarator'||!node.init)return;
-      const value=node.init;
-      if(node.id.type==='Identifier') {
-        const name=node.id.name;
-        if(value.type==='Identifier') {
-          if(reflectiveReceivers.has(value.name) && !reflectiveReceivers.has(name)) {
-            reflectiveReceivers.add(name);
-            reflectiveChanged=true;
-          }
-          if(reflectiveReaders.has(value.name) && !reflectiveReaders.has(name)) {
-            reflectiveReaders.add(name);
-            reflectiveChanged=true;
-          }
-        } else if(value.type==='MemberExpression' && value.object.type==='Identifier' &&
-                  reflectiveReceivers.has(value.object.name) &&
-                  ['get','getOwnPropertyDescriptor'].includes(memberName(value)??'') &&
-                  !reflectiveReaders.has(name)) {
+      // The monotone summary also accepts assignment aliases. A mutable
+      // binding may later change its value, which over-refuses safely.
+      const declaration=node.type==='VariableDeclarator' && node.init;
+      const assignment=node.type==='AssignmentExpression' && node.operator==='=';
+      if(!declaration && !assignment)return;
+      const pattern=declaration?node.id:node.left;
+      const value=declaration?node.init:node.right;
+      if(pattern.type==='Identifier') {
+        const name=pattern.name;
+        if(isReflectiveReceiver(value) && !reflectiveReceivers.has(name)) {
+          reflectiveReceivers.add(name);
+          reflectiveChanged=true;
+        }
+        if(value.type==='Identifier' && reflectiveReaders.has(value.name) &&
+           !reflectiveReaders.has(name)) {
           reflectiveReaders.add(name);
           reflectiveChanged=true;
         }
-      } else if(node.id.type==='ObjectPattern' && value.type==='Identifier' &&
-                reflectiveReceivers.has(value.name)) {
-        for(const property of node.id.properties) {
+        if(value.type==='MemberExpression' &&
+           isReflectiveReceiver(value.object) &&
+           ['get','getOwnPropertyDescriptor'].includes(memberName(value)??'') &&
+           !reflectiveReaders.has(name)) {
+          reflectiveReaders.add(name);
+          reflectiveChanged=true;
+        }
+      } else if(pattern.type==='ObjectPattern' && isReflectiveReceiver(value)) {
+        for(const property of pattern.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const method=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(['get','getOwnPropertyDescriptor'].includes(method??'') &&
+          if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
              !reflectiveReaders.has(property.value.name)) {
             reflectiveReaders.add(property.value.name);
             reflectiveChanged=true;
@@ -730,8 +741,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       // without any syntactic member access named "toString". A dynamic key
       // can select a source method even when the key expression has no
       // directly recognizable string spelling.
-      if((callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
-          reflectiveReceivers.has(callee.object.name) &&
+      if((callee.type==='MemberExpression' && isReflectiveReceiver(callee.object) &&
           ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
           callee.type==='Identifier' && reflectiveReaders.has(callee.name)) &&
           node.arguments.length>=2) {
