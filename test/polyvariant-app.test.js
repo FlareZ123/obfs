@@ -8,8 +8,18 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {build}=require('../examples/polyvariant-app/build.cjs');
+const {obfuscateFiles}=require('../src');
 
 test('frozen stateful multi-file COO app retains host callbacks, reflection and 96 held-out runs',async()=>{
+  const full=await Promise.all(['math.mjs','state.mjs','entry.mjs'].map(async file=>({
+    path:file,sourceType:/** @type {const} */ ('module'),
+    code:await fs.readFile(path.join(__dirname,
+      '../examples/polyvariant-app/native',file),'utf8')
+  })));
+  assert.throws(()=>obfuscateFiles(full,{
+    mode:'coo',seed:'whole-graph-reflection-blocker',closedWorld:true,
+    experimentalPolyvariantAffine:{'math.mjs':['round1','round2','round3']}
+  }),/source observation/);
   const result=await build();
   assert.equal(result.files.length,3);
   assert.equal(result.files[0].metrics.polyvariantFunctions,3);
