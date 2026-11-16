@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
-const {createScoHandler}=require('../src');
+const {createScoHandler,obfuscateFiles}=require('../src');
 
 /**
  * Execute a real Chromium page containing either native source or SCO-served
@@ -33,26 +33,38 @@ async function main() {
   const second='ghijklmnopqrstuvwxyz0123456789AB';
   const third='A"\\'+String.fromCharCode(0)+'λ🧪'+String.fromCharCode(0xd800)+'Z';
   const source=[
+    'function emit(value){',
     'const firstMarker='+JSON.stringify(first)+';',
     'const secondMarker='+JSON.stringify(second)+';',
     'const thirdMarker='+JSON.stringify(third)+';',
-    'const full=firstMarker+secondMarker+thirdMarker;',
+    'const privateOwner={secretField:value};',
+    'return {payload:firstMarker+secondMarker+thirdMarker,count:privateOwner.secretField};',
+    '}',
+    'const result=emit(7);',
+    'const full=result.payload;',
     'const units=[];',
     'for(let i=0;i<full.length;i++)units.push(full.charCodeAt(i));',
     'document.getElementById("out").textContent=JSON.stringify(units);'
   ].join('\n');
-  const obfs=createScoHandler([{path:'entry.js',sourceType:'script',code:source}]);
+  const preview=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'sco',seed:'browser-utf16-private-owner',strings:false
+  }).files[0];
+  assert.ok(preview.metrics.properties>=1,
+    'The private owner must genuinely transform in the browser fixture');
+  assert.ok(preview.metrics.bindings>=1,
+    'Function-local bindings must genuinely transform in the browser fixture');
+  const obfs=createScoHandler([{path:'entry.mjs',sourceType:'module',code:source}]);
   const server=http.createServer((request,response)=>{
-    if(request.url==='/native.js') {
+    if(request.url==='/native.mjs') {
       response.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});
       response.end(source);
       return;
     }
     if(request.url==='/native' || request.url==='/obfuscated') {
-      const src=request.url==='/native'?'/native.js':'/obfs/entry.js';
+      const src=request.url==='/native'?'/native.mjs':'/obfs/entry.mjs';
       response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
       response.end('<!doctype html><meta charset="utf-8"><pre id="out">pending</pre>'+
-        '<script src="'+src+'"></script>');
+        '<script type="module" src="'+src+'"></script>');
       return;
     }
     obfs(request,response);
@@ -75,7 +87,7 @@ async function main() {
     const emitted=await readUnits(base+'/obfuscated');
     assert.deepEqual(emitted,nativeUnits);
     const responses=await Promise.all([
-      fetch(base+'/obfs/entry.js'),fetch(base+'/obfs/entry.js')
+      fetch(base+'/obfs/entry.mjs'),fetch(base+'/obfs/entry.mjs')
     ]);
     assert.ok(responses.every(response=>response.status===200));
     const codes=await Promise.all(responses.map(response=>response.text()));
@@ -83,7 +95,8 @@ async function main() {
       'Eligible request-time literals must exhibit distinct random spellings');
     process.stdout.write(JSON.stringify({
       chromium:'passed',nativeUnits:baseline.length,emittedUnits:emitted.length,
-      sourceVariantsDistinct:true,containsUnpairedSurrogate:full.includes(String.fromCharCode(0xd800)),
+      sourceVariantsDistinct:true,transformedPrivateFields:preview.metrics.properties,
+      transformedBindings:preview.metrics.bindings,containsUnpairedSurrogate:full.includes(String.fromCharCode(0xd800)),
       browser:'real Chromium, HTTP-served native versus SCO'
     })+'\n');
   }finally {
