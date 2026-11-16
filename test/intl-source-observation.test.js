@@ -97,6 +97,31 @@ test('known primitive arguments to indirect Collator compare retain independent 
   assert.equal(output.metrics.objects,1,output.code);
 });
 
+test('Collator comparator passed into Array.sort sees hidden native source',()=>{
+  const original="'use strict';"+functionText+
+    "const marker={[Symbol.toPrimitive]:()=>"+JSON.stringify(functionText)+"};"+
+    "const items=[marker,inspect];items.sort(new Intl.Collator('en').compare);"+
+    "module.exports=items[0]===inspect;";
+  const output=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
+    mode:'sno',seed:'intl-callback-sort',strings:true,identifiers:true
+  }).files[0];
+  assert.equal(execute(output.code),execute(original),output.code);
+  assert.equal(output.metrics.objects,0,output.code);
+});
+
+test('Collator comparison exported through a callback argument declines source transforms',()=>{
+  const original="'use strict';"+functionText+
+    "const compare=new Intl.Collator('en').compare;"+
+    "const marker={[Symbol.toPrimitive]:()=>"+JSON.stringify(functionText)+"};"+
+    "const items=[marker,inspect];items.sort(compare);"+
+    "module.exports=items[0]===inspect;";
+  const output=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
+    mode:'sno',seed:'intl-callback-aliased',strings:true,identifiers:true
+  }).files[0];
+  assert.equal(execute(output.code),execute(original),output.code);
+  assert.equal(output.metrics.objects,0,output.code);
+});
+
 test('AST source observer recognizes Intl calls and keeps primitive calls eligible',()=>{
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.Collator().compare(f,"x");','commonjs')),true);
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.Segmenter().segment(f);','commonjs')),true);
