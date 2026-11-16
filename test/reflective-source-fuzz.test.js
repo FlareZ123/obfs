@@ -59,7 +59,19 @@ const observers=[
     read:'proto[key].call(observed)'},
   {name:'globalThis.Reflect.getPrototypeOf computed source',
     setup:'const proto=globalThis.Reflect.getPrototypeOf(observed);const key=true?"toString":"valueOf";',
-    read:'proto[key].call(observed)'}
+    read:'proto[key].call(observed)'},
+  {name:'aliased Object bulk descriptors',
+    setup:'const O=Object;const key=true?"toString":"valueOf";const descriptors=O.getOwnPropertyDescriptors(Function.prototype);',
+    read:'descriptors[key].value.call(observed)'},
+  {name:'captured bulk descriptor reader',
+    setup:'const readAll=Object.getOwnPropertyDescriptors;const descriptors=readAll(Function.prototype);',
+    read:'descriptors.toString.value.call(observed)'},
+  {name:'destructured bulk descriptor reader',
+    setup:'const {getOwnPropertyDescriptors:readAll}=Object;const descriptors=readAll(Function.prototype);',
+    read:'descriptors.toString.value.call(observed)'},
+  {name:'globalThis Object bulk descriptor reader',
+    setup:'const readAll=globalThis.Object.getOwnPropertyDescriptors;const descriptors=readAll(Function.prototype);',
+    read:'descriptors.toString.value.call(observed)'}
 ];
 
 /** @param {string} code @returns {{value:string,source:string}} */
