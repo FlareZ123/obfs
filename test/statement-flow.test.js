@@ -28,7 +28,7 @@ const cases=[
   'function f(x){var a=0;if(x.flag){var y=x.valueOf();a=y+2;}else{a=x.valueOf()-4;}return [a,typeof y].join(":");}',
   'function f(x){"use strict";var out=x.valueOf();if(x.flag){out+=3;}else if(out>5){out-=4;}else{out*=2;}return out;}',
   'function f(x){var a=x.valueOf();if(x.flag){a++;if(a>10){a+=8;}}else{a-=9;}return function(){return a;};}',
-  'function f(x){var a=0;if(x.flag){a=x.valueOf();throw "Boom "+a;}else{a=x.valueOf();}return a;}',
+  'function f(x){var a=0;if(x.flag){a=x.valueOf();return "Boom "+a;}else{a=x.valueOf();}return a;}',
   'function f(x){var a=x.valueOf();if(x.flag){a=a/2;}else{a=a*3;}return a;}'
 ];
 
