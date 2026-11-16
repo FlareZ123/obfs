@@ -64,7 +64,7 @@ function graph(source,literal){
   ];
 }
 
-test('36-cell reflective constructor aliases retain native CJS semantics in COO and SNO',async()=>{
+test('36-cell reflective constructor aliases retain native CJS semantics in COO, SNO and SCO',async()=>{
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-reflective-grid-'));
   let checked=0;
   try{
@@ -80,7 +80,7 @@ test('36-cell reflective constructor aliases retain native CJS semantics in COO 
           const native=await execute(files,directory);
           assert.equal(native.status,0,name+': '+native.stderr);
           assert.equal(native.stdout,family.literal,name);
-          for(const mode of /** @type {const} */ (['sno','coo'])){
+          for(const mode of /** @type {const} */ (['sno','coo','sco'])){
             const transformed=obfuscateFiles(files,{
               mode,strings:true,properties:false,identifiers:false,
               seed:'reflective-grid/'+name
