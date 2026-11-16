@@ -27,7 +27,7 @@ The script warms both implementations, uses 10 alternating sequential samples pe
 ## Limitations and next steps
 
 1. Add an independent authorized online relay attacker for this new before/after program; earlier [SCO relay studies](sco-selective-2026-11-15.md) have already shown that the original SCO boundary does not prevent functional relaying.
-2. Consider explicit safe server-private local module graph imports, permitting a large algorithm to remain in a separate private ESM file, only if imports are reviewed and never served by `createScoHandler`.
+2. The follow-on [private ESM graph relocation and authorized relay counterexample](sco-private-graph-relay-2026-11-16.md) now accepts canonical relative `.mjs` imports, attaches a direct-private-path manifest, and refuses co-serving those paths. It demonstrates 30/30 functional online cloning through authorized requests and documents an unsafe cross-realm side-effect counterexample. Review dependency source and actual server file serving carefully.
 3. Measure realistic TLS RTT and cross-machine operations before asserting practical budget compliance.
 4. Keep compatibility proof narrow: statically imported pure server functions are not automatically safe to relocate if cross-realm state or non-JSON behavior is observable.
 
