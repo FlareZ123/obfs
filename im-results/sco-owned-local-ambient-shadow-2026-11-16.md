@@ -31,6 +31,19 @@ The emitted JavaScript runtime for previously admitted inputs is unchanged; this
 
 ## Evidence status and limitations
 
-The pre-fix red control is confirmed on both operating systems. Candidate corrected-source full validation and downstream browser integration are being run manually; no green claim belongs in this document until the exact SHA passes.
+The pre-fix red control is confirmed on both operating systems. A revised shared ownership proof has passed full Linux/Windows and Ubuntu Chromium validation as documented below. The final exact-head validation must still be checked after this report update.
 
 The proof intentionally excludes nested mutating expressions, nontrivial property initializers, unknown reflection and arbitrary shared host-object references. Existing cross-realm constraints and RPC serialization limitations still apply. Even a successful selected-source admission test is neither a security-hardness result nor evidence for a universal 2.5× workload budget.
+
+## Independently pinned falsification and correction
+
+The first candidate at `9f187566c72d6105b8167af99fe82ac672200a76`
+passed Linux/Windows full suite [43947160951](https://github.com/FlareZ123/obfs/actions/runs/43947160951), proving its basic lexical-positive coverage. It still had a nested binding mismatch: an inner `const globalThis=process` could be confused with the enclosing `const globalThis={privateValue:41}`, so a private Node-global access escaped the intended source refusal. An added negative test exposed this on **both** OSes in red [43947770270](https://github.com/FlareZ123/obfs/actions/runs/43947770270) at source `efef2b6a65b4fb1c90b8ee65e0e7831b70f5a0b5`: one new negative failed with "Missing expected exception".
+
+The follow-up source `b93636efe6d000918afba35f980ade605b9cde22` refactored both the private global-object alias check and public/private ambient root scans to call the same bounded `ownedLocalAmbientNames(body)` function. The plain-object value proof recursively permits only literal values and other inert literal-only records. Any nested variable binding, pattern binding, catch variable or nested function/class parameter of the same name invalidates the ownership shortcut. The resulting full two-platform [43948223589](https://github.com/FlareZ123/obfs/actions/runs/43948223589) was **GREEN**.
+
+An independent end-to-end native-vs-generated case creates two actual ESM modules, starts a real authenticated-method SCO HTTP handler on localhost with a test-only unconditional allow policy, and compares 16 input values of the native and RPC-proxied private operation plus retained public function. It also checks private source identifiers remain absent from client code. The test passed Ubuntu and Windows at source `7eaf8fd707958b60697be230753c575bb5b82094`, in [full run 43949026817](https://github.com/FlareZ123/obfs/actions/runs/43949026817): Ubuntu **1,780 passed / one skip / zero failed** and Windows **1,779 passed / two skips / zero failed** from 1,781 tests. The individual HTTP test took about 140 ms Ubuntu / 182 ms Windows; those timings are test wall time rather than a baseline-to-obfuscated CPU runtime ratio.
+
+Private/public local-helper controls and five additional common browser-root spellings were added to the corpus. The targeted SCO authorization workflow was also extended to run `sco-unknown-global-migration.test.js` and `sco-private-host-effect-closure.test.js` by default in manually dispatched checks. Its exact-head run [43949959896](https://github.com/FlareZ123/obfs/actions/runs/43949959896) succeeded at SHA `0cec26528ca94b9d98aeda9390a2ba3e74717809`.
+
+The source proof deliberately spends compilation time for a narrower correctness guarantee. No additional client-side interpreter or per-call branch was emitted, but that does not make remote network calls meet 2.5× versus native for all workloads. The deliberately simple protected operation in the HTTP parity test should not be used as a production SCO granularity recommendation.
