@@ -81,6 +81,13 @@ Serialized or shallow-copied graph objects are rejected by the composed helper;
 regenerate the graph on the trusted serving process. Explicit bare
 `createScoHandler` calls remain a separate publication contract. This is a
 deployment safety check, not resistance to a compromised server.
+The graph additionally returns path-specific SHA-256 `privateSourceDigests`
+for every original module. The [runnable example](examples/sco-graph/server.cjs)
+uses `verifyScoPrivateSourceDigests` to reject deployed source changes
+before original ESM import. The [Linux/Windows Node 22 gate](https://github.com/FlareZ123/obfs/actions/runs/43919220894)
+passes the [changed-source regression and strict JSDoc](im-results/sco-graph-deployment-source-integrity-2026-11-16.md).
+This requires trusted, stable server files through module loading; it is
+a startup consistency check with no proof against concurrent replacement.
 
 
 
