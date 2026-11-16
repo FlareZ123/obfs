@@ -144,8 +144,13 @@ async function handleRpc(request,response,options) {
       // A trusted integrator callback MUST await execute exactly once and
       // hold whatever transaction or lock is needed until it settles.
       let invoked=false;
+      // A retained execution callback must not outlive the isolation
+      // invocation that supplied it. Otherwise a buggy integrator could
+      // start private work after the HTTP request has already failed.
+      let scopeOpen=true;
       try{
         await options.runRpcIsolated(request,async()=>{
+          if(!scopeOpen)throw new TypeError('RPC isolation execution scope has closed');
           if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
           invoked=true;
           await execute();
@@ -158,6 +163,8 @@ async function handleRpc(request,response,options) {
           return;
         }
         throw error;
+      }finally{
+        scopeOpen=false;
       }
       if(!invoked)throw new TypeError('RPC isolation callback omitted execute');
     } else await execute();
