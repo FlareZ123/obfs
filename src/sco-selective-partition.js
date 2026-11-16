@@ -1096,8 +1096,11 @@ function partitionScoSelectedAsyncExports(file,options) {
   // ECMAScript permits host-defined properties on the global object. Values
   // such as globalThis.externalBridge cannot be migrated to an independent
   // server realm without an application-specific contract.
+  // Even the standard globalThis property is a distinct mutable host object
+  // in each realm. Refuse nested self-references rather than allowing aliases
+  // such as globalThis.globalThis.externalBridge around this guard.
   const standardRealmGlobals=new Set([
-    'globalThis','Infinity','NaN','undefined','eval','isFinite','isNaN',
+    'Infinity','NaN','undefined','eval','isFinite','isNaN',
     'parseFloat','parseInt','decodeURI','decodeURIComponent',
     'encodeURI','encodeURIComponent','escape','unescape',
     'Object','Function','Boolean','Symbol','Error','AggregateError',
