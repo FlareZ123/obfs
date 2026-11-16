@@ -234,6 +234,9 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   ];
   const boundCollatorCompares=new Set();
   const intlStaticStringCalls=new Set();
+  const nativeLocaleNames=new Set(['toLocaleString','toLocaleDateString',
+    'toLocaleTimeString','localeCompare']);
+  const nativeLocaleAliases=new Set();
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -354,6 +357,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         }
         if(isWebInstance(value,formInstances,formConstructors,formNames)) {
           changed=add(formInstances,name)||changed;
+        }
+        if(value?.type==='MemberExpression' &&
+           nativeLocaleNames.has(memberName(value)??'') ||
+           value?.type==='Identifier' && nativeLocaleAliases.has(value.name)) {
+          changed=add(nativeLocaleAliases,name)||changed;
         }
         if(isIntlNamespace(value))changed=add(intlNamespaces,name)||changed;
         if(value?.type==='MemberExpression'&&isIntlNamespace(value.object)&&
@@ -622,6 +630,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     return isFunctionValue(node);
   }
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isNativeLocaleMethod(expression) {
+    return Boolean(expression && (expression.type==='Identifier' &&
+      nativeLocaleAliases.has(expression.name) ||
+      expression.type==='MemberExpression' &&
+        nativeLocaleNames.has(memberName(expression)??'')));
+  }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isIntlSourceCallback(expression) {
     return Boolean(expression && (
       expression.type==='Identifier' &&
@@ -832,6 +847,21 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
             !isDefinitelyPrimitive(value)))observed=true;
         }
       }
+      // Bound, extracted and reflective native method invocations hide the
+      // actual string-valued options behind an extra function-call layer.
+      if(node.type==='CallExpression' && isNativeLocaleMethod(callee) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(callee.type==='MemberExpression' &&
+         ['call','apply','bind'].includes(memberName(callee)??'') &&
+         isNativeLocaleMethod(callee.object) &&
+         node.arguments.some((/** @type {AstNode} */ value)=>
+           mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         isNativeLocaleMethod(node.arguments[0]) &&
+         node.arguments[2] &&
+         mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
       // Native Number/BigInt/Date locale-formatters and String#localeCompare
       // forward locales/options into ECMA-402. A function-valued option can
       // be exposed verbatim through V8's diagnostics. Arrays containing a
