@@ -58,3 +58,36 @@ test('modeled batch retains synchronous object transitions and denies revoked st
   assert.equal(preflightScoBatchState(calls(['revoke','read']),{active:true},policy),false);
   assert.equal(preflightScoBatchState(calls(['read']),{active:false},policy),false);
 });
+
+test('HTTP SCO refuses async-transition batch before private side effects',async()=>{
+  const http=require('node:http');
+  const {createScoHandler,createScoBatchMethod}=require('../src');
+  let effects=0;
+  const methods={read:()=>++effects};
+  const batch=createScoBatchMethod(methods);
+  const statePolicy={
+    authorize:/** @param {unknown} state */ state=>Boolean(state),
+    transition:/** @type {any} */ (async()=>false)
+  };
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{batch},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method,args)=>method==='batch' &&
+      args.length===1 && preflightScoBatchState(args[0],true,statePolicy)
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected TCP listener');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/rpc',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:'batch',args:[calls(['read'])]})
+    });
+    assert.equal(response.status,500);
+    assert.deepEqual(await response.json(),{ok:false,error:'Operation failed'});
+    assert.equal(effects,0);
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
