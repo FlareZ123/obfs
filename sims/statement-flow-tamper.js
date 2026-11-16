@@ -19,8 +19,7 @@ const after=fs.readFileSync(path.join(__dirname,
 function load(source){
   // A source-only attacker needs only the public function declaration.
   // Re-evaluating its CommonJS wrapper is unnecessary for this mutation test.
-  return /** @type {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */
-    (vm.runInNewContext(source+'\n;route;',{module:{exports:{}}}));
+  return /** @type {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */ (vm.runInNewContext(source+'\n;route;',{module:{exports:{}}}));
 }
 assert.equal(after.split('score += 31;').length,2);
 const modified=after.replace('score += 31;','score += 32;');
