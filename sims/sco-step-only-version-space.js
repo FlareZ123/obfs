@@ -117,10 +117,25 @@ function chooseSymbol(hypotheses){
  * @returns {Promise<LearningResult>}
  */
 async function learnBoundedStepOnly(api,maxStates=2,maxQueries=64){
+  return learnWithCandidates(api,enumerateMachines(maxStates),maxQueries);
+}
+
+/**
+ * Filter an explicitly complete hypothesis space through public observations.
+ * Supplied candidates must include an isomorphic image of the true live
+ * machine for the continuation certificate to be sound.
+ *
+ * @param {StepOnlyOracle} api
+ * @param {Candidate[]} candidates
+ * @param {number} [maxQueries]
+ * @returns {Promise<LearningResult>}
+ */
+async function learnWithCandidates(api,candidates,maxQueries=64){
+  if(!candidates.length)throw new RangeError('Expected nonempty model version space');
   if(!Number.isSafeInteger(maxQueries)||maxQueries<1||maxQueries>512){
     throw new RangeError('maxQueries must be 1..512');
   }
-  let hypotheses=enumerateMachines(maxStates);
+  let hypotheses=candidates;
   /** @type {number[]} */
   const inputs=[];
   /** @type {number[]} */
@@ -191,4 +206,4 @@ function createContinuationClone(model){
   };
 }
 
-module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,predictContinuation,createContinuationClone};
+module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,learnWithCandidates,predictContinuation,createContinuationClone};
