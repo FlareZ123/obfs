@@ -14,6 +14,9 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
  *   requester can forge this header, so it is not an authorization boundary.
  *   Use authorizeRead, authorizeRpc and authorizeOperation for server policy.
  * @property {string} [routePrefix]
+ * @property {string[]} [publicPaths] Exact, opt-in allowlist of every file
+ *   deliberately distributed through this SCO handler. Rejects accidental
+ *   extra source files even when a private dependency was not discovered.
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
@@ -232,6 +235,26 @@ function createScoHandler(sourceFiles,options={}) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
+  // An explicit positive publication boundary can protect source files that
+  // no static private dependency audit could discover. Build the allowlist
+  // from independently reviewed public entrypoints and assets, not from
+  // whatever sourceFiles happened to be supplied to this handler.
+  /** @type {Set<string>|null} */
+  const publicAllowlist=options.publicPaths===undefined?null:new Set();
+  if(publicAllowlist){
+    if(!Array.isArray(options.publicPaths)){
+      throw new TypeError('SCO publicPaths must be an array');
+    }
+    const seenPublic=new Set();
+    for(const item of options.publicPaths){
+      const filename=safePath(item);
+      if(seenPublic.has(filename.toLowerCase())){
+        throw new TypeError('Duplicate SCO publicPaths entry: '+filename);
+      }
+      seenPublic.add(filename.toLowerCase());
+      publicAllowlist.add(filename);
+    }
+  }
   // Generated selective SCO files carry direct server-private module paths.
   // Refuse an accidentally co-served private dependency before constructing
   // any HTTP route, even if the private entry appears before its public facade.
@@ -253,6 +276,9 @@ function createScoHandler(sourceFiles,options={}) {
   const normalized=sourceFiles.map(file=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
+    if(publicAllowlist&&!publicAllowlist.has(filename)){
+      throw new TypeError('SCO source is not in publicPaths: '+filename);
+    }
     if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
     if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
     seen.add(collisionKey);
@@ -271,6 +297,9 @@ function createScoHandler(sourceFiles,options={}) {
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
+  if(publicAllowlist&&publicAllowlist.size!==normalized.length){
+    throw new TypeError('SCO publicPaths must exactly match supplied sourceFiles');
+  }
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
   // transformations for the whole published group when one is present.
