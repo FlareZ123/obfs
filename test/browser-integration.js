@@ -137,6 +137,25 @@ async function main(){
     identifiers:false,strings:false});
   assert.equal(iifeSet.crossFile.properties,2);
 
+  // Private tuple and record carriers hold the same object without exposing
+  // their shapes. Verify the new fixed-slot ownership proof in actual
+  // Chromium and preserve a host-provided global API member unchanged.
+  const containerSet=obfuscateFiles([
+    {path:'container-state.mjs',sourceType:'module',
+      code:'const vault={hiddenCount:17,secretDelta:3};'+
+        'const tuple=[false,vault];const fromTuple=tuple[1];'+
+        'const record={tag:"private",privateOwner:vault};'+
+        'const fromRecord=record.privateOwner;'+
+        'export function calculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'},
+    {path:'container-entry.mjs',sourceType:'module',
+      code:'import {calculate} from "./container-state.mjs";'+
+        'window.hostApi.accept(calculate(2));'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-private-containers',
+    identifiers:false,strings:false});
+  assert.equal(containerSet.files.reduce((total,file)=>total+file.metrics.properties,0),2);
+  assert.ok(String(containerSet.files.find(file=>file.path==='container-entry.mjs')?.code)
+    .includes('window.hostApi.accept('));
+
   const cycleSet=obfuscateFiles([
     {path:'cycle-a.mjs',sourceType:'module',
       code:'import "./cycle-b.mjs";export function get(){return "browser-cycle-ok";}'},
@@ -178,7 +197,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -205,6 +224,9 @@ async function main(){
   content.set('/factory-iife.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
     '<script type="module" src="/factory-iife-entry.mjs"></script></body></html>');
+  content.set('/container.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
+    '<script type="module" src="/container-entry.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
@@ -228,6 +250,7 @@ async function main(){
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
+      ['/container.html','37'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']
