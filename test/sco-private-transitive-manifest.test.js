@@ -3,7 +3,12 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {partitionScoSelectedAsyncExports,createScoHandler}=require('../src');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {pathToFileURL}=require('node:url');
+const {atomicWrite}=require('../src/atomic');
+const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 
 const entry=[
   'import {deriveProof} from "./private/engine.mjs";',
@@ -143,4 +148,57 @@ test('source-audited private graph refuses visible intrinsic and global effects'
     code:'import {createHash} from "node:crypto"; export function deriveProof(v){return createHash("sha256").update(v).digest("hex");}'
   };
   assert.doesNotThrow(()=>emit([safe]));
+});
+
+test('actual three-file private ESM graph matches generated authenticated browser facade',{
+  timeout:60000
+},async()=>{
+  const original=entry;
+  const generated=emit([engine,leaf]);
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-transitive-'));
+  const nativeFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    await atomicWrite(path.join(folder,'mixed.mjs'),original);
+    await atomicWrite(path.join(folder,engine.path),engine.code);
+    await atomicWrite(path.join(folder,leaf.path),leaf.code);
+    await atomicWrite(path.join(folder,'client.mjs'),generated.clientFile.code);
+    const native=await import(pathToFileURL(path.join(folder,'mixed.mjs')).href);
+    const methods=bindScoModuleExports(generated,native);
+    server=http.createServer(createScoHandler([generated.clientFile],{
+      remoteMethods:methods,
+      authorizeRead:req=>req.headers['x-test-session']==='allow',
+      authorizeRpc:req=>req.headers['x-test-session']==='allow',
+      authorizeOperation:(req,method,args)=>
+        req.headers['x-test-session']==='allow' &&
+        method===generated.methodNames.protectedDigest &&
+        args.length===1 && typeof args[0]==='number'
+    }));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const unauthorized=await nativeFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:generated.methodNames.protectedDigest,args:[2]})
+    });
+    assert.equal(unauthorized.status,403);
+    assert.equal((await nativeFetch(origin+'/obfs/'+leaf.path,{
+      headers:{'x-test-session':'allow'}
+    })).status,404);
+    globalThis.fetch=(url,options)=>nativeFetch(new URL(String(url),origin),{
+      ...options,headers:{...options?.headers,'x-test-session':'allow'}
+    });
+    const client=await import(pathToFileURL(path.join(folder,'client.mjs')).href);
+    for(const value of [1,2,-3,25,987654]){
+      assert.equal(client.format(value),native.format(value));
+      assert.equal(await client.protectedDigest(value),await native.protectedDigest(value));
+    }
+  }finally{
+    globalThis.fetch=nativeFetch;
+    if(server)await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+    await fs.rm(folder,{recursive:true,force:true});
+  }
 });
