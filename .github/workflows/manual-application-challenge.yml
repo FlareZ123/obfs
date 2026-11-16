@@ -23,10 +23,18 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc for frozen SNO tooling and attack harnesses
         run: npm run typecheck:external
+      - name: Strict compiler JSDoc and verified dynamic record regressions
+        run: |
+          npm run typecheck
+          node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js
       - name: Diagnose private-field proof refusal and positive control
         run: node sims/application-challenge-proof-diagnosis.js
       - name: Quantify refusal and protected-work yield on distinct frozen graphs
         run: node sims/application-challenge-refusal-yield.js
+      - name: Independent public-only JSDoc field-name reconstruction
+        run: node --test test/ownkey-comment-static-recovery.test.js
+      - name: Profile whole-process costs on genuinely transformed positive COO graph
+        run: node sims/verified-record-session-profile.js
       - name: Isolate independent whole-graph source-observer vetoes
         run: node sims/application-challenge-observer-ablation.js
       - name: Build exact generated public bytes for snapshot review
@@ -51,6 +59,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-coo-browser.js
+      - name: Real Chromium own-key-only transformed COO application differential
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/verified-record-browser.js
 
   legacy-node22:
     runs-on: ubuntu-latest

@@ -36,7 +36,10 @@
     "test/polyvariant-app-sno.test.js",
     "sims/sco-private-dynamic-loader-grid.js",
     "sims/sco-private-runtime-source-trace.js",
-    "sims/sco-audience-bound-relay.js"
+    "sims/sco-audience-bound-relay.js",
+    "sims/verified-record-session-profile.js",
+    "sims/ownkey-comment-static-attacker.js",
+    "test/ownkey-comment-static-recovery.test.js"
   ],
   "exclude": [
     "node_modules"

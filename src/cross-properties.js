@@ -150,6 +150,140 @@ function hasAcyclicStaticImports(modules) {
 }
 
 /**
+ * Prove that an unrelated computed read belongs to a private literal record
+ * and receives only strings from direct, statically known ESM call sites.
+ * This narrowly restores a useful closed-world property transformation without
+ * ignoring computed reads that may retrieve a Function constructor.
+ *
+ * @param {ReadonlyMap<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} modules
+ * @param {{file:SourceFile,ast:AstNode,bindings:Map<string,number>}} module
+ * @param {AstNode} member
+ * @param {AstNode[]} ancestors
+ * @returns {boolean}
+ */
+function safeClosedCallerRecordRead(modules,module,member,ancestors) {
+  if(member.type!=='MemberExpression' || member.object.type!=='Identifier' ||
+      member.property.type!=='Identifier')return false;
+  const field=ancestors.at(-1);
+  const record=ancestors.at(-2);
+  const result=ancestors.at(-3);
+  const block=ancestors.at(-4);
+  const fn=ancestors.at(-5);
+  const exported=ancestors.at(-6);
+  if(field?.type!=='Property' || field.kind!=='init' ||
+      field.value!==member || record?.type!=='ObjectExpression' ||
+      result?.type!=='ReturnStatement' || result.argument!==record ||
+      block?.type!=='BlockStatement' || block.body.length!==1 ||
+      block.body[0]!==result || fn?.type!=='FunctionDeclaration' ||
+      fn.body!==block || fn.params.length!==1 ||
+      fn.params[0].type!=='Identifier' ||
+      fn.params[0].name!==member.property.name ||
+      fn.id?.type!=='Identifier' ||
+      exported?.type!=='ExportNamedDeclaration' || exported.declaration!==fn ||
+      module.bindings.get(fn.id.name)!==1 ||
+      module.bindings.get(member.property.name)!==1)return false;
+  // Any other parameter reference could reassign or forward it.
+  let references=0;
+  let parameterStable=true;
+  walk(fn,node=>{
+    if(node.type!=='Identifier'||node.name!==member.property.name)return;
+    references++;
+    if(node!==fn.params[0] && node!==member.property)parameterStable=false;
+  });
+  if(!parameterStable || references!==2)return false;
+  let functionEscapes=false;
+  walk(module.ast,(node,parent,key)=>{
+    if(node.type==='Identifier' && node.name===fn.id.name &&
+        !(node===fn.id && parent===fn && key==='id'))functionEscapes=true;
+  });
+  if(functionEscapes)return false;
+  const receiverName=member.object.name;
+  if(module.bindings.get(receiverName)!==1 ||
+      module.bindings.has('Object') || module.bindings.has('Reflect'))return false;
+  /** @type {AstNode|null} */
+  let declaration=null;
+  for(const statement of module.ast.body) {
+    if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+    for(const dec of statement.declarations) {
+      if(dec.id.type==='Identifier' && dec.id.name===receiverName &&
+          dec.init?.type==='ObjectExpression')declaration=dec;
+    }
+  }
+  if(!declaration || !declaration.init ||
+      declaration.init.type!=='ObjectExpression' ||
+      !declaration.init.properties.every((/** @type {AstNode} */ property)=>
+        property.type==='Property' && property.kind==='init' &&
+        !property.method && !property.shorthand && !property.computed &&
+        property.value.type==='Literal' &&
+        (property.value.value===null ||
+          ['string','number','boolean','bigint'].includes(typeof property.value.value)) &&
+        ownPropertyName(property)!==null &&
+        !['__proto__','constructor','prototype'].includes(String(ownPropertyName(property)))))return false;
+  // Only these unescaped read-only uses of the private record are admissible.
+  let receiverStable=true;
+  walk(module.ast,(node,parent,key)=>{
+    if(node.type!=='Identifier'||node.name!==receiverName)return;
+    if(node===declaration.id || parent===member && key==='object')return;
+    if(parent?.type==='CallExpression' && key==='arguments' &&
+        parent.arguments[0]===node && parent.callee.type==='MemberExpression' &&
+        !parent.callee.computed && parent.callee.object.type==='Identifier') {
+      const method=parent.callee.property.name;
+      const host=parent.callee.object.name;
+      if(host==='Reflect' && method==='ownKeys' && parent.arguments.length===1 ||
+          host==='Object' && method==='getOwnPropertyDescriptor' &&
+          parent.arguments.length===2)return;
+    }
+    receiverStable=false;
+  });
+  if(!receiverStable)return false;
+  // Direct named ESM calls must enumerate every access to the exported
+  // function. Namespace calls, aliases, callbacks and reexports decline.
+  const keys=new Set();
+  let calls=0;
+  for(const [filename,consumer] of modules) {
+    if(filename===module.file.path)continue;
+    const aliases=new Set();
+    for(const statement of consumer.ast.body) {
+      if(!statement.source?.value ||
+          resolveImport(filename,statement.source.value)!==module.file.path)continue;
+      if(statement.type==='ExportAllDeclaration' ||
+          statement.type==='ExportNamedDeclaration')return false;
+      if(statement.type!=='ImportDeclaration')continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type==='ImportNamespaceSpecifier')return false;
+        if(spec.type==='ImportSpecifier' &&
+            (spec.imported.name??spec.imported.value)===fn.id.name) {
+          if(consumer.bindings.get(spec.local.name)!==1)return false;
+          aliases.add(spec.local.name);
+        }
+      }
+    }
+    if(!aliases.size)continue;
+    let usesValid=true;
+    walk(consumer.ast,(node,parent,key)=>{
+      if(node.type!=='Identifier'||!aliases.has(node.name))return;
+      if(parent?.type==='ImportSpecifier' &&
+          (parent.local===node || parent.imported===node))return;
+      if(parent?.type==='CallExpression' && key==='callee' &&
+          parent.callee===node && !parent.optional &&
+          parent.arguments.length===1) {
+        const literal=staticString(parent.arguments[0]);
+        if(literal!==null){keys.add(literal);calls++;return;}
+      }
+      usesValid=false;
+    });
+    if(!usesValid)return false;
+  }
+  if(!calls)return false;
+  const inherited=new Set(['__proto__','constructor','prototype',
+    '__defineGetter__','__defineSetter__','__lookupGetter__','__lookupSetter__',
+    'hasOwnProperty','isPrototypeOf','propertyIsEnumerable',
+    'toLocaleString','toString','valueOf']);
+  const ownNames=new Set(declaration.init.properties.map(ownPropertyName));
+  return [...keys].every(key=>ownNames.has(key) && !inherited.has(key));
+}
+
+/**
  * Across an explicit closed-world set of ESM modules, rename properties of
  * direct named exported const-object literals and all proven import aliases.
  * Reject reexports, reflection, dynamic import and unproven uses rather than
@@ -293,7 +427,7 @@ function renameCrossFileProperties(files,seed) {
          (name===null || dynamicCompilerNames.has(name) || secondaryLoaderNames.has(name) ||
           ['require','createRequire','getBuiltinModule'].includes(name))) ambiguous=true;
     }
-    walk(module.ast,(node,parent)=>{
+    walk(module.ast,(node,parent,key,ancestors)=>{
       if (node.type==='Identifier' &&
           (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
       // Every ordinary function's inherited .constructor resolves to the
@@ -322,7 +456,8 @@ function renameCrossFileProperties(files,seed) {
         // Such a Function constructor can dynamically import an ESM owner,
         // defeating the static-only consumer proof. Primitive literal keys
         // cannot become the string "constructor" via ToPropertyKey.
-        if(node.computed && name===null && !primitiveInertKey(node.property))ambiguous=true;
+        if(node.computed && name===null && !primitiveInertKey(node.property) &&
+            !safeClosedCallerRecordRead(modules,module,node,ancestors))ambiguous=true;
       }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
