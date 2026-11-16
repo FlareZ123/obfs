@@ -197,3 +197,28 @@ test('SCO validates the isolation callback and suppresses its private errors',as
     await close(server);
   }
 });
+
+test('SCO refuses a detached isolation execute callback after a failed request',async()=>{
+  /** @type {null|(()=>Promise<void>)} */
+  let captured=null;
+  let privateRuns=0;
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{value:()=>{privateRuns++;return 19;}},
+    authorizeRpc:()=>true,
+    // A buggy integration may retain the execution capability without
+    // awaiting it. The handler must invalidate it when this scope ends.
+    runRpcIsolated:async(_request,execute)=>{captured=execute;}
+  }));
+  const port=await listen(server);
+  try{
+    const reply=await invoke(port,'value',[]);
+    assert.deepEqual(reply,{status:500,body:{ok:false,error:'Operation failed'}});
+    assert.equal(privateRuns,0);
+    assert.equal(typeof captured,'function');
+    const late=/** @type {()=>Promise<void>} */ (captured);
+    await assert.rejects(late(),/RPC isolation execution scope has closed/);
+    assert.equal(privateRuns,0,'A failed HTTP request cannot leave a live private execution capability');
+  }finally{
+    await close(server);
+  }
+});
