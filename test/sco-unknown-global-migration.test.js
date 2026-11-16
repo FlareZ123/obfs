@@ -64,3 +64,17 @@ test('Cross-boundary ambient access retains the established refusal diagnostic',
     'return globalThis.sharedState;',
     'return globalThis.sharedState;'),/share ambient state/u);
 });
+
+test('SCO rejects alternate global-object paths and identity escapes',()=>{
+  for(const body of [
+    'return globalThis.globalThis.externalBridge.value;',
+    'const root=globalThis.globalThis;return root.externalBridge.value;',
+    'const {globalThis:root}=globalThis;return root.externalBridge.value;',
+    'const {globalThis:{externalBridge:bridge}}=globalThis;return bridge.value;',
+    'return globalThis.globalThis;',
+    'const root=globalThis;return root.globalThis.externalBridge.value;'
+  ]){
+    assert.throws(()=>partition(body),
+      /unproved host-global state|browser-only ambient state|realm-local intrinsic state/u,body);
+  }
+});
