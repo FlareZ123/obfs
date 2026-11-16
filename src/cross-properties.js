@@ -294,17 +294,14 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       // ambient binding even when the callee is only an alias identifier.
       // Its parameter/side-effect proof is intentionally conservative.
       if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
-         nativeMutatorAliases.has(node.callee.name) &&
-         node.arguments[0]?.type==='Identifier' &&
-         hostRoots.has(node.arguments[0].name))changedIntrinsic=true;
+         nativeMutatorAliases.has(node.callee.name))changedIntrinsic=true;
       // The global Reflect/Object binding may be replaced through a native
       // descriptor/set/assignment call without spelling a direct member write.
-      // Only known unrelated own keys preserve the native-reflection premise.
+      // Mutator receivers may be opaque aliases or stored global roots.
+      // A known unrelated field remains safe; unknown/global fields decline.
       if(node.type==='CallExpression' &&
          node.callee.type==='MemberExpression' &&
-         node.callee.object.type==='Identifier' &&
-         node.arguments[0]?.type==='Identifier' &&
-         hostRoots.has(node.arguments[0].name)) {
+         node.callee.object.type==='Identifier') {
         const owner=node.callee.object.name;
         const method=node.callee.computed?
           staticString(node.callee.property):staticName(node.callee.property);
