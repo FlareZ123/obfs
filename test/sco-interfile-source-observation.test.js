@@ -233,3 +233,38 @@ test('SCO mutable imported Reflect.get key conservatively protects function sour
   assert.equal(delivered.find(file=>file.path==='state.mjs')?.code,files[0].code,
     'An unproved mutable imported key must never be treated as a safe constant');
 });
+
+test('SCO named-exported safe key preserves renaming of a private ESM owner',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:13};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:
+      'const internal="value";export {internal as lookupKey};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";import {lookupKey} from "./key.mjs";'+
+      'console.log(compute()+Reflect.get({value:7},lookupKey));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.doesNotMatch(delivered.find(file=>file.path==='state.mjs')?.code??'',
+    /secretField/u,'The safe named-export key must preserve SCO property-renaming coverage');
+});
+
+test('SCO named-exported toString key preserves cross-module function source',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:
+      'const item={secretField:13};export function compute(){return item.secretField;}'},
+    {path:'key.mjs',sourceType:'module',code:
+      'const internal="toString";export {internal as lookupKey};'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {compute} from "./state.mjs";import {lookupKey} from "./key.mjs";'+
+      'console.log(Reflect.get(compute,lookupKey).call(compute));'}
+  ];
+  const native=await execute(files);
+  const delivered=await receive(files);
+  assert.equal(await execute(delivered),native);
+  assert.equal(delivered.find(file=>file.path==='state.mjs')?.code,files[0].code);
+});
