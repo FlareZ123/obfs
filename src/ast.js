@@ -731,7 +731,8 @@ function observesDistributedSource(ast) {
       observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
-       node.callee.name==='require' && fileModules.has(staticString(node.arguments[0]))) {
+       node.callee.name==='require' && node.arguments[0] &&
+       fileModules.has(staticString(node.arguments[0]))) {
       observed=true;
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
