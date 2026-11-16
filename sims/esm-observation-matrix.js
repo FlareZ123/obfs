@@ -198,7 +198,7 @@ async function execute(folder, collection) {
  * Deterministic multi-file semantic differential and property-yield measurement.
  * @param {number} [seeds]
  * @param {'coo'|'sno'|'sco'} [mode]
- * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields:number}>}
+ * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields:number,totalProtectedRenames:number,nativeControlNeutralizedFields:number}>}
  */
 async function runMatrix(seeds=12,mode='coo') {
   assert.ok(Number.isInteger(seeds) && seeds>0 && seeds<=100);
@@ -212,6 +212,7 @@ async function runMatrix(seeds=12,mode='coo') {
       }
     }
     let positiveGraphs=0,positiveRenames=0,observedGraphs=0,observedUnsafeRenames=0;
+    let totalProtectedRenames=0;
     /** @type {Record<string,number>} */
     const renamesByScenario={};
     const protectedCases=fixtures.map(item=>{
@@ -220,6 +221,7 @@ async function runMatrix(seeds=12,mode='coo') {
         seed:'esm-observers/'+item.index
       });
       const count=result.crossFile.properties;
+      totalProtectedRenames+=count;
       renamesByScenario[item.scenario]=(renamesByScenario[item.scenario]??0)+count;
       if(item.expectedPositive) {
         positiveGraphs++;
@@ -236,6 +238,10 @@ async function runMatrix(seeds=12,mode='coo') {
       return {index:item.index,files:/** @type {ModuleFile[]} */(result.files)};
     });
     let attackerNormalizedFields=0;
+    const nativeControlNeutralizedFields=fixtures.reduce((count,item)=>
+      count+normalizePublicFields(item.files).properties,0);
+    assert.equal(nativeControlNeutralizedFields,0,
+      'The same public-token attacker should not relabel ordinary native owner fields');
     const normalizedCases=protectedCases.map(item=>{
       // This attacker receives only the emitted files, without source input,
       // a secret seed, or compiler internals beyond its public name syntax.
@@ -248,12 +254,13 @@ async function runMatrix(seeds=12,mode='coo') {
     const normalized=await execute(path.join(scratch,'attacker-normalized'),normalizedCases);
     assert.deepEqual(transformed,baseline,'Original and emitted ESM graphs differ');
     assert.deepEqual(normalized,baseline,'Seedless static field-name normalization changed semantics');
-    assert.ok(attackerNormalizedFields>=positiveGraphs*2,
-      'Seedless attacker must neutralize both fields in every positive graph');
+    assert.equal(attackerNormalizedFields,totalProtectedRenames,
+      'Independent source-only attacker must neutralize every emitted private owner label');
     return {
       mode,graphs:fixtures.length,scenarios:SCENARIOS.length,
       positiveGraphs,positiveRenames,observedGraphs,observedUnsafeRenames,
-      renamesByScenario,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields
+      renamesByScenario,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields,
+      totalProtectedRenames,nativeControlNeutralizedFields
     };
   }finally{
     await fs.rm(scratch,{recursive:true,force:true});
