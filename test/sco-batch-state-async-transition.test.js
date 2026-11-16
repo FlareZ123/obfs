@@ -115,6 +115,11 @@ test('rejecting async policy results cannot terminate Node after synchronous den
     "run(cross('foreign-initial'),base);",
     "run(true,{...base,authorize:()=>cross('foreign-authorize')});",
     "run(true,{...base,transition:()=>cross('foreign-transition')});",
+    "const masked=label=>Object.assign(Promise.reject(Error(label)),{then:null});",
+    "run(masked('masked-initial-reject'),base);",
+    "run(Object.assign(Promise.resolve(true),{then:null}),base);",
+    "run(true,{...base,transition:()=>masked('masked-transition-reject')});",
+    "run(Object.assign(cross('masked-foreign'),{then:null}),base);",
     "setImmediate(()=>process.stdout.write('policy-denials-survived'));"
   ].join('\n');
   const result=spawnSync(process.execPath,['--unhandled-rejections=strict','-e',script],{
