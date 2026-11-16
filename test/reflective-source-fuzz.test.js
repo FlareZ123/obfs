@@ -38,7 +38,19 @@ const observers=[
     read:'sourceMethod.call(observed)'},
   {name:'destructured runtime-key function prototype',
     setup:'const key=true?"toString":"valueOf";const {[key]:sourceMethod}=Function.prototype;',
-    read:'sourceMethod.call(observed)'}
+    read:'sourceMethod.call(observed)'},
+  {name:'assigned Reflect.get source reader',
+    setup:'let sourceReader;sourceReader=Reflect.get;',
+    read:'sourceReader(observed,"toString").call(observed)'},
+  {name:'assigned reflective receiver alias',
+    setup:'let receiver;receiver=Reflect;',
+    read:'receiver.get(observed,"toString").call(observed)'},
+  {name:'globalThis reflected source reader',
+    setup:'const sourceReader=globalThis.Reflect.get;',
+    read:'sourceReader(observed,"toString").call(observed)'},
+  {name:'assigned destructuring reflected source reader',
+    setup:'let sourceReader;({get:sourceReader}=Reflect);',
+    read:'sourceReader(observed,"toString").call(observed)'}
 ];
 
 /** @param {string} code @returns {{value:string,source:string}} */
