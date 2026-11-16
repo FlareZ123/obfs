@@ -108,3 +108,52 @@ test('SCO rejects a nested recognized batch even under a disguised registry key'
   assert.throws(()=>createScoBatchMethod({nested:inner}),/nested batch/i);
   assert.throws(()=>createScoBatchMethod({batch:inner}),/nested batch/i);
 });
+
+test('SCO rejects impossible batches before expensive per-item authorization',async()=>{
+  let effects=0;
+  let innerChecks=0;
+  const methods={
+    /** @param {number} value */ charge:value=>{effects++;return value+1;}
+  };
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{batch:createScoBatchMethod(methods,{maxCalls:2})},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method)=>{
+      if(method==='charge')innerChecks++;
+      return true;
+    }
+  }));
+  const port=await listen(server);
+  try{
+    const oversized=Array.from({length:256},()=>({method:'charge',args:[1]}));
+    const badOversized=await invoke(port,{method:'batch',args:[oversized]});
+    assert.deepEqual(badOversized,{status:500,body:{ok:false,error:'Operation failed'}});
+    assert.equal(innerChecks,0,'Impossible count must not invoke inner policy');
+    assert.equal(effects,0);
+
+    const unknown=await invoke(port,{method:'batch',args:[[
+      {method:'charge',args:[1]},{method:'unknown',args:[]}
+    ]]});
+    assert.equal(unknown.status,500);
+    assert.equal(innerChecks,0,'Unknown methods must not invoke earlier inner policy');
+    assert.equal(effects,0);
+
+    const malformed=await invoke(port,{method:'batch',args:[[
+      {method:'charge',args:[1]},{method:'charge',args:'invalid'}
+    ]]});
+    assert.equal(malformed.status,500);
+    assert.equal(innerChecks,0);
+    assert.equal(effects,0);
+
+    const allowed=await invoke(port,{method:'batch',args:[[
+      {method:'charge',args:[1]},{method:'charge',args:[2]}
+    ]]});
+    assert.deepEqual(allowed,{status:200,body:{ok:true,value:[
+      {ok:true,value:2},{ok:true,value:3}
+    ]}});
+    assert.equal(innerChecks,2,'Every executable inner call must still be authorized');
+    assert.equal(effects,2);
+  }finally{
+    await close(server);
+  }
+});
