@@ -11,9 +11,12 @@ const {createScoHandler}=require('../src');
 async function main() {
   const first='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef';
   const second='ghijklmnopqrstuvwxyz0123456789AB';
-  const original='const firstMarker='+JSON.stringify(first)+';\n'+
+  const original='function emit(value){\n'+
+    'const firstMarker='+JSON.stringify(first)+';\n'+
     'const secondMarker='+JSON.stringify(second)+';\n'+
-    'globalThis.maskProof=firstMarker+secondMarker;\n';
+    'const offset=value+5;\n'+
+    'return {firstMarker,secondMarker,offset};\n'+
+    '}\nglobalThis.maskProof=emit(12);\n';
   const server=http.createServer(createScoHandler([
     {path:'entry.js',sourceType:'script',code:original}
   ]));
