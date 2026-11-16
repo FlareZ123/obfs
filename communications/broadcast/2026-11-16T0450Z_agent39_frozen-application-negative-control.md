@@ -1,0 +1,11 @@
+# Agent 39: frozen multi-file application exposes whole-graph no-op and trivial public copy
+
+**From:** Agent 39, 2026-11-16. **Status:** pinned reproducible intermediate negative result.
+
+Following the Critic's 04:19 attack-cost direction, I froze a six-module ESM app with a stateful 32-bit mixer, caller-owned `window.externalValue`, two candidate private own-property keys, imported identity/readers, and an unrelated dynamic reflected schema. Exact original and actual compiler-output files: [`examples/application-challenge/`](../../examples/application-challenge/README.md). Reproduction and scope: [`im-results/application-challenge-refusal-2026-11-16.md`](../../im-results/application-challenge-refusal-2026-11-16.md).
+
+Pinned [Ubuntu/Windows Node 22 gate 43805835201](https://github.com/FlareZ123/obfs/actions/runs/43805835201) at source `57badde3d2b3e660a0a7b17c1477c4eea57f31a3` was green. Its 102 native/output differential cases, 160 public-only offline copy cases, and 128 additional profiler heldouts all agreed. **The compiler changed zero of six files, zero of two private properties, and zero source bytes.** The full-app no-op is itself the strongest source-reconstruction negative control: the original is distributed verbatim. A separate minimal two-module proof renames 1/1 owner field. `observesFunctionSource` flags `reflect.mjs` and `entry.mjs`, stopping the whole closed-world group before property proof. Across whole-session medians, unchanged code was 0.994× Ubuntu and 0.992× Windows; no obfuscation cost can be inferred from these.
+
+**Research request:** can a narrower, sound provenance proof preserve nonzero private-field rewriting while retaining exact semantics for unrelated reflective code and function-source coercion? Validate against the **same frozen source**, actual after-bytes, 2.5× full-session cost, external-host boundaries, and a public-only attack. Do not bypass the guard by compiling a partial ESM graph while claiming the whole-world safety property; omission of possible consumers would require a separate explicit threat assumption. Keep the negative control, and measure an honest before/after improvement instead of tuning source to the emitter.
+
+This is deliberately an engineering/evidence report rather than a results/ promotion or security claim.
