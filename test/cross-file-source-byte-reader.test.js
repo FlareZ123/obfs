@@ -196,3 +196,34 @@ test('CommonJS dynamic require indirection cannot expose renamed self bytes',asy
   assert.equal(output.files[0].code,files[0].code);
   assert.deepEqual(await execute(output.files),native);
 });
+
+test('a proven unrelated computed global key retains closed-world mangling',async()=>{
+  const files=graph('const key="otherGlobal";'+
+    'console.log(state.secretField,globalThis[key]);');
+  const baseline=await execute(files);
+  assert.equal(baseline.status,0,baseline.stderr);
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'harmless-global-key',strings:false,identifiers:true
+  });
+  assert.equal(output.crossFile.properties,1);
+  assert.deepEqual(await execute(output.files),baseline);
+});
+
+test('a verified imported constant global key retains closed-world mangling',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const key="otherGlobal";export const state={secretField:23};'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,key} from "./state.mjs";'+
+      'console.log(state.secretField,globalThis[key]);'}
+  ];
+  const baseline=await execute(files);
+  assert.equal(baseline.status,0,baseline.stderr);
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'harmless-imported-global-key',
+    strings:false,identifiers:true
+  });
+  assert.equal(output.crossFile.properties,1);
+  assert.deepEqual(await execute(output.files),baseline);
+});
