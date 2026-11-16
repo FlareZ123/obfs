@@ -41,3 +41,24 @@ test('alternate checker hashes normalize without reading compiler internals',()=
   vm.runInNewContext(result.files[0].code,context,{timeout:2000});
   assert.equal(context.module.exports,1);
 });
+
+test('hashed spellings used as unrelated payload data must survive static normalization',()=>{
+  const source='const record={"_p0123456789ab":12};'+
+    'module.exports=[record["_p0123456789ab"],"_p0123456789ab"];';
+  const original={module:{exports:null}};
+  vm.runInNewContext(source,original,{timeout:2000});
+  const result=normalizeDistributedFiles([
+    {path:'decoy.cjs',sourceType:'commonjs',code:source}
+  ]);
+  assert.equal(result.properties,1,'only the real object key is a property label');
+  const normalized={module:{exports:null}};
+  vm.runInNewContext(result.files[0].code,normalized,{timeout:2000});
+  assert.equal(JSON.stringify(normalized.module.exports),JSON.stringify(original.module.exports));
+});
+
+test('hash-shaped ordinary string data is not a recovered property',()=>{
+  const source='module.exports="_p0123456789ab";';
+  const result=normalizeDistributedFiles([{path:'data.cjs',sourceType:'commonjs',code:source}]);
+  assert.equal(result.properties,0);
+  assert.equal(result.files[0].code,source);
+});
