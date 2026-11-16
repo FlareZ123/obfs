@@ -28,6 +28,10 @@ jobs:
         run: node examples/polyvariant-app/build.cjs
       - name: Run attacker-only functional clone off host
         run: node sims/polyvariant-app-functional-clone.js
+      - name: Reconstruct native math from public bytes and execute rebuilt full offline app
+        run: node --test test/polyvariant-app-static-clone.test.js
+      - name: Report offline static reconstruction from distributed module
+        run: node sims/polyvariant-app-static-clone.js
       - name: Sample generated output (base64)
         run: node -e "const {execFileSync}=require('node:child_process'); const code=execFileSync(process.execPath,['examples/polyvariant-affine/build.js','--emit']); process.stdout.write('SAMPLE_B64='+code.toString('base64')+'\\n')"
       - name: Validate checked-in before-after sample
