@@ -1,0 +1,27 @@
+name: Manual Wasm i32 conditional strategy grid
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  grid:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc research check
+        run: npx tsc -p jsconfig.wasm-i32.json
+      - name: Deterministic typed Wasm strategy grid and native differential
+        run: node sims/wasm-i32-strategy-grid.js
