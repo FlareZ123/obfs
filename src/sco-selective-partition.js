@@ -318,6 +318,18 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // A locale-dependent method may be extracted and invoked later through
+    // Function.call/apply, an alias, or a callback. Inspect the member
+    // reference itself rather than requiring a direct CallExpression.
+    if(node.type==='MemberExpression'){
+      const member=keyName(node);
+      if(localePrototypeMethods.has(member??''))configurationTouched=true;
+      if(member==='supportedLocalesOf'&&
+         (isIntlConstructor(node.object)||
+          node.object.type==='Identifier'&&intlAliases.has(node.object.name))){
+        configurationTouched=true;
+      }
+    }
     if((node.type==='CallExpression'||node.type==='NewExpression')&&
        (isIntlConstructor(node.callee)||
          node.callee.type==='Identifier'&&intlAliases.has(node.callee.name))) {
@@ -349,14 +361,6 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
       const method=keyName(node.callee);
-      if(localePrototypeMethods.has(method??''))configurationTouched=true;
-      // ICU support is host-specific even when requested locale names are
-      // explicitly pinned. This static utility does not construct an Intl
-      // formatter and otherwise bypasses the constructor gate above.
-      if(method==='supportedLocalesOf'&&
-         (isIntlConstructor(node.callee.object)||
-          node.callee.object.type==='Identifier'&&
-          intlAliases.has(node.callee.object.name)))configurationTouched=true;
       if(isDateConstructor(node.callee.object)&&
          (method==='now'||method==='parse'&&
            !(node.arguments.length===1&&pinnedIsoUtcLiteral(node.arguments[0])))){
