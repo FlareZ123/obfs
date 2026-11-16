@@ -62,7 +62,7 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926){
       authorizeOperation:(request,method,args)=>
         request.headers.cookie==='session=approved' &&
         method===partition.methodNames.step &&
-        args.length===1 && Number.isInteger(args[0]) && args[0]>=0 && args[0]<=1
+        args.length===1 && typeof args[0]==='number' && Number.isInteger(args[0]) && args[0]>=0 && args[0]<=1
     }));
     server=activeServer;
     /** @type {Promise<void>} */
