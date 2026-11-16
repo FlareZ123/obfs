@@ -55,7 +55,7 @@ function isServerEnvironmentRead(expression){
  * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
- * @returns {'prototype'|'RegExp match'|'intrinsic state'|null}
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|null}
  */
 function realmStateObservation(body){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
@@ -205,6 +205,78 @@ function realmStateObservation(body){
         property.type==='RestElement'||keyName(property)===null||
         names.has(keyName(property)??''));
   }
+  // A selected SCO private export executes on a different host. Date's
+  // local-time constructors/getters and Intl's unpinned locale/zone defaults
+  // can change a JSON-visible result even if neither realm mutates state.
+  // This intentionally refuses certain explicitly pinned Intl operations:
+  // proving identical ICU data, locale and timezone across hosts is beyond
+  // this syntactic contract. UTC-only Date operations remain eligible.
+  const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
+    'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
+    'DurationFormat']);
+  const dateLocalMethods=new Set(['getDate','getDay','getFullYear','getHours',
+    'getMilliseconds','getMinutes','getMonth','getSeconds','getTimezoneOffset',
+    'getYear','setDate','setFullYear','setHours','setMilliseconds','setMinutes',
+    'setMonth','setSeconds','setYear','toString','toDateString','toTimeString',
+    'toLocaleString','toLocaleDateString','toLocaleTimeString']);
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isDateConstructor(expression){
+    if(expression.type==='Identifier')return intrinsicKinds.get(expression.name)==='Date';
+    return expression.type==='MemberExpression' &&
+      expression.object.type==='Identifier' &&
+      globalNames.has(expression.object.name) && keyName(expression)==='Date';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isIntlConstructor(expression){
+    if(expression.type!=='MemberExpression' ||
+       !localeConstructors.has(keyName(expression)??''))return false;
+    const receiver=expression.object;
+    return receiver.type==='Identifier'&&intrinsicKinds.get(receiver.name)==='Intl' ||
+      receiver.type==='MemberExpression' &&
+      receiver.object.type==='Identifier' &&
+      globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function fixedDateConstruction(expression){
+    if(expression.type!=='NewExpression'||!isDateConstructor(expression.callee)||
+       expression.arguments.length!==1)return false;
+    const argument=expression.arguments[0];
+    return argument.type==='Literal'&&typeof argument.value==='number' ||
+      argument.type==='CallExpression'&&
+      argument.callee.type==='MemberExpression'&&
+      isDateConstructor(argument.callee.object)&&keyName(argument.callee)==='UTC';
+  }
+  // Retain Date-instance origins through simple local aliases. As with the
+  // broader intrinsic proof, unrecognized higher-order flows remain outside
+  // the verified contract and need independent adversarial tests.
+  const dateInstances=new Set();
+  const intlAliases=new Set();
+  let originChanged=true;
+  while(originChanged){
+    originChanged=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type!=='Identifier'||!initial)return;
+      if(initial.type==='NewExpression'&&isDateConstructor(initial.callee)||
+         initial.type==='Identifier'&&dateInstances.has(initial.name)){
+        if(!dateInstances.has(binding.name)){
+          dateInstances.add(binding.name);
+          originChanged=true;
+        }
+      }
+      if(isIntlConstructor(initial)||
+         initial.type==='Identifier'&&intlAliases.has(initial.name)){
+        if(!intlAliases.has(binding.name)){
+          intlAliases.add(binding.name);
+          originChanged=true;
+        }
+      }
+    });
+  }
+  let configurationTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
@@ -218,6 +290,28 @@ function realmStateObservation(body){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    if((node.type==='CallExpression'||node.type==='NewExpression')&&
+       (isIntlConstructor(node.callee)||
+         node.callee.type==='Identifier'&&intlAliases.has(node.callee.name))) {
+      configurationTouched=true;
+    }
+    if(node.type==='CallExpression'&&isDateConstructor(node.callee)) {
+      // Calling Date as an ordinary function always formats the host clock.
+      configurationTouched=true;
+    }
+    if(node.type==='NewExpression'&&isDateConstructor(node.callee)&&
+       !fixedDateConstruction(node))configurationTouched=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+      const method=keyName(node.callee);
+      if(isDateConstructor(node.callee.object)&&
+         (method==='now'||method==='parse'))configurationTouched=true;
+      const receiver=node.callee.object;
+      if(dateLocalMethods.has(method??'')&&
+         (receiver.type==='NewExpression'&&isDateConstructor(receiver.callee)||
+          receiver.type==='Identifier'&&dateInstances.has(receiver.name))) {
+        configurationTouched=true;
+      }
+    }
     // A builtin identity copied into an array/object, returned or passed to
     // an opaque function can be mutated through that carrier without any
     // syntactically direct write to Math/JSON/etc. Decline such first-class
@@ -292,7 +386,7 @@ function realmStateObservation(body){
        isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
   return prototypeTouched?'prototype':regexpTouched?'RegExp match':
-    intrinsicTouched?'intrinsic state':null;
+    intrinsicTouched?'intrinsic state':configurationTouched?'configuration':null;
 }
 
 /**
