@@ -29,7 +29,7 @@ function load(code) {
 
 /** @param {number} index @returns {string} */
 function sourceAt(index) {
-  const parts=['null','true','"private"','-1','0'];
+  const parts=['null','true','"private"','false','0'];
   parts[index]='owner';
   return [
     "const owner={hiddenCount:17,privateDelta:3};",
