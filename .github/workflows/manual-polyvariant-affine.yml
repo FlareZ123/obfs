@@ -22,7 +22,7 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Differential and integration cases
         run: node --test test/polyvariant-affine.test.js
-      - name: JSDoc static check
-        run: npm run typecheck
       - name: Sample generated output (base64)
         run: node -e "const {execFileSync}=require('node:child_process'); const code=execFileSync(process.execPath,['examples/polyvariant-affine/build.js','--emit']); process.stdout.write('SAMPLE_B64='+code.toString('base64')+'\\n')"
+      - name: JSDoc static check
+        run: npm run typecheck
