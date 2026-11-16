@@ -81,7 +81,7 @@ const cases=[
     '  }',
     '  return descriptor(receiver,key);',
     '};'
-  ].join('\n')]
+  ].join('\n'),true],
   ['transitive global Reflect alias',[
     'const Root=globalThis;',
     'const R=Root.Reflect;',
