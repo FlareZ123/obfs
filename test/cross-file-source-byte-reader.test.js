@@ -101,6 +101,9 @@ test('a single module reading its own bytes declines local rewrites',async()=>{
 for(const observer of [
   'fetch("./state.mjs").then(response=>response.text());',
   'globalThis["fetch"]("./state.mjs");',
+  'const method="fetch";globalThis[method]("./state.mjs");',
+  'const root=globalThis;const name="fetch";root[name]("./state.mjs");',
+  'Reflect.get(globalThis,"fetch")("./state.mjs");',
   'const X=XMLHttpRequest;new X();'
 ]) {
   test('browser source-fetch API conservatively declines distributed rewrites: '+observer,()=>{
