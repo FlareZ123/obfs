@@ -6,12 +6,14 @@
     "sims/wasm-i32-cold-counterexample.js",
     "sims/wasm-i32-runtime-extraction.js",
     "test/wasm-i32.test.js",
+    "test/wasm-i32-multiparam.test.js",
     "test/wasm-i32-static-recovery.test.js",
     "test/wasm-i32-nested-fuzz.test.js",
     "test/wasm-i32-early-cycle.test.js",
     "test/wasm-i32-browser.js",
     "test/wasm-i32-csp-browser.js",
-    "examples/wasm-i32/build.cjs"
+    "examples/wasm-i32/build.cjs",
+    "examples/wasm-i32-multi/build.cjs"
   ],
   "exclude": [
     "node_modules"
