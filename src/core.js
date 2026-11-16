@@ -11,15 +11,16 @@ const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
+const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[]}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean}} ObfuscationOptions
  */
 
 /**
@@ -559,6 +560,30 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
+    const polyvariantNames=options.experimentalPolyvariantAffine?.[filename]??[];
+    let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
+    if(polyvariantNames.length) {
+      if(sourceType==='script'||remoteSourceObserver) {
+        throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
+      }
+      if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
+          nativeNames.includes(name)||branchNames.includes(name)||wasmNames.includes(name))) {
+        throw new TypeError('Do not select the same function for multiple experimental backends');
+      }
+      const transformed=lowerPolyvariantAffine(code,sourceType,{
+        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??4
+      });
+      if(transformed.declined) {
+        throw new TypeError('Polyvariant affine declined '+transformed.declined+
+          ' selected function(s) in '+filename+
+          '; require a return-only integer-normalized +/- chain');
+      }
+      code=transformed.code;
+      polyvariantFunctions=transformed.functions;
+      polyvariantPaths=transformed.paths;
+      polyvariantSteps=transformed.steps;
+      ast=parse(code,sourceType);
+    }
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
@@ -611,6 +636,11 @@ function obfuscateFiles(files, options = {}) {
     if(branchNames.length) {
       metrics.branchFunctions=branchFunctions;
       metrics.branchBlocks=branchBlocks;
+    }
+    if(polyvariantNames.length) {
+      metrics.polyvariantFunctions=polyvariantFunctions;
+      metrics.polyvariantPaths=polyvariantPaths;
+      metrics.polyvariantSteps=polyvariantSteps;
     }
     if(wasmNames.length) {
       metrics.wasmI32Functions=wasmI32Functions;
