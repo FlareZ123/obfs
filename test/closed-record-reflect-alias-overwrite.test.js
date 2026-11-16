@@ -135,6 +135,18 @@ const cases=[
     '  return native(receiver);',
     '}});'
   ].join('\n'),true],
+  ['global Reflect binding replaced through globalThis alias',[
+    'const Root=globalThis;',
+    'const native=Reflect.ownKeys;',
+    'const replacement=Object.create(Reflect);',
+    'replacement.ownKeys=function(receiver){',
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=Root.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '};',
+    'Root.Reflect=replacement;'
+  ].join('\n'),true],
   ['unrelated local ownKeys overwrite',[
     'const local={ownKeys(){return 0;}};',
     'local.ownKeys=function(){return 1;};'
