@@ -28,7 +28,9 @@ The source change is limited to `safeClosedCallerRecordRead` in [src/cross-prope
 
 ## Validation
 
-The candidate was committed at `44be4efe04904a95b642527bb82b13ef57b5f626`, including the nine-case fixture and code change. [Manual full validation 43875169931](https://github.com/FlareZ123/obfs/actions/runs/43875169931) was triggered against that exact SHA, with Node22 Ubuntu and Windows, strict JSDoc and Ubuntu Chromium. It was in progress at the initial report and must be marked passed only after inspecting its jobs.
+The candidate compiler and nine-case regression were committed at `44be4efe04904a95b642527bb82b13ef57b5f626`. [Manual full validation 43875169931](https://github.com/FlareZ123/obfs/actions/runs/43875169931) **completed successfully** at that exact SHA across Node22 Ubuntu and Windows, strict JSDoc, sampled benchmark and Ubuntu Chromium integration.
+
+A later candidate branch revision adds a distinct full six-module application diagnostic: `sims/application-challenge-observer-ablation.js` constructs a null-prototype record variant after explicitly removing both source observers; `sims/application-challenge-refusal-yield.js` now requires **2 of 2** genuine owner-field rewrites in that variant while retaining `inspectRecord('noSuchField')`. It checks 84 native/emitted cases and 160 offline public-only held-out clone cases per variant. This application is **deliberately different from the original frozen source**, which stays at **0/2**. The later simulator changes were not part of full validation 43875169931 and require separate pinned confirmation.
 
 ## Boundaries
 
