@@ -630,6 +630,30 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     } while(progress);
   }
   /**
+   * An inline array or data-object literal containing only proven primitive
+   * values cannot carry a function source into structured cloning. Avoid
+   * opaque identifiers, constructors, spread, getters and computed effects.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function isInertCloneInput(node,depth=0) {
+    if(!node||depth>16)return false;
+    if(isDefinitelyPrimitive(node))return true;
+    if(node.type==='ArrayExpression') {
+      return node.elements.every((/** @type {AstNode|null} */ value)=>
+        value===null || value.type!=='SpreadElement' &&
+          isInertCloneInput(value,depth+1));
+    }
+    if(node.type==='ObjectExpression') {
+      return node.properties.every((/** @type {AstNode} */ property)=>
+        property.type==='Property' && property.kind==='init' &&
+        !property.method && (!property.computed || staticString(property.key)!==null) &&
+        isInertCloneInput(property.value,depth+1));
+    }
+    return false;
+  }
+  /**
    * Recognize immutable, uniquely-bound constant string keys at a consumer.
    * Local variables used as computed member names are common around native
    * toString/Reflect.get observers. Ambiguous bindings remain unresolved.
@@ -871,16 +895,16 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       if(node.type==='CallExpression' &&
          (callee.type==='Identifier' && callee.name==='postMessage' ||
           callee.type==='MemberExpression' && memberName(callee)==='postMessage') &&
-         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+         node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
       // Node's V8 serializer reuses structured clone rules and can expose the
       // exact source of a failed function operand in its error message.
       if(node.type==='CallExpression' && isV8Serialize(callee) &&
-         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+         node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
          isV8Serialize(callee.object)) {
         const method=memberName(callee);
         if(method==='call' && node.arguments[1] &&
-           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+           !isInertCloneInput(node.arguments[1]))observed=true;
         if(method==='apply'||method==='bind')observed=true;
       }
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
@@ -890,12 +914,12 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       // when a function is submitted directly or through an object graph.
       // Unknown inputs may contain functions; keep primitive-only calls safe.
       if(node.type==='CallExpression' && isStructuredClone(callee) &&
-         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+         node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
          isStructuredClone(callee.object)) {
         const method=memberName(callee);
         if(method==='call' && node.arguments[1] &&
-           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+           !isInertCloneInput(node.arguments[1]))observed=true;
         if(method==='apply'||method==='bind')observed=true;
       }
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
