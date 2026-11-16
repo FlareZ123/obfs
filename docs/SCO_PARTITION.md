@@ -235,3 +235,33 @@ to the manifest cannot replace an approved facade with private source. A
 roundtripped or shallow-copied graph is intentionally refused. Details,
 live HTTP negative control and tested boundary are recorded in
 [`im-results/sco-graph-postpartition-seal-2026-11-16.md`](../im-results/sco-graph-postpartition-seal-2026-11-16.md).
+
+
+### Dynamic evaluator limitation of the closed graph audit
+
+The graph compiler recognizes canonical static ESM imports and literal
+`import('./known.mjs')` expressions. An otherwise ordinary private ESM
+module can also load an undeclared dependency at runtime through
+`eval('import("./hidden.mjs")')` or
+`Function('return import("./hidden.mjs")')()`. Real Node 22 execution of
+both originals is reproduced in
+[`test/sco-graph-private-path-policy.test.js`](../test/sco-graph-private-path-policy.test.js).
+The generated `privateSourceDigests` list is based on compiler-supplied
+files, so an unlisted dynamically loaded file would lack a commitment.
+
+To avoid the most obvious false closure claims,
+`partitionScoAsyncGraph` now refuses visible `eval` and `Function`
+calls, construction, simple identifier aliases, direct
+`globalThis.Function`/`globalThis.eval` references, and corresponding
+static global destructuring. This is a conservative source-admission choice;
+code that legitimately uses those facilities must be reviewed and handled
+outside the restricted graph partitioner.
+
+Arbitrary JavaScript can still obtain executable constructors or module
+loaders through more complex aliases, prototypes, reflection, host
+capabilities and native imports. Those patterns are not proved absent by
+this syntax guard. Operators must independently review private server
+sources, their runtime-resolved dependencies and the deployment root.
+The trusted-server digest preflight remains valuable for exact files in
+the declared source graph. It does not certify all code that could be
+loaded later by the Node process.
