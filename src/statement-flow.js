@@ -167,7 +167,11 @@ function flattenStatementFlow(source,sourceType,options){
     const matching=candidates.get(name);
     if(!matching||matching.length!==1){declined++;continue;}
     const fn=matching[0];
-    if(fn.async||fn.generator){declined++;continue;}
+    // Rewriting a validated asm.js body would erase its specialized runtime
+    // compilation contract and can break the hard 2.5x compute target.
+    if(fn.async||fn.generator||fn.body.body.some(stmt=>stmt.directive==='use asm')){
+      declined++;continue;
+    }
     /** @type {string[]} */
     const directives=[];
     let first=0;
