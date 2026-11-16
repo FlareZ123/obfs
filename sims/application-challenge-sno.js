@@ -93,48 +93,6 @@ function runJson(entry,cases){
 }
 
 /**
- * Republish public output without access to the original application or
- * obfuscator. This is an offline copy, not source deobfuscation.
- * @param {string} source
- * @param {string} destination
- * @param {readonly string[]} paths
- * @returns {Promise<void>}
- */
-async function copyPublic(source,destination,paths){
-  for(const name of [...paths,'sno-entry.cjs']){
-    await atomicWrite(path.join(destination,name),
-      await fs.readFile(path.join(source,name)));
-  }
-}
-
-/**
- * Attack the public manifest, without asking the compiler to regenerate it.
- * The initial one-byte-level code change is rejected. Updating the digest
- * disclosed in the launcher then admits an arbitrary attacker replacement.
- * @param {string} target
- * @param {string} launcher
- * @returns {Promise<{rejected:boolean,forged:boolean}>}
- */
-async function forgeManifest(target,launcher){
-  const entryPath=path.join(target,'entry.mjs');
-  const original=await fs.readFile(entryPath,'utf8');
-  const injected='process.stdout.write("FORGED\\n");process.exit(0);\n'+original;
-  await atomicWrite(entryPath,injected);
-  const rejected=runRaw(path.join(target,'sno-entry.cjs'),[[1,10]]);
-  assert.notEqual(rejected.status,0);
-  assert.match(rejected.stderr,/Integrity check failed: entry\.mjs/);
-  const oldDigest=sha256(original);
-  const newDigest=sha256(injected);
-  assert.equal(launcher.split(oldDigest).length-1,1);
-  await atomicWrite(path.join(target,'sno-entry.cjs'),
-    launcher.replace(oldDigest,newDigest));
-  const forged=runRaw(path.join(target,'sno-entry.cjs'),[[1,10]]);
-  assert.equal(forged.status,0,forged.stderr);
-  assert.equal(forged.stdout,'FORGED\n');
-  return {rejected:true,forged:true};
-}
-
-/**
  * Run native, transformed, copied and forged variants for the same app.
  * All generated data lives in disposable temporary directories.
  * @returns {Promise<{cases:number,offlineCloneMatches:boolean,changedFiles:number,originalBytes:number,emittedBytes:number,encodedLiterals:number,renamedProperties:number,renamedBindings:number,manifestRejected:boolean,forgedExecution:boolean}>}
@@ -143,27 +101,33 @@ async function runEvidence(){
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-frozen-sno-'));
   try {
     const protectedDir=path.join(temp,'protected');
-    const copiedDir=path.join(temp,'copied');
-    const tamperedDir=path.join(temp,'tampered');
     const compiled=await emitSno(protectedDir);
     const cases=heldoutCases();
     const native=runJson(path.join(ROOT,'before','entry.mjs'),cases);
     assert.deepEqual(runJson(path.join(protectedDir,'sno-entry.cjs'),cases),native);
-    await copyPublic(protectedDir,copiedDir,compiled.paths);
-    assert.deepEqual(runJson(path.join(copiedDir,'sno-entry.cjs'),cases),native);
-    await copyPublic(protectedDir,tamperedDir,compiled.paths);
-    const tamper=await forgeManifest(tamperedDir,compiled.launcher);
+    const attacker=spawnSync(process.execPath,[
+      path.join(__dirname,'application-challenge-sno-public-attacker.js'),
+      protectedDir,JSON.stringify(cases)
+    ],{encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024});
+    if(attacker.error)throw attacker.error;
+    assert.equal(attacker.status,0,attacker.stderr);
+    assert.match(attacker.stdout,/^SNO_PUBLIC_ATTACK /);
+    const attack=/** @type {{copiedFiles:number,publicOutputSha256:string,copiedOutputSha256:string,copyMatches:boolean,modificationRejected:boolean,manifestRewritten:boolean}} */(
+      JSON.parse(attacker.stdout.slice('SNO_PUBLIC_ATTACK '.length)));
+    assert.equal(attack.copiedFiles,compiled.paths.length+1);
+    assert.equal(attack.publicOutputSha256,sha256(JSON.stringify(native)+'\n'));
+    assert.equal(attack.copiedOutputSha256,attack.publicOutputSha256);
     return {
       cases:cases.length,
-      offlineCloneMatches:true,
+      offlineCloneMatches:attack.copyMatches,
       changedFiles:compiled.changed,
       originalBytes:compiled.originalBytes,
       emittedBytes:compiled.emittedBytes,
       encodedLiterals:compiled.encoded,
       renamedProperties:compiled.properties,
       renamedBindings:compiled.bindings,
-      manifestRejected:tamper.rejected,
-      forgedExecution:tamper.forged
+      manifestRejected:attack.modificationRejected,
+      forgedExecution:attack.manifestRewritten
     };
   } finally {
     await fs.rm(temp,{recursive:true,force:true});
