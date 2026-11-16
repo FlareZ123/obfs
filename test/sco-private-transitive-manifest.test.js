@@ -143,7 +143,10 @@ test('source-audited private graph refuses visible intrinsic and global effects'
     'Math.__privateRealmCanary=41; export function deriveProof(v){return v;}',
     'Object.prototype.__privateRealmCanary=41; export function deriveProof(v){return v;}',
     'const root=globalThis; root.__privateRealmCanary=41; export function deriveProof(v){return v;}',
-    'const root=globalThis; const r=root; r.__privateRealmCanary++; export function deriveProof(v){return v;}'
+    'const root=globalThis; const r=root; r.__privateRealmCanary++; export function deriveProof(v){return v;}',
+    'Object.assign(globalThis,{__privateRealmCanary:41}); export function deriveProof(v){return v;}',
+    'const globalAlias=globalThis; const setter=Reflect.set; setter(globalAlias,"__privateRealmCanary",41); export function deriveProof(v){return v;}',
+    'const root=globalThis; root.customMutator({__privateRealmCanary:41}); export function deriveProof(v){return v;}'
   ]){
     assert.throws(()=>emit([{path:engine.path,code}]),
       /realm-local|cross-realm global state/u,code);
