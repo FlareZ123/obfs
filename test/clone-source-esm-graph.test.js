@@ -83,8 +83,10 @@ test('function-free ESM structuredClone input preserves one private owner key',a
   const transformed=obfuscateFiles(files,{
     mode:'sno',seed:'cross-esm-clone-inert',strings:false
   });
-  assert.equal(transformed.files[0].metrics.properties,1,
-    'The unrelated private record should remain eligible for property renaming');
+  // ESM ownership can be renamed by the cross-file prepass, which reports
+  // metrics separately from each file's local property pass.
+  assert.ok(transformed.files[0].metrics.properties+transformed.crossFile.properties>=1);
+  assert.doesNotMatch(transformed.files[0].code,/secretField/u);
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-clone-inert-'));
   try{
     const native=await execute(path.join(folder,'native'),files);
