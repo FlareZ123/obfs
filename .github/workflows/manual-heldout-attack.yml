@@ -32,7 +32,7 @@ jobs:
       - name: Report measured protected hot loops and module cold startup
         run: node sims/property-hotpath-closedworld.js
       - name: Fixed private tuple differential, reconstruction, and cold-session checks
-        run: node --test test/private-tuple-proof.test.js test/private-tuple-grid.test.js test/private-tuple-session.test.js
+        run: node --test test/private-tuple-proof.test.js test/private-tuple-grid.test.js test/private-tuple-session.test.js test/private-record-proof.test.js test/private-record-grid.test.js
       - name: Report private tuple cold-through-hot end-to-end ratios
         run: node sims/private-tuple-session.js
       - name: Check JSDoc types
