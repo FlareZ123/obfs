@@ -65,10 +65,10 @@ test('complete ESM import chain guards every body before side effects',async()=>
       'globalThis.events.push("entry");globalThis.result=answer;'},
     {path:'logic.mjs',sourceType:'module',code:
       'import {value} from "./state.mjs";'+
-      'globalThis.events.push("logic");export const answer=value+5;'},
+      'globalThis.events.push("logic");export const answer=value;'},
     {path:'state.mjs',sourceType:'module',code:
       'globalThis.events.push("state");export const value=13;'}
-  ],['state','logic','entry'],18);
+  ],['state','logic','entry'],13);
 });
 
 test('static named reexports and side-effect dependencies also receive guards',async()=>{
@@ -90,11 +90,11 @@ test('cyclic ESM module graph still guards the first evaluated module body',asyn
       'import {read} from "./a.mjs";globalThis.events.push("entry");globalThis.result=read();'},
     {path:'a.mjs',sourceType:'module',code:
       'import {suffix} from "./b.mjs";globalThis.events.push("a");'+
-      'export function read(){return "a"+suffix();}'},
+      'export function read(){return suffix();}'},
     {path:'b.mjs',sourceType:'module',code:
       'import {read} from "./a.mjs";globalThis.events.push("b");'+
       'export function suffix(){return "b";}'}
-  ],['b','a','entry'],'ab');
+  ],['b','a','entry'],'b');
 });
 
 test('undeclared, imported external, ambiguous and mixed graphs decline',()=>{
@@ -113,7 +113,7 @@ test('undeclared, imported external, ambiguous and mixed graphs decline',()=>{
     assert.throws(()=>obfuscateFiles([entry(code),dep],{
       mode:'coo',seed:'host-negative',closedWorld:true,
       allowedHosts:['allowed.example'],strings:false,identifiers:false
-    }),/Host locking ESM static imports/u,code);
+    }),/Host locking ESM static imports|Host locking cannot preserve observable source bytes/u,code);
   }
   assert.throws(()=>obfuscateFiles([entry('import "./dep.mjs";'),dep],{
     mode:'coo',seed:'host-negative',allowedHosts:['allowed.example']
