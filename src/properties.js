@@ -669,9 +669,9 @@ function renameLocalProperties(source, ast, options) {
     // proved without rewriting references in independent classic scripts.
     if (options.sourceType === 'script' &&
         !ancestors.some(a => a.type === 'BlockStatement')) return;
-    // A globally declared factory can be reassigned by a later classic
-    // script. Its freshly returned shape is no longer the literal proven
-    // from this file, so keep classic-script owners as direct literals only.
+    // A named factory is visible to other classic scripts. They can call it
+    // and expect its original property keys, or replace a mutable function
+    // binding. Admit only direct literal owners and unnameable immediate IIFEs.
     if (options.sourceType === 'script' && node.type !== 'ObjectExpression' &&
         !(node.type === 'CallExpression' &&
           ['ArrowFunctionExpression','FunctionExpression'].includes(node.callee.type))) return;
@@ -694,11 +694,11 @@ function renameLocalProperties(source, ast, options) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
     if (options.sourceType === 'script') {
-      // A helper declared at Program scope is mutable from a later classic
-      // script, even if this script contains no other assignments to it.
-      // The local proof assumes its identified callees stay immutable.
-      // Refuse all owner-as-argument calls and call-produced owner aliases
-      // until a cross-script callee-immutability proof is available.
+      // A helper callable by another classic script can consume different
+      // objects under the original field names, or be reassigned before this
+      // script calls it again. Per-file helper summaries cannot prove those
+      // independent global consumers. Reject owner-as-argument calls and
+      // call-produced aliases until a cross-script call-graph proof exists.
       if (proof.forwardedCalls.size) continue;
       let passedToCall=false;
       walk(ast,node=>{
