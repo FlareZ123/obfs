@@ -57,7 +57,11 @@ for(const [name,source] of [
   ['first-class Reflect.get source observer',
     "function observed(){const text='source-observation-literal';return text;}const get=Reflect.get;globalThis.out={value:observed(),source:get(observed,'toString')()};"],
   ['first-class reflected descriptor source observer',
-    "function observed(){const text='source-observation-literal';return text;}const R=Object;const getter=R.getOwnPropertyDescriptor;const source=getter(Function.prototype,'toString').value;globalThis.out={value:observed(),source:source.call(observed)};"]
+    "function observed(){const text='source-observation-literal';return text;}const R=Object;const getter=R.getOwnPropertyDescriptor;const source=getter(Function.prototype,'toString').value;globalThis.out={value:observed(),source:source.call(observed)};"],
+  ['computed Function.prototype source observer',
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';globalThis.out={value:observed(),source:Function.prototype[key].call(observed)};"],
+  ['computed prototype-of-function source observer',
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const proto=Reflect.getPrototypeOf(observed);globalThis.out={value:observed(),source:proto[key].call(observed)};"]
 ]) {
   test('SCO response preserves observable function source: '+name,async()=>{
     const variant=await fetchVariant(source);
