@@ -54,7 +54,8 @@ test('SCO refuses unproved private primitive locale builtins',()=>{
     "const value='I';return value['toLocale'+'LowerCase']();",
     "return (1234.5).toLocaleString('en-US');",
     "return Intl.NumberFormat.supportedLocalesOf(['de-DE']).length;",
-    "return Intl.DateTimeFormat.supportedLocalesOf(['de-DE']).length;"
+    "return Intl.DateTimeFormat.supportedLocalesOf(['de-DE']).length;",
+    "const Formatter=Intl.NumberFormat;return Formatter.supportedLocalesOf(['de-DE']).length;"
   ])assert.throws(()=>partition(body),/realm-local configuration/,body);
 });
 
