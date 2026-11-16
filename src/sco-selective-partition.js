@@ -1023,6 +1023,42 @@ function partitionScoSelectedAsyncExports(file,options) {
         }
       }
     });
+    // A local name alone is insufficient to prove member semantics. Verify
+    // all accesses use an own literal key and that no host-derived value
+    // enters the local object after its inert initialization.
+    /** @type {Map<string,Set<string>>} */
+    const ownedKeys=new Map();
+    for(const [name,declaration] of provenBindings){
+      const keys=new Set();
+      for(const property of declaration.init.properties){
+        const member=property.key.type==='Identifier'&&!property.computed?
+          property.key.name:staticString(property.key);
+        if(member===null)ambiguous.add(name);
+        else keys.add(member);
+      }
+      ownedKeys.set(name,keys);
+    }
+    walk(body,(node,parent,key)=>{
+      if(node.type==='Identifier'&&names.has(node.name)&&!isStaticKey(parent,key)){
+        if(parent?.type==='VariableDeclarator'&&parent===provenBindings.get(node.name)&&
+           key==='id')return;
+        if(parent?.type==='MemberExpression'&&key==='object')return;
+        ambiguous.add(node.name);
+      }
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier'||
+         !names.has(node.object.name))return;
+      const name=node.object.name;
+      const member=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(member===null||!ownedKeys.get(name)?.has(member))ambiguous.add(name);
+      if(parent?.type==='AssignmentExpression'&&key==='left'&&
+         (parent.operator!=='='||!isInertOwnedRecord(parent.right)) ||
+         parent?.type==='UpdateExpression' ||
+         parent?.type==='UnaryExpression'&&parent.operator==='delete' ||
+         parent?.type==='CallExpression'&&key==='callee'){
+        ambiguous.add(name);
+      }
+    });
     for(const name of ambiguous)names.delete(name);
     return names;
   }
