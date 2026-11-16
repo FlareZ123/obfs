@@ -55,14 +55,31 @@ for(const [name,local] of [
     'module.exports=[alias.privateMetric,root.otherMetric];'],
   ['function declaration and discarded invocation',
     'function get(){return root;}get();const alias=get();'+
-    'module.exports=[alias.privateMetric,root.otherMetric];']
+    'module.exports=[alias.privateMetric,root.otherMetric];'],
+  ['immediate getter member',
+    'const get=()=>root;'+
+    'module.exports=[get().privateMetric,root.otherMetric];'],
+  ['immediate computed getter member',
+    'const get=function inner(){return root;};'+
+    'module.exports=[get()["privateMetric"],root.otherMetric];'],
+  ['immediate identity-forwarded member',
+    'const relay=value=>value;'+
+    'module.exports=[relay(root).privateMetric,root.otherMetric];'],
+  ['immediate nested forwarding member',
+    'const get=()=>root;const relay=value=>value;'+
+    'module.exports=[relay(get()).privateMetric,root.otherMetric];']
 ]) {
   test('local zero-arg immutable getter is proven: '+name,()=>check(local,true));
 }
 
 for(const [name,local] of [
-  ['call result used as a member without tracked binding',
-    'const get=()=>root;module.exports=get().privateMetric;'],
+  ['unknown computed key on immediate call result',
+    'const get=()=>root;const key=globalThis.key;'+
+    'module.exports=get()[key]+root.otherMetric;'],
+  ['optional getter invocation result',
+    'const get=()=>root;module.exports=get?.().privateMetric+root.otherMetric;'],
+  ['call result escapes to an unknown consumer',
+    'const get=()=>root;module.exports=[get(),root.privateMetric];'],
   ['call result directly escapes through module output',
     'const get=()=>root;module.exports=[get(),root.privateMetric];'],
   ['getter escapes through callback alias',
