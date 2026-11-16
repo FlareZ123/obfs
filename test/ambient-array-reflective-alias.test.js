@@ -55,7 +55,15 @@ for(const [name,expression] of [
   ['Object.getOwnPropertyDescriptors Array prototype',
     'Object.getOwnPropertyDescriptors(Array).prototype.value'],
   ['Object.getOwnPropertyDescriptor global Array constructor',
-    'Object.getOwnPropertyDescriptor(globalThis,"Array").value.prototype']
+    'Object.getOwnPropertyDescriptor(globalThis,"Array").value.prototype'],
+  ['captured global Array descriptor before prototype mutation',
+    '(()=>{const desc=Object.getOwnPropertyDescriptor(globalThis,"Array");return desc.value.prototype;})()'],
+  ['captured Array prototype descriptor before mutation',
+    '(()=>{const desc=Object.getOwnPropertyDescriptor(Array,"prototype");return desc.value;})()'],
+  ['captured all global Array descriptors before mutation',
+    '(()=>{const all=Object.getOwnPropertyDescriptors(globalThis);return all.Array.value.prototype;})()'],
+  ['captured all Array descriptors before prototype mutation',
+    '(()=>{const all=Object.getOwnPropertyDescriptors(Array);return all.prototype.value;})()']
 ]){
   test('chunked decoder declines reflective Array iterator change: '+name,async()=>{
     const files=graph(expression+patch);
@@ -74,6 +82,26 @@ for(const [name,expression] of [
     }
   });
 }
+
+test('single-file chunked decoder visibly corrupts output when an earlier Array iterator patch is omitted',async()=>{
+  const files=graph('Reflect.get(Array,"prototype")[Symbol.iterator]=function*(){yield 0;};');
+  const native=await execute(files);
+  assert.equal(native.stdout,literal);
+  const solo=obfuscateFiles([files[2]],{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-array-iterator/negative-control'
+  });
+  assert.ok(solo.files[0].metrics.literals>0);
+  const corrupted=await execute([files[0],files[1],solo.files[0]]);
+  assert.equal(corrupted.status,0,corrupted.stderr);
+  assert.notEqual(corrupted.stdout,native.stdout);
+  const whole=obfuscateFiles(files,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-array-iterator/negative-control'
+  });
+  assert.equal(whole.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+  assert.deepEqual(await execute(whole.files),native);
+});
 
 for(const [name,source] of [
   ['Reflect.get unrelated data','const x=Reflect.get({foo:12},"foo");'],
