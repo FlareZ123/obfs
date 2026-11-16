@@ -90,6 +90,8 @@ function mutatesDecoderIntrinsic(ast) {
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
+  const sensitiveReadsObject=new Set(['getOwnPropertyDescriptor','getOwnPropertyDescriptors','getPrototypeOf']);
+  const sensitiveReadsReflect=new Set(['get','getPrototypeOf']);
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function memberName(node) {
     if (node.type!=='MemberExpression') return null;
@@ -227,7 +229,7 @@ function mutatesDecoderIntrinsic(ast) {
   } while(discovered);
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
-    if(node.type==='Identifier')return stringNames.has(node.name)||prototypeNames.has(node.name);
+    if(isStringValue(node)||isStringPrototype(node))return true;
     if(node.type!=='MemberExpression')return false;
     return isGlobal(node.object) && (memberName(node)==='String' || memberName(node)===null) ||
       touchesString(node.object);
@@ -259,9 +261,9 @@ function mutatesDecoderIntrinsic(ast) {
       const receiver=node.object;
       const method=memberName(node);
       if((isObjectIntrinsic(receiver) &&
-           (method===null||mutatorsObject.has(method)) ||
+           (method===null||mutatorsObject.has(method)||sensitiveReadsObject.has(method)) ||
           isReflectIntrinsic(receiver) &&
-           (method===null||mutatorsReflect.has(method))) &&
+           (method===null||mutatorsReflect.has(method)||sensitiveReadsReflect.has(method))) &&
          !(parent?.type==='CallExpression'&&parent.callee===node)) {
         mutated=true;
         return;
@@ -271,7 +273,9 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='VariableDeclarator' && node.init &&
        node.id.type==='ObjectPattern' &&
        (isObjectIntrinsic(node.init)||isReflectIntrinsic(node.init))) {
-      const dangerous=isObjectIntrinsic(node.init)?mutatorsObject:mutatorsReflect;
+      const dangerous=isObjectIntrinsic(node.init) ?
+        new Set([...mutatorsObject,...sensitiveReadsObject]) :
+        new Set([...mutatorsReflect,...sensitiveReadsReflect]);
       if(node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
         if(property.type!=='Property'||property.computed) return true;
         const name=property.key.type==='Identifier'?property.key.name:
@@ -303,6 +307,22 @@ function mutatesDecoderIntrinsic(ast) {
     if(!first)return;
     if(method===null && (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver)) &&
        (touchesString(first)||isArrayPrototype(first)||isGlobal(first))) {
+      mutated=true;
+      return;
+    }
+    // Reading a descriptor of globalThis.String can expose the mutable
+    // constructor through .value or a deferred consumer. The value might be
+    // modified after alias analysis, so decline the decoder conservatively.
+    const name=node.arguments[1];
+    const mayReadString=!name||name.type!=='Literal'||name.value==='String';
+    if(isObjectIntrinsic(receiver) && isGlobal(first) &&
+       (method==='getOwnPropertyDescriptors' ||
+         method==='getOwnPropertyDescriptor' && mayReadString)) {
+      mutated=true;
+      return;
+    }
+    if(isReflectIntrinsic(receiver) && isGlobal(first) &&
+       method==='get' && mayReadString) {
       mutated=true;
       return;
     }
