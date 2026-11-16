@@ -704,4 +704,46 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, staticString};
+/**
+ * Source-byte observations are distinct from Function#toString: reading a
+ * distributed .mjs file can reveal every identifier/property spelling even
+ * when no runtime function object escapes. The precise file path may be built
+ * dynamically, so source-capable APIs conservatively disable transformations
+ * across the entire supplied group, including single-file self reads.
+ *
+ * This finite syntax check cannot prove safety against opaque native modules,
+ * custom loaders or arbitrary external observers. Its value is preserving
+ * known Node/browser source-reader contracts without misclassifying them as
+ * ordinary object-property reads.
+ * @param {AstNode} ast
+ * @returns {boolean}
+ */
+function observesDistributedSource(ast) {
+  const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
+  const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
+  let observed=false;
+  walk(ast,node=>{
+    if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
+       node.type==='ExportNamedDeclaration' && node.source) {
+      if(fileModules.has(node.source?.value))observed=true;
+    }
+    if(node.type==='ImportExpression' && fileModules.has(staticString(node.source))) {
+      observed=true;
+    }
+    if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
+       node.callee.name==='require' && fileModules.has(staticString(node.arguments[0]))) {
+      observed=true;
+    }
+    if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    if(node.type==='MemberExpression') {
+      const key=node.computed ? staticString(node.property) :
+        node.property.type==='Identifier' ? node.property.name : null;
+      if(key!==null && (browserReaders.has(key) || key==='getBuiltinModule')) {
+        observed=true;
+      }
+    }
+  });
+  return observed;
+}
+
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString};
