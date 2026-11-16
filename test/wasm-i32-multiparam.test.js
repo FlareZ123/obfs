@@ -67,7 +67,7 @@ function canonical(expression){
   return visit(root);
 }
 
-/** @param {string} source @returns {Uint8Array} */
+/** @param {string} source @returns {Uint8Array<ArrayBuffer>} */
 function extractPublicBinary(source){
   const encoded=source.match(/Uint8Array\.from\((\[[0-9,]+\])\)/u);
   assert.ok(encoded,'Wasm bytecode must be present in public output');
