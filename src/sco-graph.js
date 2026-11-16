@@ -63,9 +63,13 @@ function verifyPrivateImport(source,specifier,known) {
  * @param {import('./ast').AstNode} node
  * @returns {boolean}
  */
+const dynamicEvaluatorNames=new Set(['eval','Function']);
+const dynamicEvaluatorGlobals=new Set(['globalThis','global']);
 function isDirectDynamicEvaluator(node){
-  const evaluatorNames=new Set(['eval','Function']);
-  const globalNames=new Set(['globalThis','global']);
+  if(!['CallExpression','NewExpression','VariableDeclarator',
+    'AssignmentExpression'].includes(node.type))return false;
+  const evaluatorNames=dynamicEvaluatorNames;
+  const globalNames=dynamicEvaluatorGlobals;
   /** @param {import('./ast').AstNode|null|undefined} expression @returns {boolean} */
   function directEvaluator(expression){
     if(!expression)return false;
