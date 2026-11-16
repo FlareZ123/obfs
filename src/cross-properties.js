@@ -185,9 +185,17 @@ function renameCrossFileProperties(files,seed) {
     const globalAliases=new Set(['globalThis','window','self','global']);
     /** @type {[string,string][]} */
     const aliasEdges=[];
-    walk(module.ast,node=>{
+    /** @type {Map<string,string>} */
+    const localStaticKeys=new Map();
+    walk(module.ast,(node,parent)=>{
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
          node.init?.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         parent?.type==='VariableDeclaration' && parent.kind==='const' &&
+         module.bindings.get(node.id.name)===1 && node.init) {
+        const value=staticString(node.init);
+        if(value!==null)localStaticKeys.set(node.id.name,value);
+      }
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier' && node.right.type==='Identifier') {
         aliasEdges.push([node.left.name,node.right.name]);
@@ -211,7 +219,10 @@ function renameCrossFileProperties(files,seed) {
         // A computed constant spelling such as globalThis['Fun'+'ction']
         // is a loader just as globalThis.Function is. A dynamic global key
         // is also unsafe because it can resolve to any untracked loader.
-        const name=node.computed ? staticString(node.property) : staticName(node.property);
+        const literalName=node.computed ? staticString(node.property) : staticName(node.property);
+        const name=literalName===null && node.computed && node.property.type==='Identifier' ?
+          localStaticKeys.get(node.property.name) ??
+            verifiedStrings.get(module.file.path)?.get(node.property.name) ?? null : literalName;
         if (typeof name==='string' &&
             (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
         if(node.computed && name===null && node.object.type==='Identifier' &&
