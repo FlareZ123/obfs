@@ -36,6 +36,10 @@ jobs:
         run: node --test test/application-challenge-sno.test.js
       - name: SNO mixed ESM graph attacker and paired whole-process costs
         run: node sims/application-challenge-sno.js --profile
+      - name: SNO transformed multi-module application and independent owner attack
+        run: node --test test/polyvariant-app-sno.test.js
+      - name: SNO transformed multi-module startup and protected-work profile
+        run: node sims/polyvariant-app-sno.js --profile
       - name: Paired hot and whole-session performance with held-out attacker
         run: node sims/application-challenge-profile.js
       - name: Run browser COO app and prove original engine source is public
