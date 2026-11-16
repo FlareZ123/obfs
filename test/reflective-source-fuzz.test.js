@@ -71,7 +71,22 @@ const observers=[
     read:'descriptors.toString.value.call(observed)'},
   {name:'globalThis Object bulk descriptor reader',
     setup:'const readAll=globalThis.Object.getOwnPropertyDescriptors;const descriptors=readAll(Function.prototype);',
-    read:'descriptors.toString.value.call(observed)'}
+    read:'descriptors.toString.value.call(observed)'},
+  {name:'spread Reflect.get arguments',
+    setup:'const args=[observed,true?"toString":"valueOf"];',
+    read:'Reflect.get(...args).call(observed)'},
+  {name:'Reflect.get through Function.call',
+    setup:'const key=true?"toString":"valueOf";',
+    read:'Reflect.get.call(Reflect,observed,key).call(observed)'},
+  {name:'Reflect.get through Function.apply',
+    setup:'const args=[observed,"toString"];',
+    read:'Reflect.get.apply(Reflect,args).call(observed)'},
+  {name:'captured Reflect.get through Function.call',
+    setup:'const reader=Reflect.get;const key=true?"toString":"valueOf";',
+    read:'reader.call(Reflect,observed,key).call(observed)'},
+  {name:'bound reflective source reader',
+    setup:'const reader=Reflect.get.bind(Reflect,observed,"toString");',
+    read:'reader().call(observed)'}
 ];
 
 /** @param {string} code @returns {{value:string,source:string}} */
