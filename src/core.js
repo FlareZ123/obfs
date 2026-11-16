@@ -6,7 +6,7 @@ const {parse,walk,observesFunctionSource,observesDistributedSource,staticString}
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
-const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -480,11 +480,13 @@ function obfuscateFiles(files, options = {}) {
   // consumer, so preserve all original source spellings across the file group.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
+  const importedCloneProof=prepared.length>1 ?
+    collectVerifiedImportedCloneAliases(prepared) : new Map();
   const remoteSourceObserver=prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
-        importedStringProof.get(file.path))));
+        importedStringProof.get(file.path),importedCloneProof.get(file.path))));
   // A hostname wrapper prepends source bytes. Code that can read its own
   // distributed script would observe the wrapper and violate the original
   // source-byte contract, so an explicit host lock must fail closed.
