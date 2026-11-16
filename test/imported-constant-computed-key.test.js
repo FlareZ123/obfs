@@ -74,14 +74,58 @@ test('imported key and owner follow proven intermodule identity forwarding',asyn
   ),1);
 });
 
+test('acyclic ESM graph proves an immutable key exported from a third module',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./key.mjs";console.log(bag[key]);',
+    [{path:'key.mjs',sourceType:'module',code:'export const key="secretField";'}]
+  ),1);
+});
+
+test('acyclic key proof survives a deferred top-level-await dependency',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./key.mjs";console.log(bag[key]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'await Promise.resolve();export const key="secretField";'}]
+  ),1);
+});
+
+test('acyclic independent key and owner survive proven identity forwarding',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./key.mjs";'+
+      'import {identity} from "./identity.mjs";console.log(identity(bag)[key]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'identity.mjs',sourceType:'module',code:'export function identity(x){return x;}'}
+    ]
+  ),1);
+});
+
+test('cyclic ESM imports preserve early TDZ access to a third-module key',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const bag={secretField:8};'+
+      'try{console.log(probe());}catch(error){console.log(error.name);}',
+    'import {bag} from "./state.mjs";import {key} from "./key.mjs";'+
+      'export function probe(){return bag[key];}console.log(bag[key]);',
+    [{path:'key.mjs',sourceType:'module',code:'export const key="secretField";'}]
+  ),0);
+});
+
+test('dynamic third-module key remains outside the acyclic proof',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./key.mjs";console.log(bag[key]);',
+    [{path:'key.mjs',sourceType:'module',
+      code:'const choose=()=>"secretField";export const key=choose();'}]
+  ),0);
+});
+
 for(const [name,state,main,extras] of [
   ['key initialized after owner',
     'export const bag={secretField:8};export const key="secretField";',
     'import {bag,key} from "./state.mjs";console.log(bag[key]);',[]],
-  ['key from different exporting module',
-    'export const bag={secretField:8};',
-    'import {bag} from "./state.mjs";import {key} from "./key.mjs";console.log(bag[key]);',
-    [{path:'key.mjs',sourceType:'module',code:'export const key="secretField";'}]],
   ['mutable local alias remains dynamic',
     'export const key="secretField";export const bag={secretField:8};',
     'import {bag,key} from "./state.mjs";let local=key;console.log(bag[local]);',[]],
