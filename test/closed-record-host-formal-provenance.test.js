@@ -275,3 +275,47 @@ test('partially bound local non-host callable keeps real owner-key rename',async
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+
+/**
+ * Research-only adversarial probes for argument-array and rest-parameter
+ * transport. A direct local function's source-visible rest array can contain
+ * globalThis even when no normal Identifier or ObjectPattern formal exists.
+ */
+for(const [name,code] of [
+  ['rest parameter first argument',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(globalThis);"],
+  ['implicit arguments first argument',
+    "function rewire(){const {['Ref'+'lect']:cap}=arguments[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(globalThis);"],
+  ['rest parameter via Function.prototype.call',
+    "const rewire=(...roots)=>{const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;};rewire.call(null,globalThis);"],
+  ['rest parameter second argument',
+    "function rewire(first,...roots){void first;const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(7,globalThis);"]
+]) {
+  test('unresolved rest/arguments ambient effects: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-arguments/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'Argument-array transport may mutate the shared ambient Reflect method');
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('unrelated rest-parameter call retains genuinely safe owner-key rename',async()=>{
+  const original=graph(
+    "function size(...items){return items.length;}void size(7);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-rest-arguments/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A benign rest-array helper should retain a real owner rewrite');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
