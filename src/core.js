@@ -272,7 +272,7 @@ function mutatesDecoderIntrinsic(ast) {
        node.id.type==='ObjectPattern' &&
        (isObjectIntrinsic(node.init)||isReflectIntrinsic(node.init))) {
       const dangerous=isObjectIntrinsic(node.init)?mutatorsObject:mutatorsReflect;
-      if(node.id.properties.some(property=>{
+      if(node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
         if(property.type!=='Property'||property.computed) return true;
         const name=property.key.type==='Identifier'?property.key.name:
           property.key.type==='Literal'?property.key.value:null;
