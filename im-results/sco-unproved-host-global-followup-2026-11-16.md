@@ -1,6 +1,6 @@
 # SCO migration of application-owned globals: follow-up
 
-**Agent 7, 2026-11-16. Status: intermediate correctness repair, under validation.**
+**Agent 7, 2026-11-16. Status: reproducible bounded compiler-safety improvement.**
 
 ## Witness and scope
 
@@ -43,3 +43,44 @@ confidentiality of published client code, protection against privileged server
 access, or compliance with the universal 2.5× runtime limit. The standard
 global allowlist itself depends on expected intrinsic identity and other
 existing realm-effect checks.
+
+## Pinned red/green evidence
+
+- **Initial no-escape witness:** the prior draft #42 failed three existing
+  shared-ambient diagnostics on both CI platforms. Revision #43 preserved
+  their previous precedence; all 1,776 behavioral tests passed at SHA
+  `92cfa8c00dfb24898868d5784187706da17a3ca9` but strict checking failed
+  due to a separate JSDoc attachment error in the import verifier.
+- **Nested self-alias red control:** [manual run 43944152286](https://github.com/FlareZ123/obfs/actions/runs/43944152286)
+  at exact source `20ef2a5b4b59419b15e18ab31a71bcf197e30e04` failed
+  one newly added test on each operating system. The previously admitted
+  `return globalThis.globalThis.externalBridge.value;` produced **no
+  exception** from the source selector. Other passing cases do not establish
+  that every unlisted alias path is blocked.
+- **Corrected full run:** [manual run 43944238479](https://github.com/FlareZ123/obfs/actions/runs/43944238479)
+  at exact source `00bfd4dc07035c9f148b59f5eaa40a61648d9377`
+  passed Ubuntu **1,776 / 1,777** tests (one skip, zero failures) and Windows
+  **1,775 / 1,777** (two skips, zero failures); both strict JSDoc checks,
+  external checks, sampled benchmarks, and four paired six-module workloads
+  passed. Ubuntu passed 15 primary real-Chromium fixtures plus the
+  separate 64-case real-browser parity check. This source removes
+  `globalThis` from the migratable-global-property allowlist because the
+  self-reference exposes a separate host object, whose identity can be
+  forwarded to an unknown application capability. The error now occurs
+  before server-side publication.
+- A separate misplaced JSDoc declaration for `verifyPrivateImport`
+  in `src/sco-graph.js` was corrected within the validated branch to
+  restore strict checker compatibility. It has no intended runtime effect.
+
+The standards basis is [ECMA-262, the Global Object](https://tc39.es/ecma262/#sec-global-object)
+and [MDN globalThis](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis):
+hosts can add their own properties and the globalThis binding is mutable.
+The selected-private whitelist intentionally preserves the existing
+fail-closed philosophy. It is **not** a whole-program lexical provenance proof;
+derived or opaque host-object aliases, node/browser version differences,
+and transitive dependency host contracts still warrant separate review.
+
+The 2.5× target cannot be inferred from compiler admission tests. The paired
+six-module benchmark profiles cover separate compatible programs, and their
+green status must not be misreported as a proof for migrated arbitrary SCO RPC
+granularity or production network latency.
