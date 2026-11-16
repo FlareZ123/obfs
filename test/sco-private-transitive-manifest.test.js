@@ -233,3 +233,36 @@ test('explicit SCO publicPaths and audited private graph are independent publica
     publicPaths:['mixed.mjs']
   }));
 });
+
+test('constructor-chain loaders cannot evade private source audit',{timeout:15000},async()=>{
+  // The Function constructor reached via a function instance is dynamically
+  // equivalent to Function("p","return import(p)") but has no Function token
+  // or ImportExpression in the AST of the audited private source.
+  const hidden=[
+    'const load=(()=>0).constructor("p","return import(p)");',
+    'export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}'
+  ].join('\n');
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-constructor-audit-'));
+  try{
+    await atomicWrite(path.join(folder,engine.path),hidden);
+    await atomicWrite(path.join(folder,leaf.path),leaf.code);
+    const native=await import(pathToFileURL(path.join(folder,engine.path)).href);
+    assert.equal(await native.deriveProof(1),42,'Native Node dynamically loads the undeclared secret module');
+  }finally{
+    await fs.rm(folder,{recursive:true,force:true});
+  }
+  for(const code of [
+    hidden,
+    'const load=(()=>0)["con"+"structor"]("p","return import(p)"); export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}',
+    'const Factory=({}).constructor.constructor; const load=Factory("p","return import(p)"); export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}',
+    'const {constructor:Factory}=(()=>0); const load=Factory("p","return import(p)"); export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}'
+  ]){
+    assert.throws(()=>emit([{path:engine.path,code}]),
+      /unproved runtime loader|realm-local/u,
+      'Audited graph must decline a hidden dynamic ESM loader: '+code);
+  }
+  const harmless={path:engine.path,
+    code:'const record={answer:41}; export function deriveProof(v){return record.answer+v;}'};
+  assert.doesNotThrow(()=>emit([harmless]),
+    'Ordinary private property reads remain eligible');
+});
