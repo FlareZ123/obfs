@@ -15,11 +15,12 @@ const {parse,observesDistributedSource}=require('../src/ast');
  * The source code itself has no fs reads or explicit source-file loader.
  * @param {string} folder
  * @param {string} code
+ * @param {string} [filename]
  * @returns {Promise<string>}
  */
-async function execute(folder,code) {
-  await atomicWrite(path.join(folder,'entry.cjs'),code);
-  const run=spawnSync(process.execPath,[path.join(folder,'entry.cjs')],{
+async function execute(folder,code,filename='entry.cjs') {
+  await atomicWrite(path.join(folder,filename),code);
+  const run=spawnSync(process.execPath,[path.join(folder,filename)],{
     encoding:'utf8',timeout:15000
   });
   assert.equal(run.status,0,run.stderr);
@@ -100,4 +101,34 @@ test('ordinary Node builtin use remains eligible for private own-key rewrite',()
     mode:'sno',seed:'not-inspector',strings:false,identifiers:false
   }).files[0];
   assert.equal(output.metrics.properties,1,output.code);
+});
+
+test('real ESM inspector/promises source reader retains original private spelling',async()=>{
+  const code=[
+    "import {Session} from 'node:inspector/promises';",
+    'const session=new Session();',
+    'let ownScript=null;',
+    'session.connect();',
+    "session.on('Debugger.scriptParsed',message=>{",
+    "  if(message.params.url.endsWith('/entry.mjs')) ownScript=message.params.scriptId;",
+    '});',
+    'const owner={secretField:41};',
+    "await session.post('Debugger.enable');",
+    "const answer=await session.post('Debugger.getScriptSource',{scriptId:ownScript});",
+    'process.stdout.write(JSON.stringify({value:owner.secretField,',
+    "  matchesSource:answer.scriptSource.includes(['secret','Field',':41'].join(''))}));",
+    'session.disconnect();'
+  ].join('\\n');
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code}],{
+    mode:'coo',closedWorld:true,seed:'inspector-esm-promises',
+    strings:false,identifiers:false
+  }).files[0];
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-inspector-esm-'));
+  try{
+    const before=await execute(path.join(dir,'native'),code,'entry.mjs');
+    const after=await execute(path.join(dir,'emitted'),output.code,'entry.mjs');
+    assert.deepEqual(JSON.parse(before),{value:41,matchesSource:true});
+    assert.equal(after,before,output.code);
+    assert.equal(output.metrics.properties,0,output.code);
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
