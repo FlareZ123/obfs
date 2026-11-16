@@ -58,6 +58,12 @@ The previous guard misclassified **all four** as closed-world-renameable. Their 
 
 The pass remains a finite, intentionally over-conservative check; these tests establish sampled native behavioral preservation and bounded positive coverage, not a universal proof of all JavaScript metaprogramming or an increase in adversarial deobfuscation cost.
 
+## Computed Reflect method aliases
+
+A seventh grid probed `Reflect.get` acquired through direct, variable, destructured, bound, `.call`, and computed method aliases. Every witness retrieves `Number["constructor"]` with the key built at runtime, then issues a dynamic ESM import that observes the exported state object's own key.
+
+At baseline `0205e11497f0552eb1156cacb651014ee1dc3c13`, one syntax, `const R=Reflect;const method="get";const Loader=R[method](Number,key)`, failed the closed-world owner-refusal assertion on Ubuntu ([run 43823822260](https://github.com/FlareZ123/obfs/actions/runs/43823822260)). The other five negative cases were already refused by independent reflective-source analysis. The patch `31f861901cbb8ff4861b1c26436b2b03d1c8916d` refuses opaque second keys on known Reflect getter / Object descriptor methods regardless of receiver provenance and is being checked against a known benign Reflect-method positive control. Cross-platform validation [run 43823983841](https://github.com/FlareZ123/obfs/actions/runs/43823983841) was **pending when this section was written**; amend this claim only after both jobs report success.
+
 ## Residual limitations and classification
 
 This repairs a bounded static-proof gap and restores demonstrated compatibility, but it is **not** a confidentiality or authorization boundary against the project's full-control client threat models. A loader may still be reached through escaped reflective methods, unknown code generators hidden inside opaque external functions, alias chains outside this finite scanner, proxy getters or custom loaders. The implementation intentionally over-refuses unknown global computed keys. The test samples do not prove all reflection, aliases or interprocedural flows safe, nor the 2.5× runtime budget for arbitrary workloads. Under SCO, private server-only source remains a separate trust boundary; this offline property-key safety change does not strengthen authenticated online relay resistance.
