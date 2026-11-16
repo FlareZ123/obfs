@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: V8 serializer function-source differential
+        run: node --test test/v8-serialize-source-observation.test.js
       - name: Structured-clone function-source differential
         run: node --test test/structured-clone-source-observation.test.js
       - name: Intl source coercion differential
