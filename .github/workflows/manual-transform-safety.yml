@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: Structured-clone function-source differential
+        run: node --test test/structured-clone-source-observation.test.js
       - name: Intl source coercion differential
         run: node --test test/intl-source-observation.test.js test/intl-cross-file-source.test.js test/native-locale-method-source.test.js
       - name: Exact-function-source native differential (COO/SNO/SCO)
