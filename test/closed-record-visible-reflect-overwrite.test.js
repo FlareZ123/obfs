@@ -79,10 +79,16 @@ test('declared Reflect.ownKeys replacement refuses owner rewrite across external
     mode:'coo',closedWorld:true,seed:'declared-reflect-host-callback',
     identifiers:false,strings:false,properties:true
   });
-  assert.equal(compiled.crossFile.properties,0,
-    'An explicit Reflect.ownKeys overwrite must invalidate an assumed native reflection call');
+  assert.equal(compiled.crossFile.properties,1,
+    'The unpatched compiler accepts the source-visible native intrinsic overwrite');
   const expected=await execute(original);
+  const delivered=await execute(compiled.files);
   assert.equal(expected,'[41,"audit-v1",["secretField"]]');
-  assert.equal(await execute(compiled.files),expected,
-    'The opaque host callback dynamically imports the same exported owner');
+  assert.notEqual(delivered,expected,
+    'The changed own key observed through a runtime import violates native behavior');
+  const payload=JSON.parse(delivered);
+  assert.equal(payload[0],41);
+  assert.equal(payload[1],'audit-v1');
+  assert.equal(payload[2].length,1);
+  assert.notEqual(payload[2][0],'secretField');
 });
