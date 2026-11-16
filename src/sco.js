@@ -270,7 +270,16 @@ function createScoHandler(sourceFiles,options={}) {
   // Refuse an accidentally co-served private dependency before constructing
   // any HTTP route, even if the private entry appears before its public facade.
   const forbidden=new Set();
+  const privateOriginalDigests=new Set();
   for(const file of sourceFiles){
+    if(file.privateOriginalDigests!==undefined){
+      if(!Array.isArray(file.privateOriginalDigests)||
+          file.privateOriginalDigests.some(value=>typeof value!=='string'||
+            !/^[0-9a-f]{64}$/u.test(value))){
+        throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
+      }
+      for(const digest of file.privateOriginalDigests)privateOriginalDigests.add(digest);
+    }
     if(file.privateModulePaths===undefined)continue;
     if(!Array.isArray(file.privateModulePaths)){
       throw new TypeError('SCO privateModulePaths must be an array');
@@ -292,6 +301,12 @@ function createScoHandler(sourceFiles,options={}) {
     }
     if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
     if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
+    // Reject byte-exact original sources from any supplied private SCO graph,
+    // even if an original exposed module replaced its generated facade or a
+    // server-only dependency was copied under a new public path.
+    if(privateOriginalDigests.has(createHash('sha256').update(file.code).digest('hex'))){
+      throw new TypeError('SCO must not serve original private graph source: '+filename);
+    }
     seen.add(collisionKey);
     if(typeof file.code!=='string'&&!Buffer.isBuffer(file.code)) {
       throw new TypeError(filename+' content must be a string or Buffer');
