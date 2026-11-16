@@ -118,7 +118,7 @@ test('real ESM inspector/promises source reader retains original private spellin
     'process.stdout.write(JSON.stringify({value:owner.secretField,',
     "  matchesSource:answer.scriptSource.includes(['secret','Field',':41'].join(''))}));",
     'session.disconnect();'
-  ].join('\\n');
+  ].join('\n');
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code}],{
     mode:'coo',closedWorld:true,seed:'inspector-esm-promises',
     strings:false,identifiers:false
