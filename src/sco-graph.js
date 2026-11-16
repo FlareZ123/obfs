@@ -126,9 +126,17 @@ function partitionScoAsyncGraph(files,options) {
     partitions[filename]=partition;
     clientFiles.push(partition.clientFile);
   }
+  const privatePaths=[...names].filter(filename=>!selected.has(filename));
+  // The handler already refuses to co-publish explicitly marked private
+  // paths. Carry the closed graph's non-exposed paths on each generated
+  // facade, so accidentally adding an original private dependency to the
+  // same handler fails before any HTTP source route exists. Each facade must
+  // independently retain this proof even if the caller selects just one.
+  for(const clientFile of clientFiles) {
+    clientFile.privateModulePaths=[...privatePaths];
+  }
   return {
-    clientFiles,partitions,exposedPaths:[...selected],
-    privatePaths:[...names].filter(filename=>!selected.has(filename))
+    clientFiles,partitions,exposedPaths:[...selected],privatePaths
   };
 }
 
