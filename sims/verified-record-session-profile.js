@@ -9,7 +9,7 @@ const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate}=require('./application-challenge-observer-ablation');
+const {ablate,withOwnKeyCalls}=require('./application-challenge-observer-ablation');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
 
@@ -51,13 +51,13 @@ async function main() {
   const original=await Promise.all(NAMES.map(async name=>({
     path:name,sourceType:'module',code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
-  const input=ablate(original,'both');
+  const input=withOwnKeyCalls(ablate(original,'both'));
   const transformed=obfuscateFiles(input,{
     mode:'coo',closedWorld:true,seed:SEED,
     identifiers:true,properties:true,strings:false
   });
   assert.equal(transformed.crossFile.properties,2,
-    'The source-observer-free application must preserve positive obfuscation yield');
+    'The source-observer-free, own-key-only diagnostic must preserve positive obfuscation yield');
   const nativeDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-record-native-'));
   const deliveredDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-record-emitted-'));
   try {
@@ -92,12 +92,12 @@ async function main() {
       assert.ok(Number.isFinite(ratio)&&ratio>0);
       rows.push({workload:workload.name,cases:workload.cases.length,
         nativeMs,emittedMs,ratio,within2point5:ratio<=2.5,
-        samples:9,sourceObserverFree:true,privateFieldsRenamed:2,
+        samples:9,sourceObserverFree:true,ownKeysOnly:true,privateFieldsRenamed:2,
         allOutputsEqual:true});
     }
     process.stdout.write('VERIFIED_RECORD_SESSION_PROFILE '+JSON.stringify({
       node:process.version,platform:process.platform,rows,
-      scope:'Paired full ESM processes on one source-observer-free six-module application'
+      scope:'Paired full ESM processes on a separately modified own-key-only six-module graph'
     })+'\n');
     assert.ok(rows.every((/** @type {{within2point5:boolean}} */ row)=>row.within2point5),
       'The candidate exceeds the measured 2.5x whole-session budget');
