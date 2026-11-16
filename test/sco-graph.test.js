@@ -26,6 +26,10 @@ test('SCO graph refuses ambiguous imports, accidental publication and incomplete
     [{path:'api.mjs',code:'import "left-pad";export async function sign(){return 1;}'}],
     [{path:'api.mjs',code:'export async function sign(x){return import(x);}' }],
     [{path:'api.mjs',code:'export async function sign(){return import("./missing.mjs");}'}],
+    [{path:'api.mjs',code:'export async function sign(){return eval(\'import("./hidden.mjs")\');}'}],
+    [{path:'api.mjs',code:'export async function sign(){return Function(\'return import("./hidden.mjs")\')();}'}],
+    [{path:'api.mjs',code:'export async function sign(){return new Function(\'return import("./hidden.mjs")\')();}'}],
+    [{path:'api.mjs',code:'export async function sign(){return globalThis["Function"](\'return import("./hidden.mjs")\')();}'}],
     [{path:'api.mjs',code:'export const publicKey="mistake";'}],
     [{path:'api.mjs',code:'export async function sign(){return 1;}'},{path:'API.mjs',code:'export async function sign(){return 2;}'}]
   ];
