@@ -38,7 +38,7 @@ functions, retains host/reflection modules unchanged, and adds a CommonJS
 bridge plus generated SHA-256-checking launcher. Only the public launcher
 is executed as the server's entry point in normal use.
 
-At [pinned Linux/Windows run 43813786492](https://github.com/FlareZ123/obfs/actions/runs/43813786492),
+At [pinned Linux/Windows run 43814631907](https://github.com/FlareZ123/obfs/actions/runs/43814631907),
 96/96 stateful scenarios matched native behavior on both OSs. Source
 normalization produced byte-for-byte identical compiled graph and launcher
 SHA-256 digests across the runners. One of the three original app modules
@@ -50,11 +50,17 @@ cloned the whole distributed SNO program, bypassed the entry-point
 manifest by direct ESM import, and successfully updated its local manifest
 to run modified code.
 
+A third [runtime-only attack](../../sims/sno-esm-runtime-hook-attack.js)
+uses Node 22's public synchronous ESM loader hooks to replace the transformed
+math module after the launcher verifies on-disk hashes. The attacked state
+digest and host callbacks become 777, while **all five published file hashes
+remain unchanged** and the original launcher accepts execution on both OSs.
+
 Seven-trial complete-process measurements across 1/50/1,000/10,000 event
 loads met 2.5x in all eight sampled Linux and Windows scenarios, with
-transformed SNO/native medians ranging from 0.766x to 1.172x. A single
-short Windows 0.766x reading is subject to runner noise; it does not
-establish a speedup. These results measure conditional arithmetic
+transformed SNO/native medians ranging from 1.049x to 1.164x at the pinned
+gate. Earlier short Windows readings varied widely, including a below-unity
+ratio, demonstrating sample noise. These results measure conditional arithmetic
 transformation and SNO launcher overhead without establishing runtime
 authorization or reconstruction resistance. The full scope, attack scripts
 and exact metrics are in the [SNO comparison report](../../im-results/polyvariant-app-sno-attack-cost-2026-11-16.md)
