@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
+const http=require('node:http');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles,createScoHandler}=require('../src');
@@ -122,4 +123,29 @@ test('source-readable scripts reject requested host guards instead of changing b
   assert.throws(()=>createScoHandler(files,{
     allowedHosts:['allowed.example']
   }),/Host locking cannot preserve observable source bytes/u);
+});
+
+test('SCO delivers byte-exact source when its browser client can fetch that source',async()=>{
+  const source='const sourceRequest=fetch("./client.js");'+
+    'const message="source-byte-observable";globalThis.result=message;';
+  const server=http.createServer(createScoHandler([
+    {path:'client.js',sourceType:'script',code:source}
+  ]));
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',resolve);
+  });
+  try {
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const url='http://127.0.0.1:'+address.port+'/obfs/client.js';
+    const first=await fetch(url);
+    const second=await fetch(url);
+    assert.equal(first.status,200);
+    assert.equal(second.status,200);
+    assert.equal(await first.text(),source);
+    assert.equal(await second.text(),source);
+  } finally {
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
 });
