@@ -39,7 +39,7 @@ async function makeAblatedCompiler() {
     delete require.cache[corePath];
     const compiler=require(corePath);
     return {obfuscateFiles:compiler.obfuscateFiles,
-      sourceHash:createHash('sha256').update(source).digest('hex')};
+      sourceHash:createHash('sha256').update(source.replace(/\r\n/gu,'\n')).digest('hex')};
   }finally{
     if(savedCross)require.cache[crossPath]=savedCross;
     else delete require.cache[crossPath];
@@ -105,7 +105,6 @@ async function main(){
   assert.equal(native,'[31,["secretField"],31]\n');
   assert.equal(compiledNative,native);
   assert.equal(baselineUnsafe.crossFile.properties,0);
-  console.log('DEBUG_ABLATION '+JSON.stringify({positiveBaseline:unpatchedPositive.crossFile.properties,positiveAblated:patchedPositive.crossFile.properties,unsafeBaseline:baselineUnsafe.crossFile.properties,unsafeAblated:ablatedUnsafe.crossFile.properties,native:native.trim(),compiledBaseline:compiledNative.trim(),compiledAblated:compiledAblated.trim()}));
   assert.ok(ablatedUnsafe.crossFile.properties>=1,
     'Expected safety counterexample to exploit the ablated computed getter');
   assert.notEqual(compiledAblated,native,
