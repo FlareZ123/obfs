@@ -953,40 +953,49 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateBodies=[];
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
-   * An immutable function-local plain record containing only inert primitive
-   * values cannot be an alias of the host global object. Distinguish its
-   * spelled name from ambient state when comparing public/private functions.
-   * Keep dynamic initializers, getters, spreads, and writable aliases in the
-   * conservative ambient bucket until their ownership can be proven.
-   * @param {import('./ast').AstNode} fn
+   * Prove a literal-only object constructed independently within the function.
+   * Nested records remain inert; getters, computed names, spreads and methods
+   * could observe arbitrary host capabilities and are conservatively excluded.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isInertOwnedRecord(node){
+    if(node.type==='Literal'){
+      return node.value===null||['string','number','boolean','bigint']
+        .includes(typeof node.value);
+    }
+    if(node.type!=='ObjectExpression')return false;
+    return node.properties.every((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&!property.computed&&!property.method&&
+      property.kind==='init'&&isInertOwnedRecord(property.value));
+  }
+  /**
+   * A function-local const bound to an inert record cannot alias an ambient
+   * global object unless another nested binding shadows its name. Use this
+   * same narrow ownership test for shared-state and private-host guards.
+   * @param {import('./ast').AstNode} body
    * @returns {Set<string>}
    */
-  function ownedLocalAmbientNames(fn) {
+  function ownedLocalAmbientNames(body) {
     const names=new Set();
     /** @type {Map<string,import('./ast').AstNode>} */
     const provenBindings=new Map();
-    if(fn.body?.type!=='BlockStatement')return names;
-    for(const statement of fn.body.body){
+    if(body.type!=='BlockStatement')return names;
+    for(const statement of body.body){
       if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
       for(const declaration of statement.declarations){
         if(declaration.id.type!=='Identifier'||!ambientRoots.has(declaration.id.name)||
-           declaration.init?.type!=='ObjectExpression')continue;
-        const properties=declaration.init.properties;
-        if(properties.every((/** @type {import('./ast').AstNode} */ property)=>
-          property.type==='Property'&&!property.computed&&!property.method&&
-          property.kind==='init'&&property.value.type==='Literal'&&
-          (property.value.value===null||['string','number','boolean','bigint']
-            .includes(typeof property.value.value)))){
-          names.add(declaration.id.name);
-          provenBindings.set(declaration.id.name,declaration);
-        }
+           declaration.init?.type!=='ObjectExpression'||
+           !isInertOwnedRecord(declaration.init))continue;
+        names.add(declaration.id.name);
+        provenBindings.set(declaration.id.name,declaration);
       }
     }
     // A nested binding of the same spelling might refer to an entirely
     // different host capability. Do not infer every occurrence from the
     // outer record when nested lexical ownership is not proven.
     const ambiguous=new Set();
-    walk(fn.body,node=>{
+    walk(body,node=>{
       if(node.type==='VariableDeclarator'){
         for(const name of names){
           if(node===provenBindings.get(name))continue;
@@ -1056,7 +1065,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       privateHelperNames.add(name);
       privateHelperChunks.push(helper.text);
       privateBodies.push(fn.body);
-      const localAmbient=ownedLocalAmbientNames(fn);
+      const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
            !localAmbient.has(node.name)){
@@ -1086,7 +1095,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access: '+name);
     }
-    const localAmbient=ownedLocalAmbientNames(fn);
+    const localAmbient=ownedLocalAmbientNames(fn.body);
     walk(fn,(node,parent,key)=>{
       if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
          !localAmbient.has(node.name))publicAmbient.add(node.name);
@@ -1145,7 +1154,7 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
       privateBodies.push(fn.body);
-      const localAmbient=ownedLocalAmbientNames(fn);
+      const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
            !localAmbient.has(node.name))privateAmbient.add(node.name);
@@ -1213,13 +1222,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     // Only declarations in the enclosing function body reliably shadow the
     // ambient globalThis for all references in this bounded source scan.
-    const localGlobalThis=body.type==='BlockStatement'&&body.body.some(
-      (/** @type {import('./ast').AstNode} */ statement)=>
-        statement.type==='VariableDeclaration'&&statement.declarations.some(
-          (/** @type {import('./ast').AstNode} */ declaration)=>
-            declaration.id.type==='Identifier'&&declaration.id.name==='globalThis') ||
-        (statement.type==='FunctionDeclaration'||statement.type==='ClassDeclaration')&&
-        statement.id?.name==='globalThis');
+    const localGlobalThis=ownedLocalAmbientNames(body).has('globalThis');
     const globalAliases=new Set(localGlobalThis?[]:['globalThis']);
     let aliasesChanged=true;
     while(aliasesChanged){
