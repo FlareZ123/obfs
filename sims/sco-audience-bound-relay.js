@@ -183,6 +183,19 @@ async function experiment(){
     assert.equal(targetAccountValidMatches,32);
     assert.equal(mistakenCrossAccountMatches,0);
 
+    // Concurrent principals must retain their own verified async context,
+    // even when execution interleaves through Promise continuations.
+    const parallelInputs=Array.from({length:4},(_,i)=>challenge('parallel',i));
+    const concurrent=await Promise.all(parallelInputs.flatMap(input=>[
+      invoke(url,input,sessionA),invoke(url,input,sessionB)
+    ]));
+    for(let i=0;i<parallelInputs.length;i++){
+      assert.equal(concurrent[2*i].status,200);
+      assert.equal(concurrent[2*i].value,native('account-A',parallelInputs[i]));
+      assert.equal(concurrent[2*i+1].status,200);
+      assert.equal(concurrent[2*i+1].value,native('account-B',parallelInputs[i]));
+    }
+
     const inputs=Array.from({length:12},(_,i)=>challenge('performance',i));
     const expected=inputs.map(input=>native('account-A',input));
     /** @type {number[]} */
@@ -226,6 +239,7 @@ async function experiment(){
       attackerOwnAccountOnlineRelayMatches:ownAccountRelayMatches,
       honestTargetAccountMatches:targetAccountValidMatches,
       attackerCrossAccountMatches:mistakenCrossAccountMatches,
+      concurrentCrossAccountChecks:concurrent.length,
       localMedianMs:localMedian,directMedianMs:directMedian,relayMedianMs:relayMedian,
       directRuntimeRatio:directMedian/localMedian,relayRuntimeRatio:relayMedian/localMedian,
       fullControlCaveat:'Distinct verified audiences prevent account-A-only token from producing account-B digest; A still has a perfect online relay for A. This experiment does not model stolen B credentials, compromised server, real WAN RTT or arbitrary JavaScript programs.'
