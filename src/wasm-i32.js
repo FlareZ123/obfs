@@ -106,9 +106,10 @@ function simpleOperand(node) {return node.type==='Identifier'||node.type==='Lite
  * @param {readonly string[]} parameters
  * @param {Buffer} entropy
  * @param {{position:number,steps:number,diversified:number}} state
+ * @param {'auto'|'select'|'if'} conditionalStrategy
  * @returns {number[]}
  */
-function emit(node,parameters,entropy,state) {
+function emit(node,parameters,entropy,state,conditionalStrategy) {
   if(node.type==='Identifier') {
     const index=parameters.indexOf(node.name);
     if(index<0)throw Error('Compiler parameter proof mismatch');
@@ -126,23 +127,33 @@ function emit(node,parameters,entropy,state) {
     return [0x41,...sleb((constant^mask)|0),0x41,...sleb(mask),0x73];
   }
   if(node.type==='ConditionalExpression') {
-    // Wasm select takes (trueValue,falseValue,condition) from the operand
-    // stack. Source expressions are pure typed i32 values; eager evaluation
-    // is observationally equivalent under the explicit contract.
-    const yes=emit(node.consequent,parameters,entropy,state);
-    const no=emit(node.alternate,parameters,entropy,state);
-    const predicate=emit(node.test,parameters,entropy,state);
-    state.steps++;
+    // Choose between eager Wasm select and lazy structured if/else.
+    // Source expressions are pure i32 primitives. Either lowering preserves
+    // behaviour, while a strongly asymmetric pair of arms warrants lazy
+    // execution to avoid paying for the unselected expensive branch.
+    const yes=emit(node.consequent,parameters,entropy,state,conditionalStrategy);
+    const no=emit(node.alternate,parameters,entropy,state,conditionalStrategy);
+    const predicate=emit(node.test,parameters,entropy,state,conditionalStrategy);
+    const shortest=Math.min(yes.length,no.length);
+    const longest=Math.max(yes.length,no.length);
+    const lazy=conditionalStrategy==='if'||
+      conditionalStrategy==='auto'&&longest+shortest>=48&&longest>=3*shortest;
+    state.steps+=lazy?3:1;
+    if(lazy) {
+      // The result type 0x7f is i32. Unlike select, Wasm if only executes
+      // the chosen branch; both paths produce exactly one i32 value.
+      return [...predicate,0x04,0x7f,...yes,0x05,...no,0x0b];
+    }
     return [...yes,...no,...predicate,0x1b];
   }
   if(node.type==='UnaryExpression') {
-    const body=emit(node.argument,parameters,entropy,state);
+    const body=emit(node.argument,parameters,entropy,state,conditionalStrategy);
     state.steps+=2;
     return [0x41,0x7f,...body,0x73];
   }
   if(node.type!=='BinaryExpression')throw Error('Compiler validation mismatch');
-  const left=emit(node.left,parameters,entropy,state);
-  const right=emit(node.right,parameters,entropy,state);
+  const left=emit(node.left,parameters,entropy,state,conditionalStrategy);
+  const right=emit(node.right,parameters,entropy,state,conditionalStrategy);
   const opcode=OPS[node.operator];
   if((node.operator==='&'||node.operator==='|'||node.operator==='^')&&
      simpleOperand(node.left)&&simpleOperand(node.right)&&
@@ -183,13 +194,15 @@ function moduleBytes(body,arity) {
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[]}} options
+ * @param {{seed:string,names:string[],conditionalStrategy?:'auto'|'select'|'if'}} options
  * @returns {WasmI32Result}
  */
 function lowerWasmI32Functions(source,sourceType,options) {
   if(typeof source!=='string'||!['module','commonjs'].includes(sourceType)||
      !options||typeof options.seed!=='string'||!options.seed||
-     !Array.isArray(options.names)||options.names.some(x=>typeof x!=='string')) {
+     !Array.isArray(options.names)||options.names.some(x=>typeof x!=='string')||
+      options.conditionalStrategy!==undefined&&
+      !['auto','select','if'].includes(options.conditionalStrategy)) {
     throw new TypeError('Expected source, module type, seed and explicit function names');
   }
   const targets=new Set(options.names);
@@ -245,7 +258,8 @@ function lowerWasmI32Functions(source,sourceType,options) {
     const entropy=createHash('sha256').update(options.seed).update('\0')
       .update(name).update('\0').update(source).digest();
     const state={position:0,steps:0,diversified:0};
-    const binary=moduleBytes(emit(expression,names,entropy,state),names.length);
+    const binary=moduleBytes(emit(expression,names,entropy,state,
+      options.conditionalStrategy??'auto'),names.length);
     if(!WebAssembly.validate(Uint8Array.from(binary)))throw Error('Wasm compiler generated invalid bytecode');
     let helper='_wi_'+entropy.subarray(2,10).toString('hex');
     for(let nonce=1;used.has(helper)||source.includes(helper);nonce++) {
