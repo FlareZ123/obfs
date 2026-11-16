@@ -18,10 +18,11 @@ function digest(data){
 /**
  * @param {string} executable
  * @param {number[][]} cases
+ * @param {string} [inputFile]
  * @returns {{status:number|null,stdout:string,stderr:string}}
  */
-function execute(executable,cases){
-  const child=spawnSync(process.execPath,[executable,JSON.stringify(cases)],{
+function execute(executable,cases,inputFile){
+  const child=spawnSync(process.execPath,[executable,inputFile?'@'+inputFile:JSON.stringify(cases)],{
     encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024
   });
   if(child.error)throw child.error;
@@ -55,9 +56,10 @@ function copyDistribution(publicDir,target){
  * manifest: it carries both its expected digests and its verification logic.
  * @param {string} target
  * @param {number[][]} cases
+ * @param {string} [inputFile]
  * @returns {{rejected:boolean,modifiedOutput:string}}
  */
-function forgeManifest(target,cases){
+function forgeManifest(target,cases,inputFile){
   const entry=path.join(target,'entry.mjs');
   const launcher=path.join(target,'sno-entry.cjs');
   const original=fs.readFileSync(entry,'utf8');
@@ -67,7 +69,7 @@ function forgeManifest(target,cases){
   fs.writeFileSync(tempEntry,tampered,{flag:'wx'});
   fs.renameSync(tempEntry,entry);
 
-  const denied=execute(launcher,cases);
+  const denied=execute(launcher,cases,inputFile);
   assert.notEqual(denied.status,0);
   assert.match(denied.stderr,/Integrity check failed: entry\.mjs/);
 
@@ -77,7 +79,7 @@ function forgeManifest(target,cases){
   const tempLauncher=launcher+'.partial';
   fs.writeFileSync(tempLauncher,rewritten,{flag:'wx'});
   fs.renameSync(tempLauncher,launcher);
-  const forged=execute(launcher,cases);
+  const forged=execute(launcher,cases,inputFile);
   assert.equal(forged.status,0,forged.stderr);
   assert.equal(forged.stdout,'FORGED\n');
   return {rejected:true,modifiedOutput:forged.stdout};
@@ -86,19 +88,20 @@ function forgeManifest(target,cases){
 /**
  * @param {string} publicDir
  * @param {number[][]} cases
+ * @param {string} [inputFile]
  * @returns {{copiedFiles:number,publicOutputSha256:string,copiedOutputSha256:string,copyMatches:boolean,modificationRejected:boolean,manifestRewritten:boolean}}
  */
-function runAttack(publicDir,cases){
+function runAttack(publicDir,cases,inputFile){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'sno-public-attacker-'));
   try{
     const entry=path.join(publicDir,'sno-entry.cjs');
-    const publicRun=execute(entry,cases);
+    const publicRun=execute(entry,cases,inputFile);
     assert.equal(publicRun.status,0,publicRun.stderr);
     const names=copyDistribution(publicDir,root);
-    const clone=execute(path.join(root,'sno-entry.cjs'),cases);
+    const clone=execute(path.join(root,'sno-entry.cjs'),cases,inputFile);
     assert.equal(clone.status,0,clone.stderr);
     assert.equal(clone.stdout,publicRun.stdout);
-    const forged=forgeManifest(root,cases);
+    const forged=forgeManifest(root,cases,inputFile);
     return {
       copiedFiles:names.length,
       publicOutputSha256:digest(publicRun.stdout),
@@ -115,9 +118,11 @@ function runAttack(publicDir,cases){
 if(require.main===module){
   try{
     const directory=process.argv[2];
-    const cases=JSON.parse(process.argv[3]||'[]');
+    const encoded=process.argv[3]||'[]';
+    const inputFile=encoded.startsWith('@')?encoded.slice(1):undefined;
+    const cases=JSON.parse(inputFile?fs.readFileSync(inputFile,'utf8'):encoded);
     if(!directory||!Array.isArray(cases))throw Error('Expected distribution folder and JSON cases');
-    const output=runAttack(path.resolve(directory),cases);
+    const output=runAttack(path.resolve(directory),cases,inputFile);
     process.stdout.write('SNO_PUBLIC_ATTACK '+JSON.stringify(output)+'\n');
   }catch(error){
     console.error(error);
