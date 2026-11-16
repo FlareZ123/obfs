@@ -8,6 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
+const {parse,observesDistributedSource}=require('../src/ast');
 
 /**
  * Run an independent Node process so the inspector sees the actual CJS file.
@@ -64,6 +65,39 @@ test('independent scalar owner without inspector remains positively renameable',
   const source='const owner={secretField:7};module.exports=owner.secretField;';
   const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',seed:'inspector-contrast',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.metrics.properties,1,output.code);
+});
+
+for(const fixture of [
+  {name:'CommonJS builtin',type:'commonjs',source:
+    "const inspector=require('node:inspector');const owner={secretField:7};module.exports=owner.secretField;"},
+  {name:'CommonJS legacy alias',type:'commonjs',source:
+    "const inspector=require('inspector');const owner={secretField:7};module.exports=owner.secretField;"},
+  {name:'ESM imported session',type:'module',source:
+    "import {Session} from 'node:inspector';const owner={secretField:7};console.log(owner.secretField);"},
+  {name:'ESM promise-session import',type:'module',source:
+    "import {Session} from 'node:inspector/promises';const owner={secretField:7};console.log(owner.secretField);"},
+  {name:'ESM dynamic import',type:'module',source:
+    "const inspector=await import('node:inspector');const owner={secretField:7};console.log(owner.secretField);"}
+]) {
+  test('static inspector API source-observer gate: '+fixture.name,()=>{
+    const sourceType=/** @type {'commonjs'|'module'} */(fixture.type);
+    assert.equal(observesDistributedSource(parse(fixture.source,sourceType)),true);
+    const output=obfuscateFiles([{path:sourceType==='module'?'entry.mjs':'entry.cjs',
+      sourceType,code:fixture.source}],{
+      mode:sourceType==='module'?'coo':'sno',seed:'inspector-specifier/'+fixture.name,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(output.metrics.properties,0,output.code);
+  });
+}
+
+test('ordinary Node builtin use remains eligible for private own-key rewrite',()=>{
+  const source="const crypto=require('node:crypto');const owner={secretField:7};module.exports=owner.secretField;";
+  assert.equal(observesDistributedSource(parse(source,'commonjs')),false);
+  const output=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sno',seed:'not-inspector',strings:false,identifiers:false
   }).files[0];
   assert.equal(output.metrics.properties,1,output.code);
 });
