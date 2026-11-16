@@ -166,6 +166,7 @@ for(const [name,operation] of [
       const generated=obfuscateFiles([{path:'failure.cjs',sourceType:'commonjs',
         code:original}],{mode,seed:'string-typeerror/'+name,
         strings:true,identifiers:false,properties:false}).files[0];
+      assert.equal(generated.metrics.literals,0,mode+'/'+name);
       assert.equal(evaluate(generated.code),expected,mode+'/'+name);
     }
   });
