@@ -365,6 +365,16 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           if(isIntlConstructor(value,kind))changed=add(kind.constructors,name)||changed;
           if(isIntlInstance(value,kind))changed=add(kind.instances,name)||changed;
         }
+        if(value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           (value.callee.object.type==='Identifier' &&
+             boundCollatorCompares.has(value.callee.object.name) ||
+            value.callee.object.type==='MemberExpression' &&
+              memberName(value.callee.object)==='compare' &&
+              isIntlInstance(value.callee.object.object,intlKinds[0]))) {
+          changed=add(boundCollatorCompares,name)||changed;
+        }
         if(value?.type==='MemberExpression' &&
            memberName(value)==='compare' &&
            isIntlInstance(value.object,intlKinds[0])) {
@@ -611,6 +621,19 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   function hasFunctionKey(node) {
     return isFunctionValue(node);
   }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isIntlSourceCallback(expression) {
+    return Boolean(expression && (
+      expression.type==='Identifier' &&
+        (boundCollatorCompares.has(expression.name) ||
+          intlStaticStringCalls.has(expression.name)) ||
+      expression.type==='MemberExpression' &&
+        (memberName(expression)==='compare' &&
+           isIntlInstance(expression.object,intlKinds[0]) ||
+         isIntlNamespace(expression.object) &&
+           ['supportedValuesOf','getCanonicalLocales'].includes(memberName(expression)??''))
+    ));
+  }
   const stringCoercionMethods=new Set(['includes','startsWith','endsWith',
     'indexOf','lastIndexOf','split','replace','replaceAll','match','matchAll',
     'search','localeCompare','concat','padStart','padEnd']);
@@ -686,6 +709,16 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     });
   }while(reflectiveChanged);
   walk(ast,(node,parent,key)=>{
+    // A recognized source-coercing Intl callback may be executed by an
+    // opaque consumer, including Array#sort's implicit compare invocation.
+    // Refuse all unknown callback escapes even without a direct call here.
+    if(node.type==='Property' && isIntlSourceCallback(node.value) ||
+       node.type==='ArrayExpression' &&
+         node.elements.some((/** @type {AstNode|null} */ value)=>isIntlSourceCallback(value)) ||
+       node.type==='ReturnStatement' && isIntlSourceCallback(node.argument) ||
+       node.type==='AssignmentExpression' && isIntlSourceCallback(node.right)) {
+      observed=true;
+    }
     // Destructuring is a property read too: a first-class native source
     // method can be obtained from a function or Function.prototype without
     // any MemberExpression named "toString" in the AST.
@@ -763,6 +796,8 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      if(node.arguments.some((/** @type {AstNode} */ value)=>
+        isIntlSourceCallback(value)))observed=true;
       // Enumerating descriptors can disclose Function.prototype.toString
       // through a later computed-key read of the returned descriptor map.
       if(node.type==='CallExpression' && node.arguments.length>=1 &&
