@@ -275,8 +275,16 @@ function renameCrossFileProperties(files,seed) {
       // Every ordinary function's inherited .constructor resolves to the
       // Function constructor. Even a seemingly unrelated constructor read can
       // create a runtime import that escapes the static ownership graph.
-      if(node.type==='Property' && parent?.type==='ObjectPattern' &&
-         provenKey(node.key,node.computed)==='constructor')ambiguous=true;
+      if(node.type==='Property' && parent?.type==='ObjectPattern') {
+        // Binding patterns in parameters, catch clauses and for-of loops
+        // have no VariableDeclarator initializer. They can still extract
+        // a native Function constructor through an unknown computed key.
+        const keyName=provenKey(node.key,node.computed);
+        if(keyName==='constructor' ||
+           keyName!==null && (dynamicCompilerNames.has(keyName) ||
+             secondaryLoaderNames.has(keyName)) ||
+           node.computed && keyName===null && !primitiveInertKey(node.key)) ambiguous=true;
+      }
       if (node.type==='MemberExpression') {
         // A computed constant spelling such as globalThis['Fun'+'ction']
         // is a loader just as globalThis.Function is. A dynamic global key
