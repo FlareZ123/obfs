@@ -29,7 +29,7 @@ function program(size,position,bracket){
     'const owner={hiddenCount:37,secretDelta:4};',
     'const record={'+fields.join(',')+'};',
     'const alias='+access+';',
-    'function identity(x){return x;}',
+    'function identity(y){return y;}',
     'const reader=x=>x.hiddenCount;',
     'module.exports=function score(n){return reader(identity(alias))*n+owner.secretDelta;}'
   ].join('\n');
