@@ -39,8 +39,15 @@ const generatedGraphSnapshots=new WeakMap();
  * @param {ReadonlySet<string>} known
  * @returns {void}
  */
+const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
+  'node:worker_threads','node:child_process']);
 function verifyPrivateImport(source,specifier,known) {
-  if(specifier.startsWith('node:'))return;
+  if(specifier.startsWith('node:')){
+    if(dynamicLoaderBuiltins.has(specifier)){
+      throw new TypeError('Private SCO graph cannot certify imports from runtime loader builtin: '+specifier);
+    }
+    return;
+  }
   if(typeof specifier!=='string'||specifier.includes('\\')||
       /[?#%\x00-\x1f]/u.test(specifier) ||
       !(specifier.startsWith('./')||specifier.startsWith('../'))) {
@@ -77,11 +84,17 @@ function isDirectDynamicEvaluator(node,parent,childKey){
       parent?.type==='PropertyDefinition')&&childKey==='key'&&!parent.computed;
     return !staticMember&&!staticObjectKey;
   }
-  if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
-      dynamicEvaluatorGlobals.has(node.object.name)){
+  if(node.type==='MemberExpression'){
     const label=node.computed?staticString(node.property):
       node.property.type==='Identifier'?node.property.name:null;
-    return label!==null&&dynamicEvaluatorNames.has(label);
+    // Node's process.getBuiltinModule('module') yields createRequire even
+    // without a visible node:module import. Aliased/indirect uses remain
+    // outside this syntactic guard.
+    if(label==='getBuiltinModule')return true;
+    if(node.object.type==='Identifier'&&
+        dynamicEvaluatorGlobals.has(node.object.name)){
+      return label!==null&&dynamicEvaluatorNames.has(label);
+    }
   }
   if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
       node.init?.type==='Identifier'&&dynamicEvaluatorGlobals.has(node.init.name)){
