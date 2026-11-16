@@ -14,13 +14,18 @@ const {atomicWrite}=require('../src/atomic');
 /**
  * Execute real Node ESM in a fresh loader, preserving the exact output.
  * @param {ReadonlyArray<{path:string,code:string|Buffer}>} files
+ * @param {boolean} [withHost]
  * @returns {Promise<string>}
  */
-async function execute(files) {
+async function execute(files,withHost=false) {
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-verified-record-'));
   try {
     for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
-    const child=spawnSync(process.execPath,[path.join(directory,'entry.mjs')],{
+    const preloader=path.join(directory,'host.cjs');
+    if(withHost)await atomicWrite(preloader,'globalThis.RUNTIME_FACTORY=Function;');
+    const args=withHost ? ['--require',preloader,path.join(directory,'entry.mjs')] :
+      [path.join(directory,'entry.mjs')];
+    const child=spawnSync(process.execPath,args,{
       encoding:'utf8',timeout:15000
     });
     assert.equal(child.status,0,child.stderr);
@@ -83,3 +88,21 @@ for(const [label,caller,mutation,expected] of /** @type {[string,string,string,n
     assert.equal(await execute(compiled.files),native,label);
   });
 }
+
+test('host-provided Function through an inherited missing record key still declines',async()=>{
+  const files=graph([
+    'Object.prototype.noSuchField=globalThis.RUNTIME_FACTORY;',
+    "const ctor=inspectRecord('noSuchField').value;",
+    "const remote=await ctor(\"return import('./state.mjs')\")();",
+    'const result=[Object.keys(remote.state),remote.state.secretField];'
+  ].join('\n'));
+  const native=await execute(files,true);
+  assert.equal(native,'[41,[[\"secretField\"],41]]\n');
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'host-injected-constructor',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,0,
+    'An inherited host capability can dynamically import a private owner');
+  assert.equal(await execute(compiled.files,true),native);
+});
