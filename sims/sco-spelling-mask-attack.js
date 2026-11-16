@@ -11,12 +11,10 @@ const {createScoHandler}=require('../src');
 async function main() {
   const first='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef';
   const second='ghijklmnopqrstuvwxyz0123456789AB';
-  const original='function emit(value){\n'+
-    'const firstMarker='+JSON.stringify(first)+';\n'+
+  // Immutable primitive concatenation exercises the positive compiler proof.
+  const original='const firstMarker='+JSON.stringify(first)+';\n'+
     'const secondMarker='+JSON.stringify(second)+';\n'+
-    'const offset=value+5;\n'+
-    'return {firstMarker,secondMarker,offset};\n'+
-    '}\nglobalThis.maskProof=emit(12);\n';
+    'globalThis.maskProof=firstMarker+secondMarker;\n';
   const server=http.createServer(createScoHandler([
     {path:'entry.js',sourceType:'script',code:original}
   ]));
