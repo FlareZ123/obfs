@@ -211,26 +211,30 @@ function createScoGraphHandler(graph,namespaces,options){
       Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
     throw new TypeError('SCO graph handler requires graph and separately authorized server options');
   }
+  const snapshot=generatedGraphSnapshots.get(graph);
+  if(snapshot===undefined){
+    throw new TypeError('SCO graph handler requires a graph generated in this process');
+  }
+  if(JSON.stringify(graph)!==snapshot){
+    throw new TypeError('SCO graph manifest was modified after partitioning');
+  }
+  // Build both the RPC registry and the distributed code from the original
+  // compiler-generated snapshot. Never read the caller's mutable facade code
+  // again after validation: a getter could return benign code during a check
+  // and private source to the eventual HTTP handler.
+  const trusted=/** @type {ScoGraphPartition} */ (JSON.parse(snapshot));
   const expectedEndpoint=(options.routePrefix??'/obfs/')+'rpc';
-  for(const filename of graph.exposedPaths){
-    if(graph.partitions[filename]?.endpoint!==expectedEndpoint){
+  for(const filename of trusted.exposedPaths){
+    if(trusted.partitions[filename]?.endpoint!==expectedEndpoint){
       throw new TypeError('SCO graph RPC endpoint does not match routePrefix: '+filename);
     }
   }
-  const remoteMethods=bindScoGraphExports(graph,namespaces);
-  const handler=createScoHandler(graph.clientFiles,{
+  const remoteMethods=bindScoGraphExports(trusted,namespaces);
+  return createScoHandler(trusted.clientFiles,{
     ...options,
-    publicPaths:[...graph.exposedPaths],
+    publicPaths:[...trusted.exposedPaths],
     remoteMethods
   });
-  // Validate after the existing endpoint and publication preflights, so they
-  // retain their specific diagnostics. A mutated code byte can otherwise
-  // evade the path allowlist and SHA-256 exact-original-source guard.
-  const snapshot=generatedGraphSnapshots.get(graph);
-  if(snapshot===undefined||JSON.stringify(graph)!==snapshot){
-    throw new TypeError('SCO graph manifest was modified after partitioning or was not generated in this process');
-  }
-  return handler;
 }
 
 module.exports={partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler};
