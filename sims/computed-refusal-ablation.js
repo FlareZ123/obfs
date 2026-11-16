@@ -89,7 +89,8 @@ async function main(){
     {path:'main.mjs',sourceType:'module',code:[
       'import {state} from "./state.mjs";',
       'globalThis.RUNTIME_KEY="constructor";',
-      'const Factory=(()=>{})[globalThis.RUNTIME_KEY];',
+      'const ObjectCtor=({})[globalThis.RUNTIME_KEY];',
+      'const Factory=ObjectCtor[globalThis.RUNTIME_KEY];',
       'const imported=await Factory("return import(\'./state.mjs\')")();',
       'console.log(JSON.stringify([state.secretField,Object.keys(imported.state),imported.state.secretField]));'
     ].join('\n')}
