@@ -192,6 +192,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostCallAliases=new Set();
     /** @type {Set<string>} */
     const nativeMutatorAliases=new Set();
+    // The Proxy constructor is itself a first-class binding. Handler traps
+    // can execute host effects even for a statically unrelated descriptor key.
+    const proxyConstructors=new Set(['Proxy']);
     /** @type {Map<string,string>} */
     const nativeDescriptorAliases=new Map();
     /** @type {Set<string>} */
@@ -240,6 +243,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
         if(nativeMutatorAliases.has(origin) && !nativeMutatorAliases.has(target)) {
           nativeMutatorAliases.add(target);
+          aliasChanged=true;
+        }
+        if(proxyConstructors.has(origin) && !proxyConstructors.has(target)) {
+          proxyConstructors.add(target);
           aliasChanged=true;
         }
         if(nativeDescriptorAliases.has(origin) && !nativeDescriptorAliases.has(target)) {
@@ -343,6 +350,36 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       return false;
     }
     walk(source.ast,(node,parent)=>{
+      // Proxy descriptor traps may call opaque host accessors without spelling
+      // a Reflect mutation or distributed module import in the declared ESM.
+      // A literal empty handler has no own traps under the assumed ordinary
+      // realm; any populated or unproved handler declines the exceptional
+      // cross-file record proof. This is an intentional finite guard rather
+      // than a complete Proxy/host effect proof.
+      let proxyHandler=null;
+      if(node.type==='NewExpression' &&
+         (node.callee.type==='Identifier' && proxyConstructors.has(node.callee.name) ||
+          node.callee.type==='MemberExpression' &&
+          node.callee.object.type==='Identifier' &&
+          hostRoots.has(node.callee.object.name) &&
+          (node.callee.computed?staticString(node.callee.property):
+            staticName(node.callee.property))==='Proxy')) {
+        proxyHandler=node.arguments[1]??null;
+      }
+      if(node.type==='CallExpression' &&
+         node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier' &&
+         proxyConstructors.has(node.callee.object.name) &&
+         (node.callee.computed?staticString(node.callee.property):
+           staticName(node.callee.property))==='revocable') {
+        proxyHandler=node.arguments[1]??null;
+      }
+      if(proxyHandler===null && node.type==='NewExpression' &&
+         node.callee.type==='Identifier' &&
+         proxyConstructors.has(node.callee.name) &&
+         node.arguments.length<2)changedIntrinsic=true;
+      if(proxyHandler && (proxyHandler.type!=='ObjectExpression' ||
+         proxyHandler.properties.length>0))changedIntrinsic=true;
       // Extracted descriptor methods are first-class function values.
       // A direct call is already examined below. Opaque higher-order use,
       // .call/.apply/.bind, or nontrivial escape can recover a mutable
