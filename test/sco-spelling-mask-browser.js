@@ -2,7 +2,9 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {execFile}=require('node:child_process');
+const {execFile,spawnSync}=require('node:child_process');
+const {createHash}=require('node:crypto');
+const path=require('node:path');
 const {promisify}=require('node:util');
 const {createScoHandler,obfuscateFiles}=require('../src');
 
@@ -93,9 +95,24 @@ async function main() {
     const codes=await Promise.all(responses.map(response=>response.text()));
     assert.notEqual(codes[0],codes[1],
       'Eligible request-time literals must exhibit distinct random spellings');
+    for(const code of codes){
+      assert.ok(!code.includes('secretField'),
+        'SCO must actually rename the private field in served browser code');
+      const attacker=spawnSync(process.execPath,[
+        path.join(__dirname,'../sims/sco-spelling-mask-extractor.js')
+      ],{input:code,encoding:'utf8',timeout:10000,windowsHide:true});
+      if(attacker.error)throw attacker.error;
+      assert.equal(attacker.status,0,attacker.stderr);
+      const report=JSON.parse(attacker.stdout);
+      assert.equal(report.matched,true);
+      assert.equal(report.predictedDigest,
+        createHash('sha256').update(code).digest('hex'));
+      assert.equal(report.mask.length,32);
+    }
     process.stdout.write(JSON.stringify({
       chromium:'passed',nativeUnits:baseline.length,emittedUnits:emitted.length,
-      sourceVariantsDistinct:true,transformedPrivateFields:preview.metrics.properties,
+      sourceVariantsDistinct:true,sourceOnlyMaskRecoveryOnRenamedModule:true,
+      transformedPrivateFields:preview.metrics.properties,
       transformedBindings:preview.metrics.bindings,containsUnpairedSurrogate:full.includes(String.fromCharCode(0xd800)),
       browser:'real Chromium, HTTP-served native versus SCO'
     })+'\n');
