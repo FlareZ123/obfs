@@ -66,6 +66,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/host-reflection-callback-browser.js
+      - name: Real Chromium declared global reflector overwrite and positive yield
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/closed-record-reflect-descriptor-browser.js
       - name: Real Chromium own-key-only transformed COO application differential
         if: runner.os == 'Linux'
         env:
