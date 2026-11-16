@@ -159,3 +159,67 @@ test('SCO queue cap returns HTTP 429 without protected work and recovers',{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+
+test('SCO aggregate cap denies authenticated third-account HTTP work',{
+  timeout:15000
+},async()=>{
+  const bothEntered=gate();
+  const release=gate();
+  const accounts=new Map([['a','A'],['b','B'],['c','C']]);
+  let started=0;
+  /** @type {string[]} */
+  const completed=[];
+  const isolate=createScoKeyedIsolation(request=>{
+    const credential=request.headers['x-test-session'];
+    return typeof credential==='string'?accounts.get(credential)??'invalid':'invalid';
+  },{maxPendingPerPrincipal:1,maxPendingTotal:2});
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{
+      hold:async()=>{
+        started++;
+        if(started===2)bothEntered.resolve();
+        await release.promise;
+        completed.push('hold');
+        return 'held';
+      },
+      quick:()=>{completed.push('quick');return 'quick';}
+    },
+    authorizeRpc:request=>accounts.has(String(request.headers['x-test-session'])),
+    runRpcIsolated:isolate
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected bound server');
+    const endpoint='http://127.0.0.1:'+address.port+'/obfs/rpc';
+    /** @param {string} account @param {string} method @returns {Promise<{status:number,body:any}>} */
+    async function rpc(account,method){
+      const response=await fetch(endpoint,{
+        method:'POST',
+        headers:{'content-type':'application/json','x-test-session':account},
+        body:JSON.stringify({method,args:[]})
+      });
+      return {status:response.status,body:await response.json()};
+    }
+    const a=rpc('a','hold');
+    const b=rpc('b','hold');
+    await bothEntered.promise;
+    assert.deepEqual(await rpc('c','quick'),{
+      status:429,body:{ok:false,error:'Too many requests'}
+    });
+    assert.deepEqual(completed,[],'Denied valid third account did no private work');
+    release.resolve();
+    assert.deepEqual(await Promise.all([a,b]),[
+      {status:200,body:{ok:true,value:'held'}},
+      {status:200,body:{ok:true,value:'held'}}
+    ]);
+    assert.deepEqual(await rpc('c','quick'),{
+      status:200,body:{ok:true,value:'quick'}
+    });
+    assert.deepEqual(completed,['hold','hold','quick']);
+  }finally{
+    release.resolve();
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
