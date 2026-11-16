@@ -349,7 +349,8 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(options.allowServerImports!==true||typeof specifier!=='string'||
          !specifier.startsWith('node:')||!isBuiltin(specifier)||
          !statement.specifiers.length||
-         statement.specifiers.some(item=>item.type!=='ImportSpecifier'||
+         statement.specifiers.some((/** @type {import('./ast').AstNode} */ item)=>
+           item.type!=='ImportSpecifier'||
            item.local.type!=='Identifier')){
         throw new TypeError('Selective SCO only admits explicitly enabled named Node builtin imports');
       }
