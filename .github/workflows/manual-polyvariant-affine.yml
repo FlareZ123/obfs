@@ -21,7 +21,9 @@ jobs:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
       - name: Differential and integration cases
-        run: node --test test/polyvariant-affine.test.js test/polyvariant-affine-fuzz.test.js test/polyvariant-affine-cli.test.js
+        run: node --test test/polyvariant-affine.test.js test/polyvariant-affine-fuzz.test.js test/polyvariant-affine-cli.test.js test/polyvariant-app.test.js
+      - name: Emit real three-file application outputs as JSON
+        run: node examples/polyvariant-app/build.cjs --emit-json
       - name: Sample generated output (base64)
         run: node -e "const {execFileSync}=require('node:child_process'); const code=execFileSync(process.execPath,['examples/polyvariant-affine/build.js','--emit']); process.stdout.write('SAMPLE_B64='+code.toString('base64')+'\\n')"
       - name: Validate checked-in before-after sample
