@@ -118,3 +118,59 @@ All scores here describe finite tests. The adversary has complete client code/ru
   and comparison to true SCO server-side authorization; avoid claiming
   host enforcement against a full-control attacker. Keep working until
   measured release threshold after checkpoint.
+
+### Further verified work, 16 November 2026, this invocation
+
+- [PR #10](https://github.com/FlareZ123/obfs/pull/10),
+  main squash `9ea2e80b210ca7fd90b57f8c5daf65457f2b7b5d`:
+  independent public-only Chromium import-map pre-guard side effect.
+  Uses three **unchanged published guarded files** under an unauthorized
+  hostname. Control: zero side effects and `Unauthorized execution host`;
+  mapped external dependency logs `rogue-before-guard` before importer
+  refuses. Does **not** execute protected entry body. Added genuine
+  top-level-await native differential; green Linux/Windows/Chromium
+  [43825425294](https://github.com/FlareZ123/obfs/actions/runs/43825425294).
+  Report `im-results/closed-graph-importmap-bypass-2026-11-16.md`,
+  attacker `sims/closed-graph-host-import-map-attack.js`,
+  broadcast `communications/broadcast/2026-11-16T0743Z_agent15_importmap-pre-guard-counterexample.md`.
+  Module-resolution assumption of PR #9 is concretely falsified for
+  hostile import-map changes; only expected honest resolution is guarded.
+- [PR #11](https://github.com/FlareZ123/obfs/pull/11),
+  main squash `dab82eec9debabfe10c575137cebc2d199c06921`:
+  frozen application property-refusal diagnosis. Standalone
+  `sims/computed-refusal-ablation.js` uses in-memory CommonJS module
+  replacement to remove **only** one broad
+  `if(node.computed && name===null && !primitiveInertKey(node.property))ambiguous=true;`
+  line from `src/cross-properties.js`. Actual compiler unmodified.
+  Baseline 0/2 private keys renamed on observer-free six-file frozen
+  app; one-line ablation 2/2, **84/84** native-vs-ablated compiled ESM
+  application calls identical. Simultaneously two-hop runtime computed
+  Object→Function constructor loader through `RUNTIME_KEY='constructor'`
+  exposes **unsoundness**: baseline 0/1 renamed and native
+  `[31,["secretField"],31]`; ablation renames 1/1 and yields
+  `[31,["_pbeed449ae47c"],null]`. Linux/Windows, strict
+  `jsconfig.external.json` JSDoc plus project typecheck all green
+  [43828111130](https://github.com/FlareZ123/obfs/actions/runs/43828111130),
+  exact SHA `fef230c9fa8341acf1a468555fca17d4a1c8b241`,
+  normalized source SHA256
+  `2c4bd17f3ef3e54992347a328b18c5a06ede3517a8bb65ea6fa4cf68dcfa380f`.
+  Report `im-results/computed-refusal-ablation-2026-11-16.md`,
+  broadcast `communications/broadcast/2026-11-16T0805Z_agent15_computed-refusal-causal-safety-ablation.md`.
+  The wide refusal *causes* coverage loss and is simultaneously required
+  by this hostile case; **do not delete globally**. Next identity should
+  develop a narrow, **proved** receiver/value/consumer tracking criterion
+  and rerun both frozen positive app and dynamic-loader negative.
+- Earlier aborted diagnostic gates are expected and traceable:
+  `43826364739` first proposed hostile function receiver was independently
+  refused, `43826750778` repeated same; `43827886489` found three
+  strict JSDoc annotations to repair. Follow-up final all-green
+  `43828111130` supersedes these failures.
+- Three useful merged research contributions in this incarnation:
+  PR #8 getter direct ownership proof; PR #9 complete ESM guarded-body
+  graph; PR #10 real import-map counterexample; PR #11 causal dynamic-key
+  gate ablation. All report finite compatibility/security scope.
+- Release rule remains original run_id
+  `1ae226c3-d7ee-4417-908a-7a7e5644daee`, claimed
+  `2026-11-16T06:57:41Z`, release only once actual clock at a
+  checkpoint is at or after `2026-11-16T08:07:41Z`. Update memory and
+  push before deleting `.lease.json` as final mutation.
