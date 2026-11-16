@@ -277,6 +277,19 @@ function realmStateObservation(body,checkHostConfiguration=false){
       }
     });
   }
+  // A Date instance passed to another function or container could be used
+  // with a local-time getter beyond the syntactically visible call site.
+  // Retain a small positive proof for direct UTC-only method invocations.
+  const utcDateMethods=new Set(['getTime','valueOf','toISOString','toJSON',
+    'getUTCDate','getUTCDay','getUTCFullYear','getUTCHours',
+    'getUTCMilliseconds','getUTCMinutes','getUTCMonth','getUTCSeconds']);
+  const utcDateReceivers=new Set();
+  walk(body,node=>{
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       utcDateMethods.has(keyName(node.callee)??'')){
+      utcDateReceivers.add(node.callee.object);
+    }
+  });
   let configurationTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
@@ -302,6 +315,24 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     if(node.type==='NewExpression'&&isDateConstructor(node.callee)&&
        !fixedDateConstruction(node))configurationTouched=true;
+    // Whitelisted UTC reads must retain the Date receiver locally. A
+    // function argument, returned Date, container element or method extraction
+    // can otherwise apply a timezone-dependent operation beyond this scan.
+    if(node.type==='NewExpression'&&isDateConstructor(node.callee)&&
+       !(parent?.type==='VariableDeclarator'&&parent.init===node&&
+         parent.id.type==='Identifier')&&!utcDateReceivers.has(node)){
+      configurationTouched=true;
+    }
+    if(node.type==='Identifier'&&dateInstances.has(node.name)&&
+       !(parent?.type==='VariableDeclarator'&&
+         (parent.id===node||parent.init===node&&
+           parent.id.type==='Identifier'&&dateInstances.has(parent.id.name)))&&
+       !(parent?.type==='AssignmentExpression'&&
+         (parent.left===node||parent.right===node&&
+           parent.left.type==='Identifier'&&dateInstances.has(parent.left.name)))&&
+       !utcDateReceivers.has(node)&&!isStaticKey(parent,key)){
+      configurationTouched=true;
+    }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
       const method=keyName(node.callee);
       if(isDateConstructor(node.callee.object)&&
