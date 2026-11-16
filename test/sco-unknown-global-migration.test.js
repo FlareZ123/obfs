@@ -200,3 +200,11 @@ test('Owned-local record proof does not admit unproved inherited realm propertie
     'const globalThis={publicValue:7};return globalThis.publicValue;'),
     /share ambient state|unproved host-global state|realm-local/u);
 });
+
+test('Owned local-root proof retains static primitive field updates',()=>{
+  const result=partition(
+    'const globalThis={privateValue:41};globalThis.privateValue=42;return globalThis.privateValue;',
+    'const globalThis={publicValue:7};return globalThis.publicValue;');
+  assert.deepEqual(result.privateNames,['protectedOp']);
+  assert.match(result.clientFile.code,/globalThis.publicValue/u);
+});
