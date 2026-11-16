@@ -59,7 +59,12 @@ async function main() {
     });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
       item.name+' should retain the declared protected/refused field count');
-    const attacked=normalizePublicFields(/** @type {import('../sims/public-token-normalizer').File[]} */(protectedFiles.files));
+    const attackInputs=protectedFiles.files.map(file=>{
+      assert.equal(typeof file.code,'string');
+      return {path:file.path,sourceType:/** @type {const} */('module'),
+        code:/** @type {string} */(file.code)};
+    });
+    const attacked=normalizePublicFields(attackInputs);
     assert.equal(attacked.properties,item.renamed,
       item.name+' should normalize every privately renamed public field');
     normalizedPublicFields+=attacked.properties;
