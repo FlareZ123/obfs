@@ -470,7 +470,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         // These builtins can resolve or evaluate unlisted source through
         // aliases and nested calls. A complete static module manifest cannot
         // be inferred when their loaders are available in the private graph.
-        if(['node:module','node:vm','node:worker_threads','node:child_process']
+        if(['node:module','node:vm','node:worker_threads','node:child_process','node:process']
             .includes(specifier)) {
           throw new TypeError('SCO private static graph cannot audit dynamic Node loader: '+specifier);
         }
