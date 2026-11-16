@@ -301,28 +301,29 @@ function createScoHandler(sourceFiles,options={}) {
     }
     if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
     if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
+    // Snapshot caller-controlled source exactly once before publication
+    // policy checks and source scanning. This prevents a getter that returns
+    // different values on successive reads from invalidating source proofs.
+    const suppliedCode=file.code;
+    if(typeof suppliedCode!=='string'&&!Buffer.isBuffer(suppliedCode)){
+      throw new TypeError(filename+' content must be a string or Buffer');
+    }
+    const code=Buffer.isBuffer(suppliedCode)?Buffer.from(suppliedCode):suppliedCode;
     // Reject byte-exact original sources from any supplied private SCO graph,
     // even if an original exposed module replaced its generated facade or a
     // server-only dependency was copied under a new public path.
-    if(privateOriginalDigests.has(createHash('sha256').update(file.code).digest('hex'))){
+    if(privateOriginalDigests.has(createHash('sha256').update(code).digest('hex'))){
       throw new TypeError('SCO must not serve original private graph source: '+filename);
     }
     seen.add(collisionKey);
-    if(typeof file.code!=='string'&&!Buffer.isBuffer(file.code)) {
-      throw new TypeError(filename+' content must be a string or Buffer');
-    }
     const sourceType=file.sourceType ??
       (filename.endsWith('.mjs')?'module':filename.endsWith('.cjs')?'commonjs':'script');
-    if(!['module','script','commonjs','asset'].includes(sourceType)) {
+    if(!['module','script','commonjs','asset'].includes(sourceType)){
       throw new TypeError('Unknown source type '+sourceType);
     }
-    if(sourceType!=='asset'&&typeof file.code!=='string') {
+    if(sourceType!=='asset'&&typeof code!=='string'){
       throw new TypeError(filename+' JavaScript must be UTF-8 text');
     }
-    // A mutable caller-owned Buffer can be changed after this one-time
-    // disclosure preflight, causing later GETs to serve unvalidated bytes.
-    // Take an owned snapshot before scanning and publishing asset content.
-    const code=Buffer.isBuffer(file.code)?Buffer.from(file.code):file.code;
     const normalizedFile = {...file,code,path:filename,sourceType};
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
