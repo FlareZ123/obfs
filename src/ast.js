@@ -747,6 +747,10 @@ function observesDistributedSource(ast) {
       if(key!==null && (browserReaders.has(key) || key==='getBuiltinModule')) {
         observed=true;
       }
+      // module.constructor exposes Node's Module class without an explicit
+      // import; its static _load/createRequire methods can then obtain fs.
+      if(key==='constructor' && node.object.type==='Identifier' &&
+         node.object.name==='module')observed=true;
       // The built-in CommonJS module object and main-module handles expose
       // require() as a member, bypassing the direct Identifier require check.
       if(key==='require') {
