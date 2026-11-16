@@ -78,10 +78,14 @@ test('closed-world graph refuses untracked dynamic and noncanonical loaders',()=
     'export function deriveProof(v){return new Function("return 3")();}',
     'const source=import.meta.url; export function deriveProof(v){return source;}',
     'import {createRequire as loaderFactory} from "node:module"; const load=loaderFactory(import.meta.url); export function deriveProof(v){return load("./other.cjs");}',
-    'import {Worker as W} from "node:worker_threads"; export function deriveProof(v){return new W(v);}'
+    'import {Worker as W} from "node:worker_threads"; export function deriveProof(v){return new W(v);}',
+    'const builtin=process.getBuiltinModule("node:module"); export function deriveProof(v){return builtin.createRequire(v);}',
+    'const {getBuiltinModule}=process; export function deriveProof(v){return getBuiltinModule("node:module");}',
+    'const p=process; export function deriveProof(v){return p["getBuiltinModule"]("node:module");}',
+    'const p=globalThis.process; export function deriveProof(v){return p.getBuiltinModule("node:module");}'
   ]) {
     assert.throws(()=>emit([{...engine,code},leaf]),
-      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader/,
+      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader/,
       'Private source should be declined: '+code);
   }
 });
