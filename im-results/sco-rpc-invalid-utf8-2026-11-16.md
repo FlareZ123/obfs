@@ -32,3 +32,7 @@ The reusable [`sims/sco-utf8-admission-profile.js`](../sims/sco-utf8-admission-p
 | 65,568 | 0.02860098 | 0.02964805 | 1.036610× | 0.07375667 | 0.07754420 | 1.051352× |
 
 **Pinned cross-platform gate:** [43960646966](https://github.com/FlareZ123/obfs/actions/runs/43960646966), exact source `87c8126e2185c01204c63f32f74ca69d50dae50d`, both Ubuntu and Windows Node22 jobs successful, including byte-exact HTTP cases, the profile and strict JSDoc for the newly added script. These ratios measure a narrow CPU parsing component under warm-runner conditions and do **not** include network/authentication, private operation computation, cold process startup, or whole application workload. Do not interpret them as a universal 2.5× verdict. All observed medians were below that cap solely for the measured parser component.
+
+## Later full integration
+
+[Full validation run 43961051109](https://github.com/FlareZ123/obfs/actions/runs/43961051109) passed the repository-wide Node 22 Linux/Windows behavior suite, strict source and external JSDoc checks, sampled benchmark steps, and real Ubuntu Chromium checks, pinned at `87c8126e2185c01204c63f32f74ca69d50dae50d`. Node tests: 1,798 on each OS; Ubuntu 1,797 passes/one skip, Windows 1,796 passes/two skips, **zero failures**. This establishes compatibility on the tested software and hardware; it does not settle the larger reconstruction-resistance or worst-case 2.5× objective.
