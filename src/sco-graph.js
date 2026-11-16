@@ -55,16 +55,15 @@ function verifyPrivateImport(source,specifier,known) {
   }
 }
 
+const dynamicEvaluatorNames=new Set(['eval','Function']);
+const dynamicEvaluatorGlobals=new Set(['globalThis','global']);
 /**
- * Refuse directly visible dynamic-code evaluation in a private graph. Such
- * expressions can manufacture imports at runtime outside the manifest,
- * defeating path-specific deployed-source checks. Alias and constructor
- * chains remain unproved and require independent operator review.
+ * Refuse direct dynamic-code evaluation and simple aliases of evaluator
+ * globals in a private graph. Evaluator expressions can manufacture imports
+ * outside the manifest. Derived constructor chains remain unproved.
  * @param {import('./ast').AstNode} node
  * @returns {boolean}
  */
-const dynamicEvaluatorNames=new Set(['eval','Function']);
-const dynamicEvaluatorGlobals=new Set(['globalThis','global']);
 function isDirectDynamicEvaluator(node){
   if(!['CallExpression','NewExpression','VariableDeclarator',
     'AssignmentExpression'].includes(node.type))return false;
@@ -93,7 +92,7 @@ function isDirectDynamicEvaluator(node){
   }
   if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
       node.init?.type==='Identifier'&&globalNames.has(node.init.name)){
-    return node.id.properties.some(property=>{
+    return node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
       if(property.type!=='Property')return true;
       const key=property.computed?staticString(property.key):
         property.key.type==='Identifier'?property.key.name:
