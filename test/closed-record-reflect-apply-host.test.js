@@ -100,7 +100,7 @@ for(const [label,statement] of [
 }
 
 test('native Reflect.apply of an independent pure built-in retains useful owner proof',async()=>{
-  const original=graph('const observed=Reflect.apply(Math.max,null,[[2,3]]);');
+  const original=graph('const observed=Reflect.apply(Math.max,null,[2,3]);');
   const native=await execute(original,false);
   assert.equal(native,'[41,"audit-v1",3]');
   const compiled=obfuscateFiles(original,{
