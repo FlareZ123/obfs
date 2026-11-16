@@ -300,6 +300,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if(decl.id.type!=='Identifier'||decl.id.name===rootName||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
+       parents.get(/** @type {AstNode} */(parents.get(decl)))?.type==='ExportNamedDeclaration'||
        bindings.get(decl.id.name)!==1||
        decl.init?.type!=='ArrayExpression'||decl.init.elements.length!==1||
        decl.init.elements[0]?.type!=='Identifier'||
