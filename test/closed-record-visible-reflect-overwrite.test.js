@@ -127,7 +127,11 @@ for(const [method,write] of [
   ['captured Object.defineProperty',
     "const define=Object.defineProperty;define(globalThis,'Reflect',{value:globalThis.HOST_REPLACED_REFLECT,configurable:true,writable:true});"],
   ['transitively aliased Object.assign',
-    "const assign=Object.assign;const alias=assign;alias(globalThis,{Reflect:globalThis.HOST_REPLACED_REFLECT});"]
+    "const assign=Object.assign;const alias=assign;alias(globalThis,{Reflect:globalThis.HOST_REPLACED_REFLECT});"],
+  ['array-container global root',
+    "const roots=[globalThis];Object.defineProperty(roots[0],'Reflect',{value:globalThis.HOST_REPLACED_REFLECT,configurable:true,writable:true});"],
+  ['object-container global root',
+    "const holder={root:globalThis};Object.defineProperty(holder.root,'Reflect',{value:globalThis.HOST_REPLACED_REFLECT,configurable:true,writable:true});"]
 ]) {
   test(`declared ${method} replacement cannot expose renamed owner`,async()=>{
     const original=graph().map(file=>file.path==='entry.mjs'?{
