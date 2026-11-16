@@ -406,6 +406,47 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static dependency writes or escapes cross-realm global state: '+filename);
       }
     });
+    // Node exposes a synchronous builtin loader via process.getBuiltinModule,
+    // which can obtain node:module without a static ESM import. It can be
+    // aliased through local bindings and object destructuring, so treat this
+    // capability as unproved even when no dynamic import appears in the AST.
+    const processRoots=new Set(['process']);
+    let processAliasChanged=true;
+    while(processAliasChanged){
+      processAliasChanged=false;
+      walk(ast,node=>{
+        const id=node.type==='VariableDeclarator'?node.id:
+          node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+        const init=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'?node.right:null;
+        if(id?.type!=='Identifier'||!init)return;
+        const processAlias=init.type==='Identifier'&&processRoots.has(init.name)||
+          init.type==='MemberExpression'&&
+          init.object.type==='Identifier'&&globalRoots.has(init.object.name)&&
+          (init.computed?staticString(init.property):init.property.name)==='process';
+        if(processAlias&&!processRoots.has(id.name)){
+          processRoots.add(id.name);
+          processAliasChanged=true;
+        }
+      });
+    }
+    const nodeLoaderKeys=new Set(['getBuiltinModule','mainModule',
+      'dlopen','binding','_linkedBinding']);
+    walk(ast,node=>{
+      if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+         processRoots.has(node.object.name)&&
+         nodeLoaderKeys.has(node.computed?staticString(node.property):node.property.name)){
+        throw new TypeError('SCO private static graph contains an unproved Node process loader: '+filename);
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init?.type==='Identifier'&&processRoots.has(node.init.name)&&
+         node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+           property.type==='Property'&&
+           nodeLoaderKeys.has(property.computed?
+             staticString(property.key):property.key.name??staticString(property.key)))){
+        throw new TypeError('SCO private static graph destructures an unproved Node process loader: '+filename);
+      }
+    });
     walk(ast,(node,parent,key)=>{
       // Direct and first-class references to dynamic-source constructors,
       // including "new Function" and aliases, are outside this static model.
