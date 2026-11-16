@@ -169,4 +169,26 @@ function predictContinuation(model,inputs){
   return outputs;
 }
 
-module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,predictContinuation};
+/**
+ * Convert a certified hypothesis into an independently advancing offline
+ * stateful clone. The caller must first establish a valid continuation
+ * certificate under the correct finite-state bound. Other clients advancing
+ * the original server's shared state would invalidate that live alignment.
+ *
+ * @param {Candidate} model
+ * @returns {{step:(symbol:number)=>number}}
+ */
+function createContinuationClone(model){
+  let current=model.state;
+  return {
+    /** @param {number} symbol @returns {number} */
+    step(symbol){
+      if(symbol!==0&&symbol!==1)throw new RangeError('Expected binary input');
+      const output=model.output[current][symbol];
+      current=model.next[current][symbol];
+      return output;
+    }
+  };
+}
+
+module.exports={enumerateMachines,distinguish,chooseSymbol,learnBoundedStepOnly,predictContinuation,createContinuationClone};
