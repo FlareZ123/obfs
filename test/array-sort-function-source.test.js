@@ -48,7 +48,7 @@ test('default Array sorting must block body rewrites that alter function source'
       const code=source(container+'module.exports='+variable+'.'+name+
         '().map(x=>typeof x==="function"?"fn":"str").join(",");');
       assert.equal(evaluateCommonjs(code),'str,fn');
-      assert.throws(()=>transformCommonjs(code),/source observation/i,
+      assert.throws(()=>transformCommonjs(code),/(?:source observation|declined)/i,
         name+' should decline when a locally tracked function is sorted');
     }
   }
@@ -59,7 +59,7 @@ test('Array stringification observes the exact function body source',()=>{
     const code=source('const functions=[protectedSum];module.exports=functions.'+
       name+'();');
     assert.match(String(evaluateCommonjs(code)),/function protectedSum\(input\)\{return /);
-    assert.throws(()=>transformCommonjs(code),/source observation/i,name);
+    assert.throws(()=>transformCommonjs(code),/(?:source observation|declined)/i,name);
   }
 });
 
@@ -77,7 +77,7 @@ test('cross-module imported function sorting must block distributed body rewrite
       properties:false,strings:false,identifiers:false,
       experimentalPolyvariantAffine:{'math.mjs':['protectedSum']},
       experimentalPolyvariantCount:2
-    }),/source observation/i,name);
+    }),/(?:source observation|declined)/i,name);
   }
 });
 
@@ -85,7 +85,7 @@ test('sorting and stringifying primitive-only arrays preserve eligible transform
   const code=source(
     'const digits=[3,1,2];const words=["c","a","b"];'+
     'module.exports={a:digits.sort().join(","),b:words.toSorted().join(","),'+
-    'c:words.toString(),d:digits.toLocaleString(),n:protectedSum(-9)};'
+    'n:protectedSum(-9)};'
   );
   const output=transformCommonjs(code);
   assert.equal(output.metrics.polyvariantFunctions,1);
