@@ -27,6 +27,8 @@ jobs:
         run: |
           npm run typecheck
           node --test test/cross-file-safe-record-read.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-reflect-method-alias-gate.test.js test/closed-record-host-hook-attack.test.js test/closed-record-visible-reflect-overwrite.test.js
+      - name: Adversarial preloaded reflection callback semantic witness
+        run: node sims/host-reflection-callback.js
       - name: Diagnose private-field proof refusal and positive control
         run: node sims/application-challenge-proof-diagnosis.js
       - name: Quantify refusal and protected-work yield on distinct frozen graphs
@@ -59,6 +61,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/application-challenge-coo-browser.js
+      - name: Real Chromium host reflection callback adversarial ESM boundary
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/host-reflection-callback-browser.js
       - name: Real Chromium own-key-only transformed COO application differential
         if: runner.os == 'Linux'
         env:
