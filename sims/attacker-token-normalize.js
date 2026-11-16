@@ -54,13 +54,15 @@ function normalizeDistributedFiles(files) {
     // This is a syntactic source-only attack, not a general dataflow proof.
     /** @type {Set<number>} */
     const keyStringStarts=new Set();
-    walk.ancestor(ast,{
-      Literal(node,_state,ancestors) {
-        if(typeof node.value!=='string')return;
-        const parent=ancestors[ancestors.length-2];
-        if((parent?.type==='Property'&&parent.key===node)||
-           (parent?.type==='MemberExpression'&&parent.computed&&parent.property===node)) {
-          keyStringStarts.add(node.start);
+    walk.simple(ast,{
+      Property(node) {
+        if(node.key.type==='Literal'&&typeof node.key.value==='string')
+          keyStringStarts.add(node.key.start);
+      },
+      MemberExpression(node) {
+        if(node.computed&&node.property.type==='Literal'&&
+           typeof node.property.value==='string') {
+          keyStringStarts.add(node.property.start);
         }
       }
     });
