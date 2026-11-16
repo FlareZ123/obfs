@@ -25,6 +25,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Native-versus-COO function-source clone errors in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/clone-source-browser.js
       - name: Verify executable XML document URL behavior in Chromium
         env:
           CHROMIUM_BIN: google-chrome
