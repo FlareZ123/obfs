@@ -9,6 +9,16 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {{path:string,code:string,sourceType?:'module'}} ScoPrivateModule */
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
+
+/**
+ * Source of truth for graphs returned by this compiler invocation. Callers
+ * receive a mutable manifest for inspection, but cannot silently replace a
+ * generated facade with a modified private source before publication.
+ * This protects against accidental integrator mutation, not a compromised
+ * server that can execute different code or bypass this handler altogether.
+ * @type {WeakMap<object,string>}
+ */
+const generatedGraphSnapshots=new WeakMap();
 /** @typedef {{seed?:string,endpoint?:string,exposedPaths:string[]}} ScoGraphOptions */
 /**
  * @typedef {{
@@ -142,9 +152,11 @@ function partitionScoAsyncGraph(files,options) {
     clientFile.privateModulePaths=[...privatePaths];
     clientFile.privateOriginalDigests=[...privateOriginalDigests];
   }
-  return {
-    clientFiles,partitions,exposedPaths:[...selected],privatePaths
-  };
+  const graph={clientFiles,partitions,exposedPaths:[...selected],privatePaths};
+  // Preserve the generated publication and method identities independently
+  // of the mutable manifest returned to integrators. This is startup-only.
+  generatedGraphSnapshots.set(graph,JSON.stringify(graph));
+  return graph;
 }
 
 /**
@@ -206,11 +218,19 @@ function createScoGraphHandler(graph,namespaces,options){
     }
   }
   const remoteMethods=bindScoGraphExports(graph,namespaces);
-  return createScoHandler(graph.clientFiles,{
+  const handler=createScoHandler(graph.clientFiles,{
     ...options,
     publicPaths:[...graph.exposedPaths],
     remoteMethods
   });
+  // Validate after the existing endpoint and publication preflights, so they
+  // retain their specific diagnostics. A mutated code byte can otherwise
+  // evade the path allowlist and SHA-256 exact-original-source guard.
+  const snapshot=generatedGraphSnapshots.get(graph);
+  if(snapshot===undefined||JSON.stringify(graph)!==snapshot){
+    throw new TypeError('SCO graph manifest was modified after partitioning or was not generated in this process');
+  }
+  return handler;
 }
 
 module.exports={partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler};
