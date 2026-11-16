@@ -112,7 +112,7 @@ async function evaluate(fixture){
         // is a real HTTP disclosure without an independent public allowlist.
         const server=http.createServer(createScoHandler(published));
         try{
-          await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+          await /** @type {Promise<void>} */ (new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve())));
           const address=server.address();
           assert.ok(address&&typeof address!=='string');
           const response=await fetch('http://127.0.0.1:'+
@@ -120,8 +120,8 @@ async function evaluate(fixture){
           publicLeakStatus=response.status;
           assert.match(await response.text(),/secretValue/u);
         }finally{
-          await new Promise((resolve,reject)=>
-            server.close(error=>error?reject(error):resolve()));
+          await /** @type {Promise<void>} */ (new Promise((resolve,reject)=>
+            server.close(error=>error?reject(error):resolve())));
         }
         assert.throws(()=>createScoHandler(published,{
           publicPaths:['entry.mjs']
