@@ -114,6 +114,27 @@ admission restriction, not an exhaustive detector for every indirect loader.
 See [the process-loader admission regression](../test/sco-private-process-loader.test.js)
 and [Node's documented API](https://nodejs.org/docs/latest-v22.x/api/process.html#processgetbuiltinmoduleid).
 
+**Verified dynamic-loader limitation (16 November 2026):** In a reproducible
+Node.js 22 Linux/Windows source-audited graph, ordinary functions and objects
+provided hidden `Function` constructor access using computed `constructor`
+keys. Each of eight original private modules dynamically loaded a real,
+unlisted `secret.mjs` file. The current conservative audit declined three
+variants, but **admitted five** with a manifest containing only their direct
+`engine.mjs` dependency. A real HTTP check demonstrated that each of those
+five omitted leaves is then publicly retrievable if the operator also
+mistakenly includes it in `createScoHandler`'s `sourceFiles`. The independent
+`publicPaths:['entry.mjs']` allowlist refused all five misconfigured
+publication attempts before serving. The implementation deliberately permits
+many ordinary computed-key reads to preserve positive application semantics;
+this syntactic guard cannot certify arbitrary JavaScript source closure.
+Use an independently reviewed `publicPaths` list for source-private SCO
+deployments and keep private directories outside every HTTP public root.
+See [the executable native/HTTP challenge](../sims/sco-private-dynamic-loader-grid.js),
+[red/green and refusal-yield evidence](../im-results/sco-constructor-chain-static-closure-2026-11-16.md),
+and [the pinned targeted gate](https://github.com/FlareZ123/obfs/actions/runs/43827534775).
+These checks strengthen publication configuration guidance; they do not
+prevent unlimited authorized RPC relaying or prove dynamic-loader absence.
+
 The static audit is **opt-in**. Without `privateModuleSources`, the manifest
 still covers only direct imports and explicit `additionalPrivateModulePaths`.
 Even with the opt-in, this is a bounded *static* path audit, not proof that a
