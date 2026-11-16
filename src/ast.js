@@ -982,6 +982,30 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       receiver.property.type==='Identifier' ? receiver.property.name : null;
     return root!==null && canReachLoader(root,key);
   }
+  // The first alias pass runs before immutable string keys are verified.
+  // Revisit computed globalThis['process'] aliases now that knownKey can
+  // resolve unique immutable key bindings without assuming their spelling.
+  let loaderChanged;
+  do {
+    loaderChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' && node.id.type==='Identifier' ?
+        node.id : node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const value=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type!=='Identifier'||value?.type!=='MemberExpression'||
+         value.object.type!=='Identifier'||!globals.has(value.object.name))return;
+      const key=value.computed ? knownKey(value.property) :
+        value.property.type==='Identifier' ? value.property.name : null;
+      const roots=key==='process'?processRoots:
+        key==='require'?requireRoots:key==='module'?moduleRoots:null;
+      if(roots&&!roots.has(binding.name)){
+        roots.add(binding.name);
+        loaderChanged=true;
+      }
+    });
+  }while(loaderChanged);
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
