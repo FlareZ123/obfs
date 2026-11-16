@@ -223,3 +223,38 @@ test('SCO graph source fingerprints compare the same single-read bytes as served
     /original private graph source: shadow.mjs/);
   assert.equal(deniedReads,1);
 });
+
+
+test('SCO graph helper accepts matching custom RPC route and denies default route',async()=>{
+  const graph=partitionScoAsyncGraph([{
+    path:'remote.mjs',code:'export async function evaluate(x){return x+5;}'
+  }],{
+    seed:'sco-graph-custom-route-20261116',
+    exposedPaths:['remote.mjs'],
+    endpoint:'/private/rpc'
+  });
+  const handler=createScoGraphHandler(graph,{
+    'remote.mjs':{evaluate:async x=>x+5}
+  },{
+    routePrefix:'/private/',authorizeRpc:()=>true
+  });
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address && typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/remote.mjs')).status,404);
+    assert.equal((await fetch(origin+'/private/remote.mjs')).status,200);
+    const response=await fetch(origin+'/private/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:graph.partitions['remote.mjs'].methodNames.evaluate,args:[7]
+      })
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:12});
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
