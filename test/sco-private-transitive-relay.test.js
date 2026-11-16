@@ -210,7 +210,11 @@ test('source-audited three-file SCO still allows independent authorized online c
     else process.env[keyName]=previous;
     if(attacker){
       const child=attacker;
-      if(child.exitCode===null)child.kill();
+      if(child.exitCode===null && child.signalCode===null){
+        const exited=new Promise(resolve=>child.once('exit',resolve));
+        child.kill();
+        await exited;
+      }
     }
     if(trusted)await new Promise((resolve,reject)=>
       trusted.close(error=>error?reject(error):resolve()));
