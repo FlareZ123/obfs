@@ -40,8 +40,13 @@ The bytecode backend may exceed the 2.5x compute cap when selected for frequentl
 Selected opt-in, pure bitvector functions can be compiled into embedded
 WebAssembly i32 binaries using `experimentalWasmI32` or the COO/SNO
 `--wasm-i32` CLI selector. The source grammar is deliberately restricted.
-Only one signed-Int32 Number argument is supported; the caller is responsible
-for enforcing that type contract and a stable WebAssembly environment.
+One to four signed-Int32 Number arguments are supported for selected
+return-only bitvector expressions; the caller is responsible for enforcing
+that exact type contract and a stable WebAssembly environment. The grammar
+now conservatively refuses source `-0` literals, because JavaScript's
+observable negative zero cannot be represented by Wasm i32. This soundness
+regression and native signed-number positive control passed on two operating
+systems in [the pinned signed-zero gate](../im-results/wasm-i32-negative-zero-2026-11-16.md).
 The transformed wrapper has a different `Function#toString` representation.
 A cyclic ESM import formerly invoked a transformed function before its eager
 WebAssembly initializer and caused a TDZ exception. The ESM emitter now uses
