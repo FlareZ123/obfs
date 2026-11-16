@@ -25,7 +25,7 @@ const files=[
     "import {state} from './state.mjs';",
     "import {inspectRecord} from './record.mjs';",
     "const captured=inspectRecord('auditCount').value;",
-    "const target=new URL('./state.mjs',import.meta.url).href;",
+    "const target=import.meta.url.replace('entry.mjs','state.mjs');",
     'const names=typeof captured==="function" ?',
     "  Object.keys((await captured('return import('+JSON.stringify(target)+')')()).state) : null;",
     'export const observed=[state.secretField,names];'
@@ -78,6 +78,7 @@ async function main(){
     mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
     seed:'browser-host-reflection-callback-20261116'
   });
+  assert.equal(compiled.crossFile.properties,1, 'Browser graph should retain native positive protected-field yield');
   const sources=new Map();
   for(const file of files)sources.set('/native/'+file.path,file.code);
   for(const file of compiled.files)sources.set('/compiled/'+file.path,
