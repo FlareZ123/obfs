@@ -254,6 +254,54 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           node.init?.type==='ArrowFunctionExpression'))
         recordFormals(node.id.name,node.init.params);
     });
+    // A bound function retains the remaining formal positions after any
+    // captured prefix arguments. Treat syntactically assigned local .bind()
+    // values as first-class callables; later alias and call edges can then
+    // reach those positions. Use canonical root+offset slices so rebinding
+    // cycles converge instead of generating new arrays indefinitely.
+    /** @type {{name:string,origin:string,captured:number}[]} */
+    const boundCallables=[];
+    walk(source.ast,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(binding?.type!=='Identifier'||initial?.type!=='CallExpression' ||
+         initial.callee.type!=='MemberExpression' ||
+         initial.callee.object.type!=='Identifier')return;
+      const method=initial.callee.computed?staticString(initial.callee.property):
+        staticName(initial.callee.property);
+      if(method!=='bind')return;
+      boundCallables.push({name:binding.name,origin:initial.callee.object.name,
+        captured:Math.max(0,initial.arguments.length-1)});
+    });
+    /** @type {WeakMap<AstNode[],{root:AstNode[],offset:number}>} */
+    const partialOrigins=new WeakMap();
+    /** @type {Map<AstNode[],Map<number,AstNode[]>>} */
+    const partialCache=new Map();
+    /**
+     * @param {AstNode[]} formals
+     * @param {number} captured
+     * @returns {AstNode[]}
+     */
+    function remainingFormals(formals,captured) {
+      const origin=partialOrigins.get(formals);
+      const root=origin?.root??formals;
+      const offset=Math.min(root.length,(origin?.offset??0)+captured);
+      if(offset===0)return root;
+      let slices=partialCache.get(root);
+      if(!slices){
+        slices=new Map();
+        partialCache.set(root,slices);
+      }
+      let derived=slices.get(offset);
+      if(!derived) {
+        derived=root.slice(offset);
+        slices.set(offset,derived);
+        partialOrigins.set(derived,{root,offset});
+      }
+      return derived;
+    }
     // Uniquely named local function references can be assigned and called
     // through another identifier. Reuse the ordinary assignment edges to
     // propagate every possible formal list before resolving any callsite.
@@ -277,16 +325,82 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           callableChanged=true;
         }
       }
+      for(const site of boundCallables) {
+        const original=localCallFormals.get(site.origin);
+        if(!original)continue;
+        const target=localCallFormals.get(site.name)??[];
+        let extended=false;
+        for(const formals of original) {
+          const remaining=remainingFormals(formals,site.captured);
+          if(!target.includes(remaining)) {
+            target.push(remaining);
+            extended=true;
+          }
+        }
+        if(extended) {
+          localCallFormals.set(site.name,target);
+          callableChanged=true;
+        }
+      }
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /**
+     * Native invocation adapters can call a locally known function without
+     * spelling that function as the direct CallExpression callee. Join their
+     * argument-to-formal transfers before resolving ambient host roots.
+     * A bind operation is conservatively treated as a possible invocation:
+     * its captured arguments may be used by a later call or escape.
+     *
+     * @param {AstNode} node
+     * @returns {{name:string,args:(AstNode|null)[]}|null}
+     */
+    function localInvocation(node) {
+      if(node.type!=='CallExpression'&&node.type!=='NewExpression')return null;
+      if(node.callee.type==='Identifier'){
+        return {name:node.callee.name,args:node.arguments};
+      }
+      if(node.type!=='CallExpression' ||
+         node.callee.type!=='MemberExpression')return null;
+      const callee=node.callee;
+      const method=callee.computed?staticString(callee.property):
+        staticName(callee.property);
+      if(callee.object.type==='Identifier' &&
+         (method==='call'||method==='bind')) {
+        return {name:callee.object.name,args:node.arguments.slice(1)};
+      }
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|undefined} */
+      let supplied;
+      if(callee.object.type==='Identifier'&&method==='apply'){
+        name=callee.object.name;
+        supplied=node.arguments[1];
+      }
+      if(callee.object.type==='Identifier'&&callee.object.name==='Reflect' &&
+         method==='apply'&&node.arguments[0]?.type==='Identifier'){
+        name=node.arguments[0].name;
+        supplied=node.arguments[2];
+      }
+      if(name===null)return null;
+      if(supplied?.type==='ArrayExpression'){
+        return {name,args:supplied.elements};
+      }
+      // An unproved argument-array expression can carry globalThis into a
+      // local function and is outside the direct array-element analysis.
+      if(localCallFormals.has(name))changedIntrinsic=true;
+      return null;
+    }
     walk(source.ast,node=>{
-      if((node.type!=='CallExpression'&&node.type!=='NewExpression') ||
-         node.callee.type!=='Identifier')return;
-      for(const params of localCallFormals.get(node.callee.name)??[]) {
+      const invocation=localInvocation(node);
+      if(!invocation)return;
+      const definitions=localCallFormals.get(invocation.name)??[];
+      if(definitions.length && invocation.args.some(
+        argument=>argument?.type==='SpreadElement'))changedIntrinsic=true;
+      for(const params of definitions) {
         for(let i=0;i<params.length;i++) {
           let formal=params[i];
-          let actual=node.arguments[i];
+          let actual=invocation.args[i];
           if(formal.type==='AssignmentPattern') {
             actual??=formal.right;
             formal=formal.left;

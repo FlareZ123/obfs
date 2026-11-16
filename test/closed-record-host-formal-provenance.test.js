@@ -181,3 +181,97 @@ test('aliased function reading an unrelated host field preserves nonvacuous rena
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+
+/**
+ * Native Function.prototype.call/apply/bind and Reflect.apply can invoke a
+ * source-visible local callback with an ambient root hidden behind a method
+ * call. These cases require exact original-vs-emitted Node ESM comparisons,
+ * independently of the direct/aliased Identifier callsite proof.
+ */
+for(const [name,code] of [
+  ['Function.prototype.call direct',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire.call(null,globalThis);"],
+  ['Function.prototype.call aliased',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const alias=rewire;alias.call(null,globalThis);"],
+  ['Function.prototype.apply array',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire.apply(null,[globalThis]);"],
+  ['Function.prototype.bind captured argument',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null,globalThis);bound();"],
+  ['Function.prototype.bind aliased arrow',
+    "const rewire=({['Ref'+'lect']:cap})=>{cap.ownKeys=globalThis.HOST_REFLECT;};const alias=rewire;const bound=alias.bind(null,globalThis);bound();"],
+  ['Reflect.apply local function',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}Reflect.apply(rewire,null,[globalThis]);"]
+]){
+  test('first-class host provenance invocation: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-native-callsite/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'A local function reached through a native invoke adapter still mutates ambient Reflect');
+    assert.equal(compiled.crossFile.properties,0,
+      'Native call/apply/bind invocation must not permit unsafe exported owner renaming');
+  });
+}
+
+test('unrelated local bound function retains one genuine exported owner rename',async()=>{
+  const original=graph(
+    "const unrelated=({['UNRELATED_FIXTURE']:k})=>k;const bound=unrelated.bind(null,globalThis);void bound();");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-native-callsite/unrelated',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A benign native-bind callsite should keep proven unrelated private work');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
+
+
+/**
+ * bind() without a captured argument returns a locally callable adapter
+ * whose later arguments still flow into the original function's formals.
+ * Existing direct-call provenance must not lose these remaining parameters.
+ */
+for(const [name,code] of [
+  ['uncaptured bound function',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);bound(globalThis);"],
+  ['uncaptured bound function forwarded alias',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);const alias=bound;alias(globalThis);"],
+  ['partially bound two-parameter function',
+    "function rewire(unrelated,{['Ref'+'lect']:cap}){void unrelated;cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null,7);bound(globalThis);"],
+  ['uncaptured bound function invoked by Reflect.apply',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const bound=rewire.bind(null);Reflect.apply(bound,null,[globalThis]);"]
+]){
+  test('partially bound local host provenance: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-partial-bind/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'Bound local callable must retain the original remaining formal parameters');
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('partially bound local non-host callable keeps real owner-key rename',async()=>{
+  const original=graph(
+    "function read(unrelated,{['UNRELATED_FIXTURE']:k}){void unrelated;return k;}const bound=read.bind(null,7);void bound(globalThis);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-partial-bind/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A safe partial bind must retain nonvacuous cross-file private work');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
