@@ -106,7 +106,7 @@ async function evaluate(fixture){
       if(fixture.unsafe&&!privatePaths.includes('private/deep/secret.mjs')){
         const published=[
           partition.clientFile,
-          {path:'private/deep/secret.mjs',code:'export const secretValue=41;\\n'}
+          {path:'private/deep/secret.mjs',code:'export const secretValue=41;'}
         ];
         // Accidentally adding an undiscovered private leaf to sourceFiles
         // is a real HTTP disclosure without an independent public allowlist.
