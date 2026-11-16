@@ -176,23 +176,66 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostCallAliases=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
-    // A host-supplied callable has unknown behavior, including the ability
-    // to invoke Function and import a module not represented by static ESM
-    // dependencies. Follow simple first-class aliases before admitting a
-    // graph-wide property rename.
+    // A host-controlled callable can perform runtime imports that are
+    // invisible to the statically closed ESM graph. Resolve direct aliases
+    // of the global root before recognizing extracted host functions.
     walk(source.ast,node=>{
-      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' && node.init) {
-        if(node.init.type==='MemberExpression' &&
-           node.init.object.type==='Identifier' &&
-           hostRoots.has(node.init.object.name))hostCallAliases.add(node.id.name);
-        if(node.init.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
-      }
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         node.init?.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier' && node.right.type==='Identifier') {
         aliasEdges.push([node.left.name,node.right.name]);
       }
     });
     let aliasChanged;
+    do {
+      aliasChanged=false;
+      for(const [target,origin] of aliasEdges) {
+        if(hostRoots.has(origin) && !hostRoots.has(target)) {
+          hostRoots.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
+    /**
+     * Recognize a source of an opaque host callable, including a descriptor
+     * value and a Reflect.get result. Decline only if it is later called.
+     * @param {AstNode} initial
+     * @returns {boolean}
+     */
+    function readsHostCallable(initial) {
+      if(initial.type==='MemberExpression') {
+        if(initial.object.type==='Identifier' &&
+           hostRoots.has(initial.object.name))return true;
+        return initial.object.type==='CallExpression' &&
+          readsHostCallable(initial.object);
+      }
+      if(initial.type==='CallExpression' &&
+         initial.callee.type==='MemberExpression' &&
+         initial.callee.object.type==='Identifier') {
+        const method=initial.callee.computed?
+          staticString(initial.callee.property):staticName(initial.callee.property);
+        const host=initial.callee.object.name;
+        if((host==='Object' && method==='getOwnPropertyDescriptor' ||
+            host==='Reflect' && method==='get') &&
+           initial.arguments[0]?.type==='Identifier' &&
+           hostRoots.has(initial.arguments[0].name))return true;
+      }
+      return false;
+    }
+    walk(source.ast,node=>{
+      if(node.type!=='VariableDeclarator'||!node.init)return;
+      if(node.id.type==='Identifier' && readsHostCallable(node.init)) {
+        hostCallAliases.add(node.id.name);
+      }
+      if(node.id.type==='ObjectPattern' && node.init.type==='Identifier' &&
+         hostRoots.has(node.init.name)) {
+        for(const property of node.id.properties) {
+          if(property.type==='Property' && property.value.type==='Identifier')
+            hostCallAliases.add(property.value.name);
+        }
+      }
+    });
     do {
       aliasChanged=false;
       for(const [target,origin] of aliasEdges) {
