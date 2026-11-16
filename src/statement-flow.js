@@ -169,7 +169,8 @@ function flattenStatementFlow(source,sourceType,options){
     const fn=matching[0];
     // Rewriting a validated asm.js body would erase its specialized runtime
     // compilation contract and can break the hard 2.5x compute target.
-    if(fn.async||fn.generator||fn.body.body.some(stmt=>stmt.directive==='use asm')){
+    if(fn.async||fn.generator||
+      (/** @type {AstNode[]} */ (fn.body.body)).some(stmt=>stmt.directive==='use asm')){
       declined++;continue;
     }
     /** @type {string[]} */
