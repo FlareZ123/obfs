@@ -27,3 +27,5 @@ jobs:
         run: node --test test/application-challenge-sco.test.js
       - name: Compare real fresh-process full-session client costs
         run: node sims/application-challenge-sco-cold-session.js
+      - name: Reproduce pinned cold-profile sample uncertainty
+        run: node sims/application-challenge-sco-cold-bootstrap.js
