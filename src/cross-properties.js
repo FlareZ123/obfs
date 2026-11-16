@@ -82,6 +82,50 @@ function collectVerifiedImportedStrings(files) {
 }
 
 /**
+ * Require an acyclic static ESM graph before replacing a read of an imported
+ * key from a different module with a literal. In a cycle, a reentrant importer
+ * function can run before a sibling key module initializes, and the original
+ * binding read would throw a TDZ ReferenceError. Rewriting that read would
+ * incorrectly eliminate the exception.
+ *
+ * @param {ReadonlyMap<string,{ast:AstNode}>} modules
+ * @returns {boolean}
+ */
+function hasAcyclicStaticImports(modules) {
+  /** @type {Map<string,Set<string>>} */
+  const dependencies=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const consumers=new Map();
+  for(const name of modules.keys()) {
+    dependencies.set(name,new Set());
+    consumers.set(name,new Set());
+  }
+  for(const [name,module] of modules) {
+    const imports=/** @type {Set<string>} */ (dependencies.get(name));
+    for(const statement of module.ast.body) {
+      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type) ||
+          statement.source?.type!=='Literal' || typeof statement.source.value!=='string')continue;
+      const dependency=resolveImport(name,statement.source.value);
+      if(!dependency || !modules.has(dependency) || imports.has(dependency))continue;
+      imports.add(dependency);
+      consumers.get(dependency)?.add(name);
+    }
+  }
+  const remaining=new Map([...dependencies].map(([name,imports])=>[name,imports.size]));
+  const ready=[...remaining].filter(([,count])=>count===0).map(([name])=>name);
+  let evaluated=0;
+  for(let cursor=0;cursor<ready.length;cursor++) {
+    evaluated++;
+    for(const consumer of consumers.get(ready[cursor])??[]) {
+      const count=(remaining.get(consumer)??0)-1;
+      remaining.set(consumer,count);
+      if(count===0)ready.push(consumer);
+    }
+  }
+  return evaluated===modules.size;
+}
+
+/**
  * Across an explicit closed-world set of ESM modules, rename properties of
  * direct named exported const-object literals and all proven import aliases.
  * Reject reexports, reflection, dynamic import and unproven uses rather than
@@ -114,6 +158,7 @@ function renameCrossFileProperties(files,seed) {
   }
   const knownFiles=new Set(files.map(file=>file.path));
   const verifiedStrings=collectVerifiedImportedStrings(files);
+  const acyclicImports=hasAcyclicStaticImports(modules);
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
@@ -356,6 +401,20 @@ function renameCrossFileProperties(files,seed) {
           /** @type {Map<string,string>} Local reader alias to original exported reader name. */
           const readerAliases=new Map();
           for(const statement of importer.ast.body) {
+            if(statement.type==='ImportDeclaration') {
+              const origin=resolveImport(importerName,statement.source.value);
+              if(acyclicImports && origin && origin!==exporterName) {
+                // Every dependency has completed evaluation before an
+                // acyclic importer's body runs, so reading this immutable
+                // imported string cannot be an observable TDZ access.
+                // Still require exact direct ESM provenance and an own key.
+                for(const spec of statement.specifiers) {
+                  if(spec.type!=='ImportSpecifier'||importer.bindings.get(spec.local.name)!==1)continue;
+                  const key=verifiedStrings.get(importerName)?.get(spec.local.name);
+                  if(key!==undefined && names.includes(key))importedKeys.set(spec.local.name,key);
+                }
+              }
+            }
             if (statement.type==='ImportDeclaration' && resolveImport(importerName,statement.source.value)===exporterName) {
               for(const spec of statement.specifiers) {
                 if (spec.type==='ImportNamespaceSpecifier') {failed=true;break;}
