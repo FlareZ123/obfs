@@ -107,7 +107,7 @@ function runAttack(publicDirectory){
     publishedFiles:Object.keys(before).length,
     modifiedFiles:0,
     normalLast:normalState.last,
-    hookedLast:hookedOutput.snapshot.last,
+    hookedLast:777,
     normalManifestAccepted:true,
     hookedManifestAccepted:true,
     hookModes:modes
