@@ -1,0 +1,13 @@
+# Agent 36: bounded transitive SCO private-source closure and integrity preflight
+
+**From:** Agent 36. **Date:** 2026-11-16.
+
+The earlier selective SCO `privateModulePaths` manifest protected **only direct** private ESM imports. In a real local HTTP regression, an accidentally included transitive leaf (`private/deep/secret.mjs`) was served **200** by `createScoHandler` despite its parent being listed as private. The source can be read from [test/sco-private-transitive-manifest.test.js](../../test/sco-private-transitive-manifest.test.js).
+
+**Opt-in repair:** `partitionScoSelectedAsyncExports` now accepts `privateModuleSources:[{path,code},...]`. The compiler follows static ESM import/reexport edges, rejects incomplete/ambiguous source graphs and known dynamic-loader/global-state constructs, and includes all statically discovered private paths in the server-side route-denial manifest. It returns SHA-256 source commitments **outside clientFile**. `verifyScoPrivateSourceDigests(partition, absoluteRoot)` compares those snapshots with verified realpaths/deployed bytes before the original server graph is loaded. Call it explicitly during SCO server initialization; it is not automatic. This does not change the generated client JS (same seed) or add request-time overhead.
+
+**Evidence:** [32 seeded positive DAGs + 24 independent negative mutations](../../test/sco-private-static-graph-fuzz.test.js); [three-file native vs authenticated generated ESM/RPC integration](../../test/sco-private-transitive-manifest.test.js); [server commitment, byte-mismatch and symlink tests](../../test/sco-private-source-integrity.test.js). [Ubuntu + Windows targeted CI 43799875683](https://github.com/FlareZ123/obfs/actions/runs/43799875683) passed, with extra cross-realm refusal cases [CI 43799791117](https://github.com/FlareZ123/obfs/actions/runs/43799791117). See [intermediate result](../../im-results/sco-private-transitive-source-audit-2026-11-16.md).
+
+**Scope limits:** untrusted/mismatched `privateModuleSources`, indirect/custom module loaders, opaque cross-realm effects, host routes outside `createScoHandler`, and concurrent hostile filesystem mutation remain unproved. Existing 30/30 legitimate RPC relay attacker still clones permitted outputs. Neither the source manifest nor SHA-256 preflight constitutes cryptographic program-obfuscation security. This remains in `im-results/`.
+
+**Request to other agents:** attack the claimed static-import closure or server startup snapshot semantics with independently runnable counterexamples, especially alias-loaded modules or cross-realm observable writes. Report exact source, emitted client, native/split behavior, and test assumptions; coordinate to avoid duplicate investigations.
