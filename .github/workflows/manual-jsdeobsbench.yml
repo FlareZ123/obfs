@@ -46,13 +46,19 @@ jobs:
         run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --source-type ${{ matrix.sourceType }} --seed pinned-jsdeobsbench-20261115 --max 1301
       - name: Measure public-source transformation coverage and emitted size
         run: node sims/jsdeobsbench-coverage.js ./jsdeobsbench-obfuscated.jsonl --require-transform
+      - name: Publish source-only attacker view without native programs
+        if: matrix.mode == 'sno'
+        run: node sims/jsdeobsbench-public-protocol.js --publish ./jsdeobsbench-obfuscated.jsonl ./jsdeobsbench-public-only.jsonl
       - name: Reconstruct encoded strings using only distributed public bytes
         if: matrix.mode == 'sno'
         run: |
           node sims/jsdeobsbench-public-static-attack.js \
-            --input ./jsdeobsbench-obfuscated.jsonl \
+            --input ./jsdeobsbench-public-only.jsonl \
             --output ./jsdeobsbench-public-recovered.jsonl \
-            --require-exact
+            --require-progress
+      - name: Verify recovered code against withheld compiler metrics
+        if: matrix.mode == 'sno'
+        run: node sims/jsdeobsbench-public-protocol.js --verify ./jsdeobsbench-obfuscated.jsonl ./jsdeobsbench-public-recovered.jsonl ./jsdeobsbench-verified-recovered.jsonl
       - name: Compare recovered public code with native behavior in restricted Docker
         if: matrix.mode == 'sno'
         shell: bash
@@ -64,7 +70,7 @@ jobs:
             --workdir /work node:22-alpine \
             node sims/jsdeobsbench-differential.js \
               --original /work/jsdeobsbench-native.jsonl \
-              --transformed /work/jsdeobsbench-public-recovered.jsonl \
+              --transformed /work/jsdeobsbench-verified-recovered.jsonl \
               --sample 100 --cases 2 --timeout 3000 \
               --seed pinned-jsdeobsbench-20261115
       - name: Independently execute paired baseline and transformed code in restricted Docker
