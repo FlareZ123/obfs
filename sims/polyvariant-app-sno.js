@@ -249,7 +249,9 @@ async function profile(rounds=7){
       await atomicWrite(inputFile,JSON.stringify(cases));
       const expected=runJson(path.join(native,CJS_ENTRY),cases,inputFile);
       assert.deepEqual(runJson(path.join(protectedDir,'sno-entry.cjs'),cases,inputFile),expected);
+      /** @type {number[]} */
       const nativeTimings=[];
+      /** @type {number[]} */
       const snoTimings=[];
       for(let trial=0;trial<rounds;trial++){
         for(const isSno of trial%2===0?[false,true]:[true,false]){
