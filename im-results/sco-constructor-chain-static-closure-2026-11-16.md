@@ -34,3 +34,23 @@ The guard is build-time only and does not add client RPC instructions, keys, pub
 ## Follow-up
 
 Compare static private ESM audit acceptance yield on a pinned positive application when adding any broader dynamic-key restrictions. A stronger static closure checker must either prove computed member ownership/key bounds or refuse unproved source-loading capabilities; generic banning of all dynamic indexing would harm ordinary algorithms. Record actual preserved private work and end-to-end semantics, not only the number of declined negative fixtures.
+
+## Follow-up: aliased and runtime-computed keys (07:44 UTC)
+
+The first exact-spelling guard was bypassed by a second real native case:
+
+```js
+const key = 'constructor';
+const load = ({})[key][key]('p', 'return import(p)');
+export async function deriveProof(v) {
+  return (await load('./deep/secret.mjs')).secretValue + v;
+}
+```
+
+The native Node 22 fixture again returned 42 using the otherwise undeclared `private/deep/secret.mjs`. [Red Ubuntu+Windows workflow 43825597226](https://github.com/FlareZ123/obfs/actions/runs/43825597226) at `8a5914363cc529cdd843a4e7b8905aa2d64577d4` failed the new "static constructor key aliases" expected-refusal assertion. The compiler's exact-key-only guard had admitted `({})[key][key]` despite the immutable literal `key` binding.
+
+The follow-up patch `3163292d616023860921316be62c4c065b6f0b01` conservatively propagates constructor-valued string aliases through variable declarations/assignments, supports simple literal template interpolation, and tracks named function-expression bindings. It refuses unknown computed member keys on syntactically known callable receivers because such a key can resolve to inherited `constructor`. Identical-name bindings across scopes may cause benign refusals; no full lexical scope proof is claimed. The additional regression covers six negative spellings, including `['con','structor'].join('')` used to index both inline and named function objects, plus positive controls for `record[key]` on an ordinary private object and `fn['name']` on a callable.
+
+[Pinned green Ubuntu+Windows workflow 43825959203](https://github.com/FlareZ123/obfs/actions/runs/43825959203) at `aad1d12fa60274a081b04ae6c3a464a4d2ab37d5` passed both SCO matrix jobs, including JSDoc and other existing workflow tasks. The positive controls were therefore checked in the same gate as the new negative variants.
+
+**Important residual:** A dynamic computed key on an object with unproved provenance, or a function created by an arbitrary factory, can still reach a constructor without passing this finite syntactic guard. This work exposes the false-confidence risk of calling a syntactic dependency manifest a sound complete graph; it cannot guarantee no runtime module loads in arbitrary JavaScript. Preserve explicit `publicPaths` and refuse public exposure of any server-private root regardless of static scan outcomes.
