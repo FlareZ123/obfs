@@ -1,7 +1,7 @@
 'use strict';
 
 const {randomBytes,createHash} = require('node:crypto');
-const {parse,walk,applyEdits,observesFunctionSource} = require('./ast');
+const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
@@ -260,9 +260,10 @@ function createScoHandler(sourceFiles,options={}) {
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
   // transformations for the whole published group when one is present.
-  const interfileSourceObserver=normalized.length>1 && normalized.some(file=>
+  const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    observesFunctionSource(parse(file.code,file.sourceType)));
+    (observesDistributedSource(parse(file.code,file.sourceType)) ||
+      normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType))));
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   return (request,response) => {
