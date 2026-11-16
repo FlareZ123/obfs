@@ -719,7 +719,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
  * @returns {boolean}
  */
 function observesDistributedSource(ast) {
-  const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
+  // Node's module loader can obtain fs indirectly through createRequire(),
+  // Module._load(), or a newly created CommonJS require. Without an alias
+  // proof, treat use of the loader itself as an opaque source-read capability.
+  const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises',
+    'module','node:module']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   let observed=false;
   walk(ast,node=>{
@@ -742,6 +746,19 @@ function observesDistributedSource(ast) {
         node.property.type==='Identifier' ? node.property.name : null;
       if(key!==null && (browserReaders.has(key) || key==='getBuiltinModule')) {
         observed=true;
+      }
+      // The built-in CommonJS module object and main-module handles expose
+      // require() as a member, bypassing the direct Identifier require check.
+      if(key==='require') {
+        const receiver=node.object;
+        if(receiver.type==='Identifier' && receiver.name==='module')observed=true;
+        if(receiver.type==='MemberExpression' &&
+           receiver.object.type==='Identifier') {
+          const owner=receiver.computed ? staticString(receiver.property) :
+            receiver.property.type==='Identifier' ? receiver.property.name : null;
+          if(receiver.object.name==='process' && owner==='mainModule' ||
+             receiver.object.name==='require' && owner==='main')observed=true;
+        }
       }
     }
   });
