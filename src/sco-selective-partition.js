@@ -55,9 +55,10 @@ function isServerEnvironmentRead(expression){
  * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
- * @returns {'prototype'|'RegExp match'|'intrinsic state'|null}
+ * @param {boolean} [checkHostConfiguration] Only relocated private code inherits a new host configuration.
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|null}
  */
-function realmStateObservation(body){
+function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
     'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
@@ -205,6 +206,99 @@ function realmStateObservation(body){
         property.type==='RestElement'||keyName(property)===null||
         names.has(keyName(property)??''));
   }
+  // A selected SCO private export executes on a different host. Date's
+  // local-time constructors/getters and Intl's unpinned locale/zone defaults
+  // can change a JSON-visible result even if neither realm mutates state.
+  // This intentionally refuses certain explicitly pinned Intl operations:
+  // proving identical ICU data, locale and timezone across hosts is beyond
+  // this syntactic contract. UTC-only Date operations remain eligible.
+  const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
+    'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
+    'DurationFormat']);
+  const dateLocalMethods=new Set(['getDate','getDay','getFullYear','getHours',
+    'getMilliseconds','getMinutes','getMonth','getSeconds','getTimezoneOffset',
+    'getYear','setDate','setFullYear','setHours','setMilliseconds','setMinutes',
+    'setMonth','setSeconds','setYear','toString','toDateString','toTimeString',
+    'toLocaleString','toLocaleDateString','toLocaleTimeString']);
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isDateConstructor(expression){
+    if(expression.type==='Identifier')return intrinsicKinds.get(expression.name)==='Date';
+    return expression.type==='MemberExpression' &&
+      expression.object.type==='Identifier' &&
+      globalNames.has(expression.object.name) && keyName(expression)==='Date';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isIntlConstructor(expression){
+    if(expression.type!=='MemberExpression' ||
+       !localeConstructors.has(keyName(expression)??''))return false;
+    const receiver=expression.object;
+    return receiver.type==='Identifier'&&intrinsicKinds.get(receiver.name)==='Intl' ||
+      receiver.type==='MemberExpression' &&
+      receiver.object.type==='Identifier' &&
+      globalNames.has(receiver.object.name)&&keyName(receiver)==='Intl';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function pinnedIsoUtcLiteral(expression){
+    return expression.type==='Literal' && typeof expression.value==='string' &&
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/u.test(expression.value);
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function fixedDateConstruction(expression){
+    if(expression.type!=='NewExpression'||!isDateConstructor(expression.callee)||
+       expression.arguments.length!==1)return false;
+    const argument=expression.arguments[0];
+    return argument.type==='Literal'&&typeof argument.value==='number' ||
+      pinnedIsoUtcLiteral(argument)||argument.type==='CallExpression'&&
+      argument.callee.type==='MemberExpression'&&
+      isDateConstructor(argument.callee.object)&&keyName(argument.callee)==='UTC';
+  }
+  // Retain Date-instance origins through simple local aliases. As with the
+  // broader intrinsic proof, unrecognized higher-order flows remain outside
+  // the verified contract and need independent adversarial tests.
+  /** @type {Set<string>} */
+  const dateInstances=new Set();
+  /** @type {Set<string>} */
+  const intlAliases=new Set();
+  let originChanged=true;
+  while(originChanged){
+    originChanged=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type!=='Identifier'||!initial)return;
+      if(initial.type==='NewExpression'&&isDateConstructor(initial.callee)||
+         initial.type==='Identifier'&&dateInstances.has(initial.name)){
+        if(!dateInstances.has(binding.name)){
+          dateInstances.add(binding.name);
+          originChanged=true;
+        }
+      }
+      if(isIntlConstructor(initial)||
+         initial.type==='Identifier'&&intlAliases.has(initial.name)){
+        if(!intlAliases.has(binding.name)){
+          intlAliases.add(binding.name);
+          originChanged=true;
+        }
+      }
+    });
+  }
+  // A Date instance passed to another function or container could be used
+  // with a local-time getter beyond the syntactically visible call site.
+  // Retain a small positive proof for direct UTC-only method invocations.
+  const utcDateMethods=new Set(['getTime','valueOf','toISOString','toJSON',
+    'getUTCDate','getUTCDay','getUTCFullYear','getUTCHours',
+    'getUTCMilliseconds','getUTCMinutes','getUTCMonth','getUTCSeconds']);
+  /** @type {Set<import('./ast').AstNode>} */
+  const utcDateReceivers=new Set();
+  walk(body,node=>{
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       utcDateMethods.has(keyName(node.callee)??'')){
+      utcDateReceivers.add(node.callee.object);
+    }
+  });
+  let configurationTouched=false;
   let prototypeTouched=false;
   let regexpTouched=false;
   let intrinsicTouched=false;
@@ -218,6 +312,49 @@ function realmStateObservation(body){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    if((node.type==='CallExpression'||node.type==='NewExpression')&&
+       (isIntlConstructor(node.callee)||
+         node.callee.type==='Identifier'&&intlAliases.has(node.callee.name))) {
+      configurationTouched=true;
+    }
+    if(node.type==='CallExpression'&&isDateConstructor(node.callee)) {
+      // Calling Date as an ordinary function always formats the host clock.
+      configurationTouched=true;
+    }
+    if(node.type==='NewExpression'&&isDateConstructor(node.callee)&&
+       !fixedDateConstruction(node))configurationTouched=true;
+    // Whitelisted UTC reads must retain the Date receiver locally. A
+    // function argument, returned Date, container element or method extraction
+    // can otherwise apply a timezone-dependent operation beyond this scan.
+    if(node.type==='NewExpression'&&isDateConstructor(node.callee)&&
+       !(parent?.type==='VariableDeclarator'&&parent.init===node&&
+         parent.id.type==='Identifier')&&!utcDateReceivers.has(node)){
+      configurationTouched=true;
+    }
+    if(node.type==='Identifier'&&dateInstances.has(node.name)&&
+       !(parent?.type==='VariableDeclarator'&&
+         (parent.id===node||parent.init===node&&
+           parent.id.type==='Identifier'&&dateInstances.has(parent.id.name)))&&
+       !(parent?.type==='AssignmentExpression'&&
+         (parent.left===node||parent.right===node&&
+           parent.left.type==='Identifier'&&dateInstances.has(parent.left.name)))&&
+       !utcDateReceivers.has(node)&&!isStaticKey(parent,key)){
+      configurationTouched=true;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
+      const method=keyName(node.callee);
+      if(isDateConstructor(node.callee.object)&&
+         (method==='now'||method==='parse'&&
+           !(node.arguments.length===1&&pinnedIsoUtcLiteral(node.arguments[0])))){
+        configurationTouched=true;
+      }
+      const receiver=node.callee.object;
+      if(dateLocalMethods.has(method??'')&&
+         (receiver.type==='NewExpression'&&isDateConstructor(receiver.callee)||
+          receiver.type==='Identifier'&&dateInstances.has(receiver.name))) {
+        configurationTouched=true;
+      }
+    }
     // A builtin identity copied into an array/object, returned or passed to
     // an opaque function can be mutated through that carrier without any
     // syntactically direct write to Math/JSON/etc. Decline such first-class
@@ -292,7 +429,7 @@ function realmStateObservation(body){
        isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
   return prototypeTouched?'prototype':regexpTouched?'RegExp match':
-    intrinsicTouched?'intrinsic state':null;
+    intrinsicTouched?'intrinsic state':checkHostConfiguration&&configurationTouched?'configuration':null;
 }
 
 /**
@@ -353,7 +490,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     const ast=parse(code,'module');
     // The source snapshot lets us apply the same bounded intrinsic-state
     // refusal used for directly partitioned functions to imported modules.
-    const realmEffect=realmStateObservation(ast);
+    const realmEffect=realmStateObservation(ast,true);
     if(realmEffect) {
       throw new TypeError('SCO private static dependency contains realm-local '+realmEffect+' access: '+filename);
     }
@@ -862,7 +999,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     'localStorage','sessionStorage','indexedDB','self','history','screen',
     'customElements','DOMParser','XMLHttpRequest']);
   for(const body of privateBodies){
-    const realmEffect=realmStateObservation(body);
+    const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
     }
