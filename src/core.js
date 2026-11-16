@@ -11,6 +11,7 @@ const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
+const {flattenStatementFlow} = require('./statement-flow');
 const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
@@ -18,9 +19,9 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[]}} SourceFile */
-/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
+/** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean}} ObfuscationOptions
  */
 
 /**
@@ -536,6 +537,27 @@ function obfuscateFiles(files, options = {}) {
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
+    const statementNames=options.experimentalStatementFlow?.[filename]??[];
+    let statementFlowFunctions=0,statementFlowBlocks=0;
+    if(statementNames.length){
+      if(sourceType==='script'||remoteSourceObserver){
+        throw new TypeError('Statement flow requires a module/CommonJS without cross-file source observation');
+      }
+      if(statementNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
+          nativeNames.includes(name)||branchNames.includes(name))){
+        throw new TypeError('Do not select the same function for multiple experimental backends');
+      }
+      const transformed=flattenStatementFlow(code,sourceType,{seed:salt,names:statementNames});
+      if(transformed.declined){
+        throw new TypeError('Statement flow declined '+transformed.declined+
+          ' selected function(s) in '+filename+
+          '; require a supported multi-statement if/else function');
+      }
+      code=transformed.code;
+      statementFlowFunctions=transformed.functions;
+      statementFlowBlocks=transformed.blocks;
+      ast=parse(code,sourceType);
+    }
     const wasmNames=options.experimentalWasmI32?.[filename]??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
@@ -543,7 +565,7 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Wasm i32 requires a module/CommonJS without cross-file source observation');
       }
       if(wasmNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
-          nativeNames.includes(name)||branchNames.includes(name))) {
+          nativeNames.includes(name)||branchNames.includes(name)||statementNames.includes(name))) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const lowered=lowerWasmI32Functions(code,sourceType,{seed:salt,names:wasmNames});
@@ -567,7 +589,8 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Polyvariant affine requires a module/CommonJS without cross-file source observation');
       }
       if(polyvariantNames.some(name=>vmNames.includes(name)||expressionNames.includes(name)||
-          nativeNames.includes(name)||branchNames.includes(name)||wasmNames.includes(name))) {
+          nativeNames.includes(name)||branchNames.includes(name)||wasmNames.includes(name)||
+          statementNames.includes(name))) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const transformed=lowerPolyvariantAffine(code,sourceType,{
@@ -636,6 +659,10 @@ function obfuscateFiles(files, options = {}) {
     if(branchNames.length) {
       metrics.branchFunctions=branchFunctions;
       metrics.branchBlocks=branchBlocks;
+    }
+    if(statementNames.length){
+      metrics.statementFlowFunctions=statementFlowFunctions;
+      metrics.statementFlowBlocks=statementFlowBlocks;
     }
     if(polyvariantNames.length) {
       metrics.polyvariantFunctions=polyvariantFunctions;
