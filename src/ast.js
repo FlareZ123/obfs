@@ -772,6 +772,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const stringCoercionMethods=new Set(['includes','startsWith','endsWith',
     'indexOf','lastIndexOf','split','replace','replaceAll','match','matchAll',
     'search','localeCompare','concat','padStart','padEnd']);
+  // Array methods that can implicitly call a contained function's source-
+  // revealing string conversion. Sorting is especially easy to overlook:
+  // its default comparator applies ToString to elements without an explicit
+  // String(...) call in the program.
+  const sourceCoercingArrayMethods=new Set(['join','toString',
+    'toLocaleString','sort','toSorted']);
   // A captured Reflect.get or Object.getOwnPropertyDescriptor can retrieve
   // Function#toString without any direct reflective call at the use site.
   // Overapproximate named aliases: shadowing or mutation can only cause a
@@ -1174,7 +1180,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         observed=true;
       }
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
-         memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
+         sourceCoercingArrayMethods.has(memberName(callee)??'')&&
+         containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
