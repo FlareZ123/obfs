@@ -90,14 +90,14 @@ test('SCO graph fingerprints block exact original source copies and original exp
   // generated RPC facade may be served. A private-path-only guard misses it.
   assert.throws(()=>createScoHandler([
     graph.clientFiles[1],{...originals[0],sourceType:'module'}
-  ]),/original private graph source: api\\.mjs/);
+  ]),/original private graph source: api\.mjs/);
 
   // Copying the exact server-only secret to a new filename bypasses the
   // known private pathname set. The content fingerprint still rejects it.
   const alias={...originals[2],path:'shadow.mjs',sourceType:'module'};
   assert.throws(()=>createScoHandler([
     ...graph.clientFiles,alias
-  ]),/original private graph source: shadow\\.mjs/);
+  ]),/original private graph source: shadow\.mjs/);
   assert.throws(()=>createScoHandler([
     {...graph.clientFiles[0],privateOriginalDigests:['invalid']}
   ]),/privateOriginalDigests must be SHA-256/);
@@ -121,6 +121,6 @@ test('SCO graph fingerprints block exact original source copies and original exp
   // A changed source byte changes the fingerprint. This guard is deployment
   // mistake prevention for exact copies, not semantic source similarity.
   assert.doesNotThrow(()=>createScoHandler([
-    graph.clientFiles[0],{...alias,code:alias.code+'\\n'}
+    graph.clientFiles[0],{...alias,code:alias.code+'\n'}
   ]));
 });
