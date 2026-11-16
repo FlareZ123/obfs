@@ -91,3 +91,27 @@ integration under Node 22:
 node examples/application-challenge/sco-build.cjs --check
 node --test test/application-challenge-sco.test.js
 ```
+
+## Server-only no-control comparison
+
+The same frozen six-module ESM application now runs under the SNO
+single-entry contract: an actual preobfuscation build generates a CommonJS
+bridge and `sno-entry.cjs` launcher, whose SHA-256 checks cover every
+application module. The [pinned Linux/Windows manual gate
+43811902422](https://github.com/FlareZ123/obfs/actions/runs/43811902422)
+passed **85/85** native-versus-SNO test inputs on each platform. Source
+observation declined all transforms: the original 2,786 application bytes
+were delivered byte-for-byte, with no renamed properties or bindings.
+
+An [independent public-files-only
+attacker](../../sims/application-challenge-sno-public-attacker.js) runs in a
+separate Node process and clones all observed outputs offline. It also changes
+its copied entry module, observes the hash-rejection outcome, and recomputes
+the digest embedded in the public launcher to run its modified program.
+Measured nine-trial whole-process medians were **1.106× / 1.076×** for
+one-event / 120,000-event Ubuntu workloads and **1.101× / 1.097×**
+on Windows. These samples satisfy the narrow 2.5× budget but represent
+launcher overhead around untransformed code, without increased attacker cost.
+See the [reproducible SNO report](../../im-results/application-challenge-sno-owner-attack-2026-11-16.md)
+and [focused test](../../test/application-challenge-sno.test.js).
+
