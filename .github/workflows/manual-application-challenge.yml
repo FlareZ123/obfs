@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install pinned dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Diagnose private-field proof refusal and positive control
+        run: node sims/application-challenge-proof-diagnosis.js
       - name: Build exact generated public bytes for snapshot review
         run: node examples/application-challenge/build.cjs --dump
       - name: Differential semantics and offline attacker baseline
