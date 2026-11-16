@@ -9,6 +9,7 @@
     "test/wasm-i32-multiparam.test.js",
     "test/wasm-i32-multifile.test.js",
     "test/wasm-i32-conditional.test.js",
+    "test/wasm-i32-lazy-conditional.test.js",
     "test/wasm-i32-static-recovery.test.js",
     "test/wasm-i32-nested-fuzz.test.js",
     "test/wasm-i32-early-cycle.test.js",
