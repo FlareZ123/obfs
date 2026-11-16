@@ -767,17 +767,33 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           hasFunctionKey(node.arguments[1])) observed=true;
       // Obtaining an inherited or own Function.prototype.toString method
       // through Reflect.get/descriptor APIs exposes native source inspection
-      // without any syntactic member access named "toString". A dynamic key
-      // can select a source method even when the key expression has no
-      // directly recognizable string spelling.
-      if((callee.type==='MemberExpression' && isReflectiveReceiver(callee.object) &&
-          ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
-          callee.type==='Identifier' && reflectiveReaders.has(callee.name)) &&
-          node.arguments.length>=2) {
-        const selected=sourceStringKey(node.arguments[1]);
-        if(selected===null || ['toString','toSource','toLocaleString'].includes(selected)) {
+      // without any syntactic member access named "toString". Dynamic keys,
+      // spread arguments, and Function#call/apply/bind can hide that method.
+      const reflectiveRead=callee.type==='MemberExpression' &&
+        isReflectiveReceiver(callee.object) &&
+        ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') ||
+        callee.type==='Identifier' && reflectiveReaders.has(callee.name);
+      if(reflectiveRead) {
+        if(node.arguments.some((/** @type {AstNode} */ value)=>
+             value.type==='SpreadElement') || node.arguments.length<2) {
           observed=true;
+        } else {
+          const selected=sourceStringKey(node.arguments[1]);
+          if(selected===null || ['toString','toSource','toLocaleString'].includes(selected)) {
+            observed=true;
+          }
         }
+      }
+      if(callee.type==='MemberExpression' &&
+         ['call','apply','bind'].includes(memberName(callee)??'') &&
+         (callee.object.type==='Identifier' &&
+            reflectiveReaders.has(callee.object.name) ||
+          callee.object.type==='MemberExpression' &&
+            isReflectiveReceiver(callee.object.object) &&
+            ['get','getOwnPropertyDescriptor'].includes(memberName(callee.object)??''))) {
+        // For indirect invocations the selected key and receiver are no
+        // longer in canonical positions; decline rather than infer them.
+        observed=true;
       }
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
