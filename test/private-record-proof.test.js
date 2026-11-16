@@ -35,7 +35,7 @@ const positive=[
   'const record={tag:"metadata",owner:vault,nonce:9n};',
   'const left=record.owner;',
   'const right=record["owner"];',
-  'function identity(v){return v;}',
+  'function identity(y){return y;}',
   'const reader=v=>v.hiddenCount;',
   'module.exports=function run(n){return reader(identity(left))*n+right.secretDelta+vault.hiddenCount;}'
 ].join('\n');
