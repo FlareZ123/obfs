@@ -14,6 +14,7 @@ const {createScoBatchMethod} = require('./rpc-batch');
 const {preflightScoBatchState} = require('./rpc-batch-policy');
 const {partitionScoAsyncModule,bindScoModuleExports} = require('./sco-partition');
 const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
+const {verifyScoPrivateSourceDigests}=require('./sco-private-integrity');
 const {partitionScoAsyncGraph,bindScoGraphExports} = require('./sco-graph');
 
-module.exports = {partitionScoSelectedAsyncExports,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
+module.exports = {verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
