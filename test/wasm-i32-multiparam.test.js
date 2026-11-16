@@ -5,6 +5,8 @@ const {test}=require('node:test');
 const vm=require('node:vm');
 const {performance}=require('node:perf_hooks');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
+const {parse}=require('../src/ast');
+const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 const {obfuscateFiles}=require('../src/core');
 
 /**
@@ -45,6 +47,26 @@ function randomI32(){
   return randomState|0;
 }
 
+/**
+ * Canonical native expression, independently parsed without examining Wasm.
+ * @param {string} expression
+ * @returns {string}
+ */
+function canonical(expression){
+  const ast=parse('function f(a,b,c,d){return '+expression+';}','commonjs');
+  const root=ast.body[0].body.body[0].argument;
+  /** @param {import('../src/ast').AstNode} node @returns {string} */
+  function visit(node){
+    if(node.type==='Identifier')return node.name;
+    if(node.type==='Literal')return String(node.value);
+    if(node.type==='UnaryExpression'&&node.operator==='-'&&node.argument.type==='Literal')return String(-node.argument.value);
+    if(node.type==='UnaryExpression'&&node.operator==='~')return '(~'+visit(node.argument)+')';
+    if(node.type==='BinaryExpression')return '('+visit(node.left)+node.operator+visit(node.right)+')';
+    throw new TypeError('Unexpected bitvector node '+node.type);
+  }
+  return visit(root);
+}
+
 /** @param {string} source @returns {Uint8Array} */
 function extractPublicBinary(source){
   const encoded=source.match(/Uint8Array\.from\((\[[0-9,]+\])\)/u);
@@ -64,6 +86,11 @@ test('2-4 typed parameters preserve native signed/unsigned results and enable pu
       assert.equal(emitted.functions,1);
       assert.equal(emitted.declined,0);
       const transformed=load(emitted.code);
+      const recovered=recoverPublicWasmExpression(emitted.code,candidate.parameters.split(','));
+      assert.equal(recovered.expression,canonical(candidate.expression),
+        'Independent public-Wasm AST recovery: '+candidate.name+'/'+seed);
+      const reconstructed=load('function f('+candidate.parameters+'){return '+
+        recovered.expression+';}module.exports=f;');
       const binary=extractPublicBinary(emitted.code);
       assert.ok(WebAssembly.validate(binary));
       const cloned=/** @type {(...args:number[])=>number} */ (
@@ -73,6 +100,7 @@ test('2-4 typed parameters preserve native signed/unsigned results and enable pu
         const args=Array.from({length:candidate.arity},(_,i)=>i%2?a^0x12345:a);
         const expected=native(...args);
         assert.equal(transformed(...args),expected);
+        assert.equal(reconstructed(...args),expected);
         assert.equal(candidate.unsigned?(cloned(...args)>>>0):cloned(...args),expected);
         comparisons++;
       }
@@ -80,6 +108,7 @@ test('2-4 typed parameters preserve native signed/unsigned results and enable pu
         const args=Array.from({length:candidate.arity},randomI32);
         const expected=native(...args);
         assert.equal(transformed(...args),expected);
+        assert.equal(reconstructed(...args),expected);
         assert.equal(candidate.unsigned?(cloned(...args)>>>0):cloned(...args),expected);
         comparisons++;
       }
