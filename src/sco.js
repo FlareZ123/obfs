@@ -324,7 +324,11 @@ function createScoHandler(sourceFiles,options={}) {
     if(sourceType!=='asset'&&typeof code!=='string'){
       throw new TypeError(filename+' JavaScript must be UTF-8 text');
     }
-    const normalizedFile = {...file,code,path:filename,sourceType};
+    // Build only the documented SourceFile fields: spreading the caller's
+    // object would invoke a code getter again even after taking the snapshot.
+    const normalizedFile = {path:filename,code,sourceType,
+      privateModulePaths:file.privateModulePaths,
+      privateOriginalDigests:file.privateOriginalDigests};
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
