@@ -66,9 +66,9 @@ and loader proof exists.
 This preflight remains incomplete: custom I/O functions, hidden aliases,
 external modules, alternative byte transports, build-time postprocessing,
 remote source archives and target/runtime-dependent source-fetch behavior
-are not proven safe. An optional host-lock wrapper still changes the served
-source and may be incompatible with source-byte introspection. Reject or
-redesign such combinations at integration time. The guard preserves the
+are not proven safe. A requested host-lock wrapper would change the served source and contradict
+exact source-byte inspection. The compiler and SCO handler therefore reject the
+recognized combination rather than emitting an incompatible script. The guard preserves the
 tested native contracts; it provides no stronger obfuscation secrecy or
 tamper-resistance in a fully controlled runtime. Regression witnesses:
 `test/cross-file-source-byte-reader.test.js`.
