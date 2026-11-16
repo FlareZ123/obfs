@@ -47,7 +47,8 @@
     "sims/public-token-normalizer.js",
     "test/public-token-normalizer.test.js",
     "sims/esm-observation-session.js",
-    "test/esm-observation-session.test.js"
+    "test/esm-observation-session.test.js",
+    "test/esm-observation-browser.js"
   ],
   "exclude": [
     "node_modules"
