@@ -101,6 +101,8 @@ It obtains the original three side effects and answer 24 on both OSes.
 The script imports none of the original source modules or compiler
 and has no seed, private key or authorized service.
 
+A separately reproduced [Chromium import-map redirection attack](closed-graph-importmap-bypass-2026-11-16.md) used **unchanged** published guarded files under an unauthorized hostname. Without a map, the denied module graph caused zero body events. A hostile HTML import map redirected one dependency to an unguarded module, which emitted a visible side effect **before** the protected importer rejected. This is a concrete URL-resolution counterexample and strengthens the reason to scope this capability to expected, trusted module resolution.
+
 This is a successful hostile-client **guard bypass** in the precise COO
 attacker model. Recovered execution does not require recovering the
 original field spellings, since the renamed fields remain consistent in
