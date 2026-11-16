@@ -163,3 +163,25 @@ test('host-provided global callable cannot be assumed loader-inert',async()=>{
   assert.equal(compiled.crossFile.properties,0,
     'A host-provided global callable may implement a dynamic import loader');
 });
+
+for(const [label,setup,invoke] of [
+  ['direct global method','','globalThis.RUNTIME_FACTORY'],
+  ['transitive callable alias',
+    'const first=globalThis.RUNTIME_FACTORY;const ctor=first;','ctor']
+]) {
+  test('host-provided loader via '+label+' cannot evade the record proof',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await '+invoke+'("return import(\\'./state.mjs\\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-loader-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
