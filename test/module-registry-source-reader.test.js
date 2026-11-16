@@ -135,16 +135,16 @@ const internalFsRoutes=[
 
 for(const [name,expression] of internalFsRoutes) {
   test('Node 22 internal filesystem binding preserves source bytes: '+name,async()=>{
-    const code="'use strict';\\n"+
-      'const io='+expression+';\\n'+
-      'const privateObject={secretField:31};\\n'+
-      "const bytes=io.readFileUtf8(__filename,0);\\n"+
-      "console.log(privateObject.secretField,bytes.includes('secretField'));\\n";
+    const code="'use strict';\n"+
+      'const io='+expression+';\n'+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileUtf8(__filename,0);\n"+
+      "console.log(privateObject.secretField,bytes.includes('secretField'));\n";
     /** @type {Source[]} */
     const files=[{path:'main.cjs',sourceType:'commonjs',code}];
     const native=await execute(files,'main.cjs');
     assert.equal(native.status,0,native.stderr);
-    assert.equal(native.stdout,'31 true\\n');
+    assert.equal(native.stdout,'31 true\n');
     assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
     const output=obfuscateFiles(files,{mode:'sno',seed:'node-internal-fs/'+name,
       strings:true,properties:true,identifiers:true});
