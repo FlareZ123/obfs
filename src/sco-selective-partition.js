@@ -215,6 +215,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const localeConstructors=new Set(['DateTimeFormat','NumberFormat','Collator',
     'PluralRules','RelativeTimeFormat','ListFormat','DisplayNames','Segmenter',
     'DurationFormat']);
+  // ECMAScript's locale-sensitive prototype methods implicitly construct
+  // Intl formatters from the executing host's defaults. They can return
+  // different JSON-visible strings across client/server locales even if no
+  // identifier named Intl appears in the original private body.
+  const localePrototypeMethods=new Set(['toLocaleString','toLocaleLowerCase',
+    'toLocaleUpperCase','localeCompare']);
   const dateLocalMethods=new Set(['getDate','getDay','getFullYear','getHours',
     'getMilliseconds','getMinutes','getMonth','getSeconds','getTimezoneOffset',
     'getYear','setDate','setFullYear','setHours','setMilliseconds','setMinutes',
@@ -343,6 +349,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'){
       const method=keyName(node.callee);
+      if(localePrototypeMethods.has(method??''))configurationTouched=true;
+      // ICU support is host-specific even when requested locale names are
+      // explicitly pinned. This static utility does not construct an Intl
+      // formatter and otherwise bypasses the constructor gate above.
+      if(method==='supportedLocalesOf'&&
+         (isIntlConstructor(node.callee.object)||
+          node.callee.object.type==='Identifier'&&
+          intlAliases.has(node.callee.object.name)))configurationTouched=true;
       if(isDateConstructor(node.callee.object)&&
          (method==='now'||method==='parse'&&
            !(node.arguments.length===1&&pinnedIsoUtcLiteral(node.arguments[0])))){
