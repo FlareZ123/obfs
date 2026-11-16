@@ -258,3 +258,59 @@ test('SCO graph helper accepts matching custom RPC route and denies default rout
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+
+test('composed SCO graph seals facades and method metadata against post-partition mutation',async()=>{
+  const make=()=>partitionScoAsyncGraph(originals,{
+    seed:'sco-graph-postpartition-seal-20261116',
+    exposedPaths:['api.mjs','audit.mjs']
+  });
+  const namespaces={
+    'api.mjs':{calculate:async x=>41+x},
+    'audit.mjs':{inspect:async x=>41+x}
+  };
+  const options={authorizeRpc:()=>true,authorizeRead:()=>true};
+  const privateCopy=originals[2].code+'\n';
+  const intact=make();
+  assert.doesNotThrow(()=>createScoGraphHandler(intact,namespaces,options));
+
+  // Before the new manifest seal, a deployment could overwrite the expected
+  // facade with a byte-modified original under an approved public pathname.
+  // The positive path allowlist and exact-original digest both permit it.
+  const legacy=http.createServer(createScoHandler([
+    {path:'api.mjs',sourceType:'module',code:privateCopy},
+    intact.clientFiles[1]
+  ],{publicPaths:['api.mjs','audit.mjs']}));
+  await new Promise(resolve=>legacy.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=legacy.address();
+    assert.ok(address&&typeof address==='object');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/api.mjs');
+    assert.equal(response.status,200);
+    assert.match(await response.text(),/SERVER_PRIVATE_GRAPH_CANARY_78341/);
+  }finally{
+    await new Promise((resolve,reject)=>legacy.close(error=>error?reject(error):resolve()));
+  }
+
+  /** @type {Array<(g:ReturnType<typeof partitionScoAsyncGraph>)=>void>} */
+  const mutate=[
+    g=>{g.clientFiles[0].code=privateCopy;},
+    g=>{g.clientFiles[0].privateOriginalDigests=[];},
+    g=>{g.partitions['api.mjs'].methodNames.calculate='mForgedMethod';},
+    g=>{g.partitions['api.mjs'].names[0]='inspect';},
+    g=>{g.privatePaths.push('unreviewed.mjs');}
+  ];
+  for(const alter of mutate){
+    const graph=make();
+    alter(graph);
+    assert.throws(()=>createScoGraphHandler(graph,namespaces,options),
+      /SCO graph manifest was modified after partitioning/u);
+  }
+
+  // A JSON-roundtripped or shallow-copied manifest lacks the private
+  // in-process seal, even when its public fields happen to be identical.
+  assert.throws(()=>createScoGraphHandler(
+    /** @type {ReturnType<typeof partitionScoAsyncGraph>} */ (JSON.parse(JSON.stringify(intact))),
+    namespaces,options
+  ),/SCO graph manifest was modified after partitioning/u);
+});
