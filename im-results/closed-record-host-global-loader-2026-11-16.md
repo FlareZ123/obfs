@@ -48,3 +48,20 @@ The analysis is incomplete for arbitrary nested global objects, extracted method
 There is no claim of stronger obfuscation or universal 2.5x hot-work conformance. The patch can reduce admissible property renaming for applications that call opaque host functions. Its positive-control protection yield must be monitored, and unchanged frozen source-observing graphs must be separated from intentionally modified positive fixtures.
 
 **Reproduce:** node --test test/cross-file-safe-record-read.test.js, then manual-application-challenge.yml on the exact source pin. The full Linux/Windows/Chromium validation matrix is a separate release gate.
+
+
+## Adversarial alias-extension matrix and second fix
+
+The first guard still missed three additional host loader patterns. The same three-file ESM graph and real Node host preloader were used, with only the capability-access expression changing:
+
+| Runtime capability expression | Native owner key | Pre-fix distributed key | Result |
+| --- | --- | --- | --- |
+| const root=globalThis;const ctor=root.RUNTIME_FACTORY; | secretField | _p97b285433a74 | Native/delivered unequal |
+| const {RUNTIME_FACTORY:ctor}=globalThis; | secretField | _p069567f5c688 | Native/delivered unequal |
+| const ctor=Object.getOwnPropertyDescriptor(globalThis,"RUNTIME_FACTORY").value; | secretField | _p490725f062ae | Native/delivered unequal |
+
+**Red:** [two-platform run 43844276787](https://github.com/FlareZ123/obfs/actions/runs/43844276787), exact source 4cb7bf2cae3ea3f4735cde15137fc9d64f085b69. All three new host loader comparisons failed on Linux and Windows; the earlier three direct/alias cases remained green.
+
+**Green:** [two-platform run 43844631273](https://github.com/FlareZ123/obfs/actions/runs/43844631273), exact source addfeaf30c5b32a3f900596959afd1fb90fedee0. Linux, Windows and legacy Node 22 lanes passed, including the expanded six hostile loader shapes and the existing positive frozen own-field diagnostic. The new proof blocker resolves simple aliases of the global root before detecting first-class callable aliases. It recognizes destructured fields and the returned value of Object.getOwnPropertyDescriptor/Reflect.get for recognized global objects. More complex escape routes remain unproved.
+
+Both patches are conservative refusal only. When these runtime-callable shapes exist, the computed private-record proof must not authorize a separate object-property rename. No static-recovery, runtime-tamper, or online-oracle security increase follows from these tests.
