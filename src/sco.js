@@ -293,7 +293,11 @@ function createScoHandler(sourceFiles,options={}) {
     if(sourceType!=='asset'&&typeof file.code!=='string') {
       throw new TypeError(filename+' JavaScript must be UTF-8 text');
     }
-    const normalizedFile = {...file,path:filename,sourceType};
+    // A mutable caller-owned Buffer can be changed after this one-time
+    // disclosure preflight, causing later GETs to serve unvalidated bytes.
+    // Take an owned snapshot before scanning and publishing asset content.
+    const code=Buffer.isBuffer(file.code)?Buffer.from(file.code):file.code;
+    const normalizedFile = {...file,code,path:filename,sourceType};
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
