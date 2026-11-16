@@ -232,7 +232,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           node.callee.object.type==='Identifier' &&
           node.arguments[0]?.type==='Identifier') {
         const receiver=node.arguments[0].name;
-        if(reflectNames.has(receiver)||objectNames.has(receiver)) {
+        if(reflectNames.has(receiver)||objectNames.has(receiver)||globalNames.has(receiver)) {
           const method=node.callee.computed?
             staticString(node.callee.property):staticName(node.callee.property);
           const callee=node.callee.object.name;
@@ -250,7 +250,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       if(target?.type!=='MemberExpression'||target.object.type!=='Identifier')return;
       const method=target.computed?staticString(target.property):staticName(target.property);
       if(reflectNames.has(target.object.name)&&method==='ownKeys' ||
-         objectNames.has(target.object.name)&&method==='getOwnPropertyDescriptor') {
+         objectNames.has(target.object.name)&&method==='getOwnPropertyDescriptor' ||
+         globalNames.has(target.object.name) &&
+           (method===null||method==='Reflect'||method==='Object')) {
+        // The bare global bindings resolve through this object in browsers
+        // and Node. Replacing the complete builtin invalidates its methods.
         changedIntrinsic=true;
       }
     });
