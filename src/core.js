@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -313,10 +313,11 @@ function obfuscateFiles(files, options = {}) {
   // consumer, so preserve all original source spellings across the file group.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
-  const remoteSourceObserver=prepared.length>1 && prepared.some(file=>
+  const remoteSourceObserver=prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    observesFunctionSource(parse(file.code,file.sourceType),
-      importedStringProof.get(file.path)));
+    (observesDistributedSource(parse(file.code,file.sourceType)) ||
+      prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
+        importedStringProof.get(file.path))));
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
