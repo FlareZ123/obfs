@@ -133,6 +133,14 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // otherwise hide later exact-source reads through dynamic property keys.
   const reflectiveReceivers=new Set(['Reflect','Object']);
   walk(ast,node=>{
+    if(node.type==='ImportDeclaration' &&
+       ['v8','node:v8'].includes(String(node.source?.value??''))) {
+      for(const spec of node.specifiers) {
+        if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))v8Modules.add(spec.local.name);
+        if(spec.type==='ImportSpecifier' &&
+           (spec.imported.name??spec.imported.value)==='serialize')v8Serializers.add(spec.local.name);
+      }
+    }
     if((node.type==='FunctionDeclaration'||node.type==='ClassDeclaration') &&
        node.id?.type==='Identifier')functions.add(node.id.name);
     if((node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier') &&
@@ -207,6 +215,8 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
   const cloneFunctions=new Set(['structuredClone']);
+  const v8Modules=new Set();
+  const v8Serializers=new Set();
   const aggregateErrors=new Set(['AggregateError']);
   // Web IDL string arguments and string-valued record/sequence entries also
   // invoke ToString, so exposed source can cross a browser API boundary.
@@ -271,6 +281,18 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     return Boolean(node && (node.type==='Identifier' && cloneFunctions.has(node.name) ||
       node.type==='MemberExpression' && isGlobal(node.object) &&
         memberName(node)==='structuredClone'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isV8Module(node) {
+    return Boolean(node && (node.type==='Identifier' && v8Modules.has(node.name) ||
+      isRequireCall(node) &&
+      ['v8','node:v8'].includes(staticString(node.arguments[0])??'')));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isV8Serialize(node) {
+    return Boolean(node && (node.type==='Identifier' && v8Serializers.has(node.name) ||
+      node.type==='MemberExpression' && memberName(node)==='serialize' &&
+      isV8Module(node.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isAggregateError(node) {
@@ -347,6 +369,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isV8Module(value))changed=add(v8Modules,name)||changed;
+        if(isV8Serialize(value) || value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isV8Serialize(value.callee.object)) {
+          changed=add(v8Serializers,name)||changed;
+        }
         if(isStructuredClone(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -452,6 +481,15 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           if(key!==null&&known.has(key)) {
             changed=add(functions,property.value.name)||changed;
           }
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isV8Module(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='serialize')changed=add(v8Serializers,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -827,6 +865,20 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // Node's V8 serializer reuses structured clone rules and can expose the
+      // exact source of a failed function operand in its error message.
+      if(node.type==='CallExpression' && isV8Serialize(callee) &&
+         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isV8Serialize(callee.object)) {
+        const method=memberName(callee);
+        if(method==='call' && node.arguments[1] &&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(method==='apply'||method==='bind')observed=true;
+      }
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         isV8Serialize(node.arguments[0]))observed=true;
       // WHATWG structured cloning throws a source-bearing DataCloneError
       // when a function is submitted directly or through an object graph.
       // Unknown inputs may contain functions; keep primitive-only calls safe.
