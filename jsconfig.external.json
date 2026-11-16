@@ -28,6 +28,7 @@
     "sims/mba-layered-recover.js",
     "sims/application-challenge-refusal-yield.js",
     "sims/application-challenge-token-neutralize.js",
+    "sims/application-challenge-token-neutralize-attacker.js",
     "sims/computed-refusal-ablation.js",
     "sims/application-challenge-sno.js",
     "sims/application-challenge-sno-public-attacker.js",
