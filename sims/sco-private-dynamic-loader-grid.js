@@ -1,12 +1,13 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const http=require('node:http');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
-const {partitionScoSelectedAsyncExports}=require('../src');
+const {partitionScoSelectedAsyncExports,createScoHandler}=require('../src');
 
 /**
  * Independent private-graph source-completeness challenge. Each unsafe
@@ -69,7 +70,8 @@ const entry=[
 /**
  * @param {Fixture} fixture
  * @returns {Promise<{name:string,unsafe:boolean,nativeValue:number,admitted:boolean,
- *   privatePaths:string[],reason:string}>}
+ *   privatePaths:string[],reason:string,publicLeakStatus:number|null,
+ *   allowlistRefused:boolean}>}
  */
 async function evaluate(fixture){
   const code=source(fixture);
@@ -90,11 +92,43 @@ async function evaluate(fixture){
         privateModuleImports:['./private/engine.mjs'],
         privateModuleSources:[{path:'private/engine.mjs',code}]
       });
+      const privatePaths=partition.clientFile.privateModulePaths??[];
+      /** @type {number|null} */
+      let publicLeakStatus=null;
+      let allowlistRefused=false;
+      if(fixture.unsafe&&!privatePaths.includes('private/deep/secret.mjs')){
+        const published=[
+          partition.clientFile,
+          {path:'private/deep/secret.mjs',code:'export const secretValue=41;\\n'}
+        ];
+        // Accidentally adding an undiscovered private leaf to sourceFiles
+        // is a real HTTP disclosure without an independent public allowlist.
+        const server=http.createServer(createScoHandler(published));
+        try{
+          await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+          const address=server.address();
+          assert.ok(address&&typeof address!=='string');
+          const response=await fetch('http://127.0.0.1:'+
+            address.port+'/obfs/private/deep/secret.mjs');
+          publicLeakStatus=response.status;
+          assert.match(await response.text(),/secretValue/u);
+        }finally{
+          await new Promise((resolve,reject)=>
+            server.close(error=>error?reject(error):resolve()));
+        }
+        assert.throws(()=>createScoHandler(published,{
+          publicPaths:['entry.mjs']
+        }),/source is not in publicPaths/u);
+        allowlistRefused=true;
+        assert.doesNotThrow(()=>createScoHandler([partition.clientFile],{
+          publicPaths:['entry.mjs']
+        }));
+      }
       return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
-        admitted:true,privatePaths:partition.clientFile.privateModulePaths??[],reason:''};
+        admitted:true,privatePaths,reason:'',publicLeakStatus,allowlistRefused};
     }catch(error){
       return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
-        admitted:false,privatePaths:[],
+        admitted:false,privatePaths:[],publicLeakStatus:null,allowlistRefused:false,
         reason:error instanceof Error?error.message:String(error)};
     }
   }finally{
@@ -116,6 +150,8 @@ async function main(){
     unsafeAdmittedWithMissingLeaf:unsafe.filter(x=>x.admitted&&
       !x.privatePaths.includes('private/deep/secret.mjs')).length,
     unsafeRefused:unsafe.filter(x=>!x.admitted).length,
+    missedAndPubliclyServed:unsafe.filter(x=>x.publicLeakStatus===200).length,
+    publicAllowlistBlocked:unsafe.filter(x=>x.allowlistRefused).length,
     safeControls:safe.length,
     safeAdmitted:safe.filter(x=>x.admitted).length,
     safeRefused:safe.filter(x=>!x.admitted).length,
@@ -124,6 +160,10 @@ async function main(){
   console.log('SCO_PRIVATE_DYNAMIC_LOADER_GRID '+JSON.stringify(summary));
   assert.equal(summary.safeAdmitted,summary.safeControls,
     'Known safe positive source controls must retain compiler coverage');
+  assert.equal(summary.missedAndPubliclyServed,summary.unsafeAdmittedWithMissingLeaf,
+    'Every admitted undetected leaf must be reachable via the misconfigured HTTP handler');
+  assert.equal(summary.publicAllowlistBlocked,summary.missedAndPubliclyServed,
+    'The explicit publicPaths boundary must reject each undiscovered source leak');
 }
 
 main().catch(error=>{console.error(error);process.exitCode=1;});
