@@ -8,7 +8,7 @@ const http=require('node:http');
 const {registerHooks}=require('node:module');
 const {pathToFileURL,fileURLToPath}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
-const {partitionScoSelectedAsyncExports,createScoHandler}=require('../src');
+const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 
 /**
  * A trace collects *executed* module resolves, unlike the compiler's static
@@ -128,10 +128,60 @@ async function main(){
       publicPaths:['entry.mjs']
     }));
 
+    // The traced path list also preserves the expected SCO JSON RPC boundary
+    // for this two-branch original module. The public facade executes in Node
+    // with an explicit authenticated localhost fetch adapter.
+    await atomicWrite(path.join(root,'entry.mjs'),entry);
+    await atomicWrite(path.join(root,'client.mjs'),both.clientFile.code);
+    const native=await import(pathToFileURL(path.join(root,'entry.mjs')).href);
+    const remoteMethods=bindScoModuleExports(both,native);
+    const server=http.createServer(createScoHandler([both.clientFile],{
+      publicPaths:['entry.mjs'],remoteMethods,
+      authorizeRpc:request=>request.headers['x-test-session']==='allow',
+      authorizeRead:request=>request.headers['x-test-session']==='allow',
+      authorizeOperation:(request,method,args)=>
+        request.headers['x-test-session']==='allow'&&
+        method===both.methodNames.protectedOp&&
+        args.length===1&&typeof args[0]==='number'
+    }));
+    const originalFetch=globalThis.fetch;
+    let clientValues;
+    try{
+      await /** @type {Promise<void>} */ (new Promise(resolve=>
+        server.listen(0,'127.0.0.1',()=>resolve())));
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const origin='http://127.0.0.1:'+address.port;
+      const unauth=await originalFetch(origin+'/obfs/rpc',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({method:both.methodNames.protectedOp,args:[2]})
+      });
+      assert.equal(unauth.status,403);
+      assert.equal((await originalFetch(origin+'/obfs/'+odd.path,{
+        headers:{'x-test-session':'allow'}
+      })).status,404);
+      globalThis.fetch=(input,init)=>{
+        const headers=new Headers(init?.headers);
+        headers.set('x-test-session','allow');
+        return originalFetch(new URL(String(input),origin),{...init,headers});
+      };
+      const client=await import(pathToFileURL(path.join(root,'client.mjs')).href);
+      assert.equal(client.visible(9),native.visible(9));
+      const first=await client.protectedOp(2);
+      const second=await client.protectedOp(3);
+      assert.equal(first,await native.protectedOp(2));
+      assert.equal(second,await native.protectedOp(3));
+      clientValues=[first,second];
+    }finally{
+      globalThis.fetch=originalFetch;
+      await /** @type {Promise<void>} */ (new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve())));
+    }
+
     console.log('SCO_RUNTIME_SOURCE_TRACE '+JSON.stringify({
       node:process.version,platform:process.platform,
       hook:'node:module.registerHooks',
-      nativeValues:[13,20],
+      nativeValues:[13,20],clientValues,
       afterEven,afterBoth,
       uncoveredOddHttpStatus:uncoveredStatus,
       bothObservedRefused:true,
