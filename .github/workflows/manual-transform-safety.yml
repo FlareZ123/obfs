@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Verify string decoder preserves V8 source-spelled failure operands
+        run: node --test test/source-spelled-operand-errors.test.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
@@ -57,8 +59,6 @@ jobs:
         run: node examples/primitive-coercer/build-sample.cjs
       - name: Profile original and emitted primitive-coercer hot loops
         run: node sims/primitive-coercer-profile.js
-      - name: Verify string decoder preserves V8 source-spelled failure operands
-        run: node --test test/source-spelled-operand-errors.test.js
       - name: Verify identifier names observable in V8 error messages
         run: node --test test/identifier-typeerror-spelling.test.js test/tdz-identifier-names.test.js
       - name: Report exact observer-driven property-coverage counts
