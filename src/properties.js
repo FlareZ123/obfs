@@ -687,6 +687,21 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
+    if (options.sourceType === 'script') {
+      // A helper declared at Program scope is mutable from a later classic
+      // script, even if this script contains no other assignments to it.
+      // The local proof assumes its identified callees stay immutable.
+      // Refuse all owner-as-argument calls and call-produced owner aliases
+      // until a cross-script callee-immutability proof is available.
+      if (proof.forwardedCalls.size) continue;
+      let passedToCall=false;
+      walk(ast,node=>{
+        if ((node.type==='CallExpression'||node.type==='NewExpression') &&
+            node.arguments.some(arg=>arg.type==='Identifier' &&
+              proof.aliases.has(arg.name))) passedToCall=true;
+      });
+      if (passedToCall) continue;
+    }
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
