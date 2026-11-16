@@ -217,6 +217,15 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   const formConstructors=new Set(formNames);
   const encoderInstances=new Set();
   const formInstances=new Set();
+  // ECMA-402 calls can stringify functions and expose native source bytes.
+  const intlNamespaces=new Set(['Intl']);
+  /** @type {{name:string,constructors:Set<string>,instances:Set<string>}[]} */
+  const intlKinds=[
+    {name:'Collator',constructors:new Set(),instances:new Set()},
+    {name:'ListFormat',constructors:new Set(),instances:new Set()},
+    {name:'Segmenter',constructors:new Set(),instances:new Set()}
+  ];
+  const boundCollatorCompares=new Set();
   const symbols=new Set(['Symbol']);
   const globals=new Set(['globalThis','window','self','global']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -262,6 +271,27 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   function isWebInstance(node,instances,constructors,names) {
     return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
       node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isIntlNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      intlNamespaces.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='Intl'));
+  }
+  /** @param {AstNode|null|undefined} node @param {{name:string,constructors:Set<string>}} kind @returns {boolean} */
+  function isIntlConstructor(node,kind) {
+    return Boolean(node && (node.type==='Identifier' &&
+      kind.constructors.has(node.name) ||
+      node.type==='MemberExpression' && isIntlNamespace(node.object) &&
+        memberName(node)===kind.name));
+  }
+  /** @param {AstNode|null|undefined} node @param {{name:string,constructors:Set<string>,instances:Set<string>}} kind @returns {boolean} */
+  function isIntlInstance(node,kind) {
+    return Boolean(node && (node.type==='Identifier' &&
+      kind.instances.has(node.name) ||
+      (node.type==='NewExpression'||node.type==='CallExpression') &&
+        isIntlConstructor(node.callee,kind)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStringValue(node) {
@@ -317,6 +347,19 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         if(isWebInstance(value,formInstances,formConstructors,formNames)) {
           changed=add(formInstances,name)||changed;
         }
+        if(isIntlNamespace(value))changed=add(intlNamespaces,name)||changed;
+        for(const kind of intlKinds) {
+          if(isIntlConstructor(value,kind))changed=add(kind.constructors,name)||changed;
+          if(isIntlInstance(value,kind))changed=add(kind.instances,name)||changed;
+        }
+        if(value?.type==='MemberExpression' &&
+           memberName(value)==='compare' &&
+           isIntlInstance(value.object,intlKinds[0])) {
+          changed=add(boundCollatorCompares,name)||changed;
+        }
+        if(value?.type==='Identifier'&&boundCollatorCompares.has(value.name)) {
+          changed=add(boundCollatorCompares,name)||changed;
+        }
         if(isSymbolConstructor(value))changed=add(symbols,name)||changed;
         if(isGlobal(value))changed=add(globals,name)||changed;
         if(value?.type==='Identifier'&&reflectiveReceivers.has(value.name) ||
@@ -371,6 +414,16 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           if(property.type==='Property'&&property.value.type==='Identifier') {
             changed=add(opaqueFunctions,property.value.name)||changed;
           }
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isIntlNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const kind=intlKinds.find(item=>item.name===name);
+          if(kind)changed=add(kind.constructors,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -727,6 +780,23 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
             !isDefinitelyPrimitive(value)))observed=true;
         }
       }
+      // Collator/Segmenter stringify inputs, while ListFormat can expose a
+      // function's exact text through its non-string-element TypeError.
+      if(callee.type==='MemberExpression') {
+        const method=memberName(callee);
+        if(method==='compare' && isIntlInstance(callee.object,intlKinds[0]) &&
+           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+             !isDefinitelyPrimitive(value)))observed=true;
+        if(['format','formatToParts'].includes(method??'') &&
+           isIntlInstance(callee.object,intlKinds[1]) &&
+           node.arguments[0] &&
+           mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
+        if(method==='segment' && isIntlInstance(callee.object,intlKinds[2]) &&
+           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      }
+      if(callee.type==='Identifier' && boundCollatorCompares.has(callee.name) &&
+         node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+           !isDefinitelyPrimitive(value)))observed=true;
       if(isWebConstructor(callee,webScalars,webScalarNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
