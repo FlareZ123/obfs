@@ -113,6 +113,30 @@ test('a named global factory may be replaced by a later classic script',()=>{
   assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
 });
 
+test('independent classic script can call a global const reader on another object',()=>{
+  const scripts=[
+    'const peek=x=>x.secretField;' +
+      'function measure(){const packet={secretField:7};return peek(packet);}' +
+      'globalThis.first=measure();',
+    'globalThis.second=peek({secretField:90});'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,0);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+});
+
+test('independent classic script can call a global const factory and inspect own keys',()=>{
+  const scripts=[
+    'const make=()=>({secretField:7});' +
+      'function measure(){const packet=make();return packet.secretField;}' +
+      'globalThis.first=measure();',
+    'globalThis.second=make().secretField;'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,0);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+});
+
 test('a later classic script can replace an owner-forwarding global identity',()=>{
   const scripts=[
     'function identity(x){return x;}' +
