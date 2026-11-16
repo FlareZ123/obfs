@@ -34,3 +34,8 @@ jobs:
 
       - name: Paired hot and whole-session performance with held-out attacker
         run: node sims/application-challenge-profile.js
+      - name: Run browser COO app and prove original engine source is public
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/application-challenge-coo-browser.js
