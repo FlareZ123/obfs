@@ -309,6 +309,22 @@ function renameCrossFileProperties(files,seed) {
         // Reflect.get and descriptor reads can obtain a runtime Function
         // constructor from the global object without any direct member
         // expression on that object. Follow simple immutable/mutable aliases.
+        if(callee.type==='MemberExpression' && callee.object.type==='Identifier') {
+          const method=provenKey(callee.property,callee.computed);
+          const reflectiveMethod=reflectAliases.has(callee.object.name) &&
+            ['get','getOwnPropertyDescriptor'].includes(method??'');
+          const descriptorMethod=objectAliases.has(callee.object.name) &&
+            method==='getOwnPropertyDescriptor';
+          // A computed Reflect method alias can get an inherited Function
+          // constructor from any function receiver, even Number. Its unknown
+          // second argument invalidates static-only ESM consumer coverage.
+          if(reflectiveMethod||descriptorMethod) {
+            const selected=provenKey(node.arguments[1]);
+            if(selected===null && !primitiveInertKey(node.arguments[1]) ||
+               selected!==null && (dynamicCompilerNames.has(selected) ||
+                 secondaryLoaderNames.has(selected))) ambiguous=true;
+          }
+        }
         if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
            provenKey(node.arguments[1])==='constructor') {
           const method=provenKey(callee.property,callee.computed);
