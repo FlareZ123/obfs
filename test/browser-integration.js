@@ -144,6 +144,27 @@ async function main(){
       code:'import {get} from "./cycle-a.mjs";document.getElementById("answer").textContent=get();'}
   ],{mode:'coo',strings:true,properties:false,identifiers:false,seed:'chrome-esm-cycle'});
   assert.equal(cycleSet.files[0].metrics.literals,0);
+  // Real classic-script execution preserves global lexical sharing while
+  // renaming proven function-local owner fields in an explicit closed world.
+  const classicPrivate=obfuscateFiles([
+    {path:'classic-owner.js',sourceType:'script',
+      code:'function classicScore(x){const owner={secretField:19,bonusField:4};' +
+        'return owner.secretField*x+owner.bonusField;}globalThis.first=classicScore(2);'},
+    {path:'classic-entry.js',sourceType:'script',
+      code:'document.getElementById("answer").textContent=' +
+        'String(classicScore(3)+globalThis.first);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-classic-private',
+    strings:false,identifiers:false});
+  assert.equal(classicPrivate.files[0].metrics.properties,2);
+  const classicGlobal=obfuscateFiles([
+    {path:'classic-global-owner.js',sourceType:'script',
+      code:'const shared={secretField:12};'},
+    {path:'classic-global-reader.js',sourceType:'script',
+      code:'document.getElementById("answer").textContent=' +
+        'String(shared.secretField*2);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-classic-global',
+    strings:false,identifiers:false});
+  assert.equal(classicGlobal.files[0].metrics.properties,0);
   const good=obfuscateFiles([{
     path:'good.js',sourceType:'script',code:'document.getElementById("answer").textContent="permitted";'
   }],{mode:'coo',seed:'chrome-good',allowedHosts:['127.0.0.1']}).files[0].code;
@@ -178,7 +199,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...cycleSet.files,...classicPrivate.files,...classicGlobal.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -205,6 +226,10 @@ async function main(){
   content.set('/factory-iife.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
     '<script type="module" src="/factory-iife-entry.mjs"></script></body></html>');
+  content.set('/classic-private.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script src="/classic-owner.js"></script><script src="/classic-entry.js"></script></body></html>');
+  content.set('/classic-global.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script src="/classic-global-owner.js"></script><script src="/classic-global-reader.js"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
@@ -228,6 +253,7 @@ async function main(){
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
+      ['/classic-private.html','103'],['/classic-global.html','24'],
       ['/good.html','permitted'],['/blocked.html','initial'],
       ['/trace.html','37:browser-dormant-plaintext-canary'],
       ['/rpc-good.html','57'],['/rpc-bad.html','denied']

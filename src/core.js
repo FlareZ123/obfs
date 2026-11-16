@@ -562,10 +562,15 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
+    // A declared closed-world classic-script set may rename private block/
+    // function-owned objects. Program-global roots remain untouched. Symbol
+    // keys retain their existing module-only scope until separately proved.
+    if (!remoteSourceObserver && options.properties !== false &&
+        (sourceType !== 'script' || options.closedWorld === true &&
+          options.experimentalSymbolKeys !== true)) {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        renameLocalProperties(code,ast,{seed:salt,sourceType});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;

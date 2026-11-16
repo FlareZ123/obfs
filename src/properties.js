@@ -651,7 +651,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -664,6 +664,15 @@ function renameLocalProperties(source, ast, options) {
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
+    // Classic scripts share their Program-level lexical environment across files.
+    // Keep global roots unchanged: only block/function-local owners can be
+    // proved without rewriting references in independent classic scripts.
+    if (options.sourceType === 'script' &&
+        !ancestors.some(a => a.type === 'BlockStatement')) return;
+    // A globally declared factory can be reassigned by a later classic
+    // script. Its freshly returned shape is no longer the literal proven
+    // from this file, so keep classic-script owners as direct literals only.
+    if (options.sourceType === 'script' && node.type !== 'ObjectExpression') return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
@@ -682,6 +691,21 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
+    if (options.sourceType === 'script') {
+      // A helper declared at Program scope is mutable from a later classic
+      // script, even if this script contains no other assignments to it.
+      // The local proof assumes its identified callees stay immutable.
+      // Refuse all owner-as-argument calls and call-produced owner aliases
+      // until a cross-script callee-immutability proof is available.
+      if (proof.forwardedCalls.size) continue;
+      let passedToCall=false;
+      walk(ast,node=>{
+        if ((node.type==='CallExpression'||node.type==='NewExpression') &&
+            node.arguments.some(arg=>arg.type==='Identifier' &&
+              proof.aliases.has(arg.name))) passedToCall=true;
+      });
+      if (passedToCall) continue;
+    }
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
