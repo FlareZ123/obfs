@@ -132,7 +132,7 @@ function renameCrossFileProperties(files,seed) {
     // imports the object whose field is being renamed. Check the whole graph,
     // rather than relying on object-alias consumers alone.
     if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path)) ||
-       observesDistributedSource(module.ast))return {files,objects:0,properties:0};
+       observesDistributedSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
     let ambiguous=false;
     walk(module.ast,node=>{
       if (node.type==='Identifier' &&
