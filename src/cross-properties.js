@@ -175,6 +175,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     /** @type {Set<string>} */
     const hostCallAliases=new Set();
     /** @type {Set<string>} */
+    const nativeMutatorAliases=new Set();
+    /** @type {Set<string>} */
     const hostContainers=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
@@ -188,6 +190,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
          node.left.type==='Identifier' && node.right.type==='Identifier') {
         aliasEdges.push([node.left.name,node.right.name]);
       }
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type==='Identifier' && value?.type==='MemberExpression' &&
+         value.object.type==='Identifier') {
+        const owner=value.object.name;
+        const method=value.computed?staticString(value.property):staticName(value.property);
+        if(owner==='Object' && ['defineProperty','defineProperties','assign'].includes(method??'') ||
+           owner==='Reflect' && ['defineProperty','set','deleteProperty'].includes(method??'')) {
+          nativeMutatorAliases.add(binding.name);
+        }
+      }
     });
     let aliasChanged;
     do {
@@ -195,6 +210,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       for(const [target,origin] of aliasEdges) {
         if(hostRoots.has(origin) && !hostRoots.has(target)) {
           hostRoots.add(target);
+          aliasChanged=true;
+        }
+        if(nativeMutatorAliases.has(origin) && !nativeMutatorAliases.has(target)) {
+          nativeMutatorAliases.add(target);
           aliasChanged=true;
         }
       }
@@ -271,6 +290,39 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
     } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
+      // A captured native global mutator remains capable of replacing an
+      // ambient binding even when the callee is only an alias identifier.
+      // Its parameter/side-effect proof is intentionally conservative.
+      if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
+         nativeMutatorAliases.has(node.callee.name))changedIntrinsic=true;
+      // The global Reflect/Object binding may be replaced through a native
+      // descriptor/set/assignment call without spelling a direct member write.
+      // Mutator receivers may be opaque aliases or stored global roots.
+      // A known unrelated field remains safe; unknown/global fields decline.
+      if(node.type==='CallExpression' &&
+         node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const owner=node.callee.object.name;
+        const method=node.callee.computed?
+          staticString(node.callee.property):staticName(node.callee.property);
+        if(owner==='Object' && method==='defineProperty' ||
+           owner==='Reflect' &&
+           (method==='defineProperty'||method==='set'||method==='deleteProperty')) {
+          const name=node.arguments[1]?staticString(node.arguments[1]):null;
+          if(name===null||name==='Reflect'||name==='Object')changedIntrinsic=true;
+        }
+        if(owner==='Object' && (method==='defineProperties'||method==='assign')) {
+          const sources=method==='assign'?node.arguments.slice(1):[node.arguments[1]];
+          if(sources.some((/** @type {AstNode|undefined} */ sourceObject)=>
+              sourceObject?.type!=='ObjectExpression' ||
+              sourceObject.properties.some((/** @type {AstNode} */ property)=>{
+                if(property.type!=='Property')return true;
+                const key=property.computed?
+                  staticString(property.key):ownPropertyName(property);
+                return key===null||key==='Reflect'||key==='Object';
+              })))changedIntrinsic=true;
+        }
+      }
       // Reflect.apply/construct can invoke an opaque host capability even
       // though the call's syntactic callee is the trusted Reflect builtin.
       // Its first operand may be an inline host member or a declared alias.
