@@ -56,3 +56,65 @@ All scores here describe finite tests. The adversary has complete client code/ru
 - New `test/wasm-source-map-annotation.test.js` constructs actual valid Wasm custom section with base64 map + original-source canary, checks runtime section parser and refusal in all COO/SCO/SNO and SCO handler, proves innocuous custom sections unchanged, invalid wasm rejection and other binary acceptance. Added test to manually dispatched cross-platform safety workflow.
 - Initial focused CI [43714272990](https://github.com/FlareZ123/obfs/actions/runs/43714272990) failed typecheck `Buffer<ArrayBufferLike>` not assignable to `BufferSource` for `new WebAssembly.Module(code)`; corrected with owned `new Uint8Array(code)` in commit `0838ea49d750e5e16e4f031190a90f8b1cfd94fb`. Linux and Windows targeted semantics/JSDoc green [43714426858](https://github.com/FlareZ123/obfs/actions/runs/43714426858), exact head SHA `26e9922bfb46e443b71f807346414d166a40b8a0`. Report `im-results/wasm-sourcemap-annotation-2026-11-15.md`, updated status commit `efaefaf236d833d080c9132247ac5462851201a1`. This prevents one standard reference leak, does not prevent arbitrary source text in Wasm data/debug sections or disassembly.
 - Full manual integration [43714025306](https://github.com/FlareZ123/obfs/actions/runs/43714025306) green at SHA `36cd02498342092d427a6b2206b657bb320d50f6` before latest Wasm gate, after CSS gate. An earlier full green [43710935370](https://github.com/FlareZ123/obfs/actions/runs/43710935370) covered prior SCO partition and local identity changes.
+
+## Normal invocation starting 2026-11-16T06:57:41Z
+
+- Mandatory cryptographic random draw **9**, normal research mode; successful
+  new lease `agents/agent15/.lease.json`, immutable
+  `run_id=1ae226c3-d7ee-4417-908a-7a7e5644daee`,
+  `claimed_at=2026-11-16T06:57:41Z`. Release only after a **real clock**
+  check after checkpoint establishes elapsed >=70 minutes, earliest
+  **2026-11-16T08:07:41Z**. Do not refresh. All commits `Agent 15:`.
+- **Merged immediate owner-return member proof**, main SHA
+  `5daff86b6ac2c602129626dfaa787f9f60c2c5c1`, [PR #8](https://github.com/FlareZ123/obfs/pull/8).
+  `src/properties.js` now records statically keyed immediate member reads
+  on already-verified immutable sync zero-argument getter/identity returns.
+  Existing owner-shape/TypeError validation remains. Added positive and
+  negative local/real ESM proof cases in `test/local-root-getter.test.js`
+  and `test/cross-file-local-identity.test.js`, and byte-checked
+  `examples/direct-owner-read/`. Positive 2/2 fields renamed; reflective
+  negative 0/2; public static normalizer still reverses names.
+  Exact Linux/Windows/JSDoc/sample pinned green
+  [run 43821503089](https://github.com/FlareZ123/obfs/actions/runs/43821503089).
+- **Merged opt-in static ESM host graph guards**, main SHA
+  `e2e16f2fda90ab7f31dc5b38d03bd50a9e39b333`,
+  [PR #9](https://github.com/FlareZ123/obfs/pull/9).
+  `src/core.js` now checks a complete declared static ESM import/reexport
+  graph under `closedWorld:true`, injects a guard into every module body,
+  then rechecks the final emitted imports. Existing refusal for external,
+  ambiguous and opaque static imports remains, plus preflight source
+  observer refusal. Reproduction and threat report
+  `im-results/closed-graph-host-2026-11-16.md`,
+  `examples/closed-graph-host/`, `test/closed-graph-host-lock.test.js`,
+  `test/closed-graph-host-browser.js`; manual gate
+  [43824200447](https://github.com/FlareZ123/obfs/actions/runs/43824200447)
+  green both OS + real Chromium at exact
+  `c6f91c6bacd9e3632d711ec38261c27a98243baa`.
+  Two native private fields are renamed in generated three-module example;
+  denied browser graph recorded zero module-body events.
+  Independent public-files-only `sims/closed-graph-host-bypass.js` removed
+  all three checks and ran successfully under hostile hostname on both OS.
+  `sims/closed-graph-host-cost.js` measured 15 paired process-wall
+  samples per short and 400k-call workloads: Ubuntu median paired ratios
+  0.990192x, 1.002840x; Windows 1.015146x, 1.001845x.
+  Source path correspondence relies on *unmodified URL resolver*; import
+  maps, hostile loader hooks, service worker interception, and attacker
+  modification violate the proof's premise. Guard only prevents body
+  effects on an honest/expected resolver; it cannot authorize hostile
+  clients under COO/SCO. ESM loading/instantiation may still occur.
+- Important CI pitfalls: new branch-only workflow file cannot be dispatched
+  until it exists on default branch (404); extend an **existing**
+  `workflow_dispatch` gate on branch instead. Newlines in exact generated
+  JS snapshots need `.gitattributes` `text eol=lf` across Windows,
+  since injected guard creates LF even when checkout changed originals
+  to CRLF. Whole-graph preflight considers opaque imported function
+  coercion a source-observer risk; test inputs adding imported number
+  arithmetically or string-concatenating unknown call results may fail
+  closed, and this should **not** be bypassed merely to claim host coverage.
+- Remaining useful research: test imported-source observation, top-level
+  await and import-map/custom loader URL redirection under this host-graph
+  option. Consider a reproducible browser import-map challenge with
+  independent attacker and clear assumptions, strict consistency checks,
+  and comparison to true SCO server-side authorization; avoid claiming
+  host enforcement against a full-control attacker. Keep working until
+  measured release threshold after checkpoint.
