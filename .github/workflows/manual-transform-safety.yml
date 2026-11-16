@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Strict JSDoc type checking
         run: npm run typecheck
+      - name: V8 Serializer.writeValue source-error differential
+        run: node --test test/v8-serializer-instance-source-observation.test.js
       - name: Inert clone payload and protected-work yield differential
         run: node --test test/clone-inert-payload-coverage.test.js
       - name: MessagePort source-error differential
