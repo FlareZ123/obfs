@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
+const {spawnSync}=require('node:child_process');
 const {atomicWrite}=require('../src/atomic');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 const {obfuscateFiles}=require('../src');
@@ -38,6 +39,15 @@ test('frozen stateful multi-file COO app retains host callbacks, reflection and 
       const reconstructed=Function('return ('+attack.source+')')();
       for(let n=-1000;n<=1000;n+=7)assert.equal(reconstructed(n),publishedMath[name](n));
     }
+    const offlineEvents=[{kind:'start',payload:'A'},{kind:'tick',payload:'終'}];
+    const offline=spawnSync(process.execPath,[
+      path.join(__dirname,'../sims/polyvariant-app-functional-clone.js'),
+      '-317',JSON.stringify(offlineEvents),dir
+    ],{encoding:'utf8',timeout:20000});
+    assert.equal(offline.status,0,String(offline.stderr));
+    const clone=JSON.parse(offline.stdout);
+    assert.equal(clone.output,native.runScenario(-317,offlineEvents));
+    assert.equal(clone.intercepted,offlineEvents.length);
     let seed=0x4fd2ac19;
     /** @returns {number} */
     const next=()=>{seed=(Math.imul(seed,1664525)+1013904223)|0;return seed;};
