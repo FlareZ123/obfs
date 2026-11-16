@@ -43,6 +43,8 @@ jobs:
         run: node sims/statement-flow-attack-cost.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
+      - name: Tiny hot arithmetic CFG overhead diagnostic
+        run: node sims/statement-flow-pure-hot.js
       - name: Statement CFG source-size and cold JavaScript compile profile
         run: node sims/statement-flow-cold.js
       - name: Real Chromium multi-statement CFG native differential
@@ -89,6 +91,8 @@ jobs:
         run: node sims/statement-flow-attack-cost.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
+      - name: Tiny hot arithmetic CFG overhead diagnostic
+        run: node sims/statement-flow-pure-hot.js
       - name: Statement CFG source-size and cold JavaScript compile profile
         run: node sims/statement-flow-cold.js
       - name: Strict JSDoc
