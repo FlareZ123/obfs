@@ -19,3 +19,16 @@ For a trusted SCO server using exact RPC argument policies or canonical encoding
 Implementation is deliberately minimal and uses [Node's documented built-in `buffer.isUtf8`](https://nodejs.org/download/release/latest-jod/docs/api/buffer.html), which returns `true` only for valid UTF-8 encoded data. The new check imposes an additional linear scan of the bounded body. It does not prove the full-session 2.5× budget, prevent authenticated relays, eliminate duplicate JSON keys, or validate application-level method arguments.
 
 Files: `src/sco.js`, `test/sco-malformed-utf8-rpc.test.js`, `docs/SCO_AUTHORIZATION.md`, manual SCO authorization gate. **Green repair:** [targeted Ubuntu/Windows SCO run 43960136902](https://github.com/FlareZ123/obfs/actions/runs/43960136902) passed both operating-system jobs, including the raw-octet negative controls, valid UTF-8 split-chunk positive, related RPC suites, simulations, and strict JSDoc at exact source `01645e2e99b90b32ab99ed0727b79e9865f3022f`. This was a targeted check, with the preceding full integration pinned before the UTF-8 change; a new full exact-commit gate would be separate evidence.
+
+## Paired byte-admission CPU profile
+
+The reusable [`sims/sco-utf8-admission-profile.js`](../sims/sco-utf8-admission-profile.js) measures the exact permissive `JSON.parse(bytes.toString('utf8'))` route against the strict `isUtf8(bytes)` precheck followed by identical parsing, on valid JSON with a single string argument. It uses nine alternating warm trials, checksum verification, and sizes 96, 1,056, 16,416 and 65,568 UTF-8 bytes; each trial repeats 150,000, 75,000, 7,000 and 1,500 parses respectively. Median processing time per iteration was:
+
+| Valid body bytes | Linux permissive ms | Linux strict ms | Linux ratio | Windows permissive ms | Windows strict ms | Windows ratio |
+|---:|---:|---:|---:|---:|---:|---:|
+| 96 | 0.00036973 | 0.00040520 | 1.095934× | 0.00082566 | 0.00090010 | 1.090151× |
+| 1,056 | 0.00076446 | 0.00082422 | 1.078181× | 0.00162231 | 0.00174922 | 1.078230× |
+| 16,416 | 0.00706549 | 0.00739117 | 1.046094× | 0.01930773 | 0.02020174 | 1.046303× |
+| 65,568 | 0.02860098 | 0.02964805 | 1.036610× | 0.07375667 | 0.07754420 | 1.051352× |
+
+**Pinned cross-platform gate:** [43960646966](https://github.com/FlareZ123/obfs/actions/runs/43960646966), exact source `87c8126e2185c01204c63f32f74ca69d50dae50d`, both Ubuntu and Windows Node22 jobs successful, including byte-exact HTTP cases, the profile and strict JSDoc for the newly added script. These ratios measure a narrow CPU parsing component under warm-runner conditions and do **not** include network/authentication, private operation computation, cold process startup, or whole application workload. Do not interpret them as a universal 2.5× verdict. All observed medians were below that cap solely for the measured parser component.
