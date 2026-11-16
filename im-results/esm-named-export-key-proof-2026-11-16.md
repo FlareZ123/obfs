@@ -27,6 +27,10 @@ For private owned objects, `renameCrossFileProperties` has a separate stricter r
 
 All changes remain bounded by the existing closed-world assumption, unique lexical-binding check, explicit own-key ownership proof, reflective-use guard, and canonical import resolution. The syntax checker cannot certify arbitrary dynamic module loaders, ambient monkey patches, or external source observers.
 
+### Specification basis
+
+The [ECMAScript 2026 specification, §16.2.3.7](https://tc39.es/ecma262/2026/multipage/ecmascript-language-scripts-and-modules.html#sec-exports-runtime-semantics-evaluation) specifies that evaluation of an `export NamedExports ;` declaration returns an empty completion. MDN's [`export` reference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/export) independently documents that an export specifier can precede the local declaration because the specifier does not read its value. The acceptance proof therefore compares the local `const` initializer's position against the owner's initializer, with cycles explicitly tested. This is a bounded operational fact rather than a proof of whole-program equivalence.
+
 ## Native semantic evidence and refusal yield
 
 1. The SCO HTTP suite `test/sco-interfile-source-observation.test.js` includes independent actual served ESM modules for direct and aliased safe `"value"`, exact source-reading `"toString"`, and mutable imported keys. Each compares native Node 22 ESM execution with HTTP-delivered output. A safe direct `"value"` case transforms the private `secretField` key while both original and transformed programs print the same result.
