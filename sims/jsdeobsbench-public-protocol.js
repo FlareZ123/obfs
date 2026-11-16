@@ -128,6 +128,41 @@ async function verifyRecoveredCorpus(compiledFile,recoveredFile,verifiedFile) {
   return summary;
 }
 
+/**
+ * Assemble a minimal source-only attacker root without any benchmark
+ * originals, compiler metrics, tests, or transforming compiler modules.
+ * Every staged file is an atomic, locked copy; the output directory must be
+ * new to prevent stale or accidentally exposed files.
+ *
+ * @param {string} publicFile
+ * @param {string} stageDirectory
+ * @returns {Promise<{files:number,bytes:number}>}
+ */
+async function stagePublicAttacker(publicFile,stageDirectory) {
+  const root=path.resolve(stageDirectory);
+  if(path.resolve(publicFile)===path.join(root,'public.jsonl')) {
+    throw new TypeError('Public input cannot already be inside the new stage');
+  }
+  const published=await fs.readFile(publicFile);
+  if(!published.length)throw new TypeError('Empty published source');
+  await fs.mkdir(root);
+  const inputFiles=[
+    [path.join(__dirname,'jsdeobsbench-public-static-attack.js'),
+      'sims/jsdeobsbench-public-static-attack.js'],
+    [path.join(__dirname,'../src/atomic.js'),'src/atomic.js'],
+    [require.resolve('acorn/package.json'),'node_modules/acorn/package.json'],
+    [require.resolve('acorn'),'node_modules/acorn/dist/acorn.js']
+  ];
+  let bytes=0;
+  for(const [input,relative] of inputFiles) {
+    const contents=await fs.readFile(input);
+    await atomicWrite(path.join(root,relative),contents);
+    bytes+=contents.length;
+  }
+  await atomicWrite(path.join(root,'public.jsonl'),published);
+  return {files:inputFiles.length+1,bytes:bytes+published.length};
+}
+
 if(require.main===module) {
   const args=process.argv.slice(2);
   const mode=args[0];
@@ -135,7 +170,9 @@ if(require.main===module) {
     publishPublicCorpus(args[1],args[2]) :
     mode==='--verify'&&args.length===4 ?
       verifyRecoveredCorpus(args[1],args[2],args[3]) :
-      Promise.reject(new TypeError('Expected --publish COMPILED PUBLIC or --verify COMPILED RECOVERED VERIFIED'));
+    mode==='--stage'&&args.length===3 ?
+      stagePublicAttacker(args[1],args[2]) :
+      Promise.reject(new TypeError('Expected --publish COMPILED PUBLIC, --stage PUBLIC DIRECTORY, or --verify COMPILED RECOVERED VERIFIED'));
   task.then(result=>{
     process.stdout.write('PUBLIC_ATTACK_PROTOCOL '+JSON.stringify(result)+'\n');
   }).catch(error=>{
@@ -144,4 +181,4 @@ if(require.main===module) {
   });
 }
 
-module.exports={publishPublicCorpus,verifyRecoveredCorpus};
+module.exports={publishPublicCorpus,verifyRecoveredCorpus,stagePublicAttacker};
