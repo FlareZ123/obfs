@@ -6,7 +6,12 @@ This repository is an experimental, conservative JavaScript obfuscator targeting
 
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
-**Latest pinned full integration (2026-11-16, 21:20 UTC):** The
+**Latest pinned full integration (2026-11-16, 21:37 UTC):** The
+[manual Node 22 Linux/Windows and Ubuntu Chromium run 43961051109](https://github.com/FlareZ123/obfs/actions/runs/43961051109)
+completed successfully at exact source `87c8126e2185c01204c63f32f74ca69d50dae50d`.
+Of **1,798 Node tests** per operating system, Ubuntu passed 1,797 with one skip and zero failures, while Windows passed 1,796 with two skips and zero failures. Both jobs passed strict JSDoc and external checker steps, sampled performance and paired application checks, and the Ubuntu job passed real Chromium browser checks. This pin includes strict UTF-8 SCO JSON body validation and its byte-level HTTP negatives, alongside the earlier authorization fixes. For the 96–65,568-byte valid JSON CPU admission benchmark, the added UTF-8 validity scan measured **1.04–1.10×** parser-only ratios on these runners; see the [scoped performance and red/green report](im-results/sco-rpc-invalid-utf8-2026-11-16.md). No universal full-application 2.5× guarantee follows.
+
+**Historical pinned full integration (2026-11-16, 21:20 UTC):** The
 [manual Node 22 Linux/Windows and Ubuntu Chromium run 43958450776](https://github.com/FlareZ123/obfs/actions/runs/43958450776)
 completed successfully at exact source `b6f8fd54c41c70816b466da7d8e1af949dca9d26`.
 Of 1,797 Node tests per operating system, Ubuntu passed **1,796 with one skip and zero failures**, while Windows passed **1,795 with two skips and zero failures**. Both jobs also passed strict JSDoc and external checker steps, sampled performance and paired application checks, and the Ubuntu job passed real Chromium browser checks.
