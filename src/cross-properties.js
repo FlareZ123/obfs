@@ -174,6 +174,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostRoots=new Set(['globalThis','window','self','global']);
     /** @type {Set<string>} */
     const hostCallAliases=new Set();
+    /** @type {Set<string>} */
+    const hostContainers=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
     // A host-controlled callable can perform runtime imports that are
@@ -197,6 +199,28 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    // An ordinary object/array literal can hold a host capability. A
+    // subsequent read of any field on that local container may retrieve it.
+    walk(source.ast,node=>{
+      if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier' ||
+         !node.init || !['ObjectExpression','ArrayExpression'].includes(node.init.type))return;
+      let includesHost=false;
+      walk(node.init,child=>{
+        if(child.type==='MemberExpression' &&
+           child.object.type==='Identifier' &&
+           hostRoots.has(child.object.name))includesHost=true;
+      });
+      if(includesHost)hostContainers.add(node.id.name);
+    });
+    do {
+      aliasChanged=false;
+      for(const [target,origin] of aliasEdges) {
+        if(hostContainers.has(origin)&&!hostContainers.has(target)) {
+          hostContainers.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
     /**
      * Recognize a source of an opaque host callable, including a descriptor
      * value and a Reflect.get result. Decline only if it is later called.
@@ -206,7 +230,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     function readsHostCallable(initial) {
       if(initial.type==='MemberExpression') {
         if(initial.object.type==='Identifier' &&
-           hostRoots.has(initial.object.name))return true;
+           (hostRoots.has(initial.object.name) ||
+            hostContainers.has(initial.object.name)))return true;
         return initial.object.type==='CallExpression' &&
           readsHostCallable(initial.object);
       }
@@ -251,6 +276,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           node.callee.type==='MemberExpression' &&
           node.callee.object.type==='Identifier' &&
           (hostRoots.has(node.callee.object.name) ||
+           hostContainers.has(node.callee.object.name) ||
            hostCallAliases.has(node.callee.object.name))))changedIntrinsic=true;
       // A direct-member write guard is insufficient when the global
       // reflection object can escape through an alias or argument. Such a
