@@ -170,38 +170,111 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // keys are known own fields. The hostile callback can dynamically import
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
-    let changedIntrinsic=false;
-    walk(source.ast,(node,parent)=>{
-      // A direct-member write guard is insufficient when the global
-      // reflection object can escape through an alias or argument. Such a
-      // reference can replace ownKeys/getOwnPropertyDescriptor and return a
-      // host-provided Function, enabling an untracked runtime module import.
-      if(node.type==='Identifier' &&
-         (node.name==='Reflect'||node.name==='Object') &&
-         !(parent?.type==='MemberExpression'&&parent.object===node)) {
-        changedIntrinsic=true;
+    // A captured alias retains the ambient object identity. A later write
+    // through that alias changes the method used by the private-record proof.
+    // Follow source-visible alias edges transitively and monotonically; a
+    // later reassignment may cause harmless refusal, never unsafe acceptance.
+    const globalNames=new Set(['globalThis','window','self','global']);
+    const reflectNames=new Set(['Reflect']);
+    const objectNames=new Set(['Object']);
+    /** @type {[string,string][]} */
+    const links=[];
+    /** @type {[string,string,string][]} */
+    const globalReads=[];
+    walk(source.ast,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type==='Identifier' && value?.type==='Identifier') {
+        links.push([binding.name,value.name]);
       }
-      if(node.type==='MemberExpression') {
-        const field=node.computed?staticString(node.property):staticName(node.property);
-        if(field==='Reflect'||field==='Object')changedIntrinsic=true;
-        // A constant string stored in a binding can resolve a mutable
-        // intrinsic through globalThis[key] without spelling Reflect as an
-        // AST Identifier. The broader graph may prove the key's spelling
-        // but cannot prove the returned global intrinsic remains native.
-        if(node.computed && node.property.type!=='Literal' &&
-           node.object.type==='Identifier' &&
-           ['globalThis','window','self','global'].includes(node.object.name)) {
-          changedIntrinsic=true;
+      if(binding?.type==='Identifier' && value?.type==='MemberExpression' &&
+         value.object.type==='Identifier') {
+        const field=value.computed?staticString(value.property):staticName(value.property);
+        if(field!==null)globalReads.push([binding.name,value.object.name,field]);
+      }
+      if(binding?.type==='ObjectPattern' && value?.type==='Identifier') {
+        for(const property of binding.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed?staticString(property.key):staticName(property.key);
+          if(field!==null)globalReads.push([property.value.name,value.name,field]);
+        }
+      }
+    });
+    let changed;
+    do {
+      changed=false;
+      for(const [target,sourceName] of links) {
+        for(const names of [globalNames,reflectNames,objectNames]) {
+          if(names.has(sourceName)&&!names.has(target)) {
+            names.add(target);
+            changed=true;
+          }
+        }
+      }
+      for(const [target,sourceName,field] of globalReads) {
+        if(!globalNames.has(sourceName))continue;
+        const names=field==='Reflect'?reflectNames:
+          field==='Object'?objectNames:null;
+        if(names&&!names.has(target)) {
+          names.add(target);
+          changed=true;
+        }
+      }
+    } while(changed);
+    let changedIntrinsic=false;
+    walk(source.ast,(node,parent,key)=>{
+      // Preserve the earlier escape veto for ambient reflection objects
+      // entering unknown functions/containers; unlike plain binding aliases,
+      // these uses cannot be checked for later writes by this finite scan.
+      if(node.type==='Identifier' &&
+         (reflectNames.has(node.name)||objectNames.has(node.name))) {
+        const receiver=parent?.type==='MemberExpression'&&parent.object===node;
+        const propertyName=parent?.type==='MemberExpression' &&
+          parent.property===node&&!parent.computed ||
+          parent?.type==='Property'&&key==='key'&&!parent.computed;
+        const directAlias=parent?.type==='VariableDeclarator'&&parent.init===node&&
+          parent.id.type==='Identifier' ||
+          parent?.type==='AssignmentExpression'&&parent.right===node&&
+          parent.left.type==='Identifier';
+        if(!receiver&&!propertyName&&!directAlias)changedIntrinsic=true;
+      }
+      // A computed global key can resolve Reflect/Object through a local
+      // string binding, even when the AST has no named builtin reference.
+      if(node.type==='MemberExpression'&&node.computed&&
+          node.property.type!=='Literal'&&node.object.type==='Identifier'&&
+          globalNames.has(node.object.name))changedIntrinsic=true;
+      // The writable native method can also be replaced by ordinary
+      // reflection APIs. An opaque descriptor or assignment source may have
+      // getters, so any such mutation aimed at the ambient object refuses.
+      if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+          node.callee.object.type==='Identifier' &&
+          node.arguments[0]?.type==='Identifier') {
+        const receiver=node.arguments[0].name;
+        if(reflectNames.has(receiver)||objectNames.has(receiver)||globalNames.has(receiver)) {
+          const method=node.callee.computed?
+            staticString(node.callee.property):staticName(node.callee.property);
+          const callee=node.callee.object.name;
+          if(objectNames.has(callee) &&
+              ['defineProperty','defineProperties','assign'].includes(method??'') ||
+             reflectNames.has(callee) &&
+              ['set','defineProperty','deleteProperty'].includes(method??'')) {
+            changedIntrinsic=true;
+          }
         }
       }
       const target=node.type==='AssignmentExpression'?node.left:
         node.type==='UpdateExpression'?node.argument:
         node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
-      if(target?.type!=='MemberExpression')return;
+      if(target?.type!=='MemberExpression'||target.object.type!=='Identifier')return;
       const method=target.computed?staticString(target.property):staticName(target.property);
-      if(target.object.type==='Identifier' &&
-          (target.object.name==='Reflect'&&method==='ownKeys' ||
-           target.object.name==='Object'&&method==='getOwnPropertyDescriptor')) {
+      if(reflectNames.has(target.object.name)&&method==='ownKeys' ||
+         objectNames.has(target.object.name)&&method==='getOwnPropertyDescriptor' ||
+         globalNames.has(target.object.name) &&
+           (method===null||method==='Reflect'||method==='Object')) {
+        // The bare global bindings resolve through this object in browsers
+        // and Node. Replacing the complete builtin invalidates its methods.
         changedIntrinsic=true;
       }
     });
