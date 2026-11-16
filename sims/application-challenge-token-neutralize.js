@@ -4,11 +4,9 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
-const {performance}=require('node:perf_hooks');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
-const {normalizeDistributedFiles}=require('./attacker-token-normalize');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
 const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
   require('./application-challenge-observer-ablation');
@@ -46,10 +44,9 @@ function byteCount(files){
 }
 
 /**
- * An execution harness for an independent token-only attacker. The only
- * value passed to normalizeDistributedFiles is the published source. That
- * Acorn-token attacker imports neither compiler, pre-obfuscation source nor
- * seed, and does not attempt to recover the original private field names.
+ * An execution harness for an independent token-only attacker. The attacker is launched as a separate Node process with only a public
+ * directory and an output directory. It imports neither compiler,
+ * pre-obfuscation source nor seed, and does not recover private field names.
  *
  * Source deliberately has two different contracts: own-only removes an
  * original missing-field call; null-proto keeps that call but changes the
@@ -95,16 +92,21 @@ async function run(seeds=4){
         });
         assert.equal(built.crossFile.properties,2,'Positive owner rewrites required');
         const publicFiles=/** @type {ModuleFile[]} */(built.files);
-        // This call is the independent attacker. Its input consists only
-        // of compiled public bytes and their distributed relative paths.
-        const start=performance.now();
-        const neutralized=normalizeDistributedFiles(publicFiles);
-        const staticScanMs=performance.now()-start;
-        assert.ok(neutralized.properties>=2,'Two published field labels found');
         const publicPath=path.join(working,variant.name,'public-'+i);
         const attackerPath=path.join(working,variant.name,'attacker-'+i);
         await materialize(publicFiles,publicPath);
-        await materialize(/** @type {ModuleFile[]} */ (neutralized.files),attackerPath);
+        // Attacker process imports no compiler modules or original files;
+        // its argv contains only the public directory and output directory.
+        const attack=spawnSync(process.execPath,[
+          path.join(__dirname,'application-challenge-token-neutralize-attacker.js'),
+          publicPath,attackerPath
+        ],{encoding:'utf8',timeout:15000});
+        if(attack.error)throw attack.error;
+        assert.equal(attack.status,0,attack.stderr);
+        const scan=/** @type {{files:number,properties:number,variables:number,scanMs:number,bytes:number}} */(
+          JSON.parse(attack.stdout));
+        assert.equal(scan.files,NAMES.length);
+        assert.ok(scan.properties>=2,'Two published field labels found');
         assert.deepEqual(evaluate(publicPath,cases),native);
         assert.deepEqual(evaluate(attackerPath,cases),native,
           'Seedless public token normalization must preserve complete behavior');
@@ -112,13 +114,13 @@ async function run(seeds=4){
           'Neutralized program must pass unseen application cases');
         rows.push({
           variant:variant.name,seed:i,renamed:built.crossFile.properties,
-          normalizedProperties:neutralized.properties,
-          normalizedLocals:neutralized.variables,
+          normalizedProperties:scan.properties,
+          normalizedLocals:scan.variables,
           differentialCases:cases.length,heldoutCases:heldout.length,
           originalBytes:byteCount(variant.files),
           distributedBytes:byteCount(publicFiles),
-          neutralizedBytes:byteCount(/** @type {ModuleFile[]} */(neutralized.files)),
-          staticScanMs,publicOnlyAttackerMatched:true
+          neutralizedBytes:scan.bytes,
+          staticScanMs:scan.scanMs,publicOnlyAttackerMatched:true
         });
       }
     }
