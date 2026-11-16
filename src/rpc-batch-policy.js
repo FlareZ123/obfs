@@ -5,6 +5,17 @@
  */
 
 /**
+ * A batch state transition is defined to be synchronous. A returned Promise
+ * or another thenable can otherwise masquerade as a truthy next state.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isThenable(value) {
+  return value!==null && (typeof value==='object'||typeof value==='function') &&
+    typeof /** @type {{then?:unknown}} */ (value).then==='function';
+}
+
+/**
  * Evaluate the authorization of a complete batch against a *pure*, synchronous
  * application-supplied transition model before executing any operation.
  *
@@ -29,6 +40,9 @@ function preflightScoBatchState(calls,initialState,policy) {
     throw new TypeError('Expected synchronous batch authorization and transition functions');
   }
   if(!Array.isArray(calls)||calls.length<1||calls.length>1024)return false;
+  if(isThenable(initialState)) {
+    throw new TypeError('Batch initial state must be synchronous');
+  }
   let state=initialState;
   for(const call of calls) {
     if(!call || typeof call!=='object' ||
@@ -39,6 +53,9 @@ function preflightScoBatchState(calls,initialState,policy) {
     }
     if(!permitted)return false;
     state=policy.transition(state,call.method,call.args);
+    if(isThenable(state)) {
+      throw new TypeError('Batch state transition must return synchronously');
+    }
   }
   return true;
 }
