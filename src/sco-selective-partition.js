@@ -386,8 +386,13 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       if(node.type==='AssignmentExpression'&&rootedInGlobal(node.left) ||
          node.type==='UpdateExpression'&&rootedInGlobal(node.argument) ||
          node.type==='UnaryExpression'&&node.operator==='delete'&&
-           rootedInGlobal(node.argument)){
-        throw new TypeError('SCO private static dependency writes cross-realm global state: '+filename);
+           rootedInGlobal(node.argument) ||
+         (node.type==='CallExpression'||node.type==='NewExpression') &&
+           (rootedInGlobal(node.callee) ||
+            node.arguments.some((/** @type {import('./ast').AstNode} */ arg)=>rootedInGlobal(arg)))){
+        // Passing a global root or its member to an opaque function may write
+        // state through first-class APIs such as Object.assign/Reflect.set.
+        throw new TypeError('SCO private static dependency writes or escapes cross-realm global state: '+filename);
       }
     });
     walk(ast,(node,parent,key)=>{
