@@ -90,3 +90,19 @@ test('Independent local globalThis bindings in private and public exports are se
   assert.deepEqual(emitted.publicNames,['visible']);
   assert.match(emitted.clientFile.code,/globalThis.publicValue/u);
 });
+
+test('Local-window records avoid false shared-ambient refusal, while genuine roots remain guarded',()=>{
+  const safe=partitionScoSelectedAsyncExports(
+    {path:'local-window.mjs',sourceType:'module',code:source(
+      'const window={privateValue:41};return window.privateValue;',
+      'const window={publicValue:7};return window.publicValue;')},
+    {privateNames:['protectedOp'],seed:'local-window-proof-20261116'});
+  assert.deepEqual(safe.privateNames,['protectedOp']);
+  assert.match(safe.clientFile.code,/window.publicValue/u);
+  assert.throws(()=>partition(
+    'return globalThis.Math.PI;',
+    'return globalThis.Math.PI;'),/share ambient state/u);
+  assert.throws(()=>partition(
+    'const globalThis=probe();return globalThis.Math.PI;',
+    'return globalThis.Math.PI;'),/share ambient state|unproved host-global state|realm-local/u);
+});
