@@ -12,8 +12,11 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 
 The SCO RPC handler requires the `application/json` media type and validates the
 complete body as UTF-8 before JSON parsing. Malformed UTF-8 octets are rejected
-as HTTP 400 `{"ok":false,"error":"Malformed JSON"}` without calling any
-authorization callback or private operation. Node's permissive
+as HTTP 400 `{"ok":false,"error":"Malformed JSON"}` before any
+method-level authorization or private operation. Without RPC isolation,
+the coarse `authorizeRpc` callback still runs before body parsing; with
+`runRpcIsolated`, body parsing precedes the coarse gate. Both orderings
+were established independently of UTF-8 validation. Node's permissive
 `Buffer.toString('utf8')` normally replaces invalid sequences with U+FFFD;
 a caller-supplied literal U+FFFD remains valid when encoded as its actual
 three UTF-8 bytes. Validation occurs **after concatenating all body chunks**,
