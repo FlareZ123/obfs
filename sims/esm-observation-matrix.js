@@ -7,7 +7,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {obfuscateFiles} = require('../src');
 const {atomicWrite} = require('../src/atomic');
-const {neutralizeHashedNames} = require('./offline-normalize');
+const {normalizePublicFields} = require('./public-token-normalizer');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 /** @typedef {{seed:number,kind:number,scenario:string,files:ModuleFile[],mustPreserveNames:boolean,expectedPositive:boolean}} Fixture */
@@ -239,7 +239,7 @@ async function runMatrix(seeds=12,mode='coo') {
     const normalizedCases=protectedCases.map(item=>{
       // This attacker receives only the emitted files, without source input,
       // a secret seed, or compiler internals beyond its public name syntax.
-      const normalized=neutralizeHashedNames(item.files);
+      const normalized=normalizePublicFields(item.files);
       attackerNormalizedFields+=normalized.properties;
       return {index:item.index,files:/** @type {ModuleFile[]} */(normalized.files)};
     });
