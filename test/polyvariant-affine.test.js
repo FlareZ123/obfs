@@ -122,3 +122,34 @@ test('exported ES-module functions retain module shape and output',async()=>{
     assert.equal(transformed.protectedSum(n),native.protectedSum(n));
   }
 });
+
+test('COO/SNO integration reports path metrics and rejects unsafe selections',()=>{
+  const {obfuscateFiles}=require('../src');
+  const {readArgs}=require('../src/cli');
+  const original=sourceFor(steps);
+  const files=[{path:'entry.cjs',sourceType:'commonjs',code:original}];
+  const result=obfuscateFiles(files,{
+    mode:'sno',seed:'pipeline',strings:false,properties:false,identifiers:false,
+    experimentalPolyvariantAffine:{'entry.cjs':['protectedSum']},
+    experimentalPolyvariantCount:4
+  });
+  assert.equal(result.files[0].metrics.polyvariantFunctions,1);
+  assert.equal(result.files[0].metrics.polyvariantPaths,4);
+  assert.equal(result.files[0].metrics.polyvariantSteps,steps.length);
+  assert.equal(load(/** @type {string} */ (result.files[0].code))(101),load(original)(101));
+  const opts=readArgs(['--root','project','--entry','entry.cjs',
+    '--polyvariant-affine','entry.cjs:protectedSum','--polyvariant-count','8']);
+  assert.deepEqual(opts.experimentalPolyvariantAffine,{'entry.cjs':['protectedSum']});
+  assert.equal(opts.experimentalPolyvariantCount,8);
+  assert.throws(()=>readArgs(['--root','project','--entry','entry.cjs',
+    '--polyvariant-count','3']),TypeError);
+  assert.throws(()=>obfuscateFiles(files,{
+    mode:'sno',seed:'pipeline',strings:false,
+    experimentalPolyvariantAffine:{'entry.cjs':['missing']}
+  }),/declined/);
+  assert.throws(()=>obfuscateFiles(files,{
+    mode:'sno',seed:'pipeline',strings:false,
+    experimentalNativeGraph:{'entry.cjs':['protectedSum']},
+    experimentalPolyvariantAffine:{'entry.cjs':['protectedSum']}
+  }),/multiple experimental backends/);
+});
