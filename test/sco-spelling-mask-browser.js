@@ -65,9 +65,7 @@ async function main() {
     const address=server.address();
     if(!address||typeof address==='string')throw Error('Expected TCP listener');
     const base='http://127.0.0.1:'+address.port;
-    const expected=[...(first+second+third)].flatMap(char=>[...char].map(unit=>unit.charCodeAt(0)));
-    // Array spread iterates by Unicode codepoint, so for exact code units use
-    // a numeric index instead of the iterator.
+    // Index by UTF-16 code units; Unicode iteration would combine surrogates.
     const full=first+second+third;
     /** @type {number[]} */
     const nativeUnits=[];
