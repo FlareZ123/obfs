@@ -6,6 +6,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 const {makeFixture,SCENARIOS}=require('../sims/esm-observation-matrix');
+const {normalizePublicFields}=require('../sims/public-token-normalizer');
 
 const runBrowser=promisify(execFile);
 
@@ -43,11 +44,12 @@ function page() {
 /**
  * Test six actual network-served, original vs generated ESM module graphs
  * with Chrome's genuine ESM linker and external host callback support.
- * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number}>}
+ * @returns {Promise<{cases:number,nativeBrowserParity:true,protectedPrivateFields:number,observerRefusals:number,normalizedPublicFields:number}>}
  */
 async function main() {
   /** @type {Map<string,string>} */
   const files=new Map();
+  let normalizedPublicFields=0;
   for(const item of CASES) {
     const fixture=makeFixture(7,item.kind);
     assert.equal(fixture.scenario,SCENARIOS[item.kind]);
@@ -57,6 +59,11 @@ async function main() {
     });
     assert.equal(protectedFiles.crossFile.properties,item.renamed,
       item.name+' should retain the declared protected/refused field count');
+    const attacked=normalizePublicFields(/** @type {import('../sims/public-token-normalizer').File[]} */(protectedFiles.files));
+    assert.equal(attacked.properties,item.renamed,
+      item.name+' should normalize every privately renamed public field');
+    normalizedPublicFields+=attacked.properties;
+    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,source.code);
     for(const source of fixture.files)
       files.set('/'+item.name+'/original/'+source.path,source.code);
     for(const source of protectedFiles.files) {
@@ -91,7 +98,7 @@ async function main() {
     for(const item of CASES) {
       /** @type {unknown} */
       let baseline;
-      for(const target of ['original','emitted']) {
+      for(const target of ['original','emitted','normalized']) {
         const {stdout}=await runBrowser(process.env.CHROMIUM_BIN??'google-chrome',[
           '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
           '--no-first-run','--virtual-time-budget=12000','--dump-dom',
@@ -107,6 +114,7 @@ async function main() {
       else refusals++;
     }
     const report={cases:CASES.length,protectedPrivateFields:renamed,observerRefusals:refusals,
+      normalizedPublicFields,
       nativeBrowserParity:/** @type {const} */(true)};
     process.stdout.write('ESM_OBSERVER_CHROMIUM '+JSON.stringify(report)+'\n');
     return report;
