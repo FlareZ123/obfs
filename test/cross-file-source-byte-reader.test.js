@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
@@ -111,3 +111,15 @@ for(const observer of [
     assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
   });
 }
+
+test('source-readable scripts reject requested host guards instead of changing bytes',()=>{
+  const files=[{path:'client.js',sourceType:/** @type {const} */('script'),
+    code:'fetch("./client.js");globalThis.output=8;'}];
+  assert.throws(()=>obfuscateFiles(files,{
+    mode:'coo',seed:'source-fetch-host-guard',allowedHosts:['allowed.example'],
+    strings:false,identifiers:true
+  }),/Host locking cannot preserve observable source bytes/u);
+  assert.throws(()=>createScoHandler(files,{
+    allowedHosts:['allowed.example']
+  }),/Host locking cannot preserve observable source bytes/u);
+});
