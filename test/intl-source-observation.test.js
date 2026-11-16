@@ -26,6 +26,10 @@ for(const [name,expression] of [
   ['Collator alias', '(()=>{const collator=new Intl.Collator("en");const other=collator;return other.compare(inspect,'+JSON.stringify(functionText)+');})()'],
   ['Collator global', 'new globalThis.Intl.Collator("en").compare(inspect,'+JSON.stringify(functionText)+')'],
   ['Collator bound accessor', '(()=>{const compare=new Intl.Collator("en").compare;return compare(inspect,'+JSON.stringify(functionText)+');})()'],
+  ['Collator compare via call', '(()=>{const compare=new Intl.Collator("en").compare;return compare.call(null,inspect,'+JSON.stringify(functionText)+');})()'],
+  ['Collator compare via apply', '(()=>{const compare=new Intl.Collator("en").compare;return compare.apply(null,[inspect,'+JSON.stringify(functionText)+']);})()'],
+  ['Collator compare via Reflect.apply', '(()=>{const compare=new Intl.Collator("en").compare;return Reflect.apply(compare,null,[inspect,'+JSON.stringify(functionText)+']);})()'],
+  ['Collator compare bound with source argument', '(()=>{const compare=new Intl.Collator("en").compare;const call=compare.bind(null,inspect,'+JSON.stringify(functionText)+');return call();})()'],
   ['Collator namespace alias', '(()=>{const namespace=globalThis.Intl;const col=new namespace.Collator("en");return col.compare(inspect,'+JSON.stringify(functionText)+');})()'],
   ['Collator destructured constructor', '(()=>{const {Collator:Class}=Intl;return new Class("en").compare(inspect,'+JSON.stringify(functionText)+');})()'],
   ['Collator without new', 'Intl.Collator("en").compare(inspect,'+JSON.stringify(functionText)+')'],
@@ -98,4 +102,6 @@ test('AST source observer recognizes Intl calls and keeps primitive calls eligib
   assert.equal(observesFunctionSource(parse('function f(){};const {Intl:Lib}=globalThis;Lib.supportedValuesOf(f);','commonjs')),true);
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.PluralRules("en",{type:f});','commonjs')),true);
   assert.equal(observesFunctionSource(parse('new Intl.PluralRules("en",{type:"cardinal"});','commonjs')),false);
+  assert.equal(observesFunctionSource(parse('function f(){};const cmp=new Intl.Collator().compare;cmp.call(null,f,"x");','commonjs')),true);
+  assert.equal(observesFunctionSource(parse('function f(){};const cmp=new Intl.Collator().compare;Reflect.apply(cmp,null,[f,"x"]);','commonjs')),true);
 });
