@@ -260,9 +260,11 @@ function createScoHandler(sourceFiles,options={}) {
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
   // transformations for the whole published group when one is present.
+  const importedKeyProof=options.closedWorld ?
+    collectVerifiedImportedStrings(normalized) : new Map();
   const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType)) ||
+    (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType))));
   if(interfileSourceObserver && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
