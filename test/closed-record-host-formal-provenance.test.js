@@ -126,7 +126,7 @@ test('unrelated formal destructuring keeps actual owner-field transformation',as
 
 test('local non-host formal destructuring keeps actual owner-field transformation',async()=>{
   const original=graph(
-    "function probe({['Ref'+'lect']:cap}){cap.ownKeys=()=>[];}probe({Reflect:{ownKeys:null}});");
+    "function probe({['Ref'+'lect']:cap}){cap.ownKeys=()=>[];}probe({['Ref'+'lect']:{ownKeys:null}});");
   const compiled=obfuscateFiles(original,{
     mode:'coo',closedWorld:true,seed:'host-formal/local-only',
     identifiers:false,strings:false,properties:true
