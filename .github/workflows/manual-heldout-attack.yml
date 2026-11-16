@@ -33,8 +33,7 @@ jobs:
         run: node sims/property-hotpath-closedworld.js
       - name: Fixed private tuple differential, reconstruction, and cold-session checks
         run: node --test test/private-tuple-proof.test.js test/private-tuple-grid.test.js test/private-tuple-session.test.js test/private-record-proof.test.js test/private-record-grid.test.js
-        env:
-          OBFS_DEBUG_OWNER: '1'
+
       - name: Report private tuple cold-through-hot end-to-end ratios
         run: node sims/private-tuple-session.js
       - name: Check JSDoc types
