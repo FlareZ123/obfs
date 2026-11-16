@@ -769,6 +769,11 @@ function observesDistributedSource(ast) {
          node.object.type==='Identifier' && globals.has(node.object.name)) {
         observed=true;
       }
+      // CommonJS module.constructor exposes Node's Module class. Its
+      // _load() method can access fs without an import, require identifier,
+      // or one of the member-loader names recognized above.
+      if(key==='constructor' && node.object.type==='Identifier' &&
+         node.object.name==='module')observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&
