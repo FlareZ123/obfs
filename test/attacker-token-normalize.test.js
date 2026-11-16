@@ -62,3 +62,39 @@ test('hash-shaped ordinary string data is not a recovered property',()=>{
   assert.equal(result.properties,0);
   assert.equal(result.files[0].code,source);
 });
+
+test('ObjectPattern string keys are independently relabeled across assignment and declaration',()=>{
+  const source='const record={"_p0123456789ab":17,"_pabcdef123456":5};'+
+    'let first=0;({"_p0123456789ab":first}=record);'+
+    'const {"_pabcdef123456":second}=record;'+
+    'module.exports=[first,second,"_p0123456789ab"];';
+  const normalized=normalizeDistributedFiles([
+    {path:'pattern.cjs',sourceType:'commonjs',code:source}
+  ]);
+  assert.equal(normalized.properties,2);
+  assert.match(normalized.files[0].code,/\{"plainField0":first\}/);
+  assert.match(normalized.files[0].code,/\{"plainField1":second\}/);
+  const native={module:{exports:null}};
+  const rewritten={module:{exports:null}};
+  vm.runInNewContext(source,native,{timeout:2000});
+  vm.runInNewContext(normalized.files[0].code,rewritten,{timeout:2000});
+  assert.equal(JSON.stringify(rewritten.module.exports),
+    JSON.stringify(native.module.exports));
+  assert.ok(normalized.files[0].code.includes('"_p0123456789ab"'),
+    'unrelated payload string retains its spelling');
+});
+
+test('nested ObjectPattern keys use one global source-only mapping',()=>{
+  const source='const nested={"_p0123456789ab":{"_pabcdef123456":29}};'+
+    'const {"_p0123456789ab":{"_pabcdef123456":value}}=nested;'+
+    'module.exports=value;';
+  const normalized=normalizeDistributedFiles([
+    {path:'nested.cjs',sourceType:'commonjs',code:source}
+  ]);
+  assert.equal(normalized.properties,2);
+  const native={module:{exports:null}};
+  const rewritten={module:{exports:null}};
+  vm.runInNewContext(source,native,{timeout:2000});
+  vm.runInNewContext(normalized.files[0].code,rewritten,{timeout:2000});
+  assert.equal(rewritten.module.exports,native.module.exports);
+});
