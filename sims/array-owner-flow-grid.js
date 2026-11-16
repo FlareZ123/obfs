@@ -11,7 +11,7 @@ const safe=[
   'const id=x=>x;const third=id(left);module.exports=n=>third.privateCash+right.hiddenFee+n;',
   'const read=x=>{return x.privateCash;};module.exports=n=>read(right)+left.hiddenFee+n;',
   'const extra=holder[0];module.exports=n=>extra.privateCash+right.hiddenFee+n;',
-  'const get=()=>left;const next=get();module.exports=n=>next.privateCash+right.hiddenFee+n;',
+  'const get=()=>vault;const next=get();module.exports=n=>next.privateCash+right.hiddenFee+n;',
   'module.exports=n=>left["privateCash"]+right.hiddenFee+n;'
 ];
 const unsafe=[
