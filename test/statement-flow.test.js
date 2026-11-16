@@ -185,3 +185,29 @@ test('atomic native loops, switch, labels, and finally blocks survive CFG reloca
     }
   }
 });
+
+test('strict receiver, arguments, closure and parameter-default semantics stay native',()=>{
+  const examples=[
+    'function f(x){"use strict";var a=arguments.length;if(this&&this.flag){a+=x;}else{a-=x;}return function(){return a+1;};}',
+    'function f(x=7,y=3){"use strict";var a=x+y;if(arguments.length===0){a++;}else{a--;}return [a,x,y].join(":");}',
+    'function f({value:x=5}={}){var a=x;if(a>0){a*=3;}else{a-=7;}return a;}'
+  ];
+  for(const original of examples){
+    const compiled=flattenStatementFlow(original,'commonjs',{
+      seed:'native-receiver-20261116',names:['f']
+    });
+    assert.equal(compiled.functions,1,original);
+    const native=load(original),transformed=load(compiled.code);
+    for(const args of [[4],[12],[-1],[],[undefined],[{value:8}]]){
+      for(const receiver of [undefined,{flag:true},{flag:false}]){
+        const baseline=Reflect.apply(native,receiver,args);
+        const observed=Reflect.apply(transformed,receiver,args);
+        if(typeof baseline==='function'){
+          assert.equal(observed(),baseline());
+        }else{
+          assert.deepEqual(observed,baseline);
+        }
+      }
+    }
+  }
+});
