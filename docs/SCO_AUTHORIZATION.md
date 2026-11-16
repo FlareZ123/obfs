@@ -260,7 +260,11 @@ function authorizeOperation(request,method,args) {
 `readConsistentSessionSnapshot` is an application-defined placeholder.
 The modeled `read,revoke` sequence is admitted, whereas `revoke,read` is
 rejected before any operation runs. The policy callbacks must be synchronous,
-pure and complete for every state-changing operation. The integrator must
+pure and complete for every state-changing operation. The helper rejects a
+Promise or callable thenable returned by a transition (including the final
+step) and rejects a thenable initial state; otherwise an unresolved Promise
+could be mistaken for a truthy authorized state. An asynchronous transition
+must be resolved by the application before calling this synchronous helper. The integrator must
 also ensure the snapshot remains consistent between preflight and execution
 through an application transaction, serialization, or equivalent control.
 Without this guarantee, another request may change permissions after the
