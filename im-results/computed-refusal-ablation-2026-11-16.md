@@ -55,6 +55,27 @@ This dynamically compiles `return import('./state.mjs')` and inspects the
 field names from the imported module. A static import graph does not
 capture this second runtime import as a consumer.
 
+## Final cross-platform and runtime differential pin
+
+The fully checked version passed
+[manual workflow 43828111130](https://github.com/FlareZ123/obfs/actions/runs/43828111130)
+on Linux and Windows Node 22 at exact source commit
+`fef230c9fa8341acf1a468555fca17d4a1c8b241`.
+Both runners also passed strict project and `jsconfig.external.json`
+JSDoc checks. The diagnostic compiler preserved **84/84 real native
+ESM application outputs** with two renamed fields after removing the
+line, while the hostile two-hop constructor witness produced the same
+unsafe mismatch on both operating systems. The normalized source SHA256
+was identical across OSes:
+`2c4bd17f3ef3e54992347a328b18c5a06ede3517a8bb65ea6fa4cf68dcfa380f`.
+
+This establishes a **scoped positive 84-case semantic result** for the
+observer-ablated frozen app, together with a counterexample to the
+general transformation. Neither finite set proves the broader safety
+of removing the check. The source-line ablation is intentionally
+unmerged as compiler behavior; only the standalone diagnostic script,
+its tests and evidence should be merged.
+
 ## Pinned initial Linux/Windows observation
 
 [Manual cross-reader gate 43827261905](https://github.com/FlareZ123/obfs/actions/runs/43827261905)
