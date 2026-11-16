@@ -77,3 +77,23 @@ test('private source verification requires a real audited commitment and absolut
   await assert.rejects(()=>verifyScoPrivateSourceDigests(duplicates,os.tmpdir()),
     /path duplicated/);
 });
+
+test('private graph commitment validation rejects a symlink escaping the verified root',{
+  timeout:15000,
+  skip:process.platform==='win32' ? 'Windows hosted runner symlink privilege varies' : false
+},async()=>{
+  const partition=compile();
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-realpath-root-'));
+  const outside=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-realpath-outside-'));
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    await atomicWrite(path.join(root,engine.path),engine.code);
+    await atomicWrite(path.join(outside,'private-leaf.mjs'),leaf.code);
+    await fs.symlink(path.join(outside,'private-leaf.mjs'),path.join(root,leaf.path));
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source escapes integrity root: private\/leaf\.mjs/);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+    await fs.rm(outside,{recursive:true,force:true});
+  }
+});
