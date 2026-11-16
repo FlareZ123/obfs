@@ -22,8 +22,10 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Run SNO attack under full local ownership
-        run: node --test test/sno-self-hash-bypass.test.js
+        run: node --test test/sno-self-hash-bypass.test.js test/sno-manifest-rewrite.test.js
       - name: Print owner-bypass evidence
-        run: node sims/sno-self-hash-bypass.js
+        run: |
+          node sims/sno-self-hash-bypass.js
+          node sims/sno-manifest-rewrite-attack.js
       - name: Strict JSDoc type safety
         run: npm run typecheck
