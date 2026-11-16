@@ -162,3 +162,26 @@ intervals, a hardware/traffic guarantee, or a probability of a future
 the budget despite its observed median passing. Any production
 decision requires independent repeated runs under representative
 client/network conditions.
+
+## Real Chromium SCO client execution
+
+The [browser regression](../test/application-challenge-sco-browser.js)
+launches an actual headless Google Chrome tab at a local HTTP page,
+imports the exact generated `/obfs/sco-before/api.mjs` facade as a
+standard JavaScript module, calls the private server through the
+browser's `fetch`, and compares three results to trusted native
+execution. A **test-only same-origin HTTP proxy** injects the fixture
+bearer header on requests to the private app server because ordinary
+ESM module fetch cannot attach an arbitrary bearer header. The proxy
+routes only the allowed module and RPC endpoints. This models a
+trusted authorization reverse proxy, and is not a claim that a hostile
+client is unable to reach the original server.
+
+The [manual source-snapshot, cold-budget, bootstrap, and browser gate
+43808484570](https://github.com/FlareZ123/obfs/actions/runs/43808484570)
+was green: Ubuntu executed **3/3** actual Chromium results and both
+Ubuntu and Windows passed the other source/attacker/cost checks.
+Pinned source SHA: `20382fc4c0466483798e0faff383625196200144`.
+This increases client runtime compatibility evidence to a real browser,
+while leaving TLS/WAN, production policy and source-extraction
+resistance unmeasured.
