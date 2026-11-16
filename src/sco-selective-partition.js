@@ -349,6 +349,45 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     discovered.add(filename);
     const ast=parse(code,'module');
+    // The source snapshot lets us apply the same bounded intrinsic-state
+    // refusal used for directly partitioned functions to imported modules.
+    const realmEffect=realmStateObservation(ast);
+    if(realmEffect) {
+      throw new TypeError('SCO private static dependency contains realm-local '+realmEffect+' access: '+filename);
+    }
+    // Plain global-object mutation is also observable by a retained client
+    // function in the original shared realm. Overapproximate simple aliases
+    // and reject direct writes rather than trusting a server-only side effect.
+    const globalRoots=new Set(['globalThis','window','self','global']);
+    let aliasesChanged=true;
+    while(aliasesChanged) {
+      aliasesChanged=false;
+      walk(ast,node=>{
+        const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?node.id:
+          node.type==='AssignmentExpression'&&node.operator==='='&&
+            node.left.type==='Identifier'?node.left:null;
+        const initial=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'?node.right:null;
+        if(binding&&initial?.type==='Identifier'&&globalRoots.has(initial.name)&&
+           !globalRoots.has(binding.name)){
+          globalRoots.add(binding.name);
+          aliasesChanged=true;
+        }
+      });
+    }
+    /** @param {import('./ast').AstNode} node @returns {boolean} */
+    function rootedInGlobal(node) {
+      return node.type==='Identifier'&&globalRoots.has(node.name) ||
+        node.type==='MemberExpression'&&rootedInGlobal(node.object);
+    }
+    walk(ast,node=>{
+      if(node.type==='AssignmentExpression'&&rootedInGlobal(node.left) ||
+         node.type==='UpdateExpression'&&rootedInGlobal(node.argument) ||
+         node.type==='UnaryExpression'&&node.operator==='delete'&&
+           rootedInGlobal(node.argument)){
+        throw new TypeError('SCO private static dependency writes cross-realm global state: '+filename);
+      }
+    });
     walk(ast,node=>{
       if(node.type==='ImportExpression' ||
          node.type==='CallExpression' &&
