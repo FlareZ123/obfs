@@ -952,6 +952,35 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
+  /**
+   * An immutable function-local plain record containing only inert primitive
+   * values cannot be an alias of the host global object. Distinguish its
+   * spelled name from ambient state when comparing public/private functions.
+   * Keep dynamic initializers, getters, spreads, and writable aliases in the
+   * conservative ambient bucket until their ownership can be proven.
+   * @param {import('./ast').AstNode} fn
+   * @returns {Set<string>}
+   */
+  function ownedLocalAmbientNames(fn) {
+    const names=new Set();
+    if(fn.body?.type!=='BlockStatement')return names;
+    for(const statement of fn.body.body){
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const declaration of statement.declarations){
+        if(declaration.id.type!=='Identifier'||!ambientRoots.has(declaration.id.name)||
+           declaration.init?.type!=='ObjectExpression')continue;
+        const properties=declaration.init.properties;
+        if(properties.every((/** @type {import('./ast').AstNode} */ property)=>
+          property.type==='Property'&&!property.computed&&!property.method&&
+          property.kind==='init'&&property.value.type==='Literal'&&
+          (property.value.value===null||['string','number','boolean','bigint']
+            .includes(typeof property.value.value)))){
+          names.add(declaration.id.name);
+        }
+      }
+    }
+    return names;
+  }
   /** @type {Set<string>} */
   const privateAmbient=new Set();
   /** @type {Set<string>} */
@@ -991,8 +1020,10 @@ function partitionScoSelectedAsyncExports(file,options) {
       privateHelperNames.add(name);
       privateHelperChunks.push(helper.text);
       privateBodies.push(fn.body);
+      const localAmbient=ownedLocalAmbientNames(fn);
       walk(fn.body,(node,parent,key)=>{
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+           !localAmbient.has(node.name)){
           privateAmbient.add(node.name);
         }
       });
@@ -1019,8 +1050,10 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access: '+name);
     }
+    const localAmbient=ownedLocalAmbientNames(fn);
     walk(fn,(node,parent,key)=>{
-      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+         !localAmbient.has(node.name))publicAmbient.add(node.name);
       if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
          node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
         throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
@@ -1076,8 +1109,10 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
       privateBodies.push(fn.body);
+      const localAmbient=ownedLocalAmbientNames(fn);
       walk(fn.body,(node,parent,key)=>{
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))privateAmbient.add(node.name);
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+           !localAmbient.has(node.name))privateAmbient.add(node.name);
       });
     }else{
       publicNames.push(name);
