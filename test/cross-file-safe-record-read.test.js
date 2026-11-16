@@ -185,3 +185,26 @@ for(const [label,setup,invoke] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+for(const [label,setup] of [
+  ['global object alias','const root=globalThis;const ctor=root.RUNTIME_FACTORY;'],
+  ['global destructuring','const {RUNTIME_FACTORY:ctor}=globalThis;'],
+  ['global property descriptor',
+    'const ctor=Object.getOwnPropertyDescriptor(globalThis,"RUNTIME_FACTORY").value;']
+]) {
+  test('host loader via '+label+' cannot observe renamed ESM owner',async()=>{
+    const files=graph([
+      setup,
+      "const remote=await ctor(\"return import('./state.mjs')\")();",
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-loader-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
