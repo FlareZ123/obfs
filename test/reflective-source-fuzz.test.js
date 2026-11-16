@@ -119,7 +119,7 @@ test('finite reflective function-source differential across three deployment mod
 });
 
 test('known benign static Reflect.get key leaves unrelated obfuscation possible',()=>{
-  const source="const text='source-observation-literal';const value=Reflect.get({known:2},'known');globalThis.out={value:text+value,source:'benign'};";
+  const source="const text='source-observation-literal';const value=Reflect.get({known:2},'known');globalThis.out={value:text,source:'benign'};globalThis.count=value;";
   const native=execute(source);
   const transformed=obfuscateFiles([{path:'entry.js',sourceType:'script',code:source}],{
     mode:'coo',seed:'benign-reflect-get',properties:true,identifiers:true,strings:true
