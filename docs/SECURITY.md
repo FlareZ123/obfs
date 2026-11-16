@@ -64,7 +64,8 @@ imports/reexports and direct `require()` calls of `module` or `node:module`,
 because `createRequire()` and `Module._load()` can obtain filesystem APIs
 indirectly. It recognizes built-in CommonJS member loaders such as
 `module.require()`, `require.main.require()`, and
-`process.mainModule.require()` even without a direct `require('fs')` call.
+`process.mainModule.require()`, and the `module.constructor` escape to
+`Module._load` or `Module.createRequire`, even without a direct `require('fs')` call.
 These checks are intentionally conservative: a harmless module-loader import
 also prevents rewriting the supplied source group. The exact-source contract
 must take precedence over transformation coverage until a target-specific path
