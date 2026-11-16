@@ -165,3 +165,24 @@ test('irrelevant global descriptor write preserves proved own-key transformation
   assert.equal(expected,'[41,"audit-v1",null]');
   assert.equal(await execute(compiled.files),expected);
 });
+
+/**
+ * Source-declared reflective descriptor objects can reveal a mutable global
+ * intrinsic without spelling that native method as a direct mutation target.
+ * This canary intentionally asserts exact native/generated behavior.
+ */
+test('descriptor-value forwarded global Reflect mutation preserves emitted own keys',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "const d=Object.getOwnPropertyDescriptor(globalThis,'Reflect');d.value.ownKeys=globalThis.HOST_REFLECT;")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'descriptor-value-forwarded-root',
+    identifiers:false,strings:false,properties:true
+  });
+  const native=await execute(original);
+  assert.equal(native,'[41,"audit-v1",["secretField"]]');
+  assert.equal(await execute(compiled.files),native,
+    'The descriptor value aliases global Reflect and calls the declared host reflector');
+  assert.equal(compiled.crossFile.properties,0);
+});
