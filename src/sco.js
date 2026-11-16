@@ -3,7 +3,7 @@
 const {randomBytes,createHash} = require('node:crypto');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
-const {renameCrossFileProperties} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
