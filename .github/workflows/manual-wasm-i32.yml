@@ -28,6 +28,7 @@ jobs:
           node examples/wasm-i32/build.cjs
           node examples/wasm-i32-multi/build.cjs
           node examples/wasm-i32-conditional/build.cjs
+          node examples/wasm-i32-lazy/build.cjs
       - name: Hostile-runtime binary extraction and function replacement
         run: node sims/wasm-i32-runtime-extraction.js
       - name: Whole-session initialization cost curve
