@@ -37,12 +37,15 @@ async function send(port,chunks){
 test('SCO rejects invalid UTF-8 JSON octets without calling private RPC',async()=>{
   /** @type {string[]} */
   const effects=[];
+  let coarseChecks=0;
+  let operationChecks=0;
   const server=http.createServer(createScoHandler([],{
     remoteMethods:{probe:/** @param {string} value */ value=>{
       effects.push(value);
       return value;
     }},
-    authorizeRpc:()=>true
+    authorizeRpc:()=>{coarseChecks++;return true;},
+    authorizeOperation:()=>{operationChecks++;return true;}
   }));
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   try{
@@ -62,6 +65,9 @@ test('SCO rejects invalid UTF-8 JSON octets without calling private RPC',async()
       assert.deepEqual(effects,[],'An invalid byte sequence cannot reach private code');
     }
 
+    assert.equal(coarseChecks,4,'Non-isolated coarse auth still runs before bytes');
+    assert.equal(operationChecks,0,'Invalid body cannot reach method-level auth');
+
     const validReplacement=await send(port,[
       Buffer.from(JSON.stringify({method:'probe',args:['\ufffd']}),'utf8')
     ]);
@@ -72,6 +78,8 @@ test('SCO rejects invalid UTF-8 JSON octets without calling private RPC',async()
     ]);
     assert.deepEqual(validSplit,{status:200,payload:{ok:true,value:'€'}});
     assert.deepEqual(effects,['\ufffd','€']);
+    assert.equal(coarseChecks,6);
+    assert.equal(operationChecks,2);
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
