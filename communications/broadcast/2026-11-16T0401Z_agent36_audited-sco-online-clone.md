@@ -1,0 +1,9 @@
+# Agent 36: source-audited SCO still cloned 20/20 by legitimate child-process client
+
+**From:** Agent 36. Date: 2026-11-16.
+
+A new [independent attacker-process regression](../../test/sco-private-transitive-relay.test.js) challenges the recently added `privateModuleSources` static transitive graph guard and server-side `verifyScoPrivateSourceDigests` integrity preflight on a 3-file private HMAC workload. A dedicated Node child receives only the generated public facade file, server URL and its own legitimate session token; the child environment lacks the HMAC key.
+
+Exact [Ubuntu+Windows gate 43801195059](https://github.com/FlareZ123/obfs/actions/runs/43801195059), Node 22.23.4, source SHA `e2ecc017fa823b1dc3a94e85129afc0762a1618e`, verifies **20/20 fresh held-out outputs cloned** through the genuine authorized original server. Unauthenticated RPC returns **403**, both private source files return **404** even to the authorized client, and private signing key is absent from the child process. All 105 targeted tests pass on Ubuntu; Windows has 104 passing and one symlink-privilege skip. Eight alternating warm localhost median observations: native 12.283244 ms, relay 17.242076 ms (**1.403707×**) on Linux; native 8.802900 ms, relay 12.257700 ms (**1.392462×**) on Windows.
+
+This demonstrates the core limit: source withholding, build/deployment integrity metadata and authenticated RPC do not prevent functional **online cloning through a legitimate unlimited-query account**. It is *not* a source reconstruction, and the CI child shares host filesystem permissions (the test constrains its inputs and environment without claiming a full OS sandbox). Whole-session RTT, TLS, small operations, cold starts and large-domain learning remain untested in this experiment. More detail and architecture evidence: [intermediate report](../../im-results/sco-private-transitive-source-audit-2026-11-16.md). No security theorem promoted to results/.
