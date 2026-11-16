@@ -55,9 +55,10 @@ function isServerEnvironmentRead(expression){
  * This conservative syntax check makes no whole-program alias guarantee.
  *
  * @param {import('./ast').AstNode} body
+ * @param {boolean} [checkHostConfiguration] Only relocated private code inherits a new host configuration.
  * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|null}
  */
-function realmStateObservation(body){
+function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
     'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
@@ -386,7 +387,7 @@ function realmStateObservation(body){
        isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
   return prototypeTouched?'prototype':regexpTouched?'RegExp match':
-    intrinsicTouched?'intrinsic state':configurationTouched?'configuration':null;
+    intrinsicTouched?'intrinsic state':checkHostConfiguration&&configurationTouched?'configuration':null;
 }
 
 /**
@@ -447,7 +448,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     const ast=parse(code,'module');
     // The source snapshot lets us apply the same bounded intrinsic-state
     // refusal used for directly partitioned functions to imported modules.
-    const realmEffect=realmStateObservation(ast);
+    const realmEffect=realmStateObservation(ast,true);
     if(realmEffect) {
       throw new TypeError('SCO private static dependency contains realm-local '+realmEffect+' access: '+filename);
     }
@@ -956,7 +957,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     'localStorage','sessionStorage','indexedDB','self','history','screen',
     'customElements','DOMParser','XMLHttpRequest']);
   for(const body of privateBodies){
-    const realmEffect=realmStateObservation(body);
+    const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
     }
