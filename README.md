@@ -6,7 +6,14 @@ This repository is an experimental, conservative JavaScript obfuscator targeting
 
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
-**Latest pinned full integration (2026-11-16):** The
+**Latest pinned full integration (2026-11-16, 21:20 UTC):** The
+[manual Node 22 Linux/Windows and Ubuntu Chromium run 43958450776](https://github.com/FlareZ123/obfs/actions/runs/43958450776)
+completed successfully at exact source `b6f8fd54c41c70816b466da7d8e1af949dca9d26`.
+Of 1,797 Node tests per operating system, Ubuntu passed **1,796 with one skip and zero failures**, while Windows passed **1,795 with two skips and zero failures**. Both jobs also passed strict JSDoc and external checker steps, sampled performance and paired application checks, and the Ubuntu job passed real Chromium browser checks.
+The pin includes [SCO synchronous batch-state policy enforcement](im-results/sco-batch-async-transition-2026-11-16.md), [exact-boolean permission gates](im-results/sco-boolean-authorization-2026-11-16.md), and [invalid-batch inner policy work avoidance](im-results/sco-batch-invalid-policy-work-2026-11-16.md).
+The strict-boolean authorization change is a **migration boundary** for integrations that previously returned truthy session objects, strings, or numbers: callbacks must explicitly return literal `true` to authorize. These are bounded trusted-server correctness/resource-safety improvements, not new full-control obfuscation guarantees. A later moving `main` commit requires separate validation.
+
+**Historical pinned full integration (2026-11-16):** The
 [manual Node 22 Linux/Windows and Ubuntu Chromium run 43946318544](https://github.com/FlareZ123/obfs/actions/runs/43946318544)
 completed successfully at exact merged `main` source `b3af72b114513fc10704416e60979f1b142c477e`.
 Of 1,777 Node tests per operating system, Ubuntu passed **1,776 with
