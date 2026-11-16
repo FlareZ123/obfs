@@ -82,7 +82,8 @@ test('closed-world graph refuses untracked dynamic and noncanonical loaders',()=
     'const builtin=process.getBuiltinModule("node:module"); export function deriveProof(v){return builtin.createRequire(v);}',
     'const {getBuiltinModule}=process; export function deriveProof(v){return getBuiltinModule("node:module");}',
     'const p=process; export function deriveProof(v){return p["getBuiltinModule"]("node:module");}',
-    'const p=globalThis.process; export function deriveProof(v){return p.getBuiltinModule("node:module");}'
+    'const p=globalThis.process; export function deriveProof(v){return p.getBuiltinModule("node:module");}',
+    'import {getBuiltinModule as pick} from "node:process"; export function deriveProof(v){return pick("node:module");}'
   ]) {
     assert.throws(()=>emit([{...engine,code},leaf]),
       /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader|unproved Node process loader/,
