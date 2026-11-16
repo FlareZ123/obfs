@@ -106,11 +106,30 @@ a constructor-time refusal before HTTP route construction.
 
 The paired [real HTTP negative-control and two-platform test](../im-results/sco-graph-publication-manifest-2026-11-16.md)
 shows that a handler built with the same facades stripped of the marker
-would accidentally serve a source canary through HTTP 200. The marker is
-a fail-closed integration guard for the particular supplied graph; it
-does not inspect every conceivable alternate filename or runtime import.
-The stronger `publicPaths` positive allowlist still protects against
-unexpected extra source files outside the graph and remains recommended.
+would accidentally serve a source canary through HTTP 200. Every generated graph facade additionally carries
+`privateOriginalDigests`, a SHA-256 digest list of **all original ESM
+input source bytes**, including modules explicitly selected in
+`exposedPaths`. The handler checks any candidate public file's exact
+source bytes against those digests before creating its HTTP routes. This
+prevents accidentally shipping the original implementation of an exposed
+API instead of its generated facade, or copying an unchanged private
+dependency under a different filename. The metadata stays server-side;
+the HTTP response contains only the generated JavaScript.
+
+These checks are bounded deployment-mistake safeguards for the particular
+supplied graph. Altering a single source byte evades exact fingerprints,
+stripping generated metadata disables the corresponding guard, and a
+separate public server can still publish files outside this handler.
+They cannot establish hostile-runtime tamper resistance or prevent
+legitimate authenticated RPC relaying. The stronger `publicPaths`
+positive allowlist remains recommended to reject unreviewed file paths,
+irrespective of their content.
+
+The pinned [Linux/Windows exact-source regression at c893a84](https://github.com/FlareZ123/obfs/actions/runs/43854468508)
+exercises both original-exposed-module replacement and a renamed
+private dependency; it includes a real HTTP source-leak negative control
+with fingerprint metadata intentionally omitted. Both Node 22 jobs
+and strict SCO graph JSDoc passed.
 
 ## Generated browser RPC facade
 
