@@ -377,11 +377,33 @@ function realmStateObservation(body,checkHostConfiguration=false){
         configurationTouched=true;
       }
     }
-    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
-       node.init&&isMathRoot(node.init)&&
-       node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>
-         property.type==='Property'&&keyName(property)==='random')){
-      entropyTouched=true;
+    // Extracting a random function or a host timing/crypto function through
+    // destructuring has the same cross-realm effect as a direct member read.
+    // Include assignment patterns and global-object destructuring aliases.
+    const pattern=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const source=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(pattern?.type==='ObjectPattern'&&source){
+      const properties=pattern.properties.filter(
+        (/** @type {import('./ast').AstNode} */ property)=>property.type==='Property');
+      if(isMathRoot(source)&&properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='random')){
+        entropyTouched=true;
+      }
+      const origin=hostSourceKind(source);
+      if(origin==='entropy')entropyTouched=true;
+      if(origin==='clock')clockTouched=true;
+      if(source.type==='Identifier'&&globalNames.has(source.name)){
+        if(properties.some(
+          (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='crypto')){
+          entropyTouched=true;
+        }
+        if(properties.some(
+          (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='performance')){
+          clockTouched=true;
+        }
+      }
     }
     if((node.type==='CallExpression'||node.type==='NewExpression')&&
        (isIntlConstructor(node.callee)||
