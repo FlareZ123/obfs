@@ -65,7 +65,7 @@ async function main() {
     });
     response.end(route.text);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   try {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
@@ -86,7 +86,7 @@ async function main() {
       variants:7,externalCallbackPreserved:true,rows
     })+'\n');
   } finally {
-    await new Promise(resolve=>server.close(resolve));
+    await new Promise(resolve=>server.close(()=>resolve(undefined)));
   }
 }
 
