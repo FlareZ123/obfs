@@ -254,6 +254,30 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           node.init?.type==='ArrowFunctionExpression'))
         recordFormals(node.id.name,node.init.params);
     });
+    // Uniquely named local function references can be assigned and called
+    // through another identifier. Reuse the ordinary assignment edges to
+    // propagate every possible formal list before resolving any callsite.
+    // Multiple callable origins join conservatively instead of choosing one.
+    let callableChanged;
+    do {
+      callableChanged=false;
+      for(const [alias,origin] of aliasEdges) {
+        const originFormals=localCallFormals.get(origin);
+        if(!originFormals)continue;
+        const aliasFormals=localCallFormals.get(alias)??[];
+        let extended=false;
+        for(const formals of originFormals) {
+          if(!aliasFormals.includes(formals)) {
+            aliasFormals.push(formals);
+            extended=true;
+          }
+        }
+        if(extended) {
+          localCallFormals.set(alias,aliasFormals);
+          callableChanged=true;
+        }
+      }
+    }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
     walk(source.ast,node=>{
