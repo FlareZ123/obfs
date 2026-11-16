@@ -132,3 +132,66 @@ test('real ESM inspector/promises source reader retains original private spellin
     assert.equal(output.metrics.properties,0,output.code);
   }finally{await fs.rm(dir,{recursive:true,force:true});}
 });
+
+/**
+ * Execute an entire closed-world ESM graph from a fresh directory.
+ * @param {string} folder
+ * @param {{path:string,code:string}[]} files
+ * @returns {Promise<string>}
+ */
+async function executeGraph(folder,files) {
+  for(const file of files)await atomicWrite(path.join(folder,file.path),file.code);
+  const run=spawnSync(process.execPath,[path.join(folder,'main.mjs')],{
+    encoding:'utf8',timeout:15000
+  });
+  assert.equal(run.status,0,run.stderr);
+  return run.stdout.trim();
+}
+
+test('independent ESM module inspector can observe another exported owner source',async()=>{
+  const source=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={secretField:7};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      "import {state} from './state.mjs';",
+      "import {Session} from 'node:inspector/promises';",
+      'const session=new Session();',
+      'let sourceId=null;',
+      'session.connect();',
+      "session.on('Debugger.scriptParsed',message=>{",
+      "  if(message.params.url.endsWith('/state.mjs'))sourceId=message.params.scriptId;",
+      '});',
+      "await session.post('Debugger.enable');",
+      "const info=await session.post('Debugger.getScriptSource',{scriptId:sourceId});",
+      'process.stdout.write(JSON.stringify({value:state.secretField,',
+      "  originalKey:info.scriptSource.includes(['secret','Field',':7'].join(''))}));",
+      'session.disconnect();'
+    ].join('\n')}
+  ];
+  const emitted=obfuscateFiles(source.map(file=>({...file,sourceType:/** @type {'module'} */('module')})),{
+    mode:'coo',closedWorld:true,seed:'inspector-graph',
+    strings:false,identifiers:false
+  });
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-inspector-graph-'));
+  try{
+    const before=await executeGraph(path.join(dir,'native'),source);
+    const after=await executeGraph(path.join(dir,'emitted'),emitted.files);
+    assert.deepEqual(JSON.parse(before),{value:7,originalKey:true});
+    assert.equal(after,before,emitted.files.map(file=>file.code).join('\n'));
+    assert.equal(emitted.crossFile.properties,0);
+  }finally{await fs.rm(dir,{recursive:true,force:true});}
+});
+
+test('same ESM exported owner without inspector retains cross-file rename coverage',()=>{
+  const source=[
+    {path:'state.mjs',sourceType:/** @type {'module'} */('module'),
+      code:'export const state={secretField:7};'},
+    {path:'main.mjs',sourceType:/** @type {'module'} */('module'),
+      code:"import {state} from './state.mjs';console.log(state.secretField);"}
+  ];
+  const emitted=obfuscateFiles(source,{
+    mode:'coo',closedWorld:true,seed:'inspector-graph-positive',
+    strings:false,identifiers:false
+  });
+  assert.equal(emitted.crossFile.properties,1,emitted.files.map(file=>file.code).join('\n'));
+});
