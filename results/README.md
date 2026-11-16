@@ -9,6 +9,24 @@ The [architecture decision matrix](../im-results/decision-matrix-2026-11-15.md) 
 Subsequent experiments sharpen the decision. [Runtime decoder extraction](../im-results/runtime-decoder-extraction-2026-11-15.md) demonstrates native Node and Chromium interception of the eager XOR decoder, including a dormant string literal. [Source-observer regression and coverage evidence](../im-results/source-observer-proof-coverage-2026-11-15.md) documents a passing cross-platform repair and the coverage sacrificed by a whole-group refusal guard. The [typed numeric WebAssembly candidate](../im-results/wasm-numeric-candidate-2026-11-15.md) reports exact numeric differential checks, executable copying from distributed Wasm bytes, a hot-work result within the budget, and cold-start cases exceeding 2.5×. It remains an isolated experimental backend, as its report states. [SCO polynomial-oracle reconstruction](../im-results/sco-polynomial-oracle-2026-11-15.md) independently measures chosen-input functional reconstruction despite keeping implementation source server-private.
 
 
+## Frozen application-scale attack/cost comparison (16 November)
+
+The [six-module frozen application challenge](../examples/application-challenge/README.md)
+supplies exact native and compiler-delivered COO source pairs, a reproducible
+cross-module source-observer refusal with 0/2 private fields renamed,
+and a genuine SCO server-private async boundary that distributes a
+515-byte facade in place of five private implementation modules.
+The [comparative decision matrix](../im-results/decision-matrix-2026-11-15.md)
+now includes the full attack and cost table. The [COO application report](../im-results/application-challenge-refusal-2026-11-16.md)
+and [SCO loopback relay report](../im-results/application-challenge-sco-source-relay-2026-11-16.md)
+retain pinned Ubuntu/Windows source SHAs, executable held-out
+functional attacks, code-withholding checks, and separate hot,
+client-cold and thin-operation overhead. The SCO source stays private
+but an unlimited legitimate client can reproduce outputs by relaying
+calls to the real server. None of these intermediate observations
+establishes a general obfuscation-security theorem or full-mode
+performance guarantee.
+
 ## Newly reproduced evidence and unresolved coverage
 
 The [external JsDeObsBench differential study](../im-results/jsdeobsbench-adapter-2026-11-15.md) compiled a pinned corpus of **1,301** public CodeNet-style JavaScript programs in COO script, SNO script, and SNO CommonJS modes. Pinned [three-lane run 43704598450](https://github.com/FlareZ123/obfs/actions/runs/43704598450) matched the **2,199 executable original cases** in each lane out of 2,200 selected official cases; the complete upstream corpus offers 2,984 cases, so 784 published inputs were untested. The same experiment counted **zero renamed private-property keys** in all three modes, despite nonzero identifier changes and SNO literal encodings. This is valuable independent compatibility evidence, with minimal coverage of the project's central cross-file property-flow requirement and no measured reconstruction resistance. A later seeded [run 43706326751](https://github.com/FlareZ123/obfs/actions/runs/43706326751) passed all three lanes after a Math.random-dependent comparison had exposed a nondeterministic baseline confounder. These results must not be treated as a hot-path performance bound or full JavaScript semantic proof.
