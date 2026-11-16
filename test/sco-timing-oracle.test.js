@@ -16,6 +16,8 @@ test('authorized client recovers server-private 128-bit value from vulnerable ti
   assert.equal(result.vulnerableFinalAccepted,true);
   assert.equal(result.constantTimeControlRecovered,false);
   assert.equal(result.controlFinalAccepted,false);
+  assert.equal(result.offlineCloneChecks,65);
+  assert.equal(result.offlineCloneMatches,65);
   assert.equal(result.within2_5x,true,
     'Actual source-private valid-work session exceeded 2.5x on this host');
   console.log('SCO_TIMING_ORACLE_RESULT '+JSON.stringify(result));
