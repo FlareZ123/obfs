@@ -178,18 +178,44 @@ function renameCrossFileProperties(files,seed) {
     // rather than relying on object-alias consumers alone.
     if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path)) ||
        observesDistributedSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
+    // An unknown key on a global object may resolve to Function, Worker,
+    // importScripts or another untracked module loader. Track direct global
+    // aliases conservatively, including assignments, before proving that all
+    // consumers of an exported owner are present in this source group.
+    const globalAliases=new Set(['globalThis','window','self','global']);
+    /** @type {[string,string][]} */
+    const aliasEdges=[];
+    walk(module.ast,node=>{
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         node.init?.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='Identifier' && node.right.type==='Identifier') {
+        aliasEdges.push([node.left.name,node.right.name]);
+      }
+    });
+    let aliasChanged;
+    do {
+      aliasChanged=false;
+      for(const [target,source] of aliasEdges) {
+        if(globalAliases.has(source) && !globalAliases.has(target)) {
+          globalAliases.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
     let ambiguous=false;
     walk(module.ast,node=>{
       if (node.type==='Identifier' &&
           (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
       if (node.type==='MemberExpression') {
         // A computed constant spelling such as globalThis['Fun'+'ction']
-      // is a loader just as globalThis.Function is. Reuse the pure string
-      // evaluator instead of inspecting Literal nodes only; otherwise dynamic
-      // ESM consumers can escape this closed-world graph proof.
-      const name=node.computed ? staticString(node.property) : staticName(node.property);
+        // is a loader just as globalThis.Function is. A dynamic global key
+        // is also unsafe because it can resolve to any untracked loader.
+        const name=node.computed ? staticString(node.property) : staticName(node.property);
         if (typeof name==='string' &&
             (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
+        if(node.computed && name===null && node.object.type==='Identifier' &&
+           globalAliases.has(node.object.name))ambiguous=true;
       }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
