@@ -69,3 +69,8 @@ bench('single-slot private-array owner access',`const state={secretField:7,other
 const holder=[state];const alias=holder[0];
 function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
 module.exports=run;`,2);
+
+bench('fixed-slot private-tuple owner access',`const state={secretField:7,otherField:5};
+const holder=[false,"private-metadata",state,0];const alias=holder[2];
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+module.exports=run;`,2);
