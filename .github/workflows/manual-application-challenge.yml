@@ -32,6 +32,10 @@ jobs:
       - name: Independent public-file copy attack
         run: node sims/application-challenge-offline-copy.js examples/application-challenge/after
 
+      - name: SNO single-entry frozen application differential and owner attack
+        run: node --test test/application-challenge-sno.test.js
+      - name: SNO mixed ESM graph attacker and paired whole-process costs
+        run: node sims/application-challenge-sno.js --profile
       - name: Paired hot and whole-session performance with held-out attacker
         run: node sims/application-challenge-profile.js
       - name: Run browser COO app and prove original engine source is public
