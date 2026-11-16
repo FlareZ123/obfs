@@ -233,6 +233,47 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     });
+    // Direct local function calls transfer provenance to formals. A global
+    // root passed as an argument may be destructured into mutable Reflect,
+    // even when the body never spells globalThis. Ambiguous same-name local
+    // declarations are joined conservatively. Higher-order calls are not
+    // considered a complete effect proof.
+    /** @type {Map<string,AstNode[][]>} */
+    const localCallFormals=new Map();
+    /** @param {string} name @param {AstNode[]} params */
+    function recordFormals(name,params) {
+      const definitions=localCallFormals.get(name)??[];
+      definitions.push(params);
+      localCallFormals.set(name,definitions);
+    }
+    walk(source.ast,node=>{
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier')
+        recordFormals(node.id.name,node.params);
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression'))
+        recordFormals(node.id.name,node.init.params);
+    });
+    /** @type {{origin:string,binding:AstNode}[]} */
+    const formalObjectPatterns=[];
+    walk(source.ast,node=>{
+      if((node.type!=='CallExpression'&&node.type!=='NewExpression') ||
+         node.callee.type!=='Identifier')return;
+      for(const params of localCallFormals.get(node.callee.name)??[]) {
+        for(let i=0;i<params.length;i++) {
+          let formal=params[i];
+          let actual=node.arguments[i];
+          if(formal.type==='AssignmentPattern') {
+            actual??=formal.right;
+            formal=formal.left;
+          }
+          if(actual?.type!=='Identifier')continue;
+          if(formal.type==='Identifier')aliasEdges.push([formal.name,actual.name]);
+          if(formal.type==='ObjectPattern')
+            formalObjectPatterns.push({origin:actual.name,binding:formal});
+        }
+      }
+    });
     let aliasChanged;
     do {
       aliasChanged=false;
@@ -255,6 +296,15 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    // A callsite-rooted destructured formal acquires the same ambient
+    // capabilities as a declaration or assignment ObjectPattern.
+    for(const {origin,binding} of formalObjectPatterns) {
+      if(!hostRoots.has(origin))continue;
+      for(const property of binding.properties) {
+        if(property.type==='Property' && property.value.type==='Identifier')
+          hostCallAliases.add(property.value.name);
+      }
+    }
     // An ordinary object/array literal can hold a host capability. A
     // subsequent read of any field on that local container may retrieve it.
     walk(source.ast,node=>{
