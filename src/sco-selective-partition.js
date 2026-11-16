@@ -7,7 +7,8 @@ const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[]}} ScoSelectiveOptions */
+/** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
 
 /**
@@ -311,6 +312,75 @@ function isCanonicalPrivateModulePath(sourcePath,specifier){
 }
 
 /**
+ * Audit the static ESM import/reexport closure of an explicitly supplied
+ * server-private source graph. Runtime-loaded modules are unsupported here:
+ * callers must either avoid them or list their paths separately as private.
+ * This protects against accidentally serving transitive source files; it does
+ * not establish cross-realm semantic equivalence or prove absence of loaders.
+ *
+ * @param {string[]} directPaths
+ * @param {ScoPrivateModuleSource[]} sources
+ * @returns {string[]}
+ */
+function collectPrivateStaticImportClosure(directPaths,sources) {
+  /** @type {Map<string,string>} */
+  const sourceByPath=new Map();
+  const caseNames=new Set();
+  for(const source of sources) {
+    if(!source || typeof source.path!=='string' || typeof source.code!=='string') {
+      throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
+    }
+    const name=safePath(source.path);
+    const caseName=name.toLowerCase();
+    if(!/\\.mjs$/u.test(name) || caseNames.has(caseName)) {
+      throw new TypeError('SCO privateModuleSources requires distinct .mjs paths');
+    }
+    caseNames.add(caseName);
+    sourceByPath.set(name,source.code);
+  }
+  const discovered=new Set();
+  const pending=[...directPaths];
+  while(pending.length) {
+    const filename=/** @type {string} */ (pending.pop());
+    if(discovered.has(filename))continue;
+    const code=sourceByPath.get(filename);
+    if(code===undefined) {
+      throw new TypeError('SCO private static dependency source missing: '+filename);
+    }
+    discovered.add(filename);
+    const ast=parse(code,'module');
+    walk(ast,node=>{
+      if(node.type==='ImportExpression' ||
+         node.type==='CallExpression' &&
+           node.callee.type==='Identifier' &&
+           ['require','eval','Function'].includes(node.callee.name)) {
+        throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
+      }
+    });
+    for(const statement of ast.body) {
+      const imported=statement.type==='ImportDeclaration' ||
+        statement.type==='ExportAllDeclaration' ||
+        statement.type==='ExportNamedDeclaration' && statement.source;
+      if(!imported)continue;
+      const specifier=statement.source?.value;
+      if(typeof specifier!=='string') {
+        throw new TypeError('SCO private static dependency has an invalid import: '+filename);
+      }
+      if(specifier.startsWith('node:') && isBuiltin(specifier))continue;
+      if(!isCanonicalPrivateModulePath(filename,specifier)) {
+        throw new TypeError('SCO private static dependency must use canonical relative .mjs imports: '+filename);
+      }
+      const resolved=path.posix.normalize(path.posix.join(path.posix.dirname(filename),specifier));
+      pending.push(resolved);
+    }
+  }
+  if(discovered.size!==sourceByPath.size) {
+    throw new TypeError('SCO privateModuleSources must describe exactly the reachable static graph');
+  }
+  return [...discovered].sort();
+}
+
+/**
  * Replace selected async ESM exports with authenticated SCO RPC facades while
  * preserving explicitly reviewed public function exports verbatim. The module
  * must consist only of direct named function exports or single-function const
@@ -356,7 +426,8 @@ function partitionScoSelectedAsyncExports(file,options) {
       options.additionalPrivateModulePaths!==undefined&&
       (!Array.isArray(options.additionalPrivateModulePaths)||
        options.additionalPrivateModulePaths.some(value=>typeof value!=='string')||
-       new Set(options.additionalPrivateModulePaths).size!==options.additionalPrivateModulePaths.length)) {
+       new Set(options.additionalPrivateModulePaths).size!==options.additionalPrivateModulePaths.length)||
+      options.privateModuleSources!==undefined && !Array.isArray(options.privateModuleSources)) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
@@ -365,6 +436,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateModuleImports=new Set(options.privateModuleImports??[]);
   /** @type {string[]} */
   const privateModulePaths=[...(options.additionalPrivateModulePaths??[])];
+  /** @type {string[]} */
+  const directPrivatePaths=[];
   for(const filename of privateModulePaths){
     try{
       if(safePath(filename)!==filename||!/\.mjs$/u.test(filename)||
@@ -378,7 +451,13 @@ function partitionScoSelectedAsyncExports(file,options) {
       throw new TypeError('Selective SCO private module import must be a canonical relative .mjs path');
     }
     const resolved=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
+    directPrivatePaths.push(resolved);
     if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
+  }
+  if(options.privateModuleSources!==undefined){
+    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,options.privateModuleSources)){
+      if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
+    }
   }
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
