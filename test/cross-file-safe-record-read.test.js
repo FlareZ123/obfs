@@ -65,8 +65,10 @@ function graph(caller,extraRecordStatement='') {
 }
 
 for(const [label,caller,mutation,expected] of /** @type {[string,string,string,number][]} */ ([
-  ['closed direct literal calls',
-    "const result=[inspectRecord('externalFormat'),inspectRecord('noSuchField')];",'',1],
+  ['closed direct own-key calls',
+    "const result=[inspectRecord('externalFormat'),inspectRecord('auditCount')];",'',1],
+  ['missing inherited key remains unproved',
+    "const result=[inspectRecord('externalFormat'),inspectRecord('noSuchField')];",'',0],
   ['inherited constructor is never assumed inert',
     "const result=inspectRecord('constructor');",'',0],
   ['dynamic argument blocks closed-call proof',
