@@ -61,6 +61,26 @@ function fixtures() {
           'function observe(){return bag.secretField;}'+
           'window.hostApi.accept(observe[publicKey]().includes("secretField")+":"+bag.secretField);'}
       ]},
+    {name:'named-owner-key-earlier',expectedFields:1,expectedText:'24',
+      files:graph('const hidden="secretField";export {hidden as key};'+
+          'export const bag={secretField:23};',
+        'import {bag,key} from "./state.mjs";'+
+          'window.hostApi.accept(bag[key]+Number(window.hostApi.fieldKey===key));')},
+    {name:'named-owner-key-later',expectedFields:0,expectedText:'24',
+      files:graph('export const bag={secretField:23};'+
+          'const hidden="secretField";export {hidden as key};',
+        'import {bag,key} from "./state.mjs";'+
+          'window.hostApi.accept(bag[key]+Number(window.hostApi.fieldKey===key));')},
+    {name:'named-owner-cycle-earlier',expectedFields:1,expectedText:'15',
+      files:graph('import {probe} from "./main.mjs";const hidden="secretField";'+
+          'export {hidden as key};export const bag={secretField:15};console.log(probe());',
+        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
+    {name:'named-owner-cycle-tdz',expectedFields:0,expectedText:'ReferenceError:15',
+      files:graph('import {probe} from "./main.mjs";export const bag={secretField:15};'+
+          'let early="none";try{probe();}catch(error){early=error.name;}'+
+          'const hidden="secretField";export {hidden as key};'+
+          'window.hostApi.accept(early+":"+probe());',
+        'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}')},
     {name:'esm-cycle-safe',expectedFields:1,expectedText:'15',
       files:graph('import {probe} from "./main.mjs";export const key="secretField";'+
         'export const bag={secretField:15};console.log(probe());',
