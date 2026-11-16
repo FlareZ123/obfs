@@ -246,6 +246,34 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
     } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
+      // The global Reflect/Object binding may be replaced through a native
+      // descriptor/set/assignment call without spelling a direct member write.
+      // Only known unrelated own keys preserve the native-reflection premise.
+      if(node.type==='CallExpression' &&
+         node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier' &&
+         node.arguments[0]?.type==='Identifier' &&
+         hostRoots.has(node.arguments[0].name)) {
+        const owner=node.callee.object.name;
+        const method=node.callee.computed?
+          staticString(node.callee.property):staticName(node.callee.property);
+        if(owner==='Object' && method==='defineProperty' ||
+           owner==='Reflect' &&
+           (method==='defineProperty'||method==='set'||method==='deleteProperty')) {
+          const name=node.arguments[1]?staticString(node.arguments[1]):null;
+          if(name===null||name==='Reflect'||name==='Object')changedIntrinsic=true;
+        }
+        if(owner==='Object' && (method==='defineProperties'||method==='assign')) {
+          const sources=method==='assign'?node.arguments.slice(1):[node.arguments[1]];
+          if(sources.some(sourceObject=>sourceObject?.type!=='ObjectExpression' ||
+              sourceObject.properties.some(property=>{
+                if(property.type!=='Property')return true;
+                const key=property.computed?
+                  staticString(property.key):ownPropertyName(property);
+                return key===null||key==='Reflect'||key==='Object';
+              })))changedIntrinsic=true;
+        }
+      }
       if(node.type==='CallExpression' &&
          (node.callee.type==='Identifier' && hostCallAliases.has(node.callee.name) ||
           node.callee.type==='MemberExpression' &&
