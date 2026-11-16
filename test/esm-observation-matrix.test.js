@@ -15,13 +15,17 @@ test('24 observation patterns produce distinct source-visible ESM owners',()=>{
   }
 });
 
-test('288 real native/emitted ESM graphs preserve behavior with measured safe-key yield',async()=>{
-  const result=await runMatrix(12);
-  assert.equal(result.graphs,288);
-  assert.equal(result.scenarios,24);
-  assert.equal(result.positiveGraphs,12);
-  assert.ok(result.positiveRenames>=24);
-  assert.equal(result.observedGraphs,120);
-  assert.equal(result.observedUnsafeRenames,0);
-  assert.equal(result.nativeEqual,true);
+test('576 real native/emitted ESM graphs preserve behavior across compiler modes',async()=>{
+  for(const [mode,seeds] of /** @type {const} */ ([['coo',12],['sno',6],['sco',6]])) {
+    const result=await runMatrix(seeds,mode);
+    assert.equal(result.mode,mode);
+    assert.equal(result.graphs,seeds*24);
+    assert.equal(result.scenarios,24);
+    assert.equal(result.positiveGraphs,seeds);
+    assert.ok(result.positiveRenames>=seeds*2);
+    assert.equal(result.observedGraphs,seeds*10);
+    assert.equal(result.observedUnsafeRenames,0);
+    assert.equal(result.nativeEqual,true);
+    process.stdout.write('ESM_OBSERVATION_MATRIX '+JSON.stringify(result)+'\n');
+  }
 });
