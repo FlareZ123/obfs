@@ -153,3 +153,24 @@ test('COO/SNO integration reports path metrics and rejects unsafe selections',()
     experimentalPolyvariantAffine:{'entry.cjs':['protectedSum']}
   }),/multiple experimental backends/);
 });
+
+test('independent source-only AST attacker recovers all protected return values',()=>{
+  const {recover}=require('../sims/polyvariant-affine-static-recover');
+  const source=sourceFor(steps),native=load(source);
+  for(const variants of [2,4,8]) {
+    const compiled=lowerPolyvariantAffine(source,'commonjs',{
+      seed:'seedless-recovery-'+variants,names:['protectedSum'],variants
+    });
+    const attack=recover(compiled.code,'protectedSum');
+    assert.equal(attack.cases,variants);
+    const recovered=Function('return ('+attack.source.replace(/^function /,'function ')+')')();
+    for(let i=0;i<512;i++) {
+      const input=(Math.imul(i,131071)^0x5a69f870)|0;
+      assert.equal(recovered(input),native(input));
+    }
+    let count=0;
+    const object={valueOf(){count++;return 13;}};
+    assert.equal(recovered(object),native(13));
+    assert.equal(count,1);
+  }
+});
