@@ -7,7 +7,7 @@ const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
-/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[]}} ScoSelectiveOptions */
+/** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[]}} ScoSelectiveOptions */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
 
 /**
@@ -352,7 +352,11 @@ function partitionScoSelectedAsyncExports(file,options) {
       options.privateModuleImports!==undefined &&
       (!Array.isArray(options.privateModuleImports)||
        options.privateModuleImports.some(value=>typeof value!=='string')||
-       new Set(options.privateModuleImports).size!==options.privateModuleImports.length)) {
+       new Set(options.privateModuleImports).size!==options.privateModuleImports.length)||
+      options.additionalPrivateModulePaths!==undefined&&
+      (!Array.isArray(options.additionalPrivateModulePaths)||
+       options.additionalPrivateModulePaths.some(value=>typeof value!=='string')||
+       new Set(options.additionalPrivateModulePaths).size!==options.additionalPrivateModulePaths.length)) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   const selected=new Set(options.privateNames);
@@ -360,13 +364,21 @@ function partitionScoSelectedAsyncExports(file,options) {
   const ast=parse(file.code,'module');
   const privateModuleImports=new Set(options.privateModuleImports??[]);
   /** @type {string[]} */
-  const privateModulePaths=[];
+  const privateModulePaths=[...(options.additionalPrivateModulePaths??[])];
+  for(const filename of privateModulePaths){
+    try{
+      if(safePath(filename)!==filename||!/\.mjs$/u.test(filename)||
+         filename===file.path)throw new TypeError('Invalid private module path');
+    }catch{
+      throw new TypeError('Selective SCO additionalPrivateModulePaths requires canonical relative .mjs paths');
+    }
+  }
   for(const specifier of privateModuleImports){
     if(!isCanonicalPrivateModulePath(file.path,specifier)){
       throw new TypeError('Selective SCO private module import must be a canonical relative .mjs path');
     }
-    privateModulePaths.push(path.posix.normalize(
-      path.posix.join(path.posix.dirname(file.path),specifier)));
+    const resolved=path.posix.normalize(path.posix.join(path.posix.dirname(file.path),specifier));
+    if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
   }
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
