@@ -66,6 +66,18 @@ test('primitive native locale calls retain independent safe key renaming',()=>{
   assert.equal(output.metrics.objects,1,output.code);
 });
 
+test('extracted native locale formatter with primitive options preserves owner renaming',()=>{
+  const original="'use strict';const state={secretField:71};"+
+    "const format=Number.prototype.toLocaleString;"+
+    "const value=format.call(1234,'en',{style:'currency',currency:'USD'});"+
+    "module.exports=state.secretField+value.length;";
+  const output=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:original}],{
+    mode:'sno',seed:'locale-native-indirect-primitive',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),execute(original),output.code);
+  assert.equal(output.metrics.objects,1,output.code);
+});
+
 test('AST identifies native locale option records and array function formatting',()=>{
   assert.equal(observesFunctionSource(parse("function f(){};(2).toLocaleString('en',{unit:f});",'commonjs')),true);
   assert.equal(observesFunctionSource(parse("function f(){};[f].toLocaleString();",'commonjs')),true);
