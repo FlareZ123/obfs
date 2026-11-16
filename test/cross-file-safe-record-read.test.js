@@ -122,7 +122,9 @@ test('aliased Reflect.ownKeys mutation cannot smuggle a host Function loader',as
     mode:'coo',closedWorld:true,seed:'aliased-reflect-loader-20261116',
     identifiers:false,strings:false,properties:true
   });
+  const delivered=await execute(compiled.files,true);
+  assert.equal(delivered,native,
+    'A source-declared Reflect alias must not expose renamed owner keys to a runtime loader');
   assert.equal(compiled.crossFile.properties,0,
     'The aliased intrinsic can return an untracked runtime Function constructor');
-  assert.equal(await execute(compiled.files,true),native);
 });
