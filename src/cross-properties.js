@@ -520,6 +520,12 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         node.type==='UpdateExpression'?node.argument:
         node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
       if(target?.type!=='MemberExpression')return;
+      // A destructured field of a host root is a mutable ambient capability.
+      // Even with a computed name that does not spell Reflect in the AST,
+      // assigning through that field may replace the native ownKeys method.
+      // Direct and transitive host aliases were collected above.
+      if(target.object.type==='Identifier' &&
+         hostCallAliases.has(target.object.name))changedIntrinsic=true;
       const method=target.computed?staticString(target.property):staticName(target.property);
       if(target.object.type==='Identifier' &&
           (target.object.name==='Reflect'&&method==='ownKeys' ||
