@@ -292,6 +292,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // holders whose every use reads slot 0 into a local binding. All other
   // container use (including opaque calls, export, writes or reflection)
   // keeps the owner's original property names.
+  /** @type {Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]>} */
+  const holderIdentifierUses=new Map();
+  for(const entry of identifiers){
+    const group=holderIdentifierUses.get(entry.node.name)??[];
+    group.push(entry);
+    holderIdentifierUses.set(entry.node.name,group);
+  }
   /** @type {Map<string,AstNode>} */
   const privateOneSlotArrays=new Map();
   /** @type {Set<AstNode>} */
@@ -309,8 +316,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
     let valid=true;
-    for(const entry of identifiers){
-      if(entry.node.name!==holder||entry.node===decl.id)continue;
+    for(const entry of holderIdentifierUses.get(holder)??[]){
+      if(entry.node===decl.id)continue;
       const {parent,key,ancestors}=entry;
       if(parent?.type==='Property'&&key==='key'&&!parent.computed||
          parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
