@@ -89,6 +89,36 @@ test('dynamic field read refuses private-property renaming',()=>{
   assert.equal(run(emitted.map(f=>/** @type {string} */(f.code))),run(scripts));
 });
 
+test('a later classic script can replace an owner-forwarding global identity',()=>{
+  const scripts=[
+    'function identity(x){return x;}' +
+      'function measure(){const packet={secretField:7};' +
+      'const alias=identity(packet);return alias.secretField;}' +
+      'globalThis.first=measure();',
+    'identity=x=>({secretField:90});globalThis.second=measure();'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,0);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+
+  // This independently constructed unsound rewrite illustrates exactly why
+  // the cross-script helper-rebinding refusal is necessary.
+  const forced=scripts[0].replaceAll('secretField','_p1234567890');
+  assert.notEqual(run([forced,scripts[1]]),run(scripts));
+});
+
+test('a later classic script can replace an apparently read-only global helper',()=>{
+  const scripts=[
+    'function peek(x){return x.secretField;}' +
+      'function measure(){const packet={secretField:7};return peek(packet);}' +
+      'globalThis.first=measure();',
+    'peek=x=>x.secretField+20;globalThis.second=measure();'
+  ];
+  const emitted=transform(scripts);
+  assert.equal(emitted[0].metrics.properties,0);
+  assert.equal(run(emitted.map(f=>/** @type {string} */ (f.code))),run(scripts));
+});
+
 test('cross-script Function#toString observer refuses source rewriting',()=>{
   const scripts=[
     'function compute(){const state={secretField:29};' +
