@@ -1,0 +1,2 @@
+const _scorpc_e8d9baf71d01e9aae861=async(method,args)=>{const response=await fetch("/obfs/rpc",{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"content-type":"application/json"},body:JSON.stringify({method,args})});const payload=await response.json();if(!response.ok||!payload||payload.ok!==true)throw Error("Remote operation failed");return payload.value;};
+export async function evaluateRemote(seed,count){return await _scorpc_e8d9baf71d01e9aae861("mfe387dc51f595ae69e49de43",[...arguments]);}
