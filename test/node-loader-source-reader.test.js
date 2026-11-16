@@ -88,7 +88,7 @@ for(const [label,loader] of [
       mode:'sno',seed:'cjs-opaque-loader/'+label,strings:true,
       properties:true,identifiers:true
     });
-    assert.equal(compiled.files[0].code,files[0].code);
     assert.deepEqual(await run(compiled.files,'main.cjs'),baseline);
+    assert.equal(compiled.files[0].code,files[0].code);
   });
 }
