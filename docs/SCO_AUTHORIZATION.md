@@ -6,6 +6,37 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
 - `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Falsy results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. It does not replace the required coarse `authorizeRpc` gate.
 
+## Explicit public source-file allowlist
+
+For source-private SCO integrations, pass `publicPaths:['entry.mjs','assets/app.css']`
+to `createScoHandler` along with the intentionally public source files. This
+optional **positive publication boundary** must exactly match the supplied
+`sourceFiles` paths, including public assets. The server refuses startup if
+an extra unlisted file appears, an allowed file is omitted, a path is
+noncanonical, or names collide case-insensitively. For example, when the
+operator has reviewed only `partition.clientFile.path`, use:
+
+```js
+createScoHandler([partition.clientFile],{
+  publicPaths:[partition.clientFile.path],
+  authorizeRead:verifyReadSession,
+  authorizeRpc:verifyRpcSession,
+  remoteMethods:privateMethods
+});
+```
+
+The three policy callbacks and registry in this sample are application-defined.
+This check is independent of the compiler's optional transitive
+`privateModuleSources` graph audit and rejects an accidentally included
+private source even when its runtime dependency cannot be statically inferred.
+It does **not** authenticate requests, discover missing private paths, prevent
+an operator from approving a private file as public, or protect any separate
+web server route. It adds no per-request transformation/runtime computation;
+all comparisons occur at handler construction. Omitting `publicPaths` keeps
+legacy behavior. A real HTTP demonstration of the default accidental
+publication and positive-allowlist refusal is in
+[`test/sco-public-file-allowlist.test.js`](../test/sco-public-file-allowlist.test.js).
+
 Example (CommonJS):
 
 ```js
