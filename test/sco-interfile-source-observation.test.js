@@ -117,7 +117,7 @@ test('SCO declines per-file spelling mutation for a cross-file dynamic Reflect.g
     {path:'entry.mjs',sourceType:'module',code:
       'import {inspect} from "./state.mjs";'+
       'const key=true?"toString":"valueOf";'+
-      'console.log(Reflect.get(inspect,key)());'}
+      'console.log(Reflect.get(inspect,key).call(inspect));'}
   ];
   const expected=await execute(files);
   const delivered=await receive(files);
