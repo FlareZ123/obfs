@@ -886,6 +886,19 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           }
         }
       }
+      // Node also exposes process on globalThis. An alias of that property
+      // can later reach mainModule without spelling process at the use site.
+      if(binding?.type==='Identifier' && initial?.type==='MemberExpression' &&
+         initial.object.type==='Identifier' && globals.has(initial.object.name)) {
+        const name=initial.computed ? staticString(initial.property) :
+          initial.property.type==='Identifier' ? initial.property.name : null;
+        const roots=name==='process' ? processRoots :
+          name==='require' ? requireRoots : name==='module' ? moduleRoots : null;
+        if(roots && !roots.has(binding.name)) {
+          roots.add(binding.name);
+          changed=true;
+        }
+      }
     });
   }while(changed);
   /** @type {Map<string,number>} */
@@ -960,6 +973,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       (key===null || ['children','parent','constructor'].includes(key)) ||
       processRoots.has(receiver) && (key===null || key==='mainModule');
   }
+  /** @param {AstNode} receiver @param {string|null} key @returns {boolean} */
+  function canReadLoaderRoot(receiver,key) {
+    if(receiver.type==='Identifier')return canReachLoader(receiver.name,key);
+    if(receiver.type!=='MemberExpression'||receiver.object.type!=='Identifier'||
+       !globals.has(receiver.object.name))return false;
+    const root=receiver.computed ? knownKey(receiver.property) :
+      receiver.property.type==='Identifier' ? receiver.property.name : null;
+    return root!==null && canReachLoader(root,key);
+  }
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
@@ -990,8 +1012,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
       // Cached modules, parent/child links, and the process main module
       // expose constructor._load even without a literal fs import.
-      if(node.object.type==='Identifier' &&
-         canReachLoader(node.object.name,key))observed=true;
+      if(canReadLoaderRoot(node.object,key))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&
@@ -1004,7 +1025,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(['get','getOwnPropertyDescriptor'].includes(method??'')) {
         if(globals.has(root) &&
            (target===null || browserReaders.has(target) ||
-            ['require','getBuiltinModule','createRequire'].includes(target)))observed=true;
+            ['require','process','module','getBuiltinModule','createRequire'].includes(target)))observed=true;
         if(canReachLoader(root,target))observed=true;
       }
       // Enumerating module-registry descriptors exposes the loader root
