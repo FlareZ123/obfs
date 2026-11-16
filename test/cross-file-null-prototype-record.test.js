@@ -73,9 +73,7 @@ const cases=[
   {
     name:'null-prototype record admits inherited and missing string keys',
     record:"{__proto__:null,externalFormat:'audit-v1',auditCount:3}",
-    caller:"const result=['noSuchField','constructor','__proto__','toString'].map(key=>key);"
-      .replace("['noSuchField','constructor','__proto__','toString'].map(key=>key)",
-        "[typeof inspectRecord('noSuchField').value,typeof inspectRecord('constructor').value,typeof inspectRecord('__proto__').value,typeof inspectRecord('toString').value]"),
+    caller:"const result=[typeof inspectRecord('noSuchField').value,typeof inspectRecord('constructor').value,typeof inspectRecord('__proto__').value,typeof inspectRecord('toString').value];",
     expected:1,
     value:['undefined','undefined','undefined','undefined']
   },
