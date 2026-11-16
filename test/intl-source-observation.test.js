@@ -25,9 +25,15 @@ for(const [name,expression] of [
   ['Collator compare', 'new Intl.Collator("en").compare(inspect,'+JSON.stringify(functionText)+')'],
   ['Collator alias', '(()=>{const collator=new Intl.Collator("en");const other=collator;return other.compare(inspect,'+JSON.stringify(functionText)+');})()'],
   ['Collator global', 'new globalThis.Intl.Collator("en").compare(inspect,'+JSON.stringify(functionText)+')'],
+  ['Collator bound accessor', '(()=>{const compare=new Intl.Collator("en").compare;return compare(inspect,'+JSON.stringify(functionText)+');})()'],
+  ['Collator namespace alias', '(()=>{const namespace=globalThis.Intl;const col=new namespace.Collator("en");return col.compare(inspect,'+JSON.stringify(functionText)+');})()'],
+  ['Collator destructured constructor', '(()=>{const {Collator:Class}=Intl;return new Class("en").compare(inspect,'+JSON.stringify(functionText)+');})()'],
+  ['Collator without new', 'Intl.Collator("en").compare(inspect,'+JSON.stringify(functionText)+')'],
   ['Segmenter segment', '[...new Intl.Segmenter("en").segment(inspect)].map(x=>x.segment).join("")'],
   ['Segmenter alias', '(()=>{const segmenter=new Intl.Segmenter("en");const another=segmenter;return [...another.segment(inspect)].map(x=>x.segment).join("");})()'],
   ['ListFormat error message', '(()=>{try{new Intl.ListFormat("en").format([inspect]);return "ok";}catch(error){return error.message;}})()'],
+  ['ListFormat receiver alias', '(()=>{const list=new Intl.ListFormat("en");const other=list;try{return other.format([inspect]);}catch(error){return error.message;}})()'],
+  ['Segmenter destructured constructor', '(()=>{const {Segmenter:Class}=globalThis.Intl;return [...new Class("en").segment(inspect)].map(x=>x.segment).join("");})()'],
   ['ListFormat formatToParts error', '(()=>{try{new Intl.ListFormat("en").formatToParts([inspect]);return "ok";}catch(error){return error.message;}})()']
 ]) {
   test('Intl source coercion remains byte-identical: '+name,()=>{
