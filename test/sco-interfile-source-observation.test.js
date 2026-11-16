@@ -182,7 +182,7 @@ test('SCO imported safe Reflect.get key retains private-property renaming',async
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'export function compute(){const item={secretField:11};return item.secretField;}'},
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
     {path:'key.mjs',sourceType:'module',code:'export const lookupKey="value";'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {compute} from "./state.mjs";'+
@@ -202,7 +202,7 @@ test('SCO imported toString Reflect.get key still protects original function sou
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'export function compute(){const item={secretField:11};return item.secretField;}'},
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
     {path:'key.mjs',sourceType:'module',code:'export const lookupKey="toString";'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {compute} from "./state.mjs";'+
@@ -220,7 +220,7 @@ test('SCO mutable imported Reflect.get key conservatively protects function sour
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',code:
-      'export function compute(){const item={secretField:11};return item.secretField;}'},
+      'const item={secretField:11};export function compute(){return item.secretField;}'},
     {path:'key.mjs',sourceType:'module',code:'export let lookupKey="toString";'},
     {path:'entry.mjs',sourceType:'module',code:
       'import {compute} from "./state.mjs";'+
