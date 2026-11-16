@@ -79,6 +79,10 @@ jobs:
         run: node sims/sco-step-only-version-space-report.js
       - name: Challenge bounded continuation attack on independent SHA holdouts
         run: node sims/sco-step-only-version-space-report.js --holdout
+      - name: Validate two and three-state continuation through real authenticated SCO RPC
+        run: node --test test/sco-step-only-live-rpc.test.js
+      - name: Publish real SCO server-private to public continuation result
+        run: node sims/sco-step-only-live-rpc.js
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
