@@ -75,9 +75,9 @@ test('opt-in native CFG declines lexical declarations, unsupported control and s
   for(const code of [
     'function f(x){let y=x;if(y)y++;return y;}',
     'function f(x){const y=x;if(y)return 1;return y;}',
-    'function f(x){var a=x;while(a>1)a--;if(a)return 2;return a;}',
-    'function f(x){var a=x;try{if(a)return 1;}finally{a++;}return a;}',
-    'function f(x){var a=x;for(var i=0;i<3;i++)a++;if(a)return 1;return a;}',
+    'function f(x){var a=x;class C{}if(a)return 2;return a;}',
+    'function f(x){var a=x;function helper(){return a;}if(a)return helper();return a;}',
+    'function f(x){var a=x;let hidden;if(a)return hidden;return a;}',
     'function f(x){var a=x; if(a) eval("a=3");else a=1;return a;}',
     'async function f(x){var a=await x;if(a)return 1;return 0;}',
     'function* f(x){var a=x;if(a)yield 1;return 0;}',
@@ -164,4 +164,24 @@ test('CLI parses the opt-in statement-flow selector with an exact per-file targe
   });
   assert.throws(()=>readArgs(['--root','source','--entry','entry.cjs',
     '--statement-flow','f']),/relative-file:functionName/);
+});
+
+test('atomic native loops, switch, labels, and finally blocks survive CFG relocation',()=>{
+  const examples=[
+    'function f(x){var a=0;for(let i=0;i<x;i++){if((i&1)===0)a+=i;}if(a>5){a+=2;}else{a--;}return a;}',
+    'function f(x){var a=0;while(a<x){a++;if(a===5)break;}if(a>3){a*=2;}else{a-=1;}return a;}',
+    'function f(x){var a=x;try{a*=2;}finally{a+=4;}if(a>10){a-=1;}else{a+=1;}return a;}',
+    'function f(x){var a=x;switch(a){case 0:a=11;break;default:a+=2;}if(a>8){a-=1;}else{a+=1;}return a;}',
+    'function f(x){var a=0;outer:for(let i=0;i<x;i++){if(i>6)break outer;if(i%3===0)continue outer;a+=i;}if(a>12)a^=2;else a++;return a;}'
+  ];
+  for(const original of examples){
+    const generated=flattenStatementFlow(original,'commonjs',{
+      seed:'atomic-native-20261116',names:['f']
+    });
+    assert.equal(generated.functions,1,original);
+    const native=load(original),transformed=load(generated.code);
+    for(let value=0;value<=45;value++){
+      assert.equal(transformed(value),native(value),original+' at '+value);
+    }
+  }
 });
