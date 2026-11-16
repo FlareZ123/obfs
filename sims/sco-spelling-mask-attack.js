@@ -2,6 +2,7 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const vm=require('node:vm');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {createHash}=require('node:crypto');
@@ -19,6 +20,9 @@ async function main() {
     'const secondMarker='+JSON.stringify(second)+';\n'+
     'const thirdMarker='+JSON.stringify(third)+';\n'+
     'globalThis.maskProof=firstMarker+secondMarker+thirdMarker;\n';
+  const native={};
+  vm.runInNewContext(original,native,{timeout:1000});
+  assert.equal(native.maskProof,first+second+third);
   const server=http.createServer(createScoHandler([
     {path:'entry.js',sourceType:'script',code:original}
   ]));
@@ -34,6 +38,10 @@ async function main() {
       const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/entry.js');
       assert.equal(response.status,200);
       const served=await response.text();
+      const emitted={};
+      vm.runInNewContext(served,emitted,{timeout:1000});
+      assert.equal(emitted.maskProof,native.maskProof,
+        'All escaped and non-ASCII UTF-16 units must preserve native behavior');
       distinct.add(createHash('sha256').update(served).digest('hex'));
       // Only the served bytes enter a separate attacker process.
       const child=spawnSync(process.execPath,[
