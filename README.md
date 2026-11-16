@@ -57,9 +57,18 @@ contains three cooperating private ES modules, two exact compiler-generated
 public RPC facades, an authenticated localhost service, and a native-versus-
 remote integration test. `partitionScoAsyncGraph` explicitly selects which
 private module exports become public facades; `bindScoGraphExports` merges
-their private server methods into an authorized RPC registry. Its measured
-12,000-round HMAC operation met the 2.5× runtime target on two localhost
-runners, with incomplete performance/security coverage documented in
+their private server methods into an authorized RPC registry. The newer
+`createScoGraphHandler` composes the original exports, generated facades,
+and exact public-path allowlist so integrations cannot accidentally append
+unreviewed source files. Its construction-time SHA-256 metadata also blocks
+byte-identical original private source supplied under alternate filenames;
+source-byte modifications and bypassing the handler remain outside this
+check. [The targeted Linux/Windows Node 22 graph gate](https://github.com/FlareZ123/obfs/actions/runs/43856454956)
+passed at source `b8ba88d3a337cd3a03ed588a0b34deeedd65cd3d`; see the
+[publication safeguards report](im-results/sco-graph-publication-manifest-2026-11-16.md).
+The previously measured 12,000-round HMAC operation met the 2.5× runtime
+target on two localhost runners, with incomplete performance/security
+coverage documented in
 [`im-results/sco-graph-partition-2026-11-15.md`](im-results/sco-graph-partition-2026-11-15.md).
 
 **SCO authorized online-relay limit:** Keeping a random HMAC key and private ESM implementation server-side protects them from a source-only client; it does not prevent an attacker who has a legitimate unlimited-query account from using that same original server as an oracle for downstream users. A real attacker-operated loopback proxy reproduced **32/32 previously unqueried high-entropy outputs** without extracting the key, despite direct unauthenticated requests returning 403. Its heavy 8 MiB HMAC workload measured **1.304× Ubuntu / 1.345× Windows** end-to-end through two HTTP hops, measured only on local loopback without realistic RTT or TLS. The independently reproducible [server-private online relay attacker](sims/sco-relay-attack.js) and [SCO large-domain results](im-results/sco-large-domain-prf-2026-11-15.md) distinguish actual server-side source secrecy from functional anti-cloning under an authorized online relay.
