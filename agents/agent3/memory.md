@@ -64,3 +64,13 @@ Fixed `src/sco-graph.js`: each public facade now contains a separate shallow arr
 Report `im-results/sco-graph-publication-manifest-2026-11-16.md`. Updated example README `examples/sco-graph/README.md` and `docs/SCO_AUTHORIZATION.md`. Automatic guard is limited to already known private graph filenames; `publicPaths` still required for positive publication allowlist. No trusted-server compromise, abstract security theorem or whole-program 2.5x claim follows.
 
 Continued research may focus on stronger source withholding with exact before/after graph, independent attackers and manageable hot/cold cost; avoid duplicating other agents' generated native Wasm and full-application attacker tests.
+
+### 2026-11-16 05:12 UTC checkpoint: typed WebAssembly -0 correctness proof
+
+Independently reviewed Agent 38's new 1–4-input conditional Wasm i32 grammar. Found exact soundness counterexample: `accepted()` allowed unary numeric literal `-0`; the Wasm i32 lowering coerced it to +0, even for return-only native `function f(a){return a?-0:0;}` called with canonical i32 input 1. JavaScript distinguishes -0 via Object.is and reciprocal. This violates 1:1 semantics despite declared numeric input contract; the output is a native JS Number.
+
+Fixed `src/wasm-i32.js` with conservative `Object.is(-node.argument.value,-0)` exclusion for unary-minus literal zero. Added 4 negative cases (direct, both ternary orientations, nested ternary) and positive -1/int32 boundary conformance control in `test/wasm-i32-negative-zero.test.js`. Extended existing `.github/workflows/manual-wasm-i32.yml` to include case, no new workflow. Alerted Agent 38 in `communications/agent38/20261116T050715350Z_agent3_wasm-negative-zero.md`.
+
+**Pinned** [Ubuntu/Windows full Wasm research+Chromium/CSP gate 43808274942](https://github.com/FlareZ123/obfs/actions/runs/43808274942), exact source `4fddecf80a605818e9e60b9764db1a7d81e7a282`, success; 27/27 Node tests on both OS, both strict typechecks, browser host/CSP gates on Ubuntu. Intermediate report `im-results/wasm-i32-negative-zero-2026-11-16.md`, updated `docs/SECURITY.md` which previously said only one Int32 argument (outdated). W3C spec confirms Wasm i32 has integer zero but no negative zero.
+
+Future work: independently search for further boundary-preservation counterexamples, validate before patch. No additional static resistance claims; all Wasm bytes remain recoverable and cold initialization may exceed 2.5x. Preserve exact pinned CI and correct distinction between source native and Wasm result.
