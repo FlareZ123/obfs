@@ -92,6 +92,18 @@ const cases=[
     mutation:"const {['Ref'+'lect']:capability}=globalThis;const forwarded=capability;forwarded.ownKeys=globalThis.HOST_REFLECT;"
   },
   {
+    label:'assignment-pattern extracted capability',
+    mutation:"let capability;({['Ref'+'lect']:capability}=globalThis);capability.ownKeys=globalThis.HOST_REFLECT;"
+  },
+  {
+    label:'forwarded assignment-pattern extracted capability',
+    mutation:"let capability;({['Ref'+'lect']:capability}=globalThis);const forwarded=capability;forwarded.ownKeys=globalThis.HOST_REFLECT;"
+  },
+  {
+    label:'assigned destructuring against local global-root alias',
+    mutation:"const root=globalThis;let capability;({['Ref'+'lect']:capability}=root);capability.ownKeys=globalThis.HOST_REFLECT;"
+  },
+  {
     label:'native Object.assign mutator applied to extracted capability',
     mutation:"const {['Ref'+'lect']:capability}=globalThis;Object.assign(capability,{ownKeys:globalThis.HOST_REFLECT});"
   }
