@@ -35,6 +35,8 @@ jobs:
         run: node sims/sco-const-granularity.js
       - name: SCO private ESM graph online authorized clone
         run: node sims/sco-private-graph-relay.js
+      - name: Bound server-private HMAC to verified account audience and test authorized cross-account relay
+        run: node sims/sco-audience-bound-relay.js
       - name: Static Node builtin import private operation runtime profile
         run: node sims/sco-static-import-profile.js
       - name: Selective SCO private-source and authorized-relay challenge
