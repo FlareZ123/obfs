@@ -32,6 +32,23 @@ The candidate compiler and nine-case regression were committed at `44be4efe04904
 
 A later candidate branch revision adds a distinct full six-module application diagnostic: `sims/application-challenge-observer-ablation.js` constructs a null-prototype record variant after explicitly removing both source observers; `sims/application-challenge-refusal-yield.js` now requires **2 of 2** genuine owner-field rewrites in that variant while retaining `inspectRecord('noSuchField')`. It checks 84 native/emitted cases and 160 offline public-only held-out clone cases per variant. This application is **deliberately different from the original frozen source**, which stays at **0/2**. The later simulator changes were not part of full validation 43875169931 and require separate pinned confirmation.
 
+## Independent full application and whole-process evidence
+
+The extended [source-observer ablation](../sims/application-challenge-observer-ablation.js) includes an explicitly distinct `null-proto` six-module application. It retains the original `inspectRecord('noSuchField')` call, declares a syntactic null-prototype record and removes two source-observer expressions. The [refusal/yield simulator](../sims/application-challenge-refusal-yield.js), now exercised from the [default Node test suite](../test/application-challenge-null-prototype-yield.test.js), requires **2/2 private-key rewrites** and parity over 84 native/emitted cases plus 160 public-only held-out offline clone calls. Its frozen source-observing and observer-free plain-record negative controls remain at **0/2**. The changed own-key-only application is an independent 2/2 positive.
+
+[Full application/test/performance validation 43877956853](https://github.com/FlareZ123/obfs/actions/runs/43877956853) passed on Ubuntu/Windows at exact SHA `889e1c9ba6ab4875e130eb58f4ab673d8d603aff`. Nine paired, alternating complete Node process trials per workload gave:
+
+| Source variant | Workload | Linux emitted/native | Windows emitted/native |
+|---|---|---:|---:|
+| Own-key-only modified app | one-event startup | 0.99025× | 1.03346× |
+| Own-key-only modified app | 80-case sustained session | 0.98992× | 0.96949× |
+| Null-prototype modified app | one-event startup | **1.00747×** | **1.01495×** |
+| Null-prototype modified app | 80-case sustained session | **1.00771×** | **1.04791×** |
+
+Every sampled result met the 2.5× ceiling on these two runners. Including process startup does not remove the need to benchmark protected hot operations separately. Publicly delivered code remains clonable without private source, so the favorable runtime cost and 2/2 renamed-key coverage **do not demonstrate reverse-engineering resistance**.
+
+The later [Chromium browser extension](../test/verified-record-browser.js) evaluates 64 cases on two real ESM pairs. It explicitly installs an inherited `Function` on `Object.prototype.noSuchField`, verifies that both native and generated null-prototype reads remain `undefined`, and checks that two owner fields are genuinely renamed. Its latest pinned run is pending; the preceding green 43877956853 did not include that browser-source revision.
+
 ## Boundaries
 
 This extends behavior preservation for a narrowly proven original syntax form. It does not make a plain object safe if callers ask missing keys; changing its prototype would change semantics. It does not establish that arbitrary external preloads, custom loaders, Proxy traps, cross-realm callbacks or mutable builtins are inert. Under complete client control, COO public files remain inspectable, clonable and modifiable. A 2.5x runtime guarantee for all workloads is also not established. If successful, report the unchanged-original positive fraction separately from any deliberately modified source benchmark.
