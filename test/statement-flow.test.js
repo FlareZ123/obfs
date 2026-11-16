@@ -79,6 +79,7 @@ test('opt-in native CFG declines lexical declarations, unsupported control and s
     'function f(x){var a=x;function helper(){return a;}if(a)return helper();return a;}',
     'function f(x){var a=x;let hidden;if(a)return hidden;return a;}',
     'function f(x){var a=x; if(a) eval("a=3");else a=1;return a;}',
+    'function f(x){\"use asm\";var a=x|0;if(a>7){a=a+1|0;}else{a=a-1|0;}return a|0;}',
     'async function f(x){var a=await x;if(a)return 1;return 0;}',
     'function* f(x){var a=x;if(a)yield 1;return 0;}',
     'function f(x){var a=x;if(a)a++;return a;} String(f);'
