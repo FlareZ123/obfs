@@ -39,6 +39,8 @@ jobs:
         run: node sims/statement-flow-fuzz.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
+      - name: Statement CFG source-size and cold JavaScript compile profile
+        run: node sims/statement-flow-cold.js
       - name: Real Chromium multi-statement CFG native differential
         env:
           CHROMIUM_BIN: google-chrome
@@ -79,5 +81,7 @@ jobs:
         run: node sims/statement-flow-fuzz.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
+      - name: Statement CFG source-size and cold JavaScript compile profile
+        run: node sims/statement-flow-cold.js
       - name: Strict JSDoc
         run: npm run typecheck
