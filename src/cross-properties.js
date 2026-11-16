@@ -170,16 +170,68 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // keys are known own fields. The hostile callback can dynamically import
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
+    // A captured alias retains the ambient object identity. A later write
+    // through that alias changes the method used by the private-record proof.
+    // Follow source-visible alias edges transitively and monotonically; a
+    // later reassignment may cause harmless refusal, never unsafe acceptance.
+    const globalNames=new Set(['globalThis','window','self','global']);
+    const reflectNames=new Set(['Reflect']);
+    const objectNames=new Set(['Object']);
+    /** @type {[string,string][]} */
+    const links=[];
+    /** @type {[string,string,string][]} */
+    const globalReads=[];
+    walk(source.ast,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type==='Identifier' && value?.type==='Identifier') {
+        links.push([binding.name,value.name]);
+      }
+      if(binding?.type==='Identifier' && value?.type==='MemberExpression' &&
+         value.object.type==='Identifier') {
+        const field=value.computed?staticString(value.property):staticName(value.property);
+        if(field!==null)globalReads.push([binding.name,value.object.name,field]);
+      }
+      if(binding?.type==='ObjectPattern' && value?.type==='Identifier') {
+        for(const property of binding.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed?staticString(property.key):staticName(property.key);
+          if(field!==null)globalReads.push([property.value.name,value.name,field]);
+        }
+      }
+    });
+    let changed;
+    do {
+      changed=false;
+      for(const [target,sourceName] of links) {
+        for(const names of [globalNames,reflectNames,objectNames]) {
+          if(names.has(sourceName)&&!names.has(target)) {
+            names.add(target);
+            changed=true;
+          }
+        }
+      }
+      for(const [target,sourceName,field] of globalReads) {
+        if(!globalNames.has(sourceName))continue;
+        const names=field==='Reflect'?reflectNames:
+          field==='Object'?objectNames:null;
+        if(names&&!names.has(target)) {
+          names.add(target);
+          changed=true;
+        }
+      }
+    } while(changed);
     let changedIntrinsic=false;
     walk(source.ast,node=>{
       const target=node.type==='AssignmentExpression'?node.left:
         node.type==='UpdateExpression'?node.argument:
         node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
-      if(target?.type!=='MemberExpression')return;
+      if(target?.type!=='MemberExpression'||target.object.type!=='Identifier')return;
       const method=target.computed?staticString(target.property):staticName(target.property);
-      if(target.object.type==='Identifier' &&
-          (target.object.name==='Reflect'&&method==='ownKeys' ||
-           target.object.name==='Object'&&method==='getOwnPropertyDescriptor')) {
+      if(reflectNames.has(target.object.name)&&method==='ownKeys' ||
+         objectNames.has(target.object.name)&&method==='getOwnPropertyDescriptor') {
         changedIntrinsic=true;
       }
     });
