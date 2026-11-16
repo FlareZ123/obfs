@@ -194,3 +194,30 @@ test('exported record holder with external reflective consumer retains original 
   })));
   for(let n=-80;n<=80;n++)assert.equal(encoded(n),native(n));
 });
+
+test('closed-world exported owner safely crosses ESM imports alongside a private record alias',{
+  timeout:30000
+},async()=>{
+  const files=[
+    {path:'owner.mjs',sourceType:'module',code:[
+      'export const vault={hiddenCount:41,secretDelta:2};',
+      'const record={tag:1,owner:vault};',
+      'const alias=record.owner;',
+      'export function read(n){return alias.hiddenCount*n+vault.secretDelta;}'
+    ].join('\n')},
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {vault,read} from "./owner.mjs";',
+      'export function calculate(n){return read(n)+vault.hiddenCount;}'
+    ].join('\n')}
+  ];
+  const compiled=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+    seed:'closed-world-exported-record-root',strings:false,identifiers:false,properties:true});
+  assert.equal(compiled.crossFile.properties,2);
+  const output=compiled.files.map(file=>String(file.code)).join('\n');
+  assert.doesNotMatch(output,/hiddenCount|secretDelta/u);
+  const before=await loadGroup(files);
+  const after=await loadGroup(compiled.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  })));
+  for(let n=-120;n<=120;n++)assert.equal(after(n),before(n));
+});
