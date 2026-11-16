@@ -28,20 +28,27 @@ function diskDigests(directory){
  * with --import. It substitutes in-memory source for the already verified
  * distributed math.mjs module, without patching disk files or using a compiler.
  *
+ * @param {boolean} [legacy]
  * @returns {string}
  */
-function preloaderDataUrl(){
+function preloaderDataUrl(legacy=false){
   const substituted=[
     'export function round1(input){return input|0;}',
     'export function round2(input){return input|0;}',
     'export function round3(input){return input|0;}',
     'export function digest(){return 777;}'
   ].join('\n');
-  const code="import {registerHooks} from 'node:module';"+
+  const source=JSON.stringify(substituted);
+  const legacyHook="export async function load(url,context,nextLoad){"+
+    "const result=await nextLoad(url,context);"+
+    "return url.endsWith('/math.mjs')?{...result,source:"+source+"}:result;}";
+  const legacyUrl='data:text/javascript,'+encodeURIComponent(legacyHook);
+  const code=legacy?
+    "import {register} from 'node:module';register("+JSON.stringify(legacyUrl)+",import.meta.url);":
+    "import {registerHooks} from 'node:module';"+
     "registerHooks({load(url,context,nextLoad){"+
     "const result=nextLoad(url,context);"+
-    "return url.endsWith('/math.mjs')?{...result,source:"+
-    JSON.stringify(substituted)+"}:result;}});";
+    "return url.endsWith('/math.mjs')?{...result,source:"+source+"}:result;}});";
   return 'data:text/javascript,'+encodeURIComponent(code);
 }
 
@@ -63,7 +70,7 @@ function execute(args){
  * and after activating an attacker-controlled ESM in-memory load hook.
  *
  * @param {string} publicDirectory
- * @returns {{publishedFiles:number,modifiedFiles:number,normalLast:number,hookedLast:number,normalManifestAccepted:boolean,hookedManifestAccepted:boolean}}
+ * @returns {{publishedFiles:number,modifiedFiles:number,normalLast:number,hookedLast:number,normalManifestAccepted:boolean,hookedManifestAccepted:boolean,hookModes:string[]}}
  */
 function runAttack(publicDirectory){
   const entry=path.join(publicDirectory,'sno-entry.cjs');
@@ -79,13 +86,19 @@ function runAttack(publicDirectory){
   const normalState=JSON.parse(baseline[0].value).snapshot;
   assert.equal(typeof normalState.last,'number');
 
-  const hooked=execute(['--import',preloaderDataUrl(),entry,serialized]);
-  assert.equal(hooked.status,0,hooked.stderr);
-  const injected=JSON.parse(hooked.stdout);
-  const hookedOutput=JSON.parse(injected[0].value);
-  assert.equal(hookedOutput.snapshot.last,777);
-  assert.deepEqual(hookedOutput.trace.map((/** @type {{value:number}} */ event)=>event.value),[777,777]);
-  assert.deepEqual(injected[0].external,hookedOutput.trace);
+  // registerHooks appeared in Node 22.15. The async register/load API
+  // is available from Node 22.0, matching the project's declared engine.
+  const modes=typeof require('node:module').registerHooks==='function'?
+    ['sync','async']:['async'];
+  for(const mode of modes){
+    const hooked=execute(['--import',preloaderDataUrl(mode==='async'),entry,serialized]);
+    assert.equal(hooked.status,0,mode+': '+hooked.stderr);
+    const injected=JSON.parse(hooked.stdout);
+    const hookedOutput=JSON.parse(injected[0].value);
+    assert.equal(hookedOutput.snapshot.last,777,mode);
+    assert.deepEqual(hookedOutput.trace.map((/** @type {{value:number}} */ event)=>event.value),[777,777]);
+    assert.deepEqual(injected[0].external,hookedOutput.trace);
+  }
   assert.notEqual(normalState.last,777,'Native computation accidentally equals injected constant');
 
   const after=diskDigests(publicDirectory);
@@ -96,7 +109,8 @@ function runAttack(publicDirectory){
     normalLast:normalState.last,
     hookedLast:hookedOutput.snapshot.last,
     normalManifestAccepted:true,
-    hookedManifestAccepted:true
+    hookedManifestAccepted:true,
+    hookModes:modes
   };
 }
 
