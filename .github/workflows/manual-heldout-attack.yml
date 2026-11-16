@@ -36,5 +36,7 @@ jobs:
 
       - name: Report private tuple cold-through-hot end-to-end ratios
         run: node sims/private-tuple-session.js
+      - name: Paired batched end-to-end COO cold-session budget
+        run: node sims/private-container-session-profile.js
       - name: Check JSDoc types
         run: npm run typecheck
