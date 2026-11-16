@@ -49,6 +49,24 @@ function withOwnKeyCalls(files) {
   });
 }
 
+/**
+ * Separate diagnostic application: its source already declares a null
+ * prototype for a closed record. Missing keys cannot select an inherited
+ * host Function. This is an intentional source change, not a transformation
+ * the compiler performs on the frozen original application.
+ * @param {{path:string,sourceType:'module',code:string}[]} files
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function withNullPrototypeRecord(files){
+  return files.map(file=>{
+    if(file.path!=='reflect.mjs')return file;
+    const original="const schema={externalFormat:'audit-v1',auditCount:3};";
+    assert.ok(file.code.includes(original),'Expected original private record');
+    return {...file,code:file.code.replace(original,
+      "const schema={__proto__:null,externalFormat:'audit-v1',auditCount:3};")};
+  });
+}
+
 /** @returns {Promise<unknown[]>} */
 async function main(){
   const originals=await Promise.all(NAMES.map(async name=>({
@@ -83,4 +101,4 @@ async function main(){
 if(require.main===module){
   main().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={main,ablate,withOwnKeyCalls};
+module.exports={main,ablate,withOwnKeyCalls,withNullPrototypeRecord};
