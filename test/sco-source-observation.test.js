@@ -61,7 +61,9 @@ for(const [name,source] of [
   ['computed Function.prototype source observer',
     "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';globalThis.out={value:observed(),source:Function.prototype[key].call(observed)};"],
   ['computed prototype-of-function source observer',
-    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const proto=Reflect.getPrototypeOf(observed);globalThis.out={value:observed(),source:proto[key].call(observed)};"]
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const proto=Reflect.getPrototypeOf(observed);globalThis.out={value:observed(),source:proto[key].call(observed)};"],
+  ['bulk function descriptor source observer',
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const descriptors=Object.getOwnPropertyDescriptors(Function.prototype);globalThis.out={value:observed(),source:descriptors[key].value.call(observed)};"]
 ]) {
   test('SCO response preserves observable function source: '+name,async()=>{
     const variant=await fetchVariant(source);
