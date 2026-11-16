@@ -66,9 +66,13 @@ The same nine registry expressions were executed locally under Node
 with a `true` source-spelling check. This local check establishes native
 route feasibility, not pre-patch obfuscator failure rates.
 
-Full Linux/Windows Node 22, TypeScript/JSDoc, benchmark, and Chromium
-validation is manually dispatched on an immutable source-commit branch:
-[manual-validation run 43814630774](https://github.com/FlareZ123/obfs/actions/runs/43814630774).
+The [pinned full validation 43814630774](https://github.com/FlareZ123/obfs/actions/runs/43814630774)
+**passed** at source `0fc93c7757e132c3583e3034fd37c39c69ee252b`.
+The Node 22 suites recorded **1,415 passes / one skip / zero failures**
+on Ubuntu and **1,414 passes / two skips / zero failures** on Windows,
+out of 1,416 tests per OS. Both strict JSDoc suites, all sampled benchmarks,
+and **15 real Ubuntu Chromium fixtures** passed. This is end-to-end regression
+coverage for the pinned source, not proof of general JavaScript equivalence.
 
 ## Interpretation
 
