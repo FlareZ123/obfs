@@ -59,8 +59,15 @@ it sees static Node `fs` module access or known browser file-reading APIs.
 It applies even to a single module that reads its own file. The SCO HTTP
 handler also suppresses per-request source spelling variation for that group.
 Conservative refusals can include benign use of `fetch` for ordinary API
-requests or `node:fs` for unrelated files. The exact-source contract must
-take precedence over transformation coverage until a target-specific path
+requests or `node:fs` for unrelated files. The preflight also refuses
+imports/reexports and direct `require()` calls of `module` or `node:module`,
+because `createRequire()` and `Module._load()` can obtain filesystem APIs
+indirectly. It recognizes built-in CommonJS member loaders such as
+`module.require()`, `require.main.require()`, and
+`process.mainModule.require()` even without a direct `require('fs')` call.
+These checks are intentionally conservative: a harmless module-loader import
+also prevents rewriting the supplied source group. The exact-source contract
+must take precedence over transformation coverage until a target-specific path
 and loader proof exists.
 
 This preflight remains incomplete: custom I/O functions, hidden aliases,
@@ -71,7 +78,8 @@ source and may be incompatible with source-byte introspection. Reject or
 redesign such combinations at integration time. The guard preserves the
 tested native contracts; it provides no stronger obfuscation secrecy or
 tamper-resistance in a fully controlled runtime. Regression witnesses:
-`test/cross-file-source-byte-reader.test.js`.
+`test/cross-file-source-byte-reader.test.js` and
+`test/node-loader-source-reader.test.js`.
 
 ## Selective SCO cross-realm compatibility
 
