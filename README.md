@@ -7,18 +7,23 @@ This repository is an experimental, conservative JavaScript obfuscator targeting
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
 **Latest pinned full integration (2026-11-16):** The
-[manual Node 22 Linux/Windows and Ubuntu Chromium run 43919593798](https://github.com/FlareZ123/obfs/actions/runs/43919593798)
-completed successfully at exact source `23c0aaca4dcd18a9cb1c88906bc80431f3e08d86`.
-Of 1,767 Node tests per operating system, Ubuntu passed **1,766 with
-one skip and zero failures**, while Windows passed **1,765 with two skips
+[manual Node 22 Linux/Windows and Ubuntu Chromium run 43946318544](https://github.com/FlareZ123/obfs/actions/runs/43946318544)
+completed successfully at exact merged `main` source `b3af72b114513fc10704416e60979f1b142c477e`.
+Of 1,777 Node tests per operating system, Ubuntu passed **1,776 with
+one skip and zero failures**, while Windows passed **1,775 with two skips
 and zero failures**. Both operating systems passed strict JSDoc and external
 checker steps, sampled benchmarks and paired application profiles. Ubuntu
 also passed both real Chromium test steps, including 15 main browser
-fixtures. This pin
-includes the SCO graph source-sealing and path-addressed source preflight work
-described below. It does not establish general source secrecy, tamper-resistance
-under hostile runtime control, or a universal 2.5× bound. More recent commits
-require a new pinned check if they change executable behavior.
+fixtures and the 64-case paired real-browser record check. This pin
+includes the [SCO unknown host-global migration and globalThis self-alias
+regression](im-results/sco-unproved-host-global-followup-2026-11-16.md),
+alongside earlier private source-sealing safeguards. The new conservative
+guard rejects selected-private reads of unproved application-specific
+`globalThis` properties while preserving the existing shared-ambient
+refusal diagnostic. This remains a bounded source-admission improvement,
+without general source secrecy, tamper resistance under hostile runtime
+control, or a universal 2.5× bound. Later executable commits require a
+new pinned check.
 
 **Validation status (2026-11-16):** The [pinned full Linux/Windows Node 22 and Ubuntu Chromium gate 43814630774](https://github.com/FlareZ123/obfs/actions/runs/43814630774) passed at exact source `0fc93c7757e132c3583e3034fd37c39c69ee252b`: **1,415 passes / one skip / zero failures on Ubuntu**, **1,414 passes / two skips / zero failures on Windows**, from 1,416 Node tests per operating system. Both strict JSDoc suites, ten sampled hot-work benchmarks, and 15 real Ubuntu Chromium fixtures passed. The pinned source includes the [native CommonJS module-registry source-observation guard](im-results/commonjs-module-registry-source-observation-2026-11-16.md), which declines unsafe transforms when programs can read their own source via Node loader objects. This full-suite result demonstrates compatibility only for the tested cases. It does not establish confidentiality, unauthorized-execution resistance, or a universal 2.5× bound under full-control attackers.
 
