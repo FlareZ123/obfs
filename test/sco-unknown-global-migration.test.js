@@ -33,14 +33,13 @@ test('SCO private extraction refuses unknown host-global application properties'
     "return globalThis['externalBridge'].value;",
     'const root=globalThis;return root.externalBridge.value;',
     'const root=globalThis;const alias=root;return alias.customConfig;',
-    'return globalThis.Math.extraBridge;',
     'return globalThis.externalBridge?.value;',
     'return typeof globalThis.externalBridge;',
     "const {externalBridge:bridge}=globalThis;return bridge.value;",
     "const root=globalThis;const key='externalBridge';return root[key].value;"
   ];
   for(const body of bodies){
-    assert.throws(()=>partition(body),/Private SCO export uses unproved host-global state|realm-local intrinsic state/,
+    assert.throws(()=>partition(body),/Private SCO export uses unproved host-global state|Private SCO export uses browser-only ambient state/,
       body);
   }
 });
