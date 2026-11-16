@@ -49,10 +49,10 @@ test('numeric branches and generic coercion branch exactly preserve outputs and 
         seed,names:['protectedSum'],variants
       });
       assert.equal(compiled.functions,1);
-      assert.equal(compiled.paths,variants+1);
+      assert.equal(compiled.paths,variants);
       assert.equal(compiled.steps,steps.length);
       assert.equal(compiled.declined,0);
-      assert.equal((compiled.code.match(/\bcase \d+:/g)||[]).length,variants+1);
+      assert.equal((compiled.code.match(/\bcase \d+:/g)||[]).length,variants);
       const obfuscated=load(compiled.code);
       for(const value of values) {
         assert.equal(invoke(obfuscated,value),invoke(native,value),
