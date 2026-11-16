@@ -31,6 +31,23 @@ These six protected dense-call and six mixed ratios fall below 2.5× in the pinn
 
 A subsequent [focused workflow 43802055677](https://github.com/FlareZ123/obfs/actions/runs/43802055677) at immutable SHA **6218447ea0ddfffec22ebc3ef73b08a3de28f52f** passed the same Node/JSDoc/sample/attack/benchmark checks, and an Ubuntu real Chromium page importing four HTTP-served native/transformed ES modules. Its independent [browser fixture](../test/polyvariant-affine-browser.js) compared **8,211 values** across the native reference and 2/4/8-path outputs, including 8,192 successive signed inputs and 19 heterogeneous values. A 250,000-call browser hot probe reported Chrome protected-to-original ratios **0.587× (2 paths), 0.556× (4 paths), 1.175× (8 paths)**. These timings are browser-runner/JIT-dependent diagnostics, without a measured cold module-load ratio or claim of universal speedup. The exact generated interface and page workload were exercised over localhost HTTP under headless Chromium.
 
+## Cold-parse budget counterexample and benchmarking control
+
+The latest [11-trial alternating fresh-compilation run 43802895612](https://github.com/FlareZ123/obfs/actions/runs/43802895612) at exact source **9dd6b7bd266d289d1b80a48b1aa6abd2c7db0786** completed the compiler, 10 targeted Node tests, benchmark and browser stages on both OS. Its **overall workflow is red solely because an unrelated concurrently committed four-diagnostic JSDoc regression in src/wasm-i32.js** (Agent 38, TS7006 at lines 197 and 223); this is *not* a full green release gate. The cold result itself succeeded and is retained as bounded experimental evidence.
+
+The corrected harness [sims/polyvariant-affine-cold-start.js](../sims/polyvariant-affine-cold-start.js) alternates original/transformed runs per trial, uses distinct unique source-comment suffixes **for every variant** to reduce source-cache contamination, and reports medians of eleven 400-script Node vm.Script fresh-compilation batches. The earlier version had repeated native source across variants, creating obvious order/cache confounding; **its earlier exaggerated 24–45× ratios are superseded** by these controls.
+
+| Node22 OS | Variant paths | Original/obfuscated source bytes | Cold compilation ratio |
+| --- | ---: | ---: | ---: |
+| Ubuntu | 2 | 150 / 1,819 | **2.869×** |
+| Ubuntu | 4 | 150 / 3,435 | **4.714×** |
+| Ubuntu | 8 | 150 / 6,677 | **8.980×** |
+| Windows | 2 | 150 / 1,819 | **2.925×** |
+| Windows | 4 | 150 / 3,435 | **5.046×** |
+| Windows | 8 | 150 / 6,677 | **9.008×** |
+
+Each individual measured cold parsing/computation *phase* exceeds the 2.5× original phase in this fixture. This isolates source compile time, not a complete elapsed short-session ratio. It is a plausible risk to **COO**, which cannot exclude client initialization from its total compute budget. The SNO server may amortize eligible initialization under the original project rule. A concrete target application must still measure startup+runtime combined, and a long session can amortize the parser cost. Remaining V8 cache/JIT, source-comment and shared-runner effects preclude universal predictions.
+
 ## Independent offline adversarial attack
 
 The attacker [sims/polyvariant-affine-static-recover.js](../sims/polyvariant-affine-static-recover.js) imports Acorn to parse only distributed obfuscated source. It recognizes the generated function normalization and switch, interprets the native integer AST for **two inputs from each declared congruence class**, and deduces the additive mapping when all classes agree. It does not load, import or execute the distributed program. The checked-in two-class sample is reconstructed as signed-Int32 normalization plus an addition of **262**, despite two differently masked case bodies. The six-test suite additionally generates 2/4/8 variants and verifies 512 held-out integer values for each recovery, with a test of a side-effectful numeric-coercion object. This provides a deliberately negative security control: full-control source access defeats this candidate's abstract syntax hiding on the tested grammar.
