@@ -7,7 +7,7 @@ const {createScoBatchMethod}=require('./rpc-batch');
 
 /**
  * @typedef {{
- *   clientFile:{path:string,sourceType:'module',code:string,privateModulePaths?:string[]},
+ *   clientFile:{path:string,sourceType:'module',code:string,privateModulePaths?:string[],privateOriginalDigests?:string[]}, 
  *   methodNames:Record<string,string>,
  *   names:string[],
  *   endpoint:string,
