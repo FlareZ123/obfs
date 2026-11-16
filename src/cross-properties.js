@@ -275,8 +275,15 @@ function renameCrossFileProperties(files,seed) {
         if (typeof name==='string' &&
             (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name) ||
              name==='constructor')) ambiguous=true;
-        if(node.computed && name===null && node.object.type==='Identifier' &&
-           globalAliases.has(node.object.name))ambiguous=true;
+        // Unknown computed keys on *any* object can resolve to an
+        // inherited constructor, including Number[key] and [].filter[key].
+        // Such a Function constructor can dynamically import an ESM owner,
+        // defeating the static-only consumer proof. Primitive literal keys
+        // cannot become the string "constructor" via ToPropertyKey.
+        const primitiveKey=node.property.type==='Literal' &&
+          (node.property.value===null ||
+            ['number','boolean','bigint'].includes(typeof node.property.value));
+        if(node.computed && name===null && !primitiveKey)ambiguous=true;
       }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
