@@ -837,6 +837,25 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       if(callee.type==='Identifier' && boundCollatorCompares.has(callee.name) &&
          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
            !isDefinitelyPrimitive(value)))observed=true;
+      // Intl.Collator.compare is a bound getter; callable references also work
+      // through Function#call/apply/bind and Reflect.apply. A hidden function
+      // argument can then disclose its original body without .toString().
+      if(callee.type==='MemberExpression' &&
+         callee.object.type==='Identifier' &&
+         boundCollatorCompares.has(callee.object.name)) {
+        const method=memberName(callee);
+        if((method==='call'||method==='bind') &&
+           node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
+             !isDefinitelyPrimitive(value)))observed=true;
+        if(method==='apply' && node.arguments[1] &&
+           mayCoerceSourceWithinWebRecord(node.arguments[1]))observed=true;
+      }
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         node.arguments[0]?.type==='Identifier' &&
+         boundCollatorCompares.has(node.arguments[0].name) &&
+         node.arguments[2] &&
+         mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
       if(isWebConstructor(callee,webScalars,webScalarNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
