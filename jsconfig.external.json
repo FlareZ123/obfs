@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "sims/sco-selective-challenge.js",
+    "sims/sco-static-import-profile.js",
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
     "sims/jsdeobsbench-coverage.js",
