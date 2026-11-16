@@ -286,3 +286,52 @@ test('source-visible Proxy descriptor trap can invoke opaque host source observe
   assert.equal(compiled.crossFile.properties,0,
     'Unknown Proxy handler effects must not permit cross-file exported property renaming');
 });
+
+
+/**
+ * An ambient root passed to a local function can be destructured in its
+ * formal parameter list. The extracted capability is the same Reflect
+ * object used by a separately imported record reader.
+ */
+for(const [name,write] of [
+  ['direct function parameter',
+    "function replace({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}replace(globalThis);"],
+  ['forwarded function parameter',
+    "function replace({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}function forward(root){replace(root);}forward(globalThis);"],
+  ['arrow function parameter',
+    "const replace=({['Ref'+'lect']:cap})=>{cap.ownKeys=globalThis.HOST_REFLECT;};replace(globalThis);"],
+  ['forwarded arrow function parameter',
+    "const replace=({['Ref'+'lect']:cap})=>{cap.ownKeys=globalThis.HOST_REFLECT;};const forward=root=>replace(root);forward(globalThis);"]
+]) {
+  test('declared '+name+' ambient capability preserves host-observed keys',async()=>{
+    const original=graph().map(file=>file.path==='entry.mjs'?{
+      ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',write)
+    }:file);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'parameter-global-reflect-'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.equal(expected,'[41,"audit-v1",["secretField"]]');
+    assert.equal(await execute(compiled.files),expected,
+      'Calling a local function with the global root can expose a mutable native Reflect capability');
+    assert.equal(compiled.crossFile.properties,0,
+      'Do not rename an exported owner observed through a source-visible parameter-bound host capability');
+  });
+}
+
+test('function called with unrelated ordinary record retains safe positive rename',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "function read({tag}){return tag;}void read({tag:'safe'});")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'parameter-unrelated-record-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A harmless ordinary-record parameter must preserve a nonvacuous transformation');
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",null]');
+  assert.equal(await execute(compiled.files),expected);
+});
