@@ -178,3 +178,48 @@ test('composed SCO graph handler binds only original exports and permits only ge
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+
+test('SCO graph source fingerprints compare the same single-read bytes as served',async()=>{
+  const graph=partitionScoAsyncGraph(originals,{
+    seed:'sco-graph-immutable-source-20261116',exposedPaths:['api.mjs']
+  });
+  let reads=0;
+  const published='export const approved=11; // REVIEWED_PUBLIC_SOURCE_345';
+  const source={
+    path:'shadow.mjs',sourceType:'module',
+    get code(){
+      reads++;
+      return reads===1?published:originals[2].code;
+    }
+  };
+  const handler=createScoHandler([graph.clientFiles[0],source],{
+    publicPaths:['api.mjs','shadow.mjs']
+  });
+  assert.equal(reads,1,'Source content must be snapshotted once before digest and parse');
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address && typeof address==='object');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/shadow.mjs');
+    assert.equal(response.status,200);
+    const body=await response.text();
+    assert.ok(!body.includes('SERVER_PRIVATE_GRAPH_CANARY_78341'));
+    assert.equal(reads,1,'Runtime GET must use the handler-owned source snapshot');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+
+  let deniedReads=0;
+  const unauthorized={
+    path:'shadow.mjs',sourceType:'module',
+    get code(){
+      deniedReads++;
+      return deniedReads===1?originals[2].code:published;
+    }
+  };
+  assert.throws(()=>createScoHandler([graph.clientFiles[0],unauthorized]),
+    /original private graph source: shadow.mjs/);
+  assert.equal(deniedReads,1);
+});
