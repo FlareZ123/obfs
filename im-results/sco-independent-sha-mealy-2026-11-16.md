@@ -36,6 +36,23 @@ A fixed seed 0x31415926, eight-state witness yields the same proposed one-symbol
 
 For the four eight-state streams, suffix-depth 3 returned two post-discovery false candidates; depth 5 returned zero on the sampled distributions, with one fewer candidate overall. This is a finite test result and should not be extrapolated into a deterministic correctness guarantee. A no-reset black-box attacker can lose access to transient states while searching; any finite transcript can leave unreachable private-state behavior unidentified.
 
+## Expanded 100-model-per-stream falsification
+
+Running both published --stress commands locally extends the sample to **400 models per hidden-state count and suffix depth**. The additional models include a concrete depth-five false-positive witness, demonstrating that the apparent elimination of false continuations in the smaller 40-model sample does not generalize even to the same generator.
+
+| States | Depth | Models | Proposed | Physically global | Behaviorally global | Continuation-observable | False continuation | Steps |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 4 | 3 | 400 | 290 | 113 | 145 | 290 | 0 | 389,510 |
+| 4 | 5 | 400 | 290 | 113 | 145 | 290 | 0 | 1,522,400 |
+| 8 | 3 | 400 | 134 | 29 | 30 | 131 | 3 | 358,898 |
+| 8 | 5 | 400 | 133 | 29 | 30 | 133 | 0 | 1,041,665 |
+| 12 | 3 | 400 | 51 | 1 | 1 | 50 | 1 | 222,065 |
+| 12 | 5 | 400 | 51 | 1 | 1 | 50 | 1 | 502,931 |
+
+**Explicit counterexample:** Base seed 0xa82b11f5, stride 4973, index 48 generates the public deterministic twelve-state test fixture with actual seed **0xa82eb665**. At depth 3, the unchanged public attacker returns no candidate after 4,168 step calls. At depth 5, it proposes [0,0,0] after 7,599 calls, but the private post-attack partition-refinement evaluator rejects observational synchronization for states reachable at the end of that transcript. The four-test regression pins this exact witness. Thus increasing suffix depth changes the nonresettable state path and can introduce a false candidate in the same machine, despite eliminating other false candidates on the wider sample.
+
+These stress measurements are local Node 22.16.0 evidence, not yet a pinned cross-platform CI result. They use the same machine generator and attack evaluation code, not an independently implemented corroboration.
+
 ## Interpretation and limits
 
 The independent fixture family checks the same public attacker outside its original LCG-derived distribution. It recovers many plausible short reset words for the 4-state machines even though global physical or observational synchronization is much rarer. Larger hidden-state counts reduce the candidate frequency under the fixed maximum 3-symbol word and chosen schedule, but this alone provides no generalized defense against an adversary with unlimited authorized SCO requests. Authorized relaying of an online server-private operation remains possible regardless of whether synchronization search succeeds.
