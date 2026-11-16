@@ -14,12 +14,18 @@ async function build() {
     code:(await fs.readFile(path.join(__dirname,'native',name),'utf8'))
       .replace(/\r\n/g,'\n')
   })));
-  return obfuscateFiles(source,{
+  // The reflective stateful modules fail the whole-graph source-observation
+  // proof. Protect the narrow math island and intentionally ship the other
+  // two source modules unchanged. The attached test checks whole-graph refusal.
+  const encoded=obfuscateFiles(source.slice(0,1),{
     mode:'coo',seed:'multi-file-attacker-challenge-20261116',
-    closedWorld:true,strings:false,
+    closedWorld:false,strings:false,
     experimentalPolyvariantAffine:{'math.mjs':['round1','round2','round3']},
     experimentalPolyvariantCount:2
   });
+  return {...encoded,files:[...encoded.files,
+    ...source.slice(1).map(file=>({...file,
+      metrics:{literals:0,objects:0,properties:0,bindings:0}}))]};
 }
 
 /** @returns {Promise<void>} */
