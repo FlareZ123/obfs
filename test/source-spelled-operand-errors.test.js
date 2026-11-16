@@ -172,6 +172,27 @@ for(const [name,operation] of [
   });
 }
 
+for(const [name,operation] of [
+  ['direct string callee',"'privateField'();"],
+  ['direct string constructor',"new ('privateField')();"],
+  ['direct tagged string',"'privateField'\x60tag\x60;"],
+  ['logical string callee',"('privateField'||7)();"]
+]){
+  test('string encoder keeps source-spelled direct literal operand: '+name,()=>{
+    const original='let observed="";try{'+operation+
+      '}catch(error){observed=error.message;}module.exports=observed;';
+    const expected=evaluate(original);
+    assert.ok(JSON.parse(expected).includes('privateField'),expected);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+      const generated=obfuscateFiles([{path:'direct.cjs',sourceType:'commonjs',
+        code:original}],{mode,seed:'string-direct-failure/'+name,
+        strings:true,identifiers:false,properties:false}).files[0];
+      assert.equal(generated.metrics.literals,0,mode+'/'+name);
+      assert.equal(evaluate(generated.code),expected,mode+'/'+name);
+    }
+  });
+}
+
 test('source-spelling refusal still encodes unrelated successful computed key',()=>{
   const original='const state={privateField:12};module.exports=state["privateField"];';
   for(const mode of /** @type {const} */ (['coo','sco','sno'])){
