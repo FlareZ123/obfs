@@ -51,7 +51,7 @@ for(const [name,source] of [
   ['aliased String constructor coercion',
     "const Text=String;function observed(){const text='source-observation-literal';return text;}globalThis.out={value:observed(),source:Text(observed)};"],
   ['conditional Reflect.get source observer',
-    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';globalThis.out={value:observed(),source:Reflect.get(observed,key)()};"],
+    "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';globalThis.out={value:observed(),source:Reflect.get(observed,key).call(observed)};"],
   ['conditional descriptor source observer',
     "function observed(){const text='source-observation-literal';return text;}const key=true?'toString':'valueOf';const getter=Object.getOwnPropertyDescriptor(Function.prototype,key).value;globalThis.out={value:observed(),source:getter.call(observed)};"]
 ]) {
