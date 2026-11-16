@@ -164,6 +164,27 @@ function hasAcyclicStaticImports(modules) {
 function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   if(member.type!=='MemberExpression' || member.object.type!=='Identifier' ||
       member.property.type!=='Identifier')return false;
+  // The own-record proof trusts these direct native reflection reads. An
+  // explicitly declared reassignment/delete/update of either intrinsic in
+  // any supplied module invalidates that premise, even when all callsite
+  // keys are known own fields. The hostile callback can dynamically import
+  // and observe a separately renamed exported ESM object.
+  for(const source of modules.values()) {
+    let changedIntrinsic=false;
+    walk(source.ast,node=>{
+      const target=node.type==='AssignmentExpression'?node.left:
+        node.type==='UpdateExpression'?node.argument:
+        node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
+      if(target?.type!=='MemberExpression')return;
+      const method=target.computed?staticString(target.property):staticName(target.property);
+      if(target.object.type==='Identifier' &&
+          (target.object.name==='Reflect'&&method==='ownKeys' ||
+           target.object.name==='Object'&&method==='getOwnPropertyDescriptor')) {
+        changedIntrinsic=true;
+      }
+    });
+    if(changedIntrinsic)return false;
+  }
   const field=ancestors.at(-1);
   const record=ancestors.at(-2);
   const result=ancestors.at(-3);
