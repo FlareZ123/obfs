@@ -103,6 +103,7 @@ async function evaluate(fixture){
 }
 
 async function main(){
+  /** @type {Awaited<ReturnType<typeof evaluate>>[]} */
   const cases=[];
   for(const fixture of fixtures)cases.push(await evaluate(fixture));
   const unsafe=cases.filter(x=>x.unsafe);
