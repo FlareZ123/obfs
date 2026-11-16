@@ -22,11 +22,12 @@ class ScoIsolationBusyError extends Error {
  * not make external storage transactional or validate state transitions inside
  * a batch. The supplied execute callback must settle; no timeout or
  * reentrant execution is introduced here. An optional per-principal limit
- * counts running and waiting operations. An optional global capacity limits
- * all principals' outstanding calls. Both default to unlimited for backward
- * compatibility. A rejected request
- * does not enter the queue or invoke protected work. FIFO applies after the
- * asynchronous principal resolver has settled.
+ * counts running and waiting operations after identity resolution. An optional
+ * global capacity reserves a slot before invoking the identity resolver,
+ * bounding outstanding asynchronous lookups as well as all principals'
+ * running and waiting calls. Both limits default to unlimited.
+ * A rejected request never enters a principal queue or executes private work.
+ * FIFO applies after the asynchronous principal resolver has settled.
  *
  * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
  * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number}} [options]
@@ -81,7 +82,6 @@ function createScoKeyedIsolation(principalOf,options={}) {
       // including requests that never enter a principal-specific queue.
       totalPending--;
     }
-
   };
 }
 
