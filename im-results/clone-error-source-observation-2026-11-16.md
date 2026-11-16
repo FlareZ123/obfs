@@ -51,7 +51,7 @@ Reproduction tests:
 - `test/clone-inert-payload-coverage.test.js`
 - `test/clone-source-browser.js` for separate actual Chromium COO execution
 
-For the above behavior witnesses, run the respective `node --test` tests; the browser harness uses the configured `CHROMIUM_BIN`. CI links include the exact source SHA, Node version, operating system and process logs. The browser fixture, separately pinned as part of `manual-browser.yml`, compares actually emitted COO code against the native script, including a positive transformed-work control.
+For the above behavior witnesses, run the respective `node --test` tests; the browser harness uses the configured `CHROMIUM_BIN`. CI links include the exact source SHA, Node version, operating system and process logs. The actual Chromium COO module fixture passed [43966395403](https://github.com/FlareZ123/obfs/actions/runs/43966395403) at `fc519be90cd0bcdcda18176393a5e6bf183da372`: the source-error cases for `structuredClone` and `MessagePort.postMessage` matched native output with no unsafe edits, and the inert-record case retained 1/1 private-field renaming with native parity. The first browser run [43965793665](https://github.com/FlareZ123/obfs/actions/runs/43965793665) exposed an invalid positive control, because a classic `script` source intentionally has property renaming disabled by `src/core.js`. Corrected the fixture to use a real inline browser ES module and `sourceType:'module'`; the corrected full browser workflow passed, including its pre-existing integration cases.
 
 ## Limitations and next work
 
