@@ -224,7 +224,27 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
     } while(changed);
     let changedIntrinsic=false;
-    walk(source.ast,node=>{
+    walk(source.ast,(node,parent,key)=>{
+      // Preserve the earlier escape veto for ambient reflection objects
+      // entering unknown functions/containers; unlike plain binding aliases,
+      // these uses cannot be checked for later writes by this finite scan.
+      if(node.type==='Identifier' &&
+         (reflectNames.has(node.name)||objectNames.has(node.name))) {
+        const receiver=parent?.type==='MemberExpression'&&parent.object===node;
+        const propertyName=parent?.type==='MemberExpression' &&
+          parent.property===node&&!parent.computed ||
+          parent?.type==='Property'&&key==='key'&&!parent.computed;
+        const directAlias=parent?.type==='VariableDeclarator'&&parent.init===node&&
+          parent.id.type==='Identifier' ||
+          parent?.type==='AssignmentExpression'&&parent.right===node&&
+          parent.left.type==='Identifier';
+        if(!receiver&&!propertyName&&!directAlias)changedIntrinsic=true;
+      }
+      // A computed global key can resolve Reflect/Object through a local
+      // string binding, even when the AST has no named builtin reference.
+      if(node.type==='MemberExpression'&&node.computed&&
+          node.property.type!=='Literal'&&node.object.type==='Identifier'&&
+          globalNames.has(node.object.name))changedIntrinsic=true;
       // The writable native method can also be replaced by ordinary
       // reflection APIs. An opaque descriptor or assignment source may have
       // getters, so any such mutation aimed at the ambient object refuses.
