@@ -39,8 +39,11 @@ A [pinned two-platform profile and browser gate](https://github.com/FlareZ123/ob
 recorded light-callback runtime ratios of **1.408× Ubuntu / 1.231× Windows**
 and integrated SHA-256 callback ratios of **0.993× / 1.017×**, with
 8,218 real Chromium differential evaluations passing. Those observations
-come from a limited sample at a specific commit and are not a universal
-2.5× promise. A [seedless static attacker](sims/statement-flow-recover.js)
+come from a limited sample at a specific commit. A [subsequent tight
+CPU-loop gate](https://github.com/FlareZ123/obfs/actions/runs/43804836672)
+measured **2.781× Windows slowdown**, violating the required 2.5× ceiling
+for that workload. Keep this backend experimental and do not deploy it
+without representative performance profiling. A [seedless static attacker](sims/statement-flow-recover.js)
 recovered 16/16 randomized native control-flow layouts; the technique
 therefore raises structural inspection effort only, without demonstrated
 source secrecy or hostile-runtime integrity.
