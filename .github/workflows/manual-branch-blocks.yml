@@ -35,6 +35,8 @@ jobs:
         env:
           OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
+      - name: Held-out 160-graph statement CFG differential and static attack
+        run: node sims/statement-flow-fuzz.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Real Chromium multi-statement CFG native differential
@@ -73,6 +75,8 @@ jobs:
         env:
           OBFS_ENFORCE_BUDGET: '1'
         run: node sims/branch-block-profile.js
+      - name: Held-out 160-graph statement CFG differential and static attack
+        run: node sims/statement-flow-fuzz.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Strict JSDoc
