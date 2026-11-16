@@ -172,7 +172,7 @@ for(const [label,setup,invoke] of [
   test('host-provided loader via '+label+' cannot evade the record proof',async()=>{
     const files=graph([
       setup,
-      'const remote=await '+invoke+'("return import(\\'./state.mjs\\')")();',
+      "const remote=await "+invoke+"(\"return import('./state.mjs')\")();",
       "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
     ].join('\n'));
     const native=await execute(files,true);
