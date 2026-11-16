@@ -196,9 +196,10 @@ async function execute(folder, collection) {
 /**
  * Deterministic multi-file semantic differential and property-yield measurement.
  * @param {number} [seeds]
+ * @param {'coo'|'sno'|'sco'} [mode]
  * @returns {Promise<{graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true}>}
  */
-async function runMatrix(seeds=12) {
+async function runMatrix(seeds=12,mode='coo') {
   assert.ok(Number.isInteger(seeds) && seeds>0 && seeds<=100);
   const scratch = await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-observers-'));
   try {
@@ -214,7 +215,7 @@ async function runMatrix(seeds=12) {
     const renamesByScenario={};
     const protectedCases=fixtures.map(item=>{
       const result=obfuscateFiles(item.files,{
-        mode:'coo',closedWorld:true,strings:false,identifiers:false,
+        mode,closedWorld:true,strings:false,identifiers:false,
         seed:'esm-observers/'+item.index
       });
       const count=result.crossFile.properties;
@@ -237,7 +238,7 @@ async function runMatrix(seeds=12) {
     const transformed=await execute(path.join(scratch,'transformed'),protectedCases);
     assert.deepEqual(transformed,baseline,'Original and emitted ESM graphs differ');
     return {
-      graphs:fixtures.length,scenarios:SCENARIOS.length,
+      mode,graphs:fixtures.length,scenarios:SCENARIOS.length,
       positiveGraphs,positiveRenames,observedGraphs,observedUnsafeRenames,
       renamesByScenario,nativeEqual:true
     };
