@@ -952,6 +952,117 @@ function partitionScoSelectedAsyncExports(file,options) {
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
+  /**
+   * Prove a literal-only object constructed independently within the function.
+   * Nested records remain inert; getters, computed names, spreads and methods
+   * could observe arbitrary host capabilities and are conservatively excluded.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isInertOwnedRecord(node){
+    if(node.type==='Literal'){
+      return node.value===null||['string','number','boolean','bigint']
+        .includes(typeof node.value);
+    }
+    if(node.type!=='ObjectExpression')return false;
+    return node.properties.every((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&!property.computed&&!property.method&&
+      property.kind==='init'&&isInertOwnedRecord(property.value));
+  }
+  /**
+   * A function-local const bound to an inert record cannot alias an ambient
+   * global object unless another nested binding shadows its name. Use this
+   * same narrow ownership test for shared-state and private-host guards.
+   * @param {import('./ast').AstNode} body
+   * @returns {Set<string>}
+   */
+  function ownedLocalAmbientNames(body) {
+    const names=new Set();
+    /** @type {Map<string,import('./ast').AstNode>} */
+    const provenBindings=new Map();
+    if(body.type!=='BlockStatement')return names;
+    for(const statement of body.body){
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const declaration of statement.declarations){
+        if(declaration.id.type!=='Identifier'||!ambientRoots.has(declaration.id.name)||
+           declaration.init?.type!=='ObjectExpression'||
+           !isInertOwnedRecord(declaration.init))continue;
+        names.add(declaration.id.name);
+        provenBindings.set(declaration.id.name,declaration);
+      }
+    }
+    // A nested binding of the same spelling might refer to an entirely
+    // different host capability. Do not infer every occurrence from the
+    // outer record when nested lexical ownership is not proven.
+    const ambiguous=new Set();
+    walk(body,node=>{
+      if(node.type==='VariableDeclarator'){
+        for(const name of names){
+          if(node===provenBindings.get(name))continue;
+          walk(node.id,part=>{
+            if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+          });
+        }
+      }
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+        'ClassDeclaration','ClassExpression'].includes(node.type)){
+        if(node.id?.type==='Identifier'&&names.has(node.id.name))ambiguous.add(node.id.name);
+        for(const parameter of node.params??[]){
+          for(const name of names){
+            walk(parameter,part=>{
+              if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+            });
+          }
+        }
+      }
+      if(node.type==='CatchClause'&&node.param){
+        for(const name of names){
+          walk(node.param,part=>{
+            if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+          });
+        }
+      }
+    });
+    // For direct members of an owned local root, require a literal own key
+    // and refuse unproved direct writes. Nested aliases, inherited methods
+    // past the first field, and opaque object operations remain outside this
+    // deliberately bounded syntactic proof.
+    /** @type {Map<string,Set<string>>} */
+    const ownedKeys=new Map();
+    for(const [name,declaration] of provenBindings){
+      const keys=new Set();
+      for(const property of declaration.init.properties){
+        const member=property.key.type==='Identifier'&&!property.computed?
+          property.key.name:staticString(property.key);
+        if(member===null)ambiguous.add(name);
+        else keys.add(member);
+      }
+      ownedKeys.set(name,keys);
+    }
+    walk(body,(node,parent,key)=>{
+      if(node.type==='Identifier'&&names.has(node.name)&&!isStaticKey(parent,key)){
+        if(parent?.type==='VariableDeclarator'&&parent===provenBindings.get(node.name)&&
+           key==='id')return;
+        if(parent?.type==='MemberExpression'&&key==='object')return;
+        ambiguous.add(node.name);
+      }
+      if(node.type!=='MemberExpression'||node.object.type!=='Identifier'||
+         !names.has(node.object.name))return;
+      const name=node.object.name;
+      const member=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(member===null||!ownedKeys.get(name)?.has(member))ambiguous.add(name);
+      if(parent?.type==='AssignmentExpression'&&key==='left'&&
+         (parent.operator!=='='||!isInertOwnedRecord(parent.right)) ||
+         parent?.type==='UpdateExpression' ||
+         parent?.type==='UnaryExpression'&&parent.operator==='delete' ||
+         parent?.type==='CallExpression'&&key==='callee'){
+        ambiguous.add(name);
+      }
+    });
+    for(const name of ambiguous)names.delete(name);
+    return names;
+  }
   /** @type {Set<string>} */
   const privateAmbient=new Set();
   /** @type {Set<string>} */
@@ -991,8 +1102,10 @@ function partitionScoSelectedAsyncExports(file,options) {
       privateHelperNames.add(name);
       privateHelperChunks.push(helper.text);
       privateBodies.push(fn.body);
+      const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)){
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+           !localAmbient.has(node.name)){
           privateAmbient.add(node.name);
         }
       });
@@ -1019,8 +1132,10 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access: '+name);
     }
+    const localAmbient=ownedLocalAmbientNames(fn.body);
     walk(fn,(node,parent,key)=>{
-      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))publicAmbient.add(node.name);
+      if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+         !localAmbient.has(node.name))publicAmbient.add(node.name);
       if(node.type==='ImportExpression'||node.type==='MetaProperty'||node.type==='WithStatement'||
          node.type==='Identifier'&&(node.name==='eval'||node.name==='Function')) {
         throw new TypeError('Public SCO export uses dynamic module/source inspection: '+name);
@@ -1076,8 +1191,10 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
       privateBodies.push(fn.body);
+      const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
-        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name))privateAmbient.add(node.name);
+        if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
+           !localAmbient.has(node.name))privateAmbient.add(node.name);
       });
     }else{
       publicNames.push(name);
@@ -1142,13 +1259,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     // Only declarations in the enclosing function body reliably shadow the
     // ambient globalThis for all references in this bounded source scan.
-    const localGlobalThis=body.type==='BlockStatement'&&body.body.some(
-      (/** @type {import('./ast').AstNode} */ statement)=>
-        statement.type==='VariableDeclaration'&&statement.declarations.some(
-          (/** @type {import('./ast').AstNode} */ declaration)=>
-            declaration.id.type==='Identifier'&&declaration.id.name==='globalThis') ||
-        (statement.type==='FunctionDeclaration'||statement.type==='ClassDeclaration')&&
-        statement.id?.name==='globalThis');
+    const localGlobalThis=ownedLocalAmbientNames(body).has('globalThis');
     const globalAliases=new Set(localGlobalThis?[]:['globalThis']);
     let aliasesChanged=true;
     while(aliasesChanged){
