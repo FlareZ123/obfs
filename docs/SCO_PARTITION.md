@@ -62,6 +62,14 @@ Set `serverOnlyInitialization:true` to keep arbitrary non-exported top-level ini
 
 This explicitly changes the original module's client-side initialization behavior. Use it only for a deliberately private server module whose initialization is intended to execute on the trusted server. Do not assume that relocating arbitrary top-level effects preserves an existing browser app's semantics or timing. The integrator must load the original ESM module on the server before binding its functions.
 
+## Selective server-only Node.js imports
+
+The stricter mixed public/private helper `partitionScoSelectedAsyncExports` supports `allowServerImports:true` when its private async operation needs a static named import from a Node.js builtin. For example, `import {createHmac as serverHmac} from 'node:crypto'` remains in the original server module and is absent from the generated browser facade. The static imported binding is treated like a server-only constant: any retained public export or explicitly retained public helper that reads it causes a compile-time refusal.
+
+The opt-in accepts only named imports from explicit canonical `node:` specifiers verified by Node's `module.isBuiltin`. It declines namespace/default imports, side-effect-only imports, relative files, package imports, unknown builtins, and unreviewed top-level module effects. Without opt-in all static imports retain the original refusal. The source module must be loaded on the trusted Node server, with its original import declarations intact; the compiler returns only the public client facade and never bundles private import code.
+
+See the [real before/after](../examples/sco-static-imports/README.md) and [native/HTTP regression](../test/sco-static-imports.test.js). An authorized client can still relay protected results. One HTTP call per tiny HMAC may exceed the 2.5× compute budget; a session-level measurement is required.
+
 ## Optional named batched operations
 
 Set `batch:true` (optionally with `maxBatchCalls:32`) to add an explicit named `batch(calls)` export to the generated client. Each call item has `{name:'exportedFunctionName',args:[...]}`. `bindScoModuleExports` automatically registers a private bounded batch handler alongside the original method registry. The proxy translates public function names to generated RPC method identifiers and sends one HTTP JSON request. It validates the batch shape and size before sending, while the server independently applies the configured maximum (64 calls by default, up to 1,024).
