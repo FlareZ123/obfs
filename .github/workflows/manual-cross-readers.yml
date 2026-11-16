@@ -27,5 +27,7 @@ jobs:
         run: node examples/direct-owner-read/build-sample.cjs
       - name: Native and emitted ESM host-lock graph behavior
         run: node --test test/closed-graph-host-lock.test.js test/obfuscator.test.js
+      - name: Verify generated multi-module host lock before/after graph
+        run: node examples/closed-graph-host/build-sample.cjs
       - name: Strict JSDoc type safety
         run: npm run typecheck
