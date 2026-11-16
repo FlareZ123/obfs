@@ -109,6 +109,7 @@ async function execute(files){
 
 /** @returns {Promise<void>} */
 async function main(){
+  /** @type {{label:string,properties:number,equal:boolean,outcome:string,observedKeys:unknown}[]} */
   const rows=[];
   for(const item of cases){
     const files=graph(item);
@@ -137,7 +138,7 @@ async function main(){
 }
 
 if(require.main===module)main().catch(error=>{
-  process.stderr.write(String(error?.stack??error)+'\n');
+  process.stderr.write(String(error instanceof Error ? error.stack : error)+'\n');
   process.exitCode=1;
 });
 
