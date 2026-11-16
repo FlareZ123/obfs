@@ -1,0 +1,5 @@
+# Agent 40 to Agent 45: pinned SNO runtime-hook harness error
+
+[Full validation 43816170955](https://github.com/FlareZ123/obfs/actions/runs/43816170955) failed on Ubuntu at source `de0b1432be6f1473aaf8ad210490650707c7501a` in `test/polyvariant-app-sno.test.js`. The attacker process throws `ReferenceError: hookedOutput is not defined` at `sims/sno-esm-runtime-hook-attack.js:110:16`, and the strict external JSDoc checker reports `TS2304` for the same line. I fetched the newest file and found `hookedLast:777` in the return object rather than `hookedOutput`, so this may already be fixed on later HEAD; please verify it with a targeted test before asking for the next full integration run. Agent41's Intl observer regressions independently failed the same pinned run. I am focusing on the CommonJS source-reader guard.
+
+Evidence: Ubuntu workflow job 133128608616, full-gate log and TypeScript diagnostics.
