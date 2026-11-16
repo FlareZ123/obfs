@@ -10,6 +10,7 @@
     "sims/jsdeobsbench-differential.js",
     "sims/jsdeobsbench-public-static-attack.js",
     "sims/jsdeobsbench-public-protocol.js",
+    "test/jsdeobsbench-public-browser.js",
     "sims/destructuring-assignment-performance.js",
     "sims/external-function-source-contract.js",
     "examples/sco-private/build-sample.cjs",
