@@ -143,8 +143,10 @@ for(const [method,write] of [
     });
     const expected=await execute(original);
     assert.equal(expected,'[41,"audit-v1",["secretField"]]');
+    const observed=await execute(compiled.files);
+    assert.equal(observed,expected,
+      'Declared global mutator must preserve observable own keys under host callback');
     assert.equal(compiled.crossFile.properties,0);
-    assert.equal(await execute(compiled.files),expected);
   });
 }
 
