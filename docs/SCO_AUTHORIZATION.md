@@ -94,6 +94,24 @@ http.createServer(handler).listen(8080);
 
 This is a conceptual example: `verifyUserSession`, `protectedServerValue` and `isPermittedOperation` are application-supplied functions. The obfuscator does not generate user accounts or tokens.
 
+## Automatic closed-graph private dependency refusal
+
+When `partitionScoAsyncGraph` receives a complete private ESM graph with
+explicit public `exposedPaths`, it now attaches its non-exposed module
+paths to every generated `clientFile.privateModulePaths`. This metadata
+is held by the trusted integration, independently of the executable
+JavaScript sent to clients. Passing a generated facade and any original
+non-exposed private module to `createScoHandler` in either order causes
+a constructor-time refusal before HTTP route construction.
+
+The paired [real HTTP negative-control and two-platform test](../im-results/sco-graph-publication-manifest-2026-11-16.md)
+shows that a handler built with the same facades stripped of the marker
+would accidentally serve a source canary through HTTP 200. The marker is
+a fail-closed integration guard for the particular supplied graph; it
+does not inspect every conceivable alternate filename or runtime import.
+The stronger `publicPaths` positive allowlist still protects against
+unexpected extra source files outside the graph and remains recommended.
+
 ## Generated browser RPC facade
 
 `createScoRpcClientSource(methodNames, {endpoint?})` emits a standalone ES module for modern browsers. The generated source includes method names and a JSON-over-HTTP transport, while the actual function bodies remain on the SCO server. Its default same-origin endpoint is `/obfs/rpc`; specify a same-origin absolute path when using a custom `routePrefix`. The generator rejects duplicate method names and cross-origin or protocol-relative endpoints.
