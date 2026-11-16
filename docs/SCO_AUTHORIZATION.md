@@ -280,25 +280,26 @@ prevent unlimited legitimate oracle queries.
 
 ### Reusable per-principal isolation helper
 
-`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?})` provides a
-small in-process FIFO queue compatible with `createScoHandler`'s
-`runRpcIsolated` hook. Each verified principal's authorization checks and
-method execution are serialized, while different principals retain independent
-queues. A failed operation releases its queue, and the last completed request
-removes the idle queue entry. Set a positive integer `maxPendingPerPrincipal`
-to limit the total active **plus waiting** RPC calls for an account. Exceeding
-it rejects the request before authorization or method execution; the handler
-returns HTTP **429** with a generic response. The default is unlimited for
-existing integrations. A bounded queue can contain memory pressure from
-authenticated bursts, but request-body parsing and principal verification
-happen before admission and still consume resources.
+`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?})`
+provides a small in-process FIFO queue compatible with
+`createScoHandler`'s `runRpcIsolated` hook. Each verified principal's
+authorization checks and method execution are serialized, while different
+principals retain independent queues. A failed operation releases its queue,
+and the last completed request removes the idle queue entry. Set a positive
+integer `maxPendingPerPrincipal` to cap the total active **plus waiting** RPC
+calls for each account. Set `maxPendingTotal` to cap the aggregate across
+**all** accounts in the current process. Either cap denies admission before
+authorization or private method execution and returns generic HTTP **429**.
+Both limits are unlimited by default for existing integrations. These
+caps bound retained queue state after request-body parsing and principal
+verification, which still consume resources before admission.
 
 ```js
 const {createScoHandler,createScoKeyedIsolation}=require('./src');
 const runRpcIsolated=createScoKeyedIsolation(async request=>{
   const session=await authenticateRequest(request);
   return session.accountId;
-},{maxPendingPerPrincipal:8});
+},{maxPendingPerPrincipal:8,maxPendingTotal:512});
 const handler=createScoHandler(publicFiles,{
   remoteMethods,
   authorizeRpc:authenticateRequest,
@@ -317,8 +318,10 @@ through application policy. Keep lock and authorization identity aligned.
 
 A busy error raised by the isolated **private method** is still a generic
 HTTP 500; only a queue rejection before any protected work begins is 429.
-Finite queue sizes do not set a global process-wide concurrency limit and
-cannot stop a principal from sending unlimited *serial* authorized requests.
+A finite `maxPendingTotal` sets a process-local aggregate outstanding
+operation cap, but is **not** a fair scheduler: a burst from one account may
+consume all slots and temporarily reject requests for other accounts.
+Neither limit stops unlimited *serial* authorized requests.
 Use front-door limits and verified authentication in addition to this helper.
 
 This helper protects only calls through the same in-process instance. It
