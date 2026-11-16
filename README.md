@@ -25,6 +25,26 @@ node bin/sno.js --root .\examples\server --entry index.cjs --out .\dist-server
 node .\dist-server\sno-entry.cjs
 ```
 
+**Experimental multi-statement native CFG:** The opt-in
+[`flattenStatementFlow`](src/statement-flow.js) backend accepts restricted
+synchronous ESM/CommonJS function declarations with multi-statement if/else
+branches. It emits native JavaScript using randomized switch-dispatch states;
+whole native loops, switches, labels, and exception handling statements may
+remain atomic. The `--statement-flow relative-file:functionName` CLI selector
+is supported for COO and SNO. Unsupported lexical declarations, direct eval,
+recognized function-source observers and unproved control flow decline rather
+than silently changing behavior. See the [actual before-and-after example](examples/statement-flow/README.md).
+
+A [pinned two-platform profile and browser gate](https://github.com/FlareZ123/obfs/actions/runs/43801792896)
+recorded light-callback runtime ratios of **1.408× Ubuntu / 1.231× Windows**
+and integrated SHA-256 callback ratios of **0.993× / 1.017×**, with
+8,218 real Chromium differential evaluations passing. Those observations
+come from a limited sample at a specific commit and are not a universal
+2.5× promise. A [seedless static attacker](sims/statement-flow-recover.js)
+recovered 16/16 randomized native control-flow layouts; the technique
+therefore raises structural inspection effort only, without demonstrated
+source secrecy or hostile-runtime integrity.
+
 **Runnable advanced SCO example:** [`examples/sco-private/`](examples/sco-private/README.md) includes an original keyed ESM implementation, the **actual generated client RPC facade** saved as a before-and-after artifact, a deterministic reproduction/check script, and an authenticated localhost HTTP server. A live differential regression checks the generated client against the server-resident original. This demonstrates a genuine server-only source and key separation, with the runtime and oracle limitations documented in the example. Existing COO/SNO transformations cannot provide the same trusted-server confidentiality under their full-control threat models.
 
 **Multi-module SCO example:** [`examples/sco-graph/`](examples/sco-graph/README.md)
