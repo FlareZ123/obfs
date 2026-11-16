@@ -54,3 +54,21 @@ The follow-up patch `3163292d616023860921316be62c4c065b6f0b01` conservatively pr
 [Pinned green Ubuntu+Windows workflow 43825959203](https://github.com/FlareZ123/obfs/actions/runs/43825959203) at `aad1d12fa60274a081b04ae6c3a464a4d2ab37d5` passed both SCO matrix jobs, including JSDoc and other existing workflow tasks. The positive controls were therefore checked in the same gate as the new negative variants.
 
 **Important residual:** A dynamic computed key on an object with unproved provenance, or a function created by an arbitrary factory, can still reach a constructor without passing this finite syntactic guard. This work exposes the false-confidence risk of calling a syntactic dependency manifest a sound complete graph; it cannot guarantee no runtime module loads in arbitrary JavaScript. Preserve explicit `publicPaths` and refuse public exposure of any server-private root regardless of static scan outcomes.
+
+## Independently generated loader-capability grid (07:53 UTC)
+
+A separate executable `sims/sco-private-dynamic-loader-grid.js` uses the actual Node.js 22 ESM loader to execute **eight source-private dynamic-loader variants** against a real undeclared `private/deep/secret.mjs` leaf. It materializes source through the project's atomic writer, verifies the native answer is exactly 42 for all eight, then passes only `private/engine.mjs` to the opt-in static source auditor. Four positive source controls are deliberately ordinary local fields or computed array/key/function-name properties. The same fixture list and source snapshot runs on Ubuntu and Windows; no hypothetical dynamic loader is counted as successful unless native execution returns the held-out leaf's value.
+
+| Test outcome | Ubuntu Node 22 | Windows Node 22 |
+|---|---:|---:|
+| Native unsafe variants that actually load hidden leaf | 8/8 | 8/8 |
+| Audit refuses unsafe source | 3/8 | 3/8 |
+| **Audit admits an incomplete static manifest** | **5/8** | **5/8** |
+| Positive safe private source admitted | **4/4** | **4/4** |
+| SCO targeted tests | 118 pass, zero failures | 117 pass, one skip, zero failures |
+
+[Pinned targeted gate 43826968978](https://github.com/FlareZ123/obfs/actions/runs/43826968978), exact SHA `faf0803b9227524afac1ff70854cf9de546556a3`, succeeded across both operating systems including existing SCO tests, simulation probes, JSDoc and applicable real Chromium. The five admitted capabilities were `unknown-key-object-alias`, `factory-returned-function`, `keyed-property-getter-helper`, `Object-keys-derived` and `String-fromCharCode-derived`; each returned the private leaf canary natively while its compiler-generated `privateModulePaths` held only `private/engine.mjs`.
+
+**Consequence:** The broadened guard demonstrably covers its red/green constructor-alias cases but is **not** a sound complete dynamic-source scanner for general JavaScript. Additional syntactic blacklist entries may reduce a particular missed class; they will not establish soundness against arbitrary introspection, alias flow, native dynamic loading or runtime-generated code. The existing independent `createScoHandler({publicPaths})` positive publication allowlist can refuse accidental `sourceFiles` even when the private static closure is incomplete. For a trusted SCO deployment, do not enumerate public sources from the inferred private graph alone.
+
+The grid measures source-audit admission and semantics only. It does **not** measure obfuscation reconstruction difficulty, whole-session 2.5× performance, or a real HTTP leak for the five individual loader variants. Existing separate HTTP tests demonstrate that unlisted private source mistakenly supplied in public `sourceFiles` is served when no `publicPaths` positive allowlist is configured.
