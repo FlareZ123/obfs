@@ -61,3 +61,20 @@ The transformation is a performance-aware structural obfuscation experiment, **n
 - Patched src/cross-properties.js safeClosedCallerRecordRead: refuse when Reflect/Object escape direct member receivers, when they are accessed through member properties, or when a recognized global object has a nonliteral computed property read. Final targeted application+typecheck+frozen positive suites green Linux, Windows, and legacy Node 22 at 43840963528, SHA 1706b957a429ffb27cc05d1302ccae36a24b0994.
 - New im-results/closed-record-reflection-alias-2026-11-16.md documents mechanism, red/green exact-SHA evidence and limitations. This is a bounded soundness-by-refusal repair; normal approved private-field positive renames remain green, no quantified protection increase. External host monkeypatch (outside declared ESM group) remains a known successful attack.
 - Next: coordinate with Agent 43 (original proof owner), merge after review/full integration, explore external-capability assumptions. Track that main diverges continuously; do not overwrite new branch changes. Do not claim proof of strong obfuscation or universal 2.5x.
+
+
+## 2026-11-16 09:55 UTC: opaque host-global callable reaches dynamic ESM loader
+
+- Follow-on branch agent21/host-global-loader-proof-20261116 created on main de4e5fb6b5fc073ba4d7cada24863da70779f913, after first alias-guard PR #14 merged and full Linux/Windows/Chromium gate green.
+- Host preloader globalThis.RUNTIME_FACTORY=Function. Declared ESM entry const ctor=globalThis.RUNTIME_FACTORY; ctor("return import('./state.mjs')")() obtains module without a static import edge and inspects its original state property spelling. The own-record inspectRecord('auditCount') still passes all known own-field checks.
+- Independent native/delivered Node 22 Linux+Windows red 43842553016 at source 9d79bfa08da956fca7b6364315c22d050b520cf7: native [41,[3,["secretField"],41]], transformed [41,[3,["_p5e4b73051cde"],null]], compiler crossFile.properties=1, expected conservative 0.
+- Candidate guard in src/cross-properties.js tracks direct global callable invocation and simple first-class aliases from recognized global roots in safeClosedCallerRecordRead. Added direct, one-alias and transitive-alias tests. Targeted Ubuntu/Windows and legacy Node 22 application suite green 43843558621, source 780994469ed7559889ee71c8f3f91170532f5f2c. Existing own-key positive transformed-field controls and frozen negative variants still pass.
+- Report: im-results/closed-record-host-global-loader-2026-11-16.md. This is explicitly safety-by-refusal, with incomplete whole-language alias analysis and a known outside-host intrinsic counterexample. Do not promote as a full property flow proof, dynamic secrecy, or performance guarantee.
+- Next: full Linux/Windows/Chromium gate, PR and integration review, test richer host alias patterns and measure refusal-yield before permitting a broader conservative global-escape rule.
+
+
+### 09:59 UTC host-global alias extension checkpoint
+
+- Extended test/cross-file-safe-record-read.test.js with three more real Node --require native-vs-generated witness shapes: globalThis root alias, global destructuring, and Object.getOwnPropertyDescriptor(globalThis,'RUNTIME_FACTORY').value. Against first guard, both-platform red 43844276787 at 4cb7bf2cae3ea3f4735cde15137fc9d64f085b69; emitted keys differed from original in all three cases.
+- src/cross-properties.js helper now propagates root global aliases, recognizes destructured host capability identifiers and reflection-sourced host callables. Exact addfeaf30c5b32a3f900596959afd1fb90fedee0 passed targeted Linux+Windows+legacy 43844631273, preserving frozen application positive transformed private fields. This remains incomplete if host capabilities escape via arbitrary objects or higher-order calls. Report updated accordingly.
+- Full target needs exact merged candidate SHA validation. Avoid claiming global host callback proof for every JavaScript shape.

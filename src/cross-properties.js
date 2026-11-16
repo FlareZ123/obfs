@@ -171,7 +171,87 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   // and observe a separately renamed exported ESM object.
   for(const source of modules.values()) {
     let changedIntrinsic=false;
+    const hostRoots=new Set(['globalThis','window','self','global']);
+    /** @type {Set<string>} */
+    const hostCallAliases=new Set();
+    /** @type {[string,string][]} */
+    const aliasEdges=[];
+    // A host-controlled callable can perform runtime imports that are
+    // invisible to the statically closed ESM graph. Resolve direct aliases
+    // of the global root before recognizing extracted host functions.
+    walk(source.ast,node=>{
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         node.init?.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='Identifier' && node.right.type==='Identifier') {
+        aliasEdges.push([node.left.name,node.right.name]);
+      }
+    });
+    let aliasChanged;
+    do {
+      aliasChanged=false;
+      for(const [target,origin] of aliasEdges) {
+        if(hostRoots.has(origin) && !hostRoots.has(target)) {
+          hostRoots.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
+    /**
+     * Recognize a source of an opaque host callable, including a descriptor
+     * value and a Reflect.get result. Decline only if it is later called.
+     * @param {AstNode} initial
+     * @returns {boolean}
+     */
+    function readsHostCallable(initial) {
+      if(initial.type==='MemberExpression') {
+        if(initial.object.type==='Identifier' &&
+           hostRoots.has(initial.object.name))return true;
+        return initial.object.type==='CallExpression' &&
+          readsHostCallable(initial.object);
+      }
+      if(initial.type==='CallExpression' &&
+         initial.callee.type==='MemberExpression' &&
+         initial.callee.object.type==='Identifier') {
+        const method=initial.callee.computed?
+          staticString(initial.callee.property):staticName(initial.callee.property);
+        const host=initial.callee.object.name;
+        if((host==='Object' && method==='getOwnPropertyDescriptor' ||
+            host==='Reflect' && method==='get') &&
+           initial.arguments[0]?.type==='Identifier' &&
+           hostRoots.has(initial.arguments[0].name))return true;
+      }
+      return false;
+    }
+    walk(source.ast,node=>{
+      if(node.type!=='VariableDeclarator'||!node.init)return;
+      if(node.id.type==='Identifier' && readsHostCallable(node.init)) {
+        hostCallAliases.add(node.id.name);
+      }
+      if(node.id.type==='ObjectPattern' && node.init.type==='Identifier' &&
+         hostRoots.has(node.init.name)) {
+        for(const property of node.id.properties) {
+          if(property.type==='Property' && property.value.type==='Identifier')
+            hostCallAliases.add(property.value.name);
+        }
+      }
+    });
+    do {
+      aliasChanged=false;
+      for(const [target,origin] of aliasEdges) {
+        if(hostCallAliases.has(origin) && !hostCallAliases.has(target)) {
+          hostCallAliases.add(target);
+          aliasChanged=true;
+        }
+      }
+    } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
+      if(node.type==='CallExpression' &&
+         (node.callee.type==='Identifier' && hostCallAliases.has(node.callee.name) ||
+          node.callee.type==='MemberExpression' &&
+          node.callee.object.type==='Identifier' &&
+          (hostRoots.has(node.callee.object.name) ||
+           hostCallAliases.has(node.callee.object.name))))changedIntrinsic=true;
       // A direct-member write guard is insufficient when the global
       // reflection object can escape through an alias or argument. Such a
       // reference can replace ownKeys/getOwnPropertyDescriptor and return a
