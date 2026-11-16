@@ -238,7 +238,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           parent.id.type==='Identifier' ||
           parent?.type==='AssignmentExpression'&&parent.right===node&&
           parent.left.type==='Identifier';
-        if(!receiver&&!propertyName&&!directAlias)changedIntrinsic=true;
+        const declaration=parent?.type==='VariableDeclarator'&&parent.id===node ||
+          parent?.type==='AssignmentExpression'&&parent.left===node;
+        if(!receiver&&!propertyName&&!directAlias&&!declaration)changedIntrinsic=true;
       }
       // A computed global key can resolve Reflect/Object through a local
       // string binding, even when the AST has no named builtin reference.
