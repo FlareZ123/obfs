@@ -13,7 +13,7 @@ const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
  * semantics-preserving or deployable source rewrite.
  * @param {{path:string,sourceType:'module',code:string}[]} files
  * @param {'reflect'|'entry'|'both'|'none'} variant
- * @returns {typeof files}
+ * @returns {{path:string,sourceType:'module',code:string}[]}
  */
 function ablate(files,variant){
   return files.map(file=>{
