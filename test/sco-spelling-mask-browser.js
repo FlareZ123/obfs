@@ -39,7 +39,7 @@ async function main() {
     'const firstMarker='+JSON.stringify(first)+';',
     'const secondMarker='+JSON.stringify(second)+';',
     'const thirdMarker='+JSON.stringify(third)+';',
-    'const privateOwner={secretField:value};',
+    'const privateOwner={secretField:7};',
     'return {payload:firstMarker+secondMarker+thirdMarker,count:privateOwner.secretField};',
     '}',
     'const result=emit(7);',
