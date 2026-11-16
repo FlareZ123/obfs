@@ -64,3 +64,8 @@ bench('single-use arrow factory',`const make=()=>({secretField:7,otherField:5});
 const state=make();
 function run(n){let sum=0;for(let i=0;i<n;i++)sum+=state.secretField+state.otherField;return sum;}
 module.exports=run;`,2);
+
+bench('single-slot private-array owner access',`const state={secretField:7,otherField:5};
+const holder=[state];const alias=holder[0];
+function run(n){let sum=0;for(let i=0;i<n;i++)sum+=alias.secretField+state.otherField;return sum;}
+module.exports=run;`,2);
