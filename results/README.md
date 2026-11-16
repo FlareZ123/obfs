@@ -37,10 +37,12 @@ The [transformed three-module SNO comparison](../im-results/polyvariant-app-sno-
 improves on this no-transform control: three arithmetic functions were
 genuinely lowered into six public paths and emitted 7,495 bytes from
 2,467 original source bytes. All 96 application cases matched on
-Ubuntu and Windows at [exact pinned gate 43813786492](https://github.com/FlareZ123/obfs/actions/runs/43813786492).
+Ubuntu and Windows at [exact pinned gate 43814631907](https://github.com/FlareZ123/obfs/actions/runs/43814631907).
 Independent source-only recovery reconstructed all three affine leaves
 and passed 12,288 typed checks; an independent full-file copy and
-manifest-bypass attack also succeeded. Eight tested whole-process
+manifest-bypass attack also succeeded. A separate Node 22 ESM load-hook
+attacker changed the computation to a chosen value after successful
+on-disk digest checks with **zero changed published files**. Eight tested whole-process
 medians met 2.5x, but this is **negative attacker-cost evidence** for
 a narrow transformed island, not protection against a filesystem owner.
 Both SNO studies remain intermediate engineering research.
