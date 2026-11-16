@@ -98,3 +98,68 @@ test('ES module function declaration can be transformed with imports untouched',
   const recovered=recoverStatementFlow(generated.code,'f','module');
   assert.ok(recovered.code.startsWith('export function f('));
 });
+
+test('programmatic COO/SNO flow backend retains CommonJS public interface and external calls',()=>{
+  const original=[
+    "'use strict';",
+    'function f(value,notify){var score=value*3;if(score>12){notify("high");score-=5;}else{notify("low");score+=7;}return score;}',
+    'module.exports={f};'
+  ].join('\n');
+  const {obfuscateFiles}=require('../src');
+  for(const mode of ['coo','sno']){
+    const transformed=obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:original
+    }],{
+      mode,seed:'statement-integrated-20261116',
+      experimentalStatementFlow:{'entry.cjs':['f']},
+      strings:false,properties:false,identifiers:false
+    });
+    assert.equal(transformed.files[0].metrics.statementFlowFunctions,1);
+    assert.ok((transformed.files[0].metrics.statementFlowBlocks??0)>=5);
+    assert.ok(String(transformed.files[0].code).includes('switch('));
+    const {createRequire}=require('node:module');
+    const Module=require('node:module');
+    const compile=source=>{
+      const entry=new Module('/virtual/entry.cjs');
+      entry.filename='/virtual/entry.cjs';
+      entry.paths=Module._nodeModulePaths('/virtual');
+      entry._compile(source,entry.filename);
+      return entry.exports.f;
+    };
+    const native=compile(original),encoded=compile(String(transformed.files[0].code));
+    for(let value=-128;value<=128;value++){
+      const a=[],b=[];
+      assert.equal(encoded(value,x=>b.push(x)),native(value,x=>a.push(x)));
+      assert.deepEqual(b,a);
+    }
+  }
+});
+
+test('explicitly selected statement flow refuses unsupported source and backend overlap',()=>{
+  const {obfuscateFiles}=require('../src');
+  const input=[{path:'entry.cjs',sourceType:'commonjs',
+    code:'function f(x){const v=x;if(v)return 1;return 0;}module.exports={f};'}];
+  assert.throws(()=>obfuscateFiles(input,{
+    mode:'sno',experimentalStatementFlow:{'entry.cjs':['f']}
+  }),/Statement flow declined/);
+  assert.throws(()=>obfuscateFiles([{path:'entry.js',sourceType:'script',
+    code:'function f(x){var v=x;if(v)return 1;return 0;}'}],{
+    mode:'coo',experimentalStatementFlow:{'entry.js':['f']}
+  }),/Statement flow requires a module\/CommonJS/);
+  assert.throws(()=>obfuscateFiles(input,{
+    mode:'sno',
+    experimentalStatementFlow:{'entry.cjs':['f']},
+    experimentalWasmI32:{'entry.cjs':['f']}
+  }),/multiple experimental backends/);
+});
+
+test('CLI parses the opt-in statement-flow selector with an exact per-file target',()=>{
+  const {readArgs}=require('../src/cli');
+  const args=readArgs(['--root','source','--entry','entry.cjs',
+    '--statement-flow','entry.cjs:f','--statement-flow','deep/task.cjs:task']);
+  assert.deepEqual(args.experimentalStatementFlow,{
+    'entry.cjs':['f'],'deep/task.cjs':['task']
+  });
+  assert.throws(()=>readArgs(['--root','source','--entry','entry.cjs',
+    '--statement-flow','f']),/relative-file:functionName/);
+});
