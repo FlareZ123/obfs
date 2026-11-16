@@ -75,5 +75,5 @@ test('private source verification requires a real audited commitment and absolut
     {path:'PRIVATE/LEAF.MJS',sha256:'0'.repeat(64)}
   ]};
   await assert.rejects(()=>verifyScoPrivateSourceDigests(duplicates,os.tmpdir()),
-    /ENOENT|path duplicated/);
+    /path duplicated/);
 });
