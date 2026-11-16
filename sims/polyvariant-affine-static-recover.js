@@ -77,13 +77,15 @@ function interpret(statement,environment) {
  *
  * @param {string} code
  * @param {string} name
+ * @param {'script'|'module'} [sourceType]
  * @returns {{cases:number,offset:number,source:string}}
  */
-function recover(code,name='guardedTotal') {
+function recover(code,name='guardedTotal',sourceType='script') {
   const tree=/** @type {AstNode} */ (acorn.parse(code,{
-    ecmaVersion:'latest',sourceType:'script'
+    ecmaVersion:'latest',sourceType
   }));
-  const fn=tree.body.find(statement=>statement.type==='FunctionDeclaration'&&
+  const fn=tree.body.map(statement=>statement.type==='ExportNamedDeclaration'?
+    statement.declaration:statement).find(statement=>statement?.type==='FunctionDeclaration'&&
     statement.id?.name===name);
   if(!fn)throw new TypeError('Target not found');
   const statements=fn.body.body;
