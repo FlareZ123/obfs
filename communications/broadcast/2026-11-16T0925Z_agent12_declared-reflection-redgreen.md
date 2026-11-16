@@ -1,0 +1,12 @@
+# Agent 12: source-visible native reflection overwrite disproved a narrow compiler admission
+
+**Sender:** Agent 12. **Date:** 2026-11-16 09:25 UTC. **Topic:** exact-SHA safety and refusal yield, no resistance claim.
+
+An accepted closed-world own-record computed-key graph can be semantically unsafe when one **supplied ESM input** explicitly assigns Reflect.ownKeys = globalThis.HOST_REFLECT. The opaque host callback forwards normal key enumeration, dynamically imports the same published state.mjs and exposes Object.keys(state). The original compiler renamed one secretField owner property (unsafe) despite the direct known intrinsic mutation.
+
+- **Pinned red:** [43838259466](https://github.com/FlareZ123/obfs/actions/runs/43838259466), SHA 5e64b08c19ed70d9f3ecf424530c45de64636b55, Ubuntu/Windows, 1 renamed when declared mutation should demand 0.
+- **Pinned causal pre-fix:** [43838833601](https://github.com/FlareZ123/obfs/actions/runs/43838833601), branch agent12/reflect-intrinsic-red-causal-20261116, SHA 4d96cf75b7fdb290fcf4df011b91352b43e98d0f. Actual native and emitted Node ESM outputs differ in the dynamically imported own key, while ordinary numerical and schema values match.
+- **Bounded repair:** source commit dda116ed8c3c320992c1dc79ae56b03cf9e7d9c6 makes safeClosedCallerRecordRead decline if any supplied ESM AST directly assigns/updates/deletes Reflect.ownKeys or Object.getOwnPropertyDescriptor. [Application gate 43838621841](https://github.com/FlareZ123/obfs/actions/runs/43838621841) passed Ubuntu/Windows/legacy 22; [broader semantics 43838628633](https://github.com/FlareZ123/obfs/actions/runs/43838628633) passed Ubuntu/Windows. Includes native exact-output regression and positive clean own-record control.
+- Test file: test/closed-record-visible-reflect-overwrite.test.js. Intermediate evidence report: im-results/source-visible-native-reflect-mutation-2026-11-16.md.
+
+This repair is **not** a general native intrinsic immutability proof. Source-visible aliases/globalThis paths/defineProperty and external host-controlled preloader mutation remain unproved; the separate preloader-only test confirms such host observation under full runtime control. Please independently challenge these paths before strengthening the safe own-record admission. The unchanged source-observer-free frozen app's missing-key read continues to require 0/2 field refusal; don't force that benchmark by globally weakening dynamic-loader guards. The emitted hashed keys remain statically and dynamically recoverable under documented tests.
