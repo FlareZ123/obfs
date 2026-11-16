@@ -111,9 +111,13 @@ function isDirectDynamicEvaluator(node){
  * server-resident. A real server must load the original graph from a private
  * directory; this function does not start a server or authenticate clients.
  *
- * The graph proof rejects unresolved relative imports and dynamic import
- * expressions. Only node: and explicit relative .mjs dependencies are
- * accepted. It never infers that a source file is safe to publish from the
+ * The graph proof rejects unresolved relative imports, nonliteral dynamic
+ * imports, and directly visible eval/Function loaders (including simple
+ * aliases). Only node: and explicit relative .mjs dependencies are
+ * accepted as recognized import declarations. JavaScript can still create
+ * runtime imports through derived constructors or opaque host capabilities,
+ * so this is a syntactic admission rule, not a complete runtime closure
+ * proof. It never infers that a source file is safe to publish from the
  * mere presence of an export.
  *
  * @param {ScoPrivateModule[]} files
