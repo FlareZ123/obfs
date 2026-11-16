@@ -68,7 +68,10 @@ for(const [label,loader] of [
 for(const [label,loader] of [
   ['module.require','module.require("node:fs")'],
   ['require.main.require','require.main.require("node:fs")'],
-  ['process.mainModule.require','process.mainModule.require("node:fs")']
+  ['process.mainModule.require','process.mainModule.require("node:fs")'],
+  ['module.constructor._load','module.constructor._load("node:fs")'],
+  ['module.constructor.createRequire',
+    'module.constructor.createRequire(__filename)("node:fs")']
 ]) {
   test('CommonJS built-in require member preserves self-source: '+label,async()=>{
     /** @type {Source[]} */
