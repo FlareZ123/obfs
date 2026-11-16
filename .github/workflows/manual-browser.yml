@@ -47,6 +47,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-real-browser.js
+      - name: Compare native and SCO varied mixed UTF-16 literals in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-spelling-mask-browser.js
       - name: Strict-check pinned TLS Chromium SCO challenge JSDoc
         run: npx tsc -p jsconfig.sco-tls-browser.json
       - name: Execute real SCO client over test-pinned HTTPS in Chromium
