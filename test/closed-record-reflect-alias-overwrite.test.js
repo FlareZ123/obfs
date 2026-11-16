@@ -59,9 +59,9 @@ async function execute(files){
   }
 }
 
-/** @type {[string,string][]} */
+/** @type {[string,string,boolean][]} */
 const cases=[
-  ['clean reflection methods',''],
+  ['clean reflection methods','',false],
   ['mutable alias of Reflect.ownKeys',[
     'const R=Reflect;',
     'const ownKeys=R.ownKeys;',
@@ -71,7 +71,7 @@ const cases=[
     '  }',
     '  return ownKeys(receiver);',
     '};'
-  ].join('\n')],
+  ].join('\n'),true],
   ['mutable alias of Object.getOwnPropertyDescriptor',[
     'const O=Object;',
     'const descriptor=O.getOwnPropertyDescriptor;',
@@ -82,18 +82,49 @@ const cases=[
     '  return descriptor(receiver,key);',
     '};'
   ].join('\n')]
+  ['transitive global Reflect alias',[
+    'const Root=globalThis;',
+    'const R=Root.Reflect;',
+    'const next=R;',
+    'const native=next.ownKeys;',
+    'next.ownKeys=function(receiver){',
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=globalThis.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '};'
+  ].join('\n'),true],
+  ['global Reflect destructuring',[
+    'const Root=globalThis;',
+    'const {Reflect:R}=Root;',
+    'const native=R.ownKeys;',
+    'R.ownKeys=function(receiver){',
+    "  if(Object.prototype.hasOwnProperty.call(receiver,'auditCount')){",
+    '    receiver.auditCount=globalThis.RUNTIME_FACTORY;',
+    '  }',
+    '  return native(receiver);',
+    '};'
+  ].join('\n'),true],
+  ['unrelated local ownKeys overwrite',[
+    'const local={ownKeys(){return 0;}};',
+    'local.ownKeys=function(){return 1;};'
+  ].join('\n'),false],
+  ['benign Reflect alias and unrelated method assignment',[
+    'const R=Reflect;',
+    'R.localAuditMarker=1;'
+  ].join('\n'),false]
 ];
 
-for(const [label,mutation] of cases){
+for(const [label,mutation,hostile] of cases){
   test('closed-record source-visible reflection '+label,async()=>{
     const files=graph(mutation);
     const original=await execute(files);
-    assert.equal(original,mutation?'[41,["secretField"]]':'[41,null]');
+    assert.equal(original,hostile?'[41,["secretField"]]':'[41,null]');
     const emitted=obfuscateFiles(files,{
       mode:'coo',closedWorld:true,seed:'source-visible-alias-overwrite-20261116',
       identifiers:false,strings:false,properties:true
     });
-    assert.equal(emitted.crossFile.properties,mutation?0:1,
+    assert.equal(emitted.crossFile.properties,hostile?0:1,
       'Visible aliases that replace ambient reflection must block closed-world owner renaming');
     assert.equal(await execute(emitted.files),original);
   });
