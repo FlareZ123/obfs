@@ -1,6 +1,7 @@
 'use strict';
 
 const {randomBytes,createHash} = require('node:crypto');
+const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
@@ -81,7 +82,12 @@ async function handleRpc(request,response,options) {
     /** @type {{method?:unknown,args?:unknown}} */
     let query;
     try {
-      query=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      // Buffer.toString('utf8') replaces malformed octets with U+FFFD.
+      // Reject malformed JSON transport bytes before they can be mistaken for
+      // an intentionally submitted replacement character in policy arguments.
+      const raw=Buffer.concat(chunks);
+      if(!isUtf8(raw))throw new SyntaxError('Invalid UTF-8 JSON');
+      query=JSON.parse(raw.toString('utf8'));
     } catch (error) {
       respondJson(response,400,{ok:false,error:'Malformed JSON'});
       return;
