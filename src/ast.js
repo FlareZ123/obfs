@@ -578,6 +578,23 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     });
   }while(reflectiveChanged);
   walk(ast,(node,parent,key)=>{
+    // Destructuring is a property read too: a first-class native source
+    // method can be obtained from a function or Function.prototype without
+    // any MemberExpression named "toString" in the AST.
+    if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isFunctionValue(node.init) ||
+       node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
+         isFunctionValue(node.right)) {
+      const pattern=node.type==='VariableDeclarator'?node.id:node.left;
+      for(const property of pattern.properties) {
+        if(property.type!=='Property')continue;
+        const name=property.computed?sourceStringKey(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(name===null || ['toString','toSource','toLocaleString'].includes(name)) {
+          observed=true;
+        }
+      }
+    }
     if(node.computed && (node.type==='MemberExpression'||node.type==='Property'||
         node.type==='MethodDefinition'||node.type==='PropertyDefinition') &&
         hasFunctionKey(node.type==='MemberExpression'?node.property:node.key)) {
