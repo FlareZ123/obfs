@@ -102,6 +102,13 @@ before original ESM import. The [Linux/Windows Node 22 gate](https://github.com/
 passes the [changed-source regression and strict JSDoc](im-results/sco-graph-deployment-source-integrity-2026-11-16.md).
 This requires trusted, stable server files through module loading; it is
 a startup consistency check with no proof against concurrent replacement.
+The closed-graph scanner now refuses directly visible `eval` and `Function`
+dynamic-code factories (including simple aliases) because [actual Node ESM
+execution can import undeclared modules through those constructs](im-results/sco-graph-dynamic-evaluator-closure-2026-11-16.md).
+The [Linux/Windows targeted graph gate](https://github.com/FlareZ123/obfs/actions/runs/43922733144)
+passed native counterexample and refusal tests plus strict JSDoc.
+Derived constructors and opaque runtime loaders remain outside the syntactic
+closure proof; independently review the server's reachable modules.
 
 
 
