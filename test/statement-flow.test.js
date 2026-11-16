@@ -28,7 +28,7 @@ const cases=[
   'function f(x){var a=0;if(x.flag){var y=x.valueOf();a=y+2;}else{a=x.valueOf()-4;}return [a,typeof y].join(":");}',
   'function f(x){"use strict";var out=x.valueOf();if(x.flag){out+=3;}else if(out>5){out-=4;}else{out*=2;}return out;}',
   'function f(x){var a=x.valueOf();if(x.flag){a++;if(a>10){a+=8;}}else{a-=9;}return function(){return a;};}',
-  'function f(x){var a=0;if(x.flag){a=x.valueOf();throw TypeError("Boom "+a);}else{a=x.valueOf();}return a;}',
+  'function f(x){var a=0;if(x.flag){a=x.valueOf();throw "Boom "+a;}else{a=x.valueOf();}return a;}',
   'function f(x){var a=x.valueOf();if(x.flag){a=a/2;}else{a=a*3;}return a;}'
 ];
 
@@ -139,6 +139,8 @@ test('explicitly selected statement flow refuses unsupported source and backend 
   const {obfuscateFiles}=require('../src');
   const input=[{path:'entry.cjs',sourceType:'commonjs',
     code:'function f(x){const v=x;if(v)return 1;return 0;}module.exports={f};'}];
+  const eligible=[{path:'entry.cjs',sourceType:'commonjs',
+    code:'function f(x){var a=x;if(a){a++;}else{a--;}return a;}module.exports={f};'}];
   assert.throws(()=>obfuscateFiles(input,{
     mode:'sno',experimentalStatementFlow:{'entry.cjs':['f']}
   }),/Statement flow declined/);
@@ -146,7 +148,7 @@ test('explicitly selected statement flow refuses unsupported source and backend 
     code:'function f(x){var v=x;if(v)return 1;return 0;}'}],{
     mode:'coo',experimentalStatementFlow:{'entry.js':['f']}
   }),/Statement flow requires a module\/CommonJS/);
-  assert.throws(()=>obfuscateFiles(input,{
+  assert.throws(()=>obfuscateFiles(eligible,{
     mode:'sno',
     experimentalStatementFlow:{'entry.cjs':['f']},
     experimentalWasmI32:{'entry.cjs':['f']}
