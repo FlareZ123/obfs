@@ -19,4 +19,7 @@ test('SNO executes a genuinely transformed three-module ESM app through one CJS 
   assert.equal(evidence.offlineClone,true);
   assert.equal(evidence.manifestForged,true);
   assert.equal(evidence.directEsmClone,true);
+  assert.equal(evidence.staticRecovered,3);
+  assert.equal(evidence.staticComparisons,12288);
+  assert.equal(evidence.staticOffsets.length,3);
 });
