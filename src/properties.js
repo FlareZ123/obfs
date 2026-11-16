@@ -489,6 +489,22 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
   } while (changed);
 
+  if(process.env.OBFS_DEBUG_OWNER==='1'&&rootName==='owner'){
+    process.stderr.write('RECORD_PROOF_DIAGNOSTIC '+JSON.stringify({
+      holders:[...holderIdentifierUses].map(([name,uses])=>[name,uses.length]),
+      records:[...privateOwnerRecords],aliases:[...aliases],
+      declarations:declarations.map(decl=>({
+        name:decl.id.type==='Identifier'?decl.id.name:'pattern',
+        kind:decl.init?.type??null,
+        properties:decl.init?.type==='ObjectExpression'?
+          decl.init.properties.map((p)=>({
+            type:p.type,key:p.key?.name??p.key?.value,
+            value:p.value?.type,valueName:p.value?.name,
+            computed:p.computed,shorthand:p.shorthand
+          })):undefined
+      }))
+    })+'\\n');
+  }
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
   // Only the original root binding may be intentionally exported by the
