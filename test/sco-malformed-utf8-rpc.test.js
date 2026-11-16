@@ -84,3 +84,46 @@ test('SCO rejects invalid UTF-8 JSON octets without calling private RPC',async()
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+test('SCO checks isolated JSON bytes before entering policy or protected work',async()=>{
+  let isolatedChecks=0;
+  let coarseChecks=0;
+  let operationChecks=0;
+  let effects=0;
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{probe:()=>++effects},
+    authorizeRpc:()=>{coarseChecks++;return true;},
+    authorizeOperation:()=>{operationChecks++;return true;},
+    runRpcIsolated:async(request,execute)=>{
+      isolatedChecks++;
+      await execute();
+    }
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected TCP listener');
+    const port=address.port;
+    const invalid=await send(port,[
+      Buffer.from('{"method":"probe","args":["'),
+      Buffer.from([0xff]),
+      Buffer.from('"]}')
+    ]);
+    assert.deepEqual(invalid,{status:400,payload:{ok:false,error:'Malformed JSON'}});
+    assert.equal(isolatedChecks,0,'Invalid body cannot occupy session-isolation scope');
+    assert.equal(coarseChecks,0,'Isolated coarse auth occurs after body validation');
+    assert.equal(operationChecks,0);
+    assert.equal(effects,0);
+
+    const accepted=await send(port,[
+      Buffer.from(JSON.stringify({method:'probe',args:[]}))
+    ]);
+    assert.deepEqual(accepted,{status:200,payload:{ok:true,value:1}});
+    assert.equal(isolatedChecks,1);
+    assert.equal(coarseChecks,1);
+    assert.equal(operationChecks,1);
+    assert.equal(effects,1);
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
