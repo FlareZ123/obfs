@@ -963,6 +963,8 @@ function partitionScoSelectedAsyncExports(file,options) {
    */
   function ownedLocalAmbientNames(fn) {
     const names=new Set();
+    /** @type {Map<string,import('./ast').AstNode>} */
+    const provenBindings=new Map();
     if(fn.body?.type!=='BlockStatement')return names;
     for(const statement of fn.body.body){
       if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
@@ -976,9 +978,43 @@ function partitionScoSelectedAsyncExports(file,options) {
           (property.value.value===null||['string','number','boolean','bigint']
             .includes(typeof property.value.value)))){
           names.add(declaration.id.name);
+          provenBindings.set(declaration.id.name,declaration);
         }
       }
     }
+    // A nested binding of the same spelling might refer to an entirely
+    // different host capability. Do not infer every occurrence from the
+    // outer record when nested lexical ownership is not proven.
+    const ambiguous=new Set();
+    walk(fn.body,node=>{
+      if(node.type==='VariableDeclarator'){
+        for(const name of names){
+          if(node===provenBindings.get(name))continue;
+          walk(node.id,part=>{
+            if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+          });
+        }
+      }
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+        'ClassDeclaration','ClassExpression'].includes(node.type)){
+        if(node.id?.type==='Identifier'&&names.has(node.id.name))ambiguous.add(node.id.name);
+        for(const parameter of node.params??[]){
+          for(const name of names){
+            walk(parameter,part=>{
+              if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+            });
+          }
+        }
+      }
+      if(node.type==='CatchClause'&&node.param){
+        for(const name of names){
+          walk(node.param,part=>{
+            if(part.type==='Identifier'&&part.name===name)ambiguous.add(name);
+          });
+        }
+      }
+    });
+    for(const name of ambiguous)names.delete(name);
     return names;
   }
   /** @type {Set<string>} */
