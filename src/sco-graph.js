@@ -56,6 +56,27 @@ function verifyPrivateImport(source,specifier,known) {
 }
 
 /**
+ * Refuse directly visible dynamic-code evaluation in a private graph. Such
+ * expressions can manufacture imports at runtime outside the manifest,
+ * defeating path-specific deployed-source checks. Alias and constructor
+ * chains remain unproved and require independent operator review.
+ * @param {import('./ast').AstNode} node
+ * @returns {boolean}
+ */
+function isDirectDynamicEvaluator(node){
+  if(node.type!=='CallExpression'&&node.type!=='NewExpression')return false;
+  const callee=node.callee;
+  if(callee.type==='Identifier'){
+    return callee.name==='eval'||callee.name==='Function';
+  }
+  if(callee.type!=='MemberExpression'||callee.object.type!=='Identifier'||
+      !['globalThis','global'].includes(callee.object.name))return false;
+  const key=callee.computed?staticString(callee.property):
+    callee.property.type==='Identifier'?callee.property.name:null;
+  return key==='eval'||key==='Function';
+}
+
+/**
  * Compose the existing strict single-module SCO async partitioner over a
  * closed private ESM graph. Only explicitly exposed modules receive public
  * facades. All private imports, secret constants, and non-export modules stay
@@ -98,6 +119,9 @@ function partitionScoAsyncGraph(files,options) {
   for(const [filename,file] of modules) {
     const ast=parse(file.code,'module');
     walk(ast,node=>{
+      if(isDirectDynamicEvaluator(node)){
+        throw new TypeError('Private SCO graph cannot prove imports through eval or Function');
+      }
       if(['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(node.type)&&
           node.source?.type==='Literal'&&typeof node.source.value==='string') {
         verifyPrivateImport(filename,node.source.value,names);
