@@ -148,6 +148,33 @@ or runtime tampering. New work should prioritize trusted SCO withholding
 and clearly bounded whole-session measurements rather than additional
 state-label randomization.
 
+## Layered hostname guard adversarial control
+
+`test/statement-flow-host-bypass.test.js` builds the current fully
+layered COO output with `allowedHosts:['allowed.example']` and executes
+under a simulated unauthorized `untrusted.example` Node global. It checks
+that the unmodified output rejects execution, then applies the previously
+published `stripPublicHostGuard` source-only patch and verifies **513/513**
+functional inputs match the original exported function.
+
+The test passed in both Linux and Windows jobs of
+[targeted workflow 43805312719](https://github.com/FlareZ123/obfs/actions/runs/43805312719)
+on commit `47e713622f63202685060d46b650b2aac65373cb`.
+All **29/29** statement/native branch Node tests passed on Windows and
+the Ubuntu job completed successfully. The overall workflow failed
+separately in the existing branch-block masked-performance enforcement:
+on that particular Windows runner,
+`sims/branch-block-profile.js` measured 2.789× slowdown for the
+`mixed-positive-and-negative` mask, against its existing strict 2.5×
+threshold. This is a **real sampled negative budget observation** for a
+different experiment, not an error in the new hostname bypass test.
+
+This Node simulation tests the published body-level hostname check. It
+does not claim to spoof a real browser's protected origin; in the COO threat
+model the source owner's ability to modify distributed bytes is sufficient
+for this attack. Hostname matching offers incidental gating under an
+honest execution environment, not an enforceable full-control boundary.
+
 ## Security interpretation
 
 This is a native control-flow obfuscation *compatibility* result. It does not
