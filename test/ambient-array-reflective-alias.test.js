@@ -55,7 +55,15 @@ for(const [name,expression] of [
   ['Object.getOwnPropertyDescriptors Array prototype',
     'Object.getOwnPropertyDescriptors(Array).prototype.value'],
   ['Object.getOwnPropertyDescriptor global Array constructor',
-    'Object.getOwnPropertyDescriptor(globalThis,"Array").value.prototype']
+    'Object.getOwnPropertyDescriptor(globalThis,"Array").value.prototype'],
+  ['captured global Array descriptor before prototype mutation',
+    '(()=>{const desc=Object.getOwnPropertyDescriptor(globalThis,"Array");return desc.value.prototype;})()'],
+  ['captured Array prototype descriptor before mutation',
+    '(()=>{const desc=Object.getOwnPropertyDescriptor(Array,"prototype");return desc.value;})()'],
+  ['captured all global Array descriptors before mutation',
+    '(()=>{const all=Object.getOwnPropertyDescriptors(globalThis);return all.Array.value.prototype;})()'],
+  ['captured all Array descriptors before prototype mutation',
+    '(()=>{const all=Object.getOwnPropertyDescriptors(Array);return all.prototype.value;})()']
 ]){
   test('chunked decoder declines reflective Array iterator change: '+name,async()=>{
     const files=graph(expression+patch);
