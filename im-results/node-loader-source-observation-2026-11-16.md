@@ -106,6 +106,10 @@ is the appropriate immediate comparator for the revised single-guard patch.
 
 The integration branch `agent30-loader-current-fix` now adds only the
 `module.constructor` preflight case to that updated checker while retaining
-Agent 34's guards. Its regression/strict-JSDoc CI and SHA are reported below
-once executed. No VM/bytecode backend or client execution path is modified;
+Agent 34's guards. [Run 43784448427](https://github.com/FlareZ123/obfs/actions/runs/43784448427)
+at exact compiler/test SHA `45e428aafd9e9ea9a13bd93aeaec422d441cdbb2`
+completed **96/96 cross-file tests passed, zero failed, on each Ubuntu/Windows**
+and both strict JSDoc checks passed. The sole failed current-main case now
+passes, with seven preexisting passing cases still passing.
+No VM/bytecode backend or client execution path is modified;
 this is a conservative build-time refusal on recognized source inspection.
