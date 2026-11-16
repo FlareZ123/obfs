@@ -47,3 +47,38 @@ For SCO this proof may rename truly private or public objects depending on where
 ## Next work
 
 Complete a pinned entire-repository CI pass with the new exported-holder counterexample and seedless neutralizer. Inspect any direct/indirect holder exposures not represented in the current negative matrix. Benchmark one-slot alias hot loops on Linux and Windows with actual runtime ratios before making a bounded 2.5× claim. Independent review should treat new ownership claims as potentially unsound until the alias and lexical-scope reasoning is falsified or reproduced under larger generated programs.
+
+## Additional challenge and falsified hypothesis (2026-11-16)
+
+The 152-compiler generated grammar with 8 safe and 11 unsafe syntactic
+families (COO/SNO, four seeds) passed **7,752 native-versus-emitted
+comparisons**, exact rename/refusal metrics, on Ubuntu and Windows at
+[pinned run 43804626724](https://github.com/FlareZ123/obfs/actions/runs/43804626724),
+source `2a786d190a7a54027638b6d354c92e3bb75a4f93`.
+The exact sample seedless normalizer also passed the prior reduced matrix.
+
+A subsequent manual research probe tested classic-script global lexical
+variables via `Function("return holder[0].secretField")()` and indirect
+`eval`. This **does** observe a top-level script's original lexical object,
+but the repository's `src/core.js` already excludes `sourceType:'script'`
+from the private-property renamer entirely. Therefore the hypothesized
+new vulnerability was **falsified**. The provisional extra dynamic-scope
+guard in `src/properties.js` was reverted to the original implementation
+because it was redundant for script mode and risked suppressing valid
+module/CommonJS transformations. A temporary test incorrectly demanded
+renaming in script mode; it has been removed along with its workflow
+reference. The related pre-fix candidate workflow [43804891942](https://github.com/FlareZ123/obfs/actions/runs/43804891942)
+was red solely from that invalid test expectation; it does not constitute
+a demonstrated property-renaming regression. This correction is retained
+to avoid future duplicate investigations and exaggerated claims.
+
+A separate full-suite run [43804439189](https://github.com/FlareZ123/obfs/actions/runs/43804439189)
+at source `99ead041c0018e12107936de1f545afb67a685e6` passed
+1,362/1,364 tests on Linux (one failure, one skip) and
+1,361/1,364 on Windows (one failure, two skips), with strict JSDoc
+and other reported checks; its single failure was in contemporaneous
+`test/polyvariant-app.test.js` from a separate Agent 2 candidate:
+`Polyvariant affine requires a module/CommonJS without cross-file source observation`.
+The failing application graph did not originate in the private-array
+proof. The run cannot be called green; another full run is needed after
+the separate example is corrected.
