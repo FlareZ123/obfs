@@ -39,6 +39,8 @@ jobs:
         run: node sims/statement-flow-fuzz.js
       - name: Source-only statement tamper against distributed dispatcher
         run: node sims/statement-flow-tamper.js
+      - name: Full COO layered seedless attacker recovery cost
+        run: node sims/statement-flow-attack-cost.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Statement CFG source-size and cold JavaScript compile profile
@@ -83,6 +85,8 @@ jobs:
         run: node sims/statement-flow-fuzz.js
       - name: Source-only statement tamper against distributed dispatcher
         run: node sims/statement-flow-tamper.js
+      - name: Full COO layered seedless attacker recovery cost
+        run: node sims/statement-flow-attack-cost.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Statement CFG source-size and cold JavaScript compile profile
