@@ -149,3 +149,21 @@ test('private-record alias retains behavior in a two-module native ESM app',{
   })));
   for(let n=-120;n<=120;n++)assert.equal(changed(n),native(n));
 });
+
+test('experimental Symbol-key backend retains private tuple and record ownership proofs',()=>{
+  const cases=[
+    'const owner={secretCount:41};const holder=[false,owner];const alias=holder[1];module.exports=n=>alias.secretCount+n;',
+    'const owner={secretCount:41};const holder={tag:"metadata",owned:owner};const alias=holder.owned;module.exports=n=>alias.secretCount+n;'
+  ];
+  for(const source of cases){
+    const result=obfuscateFiles([{path:'symbol.cjs',sourceType:'commonjs',code:source}],{
+      mode:'coo',seed:'container-owner-symbol-backend-20261116',
+      experimentalSymbolKeys:true,strings:false,identifiers:false,properties:true
+    });
+    assert.equal(result.files[0].metrics.symbolKeys,1);
+    const changed=String(result.files[0].code);
+    assert.doesNotMatch(changed,/secretCount/u);
+    const native=load(source),protectedFn=load(changed);
+    for(let n=-45;n<=45;n++)assert.equal(protectedFn(n),native(n));
+  }
+});
