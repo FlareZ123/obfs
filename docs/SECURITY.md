@@ -18,6 +18,15 @@ The default SNO eager string encoder and opt-in COO/SCO encoder distribute the X
 
 This result supports a narrow conclusion: the supplied string encoder has no static confidentiality for the observed literals under the documented threat models. Recovering literals does not recover all source structure, server-private SCO implementation, or authorization keys. Source-only parse/rewrite wall time excludes attacker development and defender runtime; the 2.5× hot-path budget still requires separate measurements. Alternate public encoders need independent attacker comparisons before security-benefit claims.
 
+A separate [two-platform V8 TypeError semantic regression](../im-results/string-failed-operand-semantics-2026-11-16.md)
+shows that decoding a computed-property literal can change the text of a
+failed call/constructor expression in `error.message`, despite preserving
+its field value. The eager encoder now conservatively leaves literals in
+identified source-spelled failure operands untouched. A successful computed
+read still receives a genuinely encoded literal in the pinned positive
+control. This is a bounded compatibility repair, with no added
+deobfuscation-resistance or universal runtime claim.
+
 ## Native multi-statement control-flow backend (negative security and performance control)
 
 The opt-in `experimentalStatementFlow` backend turns certain ordinary
