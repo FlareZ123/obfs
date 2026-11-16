@@ -1,7 +1,7 @@
 'use strict';
 
-/** @type {WeakSet<Function>} */
-const recognizedBatches=new WeakSet();
+/** @type {WeakMap<Function,(calls:unknown)=>boolean>} */
+const recognizedBatches=new WeakMap();
 
 /**
  * @typedef {{method:string,args:unknown[]}} RpcBatchCall
@@ -40,12 +40,14 @@ function createScoBatchMethod(methods,options={}) {
     }
     registry.set(name,task);
   }
+  /** @param {unknown} calls @returns {boolean} */
+  const validCalls=calls=>Array.isArray(calls) && calls.length>0 &&
+    calls.length<=maxCalls && !calls.some(call=>!call ||
+      typeof call!=='object' || typeof call.method!=='string' ||
+      !registry.has(call.method) || !Array.isArray(call.args));
   /** @type {(calls:RpcBatchCall[])=>Promise<RpcBatchResult[]>} */
   const execute=async calls=>{
-    if (!Array.isArray(calls) || !calls.length || calls.length>maxCalls ||
-        calls.some(call=>!call || typeof call!=='object' ||
-          typeof call.method!=='string' || !registry.has(call.method) ||
-          !Array.isArray(call.args))) {
+    if(!validCalls(calls)) {
       throw new TypeError('Invalid or oversized RPC batch');
     }
     /** @type {RpcBatchResult[]} */
@@ -62,21 +64,26 @@ function createScoBatchMethod(methods,options={}) {
     }
     return results;
   };
-  recognizedBatches.add(execute);
+  recognizedBatches.set(execute,validCalls);
   return execute;
 }
 
 /**
  * Inspect a recognized batch's requested operations before it executes.
  * A null result means the function is not a batch helper from this module.
- * Invalid batch shapes remain subject to the helper's own fail-closed check.
+ * Invalid batch shapes are excluded from costly inner authorizer calls,
+ * then rejected by the helper's own fail-closed validation.
  * @param {Function} task
  * @param {unknown[]} args
  * @returns {RpcBatchCall[]|null}
  */
 function getScoBatchCalls(task,args) {
-  if(!recognizedBatches.has(task)) return null;
-  return args.length===1 && Array.isArray(args[0]) ? args[0] : [];
+  const validCalls=recognizedBatches.get(task);
+  if(!validCalls)return null;
+  // Invalid batches never run an inner method. Skip their potentially costly
+  // per-item authorization calls; the batch helper still rejects execution.
+  return args.length===1 && validCalls(args[0]) ?
+    /** @type {RpcBatchCall[]} */ (args[0]) : [];
 }
 
 module.exports={createScoBatchMethod,getScoBatchCalls};
