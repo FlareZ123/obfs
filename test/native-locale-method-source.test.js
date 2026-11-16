@@ -32,6 +32,13 @@ for(const [name,expression] of [
   ['String localeCompare option', "'hello'.localeCompare('a','en',{sensitivity:inspect})"],
   ['Array toLocaleString function element', '[inspect].toLocaleString()'],
   ['Array alias toLocaleString function element', '(()=>{const items=[inspect];return items.toLocaleString();})()'],
+  ['Number toLocaleString call', "Number.prototype.toLocaleString.call(1234,'en',{style:'unit',unit:inspect})"],
+  ['Number toLocaleString captured call', "(()=>{const format=Number.prototype.toLocaleString;return format.call(1234,'en',{style:'currency',currency:inspect});})()"],
+  ['Number toLocaleString Reflect.apply', "Reflect.apply(Number.prototype.toLocaleString,1234,['en',{style:'unit',unit:inspect}])"],
+  ['Number toLocaleString bound', "Number.prototype.toLocaleString.bind(1234,'en',{style:'unit',unit:inspect})()"],
+  ['Date toLocaleDateString call', "Date.prototype.toLocaleDateString.call(new Date(0),'en',{timeZone:inspect})"],
+  ['String localeCompare call', "String.prototype.localeCompare.call('hello','a','en',{sensitivity:inspect})"],
+  ['Array toLocaleString call', "Array.prototype.toLocaleString.call([inspect])"],
   ['number option record alias', "(()=>{const opts={style:'currency',currency:inspect};return (1234).toLocaleString('en',opts);})()"]
 ]) {
   test('native locale builtins preserve source: '+name,()=>{
@@ -65,4 +72,7 @@ test('AST identifies native locale option records and array function formatting'
   assert.equal(observesFunctionSource(parse("function f(){};'x'.localeCompare('y','en',{sensitivity:f});",'commonjs')),true);
   assert.equal(observesFunctionSource(parse("(2).toLocaleString('en',{unit:'hour'});",'commonjs')),false);
   assert.equal(observesFunctionSource(parse("'x'.localeCompare('y','en',{sensitivity:'base'});",'commonjs')),false);
+  assert.equal(observesFunctionSource(parse("function f(){};Number.prototype.toLocaleString.call(2,'en',{unit:f});",'commonjs')),true);
+  assert.equal(observesFunctionSource(parse("function f(){};const format=Number.prototype.toLocaleString;format.call(2,'en',{unit:f});",'commonjs')),true);
+  assert.equal(observesFunctionSource(parse("function f(){};Reflect.apply(Number.prototype.toLocaleString,2,['en',{unit:f}]);",'commonjs')),true);
 });
