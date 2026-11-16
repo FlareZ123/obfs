@@ -29,3 +29,6 @@ jobs:
         run: node --test test/application-challenge.test.js
       - name: Independent public-file copy attack
         run: node sims/application-challenge-offline-copy.js examples/application-challenge/after
+
+      - name: Paired hot and whole-session performance with held-out attacker
+        run: node sims/application-challenge-profile.js
