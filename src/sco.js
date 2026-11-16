@@ -5,6 +5,7 @@ const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} =
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties,collectVerifiedImportedStrings} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
+const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
@@ -135,11 +136,21 @@ async function handleRpc(request,response,options) {
       // A trusted integrator callback MUST await execute exactly once and
       // hold whatever transaction or lock is needed until it settles.
       let invoked=false;
-      await options.runRpcIsolated(request,async()=>{
-        if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
-        invoked=true;
-        await execute();
-      });
+      try{
+        await options.runRpcIsolated(request,async()=>{
+          if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
+          invoked=true;
+          await execute();
+        });
+      }catch(error){
+        // A capacity refusal happens before any protected operation starts.
+        // Do not expose errors raised by a running private method as 429.
+        if(!invoked && error instanceof ScoIsolationBusyError){
+          respondJson(response,429,{ok:false,error:'Too many requests'});
+          return;
+        }
+        throw error;
+      }
       if(!invoked)throw new TypeError('RPC isolation callback omitted execute');
     } else await execute();
   } catch (error) {
