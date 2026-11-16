@@ -174,6 +174,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     const hostRoots=new Set(['globalThis','window','self','global']);
     /** @type {Set<string>} */
     const hostCallAliases=new Set();
+    /** @type {Set<string>} */
+    const nativeMutatorAliases=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
     // A host-controlled callable can perform runtime imports that are
@@ -186,6 +188,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
          node.left.type==='Identifier' && node.right.type==='Identifier') {
         aliasEdges.push([node.left.name,node.right.name]);
       }
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(binding?.type==='Identifier' && value?.type==='MemberExpression' &&
+         value.object.type==='Identifier') {
+        const owner=value.object.name;
+        const method=value.computed?staticString(value.property):staticName(value.property);
+        if(owner==='Object' && ['defineProperty','defineProperties','assign'].includes(method??'') ||
+           owner==='Reflect' && ['defineProperty','set','deleteProperty'].includes(method??'')) {
+          nativeMutatorAliases.add(binding.name);
+        }
+      }
     });
     let aliasChanged;
     do {
@@ -193,6 +208,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       for(const [target,origin] of aliasEdges) {
         if(hostRoots.has(origin) && !hostRoots.has(target)) {
           hostRoots.add(target);
+          aliasChanged=true;
+        }
+        if(nativeMutatorAliases.has(origin) && !nativeMutatorAliases.has(target)) {
+          nativeMutatorAliases.add(target);
           aliasChanged=true;
         }
       }
@@ -246,6 +265,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
     } while(aliasChanged);
     walk(source.ast,(node,parent)=>{
+      // A captured native global mutator remains capable of replacing an
+      // ambient binding even when the callee is only an alias identifier.
+      // Its parameter/side-effect proof is intentionally conservative.
+      if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
+         nativeMutatorAliases.has(node.callee.name) &&
+         node.arguments[0]?.type==='Identifier' &&
+         hostRoots.has(node.arguments[0].name))changedIntrinsic=true;
       // The global Reflect/Object binding may be replaced through a native
       // descriptor/set/assignment call without spelling a direct member write.
       // Only known unrelated own keys preserve the native-reflection premise.
