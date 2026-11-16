@@ -300,7 +300,7 @@ function mutatesDecoderIntrinsic(ast) {
     const receiver=node.callee.object;
     const method=memberName(node.callee);
     const first=node.arguments[0];
-    if(!first || receiver.type!=='Identifier')return;
+    if(!first)return;
     if(method===null && (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver)) &&
        (touchesString(first)||isArrayPrototype(first)||isGlobal(first))) {
       mutated=true;
