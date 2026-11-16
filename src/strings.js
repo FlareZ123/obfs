@@ -30,6 +30,37 @@ function unusedName(source, ast, seed, reservedNames, reservedSources) {
 }
 
 /**
+ * V8 can echo a failed operand's source spelling into TypeError.message.
+ * Rewriting any string literal inside the source of that operand would
+ * change an observable error even when the decoded string value matches.
+ * Follow only enclosing expressions, stopping at a new function body.
+ *
+ * @param {AstNode} node
+ * @param {AstNode[]} ancestors
+ * @returns {boolean}
+ */
+function mayAppearInFailedOperand(node,ancestors) {
+  let expression=node;
+  for(let i=ancestors.length-1;i>=0;i--){
+    const outer=ancestors[i];
+    if(outer.type==='CallExpression' && outer.callee===expression ||
+       outer.type==='NewExpression' && outer.callee===expression ||
+       outer.type==='TaggedTemplateExpression' && outer.tag===expression ||
+       outer.type==='SpreadElement' && outer.argument===expression ||
+       outer.type==='ForOfStatement' && outer.right===expression ||
+       outer.type==='VariableDeclarator' && outer.init===expression &&
+         outer.id.type==='ArrayPattern' ||
+       outer.type==='AssignmentExpression' && outer.right===expression &&
+         outer.left.type==='ArrayPattern' ||
+       outer.type==='YieldExpression' && outer.delegate &&
+         outer.argument===expression) return true;
+    if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(outer.type))break;
+    expression=outer;
+  }
+  return false;
+}
+
+/**
  * Encode immutable literal strings with one-time runtime decoding.
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
@@ -67,6 +98,7 @@ function encodeStrings(source, ast, options) {
     if ((parent.type === 'CallExpression' || parent.type === 'NewExpression') && key === 'arguments' &&
         parent.callee.type === 'Identifier' && ['require', 'eval', 'Function'].includes(parent.callee.name)) return;
     if (ancestors.some(ancestor => /^(ForStatement|ForInStatement|ForOfStatement|WhileStatement|DoWhileStatement)$/.test(ancestor.type))) return;
+    if (mayAppearInFailedOperand(node,ancestors)) return;
     const value = /** @type {string} */ (node.value);
     if (!values.has(value)) values.set(value, values.size);
     edits.push({start:node.start,end:node.end,text:`${helper}[${values.get(value)}]`});
