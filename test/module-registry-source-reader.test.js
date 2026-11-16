@@ -124,6 +124,35 @@ test('unrelated ordinary CommonJS private property remains transformable',()=>{
   assert.doesNotMatch(String(output.files[0].code),/secretField/u);
 });
 
+const internalFsRoutes=[
+  ['direct process.binding',"process.binding('fs')"],
+  ['global process.binding',"globalThis.process.binding('fs')"],
+  ['aliased process.binding',"(function(){const p=process;return p.binding('fs')})()"],
+  ['aliased global process binding',"(function(){const root=globalThis;const p=root['pro'+'cess'];return p.binding('fs')})()"],
+  ['Reflect.get process binding',"Reflect.get(process,'binding')('fs')"],
+  ['Object descriptor process binding',"Object.getOwnPropertyDescriptor(process,'binding').value('fs')"]
+];
+
+for(const [name,expression] of internalFsRoutes) {
+  test('Node 22 internal filesystem binding preserves source bytes: '+name,async()=>{
+    const code="'use strict';\\n"+
+      'const io='+expression+';\\n'+
+      'const privateObject={secretField:31};\\n'+
+      "const bytes=io.readFileUtf8(__filename,0);\\n"+
+      "console.log(privateObject.secretField,bytes.includes('secretField'));\\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'node-internal-fs/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'main.cjs'),native);
+  });
+}
+
 test('ordinary process environment reads do not suppress own-field renaming',()=>{
   const code='const privateObject={secretField:31};console.log(privateObject.secretField,globalThis.process.env.NODE_ENV);';
   assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
