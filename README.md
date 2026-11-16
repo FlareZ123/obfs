@@ -70,6 +70,19 @@ The previously measured 12,000-round HMAC operation met the 2.5× runtime
 target on two localhost runners, with incomplete performance/security
 coverage documented in
 [`im-results/sco-graph-partition-2026-11-15.md`](im-results/sco-graph-partition-2026-11-15.md).
+The composed `createScoGraphHandler` now requires the **original in-process
+graph manifest** returned by `partitionScoAsyncGraph`, detects changes made
+after partitioning, and publishes from a private compiler-owned snapshot.
+This prevents accidental replacement of a reviewed facade with a byte-modified
+private source under the same public filename. A [real HTTP source-leak
+negative control and mutable-getter regression](im-results/sco-graph-postpartition-seal-2026-11-16.md)
+passed a [targeted Linux/Windows Node 22 and JSDoc gate](https://github.com/FlareZ123/obfs/actions/runs/43917301822).
+Serialized or shallow-copied graph objects are rejected by the composed helper;
+regenerate the graph on the trusted serving process. Explicit bare
+`createScoHandler` calls remain a separate publication contract. This is a
+deployment safety check, not resistance to a compromised server.
+
+
 
 **SCO authorized online-relay limit:** Keeping a random HMAC key and private ESM implementation server-side protects them from a source-only client; it does not prevent an attacker who has a legitimate unlimited-query account from using that same original server as an oracle for downstream users. A real attacker-operated loopback proxy reproduced **32/32 previously unqueried high-entropy outputs** without extracting the key, despite direct unauthenticated requests returning 403. Its heavy 8 MiB HMAC workload measured **1.304× Ubuntu / 1.345× Windows** end-to-end through two HTTP hops, measured only on local loopback without realistic RTT or TLS. The independently reproducible [server-private online relay attacker](sims/sco-relay-attack.js) and [SCO large-domain results](im-results/sco-large-domain-prf-2026-11-15.md) distinguish actual server-side source secrecy from functional anti-cloning under an authorized online relay.
 
