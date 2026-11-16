@@ -142,7 +142,9 @@ function recoverPublicStrings(source,sourceType='script') {
  * @param {string|null} outputFile
  * @param {boolean} requireProgress
  * @returns {Promise<{programs:number,recoveredLiterals:number,
- *   tables:number,unrecognizedTables:number,sourceOnly:boolean}>}
+ *   tables:number,unrecognizedTables:number,sourceOnly:boolean,
+ *   originalPublicBytes:number,recoveredSourceBytes:number,changedPrograms:number,
+ *   staticDecodeWallMs:number,perProgramMedianMs:number,perProgramP95Ms:number}>}
  */
 async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
   if(outputFile!==null&&path.resolve(inputFile)===path.resolve(outputFile)) {
@@ -151,7 +153,11 @@ async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
   const lines=(await fs.readFile(inputFile,'utf8')).split(/\r?\n/u).filter(Boolean);
   if(!lines.length)throw new TypeError('Empty benchmark dataset');
   const report={programs:0,recoveredLiterals:0,
-    tables:0,unrecognizedTables:0,sourceOnly:true};
+    tables:0,unrecognizedTables:0,sourceOnly:true,
+    originalPublicBytes:0,recoveredSourceBytes:0,changedPrograms:0,
+    staticDecodeWallMs:0,perProgramMedianMs:0,perProgramP95Ms:0};
+  /** @type {number[]} */
+  const timings=[];
   /** @type {string[]} */
   const output=[];
   for(const line of lines) {
@@ -168,7 +174,14 @@ async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
     }
     const hash=createHash('sha256').update(row.obfuscated).digest('hex');
     if(hash!==row.obfs_output_sha256)throw new Error('Distributed source hash mismatch');
+    const started=process.hrtime.bigint();
     const attempt=recoverPublicStrings(row.obfuscated,row.obfs_source_type);
+    const elapsedMs=Number(process.hrtime.bigint()-started)/1e6;
+    timings.push(elapsedMs);
+    report.staticDecodeWallMs+=elapsedMs;
+    report.originalPublicBytes+=Buffer.byteLength(row.obfuscated);
+    report.recoveredSourceBytes+=Buffer.byteLength(attempt.code);
+    if(attempt.code!==row.obfuscated)report.changedPrograms++;
     report.programs++;
     report.recoveredLiterals+=attempt.literals;
     report.tables+=attempt.tables;
@@ -181,6 +194,9 @@ async function attackCorpus(inputFile,outputFile=null,requireProgress=false) {
       attack_recovered_tables:attempt.tables
     }));
   }
+  timings.sort((a,b)=>a-b);
+  report.perProgramMedianMs=timings[Math.floor(timings.length/2)];
+  report.perProgramP95Ms=timings[Math.floor(timings.length*0.95)];
   if(requireProgress && (report.recoveredLiterals===0||report.unrecognizedTables!==0)) {
     throw new Error('No proven full public-table recovery: '+JSON.stringify(report));
   }
