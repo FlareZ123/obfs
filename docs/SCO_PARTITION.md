@@ -70,6 +70,33 @@ The opt-in accepts only named imports from explicit canonical `node:` specifiers
 
 The same selective API accepts `privateModuleImports:['./private/engine.mjs']`, an explicit exact allowlist of canonical relative `.mjs` server dependencies beneath the source module's own directory. The import must use a simple named binding. The compiler refuses `../` paths, URL escapes, percent encoding, query or fragment aliases, directory-traversal spellings, and unsafe Windows names. It also refuses a retained public function or public helper that refers to any imported private binding. The trusted Node server resolves the original module graph, while the generated public module contains only the RPC facades and preserved public functions. There is no automatic deployment isolation: the operator must keep every private module outside publicly served directories and **must not** include private modules in the SCO `sourceFiles` list.
 
+### Optional transitive private-source audit
+
+The programmatic selective compiler also accepts `privateModuleSources`, an array
+of `{path,code}` objects containing the exact UTF-8 source for **every
+statically reachable private .mjs module**, including the direct modules named
+in `privateModuleImports`. Example: supply
+`privateModuleImports:['./private/engine.mjs']` alongside
+`privateModuleSources:[{path:'private/engine.mjs',code:engineSource},
+{path:'private/deep/secret.mjs',code:leafSource}]`. The compiler parses the
+supplied files and follows canonical relative static imports and reexports
+transitively, handling cycles and preserving each discovered path in
+`clientFile.privateModulePaths`. It refuses missing dependencies, duplicate
+case-insensitive paths, unrelated supplied files, noncanonical imports, unknown
+bare imports, and direct runtime `import()` or common direct loader calls.
+
+The static audit is **opt-in**. Without `privateModuleSources`, the manifest
+still covers only direct imports and explicit `additionalPrivateModulePaths`.
+Even with the opt-in, this is a bounded *static* path audit, not proof that a
+private module has no dynamic source reads, indirect loaders or cross-realm
+side effects. The integrator must keep the input snapshot consistent with the
+server's deployed modules, retain the generated manifest, explicitly protect
+other deployment routes and review the separated execution contract.
+The paired [real HTTP source-publication regression](../test/sco-private-transitive-manifest.test.js)
+demonstrates that the direct-only manifest allows a mistakenly served
+transitive leaf, whereas the audited manifest causes `createScoHandler`
+to refuse the same serving configuration.
+
 See the [built-in HMAC before/after](../examples/sco-static-imports/README.md), the [two-module private graph before/after](../examples/sco-private-graph/README.md), [Node import regression](../test/sco-static-imports.test.js), and [private-graph integration](../test/sco-private-graph.test.js). The [independent authorized online relay challenge](../sims/sco-private-graph-relay.js) demonstrates that a caller may clone permitted outputs even when source bytes remain withheld. Each small RPC can exceed the 2.5× runtime budget; actual cross-platform heavy-operation measurements are in [intermediate evidence](../im-results/sco-private-imports-2026-11-16.md).
 
 ## Optional named batched operations
