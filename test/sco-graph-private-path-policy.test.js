@@ -147,11 +147,11 @@ test('composed SCO graph handler binds only original exports and permits only ge
   assert.throws(()=>make({
     ...graph,clientFiles:[...graph.clientFiles,
       {...originals[2],path:'shadow.mjs',sourceType:'module'}]
-  }),/not in publicPaths/);
+  }),/requires a graph generated in this process/);
   assert.throws(()=>make({
     ...graph,clientFiles:[graph.clientFiles[1],
       {...originals[0],sourceType:'module'}]
-  }),/original private graph source: api\.mjs/);
+  }),/requires a graph generated in this process/);
 
   const server=http.createServer(make());
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -307,10 +307,34 @@ test('composed SCO graph seals facades and method metadata against post-partitio
       /SCO graph manifest was modified after partitioning/u);
   }
 
+  // This getter returns the approved bytes to the validation serializer
+  // twice, then would switch to a server-only file on the next read. The
+  // composed HTTP handler must serve only its compiler-owned snapshot.
+  const switching=make();
+  const approved=switching.clientFiles[0].code;
+  let reads=0;
+  Object.defineProperty(switching.clientFiles[0],'code',{
+    enumerable:true,configurable:true,
+    get(){return ++reads<=2?approved:privateCopy;}
+  });
+  const safe=http.createServer(createScoGraphHandler(switching,namespaces,options));
+  assert.equal(reads,2);
+  await new Promise(resolve=>safe.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=safe.address();
+    assert.ok(address&&typeof address==='object');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/api.mjs');
+    assert.equal(response.status,200);
+    assert.doesNotMatch(await response.text(),/SERVER_PRIVATE_GRAPH_CANARY_78341/);
+    assert.equal(reads,2,'Serving a request must not reread the mutable facade');
+  }finally{
+    await new Promise((resolve,reject)=>safe.close(error=>error?reject(error):resolve()));
+  }
+
   // A JSON-roundtripped or shallow-copied manifest lacks the private
   // in-process seal, even when its public fields happen to be identical.
   assert.throws(()=>createScoGraphHandler(
     /** @type {ReturnType<typeof partitionScoAsyncGraph>} */ (JSON.parse(JSON.stringify(intact))),
     namespaces,options
-  ),/SCO graph manifest was modified after partitioning/u);
+  ),/requires a graph generated in this process/u);
 });
