@@ -189,7 +189,7 @@ function renameCrossFileProperties(files,seed) {
     const aliasEdges=[];
     /** @type {Map<string,string>} */
     const localStaticKeys=new Map();
-    /** @type {{source:string,key:AstNode|null,computed:boolean}[]} */
+    /** @type {{source:string|null,key:AstNode|null,computed:boolean}[]} */
     const destructuringReads=[];
     walk(module.ast,(node,parent)=>{
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
@@ -210,18 +210,19 @@ function renameCrossFileProperties(files,seed) {
         node.type==='AssignmentExpression' && node.operator==='=' ? node.left : null;
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
-      if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier') {
+      if(pattern?.type==='ObjectPattern' && initial) {
+        const source=initial.type==='Identifier' ? initial.name : null;
         for(const property of pattern.properties) {
           if(property.type!=='Property') {
-            destructuringReads.push({source:initial.name,key:null,computed:true});
+            destructuringReads.push({source,key:null,computed:true});
             continue;
           }
-          destructuringReads.push({source:initial.name,key:property.key,
+          destructuringReads.push({source,key:property.key,
             computed:property.computed});
           const name=property.computed ? staticString(property.key) : staticName(property.key);
-          if(name!==null && globalAliases.has(name)) {
-            if(property.value.type==='Identifier')aliasEdges.push([property.value.name,initial.name]);
-            else destructuringReads.push({source:initial.name,key:null,computed:true});
+          if(source!==null && name!==null && globalAliases.has(name)) {
+            if(property.value.type==='Identifier')aliasEdges.push([property.value.name,source]);
+            else destructuringReads.push({source,key:null,computed:true});
           }
         }
       }
@@ -252,12 +253,21 @@ function renameCrossFileProperties(files,seed) {
         localStaticKeys.get(key.name) ??
           verifiedStrings.get(module.file.path)?.get(key.name) ?? null : direct;
     }
+    /** @param {AstNode|null|undefined} key @returns {boolean} */
+    function primitiveInertKey(key) {
+      return Boolean(key?.type==='Literal' &&
+        (key.value===null || ['number','boolean','bigint'].includes(typeof key.value)));
+    }
     let ambiguous=false;
     for(const read of destructuringReads) {
-      if(!globalAliases.has(read.source))continue;
       const name=provenKey(read.key,read.computed);
-      if(name===null || dynamicCompilerNames.has(name) || secondaryLoaderNames.has(name) ||
-         ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
+      // Unknown destructuring can extract Function.prototype.constructor
+      // from native constructors, ordinary functions or opaque receivers.
+      if(read.computed && name===null && !primitiveInertKey(read.key))ambiguous=true;
+      if(name==='constructor')ambiguous=true;
+      if(read.source!==null && globalAliases.has(read.source) &&
+         (name===null || dynamicCompilerNames.has(name) || secondaryLoaderNames.has(name) ||
+          ['require','createRequire','getBuiltinModule'].includes(name))) ambiguous=true;
     }
     walk(module.ast,(node,parent)=>{
       if (node.type==='Identifier' &&
@@ -280,10 +290,7 @@ function renameCrossFileProperties(files,seed) {
         // Such a Function constructor can dynamically import an ESM owner,
         // defeating the static-only consumer proof. Primitive literal keys
         // cannot become the string "constructor" via ToPropertyKey.
-        const primitiveKey=node.property.type==='Literal' &&
-          (node.property.value===null ||
-            ['number','boolean','bigint'].includes(typeof node.property.value));
-        if(node.computed && name===null && !primitiveKey)ambiguous=true;
+        if(node.computed && name===null && !primitiveInertKey(node.property))ambiguous=true;
       }
       // A Node ESM file can acquire a CommonJS require function without using
       // ImportExpression or a static import from the target. This is another
