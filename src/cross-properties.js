@@ -255,7 +255,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     '__defineGetter__','__defineSetter__','__lookupGetter__','__lookupSetter__',
     'hasOwnProperty','isPrototypeOf','propertyIsEnumerable',
     'toLocaleString','toString','valueOf']);
-  return [...keys].every(key=>!inherited.has(key));
+  const ownNames=new Set(declaration.init.properties.map(ownPropertyName));
+  return [...keys].every(key=>ownNames.has(key) && !inherited.has(key));
 }
 
 /**
