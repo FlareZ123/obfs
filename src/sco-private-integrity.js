@@ -24,8 +24,9 @@ async function verifyScoPrivateSourceDigests(partition,root){
      !partition.privateSourceDigests.length){
     throw new TypeError('SCO partition has no audited private source commitments');
   }
-  const realRoot=await fs.realpath(root);
   const seen=new Set();
+  /** @type {{path:string,sha256:string}[]} */
+  const commitments=[];
   for(const expected of partition.privateSourceDigests){
     if(!expected||typeof expected.path!=='string'||
        typeof expected.sha256!=='string'||!/^[0-9a-f]{64}$/u.test(expected.sha256)){
@@ -35,6 +36,11 @@ async function verifyScoPrivateSourceDigests(partition,root){
     const caseName=filename.toLowerCase();
     if(seen.has(caseName))throw new TypeError('SCO private source commitment path duplicated: '+filename);
     seen.add(caseName);
+    commitments.push({path:filename,sha256:expected.sha256});
+  }
+  const realRoot=await fs.realpath(root);
+  for(const expected of commitments){
+    const filename=expected.path;
     const candidate=path.resolve(realRoot,...filename.split('/'));
     const realFile=await fs.realpath(candidate);
     const relative=path.relative(realRoot,realFile);
