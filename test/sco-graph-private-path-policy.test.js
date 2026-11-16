@@ -2,6 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const http=require('node:http');
 const {partitionScoAsyncGraph,createScoHandler}=require('../src');
 
 const originals=[
@@ -43,4 +44,32 @@ test('an explicitly empty private graph marker does not suppress intentional pub
   assert.deepEqual(graph.privatePaths,[]);
   assert.deepEqual(graph.clientFiles[0].privateModulePaths,[]);
   assert.doesNotThrow(()=>createScoHandler(graph.clientFiles));
+});
+
+test('unmarked accidental SCO graph publication is an observable HTTP source leak',async()=>{
+  const graph=partitionScoAsyncGraph(originals,{
+    seed:'sco-graph-private-path-20261116',exposedPaths:['api.mjs','audit.mjs']
+  });
+  // Negative control models a caller that lost the graph's private-path
+  // metadata. The same API formerly returned these unmarked facade objects.
+  const unmarked=graph.clientFiles.map(({path,code,sourceType})=>({path,code,sourceType}));
+  const handler=createScoHandler([
+    ...unmarked,{...originals[2],sourceType:'module'}
+  ]);
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address && typeof address==='object');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/secret.mjs');
+    assert.equal(response.status,200);
+    assert.match(await response.text(),/SERVER_PRIVATE_GRAPH_CANARY_78341/);
+  } finally {
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+  // Preserving the generated metadata instead makes the exact same
+  // publication mistake fail at handler construction, before any GET.
+  assert.throws(()=>createScoHandler([
+    ...graph.clientFiles,{...originals[2],sourceType:'module'}
+  ]),/must not serve private source: secret\.mjs/);
 });
