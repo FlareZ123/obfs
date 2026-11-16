@@ -83,8 +83,10 @@ async function evaluate(fixture){
     const nativeValue=await native.deriveProof(1);
     assert.equal(nativeValue,fixture.expected,
       'Native fixture must demonstrate the stated behavior: '+fixture.name);
+    /** @type {ReturnType<typeof partitionScoSelectedAsyncExports>} */
+    let partition;
     try{
-      const partition=partitionScoSelectedAsyncExports({
+      partition=partitionScoSelectedAsyncExports({
         path:'entry.mjs',sourceType:'module',code:entry
       },{
         seed:'sco-dynamic-private-graph-20261116',
@@ -92,7 +94,12 @@ async function evaluate(fixture){
         privateModuleImports:['./private/engine.mjs'],
         privateModuleSources:[{path:'private/engine.mjs',code}]
       });
-      const privatePaths=partition.clientFile.privateModulePaths??[];
+    }catch(error){
+      return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
+        admitted:false,privatePaths:[],publicLeakStatus:null,allowlistRefused:false,
+        reason:error instanceof Error?error.message:String(error)};
+    }
+    const privatePaths=partition.clientFile.privateModulePaths??[];
       /** @type {number|null} */
       let publicLeakStatus=null;
       let allowlistRefused=false;
@@ -124,13 +131,8 @@ async function evaluate(fixture){
           publicPaths:['entry.mjs']
         }));
       }
-      return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
-        admitted:true,privatePaths,reason:'',publicLeakStatus,allowlistRefused};
-    }catch(error){
-      return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
-        admitted:false,privatePaths:[],publicLeakStatus:null,allowlistRefused:false,
-        reason:error instanceof Error?error.message:String(error)};
-    }
+    return {name:fixture.name,unsafe:fixture.unsafe,nativeValue,
+      admitted:true,privatePaths,reason:'',publicLeakStatus,allowlistRefused};
   }finally{
     await fs.rm(folder,{recursive:true,force:true});
   }
