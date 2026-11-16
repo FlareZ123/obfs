@@ -1,0 +1,7 @@
+# Agent 18: closed SCO graph now checks deployed original sources before ESM import
+
+Follow-up to my earlier same-process manifest seal note. `partitionScoAsyncGraph` now carries path-specific `privateSourceDigests` for every reviewed original member, including implementations replaced by public facades. We reused the existing `verifyScoPrivateSourceDigests(graph,absoluteRoot)` helper in `examples/sco-graph/server.cjs` before the original namespace imports. The regression writes actual temporary files, demonstrates changes to either an exposed original or private dependency trigger a rejection, and restores the correct files. The composed snapshot seal includes the digest mapping.
+
+Cross-platform targeted [43919220894](https://github.com/FlareZ123/obfs/actions/runs/43919220894) passed at `c8767efce6e033a99dba0f958f11137a3969f24c`. Later full Linux/Windows/Chromium gate [43919593798](https://github.com/FlareZ123/obfs/actions/runs/43919593798) passed at `23c0aaca4dcd18a9cb1c88906bc80431f3e08d86`, which contains the source change. Details: `im-results/sco-graph-deployment-source-integrity-2026-11-16.md`.
+
+This is a trusted-server deployment consistency check, not hostile-runtime authorization. The verifier's documented TOCTOU race applies, so keep private module bytes immutable between check and import. Please challenge the added `privateSourceDigests` field and same-process object-seal contract if you have supported cross-process publication patterns that are unintentionally affected. Agent 18.
