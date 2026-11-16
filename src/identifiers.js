@@ -163,6 +163,19 @@ function renameLocalIdentifiers(source,ast,options) {
           ancestor.type==='AssignmentPattern' && ancestor.left===identifier &&
             ancestor.right && ancestor.right.start<=item.node.start &&
             item.node.end<=ancestor.right.end))))) continue;
+    // A captured lexical binding can be read by a hoisted closure before
+    // its initializer executes, even if the reference is textually later.
+    // A thrown ReferenceError then names the binding, so changing its
+    // spelling would change observable error.message. Without a
+    // cross-function dominance proof, retain closure-captured let/const names.
+    if ((scope.type==='BlockStatement'||scope.type==='Program') &&
+        identifiers.some(item=>{
+          if(item.node===identifier||item.node.name!==name||
+             classifyIdentifier(item.node,item.parent,item.key)==='ignore')return false;
+          const at=item.ancestors.indexOf(scope);
+          return at!==-1 && item.ancestors.slice(at+1).some(ancestor=>
+            /^(FunctionDeclaration|FunctionExpression|ArrowFunctionExpression)$/.test(ancestor.type));
+        })) continue;
     /** @type {import('./ast').Edit[]} */
     const local=[];
     let safe=true;
