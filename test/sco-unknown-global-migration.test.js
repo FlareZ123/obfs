@@ -186,3 +186,10 @@ test('SCO preserves distinct inert lexical shadows of common browser roots',()=>
     assert.match(result.clientFile.code,new RegExp('const '+root+'=\\{value:7\\}'),root);
   }
 });
+
+test('Owned local-root proof refuses subsequent host-derived property mutation',()=>{
+  assert.throws(()=>partition(
+    'const globalThis={privateValue:41};globalThis.privateValue=process.version;return globalThis.privateValue;',
+    'const globalThis={publicValue:7};return globalThis.publicValue;'),
+    /share ambient state|unproved host-global state|realm-local/u);
+});
