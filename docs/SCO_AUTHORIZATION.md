@@ -22,9 +22,13 @@ a caller-supplied literal U+FFFD remains valid when encoded as its actual
 three UTF-8 bytes. Validation occurs **after concatenating all body chunks**,
 so a valid code point may span individual HTTP chunks.
 
-This preserves an unambiguous raw-byte-to-JSON boundary for security-sensitive
-argument validation and signing. It does not authenticate the caller, impose
-additional method-argument schemas or prevent legitimate query relaying.
+This enforces valid UTF-8 transport bytes before ordinary JSON parsing. It
+does **not** create a canonical JSON representation: differently escaped
+strings and repeated object keys can still decode to equivalent or
+implementation-dependent structures. Applications using request signatures
+must verify exact signed bytes or define a separate canonicalization scheme.
+The check does not authenticate callers, impose method-argument schemas or
+prevent legitimate query relaying.
 A bounded body-size check runs before UTF-8 validation. This extra validation
 scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
