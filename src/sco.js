@@ -318,6 +318,15 @@ function createScoHandler(sourceFiles,options={}) {
   }
   const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
+  // The server's admission and authorization configuration belongs to this
+  // handler instance. Keep an owned startup snapshot so later mutations of a
+  // caller's options, host array or operation registry cannot silently change
+  // which requests and server-resident functions the handler authorizes.
+  // Callbacks themselves remain live functions for normal credential rotation.
+  /** @type {ScoOptions} */
+  const policy={...options,
+    allowedHosts:options.allowedHosts?[...options.allowedHosts]:undefined,
+    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined};
   return (request,response) => {
     // Node's HTTP parser accepts some malformed absolute-form request targets.
     // WHATWG URL parsing may throw; treat the target as a bad request instead
@@ -334,20 +343,20 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    if (options.allowedHosts?.length) {
+    if (policy.allowedHosts?.length) {
       const hostname = (request.headers.host ?? '').split(':')[0].toLowerCase();
-      if (!options.allowedHosts.map(h=>h.toLowerCase()).includes(hostname)) {
+      if (!policy.allowedHosts.map(h=>h.toLowerCase()).includes(hostname)) {
         response.writeHead(403).end();
         return;
       }
     }
-    if (url.pathname===`${prefix}rpc` && request.method==='POST' && options.remoteMethods && options.authorizeRpc) {
+    if (url.pathname===`${prefix}rpc` && request.method==='POST' && policy.remoteMethods && policy.authorizeRpc) {
       void handleRpc(request,response,{
-        remoteMethods:options.remoteMethods,
-        authorizeRpc:options.authorizeRpc,
-        authorizeOperation:options.authorizeOperation,
-        runRpcIsolated:options.runRpcIsolated,
-        maxRpcBytes:options.maxRpcBytes
+        remoteMethods:policy.remoteMethods,
+        authorizeRpc:policy.authorizeRpc,
+        authorizeOperation:policy.authorizeOperation,
+        runRpcIsolated:policy.runRpcIsolated,
+        maxRpcBytes:policy.maxRpcBytes
       });
       return;
     }
@@ -378,7 +387,7 @@ function createScoHandler(sourceFiles,options={}) {
       try {
         const nonce=randomBytes(24).toString('hex');
         const result=obfuscateFiles([confirmedFile],{
-          mode:'sco',seed:nonce,allowedHosts:options.allowedHosts,
+          mode:'sco',seed:nonce,allowedHosts:policy.allowedHosts,
           properties:!interfileSourceObserver,identifiers:!interfileSourceObserver
         });
         const output=/** @type {string} */ (result.files[0].code);
@@ -393,7 +402,7 @@ function createScoHandler(sourceFiles,options={}) {
         response.end('Obfuscation failed');
       }
     }
-    const authorizeRead=options.authorizeRead;
+    const authorizeRead=policy.authorizeRead;
     if (!authorizeRead) {
       serve(file);
       return;
