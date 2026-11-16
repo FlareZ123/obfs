@@ -70,6 +70,10 @@ test('SNO CLI emits a guarded launcher that executes the polyvariant CommonJS en
       'const fn=require('+JSON.stringify(launcher)+');console.log(fn(-9));'
     ]);
     assert.equal(observed,String(steps.reduce((n,x)=>n+x,-9)|0));
+    await atomicWrite(path.join(output,'entry.cjs'),'module.exports=()=>999;');
+    const tampered=spawnSync(process.execPath,[launcher],{encoding:'utf8',timeout:20000});
+    assert.notEqual(tampered.status,0);
+    assert.match(String(tampered.stderr),/Integrity check failed/);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
