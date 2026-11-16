@@ -74,10 +74,12 @@ async function main(){
     code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
   const rows=[];
-  for(const variant of ['none','reflect','entry','both','own-only']){
+  for(const variant of ['none','reflect','entry','both','own-only','null-proto']){
     const withoutObservers=ablate(originals,
-      /** @type {'none'|'reflect'|'entry'|'both'} */(variant==='own-only'?'both':variant));
-    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):withoutObservers;
+      /** @type {'none'|'reflect'|'entry'|'both'} */(
+        variant==='own-only'||variant==='null-proto'?'both':variant));
+    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):
+      variant==='null-proto'?withNullPrototypeRecord(withoutObservers):withoutObservers;
     const observerPaths=sources.filter(file=>observesFunctionSource(
       parse(file.code,'module'))).map(file=>file.path);
     const compiled=obfuscateFiles(sources,{
@@ -91,10 +93,10 @@ async function main(){
     });
   }
   assert.deepEqual(rows.map(row=>row.observerPaths),[
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[]
+    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[],[]
   ]);
-  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2],
-    'Missing-key inheritance must decline; own-key-only calls restore coverage');
+  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2,2],
+    'Plain missing keys decline; changed own-key-only and null-prototype programs retain coverage');
   process.stdout.write('APPLICATION_SOURCE_OBSERVER_ABLATION '+JSON.stringify(rows)+'\n');
   return rows;
 }
