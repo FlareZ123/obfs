@@ -68,6 +68,15 @@ test('SCO private local module graph runs natively and through authenticated gen
   const privateSource=(await fs.readFile(path.join(ROOT,'before/private/engine.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const golden=(await fs.readFile(path.join(ROOT,'after/mixed.mjs'),'utf8')).replace(/\r\n/gu,'\n');
   const generated=partition(source,{privateModuleImports:[SPECIFIER]});
+  assert.deepEqual(generated.clientFile.privateModulePaths,['private/engine.mjs']);
+  assert.throws(()=>createScoHandler([
+    generated.clientFile,
+    {path:'private/engine.mjs',sourceType:'module',code:privateSource}
+  ]),/must not serve private source/);
+  assert.throws(()=>createScoHandler([
+    {path:'private/engine.mjs',sourceType:'module',code:privateSource},
+    generated.clientFile
+  ]),/must not serve private source/);
   assert.equal(generated.clientFile.code,golden,'Byte-exact public ESM facade drifted');
   assert.doesNotMatch(golden,/node:crypto|deriveProof|PRIVATE_SECRET|SCO_PRIVATE_MODULE_GRAPH_KEY/u);
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-esm-graph-'));
