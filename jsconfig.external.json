@@ -39,7 +39,8 @@
     "sims/sco-audience-bound-relay.js",
     "sims/verified-record-session-profile.js",
     "sims/ownkey-comment-static-attacker.js",
-    "test/ownkey-comment-static-recovery.test.js"
+    "test/ownkey-comment-static-recovery.test.js",
+    "test/closed-record-reflect-descriptor-browser.js"
   ],
   "exclude": [
     "node_modules"
