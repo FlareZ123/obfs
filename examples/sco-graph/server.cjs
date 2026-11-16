@@ -4,7 +4,7 @@ const http=require('node:http');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {randomBytes,timingSafeEqual}=require('node:crypto');
-const {createScoHandler,bindScoGraphExports}=require('../../src');
+const {createScoGraphHandler}=require('../../src');
 const {build}=require('./build.cjs');
 
 /**
@@ -28,19 +28,18 @@ async function startServer(options={}){
     namespaces[filename]=await import(pathToFileURL(
       path.join(__dirname,'before',filename)).href);
   }
-  const remoteMethods=bindScoGraphExports(graph,namespaces);
   const expected=Buffer.from(token,'utf8');
   /** @param {http.IncomingMessage} request @returns {boolean} */
   function authorize(request){
     const received=Buffer.from(String(request.headers['x-demo-token']??''),'utf8');
     return received.length===expected.length&&timingSafeEqual(received,expected);
   }
-  const validIds=new Set(Object.keys(remoteMethods));
-  const handler=createScoHandler(graph.clientFiles,{
-    remoteMethods,
+  // The graph helper binds the original server exports and permits exactly
+  // the graph's generated public facades. No raw source list is assembled.
+  const handler=createScoGraphHandler(graph,namespaces,{
     authorizeRead:authorize,
     authorizeRpc:authorize,
-    authorizeOperation:(request,method,args)=>authorize(request)&&validIds.has(method)&&
+    authorizeOperation:(request,method,args)=>authorize(request)&&
       args.length<=2&&args.every(value=>typeof value==='string')
   });
   const server=http.createServer(handler);
