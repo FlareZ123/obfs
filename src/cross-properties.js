@@ -150,6 +150,142 @@ function hasAcyclicStaticImports(modules) {
 }
 
 /**
+ * Overapproximate direct ESM import and local call transfers of ambient root
+ * objects. The existing per-module proof then interprets the resulting
+ * parameter aliases and extracted native capabilities. Name collisions join
+ * possible values; unknown higher-order call effects remain outside this
+ * finite proof and require a separate refusal contract.
+ *
+ * @param {ReadonlyMap<string,{ast:AstNode,bindings:Map<string,number>}>} modules
+ * @returns {Map<string,{roots:Set<string>,hostAliases:Set<string>}>}
+ */
+function collectImportedHostCallRoots(modules) {
+  /** @type {Map<string,{roots:Set<string>,hostAliases:Set<string>}>} */
+  const origins=new Map();
+  /** @type {Map<string,Map<string,AstNode[][]>>} */
+  const declared=new Map();
+  /** @type {Map<string,Map<string,AstNode[][]>>} */
+  const exported=new Map();
+  /** @param {Map<string,AstNode[][]>} map @param {string} name @param {AstNode[]} params */
+  function addParams(map,name,params) {
+    const existing=map.get(name)??[];
+    existing.push(params);
+    map.set(name,existing);
+  }
+  for(const [filename,module] of modules) {
+    origins.set(filename,{
+      roots:new Set(['globalThis','window','self','global']),hostAliases:new Set()
+    });
+    /** @type {Map<string,AstNode[][]>} */
+    const local=new Map();
+    walk(module.ast,node=>{
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier')
+        addParams(local,node.id.name,node.params);
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression'))
+        addParams(local,node.id.name,node.init.params);
+    });
+    declared.set(filename,local);
+    /** @type {Map<string,AstNode[][]>} */
+    const visible=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      const definition=statement.declaration;
+      if(definition?.type==='FunctionDeclaration' &&
+         definition.id?.type==='Identifier') {
+        for(const params of local.get(definition.id.name)??[])
+          addParams(visible,definition.id.name,params);
+      }else if(definition?.type==='VariableDeclaration') {
+        for(const item of definition.declarations) {
+          if(item.id.type!=='Identifier')continue;
+          for(const params of local.get(item.id.name)??[])
+            addParams(visible,item.id.name,params);
+        }
+      }else if(!definition) {
+        for(const specifier of statement.specifiers) {
+          if(specifier.type!=='ExportSpecifier' ||
+             specifier.local.type!=='Identifier')continue;
+          const name=specifier.exported.name??specifier.exported.value;
+          if(typeof name!=='string')continue;
+          for(const params of local.get(specifier.local.name)??[])
+            addParams(visible,name,params);
+        }
+      }
+    }
+    exported.set(filename,visible);
+  }
+  /** @type {{source:string,actual:string,target:string,formal:AstNode}[]} */
+  const edges=[];
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,{file:string,name:string}>} */
+    const imported=new Map();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration' ||
+         statement.source.type!=='Literal' ||
+         typeof statement.source.value!=='string')continue;
+      if(/[?#%\\]/.test(statement.source.value))continue;
+      const target=resolveImport(filename,statement.source.value);
+      if(!target || !modules.has(target))continue;
+      for(const specifier of statement.specifiers) {
+        if(specifier.type!=='ImportSpecifier')continue;
+        const name=specifier.imported.name??specifier.imported.value;
+        if(typeof name==='string')
+          imported.set(specifier.local.name,{file:target,name});
+      }
+    }
+    walk(module.ast,node=>{
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         node.init?.type==='Identifier')
+        edges.push({source:filename,actual:node.init.name,target:filename,formal:node.id});
+      if(node.type==='AssignmentExpression' && node.operator==='=' &&
+         node.left.type==='Identifier' && node.right.type==='Identifier')
+        edges.push({source:filename,actual:node.right.name,target:filename,formal:node.left});
+      if(node.type!=='CallExpression' || node.callee.type!=='Identifier')return;
+      const route=imported.get(node.callee.name);
+      const target=route?.file??filename;
+      const candidates=route?
+        exported.get(target)?.get(route.name)??[]:
+        declared.get(filename)?.get(node.callee.name)??[];
+      for(const parameters of candidates) {
+        for(let index=0;index<parameters.length;index++) {
+          const actual=node.arguments[index],parameter=parameters[index];
+          if(actual?.type!=='Identifier')continue;
+          edges.push({source:filename,actual:actual.name,target,formal:parameter});
+        }
+      }
+    });
+  }
+  let changed=true;
+  while(changed) {
+    changed=false;
+    for(const edge of edges) {
+      if(!origins.get(edge.source)?.roots.has(edge.actual))continue;
+      const target=origins.get(edge.target);
+      if(!target)continue;
+      let formal=edge.formal;
+      if(formal.type==='AssignmentPattern')formal=formal.left;
+      if(formal.type==='Identifier') {
+        if(!target.roots.has(formal.name)) {
+          target.roots.add(formal.name);
+          changed=true;
+        }
+      }else if(formal.type==='ObjectPattern') {
+        for(const property of formal.properties) {
+          const bound=property.type==='Property'?property.value:
+            property.type==='RestElement'?property.argument:null;
+          if(bound?.type==='Identifier' && !target.hostAliases.has(bound.name)) {
+            target.hostAliases.add(bound.name);
+            changed=true;
+          }
+        }
+      }
+    }
+  }
+  return origins;
+}
+
+/**
  * Prove that an unrelated computed read belongs to a private literal record
  * and receives only strings from direct, statically known ESM call sites.
  * This narrowly restores a useful closed-world property transformation without
@@ -164,6 +300,7 @@ function hasAcyclicStaticImports(modules) {
 function safeClosedCallerRecordRead(modules,module,member,ancestors) {
   if(member.type!=='MemberExpression' || member.object.type!=='Identifier' ||
       member.property.type!=='Identifier')return false;
+  const importedRoots=collectImportedHostCallRoots(modules);
   // The own-record proof trusts these direct native reflection reads. An
   // explicitly declared reassignment/delete/update of either intrinsic in
   // any supplied module invalidates that premise, even when all callsite
@@ -187,9 +324,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         if(value!==null)literalSelectors.set(item.id.name,value);
       }
     }
-    const hostRoots=new Set(['globalThis','window','self','global']);
+    const hostRoots=new Set(importedRoots.get(source.file.path)?.roots??
+      ['globalThis','window','self','global']);
     /** @type {Set<string>} */
-    const hostCallAliases=new Set();
+    const hostCallAliases=new Set(importedRoots.get(source.file.path)?.hostAliases);
     /** @type {Set<string>} */
     const nativeMutatorAliases=new Set();
     // The Proxy constructor is itself a first-class binding. Handler traps
