@@ -4,6 +4,7 @@ const path=require('node:path');
 const {randomBytes,createHash}=require('node:crypto');
 const {parse,walk,staticString}=require('./ast');
 const {safePath}=require('./core');
+const {createScoHandler}=require('./sco');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 
 /** @typedef {{path:string,code:string,sourceType?:'module'}} ScoPrivateModule */
@@ -175,4 +176,41 @@ function bindScoGraphExports(graph,namespaces){
   return registry;
 }
 
-module.exports={partitionScoAsyncGraph,bindScoGraphExports};
+
+/**
+ * Construct an SCO handler from a private graph without accepting an
+ * independently assembled sourceFiles list or RPC method map. This keeps
+ * the compiler-generated public facades as the complete publication list,
+ * derives an exact public-path allowlist, and binds only verified exported
+ * server methods. Authorization callbacks are still the integrator's duty.
+ *
+ * Each facade's transport endpoint must match the handler's RPC route.
+ * Source metadata remains internal to the trusted server at construction.
+ *
+ * @param {ScoGraphPartition} graph
+ * @param {Record<string,Record<string,unknown>>} namespaces
+ * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} options
+ * @returns {import('node:http').RequestListener}
+ */
+function createScoGraphHandler(graph,namespaces,options){
+  if(!graph||!Array.isArray(graph.clientFiles)||
+      !Array.isArray(graph.exposedPaths)||!graph.partitions||
+      !options||typeof options!=='object'||
+      Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
+    throw new TypeError('SCO graph handler requires graph and separately authorized server options');
+  }
+  const expectedEndpoint=(options.routePrefix??'/obfs/')+'rpc';
+  for(const filename of graph.exposedPaths){
+    if(graph.partitions[filename]?.endpoint!==expectedEndpoint){
+      throw new TypeError('SCO graph RPC endpoint does not match routePrefix: '+filename);
+    }
+  }
+  const remoteMethods=bindScoGraphExports(graph,namespaces);
+  return createScoHandler(graph.clientFiles,{
+    ...options,
+    publicPaths:[...graph.exposedPaths],
+    remoteMethods
+  });
+}
+
+module.exports={partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler};
