@@ -259,16 +259,22 @@ function renameCrossFileProperties(files,seed) {
       if(name===null || dynamicCompilerNames.has(name) || secondaryLoaderNames.has(name) ||
          ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
     }
-    walk(module.ast,node=>{
+    walk(module.ast,(node,parent)=>{
       if (node.type==='Identifier' &&
           (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
+      // Every ordinary function's inherited .constructor resolves to the
+      // Function constructor. Even a seemingly unrelated constructor read can
+      // create a runtime import that escapes the static ownership graph.
+      if(node.type==='Property' && parent?.type==='ObjectPattern' &&
+         provenKey(node.key,node.computed)==='constructor')ambiguous=true;
       if (node.type==='MemberExpression') {
         // A computed constant spelling such as globalThis['Fun'+'ction']
         // is a loader just as globalThis.Function is. A dynamic global key
         // is also unsafe because it can resolve to any untracked loader.
         const name=provenKey(node.property,node.computed);
         if (typeof name==='string' &&
-            (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
+            (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name) ||
+             name==='constructor')) ambiguous=true;
         if(node.computed && name===null && node.object.type==='Identifier' &&
            globalAliases.has(node.object.name))ambiguous=true;
       }
@@ -281,6 +287,16 @@ function renameCrossFileProperties(files,seed) {
         // Reflect.get and descriptor reads can obtain a runtime Function
         // constructor from the global object without any direct member
         // expression on that object. Follow simple immutable/mutable aliases.
+        if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
+           provenKey(node.arguments[1])==='constructor') {
+          const method=provenKey(callee.property,callee.computed);
+          if(reflectAliases.has(callee.object.name) &&
+             ['get','getOwnPropertyDescriptor'].includes(method??'') ||
+             objectAliases.has(callee.object.name) &&
+             ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(method??'')) {
+            ambiguous=true;
+          }
+        }
         if(callee.type==='MemberExpression' &&
            callee.object.type==='Identifier' && node.arguments[0]?.type==='Identifier' &&
            globalAliases.has(node.arguments[0].name)) {
