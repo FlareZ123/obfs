@@ -63,6 +63,12 @@ jobs:
         run: node sims/sco-sync-depth-sweep.js
       - name: Falsify SCO attacker on 1500 independent variable-state depth holdouts
         run: node sims/sco-sync-depth-sweep.js --stress --holdout
+      - name: Test independently sampled SHA-256 Mealy oracle attack fixtures
+        run: node --test test/sco-sync-independent-distribution.test.js
+      - name: Measure independent SHA-256 oracle attack base distribution
+        run: node sims/sco-sync-independent-distribution.js
+      - name: Measure independent SHA-256 oracle attack holdout distribution
+        run: node sims/sco-sync-independent-distribution.js --holdout
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
