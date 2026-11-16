@@ -30,6 +30,9 @@ test('SCO graph refuses ambiguous imports, accidental publication and incomplete
     [{path:'api.mjs',code:'export async function sign(){return Function(\'return import("./hidden.mjs")\')();}'}],
     [{path:'api.mjs',code:'export async function sign(){return new Function(\'return import("./hidden.mjs")\')();}'}],
     [{path:'api.mjs',code:'export async function sign(){return globalThis["Function"](\'return import("./hidden.mjs")\')();}'}],
+    [{path:'api.mjs',code:'const loader=Function;export async function sign(){return loader(\'return import("./hidden.mjs")\')();}'}],
+    [{path:'api.mjs',code:'const {Function: loader}=globalThis;export async function sign(){return loader(\'return import("./hidden.mjs")\')();}'}],
+    [{path:'api.mjs',code:'let loader;loader=globalThis.Function;export async function sign(){return loader(\'return import("./hidden.mjs")\')();}'}],
     [{path:'api.mjs',code:'export const publicKey="mistake";'}],
     [{path:'api.mjs',code:'export async function sign(){return 1;}'},{path:'API.mjs',code:'export async function sign(){return 2;}'}]
   ];
