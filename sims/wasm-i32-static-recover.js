@@ -6,7 +6,7 @@
  * This handles the deliberately restricted one-export module layout.
  */
 
-/** @typedef {{type:'parameter'}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}} Expr */
+/** @typedef {{type:'parameter',index:number}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}} Expr */
 
 /** @param {string} source @returns {Uint8Array} */
 function extractPublicWasm(source) {
@@ -71,7 +71,7 @@ function cursor(bytes) {
 /** @param {Expr} a @param {Expr} b @returns {boolean} */
 function same(a,b) {
   if(a.type!==b.type)return false;
-  if(a.type==='parameter')return true;
+  if(a.type==='parameter')return a.index===/** @type {typeof a} */(b).index;
   if(a.type==='literal')return a.value===/** @type {typeof a} */(b).value;
   if(a.type==='unary')return same(a.argument,/** @type {typeof a} */(b).argument);
   const rhs=/** @type {typeof a} */(b);
@@ -128,8 +128,9 @@ function symbolicDecode(bytes) {
         const opcode=reader.take();
         if(opcode===0x0b)break;
         if(opcode===0x20) {
-          if(reader.unsigned()!==0)throw new TypeError('Unsupported parameter index');
-          stack.push({type:'parameter'});
+          const index=reader.unsigned();
+          if(index>3)throw new TypeError('Unsupported parameter index');
+          stack.push({type:'parameter',index});
         } else if(opcode===0x41)stack.push({type:'literal',value:reader.signed()});
         else if(opcode>=0x71&&opcode<=0x76) {
           const right=stack.pop(),left=stack.pop();
@@ -147,26 +148,30 @@ function symbolicDecode(bytes) {
   return expression;
 }
 
-/** @param {Expr} expr @param {string} parameter @returns {string} */
-function printExpression(expr,parameter) {
-  if(expr.type==='parameter')return parameter;
+/** @param {Expr} expr @param {string[]} parameters @returns {string} */
+function printExpression(expr,parameters) {
+  if(expr.type==='parameter') {
+    const name=parameters[expr.index];
+    if(name===undefined)throw new TypeError('Missing parameter spelling for local index '+expr.index);
+    return name;
+  }
   if(expr.type==='literal')return String(expr.value);
-  if(expr.type==='unary')return '(~'+printExpression(expr.argument,parameter)+')';
-  return '('+printExpression(expr.left,parameter)+expr.operator+
-    printExpression(expr.right,parameter)+')';
+  if(expr.type==='unary')return '(~'+printExpression(expr.argument,parameters)+')';
+  return '('+printExpression(expr.left,parameters)+expr.operator+
+    printExpression(expr.right,parameters)+')';
 }
 
 /**
  * Extract a standalone equivalent native JavaScript bitwise expression solely
  * from the delivered binary. No compiler module or seed required.
  * @param {string} publicJavaScript
- * @param {string} [parameter]
+ * @param {string|string[]} [parameter]
  * @returns {{expression:string,bytes:number}}
  */
 function recoverPublicWasmExpression(publicJavaScript,parameter='x') {
   const bytes=extractPublicWasm(publicJavaScript);
   const expression=symbolicDecode(bytes);
-  return {expression:printExpression(expression,parameter),bytes:bytes.length};
+  return {expression:printExpression(expression,Array.isArray(parameter)?parameter:[parameter]),bytes:bytes.length};
 }
 
 module.exports={recoverPublicWasmExpression,extractPublicWasm};
