@@ -6,6 +6,29 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports two indep
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
 - `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Falsy results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. It does not replace the required coarse `authorizeRpc` gate.
 
+## Handler-owned authorization configuration
+
+SCO retains a private, construction-time snapshot of request policy wiring:
+`allowedHosts` is copied, `remoteMethods` is shallow-copied and each
+authorization callback is captured by reference. Mutating the original
+options object, its host array or its operation-method registry after
+handler construction can no longer redirect a deployed handler's
+route restriction or replace its registered server functions. Live
+credential rotation remains possible through state intentionally read
+by the **original captured callback**, for example a mutable session
+database or keyring used by `authorizeRpc`.
+
+This eliminates accidental time-of-check/time-of-use configuration drift
+inside the trusted Node process. It does not prevent a server attacker
+from replacing executable code or monkeypatching runtime internals;
+the SCO threat model already assumes that the trusted server cannot
+be compromised. Public HTTP `Host` headers are still forgeable and
+must never be used as authentication. Server-side authorization
+callbacks remain required when serving restricted code or RPCs.
+The original vs mutated configuration behavior is exercised through
+real HTTP requests by
+[`test/sco-policy-configuration-snapshot.test.js`](../test/sco-policy-configuration-snapshot.test.js).
+
 ## Explicit public source-file allowlist
 
 For source-private SCO integrations, pass `publicPaths:['entry.mjs','assets/app.css']`
