@@ -10,7 +10,8 @@ test('authorized client recovers server-private 128-bit value from vulnerable ti
   assert.equal(result.secretBits,128);
   assert.equal(result.directUnauthorizedStatus,403);
   assert.equal(result.unauthorizedExecutions,0);
-  assert.equal(result.probesPerMode,1537);
+  assert.ok(result.probesPerMode>=1549,
+    'An attacker should use legal repeated source-blind HTTP probes');
   assert.equal(result.recoveredSecret,true);
   assert.equal(result.vulnerableFinalAccepted,true);
   assert.equal(result.constantTimeControlRecovered,false);
