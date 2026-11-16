@@ -326,10 +326,10 @@ function createScoHandler(sourceFiles,options={}) {
   /** @type {ScoOptions} */
   const policy={...options,
     allowedHosts:options.allowedHosts?[...options.allowedHosts]:undefined,
-    remoteMethods:options.remoteMethods?Object.fromEntries(
-      Object.entries(options.remoteMethods).map(([name,method])=>[
-        name,typeof method==='function'?method.bind(options.remoteMethods):method
-      ])):undefined};
+    // Preserve exact method identity. Batch policy preflight uses a private
+    // WeakMap on original function objects; binding/wrapping a method loses
+    // its verified transitive operation metadata and is unsafe.
+    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined};
   return (request,response) => {
     // Node's HTTP parser accepts some malformed absolute-form request targets.
     // WHATWG URL parsing may throw; treat the target as a bad request instead
