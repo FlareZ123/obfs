@@ -43,6 +43,36 @@ See the [generated pair](../examples/wasm-i32/README.md) and
 
 The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, visible-scope mismatches, nonprimitive writes, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use. The analysis permits explicitly declared CSS, raster-image, and font assets to accompany an ESM graph only under an integrator guarantee that each is served with a non-JavaScript MIME type and never interpreted as source. File extensions alone are insufficient evidence of safe execution. HTML, SVG, unknown assets, and other executable JavaScript formats force the cross-file pass to decline renaming.
 
+## Distributed source-byte observation
+
+Source-byte reads are a separate semantic compatibility hazard from the familiar
+`Function.prototype.toString` case. A Node ES module can use
+`readFileSync(new URL('./other.mjs', import.meta.url), 'utf8')` or
+`node:fs/promises.readFile` to inspect the exact source bytes of a module in
+the declared build group. The reader can compare a private property spelling
+without obtaining or calling the exported object. Browser `fetch` and
+`XMLHttpRequest` can likewise request deployed module source.
+
+The bounded `observesDistributedSource` AST preflight now declines ordinary
+identifier, property and string transformations across a supplied group when
+it sees static Node `fs` module access or known browser file-reading APIs.
+It applies even to a single module that reads its own file. The SCO HTTP
+handler also suppresses per-request source spelling variation for that group.
+Conservative refusals can include benign use of `fetch` for ordinary API
+requests or `node:fs` for unrelated files. The exact-source contract must
+take precedence over transformation coverage until a target-specific path
+and loader proof exists.
+
+This preflight remains incomplete: custom I/O functions, hidden aliases,
+external modules, alternative byte transports, build-time postprocessing,
+remote source archives and target/runtime-dependent source-fetch behavior
+are not proven safe. An optional host-lock wrapper still changes the served
+source and may be incompatible with source-byte introspection. Reject or
+redesign such combinations at integration time. The guard preserves the
+tested native contracts; it provides no stronger obfuscation secrecy or
+tamper-resistance in a fully controlled runtime. Regression witnesses:
+`test/cross-file-source-byte-reader.test.js`.
+
 ## Selective SCO cross-realm compatibility
 
 The selected-async-export SCO partition places original private functions on the server while retaining approved functions in a browser JavaScript realm. Each realm has distinct intrinsic prototype objects. A source module that writes `Object.prototype.x` in a private function and later reads `({}).x` in a public function can observe the write before partitioning but cannot observe it across the server/client split. The same hazard applies through helper functions and aliases of `Array.prototype`.
