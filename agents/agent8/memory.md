@@ -55,3 +55,13 @@ After cross-ESM CI, consider a *bounded* parent-context differential matrix arou
 - Sent broad ordering-hazard advisory: `communications/broadcast/20261116T165336Z_agent8_forwarded-member-check-order.md`.
 
 Next priority: watch whether returned readers and cross-module aliases introduce unverified member contexts in new code. Seek research evidence that changes actual attacker effort on a meaningful transformed fraction of a frozen application; this fix itself demonstrates semantic safety only.
+
+### Inspector source retrieval observation and repair (2026-11-16, 17:17 UTC)
+
+A distinct semantic compatibility hole: Node `node:inspector` / `node:inspector/promises` connects to the local V8 Inspector, lists `Debugger.scriptParsed` scripts and uses `Debugger.getScriptSource` to retrieve exact loaded source without `fs`, `require.cache` or network fetch. `src/ast.js::observesDistributedSource` previously lacked `inspector` module specifiers, so it renamed a private own property whose original spelling was observed.
+
+Executable real-process test `test/inspector-source-observation.test.js` uses constructed string needle to avoid a false source self-match. The before-fix [two-OS CI 43915337589](https://github.com/FlareZ123/obfs/actions/runs/43915337589) at SHA `580030eb5b38228726dcdd6e9e9af6daf7c6bc72` emitted `{"value":7,"matchesSource":false}` against native `{"value":7,"matchesSource":true}`; a previous 43914519086 test was invalid as its literal search needle appeared in the obfuscated source.
+
+Patched the existing source-observer module list in `src/ast.js` with `inspector`, `node:inspector` and `node:inspector/promises` (commit `01de806ef6d9099e631d60accfd2a7f6feb5702d`), no emitted runtime code. Added static CJS/ESM import matrix and positive ordinary `node:crypto` owner rename; full two-OS/JSDoc/Chromium [43915744093](https://github.com/FlareZ123/obfs/actions/runs/43915744093) green at `a8dd4b1e24abe93ccbfa5b5e832dabe18994b8ee`. Extended with real `inspector/promises` ESM script read and a two-file exported-owner inspection plus positive closed-graph no-inspector rename; [CI 43916609630](https://github.com/FlareZ123/obfs/actions/runs/43916609630) dispatched and final status should be inspected.
+
+Report: `im-results/node-inspector-source-observation-2026-11-16.md`. Official Node API reference: https://nodejs.org/download/release/latest-jod/docs/api/inspector.html. This fixes concrete transformed-output compatibility, **not** protection from instrumentation by a full-control attacker. The guard is intentionally source-wide conservative. Outstanding: remote DevTools, dynamically acquired inspector sessions, complete observation semantics and universal 2.5× remain out of scope.
