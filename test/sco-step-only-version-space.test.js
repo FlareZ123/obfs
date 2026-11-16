@@ -4,7 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {binaryWords}=require('../sims/sco-sync-search');
 const {makeIndependentMachine}=require('../sims/sco-sync-independent-distribution');
-const {enumerateMachines,distinguish,learnBoundedStepOnly,predictContinuation}=
+const {enumerateMachines,distinguish,learnBoundedStepOnly,predictContinuation,createContinuationClone}=
   require('../sims/sco-step-only-version-space');
 
 /**
@@ -110,4 +110,27 @@ test('an understated state bound can certify a false clone and must not be trust
   assert.equal(result.queries,8);
   assert.ok(result.clone);
   assert.deepEqual(distinguish(result.clone,{...privateModel,state:privateState}),[0]);
+});
+
+test('certified continuation runs as a stand-alone stateful offline clone',async()=>{
+  const model=makeIndependentMachine(0x31415926,3);
+  let privateState=0;
+  const publicStep={
+    /** @param {number} symbol @returns {Promise<number>} */
+    async step(symbol){
+      const previous=privateState;
+      privateState=model.next[previous][symbol];
+      return model.output[previous][symbol];
+    }
+  };
+  const found=await learnBoundedStepOnly(publicStep,3,64);
+  assert.equal(found.certified,true);
+  assert.ok(found.clone);
+  const clone=createContinuationClone(found.clone);
+  const followup=[1,0,1,1,0,0,0,1,1,0,1,0,0,1,1,1,0];
+  /** @type {number[]} */
+  const actual=[];
+  for(const symbol of followup)actual.push(await publicStep.step(symbol));
+  assert.deepEqual(followup.map(symbol=>clone.step(symbol)),actual);
+  assert.throws(()=>clone.step(2),RangeError);
 });
