@@ -114,7 +114,7 @@ function hasWasmSourceMapDirective(code) {
  * @returns {boolean}
  */
 function isUnauditedArchiveAsset(filename,code) {
-  if(/\\.(?:gz|br|zip|tar|tgz|7z|zst|xz|bz2)$/iu.test(filename))return true;
+  if(/\.(?:gz|br|zip|tar|tgz|7z|zst|xz|bz2)$/iu.test(filename))return true;
   if(!Buffer.isBuffer(code))return false;
   if(code.length>=2 && code[0]===0x1f && code[1]===0x8b)return true;
   if(code.length>=4 && code[0]===0x50 && code[1]===0x4b &&
