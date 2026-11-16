@@ -53,6 +53,20 @@ Running both published --stress commands locally extends the sample to **400 mod
 
 These stress measurements are local Node 22.16.0 evidence, not yet a pinned cross-platform CI result. They use the same machine generator and attack evaluation code, not an independently implemented corroboration.
 
+## Independent full-model availability denominator
+
+A separate evaluator, [sims/sco-sync-independent-ground-truth.js](../sims/sco-sync-independent-ground-truth.js), exhaustively enumerates **all 14 candidate words of lengths 1 to 3** on the same 400 SHA-generated machines per state count, using the private tables only during evaluation. Its [three-case regression](../test/sco-sync-independent-ground-truth.test.js) checks a physically nonsynchronizing yet behaviorally equivalent permutation, a distinguishable permutation, and a true reset machine, then pins every aggregate count. Reproduce with **node sims/sco-sync-independent-ground-truth.js** or **node --test test/sco-sync-independent-ground-truth.test.js**.
+
+| States | Models | Any physically global short reset | Any behaviorally global short reset | Any initially reachable observable short reset | Globally observable words found by existing depth-3 attacker |
+|---:|---:|---:|---:|---:|---:|
+| 4 | 400 | 249 | 263 | 284 | 145 / 263 (55.13%) |
+| 8 | 400 | 52 | 56 | 103 | 30 / 56 (53.57%) |
+| 12 | 400 | 2 | 2 | 23 | 1 / 2 (50.00%) |
+
+The denominators quantify missed opportunities. Even when a globally observational synchronizing input of length at most three exists, the public heuristic may never find one. Its stateful, irreversible query history and finite scramble schedule matter. Depth five did not increase the number of globally observational words discovered in any of these groups, despite higher query cost, and the twelve-state witness above shows that higher depth can accept an additional false candidate.
+
+These ratios are exact finite-corpus fractions; the two available globally observational twelve-state cases are too few for a meaningful generalization. The full-model evaluator is a ground-truth oracle solely for researchers and must never be passed to the attacker.
+
 ## Interpretation and limits
 
 The independent fixture family checks the same public attacker outside its original LCG-derived distribution. It recovers many plausible short reset words for the 4-state machines even though global physical or observational synchronization is much rarer. Larger hidden-state counts reduce the candidate frequency under the fixed maximum 3-symbol word and chosen schedule, but this alone provides no generalized defense against an adversary with unlimited authorized SCO requests. Authorized relaying of an online server-private operation remains possible regardless of whether synchronization search succeeds.
