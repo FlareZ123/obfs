@@ -70,6 +70,10 @@ function accepted(node,parameters,depth=0) {
   if(node.type==='UnaryExpression'&&node.prefix&&node.operator==='-'&&
       node.argument.type==='Literal'&&typeof node.argument.value==='number'&&
       Number.isInteger(node.argument.value)) {
+    // Wasm i32 has only positive zero. JS -0 is observably different at the
+    // return boundary (Object.is, 1/x), including inside a pure ternary.
+    // Decline all syntactic -0 until a context-specific ToInt32 proof exists.
+    if(Object.is(-node.argument.value,-0))return false;
     return -node.argument.value>=-2147483648&&-node.argument.value<=2147483647;
   }
   return node.type==='BinaryExpression'&&Object.hasOwn(OPS,node.operator)&&
