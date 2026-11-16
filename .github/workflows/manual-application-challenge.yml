@@ -31,6 +31,8 @@ jobs:
         run: node sims/application-challenge-proof-diagnosis.js
       - name: Quantify refusal and protected-work yield on distinct frozen graphs
         run: node sims/application-challenge-refusal-yield.js
+      - name: Independent public-only JSDoc field-name reconstruction
+        run: node --test test/ownkey-comment-static-recovery.test.js
       - name: Profile whole-process costs on genuinely transformed positive COO graph
         run: node sims/verified-record-session-profile.js
       - name: Isolate independent whole-graph source-observer vetoes
