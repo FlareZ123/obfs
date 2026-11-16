@@ -137,6 +137,12 @@ test('COO/SNO integration reports path metrics and rejects unsafe selections',()
   assert.equal(result.files[0].metrics.polyvariantPaths,4);
   assert.equal(result.files[0].metrics.polyvariantSteps,steps.length);
   assert.equal(load(/** @type {string} */ (result.files[0].code))(101),load(original)(101));
+  const conservativeCoo=obfuscateFiles(files,{
+    mode:'coo',seed:'pipeline-coo',strings:false,properties:false,identifiers:false,
+    experimentalPolyvariantAffine:{'entry.cjs':['protectedSum']}
+  });
+  assert.equal(conservativeCoo.files[0].metrics.polyvariantPaths,2);
+  assert.equal(load(/** @type {string} */ (conservativeCoo.files[0].code))(101),load(original)(101));
   const opts=readArgs(['--root','project','--entry','entry.cjs',
     '--polyvariant-affine','entry.cjs:protectedSum','--polyvariant-count','8']);
   assert.deepEqual(opts.experimentalPolyvariantAffine,{'entry.cjs':['protectedSum']});
