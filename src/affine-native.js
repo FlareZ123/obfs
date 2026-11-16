@@ -160,10 +160,10 @@ function lowerAffineNative(source,sourceType,options) {
 
 /**
  * Compile an integer-normalized affine chain into input-partitioned native
- * arithmetic variants. Each numeric case receives exactly the values whose
- * low bits match its case label. Its reconstructed input is therefore exact
- * only within that case. A separate generic path preserves the original
- * ToInt32 exception and coercion behavior for non-number inputs.
+ * arithmetic variants. The input's original ToInt32 happens once before
+ * dispatch, preserving coercion effects and exceptions for all JS values.
+ * Each case receives only input integers whose low bits match its label;
+ * that case reconstructs an exact value only on its admitted subdomain.
  *
  * The branch bodies use independently diversified affine encodings and
  * execute only one path per call. No client-side secret is claimed: static
@@ -233,6 +233,12 @@ function lowerPolyvariantAffine(source,sourceType,options) {
     /** @param {string} label @returns {Buffer} */
     const derive=label=>createHash('sha256').update(entropy)
       .update('\0').update(label).digest();
+    let inputAttempt=0,normalized='';
+    do {
+      normalized='_ap_input_'+derive('input/'+inputAttempt).subarray(0,7).toString('hex');
+      inputAttempt++;
+    } while(reserved.has(normalized));
+    reserved.add(normalized);
     /** @type {{label:number,order:number,body:string}[]} */
     const cases=[];
     for(let index=0;index<variants;index++) {
@@ -242,24 +248,21 @@ function lowerPolyvariantAffine(source,sourceType,options) {
         attempt++;
       } while(reserved.has(slot));
       reserved.add(slot);
-      const narrowed='{const '+slot+'=(((('+param.name+'|0)>>'+shift+
+      const narrowed='{const '+slot+'=((('+normalized+'>>'+shift+
         ')<<'+shift+')|'+index+');'+
         emitAffineBody(chain,slot,derive('variant/'+index),reserved)+'}';
       cases.push({label:index,order:derive('order/'+index).readUInt32LE(0),
         body:narrowed});
     }
-    cases.push({label:variants,order:derive('order/fallback').readUInt32LE(0),
-      body:emitAffineBody(chain,param.name,derive('fallback'),reserved)});
     cases.sort((a,b)=>a.order-b.order);
-    const selector='(typeof '+param.name+'==="number"?(('+param.name+
-      '|0)&'+(variants-1)+'):'+variants+')';
-    const body='{switch('+selector+'){'+cases.map(entry=>
+    const selector='('+normalized+'&'+(variants-1)+')';
+    const body='{const '+normalized+'=('+param.name+'|0);switch('+selector+'){'+cases.map(entry=>
       'case '+entry.label+':'+entry.body).join('')+
       'default:throw Error("Invalid arithmetic path");}}';
     edits.push({start:fn.body.start,end:fn.body.end,text:body});
     functions++;
     steps+=chain.length;
-    paths+=variants+1;
+    paths+=variants;
   }
   if(!functions)return {code:source,functions:0,steps:0,paths:0,declined};
   const code=applyEdits(source,edits);
