@@ -59,6 +59,18 @@ function normalizeDistributedFiles(files) {
         if(node.key.type==='Literal'&&typeof node.key.value==='string')
           keyStringStarts.add(node.key.start);
       },
+      // acorn-walk visits ObjectPattern nodes but does not dispatch their
+      // Property children through the Property visitor. Without this branch
+      // a source-only relabel changes a producer's object keys while leaving
+      // ESM consumer destructuring reads at the old keys.
+      ObjectPattern(node) {
+        for(const property of node.properties) {
+          if(property.type==='Property'&&property.key.type==='Literal'&&
+             typeof property.key.value==='string') {
+            keyStringStarts.add(property.key.start);
+          }
+        }
+      },
       MemberExpression(node) {
         if(node.computed&&node.property.type==='Literal'&&
            typeof node.property.value==='string') {
