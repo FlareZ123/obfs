@@ -359,10 +359,14 @@ function partitionScoSelectedAsyncExports(file,options) {
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
   const privateModuleImports=new Set(options.privateModuleImports??[]);
+  /** @type {string[]} */
+  const privateModulePaths=[];
   for(const specifier of privateModuleImports){
     if(!isCanonicalPrivateModulePath(file.path,specifier)){
       throw new TypeError('Selective SCO private module import must be a canonical relative .mjs path');
     }
+    privateModulePaths.push(path.posix.normalize(
+      path.posix.join(path.posix.dirname(file.path),specifier)));
   }
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
@@ -664,7 +668,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   parse(clientCode,'module');
   return {...partition,publicNames,publicHelperNames:[...publicHelperNames],
     privateNames:[...options.privateNames],
-    clientFile:{...partition.clientFile,code:clientCode}};
+    clientFile:{...partition.clientFile,code:clientCode,
+      ...(privateModulePaths.length?{privateModulePaths}:{})}};
 }
 
 module.exports={partitionScoSelectedAsyncExports,bindScoModuleExports};
