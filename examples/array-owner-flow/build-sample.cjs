@@ -26,7 +26,10 @@ function execute(code){
  * @returns {Promise<{bytes:number,objects:number,properties:number}>}
  */
 async function buildSample(verify=false){
-  const before=await fs.readFile(path.join(__dirname,'before.cjs'),'utf8');
+  // Git's Windows CRLF checkout must not change the deterministic seed's
+  // source bytes or make a Linux-generated golden comparison meaningless.
+  const before=(await fs.readFile(path.join(__dirname,'before.cjs'),'utf8'))
+    .replace(/\r\n/gu,'\n');
   const output=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:before
   }],{
@@ -42,7 +45,8 @@ async function buildSample(verify=false){
     assert.equal(rewritten(input),native(input));
   }
   if(verify){
-    assert.equal(await fs.readFile(path.join(__dirname,'after.cjs'),'utf8'),after);
+    assert.equal((await fs.readFile(path.join(__dirname,'after.cjs'),'utf8'))
+      .replace(/\r\n/gu,'\n'),after);
   }else{
     await atomicWrite(path.join(__dirname,'after.cjs'),after);
   }
