@@ -42,3 +42,11 @@ The four-parameter test's recorded loading cost was 1.440639 ms (Ubuntu) / 1.547
 ## Reproduction
 
 From a Node 22 repository checkout with declared dependencies installed: `node --test test/wasm-i32-multiparam.test.js test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js`, `node examples/wasm-i32-multi/build.cjs`, `npm run typecheck`, `npx tsc -p jsconfig.wasm-i32.json`, and `node test/wasm-i32-browser.js` with real Chromium installed. The manual workflow `.github/workflows/manual-wasm-i32.yml` pins the broader focused cross-platform reproduction.
+
+## Three-file executable graph extension (subsequent pinned test)
+
+The newer exact-source [Ubuntu/Windows targeted gate 43804415669](https://github.com/FlareZ123/obfs/actions/runs/43804415669) at `f444111de5ffb26c974a20f9374d001278d0bf83` passed **16/16** Node tests, both strict JSDoc suites, the existing binary attacker and generated example, plus real Ubuntu Chromium/CSP. It adds `test/wasm-i32-multifile.test.js`, an executable graph with separate ESM kernel, bridge, and entry modules. The entry passes four signed-Int32 arguments through the compiled kernel to an external `globalThis.externalBridge.deliver` API, retaining the external property spelling. Native and obfuscated versions produced identical results on 1,024 differential graph invocations and **2,048 observed callback invocations**. A fully independent source-only recovery of the compiled `kernel.mjs` again yielded exactly `(((a^b)&(c|d))^((a>>>d)|(c<<b)))`. This is still a public source recovery, not confidentiality.
+
+An additional **80,000-loop warm whole-graph/bridge sample**, 11 alternated trials with native and compiled ESM, measured **17.975525 / 18.657560 ms = 1.03794×** Ubuntu, and **22.869500 / 24.035400 ms = 1.05098×** Windows. These ratios include the external callback and its string result computation, which dominates some of the bitvector kernel. They exclude ESM graph load and are only a measured whole-call benchmark under a fixed local API; a shorter application, different bridge or browser workload may fail the threshold.
+
+The earlier gate at `accabb...` is still the pinned first multi-argument source proof. This later gate adds an explicit inter-module and external-API contract.
