@@ -137,3 +137,47 @@ test('local non-host formal destructuring keeps actual owner-field transformatio
   assert.deepEqual(reference,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),reference);
 });
+
+
+/**
+ * Callable aliases are a second edge in the interprocedural graph: a direct
+ * argument-to-formal proof must follow the target function value after a
+ * uniquely bound local alias. These variants are separate from simple root
+ * forwarding through a named function's formal identifier.
+ */
+for(const [name,code] of [
+  ['aliased function declaration',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const alias=rewire;alias(globalThis);"],
+  ['transitively aliased function declaration',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}const one=rewire;const two=one;two(globalThis);"],
+  ['aliased arrow function',
+    "const rewire=({['Ref'+'lect']:cap})=>{cap.ownKeys=globalThis.HOST_REFLECT;};const alias=rewire;alias(globalThis);"]
+]){
+  test('callable alias ambient capability: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-formal-alias/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'Alias invocation must preserve the original exported field spelling');
+    assert.equal(compiled.crossFile.properties,0,
+      'An aliased local callable can still mutate ambient Reflect methods');
+  });
+}
+
+test('aliased function reading an unrelated host field preserves nonvacuous rename',async()=>{
+  const original=graph(
+    "const read=({['UNRELATED_FIXTURE']:x})=>x;const alias=read;void alias(globalThis);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-formal-alias/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A benign aliased function must not force full-graph refusal');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
