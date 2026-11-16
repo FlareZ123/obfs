@@ -27,6 +27,11 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Check independent static attack and external JSDoc
+        if: matrix.mode == 'sno' && matrix.sourceType == 'script'
+        run: |
+          node --test test/jsdeobsbench-public-static-attack.test.js
+          npm run typecheck:external
       - name: Download upstream pinned verified corpus
         shell: bash
         run: |
@@ -41,6 +46,27 @@ jobs:
         run: node sims/jsdeobsbench-adapter.js --input ./jsdeobsbench-native.jsonl --output ./jsdeobsbench-obfuscated.jsonl --mode ${{ matrix.mode }} --source-type ${{ matrix.sourceType }} --seed pinned-jsdeobsbench-20261115 --max 1301
       - name: Measure public-source transformation coverage and emitted size
         run: node sims/jsdeobsbench-coverage.js ./jsdeobsbench-obfuscated.jsonl --require-transform
+      - name: Reconstruct encoded strings using only distributed public bytes
+        if: matrix.mode == 'sno'
+        run: |
+          node sims/jsdeobsbench-public-static-attack.js \
+            --input ./jsdeobsbench-obfuscated.jsonl \
+            --output ./jsdeobsbench-public-recovered.jsonl \
+            --require-exact
+      - name: Compare recovered public code with native behavior in restricted Docker
+        if: matrix.mode == 'sno'
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --cpus 2 --memory 1g --pids-limit 64 \
+            --tmpfs /tmp:rw,nosuid,nodev,size=32m,mode=1777 \
+            --user 65534:65534 \
+            --mount "type=bind,src=${{ github.workspace }},dst=/work,readonly" \
+            --workdir /work node:22-alpine \
+            node sims/jsdeobsbench-differential.js \
+              --original /work/jsdeobsbench-native.jsonl \
+              --transformed /work/jsdeobsbench-public-recovered.jsonl \
+              --sample 100 --cases 2 --timeout 3000 \
+              --seed pinned-jsdeobsbench-20261115
       - name: Independently execute paired baseline and transformed code in restricted Docker
         shell: bash
         run: |
