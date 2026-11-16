@@ -124,3 +124,29 @@ test('SCO declines per-file spelling mutation for a cross-file dynamic Reflect.g
   assert.equal(await execute(delivered),expected,
     'A runtime-selected reflective key can still retrieve exact native function source');
 });
+
+for(const [name,reader] of /** @type {[string,string][]} */ ([
+  ['destructured function prototype',
+    'const {toString:readSource}=Function.prototype;console.log(readSource.call(inspect));'],
+  ['captured bulk descriptors',
+    'const descriptors=Object.getOwnPropertyDescriptors;const all=descriptors(Function.prototype);console.log(all.toString.value.call(inspect));'],
+  ['spread Reflect.get',
+    'const args=[inspect,true?"toString":"valueOf"];console.log(Reflect.get(...args).call(inspect));'],
+  ['aliased prototype getter',
+    'const R=Reflect;const proto=R.getPrototypeOf(inspect);const key=true?"toString":"valueOf";console.log(proto[key].call(inspect));'],
+  ['Reflect.get.apply',
+    'const args=[inspect,"toString"];console.log(Reflect.get.apply(Reflect,args).call(inspect));']
+])) {
+  test('SCO preserves additional reflective native-source paths: '+name,async()=>{
+    /** @type {ModuleFile[]} */
+    const files=[
+      {path:'state.mjs',sourceType:'module',code:
+        'export function inspect(){const local={secretField:23};return local.secretField;}'},
+      {path:'entry.mjs',sourceType:'module',code:
+        'import {inspect} from "./state.mjs";'+reader}
+    ];
+    const expected=await execute(files);
+    const delivered=await receive(files);
+    assert.equal(await execute(delivered),expected,name);
+  });
+}
