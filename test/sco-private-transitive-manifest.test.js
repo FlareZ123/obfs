@@ -31,6 +31,14 @@ function emit(graph,additionalPrivateModulePaths=[]) {
 
 test('closed-world private ESM graph tracks transitive import and reexport paths',()=>{
   const generated=emit([engine,leaf]);
+  const directOnly=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:entry},
+    {seed:'transitive-private-manifest-20261116',
+      privateNames:['protectedDigest'],
+      privateModuleImports:['./private/engine.mjs']}
+  );
+  assert.equal(generated.clientFile.code,directOnly.clientFile.code,
+    'Static-only source auditing must not change runtime client JavaScript');
   assert.deepEqual(generated.clientFile.privateModulePaths,[
     'private/engine.mjs','private/deep/secret.mjs'
   ]);
