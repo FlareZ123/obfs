@@ -1023,9 +1023,10 @@ function partitionScoSelectedAsyncExports(file,options) {
         }
       }
     });
-    // A local name alone is insufficient to prove member semantics. Verify
-    // all accesses use an own literal key and that no host-derived value
-    // enters the local object after its inert initialization.
+    // For direct members of an owned local root, require a literal own key
+    // and refuse unproved direct writes. Nested aliases, inherited methods
+    // past the first field, and opaque object operations remain outside this
+    // deliberately bounded syntactic proof.
     /** @type {Map<string,Set<string>>} */
     const ownedKeys=new Map();
     for(const [name,declaration] of provenBindings){
