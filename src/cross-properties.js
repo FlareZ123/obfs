@@ -210,15 +210,23 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }
   }
   if(!declaration || !declaration.init ||
-      declaration.init.type!=='ObjectExpression' ||
-      !declaration.init.properties.every((/** @type {AstNode} */ property)=>
-        property.type==='Property' && property.kind==='init' &&
-        !property.method && !property.shorthand && !property.computed &&
-        property.value.type==='Literal' &&
-        (property.value.value===null ||
-          ['string','number','boolean','bigint'].includes(typeof property.value.value)) &&
-        ownPropertyName(property)!==null &&
-        !['__proto__','constructor','prototype'].includes(String(ownPropertyName(property)))))return false;
+      declaration.init.type!=='ObjectExpression')return false;
+  let nullPrototype=false;
+  for(const property of declaration.init.properties) {
+    if(property.type!=='Property' || property.kind!=='init' ||
+        property.method || property.shorthand || property.computed ||
+        property.value.type!=='Literal' ||
+        !(property.value.value===null ||
+          ['string','number','boolean','bigint'].includes(typeof property.value.value)))return false;
+    const name=ownPropertyName(property);
+    if(name===null || name==='constructor' || name==='prototype')return false;
+    if(name==='__proto__') {
+      // This is the special noncomputed ObjectLiteral prototype setter,
+      // which creates no own property and cannot inherit a host Function.
+      if(nullPrototype || property.value.value!==null)return false;
+      nullPrototype=true;
+    }
+  }
   // Only these unescaped read-only uses of the private record are admissible.
   let receiverStable=true;
   walk(module.ast,(node,parent,key)=>{
@@ -280,7 +288,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     'hasOwnProperty','isPrototypeOf','propertyIsEnumerable',
     'toLocaleString','toString','valueOf']);
   const ownNames=new Set(declaration.init.properties.map(ownPropertyName));
-  return [...keys].every(key=>ownNames.has(key) && !inherited.has(key));
+  ownNames.delete('__proto__');
+  return [...keys].every(key=>nullPrototype ||
+    ownNames.has(key) && !inherited.has(key));
 }
 
 /**
