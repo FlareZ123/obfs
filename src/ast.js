@@ -862,6 +862,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   const loaderModules=new Set(['module','node:module','vm','node:vm']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Module-registry objects can reach Node's internal source-file loader.
+  // Follow simple aliases monotonically, conservatively accepting over-refusal.
+  const requireRoots=new Set(['require']);
+  const moduleRoots=new Set(['module']);
+  const processRoots=new Set(['process']);
   // Follow plain global-object aliases conservatively. An eventual mutable
   // reassignment may create a false positive; it cannot make the guard unsafe.
   let changed;
@@ -873,10 +878,13 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           node.left.type==='Identifier' ? node.left : null;
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
-      if(binding?.type==='Identifier' && initial?.type==='Identifier' &&
-         globals.has(initial.name) && !globals.has(binding.name)) {
-        globals.add(binding.name);
-        changed=true;
+      if(binding?.type==='Identifier' && initial?.type==='Identifier') {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots]) {
+          if(roots.has(initial.name) && !roots.has(binding.name)) {
+            roots.add(binding.name);
+            changed=true;
+          }
+        }
       }
     });
   }while(changed);
@@ -944,6 +952,14 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(literal!==null)return literal;
     return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
   }
+  /** @param {string} receiver @param {string|null} key @returns {boolean} */
+  function canReachLoader(receiver,key) {
+    return requireRoots.has(receiver) &&
+      (key===null || ['cache','main','extensions'].includes(key)) ||
+      moduleRoots.has(receiver) &&
+      (key===null || ['children','parent','constructor'].includes(key)) ||
+      processRoots.has(receiver) && (key===null || key==='mainModule');
+  }
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
@@ -972,25 +988,31 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          node.object.type==='Identifier' && globals.has(node.object.name)) {
         observed=true;
       }
-      // CommonJS module.constructor exposes Node's Module class. Its
-      // _load() method can access fs without an import, require identifier,
-      // or one of the member-loader names recognized above.
-      if(key==='constructor' && node.object.type==='Identifier' &&
-         node.object.name==='module')observed=true;
+      // Cached modules, parent/child links, and the process main module
+      // expose constructor._load even without a literal fs import.
+      if(node.object.type==='Identifier' &&
+         canReachLoader(node.object.name,key))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&
        ['Reflect','Object'].includes(node.callee.object.name) &&
-       ['get','getOwnPropertyDescriptor'].includes(node.callee.computed ?
-         knownKey(node.callee.property) ?? '' :
-         node.callee.property.type==='Identifier' ? node.callee.property.name : '') &&
-       node.arguments[0]?.type==='Identifier' &&
-       globals.has(node.arguments[0].name)) {
+       node.arguments[0]?.type==='Identifier') {
+      const method=node.callee.computed ? knownKey(node.callee.property) :
+        node.callee.property.type==='Identifier' ? node.callee.property.name : null;
+      const root=node.arguments[0].name;
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
-      if(target===null || browserReaders.has(target) ||
-         ['require','getBuiltinModule','createRequire'].includes(target)) {
-        observed=true;
+      if(['get','getOwnPropertyDescriptor'].includes(method??'')) {
+        if(globals.has(root) &&
+           (target===null || browserReaders.has(target) ||
+            ['require','getBuiltinModule','createRequire'].includes(target)))observed=true;
+        if(canReachLoader(root,target))observed=true;
       }
+      // Enumerating module-registry descriptors exposes the loader root
+      // without spelling the selected member in the local expression.
+      if((node.callee.object.name==='Object' &&
+          ['getOwnPropertyDescriptors','keys','values','entries'].includes(method??'') ||
+          node.callee.object.name==='Reflect' && method==='ownKeys') &&
+          (requireRoots.has(root)||moduleRoots.has(root)||processRoots.has(root)))observed=true;
     }
   });
   return observed;
