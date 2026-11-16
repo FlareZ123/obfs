@@ -183,10 +183,14 @@ function renameCrossFileProperties(files,seed) {
     // aliases conservatively, including assignments, before proving that all
     // consumers of an exported owner are present in this source group.
     const globalAliases=new Set(['globalThis','window','self','global']);
+    const reflectAliases=new Set(['Reflect']);
+    const objectAliases=new Set(['Object']);
     /** @type {[string,string][]} */
     const aliasEdges=[];
     /** @type {Map<string,string>} */
     const localStaticKeys=new Map();
+    /** @type {{source:string,key:AstNode|null,computed:boolean}[]} */
+    const destructuringReads=[];
     walk(module.ast,(node,parent)=>{
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
          node.init?.type==='Identifier')aliasEdges.push([node.id.name,node.init.name]);
@@ -200,18 +204,61 @@ function renameCrossFileProperties(files,seed) {
          node.left.type==='Identifier' && node.right.type==='Identifier') {
         aliasEdges.push([node.left.name,node.right.name]);
       }
+      // Object destructuring can acquire a loader without any MemberExpression,
+      // including a computed key and a value bound under an unrelated name.
+      const pattern=node.type==='VariableDeclarator' ? node.id :
+        node.type==='AssignmentExpression' && node.operator==='=' ? node.left : null;
+      const initial=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier') {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property') {
+            destructuringReads.push({source:initial.name,key:null,computed:true});
+            continue;
+          }
+          destructuringReads.push({source:initial.name,key:property.key,
+            computed:property.computed});
+          const name=property.computed ? staticString(property.key) : staticName(property.key);
+          if(name!==null && globalAliases.has(name)) {
+            if(property.value.type==='Identifier')aliasEdges.push([property.value.name,initial.name]);
+            else destructuringReads.push({source:initial.name,key:null,computed:true});
+          }
+        }
+      }
     });
     let aliasChanged;
     do {
       aliasChanged=false;
       for(const [target,source] of aliasEdges) {
-        if(globalAliases.has(source) && !globalAliases.has(target)) {
-          globalAliases.add(target);
-          aliasChanged=true;
+        for(const names of [globalAliases,reflectAliases,objectAliases]) {
+          if(names.has(source) && !names.has(target)) {
+            names.add(target);
+            aliasChanged=true;
+          }
         }
       }
     } while(aliasChanged);
+    /**
+     * Resolve a key only if its expression is a pure static string or the
+     * unique local/imported immutable string proven by the ESM graph.
+     * @param {AstNode|null|undefined} key
+     * @param {boolean} [computed]
+     * @returns {string|null}
+     */
+    function provenKey(key,computed=true) {
+      if(!key)return null;
+      const direct=computed?staticString(key):staticName(key);
+      return direct===null && computed && key.type==='Identifier' ?
+        localStaticKeys.get(key.name) ??
+          verifiedStrings.get(module.file.path)?.get(key.name) ?? null : direct;
+    }
     let ambiguous=false;
+    for(const read of destructuringReads) {
+      if(!globalAliases.has(read.source))continue;
+      const name=provenKey(read.key,read.computed);
+      if(name===null || dynamicCompilerNames.has(name) || secondaryLoaderNames.has(name) ||
+         ['require','createRequire','getBuiltinModule'].includes(name)) ambiguous=true;
+    }
     walk(module.ast,node=>{
       if (node.type==='Identifier' &&
           (dynamicCompilerNames.has(node.name)||secondaryLoaderNames.has(node.name))) ambiguous=true;
@@ -219,10 +266,7 @@ function renameCrossFileProperties(files,seed) {
         // A computed constant spelling such as globalThis['Fun'+'ction']
         // is a loader just as globalThis.Function is. A dynamic global key
         // is also unsafe because it can resolve to any untracked loader.
-        const literalName=node.computed ? staticString(node.property) : staticName(node.property);
-        const name=literalName===null && node.computed && node.property.type==='Identifier' ?
-          localStaticKeys.get(node.property.name) ??
-            verifiedStrings.get(module.file.path)?.get(node.property.name) ?? null : literalName;
+        const name=provenKey(node.property,node.computed);
         if (typeof name==='string' &&
             (dynamicCompilerNames.has(name)||secondaryLoaderNames.has(name))) ambiguous=true;
         if(node.computed && name===null && node.object.type==='Identifier' &&
@@ -234,6 +278,24 @@ function renameCrossFileProperties(files,seed) {
       // decline the graph until such consumers are resolved explicitly.
       if (node.type==='CallExpression') {
         const callee=node.callee;
+        // Reflect.get and descriptor reads can obtain a runtime Function
+        // constructor from the global object without any direct member
+        // expression on that object. Follow simple immutable/mutable aliases.
+        if(callee.type==='MemberExpression' &&
+           callee.object.type==='Identifier' && node.arguments[0]?.type==='Identifier' &&
+           globalAliases.has(node.arguments[0].name)) {
+          const method=provenKey(callee.property,callee.computed);
+          const reflective=reflectAliases.has(callee.object.name) &&
+            ['get','getOwnPropertyDescriptor'].includes(method??'');
+          const descriptors=objectAliases.has(callee.object.name) &&
+            ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(method??'');
+          if(reflective||descriptors) {
+            const selected=provenKey(node.arguments[1]);
+            if(method==='getOwnPropertyDescriptors' || selected===null ||
+               dynamicCompilerNames.has(selected) || secondaryLoaderNames.has(selected) ||
+               ['require','createRequire','getBuiltinModule'].includes(selected)) ambiguous=true;
+          }
+        }
         const name=callee.type==='Identifier' ? callee.name :
           callee.type==='MemberExpression' ?
             (callee.computed ? staticString(callee.property) : staticName(callee.property)) : null;
