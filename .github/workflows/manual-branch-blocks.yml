@@ -20,7 +20,7 @@ jobs:
       - name: Generate real before-and-after sample
         run: node examples/branch-blocks/build.cjs
       - name: Branch differential semantics
-        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js test/statement-flow.test.js test/statement-flow-multifile.test.js test/statement-flow-cli.test.js
+        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js test/statement-flow.test.js test/statement-flow-multifile.test.js test/statement-flow-cli.test.js test/statement-flow-host-bypass.test.js
       - name: Regenerate multi-statement before-and-after artifact
         run: node examples/statement-flow/build.cjs
       - name: Seedless attacker reconstruction
@@ -72,7 +72,7 @@ jobs:
       - name: Generate actual before and after
         run: node examples/branch-blocks/build.cjs
       - name: Semantic, layered ESM, masked-state recovery regressions
-        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js test/statement-flow.test.js test/statement-flow-multifile.test.js test/statement-flow-cli.test.js
+        run: node --test test/branch-blocks.test.js test/branch-block-reconstruction.test.js test/branch-block-layered.test.js test/statement-flow.test.js test/statement-flow-multifile.test.js test/statement-flow-cli.test.js test/statement-flow-host-bypass.test.js
       - name: Held-out seeded attacker corpus
         run: node sims/branch-block-recovery-corpus.js
       - name: Public ciphertext-bit tamper attack
