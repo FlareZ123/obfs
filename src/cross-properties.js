@@ -306,13 +306,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       return false;
     }
     walk(source.ast,node=>{
-      if(node.type!=='VariableDeclarator'||!node.init)return;
-      if(node.id.type==='Identifier' && readsHostCallable(node.init)) {
-        hostCallAliases.add(node.id.name);
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!binding||!value)return;
+      if(binding.type==='Identifier' && readsHostCallable(value)) {
+        hostCallAliases.add(binding.name);
       }
-      if(node.id.type==='ObjectPattern' && node.init.type==='Identifier' &&
-         hostRoots.has(node.init.name)) {
-        for(const property of node.id.properties) {
+      // Object-pattern assignment into an already declared local variable
+      // can extract the same mutable global capability as a declaration.
+      if(binding.type==='ObjectPattern' && value.type==='Identifier' &&
+         hostRoots.has(value.name)) {
+        for(const property of binding.properties) {
           if(property.type==='Property' && property.value.type==='Identifier')
             hostCallAliases.add(property.value.name);
         }
