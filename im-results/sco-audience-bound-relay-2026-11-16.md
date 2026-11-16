@@ -69,6 +69,22 @@ directly, and direct/proxied paths include localhost HTTP request/response,
 server-side per-principal isolation and authenticated policy checks.
 All measured outputs were asserted exactly against the native baseline.
 
+## Independent security-performance dimensions
+
+| Dimension | Bounded evidence | Unresolved attack or limitation |
+|---|---|---|
+| Static reconstruction | No private HMAC key or implementation shipped in the inspected generated ESM facade | A complete client interface is still available and may be copied |
+| Dynamic runtime extraction | The attacker observes RPC requests and result bytes while forwarding them | A fully instrumented authenticated browser can relay all its own account's outputs |
+| Unauthorized modification | A forged client-supplied second audience argument receives HTTP 403; the private method derives audience from server-verified context | Client-side UI and delivered JavaScript can be modified, and authorized method inputs remain attacker-chosen |
+| Execution authorization | Unverified HTTP RPC receives 403; an A-only token produced zero B-context matches over 32 tests | A valid B token, cooperating B client, or compromised server defeats the scoped separation |
+| Performance | Selected heavy HMAC session's direct and relay loopback medians remain under 2.5× | Real WAN/TLS, cold ESM facade import, light workloads and large concurrency are unmeasured here |
+
+The generated facade was fetched and inspected for private canaries; this
+particular account-bound test invokes its equivalent JSON RPC contract
+directly, rather than importing the served module into Chromium. Separate
+SCO browser tests in the workflow do not substitute for that narrower
+unperformed browser path.
+
 ## What the experiment establishes and leaves open
 
 The trusted server binds private output to an independently authenticated
