@@ -17,10 +17,10 @@ const after=fs.readFileSync(path.join(__dirname,
  * @returns {(value:number,flag:boolean,hook:(tag:string)=>void)=>number}
  */
 function load(source){
-  const module={exports:/** @type {Record<string,unknown>} */({})};
-  vm.runInNewContext(source,{module});
+  // A source-only attacker needs only the public function declaration.
+  // Re-evaluating its CommonJS wrapper is unnecessary for this mutation test.
   return /** @type {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */
-    (module.exports.route);
+    (vm.runInNewContext(source+'\n;route;',{module:{exports:{}}}));
 }
 assert.equal(after.split('score += 31;').length,2);
 const modified=after.replace('score += 31;','score += 32;');
