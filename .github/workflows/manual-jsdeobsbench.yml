@@ -30,7 +30,7 @@ jobs:
       - name: Check independent static attack and external JSDoc
         if: matrix.mode == 'sno' && matrix.sourceType == 'script'
         run: |
-          node --test test/jsdeobsbench-public-static-attack.test.js
+          node --test test/jsdeobsbench-public-static-attack.test.js test/jsdeobsbench-public-esm.test.js
           npm run typecheck:external
       - name: Download upstream pinned verified corpus
         shell: bash
