@@ -9,6 +9,7 @@ const {createHash}=require('node:crypto');
 const {spawnSync}=require('node:child_process');
 const {convertItem}=require('../sims/jsdeobsbench-adapter');
 const {recoverPublicStrings,attackCorpus,parseArgs}=require('../sims/jsdeobsbench-public-static-attack');
+const {publishPublicCorpus,verifyRecoveredCorpus}=require('../sims/jsdeobsbench-public-protocol');
 const {atomicWrite}=require('../src/atomic');
 
 /** @param {string} code @returns {string} */
@@ -60,46 +61,62 @@ test('unknown table references are refused; unrelated code remains unchanged',()
   assert.equal(result.literals,0);
 });
 
-test('source hash verification, exact recovery gate and reproducible recovered JSONL',async()=>{
+test('public-only input isolation, hash verification and exact recovery join',async()=>{
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-offline-attack-'));
-  const input=path.join(folder,'source.jsonl');
-  const recovered=path.join(folder,'recovered.jsonl');
+  const compiled=path.join(folder,'compiled.jsonl');
+  const publicFile=path.join(folder,'public.jsonl');
+  const recovered=path.join(folder,'recovered-public.jsonl');
+  const verified=path.join(folder,'verified.jsonl');
   try {
     const original="console.log('static-recovery-canary');";
     const row=build(original,'script');
-    await atomicWrite(input,JSON.stringify(row)+'\n');
-    const metrics=await attackCorpus(input,recovered,true);
+    await atomicWrite(compiled,JSON.stringify(row)+'\n');
+    assert.equal(await publishPublicCorpus(compiled,publicFile),1);
+    const publicRow=JSON.parse(await fs.readFile(publicFile,'utf8'));
+    assert.deepEqual(Object.keys(publicRow),[
+      'filename','obfuscated','obfs_source_type','obfs_output_sha256']);
+    assert.equal(Object.hasOwn(publicRow,'original'),false);
+    assert.equal(Object.hasOwn(publicRow,'test_cases'),false);
+    assert.equal(Object.hasOwn(publicRow,'obfs_metrics'),false);
+    const metrics=await attackCorpus(publicFile,recovered,true);
     assert.equal(metrics.programs,1);
-    assert.equal(metrics.incompletePrograms,0);
     assert.ok(metrics.recoveredLiterals>0);
-    assert.equal(metrics.encodedLiterals,metrics.recoveredLiterals);
     assert.equal(metrics.sourceOnly,true);
     const output=JSON.parse(await fs.readFile(recovered,'utf8'));
     assert.equal(output.attack_recovered_literals,metrics.recoveredLiterals);
+    assert.equal(output.attack_input_sha256,row.obfs_output_sha256);
     assert.equal(output.obfs_output_sha256,
       createHash('sha256').update(output.obfuscated).digest('hex'));
-    assert.equal(execute(output.obfuscated),execute(original));
-    const originalRecovered=await fs.readFile(recovered,'utf8');
-    await attackCorpus(input,recovered,true);
-    assert.equal(await fs.readFile(recovered,'utf8'),originalRecovered);
-    await assert.rejects(attackCorpus(input,input),/must differ/);
-    const falsified={...row,obfuscated:String(row.obfuscated)+'\n//tampered'};
-    await atomicWrite(input,JSON.stringify(falsified)+'\n');
-    await assert.rejects(attackCorpus(input,null),/hash mismatch/);
-    const noProgress={...row,obfs_metrics:{...row.obfs_metrics,literals:999}};
-    await atomicWrite(input,JSON.stringify(noProgress)+'\n');
-    await assert.rejects(attackCorpus(input,recovered,true),/Incomplete public static recovery/);
-    assert.equal(await fs.readFile(recovered,'utf8'),originalRecovered);
+    const exact=await verifyRecoveredCorpus(compiled,recovered,verified);
+    assert.equal(exact.encodedLiterals,exact.recoveredLiterals);
+    assert.equal(exact.programs,1);
+    const joined=JSON.parse(await fs.readFile(verified,'utf8'));
+    assert.equal(joined.original,original);
+    assert.deepEqual(joined.test_cases,row.test_cases);
+    assert.equal(execute(joined.obfuscated),execute(original));
+    const first=await fs.readFile(recovered,'utf8');
+    await attackCorpus(publicFile,recovered,true);
+    assert.equal(await fs.readFile(recovered,'utf8'),first);
+    await assert.rejects(attackCorpus(publicFile,publicFile),/must differ/);
+    const altered={...publicRow,obfuscated:String(publicRow.obfuscated)+'\n//tampered'};
+    await atomicWrite(publicFile,JSON.stringify(altered)+'\n');
+    await assert.rejects(attackCorpus(publicFile,null),/hash mismatch/);
+    await atomicWrite(publicFile,JSON.stringify({...publicRow,original})+'\n');
+    await assert.rejects(attackCorpus(publicFile,null),/Public attack input/);
+    const incorrect={...row,obfs_metrics:{...row.obfs_metrics,literals:999}};
+    await atomicWrite(compiled,JSON.stringify(incorrect)+'\n');
+    await assert.rejects(verifyRecoveredCorpus(compiled,recovered,verified),/Incomplete/);
+    assert.equal(await fs.readFile(recovered,'utf8'),first);
   } finally {
     await fs.rm(folder,{force:true,recursive:true});
   }
 });
 
-test('CLI parser accepts only explicit nonduplicate paths and exactness flag',()=>{
-  assert.deepEqual(parseArgs(['--input','public.jsonl','--require-exact']),{
-    input:'public.jsonl',output:null,requireExact:true
+test('CLI parser accepts only explicit nonduplicate paths and progress flag',()=>{
+  assert.deepEqual(parseArgs(['--input','public.jsonl','--require-progress']),{
+    input:'public.jsonl',output:null,requireProgress:true
   });
   assert.throws(()=>parseArgs([]),/Required/);
   assert.throws(()=>parseArgs(['--input','one','--input','two']),/Required/);
-  assert.throws(()=>parseArgs(['--require-exact','--require-exact','--input','x']),/Duplicate/);
+  assert.throws(()=>parseArgs(['--require-progress','--require-progress','--input','x']),/Duplicate/);
 });
