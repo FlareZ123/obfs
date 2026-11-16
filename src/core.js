@@ -388,7 +388,7 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedStrings(prepared) : new Map();
   const remoteSourceObserver=prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
-    (observesDistributedSource(parse(file.code,file.sourceType)) ||
+    (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path))));
   // A hostname wrapper prepends source bytes. Code that can read its own
