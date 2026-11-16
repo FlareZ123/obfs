@@ -435,15 +435,15 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     walk(ast,node=>{
       if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
          processRoots.has(node.object.name)&&
-         nodeLoaderKeys.has(node.computed?staticString(node.property):node.property.name)){
+         nodeLoaderKeys.has((node.computed?staticString(node.property):node.property.name)??'')){
         throw new TypeError('SCO private static graph contains an unproved Node process loader: '+filename);
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          node.init?.type==='Identifier'&&processRoots.has(node.init.name)&&
          node.id.properties.some((/** @type {import('./ast').AstNode} */ property)=>
            property.type==='Property'&&
-           nodeLoaderKeys.has(property.computed?
-             staticString(property.key):property.key.name??staticString(property.key)))){
+           nodeLoaderKeys.has((property.computed?
+             staticString(property.key):property.key.name??staticString(property.key))??''))){
         throw new TypeError('SCO private static graph destructures an unproved Node process loader: '+filename);
       }
     });
