@@ -231,3 +231,27 @@ for(const [label,setup] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+for(const crossModule of [false,true]) {
+  test('host callable returned '+(crossModule?'across an ESM module':'from a local function')+
+      ' must not authorize renaming an observed owner',async()=>{
+    const files=graph([
+      crossModule?"import {getFactory} from './factory.mjs';":
+        'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+      'const ctor=getFactory();',
+      "const remote=await ctor(\"return import('./state.mjs')\")();",
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    if(crossModule)files.push({path:'factory.mjs',sourceType:'module',
+      code:'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n');
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:crossModule?'cross-module-host-return':'local-host-return',
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native);
+    assert.equal(compiled.crossFile.properties,0,
+      'Opaque host capabilities returned by function calls may dynamically import published ESM modules');
+  });
+}
