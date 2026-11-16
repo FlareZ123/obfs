@@ -669,6 +669,10 @@ function renameLocalProperties(source, ast, options) {
     // proved without rewriting references in independent classic scripts.
     if (options.sourceType === 'script' &&
         !ancestors.some(a => a.type === 'BlockStatement')) return;
+    // A globally declared factory can be reassigned by a later classic
+    // script. Its freshly returned shape is no longer the literal proven
+    // from this file, so keep classic-script owners as direct literals only.
+    if (options.sourceType === 'script' && node.type !== 'ObjectExpression') return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
