@@ -638,6 +638,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // Enumerating descriptors can disclose Function.prototype.toString
+      // through a later computed-key read of the returned descriptor map.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         callee.object.type==='Identifier' &&
+         reflectiveReceivers.has(callee.object.name) &&
+         memberName(callee)==='getOwnPropertyDescriptors' &&
+         node.arguments.length>=1) observed=true;
       // Reflect.get and descriptor inspection can read the same stack data
       // without mentioning it in a MemberExpression.
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
