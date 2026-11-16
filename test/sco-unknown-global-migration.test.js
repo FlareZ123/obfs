@@ -78,3 +78,15 @@ test('SCO rejects alternate global-object paths and identity escapes',()=>{
       /unproved host-global state|browser-only ambient state|realm-local intrinsic state/u,body);
   }
 });
+
+test('Independent local globalThis bindings in private and public exports are separate',()=>{
+  const original=source(
+    'const globalThis={privateValue:41};return globalThis.privateValue;',
+    'const globalThis={publicValue:7};return globalThis.publicValue;');
+  const emitted=partitionScoSelectedAsyncExports(
+    {path:'local-shadow.mjs',code:original,sourceType:'module'},
+    {privateNames:['protectedOp'],seed:'local-shadow-regression-20261116'});
+  assert.deepEqual(emitted.privateNames,['protectedOp']);
+  assert.deepEqual(emitted.publicNames,['visible']);
+  assert.match(emitted.clientFile.code,/globalThis.publicValue/u);
+});
