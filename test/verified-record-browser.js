@@ -52,11 +52,14 @@ async function main(){
     'Own-key-only application must rename two genuinely private fields');
   assert.equal(nullCompiled.crossFile.properties,2,
     'Null-prototype application must retain its missing-key call and rename two fields');
+  /** @type {Map<string,string>} */
   const sources=new Map();
-  for(const [prefix,files] of [
+  /** @type {[string,ReadonlyArray<{path:string,code:string|Buffer}>][]} */
+  const fileSets=[
     ['/own-native/',ownNative],['/own-compiled/',ownCompiled.files],
     ['/null-native/',nullNative],['/null-compiled/',nullCompiled.files]
-  ]) {
+  ];
+  for(const [prefix,files] of fileSets) {
     for(const file of files)sources.set(prefix+file.path,
       /** @type {string} */(file.code));
   }
