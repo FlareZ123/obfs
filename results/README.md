@@ -9,6 +9,8 @@ The [architecture decision matrix](../im-results/decision-matrix-2026-11-15.md) 
 Subsequent experiments sharpen the decision. [Runtime decoder extraction](../im-results/runtime-decoder-extraction-2026-11-15.md) demonstrates native Node and Chromium interception of the eager XOR decoder, including a dormant string literal. [Source-observer regression and coverage evidence](../im-results/source-observer-proof-coverage-2026-11-15.md) documents a passing cross-platform repair and the coverage sacrificed by a whole-group refusal guard. The [typed numeric WebAssembly candidate](../im-results/wasm-numeric-candidate-2026-11-15.md) reports exact numeric differential checks, executable copying from distributed Wasm bytes, a hot-work result within the budget, and cold-start cases exceeding 2.5×. It remains an isolated experimental backend, as its report states. [SCO polynomial-oracle reconstruction](../im-results/sco-polynomial-oracle-2026-11-15.md) independently measures chosen-input functional reconstruction despite keeping implementation source server-private.
 
 
+The [independent SHA-derived SCO state-machine challenge](../im-results/sco-independent-sha-mealy-2026-11-16.md) re-evaluates the existing public step-only chosen-input attacker on a generator distinct from the earlier LCG family. Its 400-model-per-condition local stress reveals a depth-five false candidate in a twelve-state machine even when the depth-three attack declines, with exact executable reproduction. These are interim attacker-methodology and query-cost results; they establish no new mode-level security guarantee.
+
 ## Frozen application-scale attack/cost comparison (16 November)
 
 The [six-module frozen application challenge](../examples/application-challenge/README.md)
