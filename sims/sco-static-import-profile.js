@@ -45,7 +45,9 @@ async function profile(){
       method===compiled.methodNames.protectedDigest &&
       args.length===1 && typeof args[0]==='string' && args[0].length<=8192
   }));
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await ready;
   const address=server.address();
   if(!address||typeof address==='string')throw Error('Expected TCP listener');
   const origin='http://127.0.0.1:'+address.port;
@@ -95,8 +97,10 @@ async function profile(){
     };
   }finally{
     globalThis.fetch=originalFetch;
-    await new Promise((resolve,reject)=>
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
+    await closed;
   }
 }
 
