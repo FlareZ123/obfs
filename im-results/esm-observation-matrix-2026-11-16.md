@@ -36,9 +36,20 @@ SNO and SCO rows here measure **programmatic ESM compiler outputs only**. The ha
 
 ## Public-only attacker extension
 
-The later source extension uses the existing [offline name normalizer](../sims/offline-normalize.js) as a **seedless, source-independent attacker**: it receives only the actually emitted ESM files, changes deterministic hash-looking private field spellings into neutral sequential labels, then executes the normalized public graph with the native Node loader. It must preserve the original application's result and demonstrate at least two normalized field spellings for each positive direct-owner case. This is **name normalization and functional public-code replay**, not recovery of original private variable names or reconstruction of source comments.
+The later source extension uses the independent [public Acorn-token field normalizer](../sims/public-token-normalizer.js) as a **seedless source-only attacker**: it accepts only the emitted ESM files, recognizes compiler-distributed hash-looking key tokens, normalizes them into neutral sequential labels with Acorn public parser APIs, then executes the changed public files under Node's real ESM loader. This attacker has no dependency on the obfuscator's internal AST, source input or build seed. It does not recover erased original private names or comments, and its simple naming-pattern detector does not generalize to every possible obfuscator.
 
-Validation of the additional attacker extension must be tied to its own exact branch SHA; the earlier 43894365840 run preceded that extension and does not prove it.
+At [full Linux/Windows Node 22 run 43897039946](https://github.com/FlareZ123/obfs/actions/runs/43897039946), source `b004bd6c5739010248a3b39e1f8c324c68c4fb52`, the 576 transformed public graphs all replayed their exact original outputs after static normalization. The normalizer rewrote **168 COO, 84 SNO, and 84 SCO field spellings**, one per transformed hash label in this finite corpus. The test also proves a nominally independent hash token occurs consistently across files. All counts represent public-name neutralization, not encrypted-source extraction. The earlier [43895011479](https://github.com/FlareZ123/obfs/actions/runs/43895011479) had the same positive replay result with a library-coupled prototype; the latter independent-token version is the stronger attacker separation.
+
+## Whole-process and hot-path cost on actually rewritten ESM fields
+
+The new [full-session profile](../sims/esm-observation-session.js) feeds native and compiled four-module ESM graphs into separate Node processes. A named external numeric host callback executes with every direct private field read. Two owner fields are genuinely renamed, and every output is compared over **1 and 2,000,000 repeated calls**. Seven-sample default CLI profiling is available; the CI regression used **five alternating native/emitted samples** per workload, measuring process launch, module imports, computation, and output JSON. Source size was **656 bytes native / 664 bytes generated**; only the same small graph and environment are represented.
+
+| Pinned CI 43897039946, Node 22 | 1-call process ratio | 2,000,000-call process ratio | 2,000,000-call hot ratio |
+| --- | ---: | ---: | ---: |
+| Ubuntu | 0.964× | 0.996× | 0.981× |
+| Windows | 0.986× | 1.004× | 0.986× |
+
+Every measured complete-process median remained below 2.5×. The one-call hot timer measured ~0.05–0.06 ms and is too short to support stable per-call cost inference. These paired observations do not prove a worst-case performance bound, browser runtime parity or security gains. The new browser differential runner is [test/esm-observation-browser.js](../test/esm-observation-browser.js), a separate real Chromium experiment with six named safe/refused graph contracts; report its final status against a pinned run rather than assuming success.
 
 ## Scope and limitations
 
@@ -50,4 +61,4 @@ Validation of the additional attacker extension must be tied to its own exact br
 
 ## Next decisive validation
 
-Run the public-only normalizer extension on both platforms at its exact commit and record its success/failure independently of native/emitted parity; then judge whether any candidate raises attacker reconstruction or extraction cost beyond a native/minified control under matched instrumentation effort and full-session compute budgets. The compiler's safe field-renaming coverage should remain an explicit separate axis.
+Verify six native/emitted Chromium observer cases against an exact pinned CI build; then compare substantially transformed application code with a native/minified control under matched static and runtime instrumentation effort. The compiler's safe field-renaming coverage, actual protected-work fraction and whole-session cost remain separate axes. Static name neutralization succeeding on every transformed graph is a negative protection observation rather than a defense against a capable attacker.
