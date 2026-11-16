@@ -9,9 +9,12 @@ Install dependencies with `npm install`, then run `npm test`, `npm run typecheck
 **Latest pinned full integration (2026-11-16):** The
 [manual Node 22 Linux/Windows and Ubuntu Chromium run 43919593798](https://github.com/FlareZ123/obfs/actions/runs/43919593798)
 completed successfully at exact source `23c0aaca4dcd18a9cb1c88906bc80431f3e08d86`.
-Both operating systems passed the entire Node behavioral/adversarial test step,
-strict JSDoc and external checker steps, sampled benchmark and paired application
-profiles. The Ubuntu runner also passed both real Chromium test steps. This pin
+Of 1,767 Node tests per operating system, Ubuntu passed **1,766 with
+one skip and zero failures**, while Windows passed **1,765 with two skips
+and zero failures**. Both operating systems passed strict JSDoc and external
+checker steps, sampled benchmarks and paired application profiles. Ubuntu
+also passed both real Chromium test steps, including 15 main browser
+fixtures. This pin
 includes the SCO graph source-sealing and path-addressed source preflight work
 described below. It does not establish general source secrecy, tamper-resistance
 under hostile runtime control, or a universal 2.5× bound. More recent commits
