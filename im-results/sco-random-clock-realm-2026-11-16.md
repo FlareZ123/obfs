@@ -14,7 +14,7 @@ Host Web Crypto operations produce fresh randomness, and performance.now()/perfo
 
 Branch `agent7/sco-cross-realm-entropy-20261116` extends realmStateObservation with a **private-only** classification for access to Math.random (direct, global member, simple aliases, and destructured extraction), host crypto and performance (direct and simple aliased global roots). It returns separate `entropy` and `clock` refusal reasons. Public exports that stay in their original client realm may still call Math.random. Ordinary math methods such as Math.imul and Math.abs remain accepted.
 
-`test/sco-entropy-host-clock.test.js` includes an independent vm fixture, 16 selected-private negative shapes, four pure math positive controls and a retained-public-positive control.
+`test/sco-entropy-host-clock.test.js` includes an independent vm fixture, 23 selected-private negative shapes (including destructured and assignment-pattern access), four pure math positive controls and a retained-public-positive control.
 
 This is deliberately a bounded syntactic admission rule. It may refuse safe local objects shadowing crypto/performance. Complex aliasing, cross-file effects and indirect host injection remain unproved. A changed server entropy source may be desirable for code explicitly designed as server-private; such a deployment should use its server contract rather than claim unchanged browser semantics. The code does not make attacker-controlled client code tamper-resistant and does not prove the 2.5x runtime requirement.
 
