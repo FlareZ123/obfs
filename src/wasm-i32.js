@@ -193,8 +193,9 @@ function lowerWasmI32Functions(source,sourceType,options) {
     const matches=functions.get(name);
     if(!matches||matches.length!==1) {declined++;continue;}
     const fn=matches[0];
-    const parameters=fn.params;
-    const names=parameters.filter(param=>param.type==='Identifier').map(param=>param.name);
+    const parameters=/** @type {AstNode[]} */ (fn.params);
+    const names=/** @type {string[]} */ (
+      parameters.filter(param=>param.type==='Identifier').map(param=>param.name));
     const validParameters=parameters.length>=1&&parameters.length<=4&&
       names.length===parameters.length&&new Set(names).size===names.length;
     const statements=fn.body.body;
