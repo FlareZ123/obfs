@@ -81,3 +81,31 @@ unsupported assumption that the complete graph would rename private
 fields, and later a mistaken comparison of in-process `undefined`
 properties against JSON-serialized output. These were corrected before
 the pinned green gate.
+
+## Two-source-observer ablation (diagnostic only)
+
+The [exact diagnostic script](../sims/application-challenge-observer-ablation.js)
+performs one-at-a-time modifications of the reflection descriptor key and
+of the JSON-output newline concatenation, then invokes the same compiler.
+It deliberately alters the source behavior; these ablations are **not**
+proposed transformations and do not demonstrate safe original-program
+equivalence.
+
+The [pinned Ubuntu/Windows gate 43807339621](https://github.com/FlareZ123/obfs/actions/runs/43807339621)
+at source `6aa5bfc677bcb7f31dfc401aab3cc1cc40858a14`
+passed with identical cross-platform measurements:
+
+| Temporary ablation | Source-observer flags remaining | Private-key renames |
+|---|---|---:|
+| None (frozen original) | `reflect.mjs`, `entry.mjs` | 0 |
+| Only descriptor key | `entry.mjs` | 0 |
+| Only JSON concatenation | `reflect.mjs` | 0 |
+| Both expressions | None | **2/2** |
+
+The two flagged expressions are each independently sufficient to stop
+the whole input group. With both removed in the analysis-only copy, the
+unchanged cross-file owner/reader proof renames both originally eligible
+fields, changing the `private.mjs` source. Thus the limiting condition
+for this application is the global function-source observer gate.
+The experiment does **not** demonstrate that a less conservative guard
+would preserve all external source-introspection semantics.
