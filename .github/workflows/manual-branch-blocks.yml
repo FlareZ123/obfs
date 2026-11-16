@@ -37,6 +37,8 @@ jobs:
         run: node sims/branch-block-profile.js
       - name: Held-out 160-graph statement CFG differential and static attack
         run: node sims/statement-flow-fuzz.js
+      - name: Source-only statement tamper against distributed dispatcher
+        run: node sims/statement-flow-tamper.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Statement CFG source-size and cold JavaScript compile profile
@@ -79,6 +81,8 @@ jobs:
         run: node sims/branch-block-profile.js
       - name: Held-out 160-graph statement CFG differential and static attack
         run: node sims/statement-flow-fuzz.js
+      - name: Source-only statement tamper against distributed dispatcher
+        run: node sims/statement-flow-tamper.js
       - name: Statement CFG native-versus-host callback workload profile
         run: node sims/statement-flow-profile.js
       - name: Statement CFG source-size and cold JavaScript compile profile
