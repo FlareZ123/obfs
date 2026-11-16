@@ -387,15 +387,25 @@ test('real Node ESM dynamic code evaluators can reach imports omitted from a sta
     'export async function inspect(){return (await eval(\'import("./hidden.mjs")\')).secret;}';
   const aliased=
     'const make=Function;export async function inspect(){return (await make(\'return import("./hidden.mjs")\')()).secret;}';
+  const nodeLoader=
+    'import {createRequire} from "node:module";const require=createRequire(import.meta.url);export async function inspect(){return require("./hidden.cjs").secret;}';
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-graph-dynamic-import-'));
   try{
     await atomicWrite(path.join(root,'api.mjs'),original);
     await atomicWrite(path.join(root,'alias.mjs'),aliased);
+    await atomicWrite(path.join(root,'api-require.mjs'),nodeLoader);
     await atomicWrite(path.join(root,'hidden.mjs'),'export const secret=137;');
+    await atomicWrite(path.join(root,'hidden.cjs'),'module.exports={secret:137};');
     const originalNamespace=await import(pathToFileURL(path.join(root,'api.mjs')).href);
     const aliasNamespace=await import(pathToFileURL(path.join(root,'alias.mjs')).href);
+    const requiredNamespace=await import(pathToFileURL(path.join(root,'api-require.mjs')).href);
     assert.equal(await originalNamespace.inspect(),137);
     assert.equal(await aliasNamespace.inspect(),137);
+    assert.equal(await requiredNamespace.inspect(),137);
+    assert.throws(()=>partitionScoAsyncGraph([
+      {path:'api-require.mjs',code:nodeLoader}
+    ],{seed:'sco-graph-node-loader-20261116',exposedPaths:['api-require.mjs']}),
+    /Private SCO graph cannot certify imports from runtime loader builtin/u);
 
     for(const file of [{path:'api.mjs',code:original},
       {path:'alias.mjs',code:aliased}]){
