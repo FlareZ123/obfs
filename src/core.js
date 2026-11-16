@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {randomBytes, createHash} = require('node:crypto');
-const {parse,walk,observesFunctionSource,observesDistributedSource} = require('./ast');
+const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
@@ -86,16 +86,31 @@ function mutatesDecoderIntrinsic(ast) {
   const prototypeNames=new Set();
   const arrayNames=new Set(['Array']);
   const arrayPrototypes=new Set();
+  const objectNames=new Set(['Object']);
+  const reflectNames=new Set(['Reflect']);
+  const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
+  const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
   /** @param {import('./ast').AstNode} node @returns {string|null} */
   function memberName(node) {
     if (node.type!=='MemberExpression') return null;
-    return node.computed
-      ? node.property.type==='Literal' && typeof node.property.value==='string' ? node.property.value : null
-      : node.property.type==='Identifier' ? node.property.name : null;
+    return node.computed ? staticString(node.property) :
+      node.property.type==='Identifier' ? node.property.name : null;
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isGlobal(node) {
     return node.type==='Identifier' && globalNames.has(node.name);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isObjectIntrinsic(node) {
+    return node.type==='Identifier' && objectNames.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='Object';
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isReflectIntrinsic(node) {
+    return node.type==='Identifier' && reflectNames.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='Reflect';
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isStringInstance(node) {
@@ -181,6 +196,8 @@ function mutatesDecoderIntrinsic(ast) {
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
           if(isArrayValue(node.init))add(arrayNames,node.id.name);
           if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
+          if(isObjectIntrinsic(node.init))add(objectNames,node.id.name);
+          if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
                   (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init))) {
           for(const property of node.id.properties) {
@@ -192,6 +209,8 @@ function mutatesDecoderIntrinsic(ast) {
             if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
             if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
             if(name==='prototype'&&isArrayValue(node.init))add(arrayPrototypes,property.value.name);
+            if(name==='Object'&&isGlobal(node.init))add(objectNames,property.value.name);
+            if(name==='Reflect'&&isGlobal(node.init))add(reflectNames,property.value.name);
           }
         }
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
@@ -201,6 +220,8 @@ function mutatesDecoderIntrinsic(ast) {
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
         if(isArrayValue(node.right))add(arrayNames,node.left.name);
         if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
+        if(isObjectIntrinsic(node.right))add(objectNames,node.left.name);
+        if(isReflectIntrinsic(node.right))add(reflectNames,node.left.name);
       }
     });
   } while(discovered);
@@ -231,7 +252,36 @@ function mutatesDecoderIntrinsic(ast) {
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
   let mutated=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
+    // A captured mutator may be called, bound, or passed into an opaque helper.
+    // Its receiver/arguments cannot be proved by the direct-call checks below.
+    if(node.type==='MemberExpression') {
+      const receiver=node.object;
+      const method=memberName(node);
+      if((isObjectIntrinsic(receiver) &&
+           (method===null||mutatorsObject.has(method)) ||
+          isReflectIntrinsic(receiver) &&
+           (method===null||mutatorsReflect.has(method))) &&
+         !(parent?.type==='CallExpression'&&parent.callee===node)) {
+        mutated=true;
+        return;
+      }
+    }
+    // Destructured first-class methods can escape through local aliases.
+    if(node.type==='VariableDeclarator' && node.init &&
+       node.id.type==='ObjectPattern' &&
+       (isObjectIntrinsic(node.init)||isReflectIntrinsic(node.init))) {
+      const dangerous=isObjectIntrinsic(node.init)?mutatorsObject:mutatorsReflect;
+      if(node.id.properties.some(property=>{
+        if(property.type!=='Property'||property.computed) return true;
+        const name=property.key.type==='Identifier'?property.key.name:
+          property.key.type==='Literal'?property.key.value:null;
+        return typeof name!=='string'||dangerous.has(name);
+      })) {
+        mutated=true;
+        return;
+      }
+    }
     if(node.type==='Identifier' && dynamicCompilers.has(node.name) ||
        node.type==='MemberExpression' && dynamicCompilers.has(memberName(node)??'')) {
       mutated=true;
@@ -251,7 +301,12 @@ function mutatesDecoderIntrinsic(ast) {
     const method=memberName(node.callee);
     const first=node.arguments[0];
     if(!first || receiver.type!=='Identifier')return;
-    if(receiver.name==='Object' && ['defineProperty','defineProperties','assign','setPrototypeOf'].includes(method??'')) {
+    if(method===null && (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver)) &&
+       (touchesString(first)||isArrayPrototype(first)||isGlobal(first))) {
+      mutated=true;
+      return;
+    }
+    if(isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
       if(touchesString(first))mutated=true;
       // Object.assign/defineProperties can change String through a dynamic
       // property bag whose keys are not statically provable here.
@@ -259,17 +314,15 @@ function mutatesDecoderIntrinsic(ast) {
       if(isGlobal(first) && method==='defineProperty' &&
          (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
     }
-    if(isArrayPrototype(first) && receiver.name==='Object' &&
-       ['assign','defineProperty','defineProperties','setPrototypeOf'].includes(method??'')) {
+    if(isArrayPrototype(first) && isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
       const key=node.arguments[1];
       if(method!=='defineProperty' || !key || key.type!=='Literal')mutated=true;
     }
-    if(isArrayPrototype(first) && receiver.name==='Reflect' &&
-       ['set','defineProperty','deleteProperty','setPrototypeOf'].includes(method??'')) {
+    if(isArrayPrototype(first) && isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
       const key=node.arguments[1];
       if(method==='setPrototypeOf'||!key||key.type!=='Literal')mutated=true;
     }
-    if(receiver.name==='Reflect' && ['set','defineProperty','deleteProperty','setPrototypeOf'].includes(method??'')) {
+    if(isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
       if(touchesString(first))mutated=true;
       if(isGlobal(first) && (method==='setPrototypeOf' ||
           node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
