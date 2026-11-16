@@ -28,3 +28,45 @@ At this SHA, [run 43968683734](https://github.com/FlareZ123/obfs/actions/runs/43
 The guard uses known V8 failed-operand expression shapes and may conservatively decline safe literals, including expressions that never throw at runtime. It does not prove equivalence for every JavaScript engine, all error formulations, all possible source observability, or arbitrary helper mutation. The regression protects exact caught messages in bounded Node 22 fixtures, with a positive transformation control. No universal protected-work fraction, independent deobfuscation resistance or whole-session 2.5× measurement follows from it. The guard adds work at compilation time and emits no extra runtime instructions when it refuses an unsafe literal.
 
 To reproduce locally after installing dependencies, run `node --test test/source-spelled-operand-errors.test.js` and `npm run typecheck`. The manually dispatched `.github/workflows/manual-transform-safety.yml` places the focused test early and is the cross-platform follow-up gate.
+
+## Expanded positive/negative coverage and actual Chromium (22:29 UTC)
+
+The negative test grid was extended with two actual source-spelled spreads:
+`[...state["privateField"]]` and `Math.max(...state["privateField"])`.
+Each negative now also asserts `metrics.literals===0`, so the test verifies
+actual exclusion rather than merely an accidental matching error. The
+positive control continues to assert one truly encoded successful key.
+These additions are in `test/source-spelled-operand-errors.test.js`,
+commits `62b142cff3505601e0228030c342b9b5bf1314fc` and
+`dba60bf9d6e1692794f5e993d9f5a267d0c0df79`.
+The [targeted follow-up 43969527574](https://github.com/FlareZ123/obfs/actions/runs/43969527574)
+at `62b142c` passed the expanded focused test and JSDoc on Ubuntu
+and Windows, but the full transform workflow still failed later on the
+separate clone-graph positive control. The final metrics assertion awaits
+the next post-`dba60bf` run.
+
+For the required browser target, `test/string-failed-operand-browser.js`
+runs an actual CSP-constrained Chromium page with native JavaScript and
+compiler-emitted COO/SCO scripts fetched over same-origin HTTP. A
+call, constructor, and array spread each raise a caught browser
+`TypeError`; every native error must expose `state.privateField`,
+and every emitted error must equal it byte-for-byte. The fixture also
+requires exactly **one** eligible `safe["publicField"]` string to
+have been encoded, then checks the successful result `9`. It uses
+`Content-Security-Policy: default-src 'none'; script-src 'self'`
+without an inline execution allowance.
+
+The complete [real-browser workflow 43970187824](https://github.com/FlareZ123/obfs/actions/runs/43970187824)
+**passed all 23 steps** in its Ubuntu Chromium job at exact source
+SHA **`c0e340bf9c35cc90d269a54ac55e32dde1ddf30e`**,
+including the new native/COO/SCO comparison, the preexisting browser
+integration suite, real SCO and TLS/browser challenges, and configured
+JSDoc checks. This establishes parity for the three tested browser
+failure shapes under that CSP and runtime. It does not establish broad
+CSP compatibility, browser-version independence, all error messages or
+security against an instrumented browser.
+
+The full Node transformation suite is still separately blocked by the
+Agent19 clone-graph positive-control assertion described above; the
+full green browser workflow should not be conflated with the
+still-red cross-platform transformation workflow.
