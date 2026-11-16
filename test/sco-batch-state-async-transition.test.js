@@ -111,6 +111,10 @@ test('rejecting async policy results cannot terminate Node after synchronous den
     "run(Promise.reject(Error('initial-state-async-rejection')),base);",
     "run(true,{...base,authorize:()=>Promise.reject(Error('permission-async-rejection'))});",
     "run(true,{...base,transition:()=>Promise.reject(Error('transition-async-rejection'))});",
+    "const cross=label=>require('node:vm').runInNewContext('Promise.reject(Error('+JSON.stringify(label)+'))');",
+    "run(cross('foreign-initial'),base);",
+    "run(true,{...base,authorize:()=>cross('foreign-authorize')});",
+    "run(true,{...base,transition:()=>cross('foreign-transition')});",
     "setImmediate(()=>process.stdout.write('policy-denials-survived'));"
   ].join('\n');
   const result=spawnSync(process.execPath,['--unhandled-rejections=strict','-e',script],{
