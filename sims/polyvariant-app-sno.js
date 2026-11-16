@@ -137,13 +137,15 @@ async function runEvidence(){
     await emitSno(nativeDir,true);
     const compiled=await emitSno(protectedDir);
     const cases=heldoutCases();
-    const native=runJson(path.join(nativeDir,CJS_ENTRY),cases);
-    const transformed=runJson(path.join(protectedDir,'sno-entry.cjs'),cases);
+    const inputFile=path.join(temp,'heldout-input.json');
+    await atomicWrite(inputFile,JSON.stringify(cases));
+    const native=runJson(path.join(nativeDir,CJS_ENTRY),cases,inputFile);
+    const transformed=runJson(path.join(protectedDir,'sno-entry.cjs'),cases,inputFile);
     assert.deepEqual(transformed,native);
     assert.equal(compiled.changedFiles,1);
     const attack=spawnSync(process.execPath,[
       path.join(__dirname,'application-challenge-sno-public-attacker.js'),
-      protectedDir,JSON.stringify(cases)
+      protectedDir,'@'+inputFile
     ],{encoding:'utf8',timeout:90000,maxBuffer:16*1024*1024});
     if(attack.error)throw attack.error;
     assert.equal(attack.status,0,attack.stderr);
