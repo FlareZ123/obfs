@@ -21,7 +21,7 @@ function normalizePublicFields(files) {
   /** @type {Map<string,string>} */
   const labels=new Map();
   const emitted=files.map(file=>{
-    /** @type {import('acorn').Token[]} */
+    /** @type {(import('acorn').Token & {value?:unknown})[]} */
     const tokens=[];
     acorn.parse(file.code,{
       ecmaVersion:'latest',
