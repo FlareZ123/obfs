@@ -488,7 +488,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   }
   for(const helper of publicHelperFunctions)inspectPublicFunction(helper.fn,helper.name);
   for(const statement of ast.body) {
-    if(statement.type==='VariableDeclaration'||statement.type==='FunctionDeclaration')continue;
+    if(statement.type==='VariableDeclaration'||statement.type==='FunctionDeclaration'||
+       statement.type==='ImportDeclaration')continue;
     if(statement.type!=='ExportNamedDeclaration'||statement.source||
        statement.specifiers?.length||!statement.declaration) {
       throw new TypeError('Selective SCO requires direct named function exports only');
