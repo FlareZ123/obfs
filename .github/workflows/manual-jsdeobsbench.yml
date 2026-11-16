@@ -84,7 +84,7 @@ jobs:
             node sims/jsdeobsbench-differential.js \
               --original /work/jsdeobsbench-native.jsonl \
               --transformed /work/jsdeobsbench-verified-recovered.jsonl \
-              --sample 100 --cases 2 --timeout 3000 \
+              --sample 0 --cases 2 --timeout 3000 \
               --seed pinned-jsdeobsbench-20261115
       - name: Independently execute paired baseline and transformed code in restricted Docker
         shell: bash
