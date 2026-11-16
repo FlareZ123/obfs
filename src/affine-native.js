@@ -155,4 +155,116 @@ function lowerAffineNative(source,sourceType,options) {
   return {code,functions,steps,declined};
 }
 
-module.exports={lowerAffineNative};
+
+/** @typedef {{code:string,functions:number,steps:number,paths:number,declined:number}} PolyvariantAffineResult */
+
+/**
+ * Compile an integer-normalized affine chain into input-partitioned native
+ * arithmetic variants. Each numeric case receives exactly the values whose
+ * low bits match its case label. Its reconstructed input is therefore exact
+ * only within that case. A separate generic path preserves the original
+ * ToInt32 exception and coercion behavior for non-number inputs.
+ *
+ * The branch bodies use independently diversified affine encodings and
+ * execute only one path per call. No client-side secret is claimed: static
+ * inspection of all cases reconstructs the mapping, and a hostile runtime
+ * can exercise every case. This is opt-in research and requires a measured
+ * workload budget, especially when increasing the number of variants.
+ *
+ * @param {string} source
+ * @param {'module'|'commonjs'} sourceType
+ * @param {{seed:string,names:string[],variants?:2|4|8}} options
+ * @returns {PolyvariantAffineResult}
+ */
+function lowerPolyvariantAffine(source,sourceType,options) {
+  if(typeof source!=='string'||!['module','commonjs'].includes(sourceType)||
+     !options||typeof options.seed!=='string'||!options.seed||
+     !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')||
+     options.variants!==undefined&&![2,4,8].includes(options.variants)) {
+    throw new TypeError('Expected source, type, seed, targets and 2/4/8 variants');
+  }
+  const targets=new Set(options.names);
+  if(!targets.size)return {code:source,functions:0,steps:0,paths:0,declined:0};
+  const variants=options.variants??4;
+  const shift=variants===2?1:variants===4?2:3;
+  const ast=parse(source,sourceType);
+  /** @type {Set<string>} */
+  const reserved=new Set();
+  let unsafe=false;
+  walk(ast,node=>{
+    if(node.type==='Identifier') {
+      reserved.add(node.name);
+      if(node.name==='eval')unsafe=true;
+    }
+    if(node.type==='WithStatement')unsafe=true;
+  });
+  if(unsafe||observesFunctionSource(ast))return {
+    code:source,functions:0,steps:0,paths:0,declined:targets.size
+  };
+  /** @type {Map<string,AstNode[]>} */
+  const candidates=new Map();
+  for(const statement of ast.body) {
+    const candidate=statement.type==='ExportNamedDeclaration'&&statement.declaration?
+      statement.declaration:statement;
+    if(candidate.type!=='FunctionDeclaration'||!candidate.id||
+       !targets.has(candidate.id.name))continue;
+    const matches=candidates.get(candidate.id.name)??[];
+    matches.push(candidate);
+    candidates.set(candidate.id.name,matches);
+  }
+  /** @type {import('./ast').Edit[]} */
+  const edits=[];
+  let functions=0,steps=0,paths=0,declined=0;
+  for(const name of targets) {
+    const matches=candidates.get(name);
+    if(!matches||matches.length!==1){declined++;continue;}
+    const fn=matches[0],param=fn.params[0],statement=fn.body.body[0];
+    if(fn.async||fn.generator||fn.params.length!==1||
+       param?.type!=='Identifier'||param.name==='arguments'||
+       fn.body.body.length!==1||statement?.type!=='ReturnStatement'||
+       !statement.argument) {
+      declined++;
+      continue;
+    }
+    const chain=compileSteps(statement.argument,param.name);
+    if(chain===null){declined++;continue;}
+    const entropy=createHash('sha256').update(options.seed).update('\0')
+      .update(name).update('\0').update(source).digest();
+    /** @param {string} label @returns {Buffer} */
+    const derive=label=>createHash('sha256').update(entropy)
+      .update('\0').update(label).digest();
+    /** @type {{label:number,order:number,body:string}[]} */
+    const cases=[];
+    for(let index=0;index<variants;index++) {
+      let attempt=0,slot='';
+      do {
+        slot='_ap_slot_'+derive('slot/'+index+'/'+attempt).subarray(0,7).toString('hex');
+        attempt++;
+      } while(reserved.has(slot));
+      reserved.add(slot);
+      const narrowed='{const '+slot+'=(((('+param.name+'|0)>>'+shift+
+        ')<<'+shift+')|'+index+');'+
+        emitAffineBody(chain,slot,derive('variant/'+index),reserved)+'}';
+      cases.push({label:index,order:derive('order/'+index).readUInt32LE(0),
+        body:narrowed});
+    }
+    cases.push({label:variants,order:derive('order/fallback').readUInt32LE(0),
+      body:emitAffineBody(chain,param.name,derive('fallback'),reserved)});
+    cases.sort((a,b)=>a.order-b.order);
+    const selector='(typeof '+param.name+'==="number"?(('+param.name+
+      '|0)&'+(variants-1)+'):'+variants+')';
+    const body='{switch('+selector+'){'+cases.map(entry=>
+      'case '+entry.label+':'+entry.body).join('')+
+      'default:throw Error("Invalid arithmetic path");}}';
+    edits.push({start:fn.body.start,end:fn.body.end,text:body});
+    functions++;
+    steps+=chain.length;
+    paths+=variants+1;
+  }
+  if(!functions)return {code:source,functions:0,steps:0,paths:0,declined};
+  const code=applyEdits(source,edits);
+  parse(code,sourceType);
+  return {code,functions,steps,paths,declined};
+}
+
+module.exports={lowerAffineNative,lowerPolyvariantAffine};
