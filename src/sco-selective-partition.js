@@ -447,19 +447,76 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph destructures an unproved Node process loader: '+filename);
       }
     });
-    // A function instance (and many ordinary objects) inherits .constructor.
-    // Its constructor can reach Function and evaluate a hidden import string,
-    // bypassing an AST-only ImportExpression/Function/require check. The exact
-    // private static source manifest cannot prove closure for these reads.
-    // Refuse the known key even through computed literals or destructuring.
+    // Constructor is a loader capability even when reached without a
+    // Function/eval/ImportExpression AST node. Track simple literal-key and
+    // callable aliases across the file, deliberately overapproximating
+    // shadowed names so ambiguous bindings cause a safe decline.
+    const constructorKeyAliases=new Set();
+    const callableAliases=new Set();
+    /** @param {import('./ast').AstNode} expression @returns {boolean} */
+    function isConstructorKey(expression){
+      if(staticString(expression)==='constructor')return true;
+      if(expression.type==='Identifier')return constructorKeyAliases.has(expression.name);
+      if(expression.type!=='TemplateLiteral')return false;
+      let text='';
+      for(let i=0;i<expression.quasis.length;i++){
+        const chunk=expression.quasis[i]?.value.cooked;
+        if(typeof chunk!=='string')return false;
+        text+=chunk;
+        if(i<expression.expressions.length){
+          const part=staticString(expression.expressions[i]);
+          if(part===null)return false;
+          text+=part;
+        }
+      }
+      return text==='constructor';
+    }
+    let constructorAliasChanged=true;
+    while(constructorAliasChanged){
+      constructorAliasChanged=false;
+      walk(ast,node=>{
+        if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+           !callableAliases.has(node.id.name)){
+          callableAliases.add(node.id.name);
+          constructorAliasChanged=true;
+        }
+        const binding=node.type==='VariableDeclarator'?node.id:
+          node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+        const initializer=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'?node.right:null;
+        if(binding?.type!=='Identifier'||!initializer)return;
+        if(isConstructorKey(initializer)&&!constructorKeyAliases.has(binding.name)){
+          constructorKeyAliases.add(binding.name);
+          constructorAliasChanged=true;
+        }
+        if((initializer.type==='FunctionExpression'||
+            initializer.type==='ArrowFunctionExpression'||
+            initializer.type==='Identifier'&&callableAliases.has(initializer.name))&&
+           !callableAliases.has(binding.name)){
+          callableAliases.add(binding.name);
+          constructorAliasChanged=true;
+        }
+      });
+    }
     walk(ast,(node,parent)=>{
       const constructorMember=node.type==='MemberExpression'&&
-        (node.computed?staticString(node.property):node.property.name)==='constructor';
+        (node.computed?isConstructorKey(node.property):node.property.name==='constructor');
       const constructorPattern=node.type==='Property'&&
         parent?.type==='ObjectPattern'&&
-        (node.computed?staticString(node.key):
-          node.key.name??staticString(node.key))==='constructor';
-      if(constructorMember||constructorPattern){
+        (node.computed?isConstructorKey(node.key):
+          node.key.name==='constructor'||staticString(node.key)==='constructor');
+      // An unknown computed property of a syntactically known callable may
+      // itself resolve to inherited constructor. Numeric/boolean/null literals
+      // and exact non-constructor strings cannot resolve to that key.
+      const unprovedCallableKey=node.type==='MemberExpression'&&node.computed&&
+        !constructorMember&&staticString(node.property)===null&&
+        !(node.property.type==='Literal'&&
+          ['number','boolean'].includes(typeof node.property.value))&&
+        !(node.property.type==='Literal'&&node.property.value===null)&&
+        (node.object.type==='FunctionExpression'||
+         node.object.type==='ArrowFunctionExpression'||
+         node.object.type==='Identifier'&&callableAliases.has(node.object.name));
+      if(constructorMember||constructorPattern||unprovedCallableKey){
         throw new TypeError('SCO private static graph contains an unproved runtime loader via constructor: '+filename);
       }
     });
