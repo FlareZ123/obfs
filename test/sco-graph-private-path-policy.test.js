@@ -3,7 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {partitionScoAsyncGraph,createScoHandler}=require('../src');
+const {partitionScoAsyncGraph,createScoHandler,createScoGraphHandler}=require('../src');
 
 const originals=[
   {path:'api.mjs',
@@ -123,4 +123,58 @@ test('SCO graph fingerprints block exact original source copies and original exp
   assert.doesNotThrow(()=>createScoHandler([
     graph.clientFiles[0],{...alias,code:alias.code+'\n'}
   ]));
+});
+
+
+test('composed SCO graph handler binds only original exports and permits only generated facades',async()=>{
+  const graph=partitionScoAsyncGraph(originals,{
+    seed:'sco-graph-composed-handler-20261116',exposedPaths:['api.mjs','audit.mjs']
+  });
+  const namespaces={
+    'api.mjs':{calculate:async x=>41+x},
+    'audit.mjs':{inspect:async x=>41+x}
+  };
+  const options={
+    authorizeRpc:()=>true,
+    authorizeRead:()=>true,
+    authorizeOperation:()=>true
+  };
+  const make=(g=graph,opts=options)=>createScoGraphHandler(g,namespaces,opts);
+  assert.doesNotThrow(()=>make());
+  assert.throws(()=>make(graph,{...options,routePrefix:'/wrong/'}),/endpoint does not match/);
+  assert.throws(()=>make(graph,{...options,publicPaths:['secret.mjs']}),/graph handler requires/);
+  assert.throws(()=>make(graph,{...options,remoteMethods:{unexpected:()=>0}}),/graph handler requires/);
+  assert.throws(()=>make({
+    ...graph,clientFiles:[...graph.clientFiles,
+      {...originals[2],path:'shadow.mjs',sourceType:'module'}]
+  }),/not in publicPaths/);
+  assert.throws(()=>make({
+    ...graph,clientFiles:[graph.clientFiles[1],
+      {...originals[0],sourceType:'module'}]
+  }),/original private graph source: api\.mjs/);
+
+  const server=http.createServer(make());
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    assert.ok(address && typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    const publicResult=await fetch(origin+'/obfs/api.mjs');
+    assert.equal(publicResult.status,200);
+    const publicSource=await publicResult.text();
+    assert.ok(publicSource.includes('export async function calculate'));
+    assert.ok(!publicSource.includes('SERVER_PRIVATE_GRAPH_CANARY_78341'));
+    assert.equal((await fetch(origin+'/obfs/secret.mjs')).status,404);
+    assert.equal((await fetch(origin+'/obfs/shadow.mjs')).status,404);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:graph.partitions['api.mjs'].methodNames.calculate,args:[7]
+      })
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:48});
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
 });
