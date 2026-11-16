@@ -162,3 +162,66 @@ test('ordinary process environment reads do not suppress own-field renaming',()=
   });
   assert.equal(output.files[0].metrics.properties,1);
 });
+
+const patternLoaderCases=[
+  ['module constructor destructuring',
+    "const {constructor:Module}=module;const io=Module._load('node:fs');",
+    "io.readFileSync(__filename,'utf8')"],
+  ['process main module destructuring',
+    "const {mainModule:main}=process;const io=main.constructor._load('node:fs');",
+    "io.readFileSync(__filename,'utf8')"],
+  ['process internal binding destructuring',
+    "const {binding:bindingFs}=process;const io=bindingFs('fs');",
+    'io.readFileUtf8(__filename,0)'],
+  ['globalThis computed process destructuring',
+    "const {['pro'+'cess']:p}=globalThis;const io=p.binding('fs');",
+    'io.readFileUtf8(__filename,0)'],
+  ['global alias process destructuring',
+    "const root=globalThis;const {process:p}=root;const io=p.binding('fs');",
+    'io.readFileUtf8(__filename,0)']
+];
+
+for(const [name,initial,reader] of patternLoaderCases) {
+  test('destructured loader object preserves exact module source: '+name,async()=>{
+    const code="'use strict';\n"+initial+'\n'+
+      'const privateObject={secretField:31};\n'+
+      'const bytes='+reader+';\n'+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'pattern-loader/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'main.cjs'),native);
+  });
+}
+
+test('computed browser fetch destructuring conservatively holds an ESM graph',()=>{
+  const files=[
+    {path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'export const state={secretField:31};'},
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),
+      code:"import {state} from './private.mjs';"+
+        "const {['fe'+'tch']:getSource}=globalThis;"+
+        "getSource('./private.mjs');console.log(state.secretField);"}
+  ];
+  const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+    seed:'browser-destructure-fetch',strings:false,identifiers:true});
+  assert.equal(output.crossFile.properties,0);
+  assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+});
+
+test('safe global process destructuring still allows private-property renaming',()=>{
+  const code='const {process:proc}=globalThis;'+
+    'const state={secretField:32};console.log(proc.env.NODE_ENV,state.secretField);';
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'global-process-safe-pattern',strings:false,
+    identifiers:false,properties:true
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
