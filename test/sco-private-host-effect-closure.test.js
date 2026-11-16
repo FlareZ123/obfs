@@ -77,7 +77,7 @@ test('Private static graph admits explicitly UTC and deterministic computation c
       const emitted=partitionGraph(body,transitive);
       assert.deepEqual(emitted.privateNames,['protectedOp'],body);
       assert.deepEqual(emitted.clientFile.privateModulePaths,
-        transitive?['private/deep/leaf.mjs','private/engine.mjs']:['private/engine.mjs']);
+        transitive?['private/engine.mjs','private/deep/leaf.mjs']:['private/engine.mjs']);
       assert.doesNotMatch(emitted.clientFile.code,/import \{compute\}|export function compute|export function leaf/u);
     }
   }
