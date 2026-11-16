@@ -21,7 +21,14 @@
     "sims/mba-static-normalize.js",
     "workplace/layered-mba.js",
     "sims/mba-layered-profile.js",
-    "sims/mba-layered-recover.js"
+    "sims/mba-layered-recover.js",
+    "sims/application-challenge-sno.js",
+    "sims/application-challenge-sno-public-attacker.js",
+    "sims/polyvariant-app-sno.js",
+    "sims/polyvariant-app-sno-static-attacker.js",
+    "sims/sno-esm-runtime-hook-attack.js",
+    "test/application-challenge-sno.test.js",
+    "test/polyvariant-app-sno.test.js"
   ],
   "exclude": [
     "node_modules"
