@@ -66,8 +66,8 @@ async function main(){
     for(const kind of trial%2?['delivered','native']:['native','delivered']){
       const x=cold(kind==='native'?'before':'after',coldCases);
       wall[kind].push(x.ms);
-      assert.deepEqual(x.result,expected.slice(0,0).concat(
-        coldCases.map(([seed,count])=>native.evaluate(seed,count))));
+      assert.deepEqual(x.result,JSON.parse(JSON.stringify(
+        coldCases.map(([seed,count])=>native.evaluate(seed,count)))));
     }
   }
   const heldout=Array.from({length:128},(_,i)=>[
@@ -75,7 +75,8 @@ async function main(){
     (i*73)%10000
   ]);
   const attacker=copyAttack(path.join(ROOT,'after'),heldout);
-  assert.deepEqual(attacker,heldout.map(([seed,count])=>native.evaluate(seed,count)));
+  assert.deepEqual(attacker,JSON.parse(JSON.stringify(
+    heldout.map(([seed,count])=>native.evaluate(seed,count)))));
   const bytes=await Promise.all(NAMES.map(async name=>({
     name,
     native:await fs.readFile(path.join(ROOT,'before',name),'utf8'),
