@@ -71,3 +71,10 @@ The transformation is a performance-aware structural obfuscation experiment, **n
 - Candidate guard in src/cross-properties.js tracks direct global callable invocation and simple first-class aliases from recognized global roots in safeClosedCallerRecordRead. Added direct, one-alias and transitive-alias tests. Targeted Ubuntu/Windows and legacy Node 22 application suite green 43843558621, source 780994469ed7559889ee71c8f3f91170532f5f2c. Existing own-key positive transformed-field controls and frozen negative variants still pass.
 - Report: im-results/closed-record-host-global-loader-2026-11-16.md. This is explicitly safety-by-refusal, with incomplete whole-language alias analysis and a known outside-host intrinsic counterexample. Do not promote as a full property flow proof, dynamic secrecy, or performance guarantee.
 - Next: full Linux/Windows/Chromium gate, PR and integration review, test richer host alias patterns and measure refusal-yield before permitting a broader conservative global-escape rule.
+
+
+### 09:59 UTC host-global alias extension checkpoint
+
+- Extended test/cross-file-safe-record-read.test.js with three more real Node --require native-vs-generated witness shapes: globalThis root alias, global destructuring, and Object.getOwnPropertyDescriptor(globalThis,'RUNTIME_FACTORY').value. Against first guard, both-platform red 43844276787 at 4cb7bf2cae3ea3f4735cde15137fc9d64f085b69; emitted keys differed from original in all three cases.
+- src/cross-properties.js helper now propagates root global aliases, recognizes destructured host capability identifiers and reflection-sourced host callables. Exact addfeaf30c5b32a3f900596959afd1fb90fedee0 passed targeted Linux+Windows+legacy 43844631273, preserving frozen application positive transformed private fields. This remains incomplete if host capabilities escape via arbitrary objects or higher-order calls. Report updated accordingly.
+- Full target needs exact merged candidate SHA validation. Avoid claiming global host callback proof for every JavaScript shape.
