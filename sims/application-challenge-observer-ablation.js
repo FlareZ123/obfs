@@ -32,6 +32,23 @@ function ablate(files,variant){
   });
 }
 
+/**
+ * Diagnostic variation: remove calls to a missing record key so that every
+ * possible computed receiver lookup is proven to select an own literal field.
+ * This intentionally changes app behavior; compare against its own native
+ * execution rather than the original frozen application.
+ * @param {{path:string,sourceType:'module',code:string}[]} files
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function withOwnKeyCalls(files) {
+  return files.map(file=>{
+    if(file.path!=='app.mjs')return file;
+    const original="inspectRecord('noSuchField')";
+    assert.ok(file.code.includes(original),'Expected original missing record lookup');
+    return {...file,code:file.code.replace(original,"inspectRecord('auditCount')")};
+  });
+}
+
 /** @returns {Promise<unknown[]>} */
 async function main(){
   const originals=await Promise.all(NAMES.map(async name=>({
@@ -39,9 +56,10 @@ async function main(){
     code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
   const rows=[];
-  for(const variant of ['none','reflect','entry','both']){
-    const sources=ablate(originals,
-      /** @type {'none'|'reflect'|'entry'|'both'} */(variant));
+  for(const variant of ['none','reflect','entry','both','own-only']){
+    const withoutObservers=ablate(originals,
+      /** @type {'none'|'reflect'|'entry'|'both'} */(variant==='own-only'?'both':variant));
+    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):withoutObservers;
     const observerPaths=sources.filter(file=>observesFunctionSource(
       parse(file.code,'module'))).map(file=>file.path);
     const compiled=obfuscateFiles(sources,{
@@ -55,15 +73,14 @@ async function main(){
     });
   }
   assert.deepEqual(rows.map(row=>row.observerPaths),[
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[]
+    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[]
   ]);
-  assert.deepEqual(rows.map(row=>row.propertyRenames).slice(0,3),[0,0,0]);
-  assert.ok(rows[3].propertyRenames>=1,
-    'Expected nonzero field proof once unrelated observers are both removed');
+  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2],
+    'Missing-key inheritance must decline; own-key-only calls restore coverage');
   process.stdout.write('APPLICATION_SOURCE_OBSERVER_ABLATION '+JSON.stringify(rows)+'\n');
   return rows;
 }
 if(require.main===module){
   main().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={main,ablate};
+module.exports={main,ablate,withOwnKeyCalls};
