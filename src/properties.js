@@ -287,11 +287,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for(const [name,value] of importedConstantKeys) {
     if(bindings.get(name)===1)constantKeys.set(name,value);
   }
-  // A one-slot local array can carry the same private owner through a
-  // separately named alias without exposing its shape. Admit only immutable
-  // holders whose every use reads slot 0 into a local binding. All other
-  // container use (including opaque calls, export, writes or reflection)
-  // keeps the owner's original property names.
+  // An unescaped, fixed-size private tuple can carry the owner through a
+  // known slot. Other slots must contain inert primitive literals, so
+  // constructing the tuple cannot invoke code that observes the owner.
+  // Every holder use must read that same slot into a local binding. Unknown
+  // indexes, mutation, reflection and all holder escapes retain original keys.
   /** @type {Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]>} */
   const holderIdentifierUses=new Map();
   for(const entry of identifiers){
@@ -299,8 +299,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     group.push(entry);
     holderIdentifierUses.set(entry.node.name,group);
   }
-  /** @type {Map<string,AstNode>} */
-  const privateOneSlotArrays=new Map();
+  /** @type {Map<string,{index:number}>} */
+  const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
   for(const decl of declarations){
@@ -309,9 +309,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
        parents.get(decl)?.kind!=='const'||
        parents.get(/** @type {AstNode} */(parents.get(decl)))?.type==='ExportNamedDeclaration'||
        bindings.get(decl.id.name)!==1||
-       decl.init?.type!=='ArrayExpression'||decl.init.elements.length!==1||
-       decl.init.elements[0]?.type!=='Identifier'||
-       decl.init.elements[0].name!==rootName)continue;
+       decl.init?.type!=='ArrayExpression'||decl.init.elements.length<1||
+       decl.init.elements.length>8)continue;
+    const elements=/** @type {(AstNode|null)[]} */(decl.init.elements);
+    const index=elements.findIndex(element=>
+      element?.type==='Identifier'&&element.name===rootName);
+    if(index<0||elements.some((element,slot)=>slot===index?false:
+      !element||element.type!=='Literal'||
+      !(element.value===null||['string','number','boolean','bigint'].includes(typeof element.value))))continue;
     const holder=decl.id.name;
     const scope=scopes.get(holder);
     if(!scope||scope!==scopes.get(rootName))continue;
@@ -324,7 +329,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          (parent?.type==='MethodDefinition'||parent?.type==='PropertyDefinition')&&
            key==='key'&&!parent.computed)continue;
       const read=parent?.type==='MemberExpression'&&key==='object'&&!parent.optional&&
-        parent.computed&&parent.property.type==='Literal'&&parent.property.value===0;
+        parent.computed&&parent.property.type==='Literal'&&parent.property.value===index;
       const receiver=read?parents.get(parent):null;
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
@@ -335,8 +340,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
     if(valid){
-      privateOneSlotArrays.set(holder,decl.init);
-      privateArrayLiteralElements.add(/** @type {AstNode} */(decl.init.elements[0]));
+      privateOwnerTuples.set(holder,{index});
+      privateArrayLiteralElements.add(/** @type {AstNode} */(elements[index]));
     }
   }
   /** @type {Set<string>} */
@@ -372,8 +377,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (expression.type === 'Identifier') return aliases.has(expression.name);
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
-       expression.property.type==='Literal'&&expression.property.value===0&&
-       privateOneSlotArrays.has(expression.object.name))return true;
+       expression.property.type==='Literal'&&
+       expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return true;
     if (expression.type === 'CallExpression' && expression.callee.type === 'Identifier') {
       const fn = functions.get(expression.callee.name);
       return Boolean(fn && (fn.returnsRoot ||
