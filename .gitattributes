@@ -13,3 +13,6 @@ examples/primitive-coercer/*.cjs text eol=lf
 examples/owned-constant-key/*.cjs text eol=lf
 examples/imported-constant-key/before/*.mjs text eol=lf
 examples/imported-constant-key/after/*.mjs text eol=lf
+
+examples/application-challenge/before/*.mjs text eol=lf
+examples/application-challenge/after/*.mjs text eol=lf
