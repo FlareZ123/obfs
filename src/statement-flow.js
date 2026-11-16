@@ -81,6 +81,7 @@ function emitFlow(blocks,entry,directives,name,seed,used){
   do{state='_sf_'+hash('local/'+collision++).subarray(0,8).toString('hex');}
   while(used.has(state));
   used.add(state);
+  /** @type {number[]} */
   const ids=[];
   const taken=new Set();
   for(let i=0;i<blocks.length+1;i++){
