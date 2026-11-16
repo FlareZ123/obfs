@@ -147,3 +147,35 @@ test('closed-world ESM preserves array prototype failure operand spelling',async
   assert.equal(transformed.crossFile.properties,0);
   assert.equal(await execute(transformed.files),baseline);
 });
+
+for(const [name,operation] of [
+  ['computed failed call','state["privateField"]();'],
+  ['computed failed constructor','new state["privateField"]();'],
+  ['computed failed tag','state["privateField"]\x60tag\x60;'],
+  ['nested computed failure','target[state["privateField"]]();']
+]){
+  test('string decoder keeps source-spelled failed operand: '+name,()=>{
+    const original='const state={};const target={};let observed="";'+
+      'try{'+operation+'}catch(error){observed=error.message;}'+
+      'module.exports=observed;';
+    const expected=evaluate(original);
+    assert.match(JSON.parse(expected),/state\\.privateField/u);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+      const generated=obfuscateFiles([{path:'failure.cjs',sourceType:'commonjs',
+        code:original}],{mode,seed:'string-typeerror/'+name,
+        strings:true,identifiers:false,properties:false}).files[0];
+      assert.equal(evaluate(generated.code),expected,mode+'/'+name);
+    }
+  });
+}
+
+test('source-spelling refusal still encodes unrelated successful computed key',()=>{
+  const original='const state={privateField:12};module.exports=state["privateField"];';
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+    const generated=obfuscateFiles([{path:'positive.cjs',sourceType:'commonjs',
+      code:original}],{mode,seed:'string-typeerror-positive',
+      strings:true,identifiers:false,properties:false}).files[0];
+    assert.equal(generated.metrics.literals,1,mode);
+    assert.equal(evaluate(generated.code),evaluate(original),mode);
+  }
+});
