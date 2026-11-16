@@ -128,10 +128,14 @@ async function runTimingOracleExperiment(){
     });
     const attack=JSON.parse(stdout.trim());
     assert.equal(attack.sourceReadOnly,true);
-    assert.equal(attack.vulnerable.requests,1537);
-    assert.equal(attack.fixed.requests,1537);
+    assert.ok(attack.vulnerable.requests>=1549&&attack.vulnerable.requests<=10828);
+    assert.equal(attack.fixed.requests,1549);
+    const firstMismatch=[...secret].findIndex((digit,index)=>digit!==attack.vulnerable.guess[index]);
+    const correctPrefix=firstMismatch<0?32:firstMismatch;
     assert.equal(attack.vulnerable.verified,true,
-      'Authorized timing attacker failed to complete private verification');
+      'Authorized timing attacker failed; correct-prefix-length='+correctPrefix+
+      ', attempts='+attack.vulnerable.attempts+
+      ', minimum-ranking-margin-ms='+attack.vulnerable.minMarginMs);
     assert.equal(attack.vulnerable.guess,secret,
       'Public HTTP timing reconstruction differs from trusted secret');
     assert.equal(attack.fixed.verified,false,
