@@ -18,7 +18,8 @@
     "examples/wasm-i32/build.cjs",
     "examples/wasm-i32-multi/build.cjs",
     "examples/wasm-i32-conditional/build.cjs",
-    "examples/wasm-i32-lazy/build.cjs"
+    "examples/wasm-i32-lazy/build.cjs",
+    "sims/wasm-i32-strategy-grid.js"
   ],
   "exclude": [
     "node_modules"
