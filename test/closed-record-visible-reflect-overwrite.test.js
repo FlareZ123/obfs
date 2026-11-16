@@ -241,3 +241,20 @@ test('unrelated literal global descriptor read still admits one proven property 
   assert.equal(expected,'[41,"audit-v1",null]');
   assert.equal(await execute(compiled.files),expected);
 });
+
+
+test('unrelated immutable descriptor selector through an opaque receiver preserves real transformation yield',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "const k='UNRELATED_FIXTURE';const proxy=new Proxy(globalThis,{});const d=Object.getOwnPropertyDescriptor(proxy,k);void d;")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'unrelated-opaque-descriptor-const',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A proved immutable unrelated selector must not cause a vacuous full graph refusal');
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",null]');
+  assert.equal(await execute(compiled.files),expected);
+});
