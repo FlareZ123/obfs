@@ -134,3 +134,31 @@ the SCO client uses a CommonJS relay-worker bootstrap and an isolated
 single ESM facade, so runtime/bootstrap module differences are included
 rather than normalized away. Neither case measures a real Chromium
 client, TLS/WAN, long-lived reuse, or total server process cost.
+
+## Conditional uncertainty around the narrow 2.5× pass
+
+The [deterministic, SHA-256-seeded paired bootstrap](../sims/application-challenge-sco-cold-bootstrap.js)
+commits all 9+9 timing samples from each platform/workload in
+[CI 43807548781](https://github.com/FlareZ123/obfs/actions/runs/43807548781).
+For each of 25,000 re-samples it draws nine chronological paired trial
+indices with replacement, computes the ratio of the two sample medians,
+then reports the 2.5th and 97.5th percentiles.
+
+The [reproduction workflow 43808197600](https://github.com/FlareZ123/obfs/actions/runs/43808197600)
+passed on both operating systems at source
+`85c631123473519f586dc3e008165bc30de5773f`, with identical outputs:
+
+| Platform/workload | Observed ratio | Conditional 95% paired-resample interval | Bootstrap samples above 2.5× |
+|---|---:|---:|---:|
+| Ubuntu, three 120k-event calls | 2.4165× | **2.3104× to 2.5081×** | 4.628% |
+| Windows, three 120k-event calls | 1.9907× | 1.9463× to 2.0322× | 0% |
+| Ubuntu, three one-event calls | 4.0482× | 3.8870× to 4.1577× | 100% |
+| Windows, three one-event calls | 2.7959× | 2.6322× to 2.9029× | 100% |
+
+These intervals characterize resampling variation **within one pinned
+runner observation set**. They are not calibrated population confidence
+intervals, a hardware/traffic guarantee, or a probability of a future
+2.5× violation. In particular, the Ubuntu heavy upper endpoint crosses
+the budget despite its observed median passing. Any production
+decision requires independent repeated runs under representative
+client/network conditions.
