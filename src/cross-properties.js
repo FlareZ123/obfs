@@ -184,6 +184,15 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       if(node.type==='MemberExpression') {
         const field=node.computed?staticString(node.property):staticName(node.property);
         if(field==='Reflect'||field==='Object')changedIntrinsic=true;
+        // A constant string stored in a binding can resolve a mutable
+        // intrinsic through globalThis[key] without spelling Reflect as an
+        // AST Identifier. The broader graph may prove the key's spelling
+        // but cannot prove the returned global intrinsic remains native.
+        if(node.computed && node.property.type!=='Literal' &&
+           node.object.type==='Identifier' &&
+           ['globalThis','window','self','global'].includes(node.object.name)) {
+          changedIntrinsic=true;
+        }
       }
       const target=node.type==='AssignmentExpression'?node.left:
         node.type==='UpdateExpression'?node.argument:
