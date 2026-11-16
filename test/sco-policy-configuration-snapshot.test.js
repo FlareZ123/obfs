@@ -93,10 +93,10 @@ test('SCO preserves frozen remote method registry and authorization callbacks',{
 },async()=>{
   /** @type {Record<string,()=>number>} */
   const registry={
-    // Existing SCO dispatch invokes each operation with its registry as
-    // receiver. Copying function references to a new object changes `this`;
-    // the snapshot must retain the original receiver identity.
-    value(){return this===registry?17:9999;}
+    // RPC dispatch extracts each original callable and invokes it directly,
+    // with undefined as receiver under strict mode. A method bound to a
+    // registry would break this existing behavior and lose batch metadata.
+    value(){return this===undefined?17:9999;}
   };
   const options={
     publicPaths:['style.css'],
