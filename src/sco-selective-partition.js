@@ -2,6 +2,7 @@
 
 const {parse,walk,staticString}=require('./ast');
 const {isBuiltin}=require('node:module');
+const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
@@ -9,7 +10,8 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
 /** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
-/** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[]}} ScoSelectivePartition */
+/** @typedef {{path:string,sha256:string}} ScoPrivateSourceDigest */
+/** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
 
 /**
  * Uncomputed object and member keys are property labels, not variable reads.
@@ -509,6 +511,18 @@ function partitionScoSelectedAsyncExports(file,options) {
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
+  // Retain digest commitments on the trusted server partition only. They
+  // never enter clientFile or the generated browser source. An integrator can
+  // verify these exact UTF-8 input bytes against deployed files before loading
+  // the server's original module graph.
+  /** @type {ScoPrivateSourceDigest[]|undefined} */
+  const privateSourceDigests=options.privateModuleSources===undefined?undefined:[
+    {path:safePath(file.path),sha256:createHash('sha256').update(file.code,'utf8').digest('hex')},
+    ...options.privateModuleSources.map(source=>({
+      path:safePath(source.path),
+      sha256:createHash('sha256').update(source.code,'utf8').digest('hex')
+    }))
+  ];
   // Admit primitive const values, approved environment reads, and inert
   // function-expression const bindings into private source. Effectful
   // initializers and mutable shared objects violate the split contract.
@@ -809,6 +823,7 @@ function partitionScoSelectedAsyncExports(file,options) {
   parse(clientCode,'module');
   return {...partition,publicNames,publicHelperNames:[...publicHelperNames],
     privateNames:[...options.privateNames],
+    ...(privateSourceDigests?{privateSourceDigests}:{}),
     clientFile:{...partition.clientFile,code:clientCode,
       ...(privateModulePaths.length?{privateModulePaths}:{})}};
 }
