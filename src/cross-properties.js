@@ -225,6 +225,25 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     } while(changed);
     let changedIntrinsic=false;
     walk(source.ast,node=>{
+      // The writable native method can also be replaced by ordinary
+      // reflection APIs. An opaque descriptor or assignment source may have
+      // getters, so any such mutation aimed at the ambient object refuses.
+      if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+          node.callee.object.type==='Identifier' &&
+          node.arguments[0]?.type==='Identifier') {
+        const receiver=node.arguments[0].name;
+        if(reflectNames.has(receiver)||objectNames.has(receiver)) {
+          const method=node.callee.computed?
+            staticString(node.callee.property):staticName(node.callee.property);
+          const callee=node.callee.object.name;
+          if(objectNames.has(callee) &&
+              ['defineProperty','defineProperties','assign'].includes(method??'') ||
+             reflectNames.has(callee) &&
+              ['set','defineProperty','deleteProperty'].includes(method??'')) {
+            changedIntrinsic=true;
+          }
+        }
+      }
       const target=node.type==='AssignmentExpression'?node.left:
         node.type==='UpdateExpression'?node.argument:
         node.type==='UnaryExpression'&&node.operator==='delete'?node.argument:null;
