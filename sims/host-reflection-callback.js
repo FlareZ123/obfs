@@ -18,8 +18,8 @@ const files=[
     'export function inspectRecord(key){',
     '  return {',
     '    keys:Reflect.ownKeys(schema).sort(),',
-    '    value:schema[key],',
-    '    enumerable:Object.getOwnPropertyDescriptor(schema,"externalFormat")?.enumerable===true',
+    '    enumerable:Object.getOwnPropertyDescriptor(schema,"externalFormat")?.enumerable===true,',
+    '    value:schema[key]',
     '  };',
     '}'
   ].join('\n')},
