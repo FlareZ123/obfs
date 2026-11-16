@@ -1,6 +1,6 @@
 # SCO server-side source authorization
 
-The programmatic `createScoHandler(sourceFiles, options)` API supports two independent authorization callbacks:
+The programmatic `createScoHandler(sourceFiles, options)` API supports three authorization callbacks:
 
 - `authorizeRead(request)`: optional sync or async callback evaluated before every valid GET of an obfuscated JavaScript file **or** static asset under `routePrefix`. Only the literal boolean `true` authorizes the read; all other results return HTTP 403 with an empty body; an exception returns HTTP 500 without exposing the internal error. Missing files still return 404 before the callback.
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. The result must be the literal boolean `true` to allow a call, including when resolved asynchronously. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
