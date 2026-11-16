@@ -29,7 +29,16 @@ const observers=[
   {name:'computed Object.getPrototypeOf',setup:'const key=true?"toString":"valueOf";const proto=Object.getPrototypeOf(observed);',
     read:'proto[key].call(observed)'},
   {name:'bulk prototype descriptors',setup:'const key=true?"toString":"valueOf";const descriptors=Object.getOwnPropertyDescriptors(Function.prototype);',
-    read:'descriptors[key].value.call(observed)'}
+    read:'descriptors[key].value.call(observed)'},
+  {name:'destructured Function prototype source method',
+    setup:'const {toString:sourceMethod}=Function.prototype;',
+    read:'sourceMethod.call(observed)'},
+  {name:'destructured prototype alias source method',
+    setup:'const prototypeAlias=Function.prototype;const {toString:sourceMethod}=prototypeAlias;',
+    read:'sourceMethod.call(observed)'},
+  {name:'destructured runtime-key function prototype',
+    setup:'const key=true?"toString":"valueOf";const {[key]:sourceMethod}=Function.prototype;',
+    read:'sourceMethod.call(observed)'}
 ];
 
 /** @param {string} code @returns {{value:string,source:string}} */
