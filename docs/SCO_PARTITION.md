@@ -188,3 +188,50 @@ Original function bodies remain on the trusted server, absent from delivered JS.
 The authorizeRpc callback first validates the request at the transport level. The optional authorizeOperation(request,method,args) callback can enforce method- and argument-specific policy after the payload has been parsed. For structured batches, it should inspect all requested operations before authorizing execution. The helper itself does not create user accounts or permissions.
 
 Measured HTTP overhead can exceed the 2.5× budget by orders of magnitude for tiny protected operations, even over loopback. See im-results/sco-rpc-cost-2026-11-15.md for both unbatched and bounded-batch results. Coarse server-resident functions and explicitly batched calls are the currently demonstrated performance approach; real deployment measurements remain necessary. The code splitting API does not automatically select a performant partition or justify any universal throughput guarantee.
+
+
+## Closed private ESM graph deployment verification
+
+`partitionScoAsyncGraph(files,{exposedPaths:[...]})` now returns a
+`privateSourceDigests` array with `{path,sha256}` for **every original
+source module** in the reviewed graph, including modules selected for public
+RPC facades. These commitments are server-only metadata. Their hashes are
+computed from the same original source strings used to prepare the graph.
+
+Before importing the original ESM namespaces into the trusted server,
+verify the installed source tree:
+
+```js
+const path=require('node:path');
+const {partitionScoAsyncGraph,verifyScoPrivateSourceDigests,
+  createScoGraphHandler}=require('./src');
+
+const graph=partitionScoAsyncGraph(sourceFiles,{
+  exposedPaths:['api.mjs'],seed:'reviewed-build-seed'
+});
+await verifyScoPrivateSourceDigests(graph,path.resolve('server-private'));
+// Import the original ESM namespace only after the check succeeds.
+// Supply it to createScoGraphHandler with real authorization policies.
+```
+
+The runnable `examples/sco-graph/server.cjs` follows this order. A deployed
+dependency with even one changed source byte is rejected before the application
+imports that original file. The check also covers original modules that have
+same-path browser facades. It reuses the path-aware, realpath-constrained
+`verifyScoPrivateSourceDigests` helper and needs no new cryptographic scheme.
+
+This is a **trusted-server deployment consistency check**. A concurrent writer
+can still change a file between verification and Node ESM loading; an attacker
+who controls the server can bypass the check completely. Keep the verified
+files immutable through import. Compilation and deployment roots are
+application choices, and the helper does not automatically load modules.
+The verification runs during server initialization and adds no client/RPC
+request-time computation. It does not establish a general 2.5× limit.
+
+The composed `createScoGraphHandler` separately requires the unmodified
+same-process graph object returned by `partitionScoAsyncGraph`. It binds RPC
+methods and serves JavaScript from a compiler-owned snapshot, so a later edit
+to the manifest cannot replace an approved facade with private source. A
+roundtripped or shallow-copied graph is intentionally refused. Details,
+live HTTP negative control and tested boundary are recorded in
+[`im-results/sco-graph-postpartition-seal-2026-11-16.md`](../im-results/sco-graph-postpartition-seal-2026-11-16.md).
