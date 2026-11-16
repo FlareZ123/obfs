@@ -112,3 +112,46 @@ test('declared global Reflect descriptor replacement declines unproved owner rew
   assert.equal(compiled.crossFile.properties,0,
     'A declared descriptor replacement of global Reflect invalidates assumed native ownKeys');
 });
+
+/**
+ * Alternate source-visible global binding replacements. All are legal
+ * ECMAScript operations and do not require a dynamic code constructor.
+ */
+for(const [method,write] of [
+  ['Object.defineProperties',
+    "Object.defineProperties(globalThis,{Reflect:{value:globalThis.HOST_REPLACED_REFLECT,configurable:true,writable:true}});"],
+  ['Reflect.set',
+    "Reflect.set(globalThis,'Reflect',globalThis.HOST_REPLACED_REFLECT);"],
+  ['Object.assign',
+    "Object.assign(globalThis,{Reflect:globalThis.HOST_REPLACED_REFLECT});"]
+]) {
+  test(`declared ${method} replacement cannot expose renamed owner`,async()=>{
+    const original=graph().map(file=>file.path==='entry.mjs'?{
+      ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',write)
+    }:file);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'global-mutator-'+method,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.equal(expected,'[41,"audit-v1",["secretField"]]');
+    assert.equal(compiled.crossFile.properties,0);
+    assert.equal(await execute(compiled.files),expected);
+  });
+}
+
+test('irrelevant global descriptor write preserves proved own-key transformation',async()=>{
+  const original=graph().map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace('Reflect.ownKeys=globalThis.HOST_REFLECT;',
+      "Object.defineProperty(globalThis,'UNRELATED_FIXTURE',{value:7,configurable:true});")
+  }:file);
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'unrelated-global-mutator',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A statically unrelated global key should not invalidate a native own-key proof');
+  const expected=await execute(original);
+  assert.equal(expected,'[41,"audit-v1",null]');
+  assert.equal(await execute(compiled.files),expected);
+});
