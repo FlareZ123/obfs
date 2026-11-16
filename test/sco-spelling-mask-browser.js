@@ -46,6 +46,7 @@ async function main() {
     'const full=result.payload;',
     'const units=[];',
     'for(let i=0;i<full.length;i++)units.push(full.charCodeAt(i));',
+    'units.push(result.count);',
     'document.getElementById("out").textContent=JSON.stringify(units);'
   ].join('\n');
   const preview=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
@@ -86,6 +87,7 @@ async function main() {
     /** @type {number[]} */
     const nativeUnits=[];
     for(let i=0;i<full.length;i++)nativeUnits.push(full.charCodeAt(i));
+    nativeUnits.push(7);
     const baseline=await readUnits(base+'/native');
     assert.deepEqual(baseline,nativeUnits);
     const emitted=await readUnits(base+'/obfuscated');
@@ -114,6 +116,7 @@ async function main() {
     process.stdout.write(JSON.stringify({
       chromium:'passed',nativeUnits:baseline.length,emittedUnits:emitted.length,
       sourceVariantsDistinct:true,sourceOnlyMaskRecoveryOnRenamedModule:true,
+      observedPrivateFieldResult:nativeUnits.at(-1),
       transformedPrivateFields:preview.metrics.properties,
       transformedBindings:preview.metrics.bindings,containsUnpairedSurrogate:full.includes(String.fromCharCode(0xd800)),
       browser:'real Chromium, HTTP-served native versus SCO'
