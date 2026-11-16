@@ -131,6 +131,34 @@ private dependency; it includes a real HTTP source-leak negative control
 with fingerprint metadata intentionally omitted. Both Node 22 jobs
 and strict SCO graph JSDoc passed.
 
+## Preferred private-graph handler composition
+
+Use `createScoGraphHandler(graph,originalNamespaces,options)` to build the
+HTTP handler for a `partitionScoAsyncGraph` result. This helper binds exactly
+the original server-resident exports, selects exactly `graph.clientFiles`,
+and applies `publicPaths` from the graph's explicit `exposedPaths` rather
+than accepting a separate caller-assembled file list. It refuses options
+that attempt to override `publicPaths` or `remoteMethods`. A mismatched
+generated RPC endpoint and handler `routePrefix` also causes startup to
+fail instead of silently breaking the generated facades.
+
+`originalNamespaces` must refer to the native ESM exports loaded privately
+on the trusted server. Configure `authorizeRpc` to validate every request
+and `authorizeOperation` for method-specific and argument-specific policies.
+`authorizeRead` is available independently for public facade delivery.
+The helper cannot establish trustworthy user identity by itself, enforce
+authorization outside this handler, or prevent unlimited authorized
+queries and response relays.
+
+The runnable [three-module HMAC example](../examples/sco-graph/server.cjs)
+uses this helper. At exact SHA `b8ba88d3a337cd3a03ed588a0b34deeedd65cd3d`,
+the [Linux/Windows Node 22 gate](https://github.com/FlareZ123/obfs/actions/runs/43856454956)
+verified real generated facades, the native-vs-RPC results, independently
+authorized HTTP routes, and rejection of an extra source file, original
+module substitution, override attempts, and endpoint mismatches. Strict
+JSDoc passed on both platforms. This is an integration safety improvement,
+not a hostile-client confidentiality or universal performance proof.
+
 ## Generated browser RPC facade
 
 `createScoRpcClientSource(methodNames, {endpoint?})` emits a standalone ES module for modern browsers. The generated source includes method names and a JSON-over-HTTP transport, while the actual function bodies remain on the SCO server. Its default same-origin endpoint is `/obfs/rpc`; specify a same-origin absolute path when using a custom `routePrefix`. The generator rejects duplicate method names and cross-origin or protocol-relative endpoints.
