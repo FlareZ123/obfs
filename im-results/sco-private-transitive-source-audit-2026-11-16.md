@@ -41,6 +41,25 @@ The compiler now records SHA-256 commitments to the original mixed ESM entry and
 
 The verifier requires trustworthy source bytes when the partition is generated, an immutable deployment during verification and Node import, and a trusted server operator. It is a startup consistency check rather than an adversary-resistant signature system. An attacker able to mutate the server filesystem or memory after verification is outside the SCO trust assumption and can bypass it. Manually supplemented paths not in the supplied snapshot have no generated digest.
 
+## Independent authorized online attacker against the audited and verified graph
+
+The [separate attacker-process regression](../test/sco-private-transitive-relay.test.js) uses a fresh three-file protected HMAC service. The original trusted entry imports a private engine which imports a private leaf executing 4,000 keyed SHA-256 HMAC rounds. Both private sources are statically audited and digested, and `verifyScoPrivateSourceDigests` checks the actual deployed files before native import. The signing key is an environment secret captured in the trusted server, with the public browser facade and attacker Node process receiving no private implementation bytes or secret environment variable.
+
+A distinct Node child process obtains **only the generated public client ESM file, public server origin, and its own legitimate session token** as explicit inputs. It hosts a separate HTTP clone endpoint and relays arbitrary allowed requests to the original trusted server through the public client. The runner asserts the child has no HMAC-key environment variable. The trusted server refuses unauthenticated RPC (**403**) and returns **404** for both private source paths, even for the attacker's authorized session. This is a functional online clone, not a recovery of the hidden HMAC code/key. The runner's filesystem shares the CI host rather than providing an OS-level private-filesystem sandbox, so it is a process-isolation and explicit-input experiment, not a proof against all possible same-host access.
+
+[Pinned Ubuntu + Windows SCO gate 43801195059](https://github.com/FlareZ123/obfs/actions/runs/43801195059), Node.js **22.23.4**, source SHA `e2ecc017fa823b1dc3a94e85129afc0762a1618e`, confirms **20/20 fresh held-out inputs matched** on each platform. Every clone made one authorized origin RPC. The workload-specific alternating eight-sample warm local timing:
+
+| Observation | Ubuntu Linux | Windows |
+| --- | ---: | ---: |
+| Original protected method median | 12.283244 ms | 8.802900 ms |
+| Attacker clone endpoint median | 17.242076 ms | 12.257700 ms |
+| Clone/native ratio | **1.403707×** | **1.392462×** |
+| Private ESM source files accessible from handler | 0/2 | 0/2 |
+| Attacker process holds private signing key | No | No |
+| Original private outputs cloned | **20/20** | **20/20** |
+
+The **2.5×** performance objective is met for this one warm loopback HMAC/relay workload. It is not demonstrated for thin calls, WAN/TLS, cold boot, or broad application mixes. Crucially, an attacker can relay functions that the original application authorizes them to call, even when static source withholding, deployed-byte verification, and per-operation access checks all behave correctly. No static manifest hardening can change that online-oracle fact under the stated unlimited legitimate-request threat model.
+
 ## Limits, threat model and next work
 
 - The caller supplies a claimed *exact* private source snapshot. The compiler does not fetch it from disk; if the real deployed server graph differs, metadata can be incomplete.
