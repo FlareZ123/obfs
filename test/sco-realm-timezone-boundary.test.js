@@ -61,6 +61,10 @@ test('SCO refuses private calls that silently inherit the destination timezone o
     'return new Date(0).getHours();',
     'const stamp=new Date(0);return stamp.getTimezoneOffset();',
     "const stamp=new Date(0);return stamp.toLocaleDateString('en-US');",
+    "const F=Intl.DateTimeFormat;return new F('en-US').resolvedOptions().timeZone;",
+    "return new globalThis.Intl.DateTimeFormat('en-US').resolvedOptions().timeZone;",
+    "const first=new Date(0);const second=first;return second['get'+'Hours']();",
+    "return new Date(Date.UTC(2020,0,1)).getHours();",
     'return new Date(0).toString();',
     "return new Date('2020-01-01T00:00').toISOString();"
   ];
