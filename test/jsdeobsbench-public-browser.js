@@ -72,11 +72,14 @@ async function main() {
     const chrome=process.env.CHROMIUM_BIN??'chromium';
     for(const label of ['native','coo-encoded','coo-recovered','sco-encoded',
       'sco-recovered','sno-encoded','sno-recovered']) {
+      /** @type {string} */
       const page='http://127.0.0.1:'+address.port+'/'+label+'.html';
-      const {stdout}=await promisify(execFile)(chrome,[
+      /** @type {string} */
+      const stdout=String((await promisify(execFile)(chrome,[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
         '--no-first-run','--virtual-time-budget=3500','--dump-dom',page
-      ],{encoding:'utf8',timeout:45000,maxBuffer:8*1024*1024});
+      ],{encoding:'utf8',timeout:45000,maxBuffer:8*1024*1024})).stdout);
+      /** @type {string|undefined} */
       const rendered=/<div id="answer">([^<]*)<\/div>/u.exec(stdout)?.[1];
       assert.equal(rendered,'seen:'+secret,
         'Chrome CSP/host ESM mismatch for '+label+': '+stdout.slice(-350));
