@@ -18,3 +18,7 @@ examples/application-challenge/before/*.mjs text eol=lf
 examples/application-challenge/after/*.mjs text eol=lf
 examples/application-challenge/sco-before/*.mjs text eol=lf
 examples/application-challenge/sco-public/**/*.mjs text eol=lf
+
+# Exact ESM host-guard output includes generated LF prefix bytes.
+examples/closed-graph-host/before/*.mjs text eol=lf
+examples/closed-graph-host/after/*.mjs text eol=lf
