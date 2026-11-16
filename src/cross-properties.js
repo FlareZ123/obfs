@@ -265,8 +265,9 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
         if(owner==='Object' && (method==='defineProperties'||method==='assign')) {
           const sources=method==='assign'?node.arguments.slice(1):[node.arguments[1]];
-          if(sources.some(sourceObject=>sourceObject?.type!=='ObjectExpression' ||
-              sourceObject.properties.some(property=>{
+          if(sources.some((/** @type {AstNode|undefined} */ sourceObject)=>
+              sourceObject?.type!=='ObjectExpression' ||
+              sourceObject.properties.some((/** @type {AstNode} */ property)=>{
                 if(property.type!=='Property')return true;
                 const key=property.computed?
                   staticString(property.key):ownPropertyName(property);
