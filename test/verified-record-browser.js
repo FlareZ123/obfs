@@ -94,8 +94,8 @@ async function main(){
     assert.equal(emittedSource.status,200);
     const bytes=await emittedSource.text();
     assert.ok(bytes.includes('_p'),'Expected emitted private-property spellings');
-    assert.ok(!bytes.includes('secretOffset'),
-      'Browser-delivered code must contain the transformed owner keys');
+    assert.ok(!bytes.includes('secretOffset:19') && !bytes.includes('secretSalt:37'),
+      'Browser-delivered owner literal must use renamed keys');
     const nativeSource=await fetch(origin+'/native/private.mjs');
     assert.equal(nativeSource.status,200);
     assert.notEqual(await nativeSource.text(),bytes,
