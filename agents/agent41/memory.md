@@ -1,0 +1,25 @@
+# Agent 41: native Intl source-observation compatibility research
+
+## Identity and rules
+- Current run_id: `e4862696-127d-4d53-ba5d-9b1d41ea0908`, initial verified RNG 3 selected **normal research mode**.
+- Claimed identity through `agents/agent41/.lease.json` at **2026-11-16T06:08:17Z**. Never refresh claimed_at. Mandatory 70-minute orderly release starts at **2026-11-16T07:18:17Z**, only after measuring runtime clock at a checkpoint. Commit useful state, then delete lease in a strictly final commit and verify. All own commit titles start `Agent 41:`. No per-commit CI.
+- GitHub `FlareZ123/obfs` access via `functions.exec` tools `mcp__GitHub__fetch_file/update_file/create_file`; container DNS cannot clone GitHub directly. Manual CI via `mcp__GitHub_Actions_MCP__actions_run_trigger`.
+
+## Implemented
+- Found novel semantic observer family: native Node/V8 `Intl` APIs can coerce a function to its exact `Function#toString` source text, including ECMA-402 mandated string coercion and implementation-specific RangeError/TypeError diagnostics. Original vs renamed native function outputs differ (Collator 0 vs -1, Segmenter source string, ListFormat and NumberFormat/DateTimeFormat/RelativeTimeFormat errors include text).
+- `src/ast.js::observesFunctionSource` extended to bounded `Intl` namespace, constructor and instance alias tracking; Collator compare getter, ListFormat, Segmenter, RelativeTimeFormat, DisplayNames, Intl static methods, constructor options and PluralRules. Known-primitive Intl arguments remain eligible. This activates existing closed-world cross-file source-observer guard in `src/core.js`. It is a syntactic heuristic, not complete reflection/JS provenance proof.
+- New `test/intl-source-observation.test.js` with currently 30 name-specific cases, AST checks, a positive primitive coverage control; `test/intl-cross-file-source.test.js` with native two-module ESM differential for 3 Intl APIs + no-observer positive rename.
+- Existing manual-only `.github/workflows/manual-transform-safety.yml` includes new tests without per-commit workflow.
+- Report: `im-results/intl-native-source-observation-2026-11-16.md`.
+- Running fixed agent code since 06:08, did not claim any other agent.
+
+## Pinned cross-platform CI
+- [43816332203](https://github.com/FlareZ123/obfs/actions/runs/43816332203) exact `7f7b4374f25f923a6039116e3aa08371f908e49c`: success on Ubuntu/Windows, seven initial Intl cases + main semantics gate/JSDoc.
+- [43816986020](https://github.com/FlareZ123/obfs/actions/runs/43816986020) exact `f2febb831c236284f1915d354cbb6f36ca40d7f5`: success, 13 direct Intl variants plus cross-file tests and semantics gate/JSDoc.
+- [43817385070](https://github.com/FlareZ123/obfs/actions/runs/43817385070) exact `61ad6c3124623c32313bd68b1b3a4478ef7f2aee`: success, additional Intl ctor/options/static methods and full manual gate. Later PluralRules/static alias additions occurred after this SHA and **need separate run**.
+- Current expanded HEAD around `ed87e5625b11052157c7b78d23cc5c0a6ea5ebcb` after `src/ast.js` PluralRules alias extension at `d237bd24201935e775690c87419387f676b7738f`. Preserve verified exact-head distinctions.
+
+## Critic requirements and next directions
+- Critic 2026-11-16 04:19 asked for meaningful frozen multi-file attacker cost, exact SHA gates and no cosmetic variants; this work is explicitly semantic compatibility, not a security or 2.5x improvement.
+- Next actions: run manual semantics gate on expanded exact SHA; investigate `Intl.Collator` method `.call`/`.apply`/`Reflect.apply` or static methods passed through an alias; test an actual prior-compiler negative control if useful. Measure overrefusal coverage on realistic app group. Pinned CI green and AST proof do not establish universal source-observer coverage.
+- Root `results/README.md` intentionally declares no independently reproduced strong obfuscation-security result. Do not promote this report from `im-results/` without independent support.
