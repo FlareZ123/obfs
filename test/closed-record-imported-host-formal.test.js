@@ -95,6 +95,30 @@ const negative=[
     call:'rewire(globalThis);'
   },
   {
+    label:'default imported function receives global root',
+    hook:"export default function rewire(root){const {['Ref'+'lect']:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}",
+    importCode:"import rewire from './hook.mjs';",
+    call:'rewire(globalThis);'
+  },
+  {
+    label:'namespace imported function receives global root',
+    hook:"export function rewire(root){const {['Ref'+'lect']:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}",
+    importCode:"import * as hooks from './hook.mjs';",
+    call:'hooks.rewire(globalThis);'
+  },
+  {
+    label:'computed namespace imported function receives global root',
+    hook:"export function rewire(root){const {['Ref'+'lect']:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}",
+    importCode:"import * as hooks from './hook.mjs';",
+    call:"hooks['rewire'](globalThis);"
+  },
+  {
+    label:'local exporter exposed under alias receives global root',
+    hook:"function rewire(root){const {['Ref'+'lect']:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}export {rewire as mutate};",
+    importCode:"import {mutate} from './hook.mjs';",
+    call:'mutate(globalThis);'
+  },
+  {
     label:'imported function forwards root to an internal local call',
     hook:"export function pass(root){rewire(root);}function rewire(root){const {['Ref'+'lect']:cap}=root;cap.ownKeys=globalThis.HOST_REFLECT;}",
     importCode:"import {pass} from './hook.mjs';",
@@ -131,6 +155,40 @@ test('imported harmless root receiver preserves genuine unrelated owner rewrite'
   });
   assert.equal(compiled.crossFile.properties,1,
     'Unrelated imported function retains one actually protected field');
+  const native=await evaluate(original);
+  assert.deepEqual(native,[41,'audit-v1',null]);
+  assert.deepEqual(await evaluate(compiled.files),native);
+});
+
+test('default imported harmless reader preserves unrelated owner rewrite',async()=>{
+  const original=graph({
+    label:'positive-default',
+    hook:"export default function inspect(root){const {['UNRELATED_FIXTURE']:value}=root;void value;}",
+    importCode:"import inspect from './hook.mjs';",
+    call:'inspect(globalThis);'
+  });
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'import-formal/positive-default',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1);
+  const native=await evaluate(original);
+  assert.deepEqual(native,[41,'audit-v1',null]);
+  assert.deepEqual(await evaluate(compiled.files),native);
+});
+
+test('namespace imported harmless reader preserves unrelated owner rewrite',async()=>{
+  const original=graph({
+    label:'positive-namespace',
+    hook:"export function inspect(root){const {['UNRELATED_FIXTURE']:value}=root;void value;}",
+    importCode:"import * as hooks from './hook.mjs';",
+    call:'hooks.inspect(globalThis);'
+  });
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'import-formal/positive-namespace',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1);
   const native=await evaluate(original);
   assert.deepEqual(native,[41,'audit-v1',null]);
   assert.deepEqual(await evaluate(compiled.files),native);
