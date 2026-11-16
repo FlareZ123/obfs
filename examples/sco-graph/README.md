@@ -17,14 +17,28 @@ server the original import chain runs as usual. Public facades import neither
 façades. This allows client imports of `derive` and `verify` while their
 implementation remains on the trusted server.
 
-The graph partitioner now attaches server-side `privateModulePaths` metadata
-for each unexposed original module to every generated facade. If an integrator
-accidentally co-publishes `secret.mjs` alongside either facade,
-`createScoHandler` rejects the configuration before serving HTTP source.
-This metadata is not emitted in the browser JavaScript. Independently
-reviewed `publicPaths` remains the stronger positive publication boundary.
-The [real HTTP negative control](../../im-results/sco-graph-publication-manifest-2026-11-16.md)
-reproduces the source leak when the metadata is deliberately omitted.
+The graph partitioner attaches two kinds of server-side metadata to each
+generated facade: `privateModulePaths` for each unexposed module and
+`privateOriginalDigests` for the exact SHA-256 bytes of **every original
+private module**, including original `api.mjs` and `audit.mjs`. The generic
+`createScoHandler` refuses source publication under a forbidden path or
+when a candidate file matches any original digest. This also blocks
+byte-exact originals copied to a different filename. The metadata is not
+emitted in browser JavaScript; changing source bytes or stripping metadata
+bypasses the content check.
+
+The [live example server](server.cjs) now uses
+`createScoGraphHandler(graph,originalNamespaces,{authorizeRpc,authorizeRead,authorizeOperation})`
+instead of manually assembling public files and remote method IDs. This
+higher-level helper publishes only the graph-generated facades, applies
+an exact public-path allowlist from `exposedPaths`, binds the original
+server exports, and checks that the generated RPC endpoint matches the
+handler's `routePrefix`. All credentials and operation policy are still
+provided by the integrating server. Independently reviewing `exposedPaths`
+remains essential, and a separate application HTTP handler is outside
+these checks. The [paired HTTP negative controls and cross-platform
+evidence](../../im-results/sco-graph-publication-manifest-2026-11-16.md)
+show the particular mistakes these safeguards catch.
 
 From Windows 11 PowerShell, with Node.js 22 and dependencies installed:
 
