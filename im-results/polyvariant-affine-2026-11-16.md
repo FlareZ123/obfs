@@ -48,6 +48,21 @@ The corrected harness [sims/polyvariant-affine-cold-start.js](../sims/polyvarian
 
 Each individual measured cold parsing/computation *phase* exceeds the 2.5× original phase in this fixture. This isolates source compile time, not a complete elapsed short-session ratio. It is a plausible risk to **COO**, which cannot exclude client initialization from its total compute budget. The SNO server may amortize eligible initialization under the original project rule. A concrete target application must still measure startup+runtime combined, and a long session can amortize the parser cost. Remaining V8 cache/JIT, source-comment and shared-runner effects preclude universal predictions.
 
+## End-to-end startup-inclusive invocation-session crossover
+
+The [focused cross-platform green run 43803709528](https://github.com/FlareZ123/obfs/actions/runs/43803709528) at exact SHA **737924ced79e4b53b406be84ef4ea9addc810b9c** passed both OS, all then-current targeted tests, strict JSDoc, generated exact sample, source-only attacker, real Chromium and all benchmarks. Its new [whole-session harness](../sims/polyvariant-affine-session-budget.js) executes **eleven alternating complete cold Function compilation + CommonJS instantiation + invocation sessions** per variant and invocation count. Original/transformed source receives distinct nonce comments to limit exact-byte cache reuse. Inputs and accumulated outputs are deterministic and asserted equal, with the same metadata and timing method on both OS. Note: this measures fresh dynamic Function construction in Node, an approximation of COO cold source loading, rather than browser script-tag or ESM module loading.
+
+| OS | Paths | 1 call | 65,536 calls | 250,000 calls |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu Node22 | 2 | 2.964× | 2.470× | **1.877×** |
+| Ubuntu Node22 | 4 | 4.303× | 2.924× | **2.030×** |
+| Ubuntu Node22 | 8 | 8.644× | 4.899× | **3.599×** |
+| Windows Node22 | 2 | 3.522× | 2.514× | **1.823×** |
+| Windows Node22 | 4 | 6.188× | 3.419× | **2.328×** |
+| Windows Node22 | 8 | 10.729× | 4.993× | **3.063×** |
+
+Other tested call counts 16, 256 and 4,096 also frequently exceeded 2.5×. This demonstrates a **real budget violation for the measured short-lived COO-style sessions and for 8-path 250k-call sessions**. The hot-only results should never be interpreted as proof that COO meets its overall compute constraint. After the evidence, the integrated default COO policy was changed to **2 paths** when experimentalPolyvariantCount is omitted (commit 4eb106538c3d4b382d8100aa7fccfcb2a9bd549e); SNO keeps 4 as a research default because eligible server initialization may be amortized under the prompt's rule. Explicit opt-in to larger cases remains available **for measured suitable workloads only**. Even the 2-path default exceeds the short-session 2.5× target in this fixture, so safe default system behavior is to leave polyvariant disabled unless explicitly requested.
+
 ## Independent offline adversarial attack
 
 The attacker [sims/polyvariant-affine-static-recover.js](../sims/polyvariant-affine-static-recover.js) imports Acorn to parse only distributed obfuscated source. It recognizes the generated function normalization and switch, interprets the native integer AST for **two inputs from each declared congruence class**, and deduces the additive mapping when all classes agree. It does not load, import or execute the distributed program. The checked-in two-class sample is reconstructed as signed-Int32 normalization plus an addition of **262**, despite two differently masked case bodies. The six-test suite additionally generates 2/4/8 variants and verifies 512 held-out integer values for each recovery, with a test of a side-effectful numeric-coercion object. This provides a deliberately negative security control: full-control source access defeats this candidate's abstract syntax hiding on the tested grammar.
