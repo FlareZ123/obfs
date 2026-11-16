@@ -73,6 +73,12 @@ jobs:
         run: node --test test/sco-sync-independent-ground-truth.test.js
       - name: Publish exhaustive short-word ground truth for SHA machine fixtures
         run: node sims/sco-sync-independent-ground-truth.js
+      - name: Certify step-only public continuation through bounded Mealy model space
+        run: node --test test/sco-step-only-version-space.test.js
+      - name: Exhaust all two-state and sampled three-state public continuation attacks
+        run: node sims/sco-step-only-version-space-report.js
+      - name: Challenge bounded continuation attack on independent SHA holdouts
+        run: node sims/sco-step-only-version-space-report.js --holdout
       - name: Compare finite-domain cloning against high-entropy SCO keyed function
         run: node sims/sco-high-entropy-prf.js
       - name: Test low-entropy key recovery through authorized SCO RPC
