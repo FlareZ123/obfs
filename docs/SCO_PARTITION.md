@@ -85,6 +85,25 @@ transitively, handling cycles and preserving each discovered path in
 case-insensitive paths, unrelated supplied files, noncanonical imports, unknown
 bare imports, and direct runtime `import()` or common direct loader calls.
 
+When an audited graph is supplied, the returned **server-side partition**
+also carries `privateSourceDigests`: SHA-256 commitments for the original
+mixed module and each supplied private dependency. These commitments are kept
+out of `clientFile` and the served browser JavaScript. Before importing the
+original server module, call
+`await verifyScoPrivateSourceDigests(partition, absoluteDeploymentRoot)`
+from `src/index.js` to compare those commitments with the exact UTF-8 bytes on
+disk. The verifier resolves filesystem realpaths, refuses symlink targets
+outside the selected root, and rejects modified or missing source files. It
+runs once during trusted-server initialization and adds no request-time
+overhead. This check is a separate, **opt-in deployment preflight**; the
+compiler itself does not read the server filesystem.
+
+The preflight does not make an untrusted or concurrently writable filesystem
+tamper-resistant. Verify before loading the original server module, keep
+deployed files immutable during that load, and do not treat a digest as a
+secret-key authentication mechanism. Manually supplemented private paths
+outside the audited source snapshot have no generated digest.
+
 The static audit is **opt-in**. Without `privateModuleSources`, the manifest
 still covers only direct imports and explicit `additionalPrivateModulePaths`.
 Even with the opt-in, this is a bounded *static* path audit, not proof that a
