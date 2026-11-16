@@ -1,5 +1,7 @@
 'use strict';
 
+const {types:{isPromise}}=require('node:util');
+
 /**
  * @typedef {{method:string,args:unknown[]}} ScoBatchCall
  */
@@ -12,7 +14,20 @@
  */
 function isThenable(value) {
   return value!==null && (typeof value==='object'||typeof value==='function') &&
-    typeof /** @type {{then?:unknown}} */ (value).then==='function';
+    (isPromise(value) || typeof /** @type {{then?:unknown}} */ (value).then==='function');
+}
+
+/**
+ * A mistakenly asynchronous policy can reject after the synchronous caller
+ * has already thrown. Observe real Promise rejections across VM realms to
+ * avoid a later unhandled process-level exception. Native isPromise avoids
+ * invoking arbitrary non-Promise thenables.
+ * This does not cancel asynchronous side effects already started by a policy.
+ * @param {unknown} value
+ * @returns {void}
+ */
+function consumeRejectedPromise(value) {
+  if(isPromise(value))void Promise.prototype.then.call(value,undefined,()=>{});
 }
 
 /**
@@ -41,6 +56,7 @@ function preflightScoBatchState(calls,initialState,policy) {
   }
   if(!Array.isArray(calls)||calls.length<1||calls.length>1024)return false;
   if(isThenable(initialState)) {
+    consumeRejectedPromise(initialState);
     throw new TypeError('Batch initial state must be synchronous');
   }
   let state=initialState;
@@ -49,11 +65,13 @@ function preflightScoBatchState(calls,initialState,policy) {
         typeof call.method!=='string' || !Array.isArray(call.args))return false;
     const permitted=policy.authorize(state,call.method,call.args);
     if(typeof permitted!=='boolean') {
+      consumeRejectedPromise(permitted);
       throw new TypeError('Batch state authorization must return a boolean synchronously');
     }
     if(!permitted)return false;
     state=policy.transition(state,call.method,call.args);
     if(isThenable(state)) {
+      consumeRejectedPromise(state);
       throw new TypeError('Batch state transition must return synchronously');
     }
   }
