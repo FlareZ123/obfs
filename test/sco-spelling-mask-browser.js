@@ -64,7 +64,9 @@ async function main() {
     }
     if(request.url==='/native' || request.url==='/obfuscated') {
       const src=request.url==='/native'?'/native.mjs':'/obfs/entry.mjs';
-      response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store'});
+      response.writeHead(200,{'content-type':'text/html; charset=utf-8',
+        'cache-control':'no-store',
+        'content-security-policy':"default-src 'none'; script-src 'self'"});
       response.end('<!doctype html><meta charset="utf-8"><pre id="out">pending</pre>'+
         '<script type="module" src="'+src+'"></script>');
       return;
