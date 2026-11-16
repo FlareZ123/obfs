@@ -865,6 +865,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
     }
     if(node.type==='CallExpression'||node.type==='NewExpression') {
       const callee=node.callee;
+      // MessagePort, Worker and browser postMessage use structured cloning.
+      // Their DataCloneError can expose exact function source in the payload,
+      // including nested values. The receiver may be an opaque host object.
+      if(node.type==='CallExpression' &&
+         (callee.type==='Identifier' && callee.name==='postMessage' ||
+          callee.type==='MemberExpression' && memberName(callee)==='postMessage') &&
+         node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
       // Node's V8 serializer reuses structured clone rules and can expose the
       // exact source of a failed function operand in its error message.
       if(node.type==='CallExpression' && isV8Serialize(callee) &&
