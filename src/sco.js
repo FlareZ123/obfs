@@ -52,10 +52,12 @@ function respondJson(response,status,payload) {
  */
 async function handleRpc(request,response,options) {
   try {
+    // Authorization callbacks must return true explicitly: truthy objects,
+    // strings and numeric values are insufficient proof of permission.
     // Preserve the early coarse denial path when no isolation callback is
     // configured. With isolation, authorization occurs inside its critical
     // section after bounded request parsing, avoiding stale policy snapshots.
-    if (!options.runRpcIsolated && !await options.authorizeRpc(request)) {
+    if (!options.runRpcIsolated && (await options.authorizeRpc(request))!==true) {
       respondJson(response,403,{ok:false,error:'Forbidden'});
       return;
     }
@@ -101,14 +103,14 @@ async function handleRpc(request,response,options) {
     // the same application-supplied isolation scope. A server-supplied mutex
     // or transaction can then serialize state-changing RPCs for one identity.
     const execute=async()=>{
-    if (options.runRpcIsolated && !await options.authorizeRpc(request)) {
+    if (options.runRpcIsolated && (await options.authorizeRpc(request))!==true) {
       respondJson(response,403,{ok:false,error:'Forbidden'});
       return;
     }
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
-      if (!await options.authorizeOperation(request,method,args)) {
+      if ((await options.authorizeOperation(request,method,args))!==true) {
         respondJson(response,403,{ok:false,error:'Forbidden'});
         return;
       }
@@ -122,7 +124,7 @@ async function handleRpc(request,response,options) {
           // execution. Only valid item shapes can reach policy evaluation.
           if (!call || typeof call!=='object' ||
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
-          if (!await options.authorizeOperation(request,call.method,call.args)) {
+          if ((await options.authorizeOperation(request,call.method,call.args))!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
             return;
           }
@@ -445,7 +447,7 @@ function createScoHandler(sourceFiles,options={}) {
     // Authentication runs before delivering source or assets; failure closes access.
     void Promise.resolve().then(()=>authorizeRead(request)).then(allowed=>{
       if (response.destroyed) return;
-      if (!allowed) {
+      if (allowed!==true) {
         response.writeHead(403,{'cache-control':'no-store'}).end();
         return;
       }
