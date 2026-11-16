@@ -91,6 +91,35 @@ cold-start costs were not measured in this first pin.
 The 1.16×–1.36× ratios satisfy the 2.5× ceiling for **this particular**
 8 MiB work and loopback session shape. Tiny operations, WAN delays,
 other workloads and one-call lifetimes can exceed 2.5×, as existing SCO
-latency experiments show. A follow-up adds cross-account concurrent
-async-context checks and explicit JSDoc coverage; the current pinned
-table does not certify those later changes.
+latency experiments show.
+
+## Follow-up: cross-account concurrent async context and strict JSDoc
+
+The initial experiment was extended with four simultaneous requests per
+principal, eight in flight, then enrolled in `jsconfig.external.json` for
+strict JSDoc. The first follow-up gate at
+[`1e74ffc`](https://github.com/FlareZ123/obfs/commit/1e74ffc9b43bca350d8d9d25ef4ee6a510fc488e)
+recorded all semantic assertions passing but **failed type checking** on
+two `Promise<void>` socket lifecycle annotations; the code was corrected.
+The new frozen source
+[`558352b352df1497677352d06d0c867a85b0ba85`](https://github.com/FlareZ123/obfs/commit/558352b352df1497677352d06d0c867a85b0ba85)
+passed the full existing SCO authorization matrix on
+[run 43835306239](https://github.com/FlareZ123/obfs/actions/runs/43835306239),
+including both platforms' strict JSDoc and the existing Ubuntu Chromium
+fixtures. The *new audience game* itself runs on Node, not in Chromium.
+
+| Follow-up metric, 12 calls/session | Ubuntu Linux | Windows |
+|---|---:|---:|
+| A's authorized online relay matches own output | 32/32 | 32/32 |
+| A's proxy matches B target output | 0/32 | 0/32 |
+| Concurrent A/B output checks | 8/8 | 8/8 |
+| Native median, ms | 63.842347 | 63.870700 |
+| Direct A RPC median, ms | 73.058787 | 76.026100 |
+| A-proxy RPC median, ms | 83.035376 | 87.048200 |
+| Direct/native | 1.144362× | 1.190313× |
+| Relay/native | 1.300632× | 1.362882× |
+
+The clocks and host runner load changed between runs, so these ratios are
+separate workload-local observations rather than a stable universal
+constant. The concurrency check tests context separation at eight
+in-flight calls; it is not a throughput or load-shedding benchmark.
