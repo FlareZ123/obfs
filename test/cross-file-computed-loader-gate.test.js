@@ -36,14 +36,16 @@ async function execute(files) {
  * dynamically import the exact already-loaded ESM owner again, then inspect
  * its keys without a statically visible import/identifier reference.
  * @param {string} constructorExpression
+ * @param {string} [prelude]
  * @returns {ModuleFile[]}
  */
-function dynamicSource(constructorExpression) {
+function dynamicSource(constructorExpression,prelude='') {
   return [
     {path:'state.mjs',sourceType:'module',
       code:'export const state={secretField:17};'},
     {path:'main.mjs',sourceType:'module',code:[
       'import {state} from "./state.mjs";',
+      prelude,
       'const imported=await ('+constructorExpression+'('+
         JSON.stringify('return import("./state.mjs")')+'))();',
       'console.log(JSON.stringify([state.secretField,Object.keys(imported.state),imported.state.secretField]));'
@@ -51,12 +53,15 @@ function dynamicSource(constructorExpression) {
   ];
 }
 
-for(const [label,constructorExpression] of [
-  ['concatenated Function', 'new globalThis["Fun" + "ction"]'],
-  ['template Function', 'new globalThis['+String.fromCharCode(96)+'Function'+String.fromCharCode(96)+']']
+for(const [label,constructorExpression,prelude] of [
+  ['concatenated Function', 'new globalThis["Fun" + "ction"]', ''],
+  ['template Function', 'new globalThis['+String.fromCharCode(96)+'Function'+String.fromCharCode(96)+']', ''],
+  ['variable-computed Function', 'new globalThis[loaderName]', 'const loaderName="Fu"+"nction";'],
+  ['global-alias computed Function', 'new host[loaderName]', 'const host=globalThis;const loaderName="Fu"+"nction";'],
+  ['assigned-global computed Function', 'new host[loaderName]', 'let host;host=globalThis;const loaderName="Fu"+"nction";']
 ]) {
   test('constant-computed '+label+' declines unsafe cross-file owner renaming',async()=>{
-    const files=dynamicSource(constructorExpression);
+    const files=dynamicSource(constructorExpression,prelude);
     const native=await execute(files);
     assert.equal(native,'[17,["secretField"],17]\n');
     const transformed=obfuscateFiles(files,{
