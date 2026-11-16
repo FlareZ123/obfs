@@ -651,7 +651,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function renameLocalProperties(source, ast, options) {
@@ -664,6 +664,11 @@ function renameLocalProperties(source, ast, options) {
     const declaration = ancestors[ancestors.length - 2];
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
+    // Classic scripts share their Program-level lexical environment across files.
+    // Keep global roots unchanged: only block/function-local owners can be
+    // proved without rewriting references in independent classic scripts.
+    if (options.sourceType === 'script' &&
+        !ancestors.some(a => a.type === 'BlockStatement')) return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
     if(!literal)return;
     /** @type {AstNode[]} */
