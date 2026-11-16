@@ -64,16 +64,40 @@ function verifyPrivateImport(source,specifier,known) {
  * @returns {boolean}
  */
 function isDirectDynamicEvaluator(node){
-  if(node.type!=='CallExpression'&&node.type!=='NewExpression')return false;
-  const callee=node.callee;
-  if(callee.type==='Identifier'){
-    return callee.name==='eval'||callee.name==='Function';
+  const evaluatorNames=new Set(['eval','Function']);
+  const globalNames=new Set(['globalThis','global']);
+  /** @param {import('./ast').AstNode|null|undefined} expression @returns {boolean} */
+  function directEvaluator(expression){
+    if(!expression)return false;
+    if(expression.type==='Identifier')return evaluatorNames.has(expression.name);
+    if(expression.type!=='MemberExpression'||expression.object.type!=='Identifier'||
+        !globalNames.has(expression.object.name))return false;
+    const key=expression.computed?staticString(expression.property):
+      expression.property.type==='Identifier'?expression.property.name:null;
+    return key!==null&&evaluatorNames.has(key);
   }
-  if(callee.type!=='MemberExpression'||callee.object.type!=='Identifier'||
-      !['globalThis','global'].includes(callee.object.name))return false;
-  const key=callee.computed?staticString(callee.property):
-    callee.property.type==='Identifier'?callee.property.name:null;
-  return key==='eval'||key==='Function';
+  if(node.type==='CallExpression'||node.type==='NewExpression'){
+    return directEvaluator(node.callee);
+  }
+  // Catch simple aliases before the dynamic evaluator is invoked indirectly.
+  // More complex derived constructors remain outside this syntactic proof.
+  if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'){
+    return directEvaluator(node.init);
+  }
+  if(node.type==='AssignmentExpression'&&node.left.type==='Identifier'){
+    return directEvaluator(node.right);
+  }
+  if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+      node.init?.type==='Identifier'&&globalNames.has(node.init.name)){
+    return node.id.properties.some(property=>{
+      if(property.type!=='Property')return true;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:
+          property.key.type==='Literal'?property.key.value:null;
+      return key===null||evaluatorNames.has(key);
+    });
+  }
+  return false;
 }
 
 /**
