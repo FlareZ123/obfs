@@ -43,6 +43,13 @@ for(const [name,expression] of [
   ['RelativeTimeFormat formatToParts', '(()=>{try{return new Intl.RelativeTimeFormat("en").formatToParts(2,inspect);}catch(error){return error.message;}})()'],
   ['RelativeTimeFormat receiver alias', '(()=>{const a=new Intl.RelativeTimeFormat("en");const b=a;try{return b.format(2,inspect);}catch(error){return error.message;}})()'],
   ['DateTimeFormat option timeZone', '(()=>{try{return new Intl.DateTimeFormat("en",{timeZone:inspect}).format(0);}catch(error){return error.message;}})()'],
+  ['NumberFormat option currency', '(()=>{try{return new Intl.NumberFormat("en",{style:"currency",currency:inspect}).format(2);}catch(error){return error.message;}})()'],
+  ['DateTimeFormat option calendar', '(()=>{try{return new Intl.DateTimeFormat("en",{calendar:inspect}).format(0);}catch(error){return error.message;}})()'],
+  ['DateTimeFormat option numberingSystem', '(()=>{try{return new Intl.DateTimeFormat("en",{numberingSystem:inspect}).format(0);}catch(error){return error.message;}})()'],
+  ['PluralRules option type', '(()=>{try{return new Intl.PluralRules("en",{type:inspect}).select(2);}catch(error){return error.message;}})()'],
+  ['supportedValuesOf aliased function', '(()=>{const values=Intl.supportedValuesOf;return (()=>{try{return values(inspect).length;}catch(error){return error.message;}})();})()'],
+  ['supportedValuesOf destructured function', '(()=>{const {supportedValuesOf:values}=Intl;try{return values(inspect).length;}catch(error){return error.message;}})()'],
+  ['Intl namespace via global destructuring', '(()=>{const {Intl:namespace}=globalThis;try{return namespace.supportedValuesOf(inspect).length;}catch(error){return error.message;}})()'],
   ['NumberFormat option unit', '(()=>{try{return new Intl.NumberFormat("en",{style:"unit",unit:inspect}).format(2);}catch(error){return error.message;}})()'],
   ['ListFormat formatToParts error', '(()=>{try{new Intl.ListFormat("en").formatToParts([inspect]);return "ok";}catch(error){return error.message;}})()']
 ]) {
@@ -87,4 +94,8 @@ test('AST source observer recognizes Intl calls and keeps primitive calls eligib
   assert.equal(observesFunctionSource(parse('function f(){};new Intl.DateTimeFormat("en",{timeZone:f});','commonjs')),true);
   assert.equal(observesFunctionSource(parse('new Intl.DateTimeFormat("en",{timeZone:"UTC"});','commonjs')),false);
   assert.equal(observesFunctionSource(parse('Intl.supportedValuesOf("unit");','commonjs')),false);
+  assert.equal(observesFunctionSource(parse('function f(){};const fn=Intl.supportedValuesOf;fn(f);','commonjs')),true);
+  assert.equal(observesFunctionSource(parse('function f(){};const {Intl:Lib}=globalThis;Lib.supportedValuesOf(f);','commonjs')),true);
+  assert.equal(observesFunctionSource(parse('function f(){};new Intl.PluralRules("en",{type:f});','commonjs')),true);
+  assert.equal(observesFunctionSource(parse('new Intl.PluralRules("en",{type:"cardinal"});','commonjs')),false);
 });
