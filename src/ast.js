@@ -716,9 +716,10 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
  * known Node/browser source-reader contracts without misclassifying them as
  * ordinary object-property reads.
  * @param {AstNode} ast
+ * @param {Map<string,string>} [importedStrings] Proven immutable ESM imports.
  * @returns {boolean}
  */
-function observesDistributedSource(ast) {
+function observesDistributedSource(ast,importedStrings=new Map()) {
   const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
   const loaderModules=new Set(['module','node:module','vm','node:vm']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
@@ -741,6 +742,70 @@ function observesDistributedSource(ast) {
       }
     });
   }while(changed);
+  /** @type {Map<string,number>} */
+  const bindingCounts=new Map();
+  /** @type {Map<string,string>} */
+  const localConstants=new Map();
+  const modified=new Set();
+  let dynamicScope=false;
+  /** @param {AstNode|null|undefined} pattern @param {boolean} [isWrite] @returns {void} */
+  function recordPattern(pattern,isWrite=false) {
+    if(!pattern)return;
+    if(pattern.type==='Identifier') {
+      const name=pattern.name;
+      if(isWrite)modified.add(name);
+      else bindingCounts.set(name,(bindingCounts.get(name)??0)+1);
+    } else if(pattern.type==='AssignmentPattern')recordPattern(pattern.left,isWrite);
+    else if(pattern.type==='RestElement')recordPattern(pattern.argument,isWrite);
+    else if(pattern.type==='ArrayPattern') {
+      for(const item of pattern.elements)recordPattern(item,isWrite);
+    } else if(pattern.type==='ObjectPattern') {
+      for(const item of pattern.properties) {
+        recordPattern(item.type==='RestElement'?item.argument:item.value,isWrite);
+      }
+    }
+  }
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator') {
+      recordPattern(node.id);
+      if(parent?.type==='VariableDeclaration'&&parent.kind==='const'&&
+         node.id.type==='Identifier'&&node.init) {
+        const value=staticString(node.init);
+        if(value!==null)localConstants.set(node.id.name,value);
+      }
+    }
+    if(node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+       node.type==='ArrowFunctionExpression') {
+      recordPattern(node.id);
+      for(const param of node.params)recordPattern(param);
+    }
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression')recordPattern(node.id);
+    if(node.type==='CatchClause')recordPattern(node.param);
+    if(node.type==='ImportSpecifier'||node.type==='ImportDefaultSpecifier'||
+       node.type==='ImportNamespaceSpecifier')recordPattern(node.local);
+    if(node.type==='AssignmentExpression')recordPattern(node.left,true);
+    if(node.type==='UpdateExpression')recordPattern(node.argument,true);
+    if((node.type==='ForInStatement'||node.type==='ForOfStatement')&&
+       node.left.type!=='VariableDeclaration')recordPattern(node.left,true);
+    if(node.type==='WithStatement'||
+       node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+         node.callee.name==='eval')dynamicScope=true;
+  });
+  /** @type {Map<string,string>} */
+  const verifiedKeys=new Map();
+  if(!dynamicScope) {
+    for(const [name,value] of [...importedStrings,...localConstants]) {
+      if(bindingCounts.get(name)===1 && !modified.has(name)) {
+        verifiedKeys.set(name,value);
+      }
+    }
+  }
+  /** @param {AstNode} property @returns {string|null} */
+  function knownKey(property) {
+    const literal=staticString(property);
+    if(literal!==null)return literal;
+    return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
+  }
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
@@ -761,7 +826,7 @@ function observesDistributedSource(ast) {
        node.init.name==='require')observed=true;
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
     if(node.type==='MemberExpression') {
-      const key=node.computed ? staticString(node.property) :
+      const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
@@ -779,10 +844,16 @@ function observesDistributedSource(ast) {
        node.callee.object.type==='Identifier' &&
        ['Reflect','Object'].includes(node.callee.object.name) &&
        ['get','getOwnPropertyDescriptor'].includes(node.callee.computed ?
-         staticString(node.callee.property) ?? '' :
+         knownKey(node.callee.property) ?? '' :
          node.callee.property.type==='Identifier' ? node.callee.property.name : '') &&
        node.arguments[0]?.type==='Identifier' &&
-       globals.has(node.arguments[0].name))observed=true;
+       globals.has(node.arguments[0].name)) {
+      const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
+      if(target===null || browserReaders.has(target) ||
+         ['require','getBuiltinModule','createRequire'].includes(target)) {
+        observed=true;
+      }
+    }
   });
   return observed;
 }
