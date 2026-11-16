@@ -104,10 +104,11 @@ test('declared global Reflect descriptor replacement declines unproved owner rew
     mode:'coo',closedWorld:true,seed:'descriptor-replace-reflect-host',
     identifiers:false,strings:false,properties:true
   });
-  assert.equal(compiled.crossFile.properties,0,
-    'A declared descriptor replacement of global Reflect invalidates assumed native ownKeys');
   const expected=await execute(original);
   assert.equal(expected,'[41,"audit-v1",["secretField"]]');
-  assert.equal(await execute(compiled.files),expected,
+  const observed=await execute(compiled.files);
+  assert.equal(observed,expected,
     'Opaque host reflector imports the published ESM owner during declared reflection');
+  assert.equal(compiled.crossFile.properties,0,
+    'A declared descriptor replacement of global Reflect invalidates assumed native ownKeys');
 });
