@@ -63,6 +63,13 @@ for(const [name,source] of [
   });
 }
 
+test('SCO preserves variant freedom for a proved benign reflected key',async()=>{
+  const original="const value='source-observation-literal';const count=Reflect.get({known:2},'known');globalThis.out=value+count;";
+  const variant=await fetchVariant(original);
+  assert.equal(run(variant),run(original));
+  assert.equal(variant.includes("'source-observation-literal'"),false);
+});
+
 test('SCO still varies safe literal spelling when source is not observed',async()=>{
   const original="const value='source-observation-literal';globalThis.out=value;";
   const variant=await fetchVariant(original);
