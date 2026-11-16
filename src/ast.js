@@ -650,13 +650,18 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           hasFunctionKey(node.arguments[1])) observed=true;
       // Obtaining an inherited or own Function.prototype.toString method
       // through Reflect.get/descriptor APIs exposes native source inspection
-      // without any syntactic member access named "toString".
+      // without any syntactic member access named "toString". A dynamic key
+      // can select a source method even when the key expression has no
+      // directly recognizable string spelling.
       if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
           ['Reflect','Object'].includes(callee.object.name) &&
           ['get','getOwnPropertyDescriptor'].includes(memberName(callee)??'') &&
-          node.arguments.length>=2 &&
-          ['toString','toSource','toLocaleString'].includes(
-            sourceStringKey(node.arguments[1])??'')) observed=true;
+          node.arguments.length>=2) {
+        const selected=sourceStringKey(node.arguments[1]);
+        if(selected===null || ['toString','toSource','toLocaleString'].includes(selected)) {
+          observed=true;
+        }
+      }
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          memberName(callee)==='join'&&containsFunction(callee.object))observed=true;
       /** @type {AstNode|null|undefined} */
