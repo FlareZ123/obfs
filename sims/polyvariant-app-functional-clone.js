@@ -18,7 +18,8 @@ async function main() {
     {kind:'close',payload:'Z'}
   ];
   if(!Array.isArray(records))throw new TypeError('Expected JSON event array');
-  const entry=path.join(__dirname,'../examples/polyvariant-app/generated/entry.mjs');
+  const distributedDir=process.argv[4]??path.join(__dirname,'../examples/polyvariant-app/generated');
+  const entry=path.join(distributedDir,'entry.mjs');
   const distributed=await import(pathToFileURL(entry).href);
   /** @type {unknown[]} */
   const intercept=[];
