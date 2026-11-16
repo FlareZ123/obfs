@@ -37,6 +37,7 @@ function median(values){
  * vulnerableFinalAccepted:boolean,controlFinalAccepted:boolean,
  * attackMarginMs:number,facadeBytes:number,
  * directUnauthorizedStatus:number,unauthorizedExecutions:number,
+ * offlineCloneChecks:number,offlineCloneMatches:number,
  * nativeMs:number,rpcMs:number,validCallRatio:number,within2_5x:boolean,
  * runtime:{node:string,platform:string}
  * }>}
@@ -153,6 +154,20 @@ async function runTimingOracleExperiment(){
       assert.equal(payload.ok,true);
       return Boolean(payload.value);
     }
+    // A new executable offline clone uses only the value recovered from
+    // authorized response timings; it does not contain the published RPC
+    // facade or the private implementation. Verify against previously
+    // unqueried token inputs and the recovered accepted token itself.
+    const independent=sample=>typeof sample==='string'&&
+      /^[0-9a-f]{32}$/.test(sample)&&sample===attack.vulnerable.guess;
+    const cloneInputs=[secret,...Array.from({length:64},()=>randomBytes(16).toString('hex'))];
+    let offlineCloneMatches=0;
+    for(const value of cloneInputs){
+      const predicted=independent(value);
+      const observed=await invoke(publicPartition.methodNames.verify,value);
+      assert.equal(predicted,observed,'Offline equality clone differed from private behavior');
+      offlineCloneMatches++;
+    }
     /** @type {number[]} */
     const nativeSamples=[];
     /** @type {number[]} */
@@ -182,7 +197,9 @@ async function runTimingOracleExperiment(){
       attackMarginMs:attack.vulnerable.minMarginMs,
       facadeBytes:attack.publicFacadeBytes,
       directUnauthorizedStatus:denied.status,
-      unauthorizedExecutions,nativeMs,rpcMs,
+      unauthorizedExecutions,
+      offlineCloneChecks:cloneInputs.length,offlineCloneMatches,
+      nativeMs,rpcMs,
       validCallRatio:rpcMs/nativeMs,within2_5x:rpcMs/nativeMs<=2.5,
       runtime:{node:process.version,platform:process.platform}
     };
