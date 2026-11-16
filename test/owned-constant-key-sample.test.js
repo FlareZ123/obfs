@@ -46,7 +46,8 @@ test('native and generated samples retain public module, globals and error seman
       'input='+String(input));
   }
   assert.match(after,/globalThis\.secretField=9/u);
-  assert.match(after,/globalThis\[_v[a-f0-9]{12}\]/u);
+  assert.match(after,/globalThis\[key\]/u);
+  assert.match(after,/const key='secretField';/u);
   assert.match(after,/module\.exports=\{calculate\}/u);
   assert.doesNotMatch(after,/\{secretField:11/u);
 });
