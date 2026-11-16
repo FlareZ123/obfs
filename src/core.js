@@ -371,6 +371,12 @@ function obfuscateFiles(files, options = {}) {
     (observesDistributedSource(parse(file.code,file.sourceType)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path))));
+  // A hostname wrapper prepends source bytes. Code that can read its own
+  // distributed script would observe the wrapper and violate the original
+  // source-byte contract, so an explicit host lock must fail closed.
+  if(remoteSourceObserver && options.allowedHosts?.length) {
+    throw new TypeError('Host locking cannot preserve observable source bytes');
+  }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
     renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
