@@ -8,7 +8,7 @@ const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
-const {learnBoundedStepOnly,distinguish,predictContinuation}=
+const {learnBoundedStepOnly,distinguish,createContinuationClone}=
   require('./sco-step-only-version-space');
 const {makeIndependentMachine}=require('./sco-sync-independent-distribution');
 
@@ -105,7 +105,8 @@ async function runLiveStepVersionSpace(states=2,seed=0x31415926){
     assert.equal(distinguish(result.clone,independentTrueContinuation),null);
 
     const followup=[0,1,1,0,1,0,0,1,1,1,0,0,1,0,1,1];
-    const predicted=predictContinuation(result.clone,followup);
+    const localClone=createContinuationClone(result.clone);
+    const predicted=followup.map(symbol=>localClone.step(symbol));
     /** @type {number[]} */
     const actual=[];
     for(const symbol of followup)actual.push(await api.step(symbol));
