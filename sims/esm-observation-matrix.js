@@ -197,7 +197,7 @@ async function execute(folder, collection) {
  * Deterministic multi-file semantic differential and property-yield measurement.
  * @param {number} [seeds]
  * @param {'coo'|'sno'|'sco'} [mode]
- * @returns {Promise<{graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true}>}
+ * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true}>}
  */
 async function runMatrix(seeds=12,mode='coo') {
   assert.ok(Number.isInteger(seeds) && seeds>0 && seeds<=100);
