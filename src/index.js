@@ -6,6 +6,7 @@ const {createSnoLauncher} = require('./sno');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
 const {flattenBranchBlocks} = require('./branch-blocks');
+const {flattenStatementFlow} = require('./statement-flow');
 const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {createScoHandler} = require('./sco');
@@ -18,4 +19,4 @@ const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
 const {verifyScoPrivateSourceDigests}=require('./sco-private-integrity');
 const {partitionScoAsyncGraph,bindScoGraphExports} = require('./sco-graph');
 
-module.exports = {lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
+module.exports = {lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,flattenStatementFlow,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports};
