@@ -41,7 +41,7 @@ const cases=[
   {label:'bind-host',transport:'const cb=globalThis.HOST_BRIDGE.bind(null);cb();'},
   {label:'reflect-get-alias',transport:'const cb=Reflect.get(globalThis,"HOST_BRIDGE");cb();'},
   {label:'object-literal-host',transport:'const holder={bridge:globalThis.HOST_BRIDGE};holder.bridge();'},
-  {label:'explicit-source-owned-positive',transport:'globalThis.HOST_BRIDGE();'}
+  {label:'object-literal-aliased-host',transport:'const cb=globalThis.HOST_BRIDGE;const holder={bridge:cb};holder.bridge();'}
 ];
 
 /**
