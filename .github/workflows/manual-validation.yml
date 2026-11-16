@@ -33,6 +33,9 @@ jobs:
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
+      - name: Paired own-key and null-prototype six-module startup-and-session profiles
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/verified-record-session-profile.js
       - name: Real Chromium module and host-lock integration
         if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
