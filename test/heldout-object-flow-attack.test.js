@@ -16,5 +16,6 @@ test('held-out ESM object flow: covered private keys, refusals and source-only a
   assert.equal(result.observations,60);
   assert.equal(result.outputMatches,60);
   assert.equal(result.normalizedMatches,60);
+  assert.equal(result.decoyPayloadsPreserved,30);
   assert.equal(Object.keys(result.refusalKinds).length,7);
 });

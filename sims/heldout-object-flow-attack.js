@@ -102,7 +102,7 @@ function fixture(seed,kind) {
   files.push({path:'logic.mjs',sourceType:'module',code:logic});
   files.push({path:'entry.mjs',sourceType:'module',code:
     'import {result as value} from "./logic.mjs";'+
-    'export const result=[value,globalThis.window.api.offset];'});
+    'export const result=[value,globalThis.window.api.offset,"_p0123456789ab"];'});
   return {index:seed*kinds.length+kinds.indexOf(kind),kind,files,expected,privateFields:2};
 }
 
@@ -152,8 +152,8 @@ async function execute(root,graphs,apiVariant=0) {
  * @param {number} [seedCount]
  * @returns {Promise<{graphs:number,apiConfigurations:number,observations:number,files:number,positiveGraphs:number,refusedGraphs:number,
  *    candidatePrivateFields:number,renamedPrivateFields:number,recoveredLabels:number,
- *    outputMatches:number,normalizedMatches:number,sourceBytes:number,outputBytes:number,
- *    attackMilliseconds:number,refusalKinds:Record<string,number>}>}
+ *    outputMatches:number,normalizedMatches:number,decoyPayloadsPreserved:number,
+ *    sourceBytes:number,outputBytes:number,attackMilliseconds:number,refusalKinds:Record<string,number>}>}
  */
 async function runHeldout(seedCount=3) {
   if(!Number.isSafeInteger(seedCount)||seedCount<1||seedCount>20) {
@@ -172,7 +172,7 @@ async function runHeldout(seedCount=3) {
     /** @type {Record<string,number>} */
     const refusalKinds={};
     let positiveGraphs=0,refusedGraphs=0,renamedPrivateFields=0;
-    let recoveredLabels=0,sourceBytes=0,outputBytes=0;
+    let recoveredLabels=0,sourceBytes=0,outputBytes=0,decoyPayloadsPreserved=0;
     let attackMilliseconds=0;
     for(const item of cases) {
       const result=obfuscateFiles(item.files,{
@@ -199,8 +199,13 @@ async function runHeldout(seedCount=3) {
       recoveredLabels+=normalized.properties;
       assert.ok(normalized.properties>=result.crossFile.properties,
         item.kind+' source-only attacker did not recognize protected names');
+      const normalizedEntry=normalized.files.find(file=>file.path==='entry.mjs');
+      assert.ok(normalizedEntry?.code.includes('"_p0123456789ab"'),
+        item.kind+' normalization rewrote unrelated application payload data');
+      decoyPayloadsPreserved++;
       for(const file of normalized.files) {
-        assert.doesNotMatch(file.code,/_p[a-f0-9]{10}(?:[a-f0-9]{2})?\b/u);
+        assert.doesNotMatch(file.code.replaceAll('"_p0123456789ab"',''),
+          /_p[a-f0-9]{10}(?:[a-f0-9]{2})?\b/u);
       }
       reconstructed.push({index:item.index,files:normalized.files});
     }
@@ -225,7 +230,8 @@ async function runHeldout(seedCount=3) {
       positiveGraphs,refusedGraphs,
       candidatePrivateFields:cases.reduce((sum,item)=>sum+item.privateFields,0),
       renamedPrivateFields,recoveredLabels,outputMatches,normalizedMatches,
-      sourceBytes,outputBytes,attackMilliseconds:Number(attackMilliseconds.toFixed(3)),
+      sourceBytes,outputBytes,decoyPayloadsPreserved,
+      attackMilliseconds:Number(attackMilliseconds.toFixed(3)),
       refusalKinds
     };
   }finally{
