@@ -18,7 +18,7 @@ At runtime the generated code first performs the original ToInt32 conversion **e
 
 **Security boundary:** All case bodies, arithmetic constants, state labels and inverses ship to the runtime. The attacker can inspect them and feed the interpreter every admitted class. The included source-only reconstruction script executes no distributed program and still recovers a simpler equivalent signed-int32 function from the public output. Thus this candidate diversifies syntax and traces, but **does not establish confidentiality, strong tamper resistance, host enforcement or a hardness guarantee** under COO or SNO's full-control adversary.
 
-The common API is require('./src').lowerPolyvariantAffine. The file/directory COO and SNO APIs also support experimentalPolyvariantAffine mapping from filenames to function names, with experimentalPolyvariantCount 2, 4 or 8. The CLIs accept --polyvariant-affine entry.cjs:guardedTotal --polyvariant-count 2. The SCO CLI deliberately rejects local experimental backends; trusted-server private partitioning is a different feature.
+The low-level API is require('./src').lowerPolyvariantAffine. The file/directory COO and SNO APIs accept experimentalPolyvariantAffine mapping from filenames to function names, with experimentalPolyvariantCount 2, 4 or 8. COO's explicit opt-in defaults to two paths when no count is specified; SNO defaults to four. CLI flags are --polyvariant-affine entry.cjs:guardedTotal and --polyvariant-count 2. The SCO CLI deliberately rejects local experimental backends; trusted-server private partitioning is a different feature.
 
 For independent execution from the repository root:
 
@@ -27,4 +27,4 @@ For independent execution from the repository root:
 - node sims/polyvariant-affine-static-recover.js runs the source-only negative security control.
 - node sims/polyvariant-affine-benchmark.js measures per-workload protected-compute ratios.
 
-No general 2.5× guarantee follows from a finite benchmark. Cold load, output size, JIT behavior, target application distribution and realistic complete-session cost must each be assessed before opting in.
+The [startup-inclusive evidence](../../im-results/polyvariant-affine-2026-11-16.md) found **more than 2.5×** overhead for short-lived COO-like sessions and even for eight-path 250,000-call sessions, despite favorable long-running two- and four-path samples. The benchmark tools now include [session crossover](../../sims/polyvariant-affine-session-budget.js) and [cold compilation](../../sims/polyvariant-affine-cold-start.js). No general 2.5× guarantee follows from a finite benchmark. Cold load, output size, JIT behavior, target application distribution and realistic complete-session cost must each be assessed before opting in.
