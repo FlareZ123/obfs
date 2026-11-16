@@ -184,7 +184,15 @@ for(const [method,write] of [
   ['Reflect.get ambient object',
     "Reflect.get(globalThis,'Reflect').ownKeys=globalThis.HOST_REFLECT;"],
   ['captured Reflect.get',
-    "const getter=Reflect.get;const alias=getter;alias(globalThis,'Reflect').ownKeys=globalThis.HOST_REFLECT;"]
+    "const getter=Reflect.get;const alias=getter;alias(globalThis,'Reflect').ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured method through Reflect.apply',
+    "const get=Object.getOwnPropertyDescriptor;Reflect.apply(get,null,[globalThis,'Reflect']).value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['descriptor method call',
+    "Object.getOwnPropertyDescriptor.call(null,globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['captured descriptor method call',
+    "const get=Object.getOwnPropertyDescriptor;get.call(null,globalThis,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"],
+  ['nested global root container',
+    "const nested={box:{host:globalThis}};Object.getOwnPropertyDescriptor(nested.box.host,'Reflect').value.ownKeys=globalThis.HOST_REFLECT;"]
 ]){
   test('ambient intrinsic capability from '+method+' preserves published owner keys',async()=>{
     const original=graph().map(file=>file.path==='entry.mjs'?{
