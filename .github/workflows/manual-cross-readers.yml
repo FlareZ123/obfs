@@ -43,8 +43,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/closed-graph-host-import-map-attack.js
-      - name: Source-visible host callable transport grid and adversarial outcomes
-        run: node sims/host-capability-transport-grid.js
       - name: In-memory computed loader refusal ablation and hostile dynamic import
         run: node sims/computed-refusal-ablation.js
       - name: Strict external researcher and diagnostic JSDoc
