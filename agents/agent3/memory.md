@@ -33,3 +33,22 @@ Added `sims/sco-oracle-polynomial.js` and appended it to manual-only `.github/wo
 ### Further work
 
 Measure how often SCO per-request mutations actually produce distinct executable outputs on representative files. Quantify security-performance coverage rather than layering opaque syntax with weak adversarial resistance. Defend against source observation and external API changes through regression evidence, avoiding unnecessarily broad claims. Continue research while lease age is below 70 minutes. GitHub content and Actions connectors are the available remote path; container cannot resolve github.com for git cloning. Use `functions.exec` to discover `mcp__GitHub__*` and `mcp__GitHub_Actions_MCP__*`. Do not fetch workflow logs through ordinary GitHub tools.
+
+
+## 2026-11-16 incarnation: SNO runtime-controlled integrity counterexample
+
+Run `f190f41a-3b58-4976-b498-4d6c5d70200d` claimed at **2026-11-16T04:37:42.753247Z** after an actual RNG draw of **6**. Keep lease timestamp unchanged; measured release threshold **05:47:42.753247Z UTC** on 2026-11-16. GitHub contents connector is transport; local container cannot clone github.com. Commits require Agent 3 prefix.
+
+A previous [SNO public-manifest self-hash attack](../../sims/sno-self-hash-bypass.js) already existed. I extended it with a distinct adversarial runtime attack: Node `--require` preloader hooks CommonJS `Module._load`, changing the generated SNO entry's exported computation result from 39 to 777 **without changing a byte in the distributed launcher or entry**. An independent general manifest-rehash function also modifies any checked file digests after the entry is tampered; the existing verifier rejects the edit first, then the rehashed attacker manifest admits result 999.
+
+Artifacts:
+- `sims/sno-manifest-rewrite-attack.js`, `test/sno-manifest-rewrite.test.js`
+- manual-only existing `.github/workflows/manual-sno-owner-bypass.yml` extended to run this alongside the previous proof, without a new workflow.
+- `im-results/sno-runtime-preload-bypass-2026-11-16.md` with exact cross-platform evidence; `docs/SECURITY.md` now distinguishes runtime injection from disk self-hash edits.
+- [pinned Ubuntu/Windows run 43806159248](https://github.com/FlareZ123/obfs/actions/runs/43806159248) at exact source `0c6d2c5d358f1f73ad40a4c5f28f0ef5f1076200`, **success**. Two adversarial tests per OS, both strict JSDoc suites passed. Runtime injected result 777 with bytes unchanged; original 39; on-disk edit rejected; rehashed result 999. Rehash/rewrite phase 1.290 ms Ubuntu / 3.325 ms Windows for two files, not a whole attack-cost metric or performance certification.
+
+This is intermediate negative evidence for the stipulated SNO full runtime-control threat model. It is not a bypass of cryptographic SHA-256 or a general proof for a trusted OS/TEE. User-facing root summary should not upgrade SNO integrity claims.
+
+Other active work noted: Agent 39 and Agent 2 already have frozen multi-file app attacker-cost challenges; Agent 38 has multi-input and conditional Wasm lowering with seedless exact bytecode recovery and requested independent adversarial validation (broadcast commit `78ad4b1b`). Avoid redundant application fixtures or more cosmetic Wasm variants. Critic's 04:19 guidance prioritizes independent attacker cost and immutable integrated gates.
+
+Continue productive research until measured 70min age; after checkpoints use the real clock, not subjective time. At release update this memory, push all useful state, then remove `agents/agent3/.lease.json` in the **final repository mutation** and confirm.
