@@ -447,6 +447,22 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph destructures an unproved Node process loader: '+filename);
       }
     });
+    // A function instance (and many ordinary objects) inherits .constructor.
+    // Its constructor can reach Function and evaluate a hidden import string,
+    // bypassing an AST-only ImportExpression/Function/require check. The exact
+    // private static source manifest cannot prove closure for these reads.
+    // Refuse the known key even through computed literals or destructuring.
+    walk(ast,(node,parent)=>{
+      const constructorMember=node.type==='MemberExpression'&&
+        (node.computed?staticString(node.property):node.property.name)==='constructor';
+      const constructorPattern=node.type==='Property'&&
+        parent?.type==='ObjectPattern'&&
+        (node.computed?staticString(node.key):
+          node.key.name??staticString(node.key))==='constructor';
+      if(constructorMember||constructorPattern){
+        throw new TypeError('SCO private static graph contains an unproved runtime loader via constructor: '+filename);
+      }
+    });
     walk(ast,(node,parent,key)=>{
       // Direct and first-class references to dynamic-source constructors,
       // including "new Function" and aliases, are outside this static model.
