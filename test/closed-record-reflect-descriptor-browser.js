@@ -113,7 +113,7 @@ async function main(){
   try{
     await new Promise((resolve,reject)=>{
       server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
     });
     const address=server.address();
     if(!address||typeof address==='string')throw Error('Local HTTP server unavailable');
@@ -136,7 +136,7 @@ async function main(){
     }
     console.log('GLOBAL_REFLECT_DESCRIPTOR_CHROMIUM '+JSON.stringify({cases}));
   }finally{
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 
