@@ -27,7 +27,7 @@ After the first operation, the state is a Promise instead of the intended `false
 - A synchronous object-state positive control and sequential revocation refusal.
 - A native loopback HTTP batch request proving generic error and **zero** private operation effects on the rejected policy.
 
-The existing manual SCO authorization workflow includes the file. The initial Linux/Windows gate [43954351253](https://github.com/FlareZ123/obfs/actions/runs/43954351253) passed at immutable commit `46bc5c1c928796f3a37757dde3980b51decfac94` before the final HTTP case was added: Ubuntu and Windows jobs both successful, including the targeted SCO suite, simulation steps and strict JSDoc checks. The additional HTTP test requires a later source-pinned run and cannot inherit that earlier validation.
+The existing manual SCO authorization workflow includes the file. The initial Linux/Windows gate [43954351253](https://github.com/FlareZ123/obfs/actions/runs/43954351253) passed at immutable commit `46bc5c1c928796f3a37757dde3980b51decfac94` before the final HTTP case was added: Ubuntu and Windows jobs both successful, including the targeted SCO suite, simulation steps and strict JSDoc checks. The expanded HTTP test was subsequently included in a **successful Ubuntu/Windows gate** [43954881123](https://github.com/FlareZ123/obfs/actions/runs/43954881123) pinned to exact commit `abd91f8b613cbb6ee1f84b58da97c1375a36abd6`. A later combined batch/authorization gate [43957937021](https://github.com/FlareZ123/obfs/actions/runs/43957937021) also passed both operating systems and strict JSDoc at `b6f8fd54c41c70816b466da7d8e1af949dca9d26`.
 
 ## Scope
 
