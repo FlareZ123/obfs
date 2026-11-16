@@ -43,7 +43,9 @@
     "test/ownkey-comment-static-recovery.test.js",
     "test/closed-record-reflect-descriptor-browser.js",
     "sims/esm-observation-matrix.js",
-    "test/esm-observation-matrix.test.js"
+    "test/esm-observation-matrix.test.js",
+    "sims/public-token-normalizer.js",
+    "test/public-token-normalizer.test.js"
   ],
   "exclude": [
     "node_modules"
