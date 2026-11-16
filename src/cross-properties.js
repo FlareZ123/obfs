@@ -313,13 +313,44 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
      */
     function mayBeGlobalReceiver(receiver) {
       if(!receiver)return false;
-      if(receiver.type==='Identifier')return hostRoots.has(receiver.name) ||
-        hostContainers.has(receiver.name);
-      return receiver.type==='MemberExpression' &&
-        receiver.object.type==='Identifier' &&
-        (hostRoots.has(receiver.object.name)||hostContainers.has(receiver.object.name));
+      let root=receiver;
+      while(root.type==='MemberExpression')root=root.object;
+      if(root.type==='Identifier')return hostRoots.has(root.name) ||
+        hostContainers.has(root.name);
+      if(root.type==='ObjectExpression'||root.type==='ArrayExpression') {
+        let captured=false;
+        walk(root,node=>{
+          if(node.type==='Identifier' && hostRoots.has(node.name))captured=true;
+        });
+        return captured;
+      }
+      return false;
     }
     walk(source.ast,(node,parent)=>{
+      // Extracted descriptor methods are first-class function values.
+      // A direct call is already examined below. Opaque higher-order use,
+      // .call/.apply/.bind, or nontrivial escape can recover a mutable
+      // ambient object with arguments unavailable to this local proof.
+      if(node.type==='Identifier' && nativeDescriptorAliases.has(node.name) &&
+         !(parent?.type==='VariableDeclarator' &&
+           (parent.id===node || parent.init===node &&
+            parent.id.type==='Identifier')) &&
+         !(parent?.type==='AssignmentExpression' && parent.right===node &&
+           parent.operator==='=' && parent.left.type==='Identifier') &&
+         !(parent?.type==='CallExpression' && parent.callee===node)) {
+        changedIntrinsic=true;
+      }
+      if(node.type==='MemberExpression' &&
+         node.object.type==='MemberExpression' &&
+         node.object.object.type==='Identifier') {
+        const owner=node.object.object.name;
+        const nested=node.object.computed?
+          staticString(node.object.property):staticName(node.object.property);
+        if(owner==='Object' &&
+             ['getOwnPropertyDescriptor','getOwnPropertyDescriptors'].includes(nested??'') ||
+           owner==='Reflect' &&
+             ['get','getOwnPropertyDescriptor'].includes(nested??''))changedIntrinsic=true;
+      }
       // A descriptor is an aliasing path to its value. Acquiring the global
       // Reflect/Object object permits mutation of its native inspection
       // methods through descriptor.value, a collection, or Reflect.get.
