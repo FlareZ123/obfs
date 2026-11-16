@@ -177,3 +177,12 @@ test('Owned local ambient records in private and retained public helpers remain 
   assert.doesNotMatch(result.clientFile.code,/internalHelper|value:41/u);
   assert.match(result.clientFile.code,/browserHelper/u);
 });
+
+test('SCO preserves distinct inert lexical shadows of common browser roots',()=>{
+  for(const root of ['window','document','navigator','location','self']){
+    const body=(value)=>'const '+root+'={value:'+value+'};return '+root+'.value;';
+    const result=partition(body(41),body(7));
+    assert.deepEqual(result.privateNames,['protectedOp'],root);
+    assert.match(result.clientFile.code,new RegExp('const '+root+'=\\{value:7\\}'),root);
+  }
+});
