@@ -7,6 +7,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {obfuscateFiles} = require('../src');
 const {atomicWrite} = require('../src/atomic');
+const {neutralizeHashedNames} = require('./offline-normalize');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 /** @typedef {{seed:number,kind:number,scenario:string,files:ModuleFile[],mustPreserveNames:boolean,expectedPositive:boolean}} Fixture */
@@ -197,7 +198,7 @@ async function execute(folder, collection) {
  * Deterministic multi-file semantic differential and property-yield measurement.
  * @param {number} [seeds]
  * @param {'coo'|'sno'|'sco'} [mode]
- * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true}>}
+ * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields:number}>}
  */
 async function runMatrix(seeds=12,mode='coo') {
   assert.ok(Number.isInteger(seeds) && seeds>0 && seeds<=100);
@@ -234,13 +235,25 @@ async function runMatrix(seeds=12,mode='coo') {
       }
       return {index:item.index,files:/** @type {ModuleFile[]} */(result.files)};
     });
+    let attackerNormalizedFields=0;
+    const normalizedCases=protectedCases.map(item=>{
+      // This attacker receives only the emitted files, without source input,
+      // a secret seed, or compiler internals beyond its public name syntax.
+      const normalized=neutralizeHashedNames(item.files);
+      attackerNormalizedFields+=normalized.properties;
+      return {index:item.index,files:/** @type {ModuleFile[]} */(normalized.files)};
+    });
     const baseline=await execute(path.join(scratch,'original'),fixtures);
     const transformed=await execute(path.join(scratch,'transformed'),protectedCases);
+    const normalized=await execute(path.join(scratch,'attacker-normalized'),normalizedCases);
     assert.deepEqual(transformed,baseline,'Original and emitted ESM graphs differ');
+    assert.deepEqual(normalized,baseline,'Seedless static field-name normalization changed semantics');
+    assert.ok(attackerNormalizedFields>=positiveGraphs*2,
+      'Seedless attacker must neutralize both fields in every positive graph');
     return {
       mode,graphs:fixtures.length,scenarios:SCENARIOS.length,
       positiveGraphs,positiveRenames,observedGraphs,observedUnsafeRenames,
-      renamesByScenario,nativeEqual:true
+      renamesByScenario,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields
     };
   }finally{
     await fs.rm(scratch,{recursive:true,force:true});
