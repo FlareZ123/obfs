@@ -280,13 +280,62 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /**
+     * Native invocation adapters can call a locally known function without
+     * spelling that function as the direct CallExpression callee. Join their
+     * argument-to-formal transfers before resolving ambient host roots.
+     * A bind operation is conservatively treated as a possible invocation:
+     * its captured arguments may be used by a later call or escape.
+     *
+     * @param {AstNode} node
+     * @returns {{name:string,args:(AstNode|null)[]}|null}
+     */
+    function localInvocation(node) {
+      if(node.type!=='CallExpression'&&node.type!=='NewExpression')return null;
+      if(node.callee.type==='Identifier'){
+        return {name:node.callee.name,args:node.arguments};
+      }
+      if(node.type!=='CallExpression' ||
+         node.callee.type!=='MemberExpression')return null;
+      const callee=node.callee;
+      const method=callee.computed?staticString(callee.property):
+        staticName(callee.property);
+      if(callee.object.type==='Identifier' &&
+         (method==='call'||method==='bind')) {
+        return {name:callee.object.name,args:node.arguments.slice(1)};
+      }
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|undefined} */
+      let supplied;
+      if(callee.object.type==='Identifier'&&method==='apply'){
+        name=callee.object.name;
+        supplied=node.arguments[1];
+      }
+      if(callee.object.type==='Identifier'&&callee.object.name==='Reflect' &&
+         method==='apply'&&node.arguments[0]?.type==='Identifier'){
+        name=node.arguments[0].name;
+        supplied=node.arguments[2];
+      }
+      if(name===null)return null;
+      if(supplied?.type==='ArrayExpression'){
+        return {name,args:supplied.elements};
+      }
+      // An unproved argument-array expression can carry globalThis into a
+      // local function and is outside the direct array-element analysis.
+      if(localCallFormals.has(name))changedIntrinsic=true;
+      return null;
+    }
     walk(source.ast,node=>{
-      if((node.type!=='CallExpression'&&node.type!=='NewExpression') ||
-         node.callee.type!=='Identifier')return;
-      for(const params of localCallFormals.get(node.callee.name)??[]) {
+      const invocation=localInvocation(node);
+      if(!invocation)return;
+      const definitions=localCallFormals.get(invocation.name)??[];
+      if(definitions.length && invocation.args.some(
+        argument=>argument?.type==='SpreadElement'))changedIntrinsic=true;
+      for(const params of definitions) {
         for(let i=0;i<params.length;i++) {
           let formal=params[i];
-          let actual=node.arguments[i];
+          let actual=invocation.args[i];
           if(formal.type==='AssignmentPattern') {
             actual??=formal.right;
             formal=formal.left;
