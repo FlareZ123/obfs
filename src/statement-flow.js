@@ -9,9 +9,12 @@ const {parse,walk,applyEdits,observesFunctionSource}=require('./ast');
 
 /**
  * Turn a restricted function body into a native-JavaScript control-flow graph.
- * Only var declarations, expression statements, if/else, return and throw are
- * movable. `var` retains function scope even inside a switch case block; no
- * lexical binding, catch/finally, loop, label or direct eval is moved.
+ * Var declarations, expressions, if/else, returns and throws are movable.
+ * Whole loops, switches and try/catch/finally statements may stay intact as
+ * atomic blocks: their nested lexical scopes, labels and abrupt completion
+ * behavior remain inside the original syntax. No outside lexical declaration,
+ * direct eval or unproved control transfer is moved. Function-scoped var
+ * declarations retain their original hoisting across switch cases.
  * Every condition and statement is evaluated in its original execution order.
  *
  * @param {AstNode[]} statements
@@ -47,7 +50,14 @@ function buildFlow(statements,next,blocks,source,depth=0) {
       next=index;
       continue;
     }
-    if(!['ExpressionStatement','VariableDeclaration','ReturnStatement','ThrowStatement'].includes(statement.type))return null;
+    // Loops, nested switches and exception handlers remain native as a single
+    // statement. Their own break/continue targets, block bindings and finally
+    // unwinding keep their original syntax and evaluation scope.
+    const atomic=new Set(['ForStatement','ForInStatement','ForOfStatement',
+      'WhileStatement','DoWhileStatement','SwitchStatement','TryStatement',
+      'LabeledStatement']);
+    if(!['ExpressionStatement','VariableDeclaration','ReturnStatement','ThrowStatement'].includes(statement.type)&&
+       !atomic.has(statement.type))return null;
     if(statement.type==='VariableDeclaration'&&statement.kind!=='var')return null;
     if(statement.type==='ExpressionStatement'&&statement.directive)return null;
     if(blocks.length>=256)return null;
