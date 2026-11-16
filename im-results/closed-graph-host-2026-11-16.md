@@ -40,7 +40,7 @@ client-side `location.hostname` checks.
   emitted file byte-for-byte with the committed after snapshot and runs
   native, permitted and denied graphs in fresh Node 22 loaders.
 - `test/closed-graph-host-lock.test.js`: native-vs-emitted evaluation for
-  ordinary dependencies, side-effect imports, named reexports and a cycle;
+  ordinary dependencies, side-effect imports, named reexports, top-level await and a cycle;
   denied results have zero module-body events. Additional negative cases
   refuse undeclared and opaque imports.
 - `test/closed-graph-host-browser.js`: real Chromium test for a native,
