@@ -10,7 +10,7 @@ const {atomicWrite}=require('../../src/atomic');
 async function main() {
   const input=path.join(__dirname,'original.cjs');
   const output=path.join(__dirname,'obfuscated.cjs');
-  const original=await fs.readFile(input,'utf8');
+  const original=(await fs.readFile(input,'utf8')).replace(/\r\n/g,'\n');
   const result=lowerPolyvariantAffine(original,'commonjs',{
     seed:'polyvariant-sample-2026-11-16',names:['guardedTotal'],variants:2
   });
@@ -22,7 +22,7 @@ async function main() {
     await atomicWrite(output,result.code);
     process.stdout.write('Wrote the deterministic generated sample\n');
   } else {
-    assert.equal(await fs.readFile(output,'utf8'),result.code);
+    assert.equal((await fs.readFile(output,'utf8')).replace(/\r\n/g,'\n'),result.code);
     process.stdout.write('Checked-in generated sample matches the compiler\n');
   }
 }
