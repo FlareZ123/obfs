@@ -55,3 +55,17 @@ test('independent base and holdout corpora report candidate and false-positive r
     assert.deepEqual([...new Set(result.groups.map(group=>group.depth))],[3,5]);
   }
 });
+
+test('a held-out twelve-state fixture falsifies depth-five synchronization confidence',async()=>{
+  // Base-stream model 48, originally outside the default 40-model sample.
+  const model=makeIndependentMachine(0xa82eb665,12);
+  const shallow=await evaluateIndependentMachine(model,3);
+  const deep=await evaluateIndependentMachine(model,5);
+  assert.equal(shallow.word,null);
+  assert.equal(shallow.steps,4168);
+  assert.deepEqual(deep.word,[0,0,0]);
+  assert.equal(deep.steps,7599);
+  assert.equal(deep.physical,false);
+  assert.equal(deep.observable,false);
+  assert.equal(deep.continuation,false);
+});
