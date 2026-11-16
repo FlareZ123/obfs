@@ -549,6 +549,7 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
   // Overapproximate named aliases: shadowing or mutation can only cause a
   // conservative refusal, never an unsafe source rewrite.
   const reflectiveReaders=new Set();
+  const reflectiveBulkReaders=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
     return Boolean(expression && (expression.type==='Identifier' &&
@@ -578,12 +579,22 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           reflectiveReaders.add(name);
           reflectiveChanged=true;
         }
-        if(value.type==='MemberExpression' &&
-           isReflectiveReceiver(value.object) &&
-           ['get','getOwnPropertyDescriptor'].includes(memberName(value)??'') &&
-           !reflectiveReaders.has(name)) {
-          reflectiveReaders.add(name);
+        if(value.type==='Identifier' && reflectiveBulkReaders.has(value.name) &&
+           !reflectiveBulkReaders.has(name)) {
+          reflectiveBulkReaders.add(name);
           reflectiveChanged=true;
+        }
+        if(value.type==='MemberExpression' && isReflectiveReceiver(value.object)) {
+          const method=memberName(value);
+          if(['get','getOwnPropertyDescriptor'].includes(method??'') &&
+             !reflectiveReaders.has(name)) {
+            reflectiveReaders.add(name);
+            reflectiveChanged=true;
+          }
+          if(method==='getOwnPropertyDescriptors'&&!reflectiveBulkReaders.has(name)) {
+            reflectiveBulkReaders.add(name);
+            reflectiveChanged=true;
+          }
         }
       } else if(pattern.type==='ObjectPattern' && isReflectiveReceiver(value)) {
         for(const property of pattern.properties) {
@@ -593,6 +604,11 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
           if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
              !reflectiveReaders.has(property.value.name)) {
             reflectiveReaders.add(property.value.name);
+            reflectiveChanged=true;
+          }
+          if((method===null || method==='getOwnPropertyDescriptors') &&
+             !reflectiveBulkReaders.has(property.value.name)) {
+            reflectiveBulkReaders.add(property.value.name);
             reflectiveChanged=true;
           }
         }
@@ -679,11 +695,13 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
       const callee=node.callee;
       // Enumerating descriptors can disclose Function.prototype.toString
       // through a later computed-key read of the returned descriptor map.
-      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
-         callee.object.type==='Identifier' &&
-         reflectiveReceivers.has(callee.object.name) &&
-         memberName(callee)==='getOwnPropertyDescriptors' &&
-         node.arguments.length>=1) observed=true;
+      if(node.type==='CallExpression' && node.arguments.length>=1 &&
+         (callee.type==='MemberExpression' &&
+            isReflectiveReceiver(callee.object) &&
+            memberName(callee)==='getOwnPropertyDescriptors' ||
+          callee.type==='Identifier' && reflectiveBulkReaders.has(callee.name))) {
+        observed=true;
+      }
       // Reflect.get and descriptor inspection can read the same stack data
       // without mentioning it in a MemberExpression.
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
