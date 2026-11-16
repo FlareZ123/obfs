@@ -154,9 +154,17 @@ function observesFunctionSource(ast,importedStrings=new Map()) {
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
       node.type==='MemberExpression' &&
-        (isOpaqueNamespace(node.object) || node.object.type==='Identifier' &&
-          (objectFunctionKeys.get(node.object.name)?.has(memberName(node)??'') ||
-           node.computed && arraysWithFunctions.has(node.object.name)))));
+        (isOpaqueNamespace(node.object) ||
+         node.object.type==='Identifier' && node.object.name==='Function' &&
+           memberName(node)==='prototype' ||
+         node.object.type==='Identifier' &&
+           (objectFunctionKeys.get(node.object.name)?.has(memberName(node)??'') ||
+            node.computed && arraysWithFunctions.has(node.object.name))) ||
+      node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+        node.callee.object.type==='Identifier' &&
+        ['Reflect','Object'].includes(node.callee.object.name) &&
+        memberName(node.callee)==='getPrototypeOf' &&
+        isFunctionValue(node.arguments[0])));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunction(node) {
