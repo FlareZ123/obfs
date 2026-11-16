@@ -293,12 +293,13 @@ Promise or callable thenable returned by a transition (including the final
 step) and rejects a thenable initial state; otherwise an unresolved Promise
 could be mistaken for a truthy authorized state. An asynchronous transition
 must be resolved by the application before calling this synchronous helper.
-When an erroneous policy returns a rejecting same-realm Promise, the helper
+When an erroneous policy returns a rejecting native Promise (including one from
+another VM realm), the helper
 attaches a rejection observer before throwing its synchronous TypeError. This
 prevents that refused Promise from later terminating Node as an unhandled
 rejection. The helper cannot cancel asynchronous side effects already started
-by a bad policy, and arbitrary thenables remain rejected without invoking
-their `then` method. The integrator must
+by a bad policy, and arbitrary non-Promise thenables remain rejected without
+invoking their `then` method. The integrator must
 also ensure the snapshot remains consistent between preflight and execution
 through an application transaction, serialization, or equivalent control.
 Without this guarantee, another request may change permissions after the
