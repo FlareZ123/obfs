@@ -78,6 +78,30 @@ async function main(){
     mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
     seed:'browser-host-reflection-callback-20261116'
   });
+  if(compiled.crossFile.properties!==1){
+    const {parse,observesFunctionSource,observesDistributedSource}=require('../src/ast');
+    const observed=files.map(file=>({
+      path:file.path,
+      functionSource:observesFunctionSource(parse(file.code,'module')),
+      distributedSource:observesDistributedSource(parse(file.code,'module'))
+    }));
+    const entry=files.find(file=>file.path==='entry.mjs');
+    assert.ok(entry);
+    const variants=[
+      ['source-original',entry.code],
+      ['node-console-output',entry.code.replace('export const observed=[state.secretField,names];','console.log(JSON.stringify([state.secretField,names]));')],
+      ['no-url-expression',entry.code.replace(/const target=.*;/u,"const target='./state.mjs';")],
+      ['simple-importer',"import {state} from './state.mjs'; import {inspectRecord} from './record.mjs';const result=inspectRecord('auditCount'); export const observed=state.secretField;"]
+    ].map(([label,code])=>{
+      const sample=files.map(file=>file.path==='entry.mjs'?{...file,code}:file);
+      const out=obfuscateFiles(sample,{
+        mode:'coo',closedWorld:true,properties:true,identifiers:false,strings:false,
+        seed:'browser-host-reflection-callback-20261116'
+      });
+      return {label,renamed:out.crossFile.properties};
+    });
+    console.log('BROWSER_PROOF_DIAG '+JSON.stringify({observed,variants}));
+  }
   assert.equal(compiled.crossFile.properties,1, 'Browser graph should retain native positive protected-field yield');
   const sources=new Map();
   for(const file of files)sources.set('/native/'+file.path,file.code);
