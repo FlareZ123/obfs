@@ -71,7 +71,7 @@ test('SCO refuses known private realm-dependent entropy and host-clock reads',()
   ];
   for(const body of bodies){
     assert.throws(()=>partition(body),
-      /realm-local.*(entropy|clock)|(?:entropy|clock).*realm-local/,body);
+      /realm-local (?:entropy|clock|intrinsic state)/,body);
   }
 });
 
