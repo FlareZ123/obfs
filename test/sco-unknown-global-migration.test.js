@@ -23,7 +23,7 @@ test('Native custom browser-owned global is absent in independent server realm',
   const server=vm.createContext({});
   assert.equal(vm.runInContext('globalThis.externalBridge.value',browser),41);
   assert.equal(vm.runInContext('typeof globalThis.externalBridge',server),'undefined');
-  assert.throws(()=>vm.runInContext('globalThis.externalBridge.value',server),TypeError);
+  assert.throws(()=>vm.runInContext('globalThis.externalBridge.value',server),/Cannot read properties of undefined/);
 });
 
 test('SCO private extraction refuses unknown host-global application properties',()=>{
