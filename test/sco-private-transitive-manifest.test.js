@@ -73,10 +73,15 @@ test('closed-world graph refuses untracked dynamic and noncanonical loaders',()=
     'export function deriveProof(v){return require("./deep/secret.mjs");}',
     'export {secretValue as deriveProof} from "../outside.mjs";',
     'import {secretValue} from "package-name"; export {secretValue as deriveProof};',
-    'import {secretValue} from "./deep/%73ecret.mjs"; export {secretValue as deriveProof};'
+    'import {secretValue} from "./deep/%73ecret.mjs"; export {secretValue as deriveProof};',
+    'const loader=Function; export function deriveProof(v){return loader("return 3")();}',
+    'export function deriveProof(v){return new Function("return 3")();}',
+    'const source=import.meta.url; export function deriveProof(v){return source;}',
+    'import {createRequire as loaderFactory} from "node:module"; const load=loaderFactory(import.meta.url); export function deriveProof(v){return load("./other.cjs");}',
+    'import {Worker as W} from "node:worker_threads"; export function deriveProof(v){return new W(v);}'
   ]) {
     assert.throws(()=>emit([{...engine,code},leaf]),
-      /unproved runtime loader|canonical relative \.mjs imports/,
+      /unproved runtime loader|canonical relative \.mjs imports|cannot audit dynamic Node loader/,
       'Private source should be declined: '+code);
   }
 });
