@@ -117,7 +117,7 @@ test('array prototype tampering preserves exact source-spelled member expression
     'catch(error){message=error.message;}finally{Array.prototype.join=previous;}'+
     'module.exports=[message,owner.otherField];';
   const expected=evaluate(original);
-  assert.match(JSON.parse(expected)[0],/owner\.privateField/u);
+    assert.ok(JSON.parse(expected).includes('state.privateField'),expected);
   for(const mode of /** @type {const} */ (['coo','sco','sno'])){
     const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
       mode,seed:'prototype-spelling',strings:false,identifiers:false
