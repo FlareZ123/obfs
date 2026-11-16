@@ -65,7 +65,7 @@ function heldoutCases(){
  * The rest of the graph retains public host/reflection contracts unchanged.
  * @param {string} destination
  * @param {boolean} native
- * @returns {Promise<{changedFiles:number,originalBytes:number,emittedBytes:number,selectedFunctions:number,selectedPaths:number,paths:string[]}>}
+ * @returns {Promise<{changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string|null,selectedFunctions:number,selectedPaths:number,paths:string[]}>}
  */
 async function emitSno(destination,native=false){
   const originals=await Promise.all(NAMES.map(async filename=>({
@@ -89,14 +89,18 @@ async function emitSno(destination,native=false){
   for(const file of protectedFiles){
     await atomicWrite(path.join(destination,file.path),file.code);
   }
+  let launcherSha256=null;
   if(!native){
     const launcher=createSnoLauncher(protectedFiles,CJS_ENTRY);
+    launcherSha256=sha256(launcher);
     await atomicWrite(path.join(destination,'sno-entry.cjs'),launcher);
   }
   return {
     changedFiles:compiled.filter((file,i)=>file.code!==originals[i].code).length,
     originalBytes:originals.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0),
     emittedBytes:compiled.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0),
+    emittedSha256:sha256(protectedFiles.map(file=>file.path+'\0'+file.code).join('\0')),
+    launcherSha256,
     selectedFunctions:math.files[0].metrics.polyvariantFunctions??0,
     selectedPaths:math.files[0].metrics.polyvariantPaths??0,
     paths:protectedFiles.map(file=>file.path)
@@ -127,7 +131,7 @@ function runJson(executable,cases,inputFile){
 /**
  * Verify actual transformed SNO application, independent public SNO attacker,
  * plus direct ESM execution with no SNO manifest invoked.
- * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean}>}
+ * @returns {Promise<{cases:number,changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string,selectedFunctions:number,selectedPaths:number,manifestForged:boolean,offlineClone:boolean,directEsmClone:boolean}>}
  */
 async function runEvidence(){
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-sno-'));
@@ -171,6 +175,8 @@ async function runEvidence(){
       changedFiles:compiled.changedFiles,
       originalBytes:compiled.originalBytes,
       emittedBytes:compiled.emittedBytes,
+      emittedSha256:compiled.emittedSha256,
+      launcherSha256:/** @type {string} */(compiled.launcherSha256),
       selectedFunctions:compiled.selectedFunctions,
       selectedPaths:compiled.selectedPaths,
       manifestForged:result.manifestRewritten,
