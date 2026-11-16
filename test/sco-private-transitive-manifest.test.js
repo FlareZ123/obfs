@@ -266,3 +266,30 @@ test('constructor-chain loaders cannot evade private source audit',{timeout:1500
   assert.doesNotThrow(()=>emit([harmless]),
     'Ordinary private property reads remain eligible');
 });
+
+test('static constructor key aliases must not hide runtime imports',{timeout:15000},async()=>{
+  const variants=[
+    'const key="constructor"; const load=({})[key][key]("p","return import(p)");',
+    'const first="con"+"structor"; const key=first; const load=({})[key][key]("p","return import(p)");',
+    'const key=\`con\${"structor"}\`; const load=({})[key][key]("p","return import(p)");',
+    'const key="constructor"; const { [key]:Maker }=(()=>0); const load=Maker("p","return import(p)");'
+  ];
+  const suffix='export async function deriveProof(v){return (await load("./deep/secret.mjs")).secretValue+v;}';
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-key-alias-'));
+  try{
+    await atomicWrite(path.join(folder,engine.path),variants[0]+'\n'+suffix);
+    await atomicWrite(path.join(folder,leaf.path),leaf.code);
+    const native=await import(pathToFileURL(path.join(folder,engine.path)).href);
+    assert.equal(await native.deriveProof(1),42);
+  }finally{
+    await fs.rm(folder,{recursive:true,force:true});
+  }
+  for(const prefix of variants){
+    assert.throws(()=>emit([{path:engine.path,code:prefix+'\n'+suffix}]),
+      /unproved runtime loader|realm-local/u,
+      'Private closure must decline a constructor key alias: '+prefix);
+  }
+  assert.doesNotThrow(()=>emit([{path:engine.path,
+    code:'const key="answer"; const record={answer:41}; export function deriveProof(v){return record[key]+v;}'}]),
+    'A statically safe ordinary computed field stays eligible');
+});
