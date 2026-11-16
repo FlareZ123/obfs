@@ -103,7 +103,9 @@ async function main(){
     await fs.rm(working,{recursive:true,force:true});
   }
   assert.equal(rows[0].changedInputByteFraction,0);
-  assert.equal(rows[1].changedInputByteFraction,0);
+  assert.equal(rows[1].renamedPrivateFields,0,
+    'Lexical file changes cannot be mistaken for private-field coverage');
+  assert.equal(rows[2].renamedPrivateFields,2);
   assert.ok(rows[2].changedInputByteFraction>0);
   process.stdout.write('APPLICATION_REFUSAL_YIELD '+JSON.stringify(rows)+'\n');
   return {rows,sampleCount:cases.length};
