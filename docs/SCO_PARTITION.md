@@ -250,12 +250,17 @@ The generated `privateSourceDigests` list is based on compiler-supplied
 files, so an unlisted dynamically loaded file would lack a commitment.
 
 To avoid the most obvious false closure claims,
-`partitionScoAsyncGraph` now refuses visible `eval` and `Function`
-calls, construction, simple identifier aliases, direct
-`globalThis.Function`/`globalThis.eval` references, and corresponding
-static global destructuring. This is a conservative source-admission choice;
-code that legitimately uses those facilities must be reviewed and handled
-outside the restricted graph partitioner.
+`partitionScoAsyncGraph` now refuses runtime references to bare `eval`
+and `Function` identifiers (including aliases, `Function.call`, and
+sequence expressions), direct global members carrying those names and
+corresponding static global destructuring. Plain uncomputed object-member
+labels named `Function` are treated as ordinary property names.
+This conservative scan can also reject a harmless locally shadowed
+identifier because it does not claim a complete lexical identity proof.
+Modules that genuinely require those facilities need review outside
+the restricted graph partitioner. The
+[targeted Linux/Windows Node 22 regression](https://github.com/FlareZ123/obfs/actions/runs/43923571909)
+passes both the native dynamic-import counterexample and strict JSDoc.
 
 Arbitrary JavaScript can still obtain executable constructors or module
 loaders through more complex aliases, prototypes, reflection, host
