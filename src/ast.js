@@ -722,6 +722,25 @@ function observesDistributedSource(ast) {
   const fileModules=new Set(['fs','fs/promises','node:fs','node:fs/promises']);
   const loaderModules=new Set(['module','node:module','vm','node:vm']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
+  const globals=new Set(['globalThis','window','self','global']);
+  // Follow plain global-object aliases conservatively. An eventual mutable
+  // reassignment may create a false positive; it cannot make the guard unsafe.
+  let changed;
+  do {
+    changed=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' && node.id.type==='Identifier' ?
+        node.id : node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const initial=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type==='Identifier' && initial?.type==='Identifier' &&
+         globals.has(initial.name) && !globals.has(binding.name)) {
+        globals.add(binding.name);
+        changed=true;
+      }
+    });
+  }while(changed);
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
@@ -745,10 +764,20 @@ function observesDistributedSource(ast) {
       const key=node.computed ? staticString(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
       if(key!==null && (browserReaders.has(key) ||
-        ['getBuiltinModule','createRequire','require'].includes(key))) {
+        ['getBuiltinModule','createRequire','require'].includes(key)) ||
+         key===null && node.computed &&
+         node.object.type==='Identifier' && globals.has(node.object.name)) {
         observed=true;
       }
     }
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       node.callee.object.type==='Identifier' &&
+       ['Reflect','Object'].includes(node.callee.object.name) &&
+       ['get','getOwnPropertyDescriptor'].includes(node.callee.computed ?
+         staticString(node.callee.property) ?? '' :
+         node.callee.property.type==='Identifier' ? node.callee.property.name : '') &&
+       node.arguments[0]?.type==='Identifier' &&
+       globals.has(node.arguments[0].name))observed=true;
   });
   return observed;
 }
