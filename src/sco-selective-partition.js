@@ -388,11 +388,13 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static dependency writes cross-realm global state: '+filename);
       }
     });
-    walk(ast,node=>{
+    walk(ast,(node,parent,key)=>{
+      // Direct and first-class references to dynamic-source constructors,
+      // including "new Function" and aliases, are outside this static model.
       if(node.type==='ImportExpression' ||
-         node.type==='CallExpression' &&
-           node.callee.type==='Identifier' &&
-           ['require','eval','Function'].includes(node.callee.name)) {
+         node.type==='Identifier' && ['require','eval','Function'].includes(node.name) &&
+           !isStaticKey(parent,key) ||
+         node.type==='MetaProperty') {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
@@ -405,7 +407,16 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       if(typeof specifier!=='string') {
         throw new TypeError('SCO private static dependency has an invalid import: '+filename);
       }
-      if(specifier.startsWith('node:') && isBuiltin(specifier))continue;
+      if(specifier.startsWith('node:') && isBuiltin(specifier)) {
+        // These builtins can resolve or evaluate unlisted source through
+        // aliases and nested calls. A complete static module manifest cannot
+        // be inferred when their loaders are available in the private graph.
+        if(['node:module','node:vm','node:worker_threads','node:child_process']
+            .includes(specifier)) {
+          throw new TypeError('SCO private static graph cannot audit dynamic Node loader: '+specifier);
+        }
+        continue;
+      }
       if(!isCanonicalPrivateModulePath(filename,specifier)) {
         throw new TypeError('SCO private static dependency must use canonical relative .mjs imports: '+filename);
       }
