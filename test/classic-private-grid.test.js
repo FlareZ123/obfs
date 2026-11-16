@@ -61,11 +61,23 @@ function families(index) {
     {name:'reflective-shape',expected:0,code:[
       'function measure(){const packet='+literal+';' +
         'return Object.keys(packet).join(",");}globalThis.first=measure();'
+    ]},
+    {name:'mutable-global-forwarder',expected:0,code:[
+      'function identity(x){return x;}' +
+        'function measure(){const packet='+literal+';const alias=identity(packet);' +
+        'return alias.'+field+';}globalThis.first=measure();',
+      'identity=x=>({'+field+':99});globalThis.second=measure();'
+    ]},
+    {name:'mutable-global-reader',expected:0,code:[
+      'function peek(x){return x.'+field+';}' +
+        'function measure(){const packet='+literal+';return peek(packet);}' +
+        'globalThis.first=measure();',
+      'peek=x=>x.'+field+'+10;globalThis.second=measure();'
     ]}
   ];
 }
 
-test('210 generated ordered classic-script graphs match native execution and proof coverage',()=>{
+test('270 generated ordered classic-script graphs match native execution and proof coverage',()=>{
   let accepted=0,refused=0;
   for(let trial=0;trial<30;trial++) {
     for(const graph of families(trial)) {
@@ -86,5 +98,5 @@ test('210 generated ordered classic-script graphs match native execution and pro
     }
   }
   assert.equal(accepted,90);
-  assert.equal(refused,120);
+  assert.equal(refused,180);
 });
