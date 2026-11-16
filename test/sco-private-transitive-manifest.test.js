@@ -127,3 +127,20 @@ test('static private closure supports canonical cycles without repeated scanning
   assert.deepEqual(generated.clientFile.privateModulePaths,
     ['private/engine.mjs','private/leaf.mjs']);
 });
+
+test('source-audited private graph refuses visible intrinsic and global effects',()=>{
+  for(const code of [
+    'Math.__privateRealmCanary=41; export function deriveProof(v){return v;}',
+    'Object.prototype.__privateRealmCanary=41; export function deriveProof(v){return v;}',
+    'const root=globalThis; root.__privateRealmCanary=41; export function deriveProof(v){return v;}',
+    'const root=globalThis; const r=root; r.__privateRealmCanary++; export function deriveProof(v){return v;}'
+  ]){
+    assert.throws(()=>emit([{path:engine.path,code}]),
+      /realm-local|cross-realm global state/u,code);
+  }
+  const safe={
+    path:engine.path,
+    code:'import {createHash} from "node:crypto"; export function deriveProof(v){return createHash("sha256").update(v).digest("hex");}'
+  };
+  assert.doesNotThrow(()=>emit([safe]));
+});
