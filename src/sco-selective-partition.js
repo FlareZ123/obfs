@@ -250,7 +250,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
   // Retain Date-instance origins through simple local aliases. As with the
   // broader intrinsic proof, unrecognized higher-order flows remain outside
   // the verified contract and need independent adversarial tests.
+  /** @type {Set<string>} */
   const dateInstances=new Set();
+  /** @type {Set<string>} */
   const intlAliases=new Set();
   let originChanged=true;
   while(originChanged){
@@ -283,6 +285,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const utcDateMethods=new Set(['getTime','valueOf','toISOString','toJSON',
     'getUTCDate','getUTCDay','getUTCFullYear','getUTCHours',
     'getUTCMilliseconds','getUTCMinutes','getUTCMonth','getUTCSeconds']);
+  /** @type {Set<import('./ast').AstNode>} */
   const utcDateReceivers=new Set();
   walk(body,node=>{
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
