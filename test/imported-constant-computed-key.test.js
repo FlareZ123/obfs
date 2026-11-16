@@ -143,3 +143,26 @@ test('ESM cycle TDZ before owner initialization keeps exception semantics',async
     'import {bag,key} from "./state.mjs";export function probe(){return bag[key];}'
   ),1);
 });
+
+test('source observation accepts unrelated imported global key declared after owner',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};export const key="otherGlobal";',
+    'import {bag,key} from "./state.mjs";console.log(bag.secretField,globalThis[key]);'
+  ),1);
+});
+
+test('source observation accepts unrelated verified key from a separate module',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {key} from "./keys.mjs";'+
+      'console.log(bag.secretField,globalThis[key]);',
+    [{path:'keys.mjs',sourceType:'module',code:'export const key="otherGlobal";'}]
+  ),1);
+});
+
+test('imported browser source-reader key retains whole-graph refusal',async()=>{
+  await compare(graph(
+    'export const key="fetch";export const bag={secretField:8};',
+    'import {bag,key} from "./state.mjs";console.log(bag.secretField,typeof globalThis[key]);'
+  ),0);
+});
