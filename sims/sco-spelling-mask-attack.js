@@ -11,10 +11,14 @@ const {createScoHandler}=require('../src');
 async function main() {
   const first='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef';
   const second='ghijklmnopqrstuvwxyz0123456789AB';
+  // Includes ASCII, both quotes, a backslash, NUL, non-BMP characters and
+  // isolated surrogate code units. Acorn offsets use UTF-16 code units.
+  const third='A"\\'+String.fromCharCode(0)+'λ🧪'+String.fromCharCode(0xd800)+'Z';
   // Immutable primitive concatenation exercises the positive compiler proof.
   const original='const firstMarker='+JSON.stringify(first)+';\n'+
     'const secondMarker='+JSON.stringify(second)+';\n'+
-    'globalThis.maskProof=firstMarker+secondMarker;\n';
+    'const thirdMarker='+JSON.stringify(third)+';\n'+
+    'globalThis.maskProof=firstMarker+secondMarker+thirdMarker;\n';
   const server=http.createServer(createScoHandler([
     {path:'entry.js',sourceType:'script',code:original}
   ]));
@@ -40,7 +44,7 @@ async function main() {
       const attack=JSON.parse(child.stdout);
       assert.equal(attack.predictedDigest,
         createHash('sha256').update(served).digest('hex'));
-      assert.equal(attack.eligible,2);
+      assert.equal(attack.eligible,3);
       assert.equal(attack.anchor,first);
       assert.equal(attack.mask.length,32);
       assert.ok(attack.mask.every(bit=>bit===0||bit===1));
