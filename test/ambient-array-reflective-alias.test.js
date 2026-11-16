@@ -75,6 +75,26 @@ for(const [name,expression] of [
   });
 }
 
+test('single-file chunked decoder visibly corrupts output when an earlier Array iterator patch is omitted',async()=>{
+  const files=graph('Reflect.get(Array,"prototype")[Symbol.iterator]=function*(){yield 0;};');
+  const native=await execute(files);
+  assert.equal(native.stdout,literal);
+  const solo=obfuscateFiles([files[2]],{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-array-iterator/negative-control'
+  });
+  assert.ok(solo.files[0].metrics.literals>0);
+  const corrupted=await execute([files[0],files[1],solo.files[0]]);
+  assert.equal(corrupted.status,0,corrupted.stderr);
+  assert.notEqual(corrupted.stdout,native.stdout);
+  const whole=obfuscateFiles(files,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'reflective-array-iterator/negative-control'
+  });
+  assert.equal(whole.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+  assert.deepEqual(await execute(whole.files),native);
+});
+
 for(const [name,source] of [
   ['Reflect.get unrelated data','const x=Reflect.get({foo:12},"foo");'],
   ['Reflect.getPrototypeOf unrelated object','const p=Reflect.getPrototypeOf({});'],
