@@ -9,7 +9,7 @@ const {createHash}=require('node:crypto');
 const {spawnSync}=require('node:child_process');
 const {convertItem}=require('../sims/jsdeobsbench-adapter');
 const {recoverPublicStrings,attackCorpus,parseArgs}=require('../sims/jsdeobsbench-public-static-attack');
-const {publishPublicCorpus,verifyRecoveredCorpus}=require('../sims/jsdeobsbench-public-protocol');
+const {publishPublicCorpus,verifyRecoveredCorpus,stagePublicAttacker}=require('../sims/jsdeobsbench-public-protocol');
 const {atomicWrite}=require('../src/atomic');
 
 /** @param {string} code @returns {string} */
@@ -107,6 +107,48 @@ test('public-only input isolation, hash verification and exact recovery join',as
     await atomicWrite(compiled,JSON.stringify(incorrect)+'\n');
     await assert.rejects(verifyRecoveredCorpus(compiled,recovered,verified),/Incomplete/);
     assert.equal(await fs.readFile(recovered,'utf8'),first);
+  } finally {
+    await fs.rm(folder,{force:true,recursive:true});
+  }
+});
+
+test('minimal offline attacker stage has no compiler or benchmark originals',async()=>{
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-attacker-stage-'));
+  const compiled=path.join(folder,'compiled.jsonl');
+  const published=path.join(folder,'public.jsonl');
+  const stage=path.join(folder,'attacker');
+  const recovered=path.join(folder,'recovered.jsonl');
+  const verified=path.join(folder,'verified.jsonl');
+  try {
+    const row=build("console.log('strictly-public-source-canary');",'script');
+    await atomicWrite(compiled,JSON.stringify(row)+'\n');
+    await publishPublicCorpus(compiled,published);
+    const staged=await stagePublicAttacker(published,stage);
+    assert.equal(staged.files,5);
+    assert.deepEqual((await fs.readdir(stage)).sort(),[
+      'node_modules','public.jsonl','sims','src'
+    ]);
+    assert.deepEqual(await fs.readdir(path.join(stage,'sims')),[
+      'jsdeobsbench-public-static-attack.js'
+    ]);
+    assert.deepEqual(await fs.readdir(path.join(stage,'src')),['atomic.js']);
+    assert.deepEqual((await fs.readdir(path.join(stage,'node_modules','acorn'))).sort(),[
+      'dist','package.json'
+    ]);
+    const input=JSON.parse(await fs.readFile(path.join(stage,'public.jsonl'),'utf8'));
+    assert.deepEqual(Object.keys(input),[
+      'filename','obfuscated','obfs_source_type','obfs_output_sha256'
+    ]);
+    const executed=spawnSync(process.execPath,[
+      path.join(stage,'sims','jsdeobsbench-public-static-attack.js'),
+      '--input',path.join(stage,'public.jsonl'),'--output',recovered,
+      '--require-progress'
+    ],{encoding:'utf8',cwd:stage,timeout:10000});
+    assert.equal(executed.status,0,executed.stderr);
+    const metrics=await verifyRecoveredCorpus(compiled,recovered,verified);
+    assert.ok(metrics.recoveredLiterals>0);
+    assert.equal(metrics.encodedLiterals,metrics.recoveredLiterals);
+    await assert.rejects(stagePublicAttacker(published,stage),/EEXIST/);
   } finally {
     await fs.rm(folder,{force:true,recursive:true});
   }
