@@ -31,6 +31,8 @@ jobs:
         run: node sims/sco-realm-admission-coverage.js
       - name: Paired SCO stateful authorization runtime sample
         run: node sims/sco-batch-state-cost.js
+      - name: Compare permissive and strict UTF-8 JSON admission CPU cost
+        run: node sims/sco-utf8-admission-profile.js
       - name: Compare fine and coarse authenticated SCO immutable async expression calls
         run: node sims/sco-const-granularity.js
       - name: SCO private ESM graph online authorized clone
