@@ -270,13 +270,20 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    /**
+     * @param {AstNode} argument
+     * @returns {boolean}
+     */
+    function passesHostCallable(argument) {
+      return readsHostCallable(argument) ||
+        argument.type==='Identifier' && hostCallAliases.has(argument.name);
+    }
     walk(source.ast,(node,parent)=>{
       // A host callable used as an argument may be invoked or retained by
       // any otherwise unproved call/constructor. This includes Reflect.apply,
       // microtask and Promise callbacks, not only direct host callees.
       if((node.type==='CallExpression'||node.type==='NewExpression') &&
-         node.arguments.some(argument=>readsHostCallable(argument) ||
-           argument.type==='Identifier' && hostCallAliases.has(argument.name))) {
+         node.arguments.some(passesHostCallable)) {
         changedIntrinsic=true;
       }
       if(node.type==='CallExpression' &&
