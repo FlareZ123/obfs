@@ -38,6 +38,18 @@ for(const mode of /** @type {('sno'|'coo')[]} */ (['sno','coo'])) {
       'module.exports=identity(root).secretField();',0,mode);
   });
 
+  test('forwarded deletion preserves inherited original-key fallback in '+mode,()=>{
+    preserves('Object.prototype.secretField=88;const root={secretField:13};'+
+      'function identity(x){return x;}delete identity(root).secretField;'+
+      'module.exports=identity(root).secretField;',0,mode);
+  });
+
+  test('forwarded iterable operand preserves native TypeError source spelling in '+mode,()=>{
+    preserves('const root={secretField:13};function identity(x){return x;}'+
+      'let output;try{for(const item of identity(root).secretField){}}'+
+      'catch(error){output=error.message;}module.exports=output;',0,mode);
+  });
+
   test('safe forwarded scalar field read still renames in '+mode,()=>{
     preserves('const root={secretField:13};function identity(x){return x;}'+
       'module.exports=identity(root).secretField+4;',1,mode);
