@@ -21,22 +21,28 @@ class ScoIsolationBusyError extends Error {
  * This serializes authorization and execution for one principal only. It does
  * not make external storage transactional or validate state transitions inside
  * a batch. The supplied execute callback must settle; no timeout or
- * reentrant execution is introduced here. An optional finite limit counts
- * both the active operation and requests waiting for that principal. The
- * default remains unlimited for backward compatibility. A rejected request
+ * reentrant execution is introduced here. An optional per-principal limit
+ * counts running and waiting operations. An optional global capacity limits
+ * all principals' outstanding calls. Both default to unlimited for backward
+ * compatibility. A rejected request
  * does not enter the queue or invoke protected work. FIFO applies after the
  * asynchronous principal resolver has settled.
  *
  * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
- * @param {{maxPendingPerPrincipal?:number}} [options]
+ * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number}} [options]
  * @returns {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>}
  */
 function createScoKeyedIsolation(principalOf,options={}) {
   if(typeof principalOf!=='function')throw new TypeError('principalOf must be a function');
   const limit=options.maxPendingPerPrincipal??Infinity;
+  const totalLimit=options.maxPendingTotal??Infinity;
   if(limit!==Infinity&&(!Number.isSafeInteger(limit)||limit<1)) {
     throw new TypeError('maxPendingPerPrincipal must be a positive safe integer');
   }
+  if(totalLimit!==Infinity&&(!Number.isSafeInteger(totalLimit)||totalLimit<1)) {
+    throw new TypeError('maxPendingTotal must be a positive safe integer');
+  }
+  let totalPending=0;
   /** @type {Map<string,Promise<void>>} */
   const tails=new Map();
   /** @type {Map<string,number>} */
@@ -47,8 +53,9 @@ function createScoKeyedIsolation(principalOf,options={}) {
       throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
     }
     const count=pending.get(principal)??0;
-    if(count>=limit)throw new ScoIsolationBusyError();
+    if(count>=limit||totalPending>=totalLimit)throw new ScoIsolationBusyError();
     pending.set(principal,count+1);
+    totalPending++;
     const previous=tails.get(principal);
     /** @type {()=>void} */
     let release=()=>{};
@@ -63,6 +70,7 @@ function createScoKeyedIsolation(principalOf,options={}) {
       const outstanding=pending.get(principal)??1;
       if(outstanding===1)pending.delete(principal);
       else pending.set(principal,outstanding-1);
+      totalPending--;
       release();
     }
   };
