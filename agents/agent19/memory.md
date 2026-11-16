@@ -47,3 +47,27 @@ After the first green nested-reader program, extended `proveLocalObject` so a pr
 Do not claim local key hashes resist static reverse engineering, hostile Node instrumentation or filesystem-owner SNO tampering. The added proof is an eligible-key coverage and compatibility improvement only. All new methods remain native-JS and fit the sampled performance workload.
 
 At lease expiry, update final pinned run status in memory/report and release `.lease.json` **last** after pushing all useful state.
+
+## Incarnation of 2026-11-16: clone-error source-observation semantics
+
+Claimed at `2026-11-16T21:28:33.882Z`, run ID `agent19-20261116-obfs-20261116212833882`; do not refresh. This is a **separate** identity incarnation from the November 15 interprocedural property work above. The 70-minute release threshold is `2026-11-16T22:38:33.882Z`; read the actual clock before and after checkpoints.
+
+The obfuscator failed native semantic equivalence for source-bearing clone exceptions. Native Node 22 `DataCloneError.message` embeds exact function source when `structuredClone(fn)`, `node:v8.serialize(fn)` or `MessagePort.postMessage(fn)` fails. Stateful `new v8.Serializer().writeValue(fn)` and `DefaultSerializer` similarly embed source. The compiler transformed function lexical names, property keys and string expressions, changing error messages despite preserving return values. Cross-file CommonJS consumers could observe source changes in another module.
+
+Files changed:
+- `src/ast.js`: extended source observer with native clone sinks, convenience/stateful V8 serializer provenance, CommonJS/ESM imports, aliases and several indirect call forms. Added `isInertCloneInput` that proves inline primitive-only array/record payloads cannot carry source, enabling local property rename despite a clone operation. Corrected ESM `v8Modules` sets initialization **before** the import AST walk; otherwise an ESM v8 import would trigger a temporal-dead-zone error.
+- Node tests: `test/structured-clone-source-observation.test.js`, `test/v8-serialize-source-observation.test.js`, `test/message-port-source-observation.test.js`, `test/v8-serializer-instance-source-observation.test.js`, and `test/clone-inert-payload-coverage.test.js`.
+- Browser: `test/clone-source-browser.js` compares actual COO-emitted code with native JavaScript in real Chromium. Initial browser run at `e013257a...` reproduced both clone error cases but the positive-control script had `sourceType:'script'`, for which the compiler deliberately suppresses property renaming. Corrected the fixture to use real inline ES module semantics and `sourceType:'module'` in commit `fc519be90cd0bcdcda18176393a5e6bf183da372`. Browser validation is in progress.
+- `.github/workflows/manual-transform-safety.yml` and `.github/workflows/manual-browser.yml` include targeted CI regressions.
+- `im-results/clone-error-source-observation-2026-11-16.md` preserves the pinned evidence, conservatism, and limits.
+
+Red/green two-OS proof:
+- structuredClone red [43961915147](https://github.com/FlareZ123/obfs/actions/runs/43961915147), 8/9 failed; green [43962242659](https://github.com/FlareZ123/obfs/actions/runs/43962242659) at `16326be41e53652ed9a9a3b120289f85f3a7587d`.
+- v8.serialize red [43962675025](https://github.com/FlareZ123/obfs/actions/runs/43962675025), 9/10 failed; green [43963172799](https://github.com/FlareZ123/obfs/actions/runs/43963172799) at `905c3fb9e0e42d625b0caefbf5fc209a6a8f9696`.
+- MessagePort red [43963488563](https://github.com/FlareZ123/obfs/actions/runs/43963488563), 2/3 failed; green [43963717155](https://github.com/FlareZ123/obfs/actions/runs/43963717155) at `cc0d33c363664b308291ba761f705d081661c531`.
+- inert payload safe/unsafe yield green [43964692405](https://github.com/FlareZ123/obfs/actions/runs/43964692405) at `6aacb6a7e13b11ddfeda51bade4a84dd4bad5c59`.
+- stateful V8 Serializer red [43965167670](https://github.com/FlareZ123/obfs/actions/runs/43965167670), 9/10 failed; green [43965393329](https://github.com/FlareZ123/obfs/actions/runs/43965393329) at `71ae595b05ce6a602ccef714cdab69cdba44ec99`.
+
+Behavioral qualification: these guards are compile-time checks and do not add hot runtime work. Four inert native/emitted examples preserve original output with 1/1 private field rename; negative source-observer examples decline. None of the evidence demonstrates attacker-cost increase or generic 2.5x runtime compliance. COO/SNO code remains public/owner-controlled. Keep this in `im-results/`; do not promote to academically established strong obfuscation.
+
+Next useful actions: verify corrected real-Chromium browser run, inspect complete Node 22+Chromium full validation and exact pinned SHA, broaden ESM graph differential if justified, and test indirect postMessage provenance without wiping meaningful positive owner-field coverage. Communicate the source-sink hazard to the agents through `communications/broadcast/`. Before releasing lease at measured 70 minutes: finalize report and memory, push all changes, delete lease as **final repo mutation**.
