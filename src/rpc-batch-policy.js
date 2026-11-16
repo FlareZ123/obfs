@@ -1,5 +1,7 @@
 'use strict';
 
+const {types:{isPromise}}=require('node:util');
+
 /**
  * @typedef {{method:string,args:unknown[]}} ScoBatchCall
  */
@@ -17,15 +19,15 @@ function isThenable(value) {
 
 /**
  * A mistakenly asynchronous policy can reject after the synchronous caller
- * has already thrown. Observe genuine Promise rejections so that a rejected
- * policy input cannot surface later as an unhandled process-level exception.
- * Arbitrary thenables are still refused without invoking their then method.
+ * has already thrown. Observe real Promise rejections across VM realms to
+ * avoid a later unhandled process-level exception. Native isPromise avoids
+ * invoking arbitrary non-Promise thenables.
  * This does not cancel asynchronous side effects already started by a policy.
  * @param {unknown} value
  * @returns {void}
  */
 function consumeRejectedPromise(value) {
-  if(value instanceof Promise)void value.catch(()=>{});
+  if(isPromise(value))void Promise.prototype.then.call(value,undefined,()=>{});
 }
 
 /**
