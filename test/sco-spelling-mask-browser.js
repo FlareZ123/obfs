@@ -6,6 +6,8 @@ const {execFile,spawnSync}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {promisify}=require('node:util');
+const vm=require('node:vm');
+const {normalizeScoVariant}=require('../sims/sco-variant-normalize');
 const {createScoHandler,obfuscateFiles}=require('../src');
 
 /**
@@ -113,9 +115,23 @@ async function main() {
         createHash('sha256').update(code).digest('hex'));
       assert.equal(report.mask.length,32);
     }
+    // A second source-only AST attack normalizes the randomized property,
+    // lexical binding and string spellings to a single executable program.
+    const canonical=codes.map(code=>normalizeScoVariant(code,'module'));
+    assert.equal(canonical[0],canonical[1],
+      'Freshly randomized client modules must collapse under static normalization');
+    let reconstructedOutput='';
+    const mockDocument={getElementById:()=>({
+      /** @param {string} value */
+      set textContent(value){reconstructedOutput=value;}
+    })};
+    vm.runInNewContext(canonical[0],{document:mockDocument},{timeout:1000});
+    assert.deepEqual(JSON.parse(reconstructedOutput),nativeUnits,
+      'Statically normalized public code must recover the same observable behavior');
     process.stdout.write(JSON.stringify({
       chromium:'passed',nativeUnits:baseline.length,emittedUnits:emitted.length,
       sourceVariantsDistinct:true,sourceOnlyMaskRecoveryOnRenamedModule:true,
+      normalizedCodeEqualAcrossRequests:true,normalizedCodeExecutesEquivalently:true,
       observedPrivateFieldResult:nativeUnits.at(-1),
       transformedPrivateFields:preview.metrics.properties,
       transformedBindings:preview.metrics.bindings,containsUnpairedSurrogate:full.includes(String.fromCharCode(0xd800)),
