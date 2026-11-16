@@ -1,6 +1,6 @@
 # SCO recognized-batch authorization work before invalid requests
 
-**Status:** bounded trusted-server resource-consumption hardening; source-pinned cross-platform validation pending.
+**Status:** bounded trusted-server resource-consumption hardening, targeted Ubuntu/Windows and strict JSDoc gate successful [43957937021](https://github.com/FlareZ123/obfs/actions/runs/43957937021) at exact source `b6f8fd54c41c70816b466da7d8e1af949dca9d26`.
 
 ## Problem
 
