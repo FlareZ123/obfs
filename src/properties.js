@@ -583,57 +583,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           fn.node===parent && (fn.forwardIndex>=0 || fn.returnsRoot))) continue;
     return null;
   }
-  // Member assignment can install a function whose `this` observes the
-  // owner's property names, even if the assigned field itself is unrenamed.
-  // Preserve hot arithmetic updates while refusing unproven function/object
-  // assignments and method-call receivers.
-  for (const member of members) {
-    const consumer=parents.get(member);
-    // Pattern and iteration targets can install opaque values without an
-    // ordinary assignment node, allowing reflective methods on the object.
-    if (consumer?.type==='ForOfStatement' && consumer.left===member ||
-        consumer?.type==='ForInStatement' && consumer.left===member ||
-        consumer?.type==='ObjectPattern' || consumer?.type==='ArrayPattern' ||
-        consumer?.type==='Property' && parents.get(consumer)?.type==='ObjectPattern') return null;
-    // V8 can print the source spelling of a failed callee or iterable
-    // operand, e.g. "owner.secretField is not iterable", or
-    // "target[owner.secretField] is not a function". Renaming a member
-    // anywhere inside that expression would alter an observable TypeError
-    // even without Function#toString or a stack observation. Reject such
-    // contexts through the enclosing AST expression chain. A nested
-    // function body is a separately executed expression and does not become
-    // part of its enclosing function object's operand spelling.
-    let expression=member;
-    let ancestor=consumer;
-    while(ancestor) {
-      if(ancestor.type==='CallExpression' && ancestor.callee===expression ||
-         ancestor.type==='NewExpression' && ancestor.callee===expression ||
-         ancestor.type==='TaggedTemplateExpression' && ancestor.tag===expression ||
-         ancestor.type==='ForOfStatement' && ancestor.right===expression ||
-         ancestor.type==='SpreadElement' && ancestor.argument===expression ||
-         ancestor.type==='VariableDeclarator' && ancestor.init===expression &&
-           ancestor.id.type==='ArrayPattern' ||
-         ancestor.type==='AssignmentExpression' && ancestor.right===expression &&
-           ancestor.left.type==='ArrayPattern' ||
-         ancestor.type==='YieldExpression' && ancestor.delegate &&
-           ancestor.argument===expression) return null;
-      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))break;
-      expression=ancestor;
-      ancestor=parents.get(expression);
-    }
-    // Deletion can expose an inherited getter/value under the original key.
-    // The property shape of Object.prototype is outside the local proof.
-    const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
-    if (finalConsumer?.type==='UnaryExpression' && finalConsumer.operator==='delete') return null;
-    if (consumer?.type==='AssignmentExpression' && consumer.left===member) {
-      if (consumer.operator==='=') {
-        const rhs=consumer.right;
-        if (rhs.type!=='Literal' ||
-            !['string','number','boolean','bigint'].includes(typeof rhs.value) && rhs.value!==null) return null;
-      } else if (['&&=','||=','??='].includes(consumer.operator)) return null;
-    }
-
-  }
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
   if (identifiers.some(({node}) => node.name === 'arguments') &&
       [...functions.values()].some(fn => fn.params.some((/** @type {AstNode} */ p) => p.type === 'Identifier' && aliases.has(p.name)))) return null;
@@ -698,6 +647,58 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
             aliases.has(receiver.params[index].name))) continue;
     }
     return null;
+  }
+  // Validate all members after forwarding has added its immediate reads.
+  // Member assignment can install a function whose `this` observes the
+  // owner's property names, even if the assigned field itself is unrenamed.
+  // Preserve hot arithmetic updates while refusing unproven function/object
+  // assignments and method-call receivers.
+  for (const member of members) {
+    const consumer=parents.get(member);
+    // Pattern and iteration targets can install opaque values without an
+    // ordinary assignment node, allowing reflective methods on the object.
+    if (consumer?.type==='ForOfStatement' && consumer.left===member ||
+        consumer?.type==='ForInStatement' && consumer.left===member ||
+        consumer?.type==='ObjectPattern' || consumer?.type==='ArrayPattern' ||
+        consumer?.type==='Property' && parents.get(consumer)?.type==='ObjectPattern') return null;
+    // V8 can print the source spelling of a failed callee or iterable
+    // operand, e.g. "owner.secretField is not iterable", or
+    // "target[owner.secretField] is not a function". Renaming a member
+    // anywhere inside that expression would alter an observable TypeError
+    // even without Function#toString or a stack observation. Reject such
+    // contexts through the enclosing AST expression chain. A nested
+    // function body is a separately executed expression and does not become
+    // part of its enclosing function object's operand spelling.
+    let expression=member;
+    let ancestor=consumer;
+    while(ancestor) {
+      if(ancestor.type==='CallExpression' && ancestor.callee===expression ||
+         ancestor.type==='NewExpression' && ancestor.callee===expression ||
+         ancestor.type==='TaggedTemplateExpression' && ancestor.tag===expression ||
+         ancestor.type==='ForOfStatement' && ancestor.right===expression ||
+         ancestor.type==='SpreadElement' && ancestor.argument===expression ||
+         ancestor.type==='VariableDeclarator' && ancestor.init===expression &&
+           ancestor.id.type==='ArrayPattern' ||
+         ancestor.type==='AssignmentExpression' && ancestor.right===expression &&
+           ancestor.left.type==='ArrayPattern' ||
+         ancestor.type==='YieldExpression' && ancestor.delegate &&
+           ancestor.argument===expression) return null;
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))break;
+      expression=ancestor;
+      ancestor=parents.get(expression);
+    }
+    // Deletion can expose an inherited getter/value under the original key.
+    // The property shape of Object.prototype is outside the local proof.
+    const finalConsumer=consumer?.type==='ChainExpression' ? parents.get(consumer) : consumer;
+    if (finalConsumer?.type==='UnaryExpression' && finalConsumer.operator==='delete') return null;
+    if (consumer?.type==='AssignmentExpression' && consumer.left===member) {
+      if (consumer.operator==='=') {
+        const rhs=consumer.right;
+        if (rhs.type!=='Literal' ||
+            !['string','number','boolean','bigint'].includes(typeof rhs.value) && rhs.value!==null) return null;
+      } else if (['&&=','||=','??='].includes(consumer.operator)) return null;
+    }
+
   }
   /** @type {Set<AstNode>} */
   const forwardedCalls=new Set();
