@@ -24,7 +24,7 @@ jobs:
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Intl source coercion differential
-        run: node --test test/intl-source-observation.test.js
+        run: node --test test/intl-source-observation.test.js test/intl-cross-file-source.test.js
       - name: Exact-function-source native differential (COO/SNO/SCO)
         run: node --test test/sco-source-observation.test.js test/sco-interfile-source-observation.test.js test/reflective-source-fuzz.test.js
       - name: Other source observation, ambient intrinsic and property semantics
