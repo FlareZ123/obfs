@@ -43,6 +43,24 @@ function observeNode(app,count){
 }
 
 /**
+ * Counterbalance variant rank exactly within every three-trial cycle.
+ * Adjacent cycles reverse their execution direction, so the first six
+ * trials contain each of the three factorial orders exactly once.
+ * @returns {Variant[][]}
+ */
+function trialOrders(){
+  /** @type {Variant[][]} */
+  const result=[];
+  for(let trial=0;trial<trials;trial++){
+    const shift=trial%variants.length;
+    const order=variants.map((_,rank)=>variants[(rank+shift)%variants.length]);
+    if(Math.floor(trial/variants.length)%2===1)order.reverse();
+    result.push([...order]);
+  }
+  return result;
+}
+
+/**
  * Build a browser page that imports a *new complete URL graph* per trial.
  * This includes actual localhost HTTP fetch, browser parse, link/evaluation,
  * synchronous business work, and host callbacks in the measured interval.
@@ -56,14 +74,7 @@ function page(){
 const variants=${JSON.stringify(variants)};
 const workloads=${JSON.stringify(workloads)};
 const trials=${trials};
-const orders=[
-  ['native','published','reconstructed'],
-  ['published','reconstructed','native'],
-  ['reconstructed','native','published'],
-  ['native','reconstructed','published'],
-  ['reconstructed','published','native'],
-  ['published','native','reconstructed']
-];
+const orders=${JSON.stringify(trialOrders())};
 function records(count){
   return Array.from({length:count},(_,index)=>({
     kind:['start','tick','pause','stop'][index%4],
@@ -94,7 +105,7 @@ async function main(){
     const measurements={native:[],published:[],reconstructed:[]};
     let reference;
     for(let trial=0;trial<trials;trial++){
-      for(const variant of orders[trial%orders.length]){
+      for(const variant of orders[trial]){
         const observed=await run(variant,count,trial,input);
         if(reference===undefined)reference=observed;
         else if(observed.output!==reference.output||observed.trace!==reference.trace||
@@ -249,4 +260,4 @@ async function main(){
 if(require.main===module)main().catch(error=>{
   console.error(error);process.exitCode=1;
 });
-module.exports={main,page};
+module.exports={main,page,trialOrders};
