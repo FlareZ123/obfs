@@ -572,6 +572,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(entryCollectionsWithFunctionKeys,name)||changed;
         }
       }
+      // Mutators can introduce function-valued array elements well after
+      // declaration. Fixed-point alias propagation handles mutation via
+      // another local identifier before the original owner is stringified.
+      if(node.type==='CallExpression' &&
+         node.callee.type==='MemberExpression' &&
+         node.callee.object.type==='Identifier') {
+        const method=memberName(node.callee);
+        const inserted=method==='splice'?node.arguments.slice(2):
+          ['push','unshift','fill'].includes(method??'')?node.arguments:[];
+        if(inserted.some((/** @type {AstNode} */ argument)=>
+          argument.type==='SpreadElement'?
+            isFunctionValue(argument.argument)||containsFunction(argument.argument):
+            isFunctionValue(argument)||containsFunction(argument))) {
+          changed=add(arrayLikeWithFunctions,node.callee.object.name)||changed;
+        }
+      }
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='MemberExpression' &&
          node.left.object.type==='Identifier' && isFunctionValue(node.right)) {
