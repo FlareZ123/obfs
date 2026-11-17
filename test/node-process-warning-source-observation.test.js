@@ -48,3 +48,24 @@ for(const mode of ['coo','sno','sco']) {
     assert.equal(warningColumn(file.code),warningColumn(source));
   });
 }
+
+for(const [name,warning] of [
+  ['detached',"const warn=process.emitWarning;warn('probe');"],
+  ['bound',"const warn=process.emitWarning.bind(process);warn('probe');"],
+  ['global-member',"globalThis.process.emitWarning('probe');"],
+  ['call-wrapper',"process.emitWarning.call(process,'probe');"],
+  ['apply-alias',"const warn=process.emitWarning;warn.apply(process,['probe']);"]
+]) {
+  test('native '+name+' warning alias preserves implicit source column',()=>{
+    const source="'use strict';const owner={veryLongPrivateField:73};"+
+      "const value=owner.veryLongPrivateField;"+warning;
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+    const unsafe=source.replaceAll('veryLongPrivateField','x');
+    assert.notEqual(warningColumn(unsafe),warningColumn(source));
+    const output=obfuscateFiles([{
+      path:'process-warning-observer.cjs',sourceType:'commonjs',code:source
+    }],{mode:'sno',seed:'agent50-warning-alias/'+name,strings:false}).files[0];
+    assert.equal(output.code,source);
+    assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+  });
+}
