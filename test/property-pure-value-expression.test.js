@@ -63,6 +63,20 @@ test('function calls, member reads, identifiers and assignments decline',()=>{
   for(const source of negatives)verify(source,0);
 });
 
+test('potentially throwing BigInt expressions are refused to preserve error stacks',()=>{
+  const samples=[
+    'try{const owner={secret:1n+1};module.exports=owner.secret;}'+
+      'catch(error){module.exports=error.stack;}',
+    'try{const owner={secret:1n/0n};module.exports=owner.secret;}'+
+      'catch(error){module.exports=error.stack;}',
+    'try{const owner={secret:+1n};module.exports=owner.secret;}'+
+      'catch(error){module.exports=error.stack;}',
+    'try{const owner={secret:\`'+String.fromCharCode(36)+'{1n+1}\`};'+
+      'module.exports=owner.secret;}catch(error){module.exports=error.stack;}'
+  ];
+  for(const code of samples)verify(code,0);
+});
+
 test('tagged templates invoke a function and must remain untransformed',()=>{
   const tick=String.fromCharCode(96);
   const source='function tag(parts){return parts[0].length;}'+
