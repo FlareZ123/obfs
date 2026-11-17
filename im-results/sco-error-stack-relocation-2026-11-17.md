@@ -1,6 +1,6 @@
 # Selective SCO error-stack execution-origin mismatch (17 November 2026)
 
-**Status:** intermediate engineering semantic counterexample, with **confirmed cross-platform pre-fix red**. The post-fix green gate was pending at the next checkpoint. Keep the red and green exact source SHAs distinct.
+**Status:** intermediate engineering semantic counterexample with **confirmed cross-platform pre-fix red**, plus post-fix behavioral test pass. Strict typecheck and newer interprocedural factory tests require the later pinned workflow. Keep the red and green exact source SHAs distinct.
 
 ## Why the same source can return different JSON-visible text
 
@@ -36,6 +36,14 @@ JSDoc cleanup followed in [\`bdafb11d\`](https://github.com/FlareZ123/obfs/commi
 - [Post-fix run 44071122893](https://github.com/FlareZ123/obfs/actions/runs/44071122893) at \`e285797d1ae9cb8493047aa72f28d3b6fea32ae6\`, includes source guard, 11-form test loop, and focused typing fix for an unrelated Unicode-path JSDoc issue. Initially queued.
 
 The separate earlier extracted-\`Intl\` admission proof and exact red CI live in \`im-results/sco-intrinsic-extraction-host-2026-11-17.md\`.
+
+## Follow-up: direct local Error-returning factories
+
+Five more native Node22 source forms returned different `Error.stack` strings under `browser-client.mjs` and `server-private.mjs` filenames while keeping the source body identical. They involve a named local `function make(){return new Error('tag')}`, an arrow-function factory, returning a previously bound Error instance, an alias of a factory, and destructuring `stack` from a `TypeError` factory result. A sixth variant places the Error-return in an `if` branch. The test source now preserves all six negative witnesses and two new positive controls for helpers returning ordinary `{stack:'safe'}` records. It also admits stable `Error.message`/`name` fields.
+
+The compiler now conservatively recognizes directly returning local function declarations, function expressions and arrow functions, with fixed-point propagation through simple aliases. The inference scans returns in nested control-flow while excluding the return statements of other inner functions. Commits `f00f40a0`, `9c28705a`, `f0d31d9c`, `a2480b5c` implement these cases. This remains a syntactic approximation: indirect callbacks, imported factory closures, computed constructor aliases and higher-order flows are unresolved.
+
+[Run 44071122893](https://github.com/FlareZ123/obfs/actions/runs/44071122893) at `e285797d1ae9cb8493047aa72f28d3b6fea32ae6` **passed its entire targeted 206-test SCO behavior phase** on Ubuntu (206 passes) and Windows (205 passes, one skip), including direct/aliased native stack reads and safe positive controls. It **failed afterward** at `npm run typecheck` with one missing `'error stack'` return-literal in the JSDoc union. Fix `4cbf9055` and the later factory cases are included in [run 44072533769](https://github.com/FlareZ123/obfs/actions/runs/44072533769) at `86a08ca8aac676bc79616efa4aa8347a9e789f69`, pending result at the report update. Do not claim final full-job green until that exact run has completed.
 
 ## Known limits
 
