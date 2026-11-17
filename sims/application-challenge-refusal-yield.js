@@ -9,7 +9,7 @@ const {createHash}=require('node:crypto');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=require('./application-challenge-observer-ablation');
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=require('./application-challenge-observer-ablation');
 const {copyAttack}=require('./application-challenge-offline-copy');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
@@ -59,8 +59,10 @@ async function main(){
     ])){
       const withoutObservers=ablate(original,/** @type {'none'|'both'} */(
         variant==='own-only'||variant==='null-proto'?'both':variant));
-      const input=variant==='own-only'?withOwnKeyCalls(withoutObservers):
+      const unguarded=variant==='own-only'?withOwnKeyCalls(withoutObservers):
         variant==='null-proto'?withNullPrototypeRecord(withoutObservers):withoutObservers;
+      const input=variant==='own-only'||variant==='null-proto'?
+        withCapturedStringArgv(unguarded):unguarded;
       const output=obfuscateFiles(input,{
         mode:'coo',closedWorld:true,seed:SEED,
         identifiers:true,properties:true,strings:false
@@ -86,7 +88,8 @@ async function main(){
         total+Buffer.byteLength(file.code),0);
       rows.push({
         variant,
-        sourceObserverPresent:variant==='none',
+        sourceObserverPresent:variant==='none'||variant==='both',
+        capturedPrimitiveCliArg:variant==='own-only'||variant==='null-proto',
         removedMissingKeyCall:variant==='own-only',
         recordHasDeclaredNullPrototype:variant==='null-proto',
         originalSha256:digest(input),

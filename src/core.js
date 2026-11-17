@@ -574,6 +574,41 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code,sourceType};
   });
+  // A requested backend is an explicit protection requirement. Silently
+  // ignoring a misspelled filename would publish untransformed code even
+  // though the caller selected a protected function in that file.
+  const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
+    .map(file=>file.path));
+  /** @type {Array<[string,Record<string,string[]>|undefined]>} */
+  const selectedFunctionBackends=[
+    ['Register VM',options.experimentalRegisterVm],
+    ['Expression VM',options.experimentalExpressionVm],
+    ['Native graph',options.experimentalNativeGraph],
+    ['Branch blocks',options.experimentalBranchBlocks],
+    ['Statement flow',options.experimentalStatementFlow],
+    ['Wasm i32',options.experimentalWasmI32],
+    ['Polyvariant affine',options.experimentalPolyvariantAffine]
+  ];
+  // Keep the validated selection arrays for code generation. This also
+  // prevents a lazy options getter or mutable caller-owned array from
+  // silently dropping the required transformation on a later read.
+  /** @type {Map<string,Map<string,string[]>>} */
+  const selectedFunctionNames=new Map();
+  for(const [backend,selections] of selectedFunctionBackends){
+    /** @type {Map<string,string[]>} */
+    const byPath=new Map();
+    selectedFunctionNames.set(backend,byPath);
+    if(!selections)continue;
+    for(const [selectedPath,names] of Object.entries(selections)){
+      if(!Array.isArray(names)){
+        throw new TypeError(backend+' selected function names must be an array in '+selectedPath);
+      }
+      if(names.length && !knownJavaScript.has(selectedPath)){
+        throw new TypeError(backend+' selects missing or non-JavaScript input '+selectedPath);
+      }
+      byPath.set(selectedPath,names.slice());
+    }
+  }
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
@@ -655,31 +690,39 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const vmNames=options.experimentalRegisterVm?.[filename]??[];
+    const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
+      if(virtualized.declined){
+        throw new TypeError('Register VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       vmFunctions=virtualized.functions;
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const expressionNames=options.experimentalExpressionVm?.[filename]??[];
+    const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
+      if(virtualized.declined){
+        throw new TypeError('Expression VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       expressionVmFunctions=virtualized.functions;
       expressionVmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const nativeNames=options.experimentalNativeGraph?.[filename]??[];
+    const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -691,12 +734,16 @@ function obfuscateFiles(files, options = {}) {
       const optimized=virtualizeExpressionGraphs(code,sourceType,{
         seed:salt,names:nativeNames,backend:'native'
       });
+      if(optimized.declined){
+        throw new TypeError('Native graph declined '+optimized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=optimized.code;
       nativeGraphFunctions=optimized.functions;
       nativeGraphInstructions=optimized.instructions;
       ast=parse(code,sourceType);
     }
-    const branchNames=options.experimentalBranchBlocks?.[filename]??[];
+    const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -704,12 +751,16 @@ function obfuscateFiles(files, options = {}) {
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
         stateBlinding:options.experimentalBranchStateBlinding===true});
+      if(flattened.declined){
+        throw new TypeError('Branch blocks declined '+flattened.declined+
+          ' selected function(s) in '+filename);
+      }
       code=flattened.code;
       branchFunctions=flattened.functions;
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
-    const statementNames=options.experimentalStatementFlow?.[filename]??[];
+    const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
       if(sourceType==='script'||remoteSourceObserver){
@@ -731,7 +782,7 @@ function obfuscateFiles(files, options = {}) {
       statementFlowBlocks=transformed.blocks;
       ast=parse(code,sourceType);
     }
-    const wasmNames=options.experimentalWasmI32?.[filename]??[];
+    const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -755,7 +806,7 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
-    const polyvariantNames=options.experimentalPolyvariantAffine?.[filename]??[];
+    const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {

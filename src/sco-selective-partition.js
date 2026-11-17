@@ -809,6 +809,81 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       return node.type==='Identifier'&&globalRoots.has(node.name) ||
         node.type==='MemberExpression'&&rootedInGlobal(node.object);
     }
+    // Console output and debugger breakpoints would move from the original
+    // client realm to the SCO server when this dependency is partitioned.
+    // A value-return-only comparison does not observe that semantic change.
+    // Leave property labels named "console" usable on private local records.
+    walk(ast,(node,parent,key)=>{
+      if(node.type==='DebuggerStatement'){
+        throw new TypeError('SCO private static dependency cannot migrate debugger host effects: '+filename);
+      }
+      const consoleReference=node.type==='Identifier'&&node.name==='console'&&
+        !isStaticKey(parent,key)&&
+        !(parent?.type==='VariableDeclarator'&&key==='id')&&
+        !(parent?.type==='FunctionDeclaration'&&key==='id');
+      const globalConsoleMember=node.type==='MemberExpression'&&
+        rootedInGlobal(node.object)&&
+        (node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null)==='console';
+      if(consoleReference||globalConsoleMember){
+        throw new TypeError('SCO private static dependency cannot migrate console host effects: '+filename);
+      }
+    });
+    // Browser-owned values may differ or be absent in the trusted Node
+    // process. Only the original caller can establish its own window,
+    // document, navigation and application-level global state.
+    // Keep known ECMAScript global names outside this narrow host check;
+    // realmStateObservation handles their mutable intrinsic hazards.
+    const browserOnlyGlobals=new Set(['window','self','document','navigator','location']);
+    const standardGlobalKeys=new Set([
+      'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
+      'parseFloat','parseInt','decodeURI','decodeURIComponent',
+      'encodeURI','encodeURIComponent','Array','Boolean','Date','Error',
+      'Function','JSON','Math','Number','Object','RegExp','String','Symbol',
+      'BigInt','Promise','Map','Set','WeakMap','WeakSet','Reflect','Proxy',
+      'Intl','ArrayBuffer','SharedArrayBuffer','DataView','Atomics',
+      'WebAssembly','Uint8Array','Int8Array','Uint8ClampedArray',
+      'Int16Array','Uint16Array','Int32Array','Uint32Array',
+      'Float32Array','Float64Array','BigInt64Array','BigUint64Array',
+      'AggregateError','EvalError','RangeError','ReferenceError',
+      'SyntaxError','TypeError','URIError'
+    ]);
+    const directGlobalObjects=new Set(['globalThis','global']);
+    let globalAliasChanged=true;
+    while(globalAliasChanged){
+      globalAliasChanged=false;
+      walk(ast,node=>{
+        const binding=node.type==='VariableDeclarator'?node.id:
+          node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+        const value=node.type==='VariableDeclarator'?node.init:
+          node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+        if(binding?.type==='Identifier'&&value?.type==='Identifier'&&
+           directGlobalObjects.has(value.name)&&!directGlobalObjects.has(binding.name)){
+          directGlobalObjects.add(binding.name);
+          globalAliasChanged=true;
+        }
+      });
+    }
+    walk(ast,(node,parent,key)=>{
+      if(node.type==='Identifier'&&browserOnlyGlobals.has(node.name)&&
+         !isStaticKey(parent,key)&&
+         !(parent?.type==='VariableDeclarator'&&key==='id')&&
+         !(parent?.type==='FunctionDeclaration'&&key==='id')){
+        throw new TypeError('SCO private static dependency has unproved client host state: '+filename);
+      }
+      if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+         directGlobalObjects.has(node.object.name)&&
+         !(parent?.type==='AssignmentExpression'&&key==='left')&&
+         !(parent?.type==='UpdateExpression'&&key==='argument')&&
+         !(parent?.type==='UnaryExpression'&&parent.operator==='delete'&&key==='argument')&&
+         !((parent?.type==='CallExpression'||parent?.type==='NewExpression')&&key==='callee')){
+        const member=node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null;
+        if(member===null||!standardGlobalKeys.has(member)){
+          throw new TypeError('SCO private static dependency reads unproved application global: '+filename);
+        }
+      }
+    });
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.

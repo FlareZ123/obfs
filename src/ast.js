@@ -1219,6 +1219,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const bindingCounts=new Map();
   /** @type {Map<string,AstNode>} */
   const primitiveCandidates=new Map();
+  /** @type {Map<string,number>} */
+  const topLevelConstEnds=new Map();
   /** @param {AstNode|null|undefined} pattern @returns {void} */
   function recordPattern(pattern) {
     if(!pattern)return;
@@ -1235,7 +1237,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
   }
   let dynamicScope=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
     if(node.type==='WithStatement' ||
        node.type==='Identifier' && node.name==='eval')dynamicScope=true;
     if(node.type==='VariableDeclarator')recordPattern(node.id);
@@ -1252,6 +1254,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       for(const declaration of node.declarations) {
         if(declaration.id.type==='Identifier'&&declaration.init) {
           primitiveCandidates.set(declaration.id.name,declaration.init);
+          if(parent?.type==='Program')
+            topLevelConstEnds.set(declaration.id.name,declaration.end);
         }
       }
     }
@@ -1307,9 +1311,27 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='LogicalExpression')return isDefinitelyPrimitive(node.left,depth+1)&&
       isDefinitelyPrimitive(node.right,depth+1);
     if(node.type==='ConditionalExpression') {
-      return isDefinitelyPrimitive(node.test,depth+1)&&
-        isDefinitelyPrimitive(node.consequent,depth+1)&&
-        isDefinitelyPrimitive(node.alternate,depth+1);
+      if(!isDefinitelyPrimitive(node.test,depth+1)||
+         !isDefinitelyPrimitive(node.alternate,depth+1))return false;
+      if(isDefinitelyPrimitive(node.consequent,depth+1))return true;
+      // typeof only narrows a captured, unique, top-level const binding:
+      // a second read of process.argv[2] could return a different value
+      // (e.g. a function from a hostile getter), so it is NOT equivalent.
+      const value=node.consequent;
+      const guard=node.test;
+      if(dynamicScope||value.type!=='Identifier'||
+         bindingCounts.get(value.name)!==1||
+         (topLevelConstEnds.get(value.name)??Infinity)>=guard.start||
+         guard.type!=='BinaryExpression'||guard.operator!=='===')return false;
+      /** @param {AstNode} expression @returns {boolean} */
+      const isTypeofValue=expression=>expression.type==='UnaryExpression'&&
+        expression.operator==='typeof'&&expression.argument.type==='Identifier'&&
+        expression.argument.name===value.name;
+      /** @param {AstNode} expression @returns {boolean} */
+      const isString=expression=>expression.type==='Literal'&&
+        expression.value==='string';
+      return isTypeofValue(guard.left)&&isString(guard.right)||
+        isTypeofValue(guard.right)&&isString(guard.left);
     }
     if(node.type==='SequenceExpression')return node.expressions.every(
       (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));

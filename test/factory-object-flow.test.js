@@ -133,8 +133,20 @@ for(const [label,ending] of refused){
     }
   });
 }
+test('single-use factory primitive arithmetic is renameable with exact native behavior',()=>{
+  const source='function make(){return {secretField:(12+5)};}'+
+    'const owner=make();module.exports=owner.secretField;';
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+    const output=compile(source,mode);
+    assert.equal(output.metrics.objects,1,mode);
+    assert.equal(output.metrics.properties,1,mode);
+    assert.doesNotMatch(String(output.code),/secretField/u);
+    assert.equal(run(String(output.code)),run(source),mode);
+  }
+});
+
 for(const source of [
-  'function make(){return {secretField:(12+5)};}const owner=make();module.exports=owner.secretField;',
+  'function make(){return {secretField:(1n/0n)};}const owner=make();module.exports=owner.secretField;',
   'function make(){return {...{secretField:17}};}const owner=make();module.exports=owner.secretField;',
   'function make(){const marker=1;return {secretField:marker};}const owner=make();module.exports=owner.secretField;',
   'function make(x){return {secretField:17};}const owner=make();module.exports=owner.secretField;',
@@ -143,7 +155,10 @@ for(const source of [
   test('refuse unproved factory body: '+source.slice(0,54),()=>{
     const output=compile(source,'sno');
     assert.equal(output.metrics.objects,0);
-    assert.equal(run(String(output.code)),run(source));
+    if(!source.includes('1n/0n'))
+      assert.equal(run(String(output.code)),run(source));
+    else assert.equal(output.code,source,
+      'Potentially throwing BigInt constant arithmetic must remain unchanged');
   });
 }
 

@@ -108,7 +108,16 @@
     "test/four-way-cross-runtime-verdict.test.js",
     "test/property-pure-value-expression.test.js",
     "test/property-pure-expression-hotpath.test.js",
-    "sims/property-hotpath-closedworld.js"
+    "sims/property-hotpath-closedworld.js",
+    "sims/sco-ratchet-boundary.js",
+    "sims/sco-ratchet-public-attacker.js",
+    "sims/sco-ratchet-batch-candidate.js",
+    "sims/sco-ratchet-batch-public-attacker.js",
+    "sims/sco-ratchet-tls-cost.js",
+    "test/sco-ratchet-batch-browser.js",
+    "sims/sco-ratchet-online-relay.js",
+    "sims/sco-ratchet-retry-candidate.js",
+    "test/sco-ratchet-browser-attacker.js"
   ],
   "exclude": [
     "node_modules"
