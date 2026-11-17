@@ -245,3 +245,23 @@ test('opt-in SCO partition batch preserves special names, order and server polic
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('SCO bindScoModuleExports captures each accessor-backed server export once',async()=>{
+  const partition=partitionScoAsyncModule({
+    path:'getter.mjs',sourceType:'module',
+    code:'export async function protectedValue(v){return v+1;}'
+  },{seed:'single-capture-server-export-20261117'});
+  let reads=0;
+  const namespace={
+    get protectedValue(){
+      reads++;
+      return reads===1?
+        async (/** @type {number} */ v)=>v+1:
+        async (/** @type {number} */ v)=>v+999;
+    }
+  };
+  const methods=bindScoModuleExports(partition,namespace);
+  assert.equal(reads,1,'A mutable namespace getter must not change the bound function');
+  assert.equal(await methods[partition.methodNames.protectedValue](1),2);
+  assert.equal(await methods[partition.methodNames.protectedValue](10),11);
+});
