@@ -1,0 +1,29 @@
+name: Manual direct reader primitive positive-yield proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Prove field-reader positive, hostile cases and function-observer negatives
+        run: node --test test/direct-reader-primitive-proof.test.js test/cross-file-reader-flow.test.js test/implicit-console-stack-source.test.js test/implicit-source-mode-matrix.test.js
+      - name: Strict compiler JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external
