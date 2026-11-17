@@ -1504,6 +1504,88 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(callee?.type==='MemberExpression' &&
       isReflectiveReceiver(callee.object)&&memberName(callee)==='groupBy');
   }
+  // The Node util formatter can expose Error capture locations and function
+  // names through inspect/format without an explicit .stack/.name read.
+  const nodeUtilNamespaces=new Set();
+  const nodeUtilMethods=new Map();
+  const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions']);
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilRequire(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require' &&
+      node.arguments.length===1 &&
+      ['node:util','util'].includes(staticString(node.arguments[0])??''));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilNamespace(node) {
+    return Boolean(node && (node.type==='Identifier'&&nodeUtilNamespaces.has(node.name)||
+      isNodeUtilRequire(node)));
+  }
+  /**
+   * Resolve direct, detached and bound Node util inspection methods.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {string|null}
+   */
+  function nodeUtilMethod(node,depth=0) {
+    if(!node||depth>16)return null;
+    if(node.type==='Identifier')return nodeUtilMethods.get(node.name)??null;
+    if(node.type==='MemberExpression'&&isNodeUtilNamespace(node.object)) {
+      const name=memberName(node);
+      return name!==null&&inspectedUtilMethods.has(name)?name:null;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return nodeUtilMethod(node.callee.object,depth+1);
+    return null;
+  }
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration' ||
+       !['node:util','util'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))
+        nodeUtilNamespaces.add(spec.local.name);
+      if(spec.type==='ImportSpecifier') {
+        const name=spec.imported.name??spec.imported.value;
+        if(inspectedUtilMethods.has(String(name)))
+          nodeUtilMethods.set(spec.local.name,String(name));
+      }
+    }
+  });
+  let changedNodeUtil;
+  do {
+    changedNodeUtil=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!id||!value)return;
+      if(id.type==='ObjectPattern'&&isNodeUtilNamespace(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name!==null&&inspectedUtilMethods.has(name)&&
+             !nodeUtilMethods.has(property.value.name)) {
+            nodeUtilMethods.set(property.value.name,name);
+            changedNodeUtil=true;
+          }
+        }
+        return;
+      }
+      if(id.type!=='Identifier')return;
+      if(isNodeUtilNamespace(value)&&!nodeUtilNamespaces.has(id.name)) {
+        nodeUtilNamespaces.add(id.name);
+        changedNodeUtil=true;
+      }
+      const method=nodeUtilMethod(value);
+      if(method!==null&&!nodeUtilMethods.has(id.name)) {
+        nodeUtilMethods.set(id.name,method);
+        changedNodeUtil=true;
+      }
+    });
+  }while(changedNodeUtil);
   // Node console methods format Error objects with captured frame coordinates,
   // even when the program never reads .stack. console.trace() also captures
   // the caller's location without an explicit Error construction.
@@ -1638,6 +1720,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      const utilMethod=nodeUtilMethod(callee);
+      if(utilMethod==='inspect' && node.arguments[0] &&
+         !isDefinitelyPrimitive(node.arguments[0]) ||
+         utilMethod==='format' && node.arguments.some(
+           (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)) ||
+         utilMethod==='formatWithOptions' && node.arguments.slice(1).some(
+           (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))
+        observed=true;
       const consoleMethod=stackConsoleMethod(callee);
       if(consoleMethod==='trace' ||
          consoleMethod!==null && consoleMethod!=='trace' &&
