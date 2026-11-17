@@ -63,7 +63,11 @@
     "sims/release-evidence-gate.js",
     "sims/familywise-budget-bound.js",
     "sims/polyvariant-app-oracle-translation.js",
-    "test/polyvariant-app-oracle-translation.test.js"
+    "test/polyvariant-app-oracle-translation.test.js",
+    "sims/llm-blind-affine-challenge.js",
+    "sims/blind-affine-public-recovery-matrix.js",
+    "test/llm-blind-affine-challenge.test.js",
+    "test/blind-affine-public-recovery-matrix.test.js"
   ],
   "exclude": [
     "node_modules"

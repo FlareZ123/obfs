@@ -24,6 +24,17 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Behavioral and adversarial suites with compact failure diagnostics
         run: node --test --test-reporter=spec test/*.test.js
+      - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
+        env:
+          OBFS_BLIND_AUDIT_FILE: blind-affine-audit-${{ runner.os }}.json
+        run: node sims/blind-affine-public-recovery-matrix.js
+      - name: Persist complete blind post-answer transcripts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blind-affine-audit-${{ runner.os }}
+          path: blind-affine-audit-${{ runner.os }}.json
+          if-no-files-found: error
       - name: JSDoc type safety
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck
