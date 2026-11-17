@@ -282,7 +282,7 @@ function mutatesDecoderIntrinsic(ast) {
     const name=key.type==='Literal' && key.regex===undefined &&
       ['number','bigint','boolean'].includes(typeof key.value) ?
       String(key.value) : staticString(key);
-    if(name===null)return true;
+    if(name===null || name==='__proto__')return true;
     if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
     const index=Number(name);
     return Number.isSafeInteger(index) && index<4096;
@@ -482,7 +482,7 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if((isArrayPrototype(first)||isObjectPrototype(first)) &&
        isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
-      if(method!=='defineProperty' || mayInterceptChunkIndex(node.arguments[1])) {
+      if(method==='setPrototypeOf' || mayInterceptChunkIndex(node.arguments[1])) {
         mutated=true;
       }
     }
