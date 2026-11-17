@@ -123,8 +123,11 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
         current=/** @type {number} */(block.next);
         continue;
       }
-      const join=commonJoin(/** @type {number} */(block.yes),
+      let join=commonJoin(/** @type {number} */(block.yes),
         /** @type {number} */(block.no));
+      // An enclosing branch can already define the join. One inner arm
+      // may return early while the other must stop at that outer boundary.
+      if(stop!==END&&(join===END||!reachable(join).has(stop)))join=stop;
       output+=(block.prefix?block.prefix+'\n':'')+'if('+block.code+'){' +
         visitUntil(/** @type {number} */(block.yes),join,depth+1) +
         '}else{' + visitUntil(/** @type {number} */(block.no),join,depth+1) + '}';
