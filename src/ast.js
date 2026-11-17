@@ -1434,6 +1434,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const reflectiveReaders=new Set();
   const reflectiveBulkReaders=new Set();
   const reflectiveApplyMethods=new Set();
+  const reflectiveConstructMethods=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
     return Boolean(expression && (expression.type==='Identifier' &&
@@ -1463,6 +1464,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           reflectiveApplyMethods.add(name);
           reflectiveChanged=true;
         }
+        if(value.type==='Identifier' && reflectiveConstructMethods.has(value.name) &&
+           !reflectiveConstructMethods.has(name)) {
+          reflectiveConstructMethods.add(name);
+          reflectiveChanged=true;
+        }
         if(value.type==='Identifier' && reflectiveReaders.has(value.name) &&
            !reflectiveReaders.has(name)) {
           reflectiveReaders.add(name);
@@ -1478,6 +1484,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if((method==='apply'||method===null && value.computed) &&
              !reflectiveApplyMethods.has(name)) {
             reflectiveApplyMethods.add(name);
+            reflectiveChanged=true;
+          }
+          if((method==='construct'||method===null && value.computed) &&
+             !reflectiveConstructMethods.has(name)) {
+            reflectiveConstructMethods.add(name);
             reflectiveChanged=true;
           }
           if(['get','getOwnPropertyDescriptor'].includes(method??'') &&
@@ -1498,6 +1509,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if((method===null || method==='apply') &&
              !reflectiveApplyMethods.has(property.value.name)) {
             reflectiveApplyMethods.add(property.value.name);
+            reflectiveChanged=true;
+          }
+          if((method===null || method==='construct') &&
+             !reflectiveConstructMethods.has(property.value.name)) {
+            reflectiveConstructMethods.add(property.value.name);
             reflectiveChanged=true;
           }
           if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
@@ -2306,6 +2322,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
             observed=true;
         } else if(supplied) observed=true;
+      }
+      // Reflect.construct forwards an argument list to native constructors
+      // such as RegExp, Error and String. They can stringify a function and
+      // disclose its original source without any direct constructor call.
+      if(node.type==='CallExpression' &&
+         (callee.type==='MemberExpression' &&
+            isReflectiveReceiver(callee.object) &&
+            (memberName(callee)==='construct'||
+             callee.computed&&memberName(callee)===null) ||
+          callee.type==='Identifier' &&
+            reflectiveConstructMethods.has(callee.name)) &&
+         isCoercer(node.arguments[0])) {
+        const supplied=node.arguments[1];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] &&
+             !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+        } else if(supplied)observed=true;
       }
       /** @type {AstNode|null|undefined} */
       let argument=null;
