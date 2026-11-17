@@ -29,6 +29,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/fixed-arity-strings-browser.js
+      - name: Chromium cold COO ESM source-versus-emitted session profile
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/fixed-arity-browser-session.js
       - name: Strict production JSDoc
         run: npm run typecheck
       - name: Strict fixed-arity research JSDoc
