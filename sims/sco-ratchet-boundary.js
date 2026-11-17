@@ -59,7 +59,9 @@ function median(samples){
  */
 async function listen(handler){
   const server=http.createServer(handler);
-  await new Promise(/** @type {(resolve:()=>void)=>void} */ (resolve=>server.listen(0,'127.0.0.1',()=>resolve())));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await ready;
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   return {server,base:'http://127.0.0.1:'+address.port};
@@ -239,7 +241,9 @@ async function experiment(){
       limitation:'Localhost, no TLS/RTT; A or B credential holders can relay their own calls. Account trust and server state provide the boundary.'
     };
   }finally{
-    await new Promise(/** @type {(resolve:()=>void,reject:(error:unknown)=>void)=>void} */ ((resolve,reject)=>trusted.server.close(error=>error?reject(error):resolve())));
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>trusted.server.close(error=>error?reject(error):resolve()));
+    await closed;
   }
 }
 
