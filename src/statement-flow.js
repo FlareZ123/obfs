@@ -81,9 +81,10 @@ function buildFlow(statements,next,blocks,source,depth=0) {
  * @param {string} name
  * @param {string} seed
  * @param {Set<string>} used
+ * @param {boolean} [compactCases]
  * @returns {string}
  */
-function emitFlow(blocks,entry,directives,name,seed,used){
+function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false){
   const hash=/** @param {string} label @returns {Buffer} */ label=>
     createHash('sha256').update(seed).update('\0').update(name).update('\0').update(label).digest();
   let collision=0;
@@ -104,14 +105,41 @@ function emitFlow(blocks,entry,directives,name,seed,used){
   const exit=ids[blocks.length];
   /** @param {number} index @returns {number} */
   const destination=index=>index===-1?exit:ids[index];
-  const shuffled=blocks.map((block,index)=>({block,index})).sort((a,b)=>
-    hash('order/'+a.index).readUInt32LE(0)-hash('order/'+b.index).readUInt32LE(0));
+  // A linear chain whose successor is a uniquely reached straight-line
+  // block can execute inside one switch case. Branches, shared joins,
+  // returns and throws retain their own states and native evaluation order.
+  const absorbed=new Set();
+  if(compactCases){
+    const incoming=blocks.map(()=>0);
+    for(const block of blocks){
+      if(block.kind==='next' && block.next>=0)incoming[block.next]++;
+      if(block.kind==='test'){
+        if(block.yes>=0)incoming[block.yes]++;
+        if(block.no>=0)incoming[block.no]++;
+      }
+    }
+    for(const block of blocks){
+      if(block.kind==='next' && block.next>=0 && block.next!==entry &&
+          blocks[block.next].kind==='next' && incoming[block.next]===1){
+        absorbed.add(block.next);
+      }
+    }
+  }
+  const shuffled=blocks.map((block,index)=>({block,index}))
+    .filter(({index})=>!absorbed.has(index))
+    .sort((a,b)=>hash('order/'+a.index).readUInt32LE(0)-
+      hash('order/'+b.index).readUInt32LE(0));
   let body='{'+directives.join('')+'let '+state+'='+destination(entry)+';for(;;){switch('+state+'){';
   for(const {block,index} of shuffled){
     body+='case '+ids[index]+':{';
-    if(block.kind==='test')body+=state+'=(('+block.code+')?'+destination(block.yes)+':'+destination(block.no)+');break;';
-    else if(block.kind==='next')body+=block.code+';'+state+'='+destination(block.next)+';break;';
-    else body+=block.code+';';
+    let tail=block;
+    while(tail.kind==='next' && tail.next>=0 && absorbed.has(tail.next)){
+      body+=tail.code+';';
+      tail=blocks[tail.next];
+    }
+    if(tail.kind==='test')body+=state+'=(('+tail.code+')?'+destination(tail.yes)+':'+destination(tail.no)+');break;';
+    else if(tail.kind==='next')body+=tail.code+';'+state+'='+destination(tail.next)+';break;';
+    else body+=tail.code+';';
     body+='}';
   }
   return body+'case '+exit+':return;default:throw Error("Invalid control-flow state");}}}';
@@ -126,7 +154,7 @@ function emitFlow(blocks,entry,directives,name,seed,used){
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[]}} options
+ * @param {{seed:string,names:string[],compactCases?:boolean}} options
  * @returns {StatementFlowResult}
  */
 function flattenStatementFlow(source,sourceType,options){
@@ -185,7 +213,7 @@ function flattenStatementFlow(source,sourceType,options){
     const entry=buildFlow(fn.body.body.slice(first),-1,blocks,source);
     // Control-flow flattening of straight-line code does not justify overhead.
     if(entry===null||!blocks.some(block=>block.kind==='test')||blocks.length<4){declined++;continue;}
-    const code=emitFlow(blocks,entry,directives,name,options.seed,used);
+    const code=emitFlow(blocks,entry,directives,name,options.seed,used,options.compactCases===true);
     edits.push({start:fn.body.start,end:fn.body.end,text:code});
     functions++;
     blocksCount+=blocks.length;
