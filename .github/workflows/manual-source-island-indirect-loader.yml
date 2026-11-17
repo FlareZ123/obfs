@@ -25,6 +25,8 @@ jobs:
         run: node --test test/source-observer-islands.test.js test/source-observer-islands-reflection-gate.test.js
       - name: Execute exact native/generated source-read differential
         run: node sims/source-island-indirect-loader-attack.js
+      - name: Attempt constructor escape via native object destructuring
+        run: node sims/source-island-indirect-loader-attack.js --destructure
       - name: Validate repository JSDoc types
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
