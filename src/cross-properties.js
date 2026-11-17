@@ -199,7 +199,8 @@ function collectImportedFunctionArrays(files) {
     do {
       changed=false;
       for(const [name,value] of candidates) {
-        if(value.type==='ArrayExpression'&&hasFunction(value) ||
+        if((value.type==='ArrayExpression'||value.type==='CallExpression')&&
+             hasFunction(value) ||
            value.type==='Identifier'&&arrays.has(value.name)) {
           markArray(name);
         }
