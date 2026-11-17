@@ -36,6 +36,17 @@ that the candidate refuse the same public asset preflight.
 Separately, a real HTTP GET of the prepatch SCO handler must recover
 the original, while candidate SCO handler construction refuses.
 
+The attacker includes a separate, deliberately small
+[`sims/css-data-import-extractor.js`](../sims/css-data-import-extractor.js)
+process that imports only Node core `fs` and `assert`, reads one emitted
+public asset from **stdin**, and prints reconstructed original source.
+The parent sends no compiler code, original program, seeds, or baseline
+filesystem path to this extraction interface. It validates the child
+stdout against its private original only after the child exits.
+This process boundary is an auditable artifact-only attack interface,
+though it is not a container sandbox and does not prove the attacker
+could never access nearby files through other means.
+
 No genuine browser stylesheet loading is required to make this
 source-disclosure argument. The recipient already has the asset bytes.
 
