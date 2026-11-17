@@ -3,8 +3,7 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createHash}=require('node:crypto');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-four-way-control');
@@ -36,6 +35,14 @@ function observeNode(api,count){
 function page(){
   return `<!doctype html><html><meta charset="utf-8"><body>
 <pre id="out">pending</pre>
+<script>
+window.addEventListener('error',event=>{
+  document.getElementById('out').textContent='fail:'+event.message;
+});
+window.addEventListener('unhandledrejection',event=>{
+  document.getElementById('out').textContent='fail:'+String(event.reason);
+});
+</script>
 <script type="module">
 import {runScenario as native} from "/native/entry.mjs";
 import {runScenario as minified} from "/minified/entry.mjs";
@@ -58,6 +65,12 @@ async function sha256(value){
   const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",data));
   return Array.from(bytes,byte=>byte.toString(16).padStart(2,"0")).join("");
 }
+let clockChecksum=0;
+const clockStarted=performance.now();
+for(let i=0;i<5000000;i++)clockChecksum=(clockChecksum+(i^0x9e37))|0;
+const clockProbeMs=performance.now()-clockStarted;
+if(!Number.isFinite(clockProbeMs)||clockProbeMs<0.1)
+  throw Error('Chromium monotonic clock did not advance under CPU work');
 const rows=[];
 for(const count of [1,50,1000,10000]){
   const input=records(count),expected=observe(native,input);
@@ -116,7 +129,7 @@ for(const count of [1,10000]){
   }
   cold[count]=timings;
 }
-document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold});
+document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold,clockProbeMs,clockChecksum});
 </script></body></html>`;
 }
 
@@ -131,6 +144,8 @@ async function main(){
   assert.equal(assets.size,12);
   assets.set('/index.html',page());
   let coldModuleRequests=0;
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browserSession;
 
   const native=await import(pathToFileURL(
     path.join(__dirname,'../examples/polyvariant-app/native/entry.mjs')).href);
@@ -164,13 +179,25 @@ async function main(){
       assert.equal(response.status,200);
       assert.equal(await response.text(),graphs[/** @type {keyof typeof graphs} */(variant)].find(file=>file.path==='math.mjs')?.code);
     }
-    const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=30000','--dump-dom',root+'/index.html'
-    ],{timeout:60000,maxBuffer:8*1024*1024,encoding:'utf8'});
-    const text=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
-    assert.ok(text,'Browser did not complete four-way ESM application: '+stdout.slice(-1800));
-    const actual=JSON.parse(text);
+    browserSession=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const chromeVersion=await browserSession.version();
+    const chromePage=await browserSession.newPage();
+    await chromePage.goto(root+'/index.html',{waitUntil:'domcontentloaded',timeout:60000});
+    await chromePage.waitForFunction(()=>{
+      const text=document.getElementById('out')?.textContent??'';
+      return text.startsWith('pass:')||text.startsWith('fail:');
+    },{timeout:90000,polling:50});
+    const rendered=await chromePage.$eval('#out',element=>element.textContent??'');
+    assert.ok(rendered.startsWith('pass:'),
+      'Browser rejected four-way application: '+rendered.slice(0,2000));
+    const actual=/** @type {{rows:unknown[],samples:Record<string,number[]>,cold:Record<string,Record<string,number[]>>,clockProbeMs:number,clockChecksum:number}} */
+      (JSON.parse(rendered.slice(5)));
+    assert.ok(Number.isFinite(actual.clockProbeMs)&&actual.clockProbeMs>=0.1,
+      'Real Chromium CPU clock positive control did not advance');
     assert.deepEqual(actual.rows,expected);
     for(const name of ['native','minified','published','reconstructed']){
       const samples=/** @type {number[]} */ (actual.samples[name]);
@@ -195,7 +222,8 @@ async function main(){
       }
     ]));
     const browserEvidence={
-      node:process.version,platform:process.platform,
+      node:process.version,platform:process.platform,chromeVersion,
+      clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
       freshGraphHttpModuleRequests:coldModuleRequests,coldFreshGraphs,
@@ -211,8 +239,12 @@ async function main(){
     process.stdout.write('MINIFIED_FOUR_WAY_CHROMIUM '+
       JSON.stringify(browserEvidence)+'\n');
   }finally{
-    await new Promise((resolve,reject)=>server.close(
-      error=>error?reject(error):resolve(true)));
+    try{
+      if(browserSession)await browserSession.close();
+    }finally{
+      await new Promise((resolve,reject)=>server.close(
+        error=>error?reject(error):resolve(true)));
+    }
   }
 }
 if(require.main===module)main().catch(error=>{
