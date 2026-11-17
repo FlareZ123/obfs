@@ -24,7 +24,7 @@ function execute(code,compiled) {
   const context={module:{exports:''}};
   const start=performance.now();
   (compiled??new vm.Script(code,{filename:'sample.cjs'})).runInNewContext(context,{timeout:12000});
-  return {output:String(context.module.exports),ms:performance.now()-start};
+  return {output:JSON.stringify(context.module.exports),ms:performance.now()-start};
 }
 
 /** @param {number} utf16Units @param {number} work @returns {string} */
@@ -34,7 +34,7 @@ function workload(utf16Units,work) {
   return 'const literal='+JSON.stringify(units)+';'+
     'let acc=0;for(let k=0;k<'+work+';k++){'+
     'acc=(Math.imul(acc^literal.length^k,1664525)+1013904223)|0;'+
-    '}module.exports=acc+":"+literal;';
+    '}module.exports={checksum:acc,literal};';
 }
 
 /**
