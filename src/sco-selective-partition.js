@@ -480,6 +480,16 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // Destructuring directly in a catch parameter reads the thrown Error's
+    // realm-local stack without introducing an identifier receiver. The
+    // computed-key case can resolve to "stack" at runtime.
+    if(node.type==='CatchClause'&&node.param?.type==='ObjectPattern'&&
+       node.param.properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type==='Property'&&
+           (keyName(property)==='stack'||keyName(property)===null))){
+      stackTouched=true;
+    }
     // A locale-dependent method may be extracted and invoked later through
     // Function.call/apply, an alias, or a callback. Inspect the member
     // reference itself rather than requiring a direct CallExpression.
