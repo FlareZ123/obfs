@@ -105,6 +105,29 @@ test('ESM primitive-only for-of Set inserts preserve protected work',()=>{
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
 });
 
+
+for(const [name,tail,body] of [
+  ['Map forEach function key',
+    'export const values=new Map([[protectedSum,0]]);',
+    'const array=[];values.forEach((value,key)=>array.push(key));'+
+      'console.log(array.join(","));'],
+  ['Set forEach second argument',
+    'export const values=new Set([protectedSum]);',
+    'const array=[];values.forEach((value,second)=>array.push(second));'+
+      'console.log(array.join(","));']
+]) {
+  test('ESM '+name+' remains source-sensitive',()=>{
+    assert.throws(()=>protect(graph(tail,body)),/(?:source observation|declined)/i);
+  });
+}
+
+test('ESM primitive-only Map.forEach second argument preserves protected work',()=>{
+  const files=graph('export const values=new Map([[3,1]]);',
+    'const keys=[];values.forEach((value,key)=>keys.push(key));console.log(keys.join(","));');
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
