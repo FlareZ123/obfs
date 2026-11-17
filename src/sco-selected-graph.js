@@ -55,10 +55,39 @@ function assertNoPrivateImportMemberState(filename,source){
     }
   }
   if(!imports.size)return;
-  walk(ast,node=>{
+  const aliases=new Set(imports);
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.init?.type==='Identifier'&&
+         aliases.has(node.init.name)){
+        if(node.id.type!=='Identifier'){
+          throw new TypeError('Selected SCO private imported identity escapes through destructuring: '+filename);
+        }
+        if(!aliases.has(node.id.name)){aliases.add(node.id.name);changed=true;}
+      }
+      if(node.type==='AssignmentExpression'&&node.right.type==='Identifier'&&
+         aliases.has(node.right.name)){
+        if(node.left.type!=='Identifier'){
+          throw new TypeError('Selected SCO private imported identity escapes through assignment: '+filename);
+        }
+        if(!aliases.has(node.left.name)){aliases.add(node.left.name);changed=true;}
+      }
+    });
+  }
+  walk(ast,(node,parent,key)=>{
     if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
-       imports.has(node.object.name)){
+       aliases.has(node.object.name)){
       throw new TypeError('Selected SCO private dependency exposes shared imported member state: '+filename);
+    }
+    if(node.type!=='Identifier'||!aliases.has(node.name))return;
+    if(parent?.type==='CallExpression'&&key==='arguments'||
+       parent?.type==='NewExpression'&&key==='arguments'||
+       parent?.type==='ReturnStatement'&&key==='argument'||
+       parent?.type==='Property'&&key==='value'||
+       parent?.type==='ArrayExpression'&&key==='elements'){
+      throw new TypeError('Selected SCO private imported identity escapes to unproved consumer: '+filename);
     }
   });
 }
