@@ -8,7 +8,11 @@ permissions:
 
 jobs:
   proof:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -20,6 +24,11 @@ jobs:
         run: node sims/inert-clone-source-triage.js
       - name: Bounded independent-source-observer island proof differential
         run: node --test test/source-observer-islands.test.js test/source-observer-coverage.test.js
+      - name: Real Chromium source-island ESM linker, source parity and public normalizer
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/source-observer-islands-browser.js
       - name: Paired observer-island CPU and cold-start budget profile
         run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
