@@ -44,6 +44,8 @@ jobs:
         run: node sims/polyvariant-affine-cold-start.js
       - name: Measure startup-inclusive end-to-end short and long COO sessions
         run: node sims/polyvariant-affine-session-budget.js
+      - name: Exact finite-sample paired-ratio budget tests
+        run: node --test test/paired-budget-bound.test.js
       - name: Measure full three-module app import and stateful workload cost
         run: node sims/polyvariant-app-budget.js
       - name: Count selected function executions in native, published, and rebuilt application
@@ -59,3 +61,5 @@ jobs:
         run: npm run typecheck
       - name: JSDoc static check of execution-coverage experiment
         run: npx tsc --project jsconfig.polyvariant-coverage.json
+      - name: JSDoc static check of paired-budget bound
+        run: npx tsc --project jsconfig.paired-budget.json
