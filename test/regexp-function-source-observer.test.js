@@ -61,6 +61,18 @@ const examples=[
   {
     name:'RegExp Symbol.match detached alias',
     tail:'const match=RegExp.prototype[Symbol.match];module.exports=match.call(/a\\^17/,f)?.[0]??null;'
+  },
+  {
+    name:'RegExp Symbol.match key alias',
+    tail:'const key=Symbol.match;module.exports=/a\\^17/[key](f)?.[0]??null;'
+  },
+  {
+    name:'RegExp Symbol.search transitive key alias',
+    tail:'const key=Symbol.search;const alias=key;module.exports=/a\\^17/[alias](f)>=0;'
+  },
+  {
+    name:'RegExp Symbol.match key through constructor alias',
+    tail:'const Sy=Symbol;const key=Sy.match;module.exports=/a\\^17/[key](f)?.[0]??null;'
   }
 ];
 
