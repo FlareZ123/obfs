@@ -132,13 +132,19 @@ function records(count){
  *   fullApplicationEvents:number,nonlinearNegativeControl:boolean,
  *   originalGraphUsedForInference:boolean,attackMs:number,
  *   affineOracleCalls:number,affineSlopes:Record<string,number>,
- *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean
+ *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean,
+ *   publishedBytes:number,nativeBytes:number
  * }>}
  */
 async function runAttack(){
   const temporary=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-blackbox-translation-'));
   try{
     const distributed=await readGraph('generated');
+    // A positive control on the actual checked-in obfuscated artifact.
+    // Refuse an accidentally unprotected or native-equivalent math input.
+    assert.match(distributed[0].code,/_ap_input_[0-9a-f]{14}/u);
+    assert.match(distributed[0].code,/_af_[0-9a-f]{14}/u);
+    const publishedBytes=Buffer.byteLength(distributed[0].code);
     const publishedDir=path.join(temporary,'published');
     await materialize(publishedDir,distributed);
     const publishedMath=await loadModule(publishedDir);
@@ -176,6 +182,9 @@ async function runAttack(){
     // This is a validation oracle, deliberately introduced after attack
     // synthesis. Neither native bytes nor original functions identify offsets.
     const original=await readGraph('native');
+    const nativeBytes=Buffer.byteLength(original[0].code);
+    assert.notEqual(original[0].code,distributed[0].code);
+    assert.ok(publishedBytes>nativeBytes,'Published math must be substantially transformed');
     const nativeDir=path.join(temporary,'native');
     await materialize(nativeDir,original);
     const originalMath=await loadModule(nativeDir);
@@ -246,7 +255,7 @@ async function runAttack(){
       fullApplicationScenarios,fullApplicationEvents,
       nonlinearNegativeControl,originalGraphUsedForInference:false,attackMs,
       affineOracleCalls:targets.length*2,affineSlopes,
-      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl
+      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes
     };
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
