@@ -1,0 +1,25 @@
+name: Manual unary primitive source-precision contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unary-source:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Proven primitive unary expressions and source refusals
+        run: node --test test/unary-primitive-source-precision.test.js test/primitive-coercer-source-precision.test.js test/primitive-method-source-precision.test.js
+      - run: npm run typecheck
