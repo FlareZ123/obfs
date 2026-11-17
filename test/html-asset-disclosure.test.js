@@ -39,7 +39,9 @@ test('HTML5 parser detects inline source across browser execution contexts',()=>
     ['meta refresh embedded HTML','<meta http-equiv="ReFrEsH" content="0; URL=data:text/html,&lt;script&gt;window.secret=27&lt;/script&gt;">'],
     ['meta refresh javascript URL','<meta content="0; URL=java&#x73;cript:window.secret=28" http-equiv="refresh">'],
     ['embedded source data script','<script src="data:text/javascript,window.secret=26"></script>'],
-    ['unrecognized script data MIME still refused','<script src="data:application/octet-stream;base64,AAAA"></script>']
+    ['unrecognized script data MIME still refused','<script src="data:application/octet-stream;base64,AAAA"></script>'],
+    ['script data scheme obscured by HTML newline entity','<script src="da&#10;ta:application/octet-stream;base64,AAAA"></script>'],
+    ['script data scheme obscured by HTML tab entity','<script src="d&#9;ata:application/octet-stream;base64,AAAA"></script>']
   ];
   for(const [name,html] of cases) {
     assert.ok(findInlineHtmlSource(html),name);

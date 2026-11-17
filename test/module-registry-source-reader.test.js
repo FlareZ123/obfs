@@ -10,7 +10,7 @@ const {obfuscateFiles} = require('../src');
 const {parse,observesDistributedSource} = require('../src/ast');
 const {atomicWrite} = require('../src/atomic');
 
-/** @typedef {{path:string,sourceType:'commonjs',code:string}} Source */
+/** @typedef {{path:string,sourceType:'commonjs'|'module',code:string}} Source */
 /**
  * Execute a real Node 22 CommonJS module graph so the cache, main module,
  * parent and children are genuine native Module instances.
@@ -222,6 +222,328 @@ test('safe global process destructuring still allows private-property renaming',
   const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
     mode:'sno',seed:'global-process-safe-pattern',strings:false,
     identifiers:false,properties:true
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
+
+/**
+ * Node 22's process.getBuiltinModule provides the real filesystem module
+ * without require/import. Destructured and reflected copies of this method
+ * must preserve source bytes even when the call uses an unrelated alias.
+ */
+const builtinLoaderRoutes=[
+  ['destructured process',"const {getBuiltinModule:load}=process;"],
+  ['destructured global process',"const {getBuiltinModule:load}=globalThis.process;"],
+  ['computed process pattern',
+    "const key='getBuiltinModule';const {[key]:load}=process;"],
+  ['process alias pattern',
+    "const p=globalThis.process;const {getBuiltinModule:load}=p;"],
+  ['reflected process method',
+    "const load=Reflect.get(process,'getBuiltinModule');"],
+  ['reflected global process method',
+    "const load=Reflect.get(globalThis.process,'getBuiltinModule');"],
+  ['global process method descriptor',
+    "const load=Object.getOwnPropertyDescriptor(globalThis.process,'getBuiltinModule').value;"]
+];
+
+for(const [name,loader] of builtinLoaderRoutes) {
+  test('process.getBuiltinModule source reader preserves exact bytes: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    for(const mode of /** @type {const} */ (['sno','coo'])) {
+      const emitted=obfuscateFiles(files,{
+        mode,seed:'get-builtin-module/'+name,strings:true,
+        properties:true,identifiers:true
+      });
+      assert.equal(emitted.files[0].code,code);
+      assert.deepEqual(await execute(emitted.files,'main.cjs'),native);
+    }
+  });
+}
+
+// Directly disabling the file-source preflight gives a measurable native
+// discrepancy. This control separates compatibility from any security claim.
+test('unguarded local property rewrite changes observable Node module source',async()=>{
+  const {renameLocalProperties}=require('../src/properties');
+  const code="'use strict';\n"+
+    "const {getBuiltinModule:load}=process;\n"+
+    "const io=load('node:fs');\n"+
+    'const privateObject={secretField:31};\n'+
+    "const bytes=io.readFileSync(__filename,'utf8');\n"+
+    "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+  /** @type {Source[]} */
+  const nativeFiles=[{path:'main.cjs',sourceType:'commonjs',code}];
+  const unchecked=renameLocalProperties(code,parse(code,'commonjs'),{
+    seed:'builtin-source-unguarded'
+  });
+  assert.equal(unchecked.properties,1,'negative control must actually transform');
+  const unguardedFiles=[{...nativeFiles[0],code:unchecked.code}];
+  const native=await execute(nativeFiles,'main.cjs');
+  const altered=await execute(unguardedFiles,'main.cjs');
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(altered.status,0,altered.stderr);
+  assert.equal(native.stdout,'31 true\n');
+  assert.equal(altered.stdout,'31 false\n');
+  const guarded=obfuscateFiles(nativeFiles,{mode:'sno',
+    seed:'builtin-source-guarded',strings:true,properties:true,identifiers:true});
+  assert.equal(guarded.files[0].code,code);
+  assert.deepEqual(await execute(guarded.files,'main.cjs'),native);
+});
+
+const processModuleRoutes=[
+  ['direct process require pattern',
+    "const {getBuiltinModule:load}=require('node:process');"],
+  ['aliased process require pattern',
+    "const proc=require('node:process');const {getBuiltinModule:load}=proc;"],
+  ['reflected process require',
+    "const load=Reflect.get(require('node:process'),'getBuiltinModule');"],
+  ['process require descriptor',
+    "const load=Object.getOwnPropertyDescriptor(require('node:process'),'getBuiltinModule').value;"]
+];
+
+for(const [name,loader] of processModuleRoutes) {
+  test('Node built-in process module source reading: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const emitted=obfuscateFiles(files,{
+      mode:'sno',seed:'process-require-source/'+name,
+      strings:true,properties:true,identifiers:true
+    });
+    assert.equal(emitted.files[0].code,code);
+    assert.deepEqual(await execute(emitted.files,'main.cjs'),native);
+  });
+}
+
+test('ESM named import from node:process preserves source-visible code',async()=>{
+  const code="import {getBuiltinModule as load} from 'node:process';\n"+
+    "const io=load('node:fs');\n"+
+    'const privateObject={secretField:31};\n'+
+    "const bytes=io.readFileSync(new URL(import.meta.url),'utf8');\n"+
+    "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+  /** @type {Source[]} */
+  const files=[{path:'main.mjs',sourceType:'module',code}];
+  const native=await execute(files,'main.mjs');
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'31 true\n');
+  assert.equal(observesDistributedSource(parse(code,'module')),true);
+  const emitted=obfuscateFiles(files,{
+    mode:'sno',seed:'esm-process-named-source',
+    strings:true,properties:true,identifiers:true
+  });
+  assert.equal(emitted.files[0].code,code);
+  assert.deepEqual(await execute(emitted.files,'main.mjs'),native);
+});
+
+test('benign process module environment alias keeps own-key transform yield',()=>{
+  const code="const proc=require('node:process');"+
+    'const privateObject={secretField:32};'+
+    'console.log(proc.env.NODE_ENV,privateObject.secretField);';
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'process-require-env-positive',strings:false,
+    properties:true,identifiers:false
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
+
+test('cross-file ESM process loader preserves the original owner module bytes',async()=>{
+  /** @type {Source[]} */
+  const files=[
+    {path:'owner.mjs',sourceType:'module',
+      code:'export const state={secretField:51};\n'},
+    {path:'entry.mjs',sourceType:'module',
+      code:"import {state} from './owner.mjs';\n"+
+        "import {getBuiltinModule as load} from 'node:process';\n"+
+        "const bytes=load('node:fs').readFileSync(new URL('./owner.mjs',import.meta.url),'utf8');\n"+
+        "console.log(state.secretField,bytes.includes('secret'+'Field'));\n"}
+  ];
+  const native=await execute(files,'entry.mjs');
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'51 true\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'process-builtin-crossfile',
+    strings:true,properties:true,identifiers:true
+  });
+  assert.equal(output.crossFile.properties,0);
+  assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+  assert.deepEqual(await execute(output.files,'entry.mjs'),native);
+});
+
+const processReexports=[
+  ['named process loader reexport',
+    "export {getBuiltinModule as load} from 'node:process';",
+    "import {load} from './bridge.mjs';"],
+  ['star process loader reexport',
+    "export * from 'node:process';",
+    "import {getBuiltinModule as load} from './bridge.mjs';"]
+];
+for(const [name,bridge,consumer] of processReexports) {
+  test('source-capable process ESM reexport preserves another file: '+name,async()=>{
+    /** @type {Source[]} */
+    const files=[
+      {path:'owner.mjs',sourceType:'module',
+        code:'const privateObject={secretField:31};console.log(privateObject.secretField);\n'},
+      {path:'bridge.mjs',sourceType:'module',code:bridge+'\n'},
+      {path:'entry.mjs',sourceType:'module',
+        code:"import './owner.mjs';\n"+consumer+'\n'+
+          "const bytes=load('node:fs').readFileSync(new URL('./owner.mjs',import.meta.url),'utf8');\n"+
+          "console.log(bytes.includes('secret'+'Field'));\n"}
+    ];
+    const native=await execute(files,'entry.mjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31\ntrue\n');
+    assert.equal(observesDistributedSource(parse(bridge+'\n','module')),true);
+    const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+      seed:'process-reexport/'+name,strings:true,identifiers:true,properties:true});
+    assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    assert.deepEqual(await execute(output.files,'entry.mjs'),native);
+  });
+}
+
+test('benign named process env reexport retains private-field rewrite yield',()=>{
+  const bridge="export {env as environment} from 'node:process';";
+  assert.equal(observesDistributedSource(parse(bridge,'module')),false);
+  const files=[
+    {path:'owner.mjs',sourceType:/** @type {const} */('module'),
+      code:'const privateObject={secretField:31};console.log(privateObject.secretField);\n'},
+    {path:'bridge.mjs',sourceType:/** @type {const} */('module'),
+      code:bridge+'\n'}
+  ];
+  const emitted=obfuscateFiles(files,{mode:'coo',
+    seed:'process-env-reexport-positive',strings:false,identifiers:false,
+    properties:true});
+  assert.equal(emitted.files[0].metrics.properties,1);
+});
+
+for(const source of ['process','node:process']) {
+  test('dynamic import of '+source+' exposes native process filesystem capability',async()=>{
+    const code="(async()=>{\n"+
+      "const {getBuiltinModule:load}=await import("+JSON.stringify(source)+");\n"+
+      "const fs=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=fs.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n"+
+      "})().catch(error=>{console.error(error);process.exitCode=1;});\n";
+    /** @type {Source[]} */
+    const files=[{path:'dynamic.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'dynamic.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',strings:true,
+      identifiers:true,properties:true,seed:'dynamic-node-process/'+source});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'dynamic.cjs'),native);
+  });
+}
+
+test('benign dynamic import of node:os keeps transformable private record',()=>{
+  const code="async function f(){const os=await import('node:os');return os.platform()}\n"+
+    'const state={secretField:31};console.log(state.secretField);\n';
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const transformed=obfuscateFiles([
+    {path:'safe.cjs',sourceType:'commonjs',code}
+  ],{mode:'sno',seed:'benign-dynamic-os',strings:false,identifiers:false,
+    properties:true});
+  assert.equal(transformed.files[0].metrics.properties,1);
+});
+
+const detachedReflectionPaths=[
+  ['detached Reflect.get',
+    "const get=Reflect.get;const load=get(process,'getBuiltinModule');"],
+  ['computed and aliased Reflect.get',
+    "const getter=Reflect['get'];const get=getter;const load=get(globalThis.process,'getBuiltinModule');"],
+  ['detached descriptor getter',
+    "const descriptor=Object.getOwnPropertyDescriptor;const load=descriptor(process,'getBuiltinModule').value;"],
+  ['computed descriptor on process require',
+    "const descriptor=Object['getOwnPropertyDescriptor'];const load=descriptor(require('node:process'),'getBuiltinModule').value;"]
+];
+for(const [name,loader] of detachedReflectionPaths) {
+  test('detached source-capable native reflection preserves bytes: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'detached-reflection/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'main.cjs'),native);
+  });
+}
+
+test('benign detached native Reflect.get environment lookup preserves yield',()=>{
+  const code="const get=Reflect.get;const env=get(process,'env');"+
+    "const state={secretField:31};console.log(env.NODE_ENV,state.secretField);";
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'detached-reflect-env-positive',strings:false,
+    properties:true,identifiers:false
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
+
+const patternReflectionPaths=[
+  ['Reflect get destructured',
+    "const {get:read}=Reflect;const load=read(process,'getBuiltinModule');"],
+  ['computed Reflect get destructured',
+    "const {['g'+'et']:read}=Reflect;const load=read(globalThis.process,'getBuiltinModule');"],
+  ['Object descriptor destructured',
+    "const {getOwnPropertyDescriptor:desc}=Object;const load=desc(process,'getBuiltinModule').value;"],
+  ['Reflect get destructure plus local alias',
+    "const {get:read}=Reflect;const g=read;const load=g(require('node:process'),'getBuiltinModule');"]
+];
+for(const [name,loader] of patternReflectionPaths) {
+  test('destructured reflection method preserves observable source: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'entry.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'entry.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'destructured-reflect/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'entry.cjs'),native);
+  });
+}
+
+test('benign destructured Reflect.get process environment preserves field yield',()=>{
+  const code="const {get:read}=Reflect;const env=read(process,'env');"+
+    "const state={secretField:32};console.log(env.NODE_ENV,state.secretField);";
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'benign-reflect-pattern',strings:false,
+    properties:true,identifiers:false
   });
   assert.equal(output.files[0].metrics.properties,1);
 });

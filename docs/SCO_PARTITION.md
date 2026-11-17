@@ -86,11 +86,25 @@ case-insensitive paths, unrelated supplied files, noncanonical imports, unknown
 bare imports, and direct runtime `import()` or common direct loader calls.
 When `createScoHandler` receives source files directly, it now reads each
 `privateModulePaths` and `privateOriginalDigests` getter exactly once,
-validates the declared arrays, and uses owned copies throughout publication.
+snapshots their array elements by indexed reads, validates only the owned
+copies, and reuses those copies throughout publication. Caller-owned `map`
+methods and `Symbol.iterator` overrides on manifest arrays do not control
+which private paths or digests enter these admission sets. The initial
+`sourceFiles` inventory is also copied by indexed reads once so its
+caller-owned methods cannot show different file sets to the policy and
+to the HTTP route builder.
 This prevents inconsistent successive getter values from making a declared
 private source disappear during preflight. The first supplied declaration must
 still be trustworthy and complete; a reviewed `publicPaths` allowlist remains
 a separate, necessary publication boundary.
+
+The selective compiler copies the main `{path,code,sourceType}` and every
+`privateModuleSources` `{path,code}` record into primitive-string snapshots
+before parsing, constructing the closure and creating commitments. Each source
+property is read once, so accessor-backed inputs cannot make the audited
+graph differ from the digest committed for the deployment. The compiler
+does not freeze the filesystem or certify that the supplied sources are
+authentic. The optional startup verifier must still compare the deployed bytes.
 
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original
@@ -155,6 +169,64 @@ transitive leaf, whereas the audited manifest causes `createScoHandler`
 to refuse the same serving configuration.
 
 See the [built-in HMAC before/after](../examples/sco-static-imports/README.md), the [two-module private graph before/after](../examples/sco-private-graph/README.md), [Node import regression](../test/sco-static-imports.test.js), and [private-graph integration](../test/sco-private-graph.test.js). The [independent authorized online relay challenge](../sims/sco-private-graph-relay.js) demonstrates that a caller may clone permitted outputs even when source bytes remain withheld. Each small RPC can exceed the 2.5× runtime budget; actual cross-platform heavy-operation measurements are in [intermediate evidence](../im-results/sco-private-imports-2026-11-16.md).
+
+## Sealed selective SCO serving from a compiler-owned partition
+
+`createScoSelectedHandler(partition,serverExports,options)` is the safer
+construction API for a selectively partitioned SCO entry. It accepts the exact
+`partitionScoSelectedAsyncExports` object generated **in the same Node
+process**, the original server's ESM namespace, and separately provided
+authorization options. It builds a fresh private snapshot of the generated
+client module and the RPC method registry and invokes `createScoHandler`
+with only that client module. No general `sourceFiles` argument exists in
+this API, so accidentally passing a private dependency into the serving list
+is structurally impossible through this wrapper.
+
+The helper rejects partition objects reconstructed from JSON or copied through
+object spread, changes to the original compiler result after generation,
+caller-provided `publicPaths` and `remoteMethods`, mismatched `routePrefix`
+and generated RPC endpoints, and missing server functions. The internal
+`WeakMap` snapshot serves as a process-local provenance check, not an
+attacker-resistant secret when the Node runtime itself is compromised.
+
+```js
+const {createServer}=require('node:http');
+const {pathToFileURL}=require('node:url');
+const {
+  partitionScoSelectedAsyncExports,
+  verifyScoPrivateSourceDigests,
+  createScoSelectedHandler
+}=require('./src');
+
+async function initialize(mixedSource,privateSources,root,sourceFile){
+  const partition=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:mixedSource},
+    {privateNames:['protectedDigest'],
+      privateModuleImports:['./private/engine.mjs'],
+      privateModuleSources:privateSources}
+  );
+
+  await verifyScoPrivateSourceDigests(partition,root);
+  const serverExports=await import(pathToFileURL(sourceFile).href);
+  const handler=createScoSelectedHandler(partition,serverExports,{
+    authorizeRead:request=>verifySession(request),
+    authorizeRpc:request=>verifySession(request),
+    authorizeOperation:(request,method,args)=>
+      verifyOperation(request,method,args)
+  });
+  return createServer(handler);
+}
+```
+
+`verifySession` and `verifyOperation` are application policy functions that
+must be supplied by the operator. Production deployments still need a stable
+private module tree between digest verification and ESM loading, independent
+HTTP route restrictions, and authorization for every protected operation.
+This wrapper serves one generated module; serve additional reviewed public
+assets through an independent constrained route. A legitimate authenticated
+client can still relay permitted RPC results, regardless of the serving API.
+See `test/sco-selected-handler.test.js` and its executable HTTP/native
+comparison.
 
 ## Optional named batched operations
 

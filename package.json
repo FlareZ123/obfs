@@ -4,7 +4,9 @@
   "private": true,
   "description": "Conservative JavaScript obfuscation research toolkit",
   "type": "commonjs",
-  "engines": {"node": ">=22"},
+  "engines": {
+    "node": ">=22"
+  },
   "bin": {
     "obfs-coo": "./bin/coo.js",
     "obfs-sno": "./bin/sno.js",

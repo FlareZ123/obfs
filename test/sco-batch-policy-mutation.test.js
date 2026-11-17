@@ -178,3 +178,32 @@ test('SCO batch JSON snapshot preserves negative zero, overflow number and own p
     await stop(server);
   }
 });
+
+test('SCO batch isolates the per-item argument list from policy-side rewriting',async()=>{
+  /** @type {number[]} */
+  const effects=[];
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{batch:createScoBatchMethod({
+      /** @param {number} value */
+      take:value=>{effects.push(value);return value;}
+    })},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method,args)=>{
+      if(method==='batch')return true;
+      if(method!=='take'||args[0]!==1)return false;
+      // An inner callback edits its own authorization input. This mutation
+      // must not change the original private operation's arguments.
+      args[0]=99;
+      return true;
+    }
+  }));
+  const port=await start(server);
+  try{
+    assert.deepEqual(await send(port,[{method:'take',args:[1]}]),{
+      status:200,body:{ok:true,value:[{ok:true,value:1}]}
+    });
+    assert.deepEqual(effects,[1]);
+  }finally{
+    await stop(server);
+  }
+});

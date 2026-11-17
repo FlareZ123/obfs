@@ -43,39 +43,6 @@ function respondJson(response,status,payload) {
 }
 
 /**
- * Deep-copy one JSON.parse argument array without recursive calls.
- * The HTTP request size is bounded, but JSON nesting can exceed the stack
- * depth tolerated by structuredClone. Parsed JSON holds only primitives,
- * arrays and ordinary records, so this loop preserves original number
- * values (including -0 and overflow) and own '__proto__' data properties.
- * Copying all keys with defineProperty avoids invoking inherited setters.
- *
- * @param {unknown[]} input
- * @returns {unknown[]}
- */
-function cloneJsonArgs(input) {
-  /** @type {unknown[]} */
-  const root=[];
-  /** @type {Array<{original:any,copy:any}>} */
-  const pending=[{original:input,copy:root}];
-  while(pending.length) {
-    const {original,copy}=/** @type {{original:any,copy:any}} */ (pending.pop());
-    for(const key of Object.keys(original)) {
-      const value=original[key];
-      const duplicated=value===null||typeof value!=='object'?
-        value:(Array.isArray(value)?[]:{});
-      Object.defineProperty(copy,key,{
-        value:duplicated,enumerable:true,configurable:true,writable:true
-      });
-      if(value!==null&&typeof value==='object') {
-        pending.push({original:value,copy:duplicated});
-      }
-    }
-  }
-  return root;
-}
-
-/**
  * Execute one authenticated server-resident operation, never shipping its
  * implementation to the browser. The caller controls operation granularity,
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
@@ -114,13 +81,16 @@ async function handleRpc(request,response,options) {
     }
     /** @type {{method?:unknown,args?:unknown}} */
     let query;
+    /** @type {string} */
+    let jsonText;
     try {
       // Buffer.toString('utf8') replaces malformed octets with U+FFFD.
       // Reject malformed JSON transport bytes before they can be mistaken for
       // an intentionally submitted replacement character in policy arguments.
       const raw=Buffer.concat(chunks);
       if(!isUtf8(raw))throw new SyntaxError('Invalid UTF-8 JSON');
-      query=JSON.parse(raw.toString('utf8'));
+      jsonText=raw.toString('utf8');
+      query=JSON.parse(jsonText);
     } catch (error) {
       respondJson(response,400,{ok:false,error:'Malformed JSON'});
       return;
@@ -156,11 +126,17 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // A batch is copied only when an argument-aware policy can mutate its
-    // original request graph. Without that policy, preserve the existing
-    // zero-copy execution path and avoid unnecessary RPC overhead.
-    const checkedBatchArgs=options.authorizeOperation &&
-      getScoBatchCalls(task,args)!==null ?cloneJsonArgs(args):null;
+    // Registered batches with an argument-aware policy require three
+    // independent views of the exact validated JSON text: outer policy,
+    // inner policy, and execution. Native JSON.parse preserves deep nesting
+    // and parsed numeric values without custom recursive clone machinery.
+    // No extra parsing happens for unrecognized methods or absent policy.
+    const needsBatchViews=options.authorizeOperation &&
+      getScoBatchCalls(task,args)!==null;
+    const checkedBatchArgs=needsBatchViews ?
+      /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
+    const innerPolicyArgs=needsBatchViews ?
+      /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
@@ -173,16 +149,16 @@ async function handleRpc(request,response,options) {
       // A permitted batch route is not blanket permission for its individual
       // operations. Check every registered inner method before the batch
       // executes, including later items after an otherwise permitted item.
-      const batchCalls=getScoBatchCalls(task,checkedBatchArgs??args);
+      const batchCalls=getScoBatchCalls(task,innerPolicyArgs??args);
       if (batchCalls) {
         for (const call of batchCalls) {
           // The batch helper independently rejects malformed calls before
           // execution. Only valid item shapes can reach policy evaluation.
           if (!call || typeof call!=='object' ||
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
-          // The policy sees a separate copy. Its mutations, even delayed
-          // until another item executes, cannot change the checked batch.
-          const itemAllowed=await options.authorizeOperation(request,call.method,cloneJsonArgs(call.args));
+          // This policy-only parsed graph is never passed to the executor.
+          // A mutation of this item's arguments cannot change private work.
+          const itemAllowed=await options.authorizeOperation(request,call.method,call.args);
           ensureScopeOpen();
           if(itemAllowed!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
@@ -306,6 +282,22 @@ function decodePublicName(encodedName) {
 }
 
 /**
+ * Copy private source-manifest entries by their indexed values once.
+ * User-owned array methods, iterators and species constructors are not
+ * publication-policy authorities; each listed element is copied as data.
+ * @template T
+ * @param {T[]} declared
+ * @returns {T[]}
+ */
+function snapshotMetadataEntries(declared) {
+  /** @type {T[]} */
+  const owned=[];
+  const length=declared.length;
+  for(let index=0;index<length;index++)owned.push(declared[index]);
+  return owned;
+}
+
+/**
  * Create a polymorphic SCO handler. The serving machine keeps the obfuscator
  * and optional remoteMethods implementations, mutating client code per GET.
  * RPC is disabled unless BOTH remoteMethods and an authorization callback exist.
@@ -332,6 +324,10 @@ function createScoHandler(sourceFiles,options={}) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
+  // Both manifest proof and published file normalization must inspect the
+  // same indexed inventory. Caller-owned map/iterator overrides cannot
+  // silently change which array entries appear at either phase.
+  const files=snapshotMetadataEntries(sourceFiles);
   // An explicit positive publication boundary can protect source files that
   // no static private dependency audit could discover. Build the allowlist
   // from independently reviewed public entrypoints and assets, not from
@@ -361,18 +357,22 @@ function createScoHandler(sourceFiles,options={}) {
   // disagree, leaving a declared private source outside the forbidden sets.
   // Keep owned array copies for every later check and publication pass.
   /** @type {Array<{paths:string[]|undefined,digests:string[]|undefined}>} */
-  const privateMetadata=sourceFiles.map(file=>{
+  const privateMetadata=files.map(file=>{
     const providedDigests=file.privateOriginalDigests;
     const providedPaths=file.privateModulePaths;
     /** @type {string[]|undefined} */
     let digests;
     if(providedDigests!==undefined){
-      if(!Array.isArray(providedDigests)||
-          providedDigests.some(value=>typeof value!=='string'||
-            !/^[0-9a-f]{64}$/u.test(value))){
+      if(!Array.isArray(providedDigests)){
         throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
       }
-      digests=[...providedDigests];
+      // Snapshot index accessors once, then validate exactly the bytes used
+      // by the publication policy. Getter values may differ on later reads.
+      digests=snapshotMetadataEntries(providedDigests);
+      if(digests.some(value=>typeof value!=='string'||
+          !/^[0-9a-f]{64}$/u.test(value))){
+        throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
+      }
       for(const digest of digests)privateOriginalDigests.add(digest);
     }
     /** @type {string[]|undefined} */
@@ -381,7 +381,7 @@ function createScoHandler(sourceFiles,options={}) {
       if(!Array.isArray(providedPaths)){
         throw new TypeError('SCO privateModulePaths must be an array');
       }
-      paths=providedPaths.map(safePath);
+      paths=snapshotMetadataEntries(providedPaths).map(safePath);
       for(const privatePath of paths)forbidden.add(privatePath.toLowerCase());
     }
     return {paths,digests};
@@ -391,7 +391,7 @@ function createScoHandler(sourceFiles,options={}) {
   // may collide when the source group is deployed on Windows.
   const seen=new Set();
   /** @type {import('./cross-properties').SourceFile[]} */
-  const normalized=sourceFiles.map((file,index)=>{
+  const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
     if(publicAllowlist&&!publicAllowlist.has(filename)){

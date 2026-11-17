@@ -6,12 +6,15 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
+const {createScoHandler}=require('./sco');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
 /** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
 /** @typedef {{path:string,sha256:string}} ScoPrivateSourceDigest */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
+/** @type {WeakMap<ScoSelectivePartition,string>} */
+const generatedSelectiveSnapshots=new WeakMap();
 
 /**
  * Uncomputed object and member keys are property labels, not variable reads.
@@ -820,6 +823,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
  * @returns {ScoSelectivePartition}
  */
 function partitionScoSelectedAsyncExports(file,options) {
+  // Capture compiler inputs once. Accessor-backed source records may otherwise
+  // supply different code for AST auditing, digest commitments and emission.
+  if(file&&typeof file==='object') {
+    file={path:file.path,code:file.code,sourceType:file.sourceType};
+  }
+  const sourceInputs=options?.privateModuleSources;
   if(!file||typeof file.code!=='string'||typeof file.path!=='string'||
       (file.sourceType!==undefined&&file.sourceType!=='module')||
       file.code.startsWith('#!')||!options||!Array.isArray(options.privateNames)||
@@ -841,8 +850,24 @@ function partitionScoSelectedAsyncExports(file,options) {
       (!Array.isArray(options.additionalPrivateModulePaths)||
        options.additionalPrivateModulePaths.some(value=>typeof value!=='string')||
        new Set(options.additionalPrivateModulePaths).size!==options.additionalPrivateModulePaths.length)||
-      options.privateModuleSources!==undefined && !Array.isArray(options.privateModuleSources)) {
+      sourceInputs!==undefined && !Array.isArray(sourceInputs)) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
+  }
+  /** @type {ScoPrivateModuleSource[]|undefined} */
+  let auditedSources;
+  if(sourceInputs!==undefined){
+    auditedSources=[];
+    for(let index=0;index<sourceInputs.length;index++){
+      // Inspect the declared array slots without invoking mutable map,
+      // iterator or Symbol.species hooks supplied by the caller.
+      const source=sourceInputs[index];
+      const sourcePath=source?.path;
+      const code=source?.code;
+      if(typeof sourcePath!=='string'||typeof code!=='string') {
+        throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
+      }
+      auditedSources.push({path:sourcePath,code});
+    }
   }
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
@@ -868,8 +893,8 @@ function partitionScoSelectedAsyncExports(file,options) {
     directPrivatePaths.push(resolved);
     if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
   }
-  if(options.privateModuleSources!==undefined){
-    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,options.privateModuleSources)){
+  if(auditedSources!==undefined){
+    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,auditedSources)){
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
@@ -878,9 +903,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   // verify these exact UTF-8 input bytes against deployed files before loading
   // the server's original module graph.
   /** @type {ScoPrivateSourceDigest[]|undefined} */
-  const privateSourceDigests=options.privateModuleSources===undefined?undefined:[
+  const privateSourceDigests=auditedSources===undefined?undefined:[
     {path:safePath(file.path),sha256:createHash('sha256').update(file.code,'utf8').digest('hex')},
-    ...options.privateModuleSources.map(source=>({
+    ...auditedSources.map(source=>({
       path:safePath(source.path),
       sha256:createHash('sha256').update(source.code,'utf8').digest('hex')
     }))
@@ -1332,11 +1357,60 @@ function partitionScoSelectedAsyncExports(file,options) {
   const clientCode=(publicHelperChunks.length?publicHelperChunks.join('\n')+'\n':'')+
     publicChunks.join('\n')+'\n'+partition.clientFile.code;
   parse(clientCode,'module');
-  return {...partition,publicNames,publicHelperNames:[...publicHelperNames],
+  const result={...partition,publicNames,publicHelperNames:[...publicHelperNames],
     privateNames:[...options.privateNames],
     ...(privateSourceDigests?{privateSourceDigests}:{}),
     clientFile:{...partition.clientFile,code:clientCode,
       ...(privateModulePaths.length?{privateModulePaths}:{})}};
+  // Keep compiler-owned publication bytes and method identities separate
+  // from the caller-mutatable partition object and its graph metadata.
+  generatedSelectiveSnapshots.set(result,JSON.stringify(result));
+  return result;
 }
 
-module.exports={partitionScoSelectedAsyncExports,bindScoModuleExports};
+/**
+ * Expose exactly one compiler-generated selective SCO public ESM facade.
+ * The caller never supplies a sourceFiles array or a replacement RPC registry,
+ * preventing accidental publication of imported private implementation files.
+ * Only an in-process compiler result is accepted. A serialized/copyable
+ * partition is not trusted because it has lost its original source provenance.
+ *
+ * The trusted server must still verify audited private source digests before
+ * loading its original ESM graph, and enforce account/operation authorization.
+ * This helper adds no execution-time client overhead beyond createScoHandler.
+ *
+ * @param {ScoSelectivePartition} partition
+ * @param {Record<string,unknown>} serverExports Original server-side ESM namespace.
+ * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} options
+ * @returns {import('node:http').RequestListener}
+ */
+function createScoSelectedHandler(partition,serverExports,options) {
+  if(!partition||!options||typeof options!=='object'||
+     Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
+    throw new TypeError('SCO selective handler requires generated partition and separately authorized server options');
+  }
+  // Capture caller option getters exactly once before comparing the RPC
+  // endpoint. The transport must not see a different routePrefix during
+  // handler construction from the value used for the endpoint check.
+  const stableOptions={...options};
+  const snapshot=generatedSelectiveSnapshots.get(partition);
+  if(snapshot===undefined){
+    throw new TypeError('SCO selective handler requires a partition generated in this process');
+  }
+  if(JSON.stringify(partition)!==snapshot){
+    throw new TypeError('SCO selective manifest was modified after partitioning');
+  }
+  const trusted=/** @type {ScoSelectivePartition} */ (JSON.parse(snapshot));
+  const expectedEndpoint=(stableOptions.routePrefix??'/obfs/')+'rpc';
+  if(trusted.endpoint!==expectedEndpoint){
+    throw new TypeError('SCO selective RPC endpoint does not match routePrefix');
+  }
+  const remoteMethods=bindScoModuleExports(trusted,serverExports);
+  return createScoHandler([trusted.clientFile],{
+    ...stableOptions,
+    publicPaths:[trusted.clientFile.path],
+    remoteMethods
+  });
+}
+
+module.exports={partitionScoSelectedAsyncExports,bindScoModuleExports,createScoSelectedHandler};
