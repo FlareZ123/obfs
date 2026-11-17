@@ -549,7 +549,13 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
        node.id.type==='ObjectPattern'&&node.id.properties.some(
          (/** @type {import('./ast').AstNode} */ property)=>
-           property.type!=='Property'||property.value.type!=='Identifier')){
+           property.type!=='Property'||property.value.type!=='Identifier'&&
+           !(property.value.type==='AssignmentPattern'&&
+             property.value.left.type==='Identifier'&&
+             isImmutableNumericProperty(node.init,keyName(property)??'')))){
+      // A default for a frozen Math/Number numeric constant is unreachable
+      // under the same pristine-intrinsic assumption as direct numeric reads.
+      // All other defaulted or nested intrinsic destructuring remains unproved.
       intrinsicTouched=true;
     }
     // A nested or defaulted binding pattern can silently extract a builtin
