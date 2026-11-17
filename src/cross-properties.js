@@ -253,11 +253,14 @@ function collectImportedFunctionArrays(files) {
            hasFunction(node.callee.object)) {
           const callback=node.arguments[0];
           if(callback &&
-             ['ArrowFunctionExpression','FunctionExpression'].includes(callback.type) &&
-             callback.params[0]?.type==='Identifier' &&
-             !functions.has(callback.params[0].name)) {
-            functions.add(callback.params[0].name);
-            changed=true;
+             ['ArrowFunctionExpression','FunctionExpression'].includes(callback.type)) {
+            // Set repeats its value in the second argument; Map uses a key.
+            for(const param of callback.params.slice(0,2)) {
+              if(param?.type==='Identifier' && !functions.has(param.name)) {
+                functions.add(param.name);
+                changed=true;
+              }
+            }
           }
         }
         if(node.type==='CallExpression' &&
