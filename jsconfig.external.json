@@ -94,7 +94,8 @@
     "sims/llm-blind-affine-challenge.js",
     "sims/blind-affine-public-recovery-matrix.js",
     "test/llm-blind-affine-challenge.test.js",
-    "test/blind-affine-public-recovery-matrix.test.js"
+    "test/blind-affine-public-recovery-matrix.test.js",
+    "test/polyvariant-affine-browser.js"
   ],
   "exclude": [
     "node_modules"
