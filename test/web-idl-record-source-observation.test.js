@@ -28,6 +28,7 @@ const sourceCases=[
   ['record property alias','(()=>{const box={Constructor:Response};const other=box;return new other.Constructor(inspect).text();})()'],
   ['record property reassignment','(()=>{const box={};box.Constructor=Response;return new box.Constructor(inspect).text();})()'],
   ['record alias mutation','(()=>{const box={};const alias=box;alias.Constructor=Response;return new box.Constructor(inspect).text();})()'],
+  ['global alias property write','(()=>{const root=globalThis;root.__webIdlCtor=Response;try{return new root.__webIdlCtor(inspect).text();}finally{delete root.__webIdlCtor;}})()'],
   ['record destructuring','(()=>{const box={Constructor:Response};const {Constructor:Reply}=box;return new Reply(inspect).text();})()'],
   ['record property detached','(()=>{const box={Constructor:Response};const Reply=box.Constructor;return new Reply(inspect).text();})()'],
   ['record computed constructor key','(()=>{const box={Constructor:Response};const key="Constructor";return new box[key](inspect).text();})()'],
