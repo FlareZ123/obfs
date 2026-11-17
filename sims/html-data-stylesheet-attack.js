@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const path=require('node:path');
 const http=require('node:http');
+const vm=require('node:vm');
 
 /**
  * @typedef {'coo'|'sco'|'sno'} Mode
@@ -90,7 +91,15 @@ async function compare(previousRoot,currentRoot) {
     const opts={mode,seed:'data-style-source-leak',strings:false};
     const output=previous.obfuscateFiles([entry,asset],opts);
     const published=output.files.find(file=>file.path==='index.html');
+    const executable=output.files.find(file=>file.path==='entry.cjs');
     assert.ok(published);
+    assert.ok(executable);
+    assert.notEqual(String(executable.code),original,
+      'The baseline comparison must include actually transformed code');
+    const before={module:{exports:null}},after={module:{exports:null}};
+    vm.runInNewContext(original,before,{timeout:1500});
+    vm.runInNewContext(String(executable.code),after,{timeout:1500});
+    assert.equal(after.module.exports,before.module.exports);
     const actual=recoverOriginal(published.code);
     assert.equal(actual,original);
     assert.throws(()=>current.obfuscateFiles([entry,asset],opts),
