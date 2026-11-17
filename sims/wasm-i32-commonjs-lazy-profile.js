@@ -83,7 +83,7 @@ for(const count of [1,8,24]) {
   }
   console.log(JSON.stringify({
     compiler:'wasm-i32-commonjs-deferred',
-    count,sourceBytes:Buffer.byteLength(native),
+    count,executedFunctions:1,sourceBytes:Buffer.byteLength(native),
     lazyBytes:Buffer.byteLength(lazy.code),eagerBytes:Buffer.byteLength(variants.eager),
     coldMedianMs:{
       native:median(results.native),
@@ -95,8 +95,17 @@ for(const count of [1,8,24]) {
       lazyOverNative:median(results.lazy)/median(results.native),
       eagerOverLazy:median(results.eager)/median(results.lazy)
     },
+    warmMedianMs:{
+      native:median(warm.native),
+      eager:median(warm.eager),
+      lazy:median(warm.lazy)
+    },
+    warmRatios:{
+      eagerOverNative:median(warm.eager)/median(warm.native),
+      lazyOverNative:median(warm.lazy)/median(warm.native)
+    },
     rawColdMs:results,
     rawWarmWorkMs:warm,
-    note:'VM session includes JS parsing, module evaluation and one invocation; not a security or universal budget proof'
+    note:'VM session includes JS parsing, module evaluation and one invocation; warm work is timed separately. The first lazy compile is execution cost and cannot be discounted from SNO runtime.'
   }));
 }
