@@ -131,6 +131,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const sourceCoercingRegExpMethods=new Set(['test','exec','compile']);
   const detachedRegExpSourceMethods=new Set();
   const boundRegExpSourceMethods=new Set();
+  // Native String.prototype methods generally call ToString(this) even when
+  // their arguments are primitive. Invoking them with a Function receiver
+  // reveals the exact function-source spelling through the returned string.
+  // The non-generic String#toString/#valueOf deliberately are excluded.
+  const sourceCoercingStringReceiverMethods=new Set([
+    'at','charAt','charCodeAt','codePointAt','concat','endsWith','includes',
+    'indexOf','isWellFormed','lastIndexOf','localeCompare','match','matchAll',
+    'normalize','padEnd','padStart','repeat','replace','replaceAll','search',
+    'slice','split','startsWith','substring','toLocaleLowerCase',
+    'toLocaleUpperCase','toLowerCase','toUpperCase','toWellFormed',
+    'trim','trimEnd','trimStart',
+    'anchor','big','blink','bold','fixed','fontcolor','fontsize','italics',
+    'link','small','strike','sub','sup'
+  ]);
+  const detachedStringReceiverMethods=new Set();
   const arrayLikeWithFunctions=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
@@ -317,6 +332,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // is safer than assuming a function argument cannot become source text.
     return node.type==='MemberExpression'&&
       sourceCoercingRegExpMethods.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDetachedStringReceiverMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return detachedStringReceiverMethods.has(node.name);
+    if(node.type!=='MemberExpression'||
+       !sourceCoercingStringReceiverMethods.has(memberName(node)??''))return false;
+    const owner=node.object;
+    if(owner.type!=='MemberExpression'||memberName(owner)!=='prototype')return false;
+    const root=owner.object;
+    return root.type==='Identifier'&&root.name==='String' ||
+      root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='String';
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunctionKeyEntries(node) {
@@ -544,6 +571,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isDetachedArraySourceMethod(value)) {
           changed=add(detachedArraySourceMethods,name)||changed;
+        }
+        if(isDetachedStringReceiverMethod(value)) {
+          changed=add(detachedStringReceiverMethods,name)||changed;
         }
         if(isDetachedRegExpSourceMethod(value)) {
           changed=add(detachedRegExpSourceMethods,name)||changed;
@@ -1316,6 +1346,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           [node.arguments[method==='padStart'||method==='padEnd'?1:0]];
         if(tested.some((/** @type {AstNode|null|undefined} */ value)=>
           isFunctionValue(value)||containsFunction(value))) observed=true;
+      }
+      // String.prototype generic methods stringify their receiver, which
+      // may itself be a function even if every explicit argument is inert.
+      // Follow detached method aliases and the Reflect.apply calling form.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression') {
+        const invocation=memberName(callee);
+        if(['call','apply','bind'].includes(invocation??'') &&
+           isDetachedStringReceiverMethod(callee.object) &&
+           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))
+          observed=true;
+        if(invocation==='apply' && isReflectiveReceiver(callee.object) &&
+           isDetachedStringReceiverMethod(node.arguments[0]) &&
+           node.arguments[1] && !isDefinitelyPrimitive(node.arguments[1]))
+          observed=true;
       }
       // RegExp#test, #exec and legacy #compile coerce their input to text.
       // A function argument therefore exposes its exact native source bytes
