@@ -24,7 +24,7 @@ jobs:
       - name: Verify string decoder preserves V8 source-spelled failure operands
         run: node --test test/source-spelled-operand-errors.test.js
       - name: Native statement-flow compaction differential and seedless attacker
-        run: node --test test/statement-flow.test.js test/statement-flow-compact.test.js
+        run: node --test test/statement-flow.test.js test/statement-flow-compact.test.js test/statement-flow-compact-fuzz.test.js
       - name: Native, flattened and compact CFG runtime comparison
         run: node sims/statement-flow-compact-profile.js
       - name: Fresh-load startup-inclusive compact CFG sessions
