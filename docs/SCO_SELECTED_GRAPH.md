@@ -43,6 +43,20 @@ the existing selective partitioner's options, including privateNames,
 privateModuleImports and privateModuleSources. For any shared private
 dependency, the units must supply identical path-to-source-byte mappings.
 
+Imported server-private child modules must pass an additional conservative
+top-level state admission check. Static imports, function declarations and
+primitive-literal immutable declarations are eligible; mutable lexical
+bindings, object-valued constants, stateful initialization expressions and
+observable function-object identity mutation are refused. A private child
+module is loaded once in the server process, while separate browser sessions
+would normally instantiate their own copies. The paired
+[test of two independent module realms](../test/sco-selected-graph-state.test.js)
+demonstrates the resulting observable counter difference: independent
+first calls produce 1 and 1, while one shared server namespace produces
+1 and 2. These new restrictions are syntactic and can over-reject safe
+programs. They do not prove purity of native API calls or higher-order
+cross-module behavior.
+
 This graph composer admits several independent selectively partitioned
 modules. A public function inside one module may call that module's selected
 private async export through the generated RPC facade. A public module
