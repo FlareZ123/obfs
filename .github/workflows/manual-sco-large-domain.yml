@@ -35,3 +35,8 @@ jobs:
         run: node sims/sco-ratchet-batch-candidate.js
       - name: Certificate-validated warm and fresh TLS batch ratchet budget
         run: node sims/sco-ratchet-tls-cost.js
+      - name: Real Chromium HttpOnly cookie and CSP SCO batch ratchet
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-batch-browser.js
