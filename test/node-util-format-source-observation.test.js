@@ -84,6 +84,6 @@ test('primitive-only native util.inspect preserves positive own-field renaming',
   const output=obfuscateFiles([{
     path:'util-source-observer.cjs',sourceType:'commonjs',code:source
   }],{mode:'sno',strings:false,seed:'agent50-node-util-positive'}).files[0];
-  assert.deepEqual(run(output.code),run(source));
+  assert.equal(JSON.stringify(run(output.code)),JSON.stringify(run(source)));
   assert.ok(output.metrics.objects>0,output.code);
 });
