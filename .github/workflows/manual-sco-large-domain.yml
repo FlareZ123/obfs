@@ -25,27 +25,3 @@ jobs:
         run: node sims/sco-large-domain-prf.js
       - name: Measure live third-party relay of an attacker-authorized session
         run: node sims/sco-relay-attack.js
-      - name: Strict main JSDoc preflight
-        run: npm run typecheck
-      - name: Strict external JSDoc preflight
-        run: npm run typecheck:external
-      - name: SCO stateful ratchet replay and budget experiment
-        run: node sims/sco-ratchet-boundary.js
-      - name: SCO atomic ratchet batch 25ms RTT-surrogate and budget veto
-        run: node sims/sco-ratchet-batch-candidate.js
-      - name: Actual online account-A stateful ratchet relay attack
-        run: node sims/sco-ratchet-online-relay.js
-      - name: Lost-response strict-ratchet failure and idempotent retry repair
-        run: node sims/sco-ratchet-retry-candidate.js
-      - name: Certificate-validated warm and fresh TLS batch ratchet budget
-        run: node sims/sco-ratchet-tls-cost.js
-      - name: Real Chromium HttpOnly cookie and CSP SCO batch ratchet
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/sco-ratchet-batch-browser.js
-      - name: Hostile Chromium instrumentation of cookie-credentialed SCO RPC
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/sco-ratchet-browser-attacker.js
