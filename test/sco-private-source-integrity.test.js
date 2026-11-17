@@ -120,7 +120,7 @@ test('private source input getters are read once for closure and deployment comm
   };
   const getterBackedEntry={
     path:'mixed.mjs',
-    sourceType:'module',
+    sourceType:/** @type {const} */ ('module'),
     get code(){
       mainCodeReads++;
       return mainCodeReads<=3?source:source+'\n// changed after AST parsing';
