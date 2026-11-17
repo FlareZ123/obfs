@@ -697,6 +697,10 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
+      if(virtualized.declined){
+        throw new TypeError('Register VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       vmFunctions=virtualized.functions;
       vmInstructions=virtualized.instructions;
@@ -709,6 +713,10 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
+      if(virtualized.declined){
+        throw new TypeError('Expression VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       expressionVmFunctions=virtualized.functions;
       expressionVmInstructions=virtualized.instructions;
@@ -726,6 +734,10 @@ function obfuscateFiles(files, options = {}) {
       const optimized=virtualizeExpressionGraphs(code,sourceType,{
         seed:salt,names:nativeNames,backend:'native'
       });
+      if(optimized.declined){
+        throw new TypeError('Native graph declined '+optimized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=optimized.code;
       nativeGraphFunctions=optimized.functions;
       nativeGraphInstructions=optimized.instructions;
@@ -739,6 +751,10 @@ function obfuscateFiles(files, options = {}) {
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
         stateBlinding:options.experimentalBranchStateBlinding===true});
+      if(flattened.declined){
+        throw new TypeError('Branch blocks declined '+flattened.declined+
+          ' selected function(s) in '+filename);
+      }
       code=flattened.code;
       branchFunctions=flattened.functions;
       branchBlocks=flattened.blocks;
