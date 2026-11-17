@@ -62,6 +62,8 @@
     "test/decoder-array-prototype-browser.js",
     "sims/polyvariant-app-minified-static-attacker.js",
     "sims/polyvariant-app-four-way-control.js",
+    "sims/polyvariant-app-three-query-competitor.js",
+    "test/polyvariant-app-three-query-competitor.test.js",
     "test/minified-control-static-attacker.test.js",
     "test/polyvariant-app-four-way-browser.js"
   ],
