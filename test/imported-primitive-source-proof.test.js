@@ -22,7 +22,7 @@ async function execute(files) {
   try {
     for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
     const consumer=await import(pathToFileURL(path.join(dir,'consumer.mjs')).href);
-    return /** @type {string} */(consumer.result);
+    return String(consumer.result)+':'+String(consumer.value);
   }finally{
     await fs.rm(dir,{recursive:true,force:true});
   }
@@ -40,7 +40,7 @@ function sources(primitive,exportSyntax) {
         'export function peek(){return secret;}'+exporter},
     {path:'consumer.mjs',sourceType:'module',
       code:importer+'import {peek} from "./state.mjs";'+
-        'export const result=String(observed)+":"+peek();'}
+        'export const result=String(observed);export const value=peek();'}
   ];
 }
 
