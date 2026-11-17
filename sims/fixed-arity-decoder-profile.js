@@ -29,8 +29,8 @@ function execute(code,compiled) {
 
 /** @param {number} utf16Units @param {number} work @returns {string} */
 function workload(utf16Units,work) {
-  const units='A😀Z\\uD800\\uDC00\\0'.repeat(Math.ceil(utf16Units/16))
-    .slice(0,utf16Units);
+  const motif='A😀Z'+String.fromCharCode(0xD800,0xDC00,0,0xFFFF);
+  const units=motif.repeat(Math.ceil(utf16Units/motif.length)).slice(0,utf16Units);
   return 'const literal='+JSON.stringify(units)+';'+
     'let acc=0;for(let k=0;k<'+work+';k++){'+
     'acc=(Math.imul(acc^literal.charCodeAt(k%literal.length),1664525)+1013904223)|0;'+
