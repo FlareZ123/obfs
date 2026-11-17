@@ -115,4 +115,37 @@ function evaluateFourWayCrossRuntime(node,browser){
   };
 }
 
+/**
+ * Combine the JSON artifacts produced by the same pinned workflow checkout.
+ * This command reports a blocked candidate without failing the evidence
+ * experiment merely because the test has discovered a real budget violation.
+ *
+ * @returns {Promise<void>}
+ */
+async function main(){
+  const fs=require('node:fs/promises');
+  const {atomicWrite}=require('../src/atomic');
+  const nodePath=process.env.OBFS_FOUR_WAY_NODE_FILE;
+  const browserPath=process.env.OBFS_FOUR_WAY_BROWSER_FILE;
+  if(!nodePath||!browserPath){
+    throw new Error('Both pinned Node and Chromium audit file paths are required');
+  }
+  const [nodeRaw,browserRaw]=await Promise.all([
+    fs.readFile(nodePath,'utf8'),fs.readFile(browserPath,'utf8')
+  ]);
+  const node=/** @type {NodeFourWay} */(JSON.parse(nodeRaw));
+  const browser=/** @type {BrowserFourWay} */(JSON.parse(browserRaw));
+  const verdict=evaluateFourWayCrossRuntime(node,browser);
+  const output=JSON.stringify(verdict,null,2)+'\n';
+  if(process.env.OBFS_FOUR_WAY_JOIN_FILE)
+    await atomicWrite(process.env.OBFS_FOUR_WAY_JOIN_FILE,output);
+  process.stdout.write('MINIFIED_FOUR_WAY_CROSS_RUNTIME '+JSON.stringify(verdict)+'\n');
+}
+
+if(require.main===module)main().catch(error=>{
+  process.stderr.write(String(error.stack||error)+'\n');
+  process.exitCode=1;
+});
+
 module.exports={evaluateFourWayCrossRuntime};
+
