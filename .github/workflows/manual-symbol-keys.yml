@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Proven own-key membership differential across COO SNO and ESM
-        run: node --test test/property-in-operator.test.js
+        run: node --test test/property-in-operator.test.js test/property-in-adversarial.test.js
       - name: Native and attacker differential tests
         run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
       - name: Native versus rewritten own-key membership hot-loop cost
