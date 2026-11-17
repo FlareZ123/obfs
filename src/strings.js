@@ -124,14 +124,17 @@ function encodeStrings(source, ast, options) {
   // shorter decoder path, preserving startup speed and the existing AST shape.
   const useChunks=encoded.some(value=>value.length>=1024);
   const chunkedDecoder = `for(let ${offsetName}=0;${offsetName}<${raw}.length;${offsetName}+=4096){const ${units}=[];for(let ${j}=${offsetName};${j}<${raw}.length&&${j}<${offsetName}+4096;${j}++)${units}[${j}-${offsetName}]=${raw}.charCodeAt(${j})^${key};${decoded}+=String.fromCharCode(...${units});}`;
-  // Fixed-arity calls avoid the decoder's temporary [] index writes and
-  // spread iterator. This experimental long-literal backend retains the
-  // original encoded table format, so a source-only XOR recovery remains
-  // possible; it adds no confidentiality or hostile-runtime integrity.
-  const fixedArityArgs=Array.from({length:64},(_,index)=>
-    `${raw}.charCodeAt(${offsetName}+${index})^${key}`).join(',');
-  const fixedArityDecoder=`let ${offsetName}=0;for(;${offsetName}+64<=${raw}.length;${offsetName}+=64)${decoded}+=String.fromCharCode(${fixedArityArgs});for(let ${j}=${offsetName};${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
-  const longDecoder=options.fixedArity ? fixedArityDecoder : chunkedDecoder;
+  // Fixed-arity calls avoid temporary [] writes and spread iteration.
+  // On short-only files or when disabled, retain the existing decoder and
+  // avoid allocating the unrolled 256-operand source during compilation.
+  // The XOR table remains source-only recoverable and is not a secrecy layer.
+  let longDecoder=chunkedDecoder;
+  if(options.fixedArity&&useChunks) {
+    const width=256;
+    const args=Array.from({length:width},(_,index)=>
+      `${raw}.charCodeAt(${offsetName}+${index})^${key}`).join(',');
+    longDecoder=`let ${offsetName}=0;for(;${offsetName}+${width}<=${raw}.length;${offsetName}+=${width})${decoded}+=String.fromCharCode(${args});for(let ${j}=${offsetName};${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
+  }
   const decoder=useChunks ? `if(${raw}.length<1024){${originalDecoder}}else{${longDecoder}}` : originalDecoder;
   const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';${decoder}${helper}[${i}]=${decoded};}\n`;
 
