@@ -33,6 +33,8 @@ jobs:
         run: node sims/sco-ratchet-boundary.js
       - name: SCO atomic ratchet batch 25ms RTT-surrogate and budget veto
         run: node sims/sco-ratchet-batch-candidate.js
+      - name: Actual online account-A stateful ratchet relay attack
+        run: node sims/sco-ratchet-online-relay.js
       - name: Certificate-validated warm and fresh TLS batch ratchet budget
         run: node sims/sco-ratchet-tls-cost.js
       - name: Real Chromium HttpOnly cookie and CSP SCO batch ratchet
