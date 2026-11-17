@@ -19,8 +19,8 @@ const targets=Object.freeze(['round1','round2','round3']);
  */
 function recoverMinifiedPublicMath(source){
   const start=performance.now();
-  const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'});
-  /** @type {Map<string,import('acorn').Node>} */
+  const ast=/** @type {import('../src/ast').AstNode} */ (acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'}));
+  /** @type {Map<string,import('../src/ast').AstNode>} */
   const functions=new Map();
   /** @type {Map<string,string>} */
   const exports=new Map();
