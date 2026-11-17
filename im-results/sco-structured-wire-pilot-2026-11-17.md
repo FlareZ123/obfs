@@ -252,6 +252,29 @@ server process isolation, network RTT and concurrent adversarial loads
 are absent. The script has not yet been run on pinned Linux/Windows
 builders, so no passing verdict is inferred.
 
+## Chromium timer-resolution falsification and controlled rerun
+
+The first Chromium-enabled [run
+44019300099](https://github.com/FlareZ123/obfs/actions/runs/44019300099),
+pinned to `d66a99d925afea04a2a7677e272a7a9adeb34110`, was
+**red overall**. Windows Node profile passed; Ubuntu failed at
+`sims/sco-devalue-browser-profile.js:173` because an in-browser
+hot sample measured `0` milliseconds, violating the profile's
+strict positive-time assertion. Its page had successfully loaded and
+executed the candidate; this error prevents asserting a browser budget
+from that run. The initial invocation used Chromium's
+`--virtual-time-budget=12000` and ran very brief sampled loops, making
+timer resolution a plausible confound. The exact platform trace does
+not establish whether virtual-clock behavior alone caused the zero.
+
+The [fix at
+`95da13f7982f241a156c5c3febaa38d2a00b2ddf`](https://github.com/FlareZ123/obfs/commit/95da13f7982f241a156c5c3febaa38d2a00b2ddf)
+removes virtual-time forcing, increases repeated hot work, permits
+finite zero samples as observations, and labels any affected
+comparison `timerResolutionLimited` with **null** confidence diagnostics
+rather than hiding or dividing by zero. It retains raw duration arrays
+for audit. The new pinned combined workflow is pending.
+
 ## Reproduction
 
 Manually dispatch
