@@ -156,7 +156,8 @@ async function main(){
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
     }
     const comparisons=Object.fromEntries(/** @type {const} */([2,4,8]).map(count=>[
-      count,pairedBudgetBound(actual.samples.native,actual.samples['v'+count])
+      count,pairedBudgetBound(actual.samples.native,
+        actual.samples[/** @type {'v2'|'v4'|'v8'} */ ('v'+count)])
     ]));
     const ratios=Object.fromEntries(/** @type {const} */([2,4,8]).map(count=>[
       count,comparisons[count].ratioOfMedians.toFixed(3)
