@@ -6,7 +6,7 @@ const {createHash}=require('node:crypto');
 const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
-const {prepare}=require('../sims/polyvariant-app-four-way-control');
+const {prepare,digest}=require('../sims/polyvariant-app-four-way-control');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 const {atomicWrite}=require('../src/atomic');
 
@@ -148,6 +148,8 @@ document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,
 /** @returns {Promise<void>} */
 async function main(){
   const {graphs,minifiedAttack,publishedAttack}=await prepare();
+  const sourceSha256=Object.fromEntries(Object.entries(graphs).map(
+    ([name,files])=>[name,digest(files)]));
   assert.equal(minifiedAttack.recovered,3);
   assert.equal(publishedAttack.functions.length,3);
   const assets=new Map();
@@ -256,7 +258,7 @@ async function main(){
     const coldTotalCooBudget=pairedBudgetBound(
       actual.cold['10000'].native,actual.cold['10000'].published);
     const browserEvidence={
-      node:process.version,platform:process.platform,chromeVersion,
+      node:process.version,platform:process.platform,chromeVersion,sourceSha256,
       clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,

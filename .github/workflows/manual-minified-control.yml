@@ -25,6 +25,8 @@ jobs:
         run: node --test test/minified-control-static-attacker.test.js
       - name: Validate falsifiable candidate decision and strict sample veto
         run: node --test test/candidate-vs-minified-decision.test.js
+      - name: Verify cross-runtime evidence merge, source commitment and strict CPU veto
+        run: node --test test/four-way-cross-runtime-verdict.test.js
       - name: Verify matched three-query oracle and nonlinear rejection control
         run: node --test test/polyvariant-app-three-query-competitor.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
@@ -49,6 +51,20 @@ jobs:
         with:
           name: four-way-browser-${{ runner.os }}
           path: four-way-browser-${{ runner.os }}.json
+          if-no-files-found: error
+      - name: Cross-check emitted hashes and assess strict Node + Chromium CPU budget
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          OBFS_FOUR_WAY_NODE_FILE: four-way-node-${{ runner.os }}.json
+          OBFS_FOUR_WAY_BROWSER_FILE: four-way-browser-${{ runner.os }}.json
+          OBFS_FOUR_WAY_JOIN_FILE: four-way-cross-runtime-${{ runner.os }}.json
+        run: node sims/four-way-cross-runtime-verdict.js
+      - name: Upload cross-runtime strict-budget and attacker verdict
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: four-way-cross-runtime-${{ runner.os }}
+          path: four-way-cross-runtime-${{ runner.os }}.json
           if-no-files-found: error
       - name: Strict JSDoc across the branch after independent experiment results
         if: always()
