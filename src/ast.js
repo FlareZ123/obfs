@@ -2033,8 +2033,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
        (target?.type==='Identifier'||target?.type==='MemberExpression')) {
       for(const property of pattern.properties) {
         if(property.type!=='Property') {
-          if(globals.has(target.name)||moduleRoots.has(target.name)||
-             processRoots.has(target.name)||requireRoots.has(target.name))observed=true;
+          if(canReadLoaderRoot(target,null) ||
+             target.type==='Identifier' && globals.has(target.name))observed=true;
           continue;
         }
         const field=property.computed ? knownKey(property.key) :
