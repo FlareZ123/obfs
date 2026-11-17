@@ -34,6 +34,10 @@ constructed Error logging, computed and aliased console methods, native
 `node:util`/`util` inspection and formatting, extracted util functions,
 and direct/constant-key `util.getCallSites` observation.
 
+## Cross-platform confirmation
+
+[Run 44103793268](https://github.com/FlareZ123/obfs/actions/runs/44103793268) **passed** at source-pinned `adbfd942dc4d87ec03e4a5734750ba0492bf78f4` on both **Ubuntu and Windows Node 22**. Each operating system independently passed the full native-source and multi-mode regression step, the equal-width native feasibility step, strict project JSDoc and external JSDoc. This validates the selected fixtures on the two platforms, without extending the guarantee to unmodeled programs or browser runtimes.
+
 ## What the counts mean
 
 The 504/504 and 36/36 pass counts are tests of the selected deterministic
