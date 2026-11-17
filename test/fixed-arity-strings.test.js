@@ -22,7 +22,7 @@ function execute(source,mutation='') {
 for(const mode of /** @type {const} */ (['sno','coo'])) {
   test('fixed-arity decoder preserves all 64 possible tail lengths in '+mode,()=>{
     const strings=Array.from({length:64},(_,index)=>
-      'A'.repeat(1024+index)+'😀+String.fromCharCode(0xD800,0));
+      'A'.repeat(1024+index)+'😀'+String.fromCharCode(0xD800,0));
     const source='module.exports=JSON.stringify('+JSON.stringify(strings)+');';
     const output=obfuscateFiles([{path:'value.cjs',sourceType:'commonjs',code:source}],{
       mode,seed:'fixed-arity-64-tails/'+mode,strings:true,properties:false,
