@@ -113,8 +113,12 @@ async function main(){
       changes:compiled.files.filter((file,i)=>file.code!==sources[i].code).map(file=>file.path)
     });
   }
+  // Opaque process.argv[2] makes JSON.parse a source observer even after
+  // removing unrelated reflection/stringification expressions. Only the two
+  // explicitly type-guarded positive contracts can prove the input primitive.
   assert.deepEqual(rows.map(row=>row.observerPaths),[
-    ['reflect.mjs','entry.mjs'],['entry.mjs'],['reflect.mjs'],[],[],[]
+    ['reflect.mjs','entry.mjs'],['entry.mjs'],
+    ['reflect.mjs','entry.mjs'],['entry.mjs'],[],[]
   ]);
   assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,0,2,2],
     'Plain missing keys decline; changed own-key-only and null-prototype programs retain coverage');
