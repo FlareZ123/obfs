@@ -58,7 +58,11 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
         method===partition.methodNames.protectedDigest &&
         args.length===1&&typeof args[0]==='number'
     }));
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const activeServer=server;
+    /** @type {Promise<void>} */
+    const listening=new Promise(resolve=>
+      activeServer.listen(0,'127.0.0.1',()=>resolve()));
+    await listening;
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
@@ -91,7 +95,11 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
   }finally{
     globalThis.fetch=nativeFetch;
     if(server){
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      const activeServer=server;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        activeServer.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     await fs.rm(root,{recursive:true,force:true});
   }

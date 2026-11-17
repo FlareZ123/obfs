@@ -21,12 +21,10 @@ jobs:
           node-version: '22'
       - name: Install exact declared minifier and project libraries
         run: npm install --no-package-lock --ignore-scripts
-      - name: Validate falsifiable candidate decision and strict sample veto
-        run: node --test test/candidate-vs-minified-decision.test.js
-      - name: Strict JSDoc for original and research comparison code
-        run: npm run typecheck:external
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
+      - name: Validate falsifiable candidate decision and strict sample veto
+        run: node --test test/candidate-vs-minified-decision.test.js
       - name: Verify matched three-query oracle and nonlinear rejection control
         run: node --test test/polyvariant-app-three-query-competitor.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
@@ -42,7 +40,7 @@ jobs:
       - name: Real Chromium four-way ESM and host callback differential
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
           OBFS_FOUR_WAY_BROWSER_AUDIT_FILE: four-way-browser-${{ runner.os }}.json
         run: node test/polyvariant-app-four-way-browser.js
       - name: Upload exact Chromium app timings
@@ -52,3 +50,6 @@ jobs:
           name: four-way-browser-${{ runner.os }}
           path: four-way-browser-${{ runner.os }}.json
           if-no-files-found: error
+      - name: Strict JSDoc across the branch after independent experiment results
+        if: always()
+        run: npm run typecheck:external

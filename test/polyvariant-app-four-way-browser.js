@@ -3,8 +3,7 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createHash}=require('node:crypto');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-four-way-control');
@@ -36,6 +35,14 @@ function observeNode(api,count){
 function page(){
   return `<!doctype html><html><meta charset="utf-8"><body>
 <pre id="out">pending</pre>
+<script>
+window.addEventListener('error',event=>{
+  document.getElementById('out').textContent='fail:'+event.message;
+});
+window.addEventListener('unhandledrejection',event=>{
+  document.getElementById('out').textContent='fail:'+String(event.reason);
+});
+</script>
 <script type="module">
 import {runScenario as native} from "/native/entry.mjs";
 import {runScenario as minified} from "/minified/entry.mjs";
@@ -58,6 +65,12 @@ async function sha256(value){
   const bytes=new Uint8Array(await crypto.subtle.digest("SHA-256",data));
   return Array.from(bytes,byte=>byte.toString(16).padStart(2,"0")).join("");
 }
+let clockChecksum=0;
+const clockStarted=performance.now();
+for(let i=0;i<5000000;i++)clockChecksum=(clockChecksum+(i^0x9e37))|0;
+const clockProbeMs=performance.now()-clockStarted;
+if(!Number.isFinite(clockProbeMs)||clockProbeMs<0.1)
+  throw Error('Chromium monotonic clock did not advance under CPU work');
 const rows=[];
 for(const count of [1,50,1000,10000]){
   const input=records(count),expected=observe(native,input);
@@ -96,27 +109,39 @@ for(let trial=0;trial<12;trial++)
 // Distinct URL prefixes force fresh ESM graph fetch, parse, link, evaluate,
 // and first invocation for each measurement, including all dependencies.
 const cold={};
+const coldImport={};
+const coldCompute={};
 for(const count of [1,10000]){
   const input=records(count);
   const expected=observe(native,input);
   const timings={native:[],minified:[],published:[],reconstructed:[]};
+  const importTimings={native:[],minified:[],published:[],reconstructed:[]};
+  const computeTimings={native:[],minified:[],published:[],reconstructed:[]};
   for(let trial=0;trial<12;trial++){
     for(const name of orders[trial%orders.length]){
       const start=performance.now();
       const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
+      const loaded=performance.now();
       const callbacks=[];
       const output=api.runScenario(-817,input,{emit(item){callbacks.push(item);}});
-      const elapsed=performance.now()-start;
+      const finished=performance.now();
+      const elapsed=finished-start;
+      const importMs=loaded-start;
+      const computeMs=finished-loaded;
       if(output!==expected.output||
          JSON.stringify(callbacks)!==expected.callbacks||
          callbacks.length!==count||elapsed<=0)
         throw Error("Fresh ESM graph output or host trace differs: "+name+":"+count);
       timings[name].push(elapsed);
+      importTimings[name].push(importMs);
+      computeTimings[name].push(computeMs);
     }
   }
   cold[count]=timings;
+  coldImport[count]=importTimings;
+  coldCompute[count]=computeTimings;
 }
-document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold});
+document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold,coldImport,coldCompute,clockProbeMs,clockChecksum});
 </script></body></html>`;
 }
 
@@ -131,6 +156,8 @@ async function main(){
   assert.equal(assets.size,12);
   assets.set('/index.html',page());
   let coldModuleRequests=0;
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browserSession;
 
   const native=await import(pathToFileURL(
     path.join(__dirname,'../examples/polyvariant-app/native/entry.mjs')).href);
@@ -164,13 +191,25 @@ async function main(){
       assert.equal(response.status,200);
       assert.equal(await response.text(),graphs[/** @type {keyof typeof graphs} */(variant)].find(file=>file.path==='math.mjs')?.code);
     }
-    const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=30000','--dump-dom',root+'/index.html'
-    ],{timeout:60000,maxBuffer:8*1024*1024,encoding:'utf8'});
-    const text=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
-    assert.ok(text,'Browser did not complete four-way ESM application: '+stdout.slice(-1800));
-    const actual=JSON.parse(text);
+    browserSession=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const chromeVersion=await browserSession.version();
+    const chromePage=await browserSession.newPage();
+    await chromePage.goto(root+'/index.html',{waitUntil:'domcontentloaded',timeout:60000});
+    await chromePage.waitForFunction(()=>{
+      const text=document.getElementById('out')?.textContent??'';
+      return text.startsWith('pass:')||text.startsWith('fail:');
+    },{timeout:90000,polling:50});
+    const rendered=await chromePage.$eval('#out',element=>element.textContent??'');
+    assert.ok(rendered.startsWith('pass:'),
+      'Browser rejected four-way application: '+rendered.slice(0,2000));
+    const actual=/** @type {{rows:unknown[],samples:Record<string,number[]>,cold:Record<string,Record<string,number[]>>,coldImport:Record<string,Record<string,number[]>>,coldCompute:Record<string,Record<string,number[]>>,clockProbeMs:number,clockChecksum:number}} */
+      (JSON.parse(rendered.slice(5)));
+    assert.ok(Number.isFinite(actual.clockProbeMs)&&actual.clockProbeMs>=0.1,
+      'Real Chromium CPU clock positive control did not advance');
     assert.deepEqual(actual.rows,expected);
     for(const name of ['native','minified','published','reconstructed']){
       const samples=/** @type {number[]} */ (actual.samples[name]);
@@ -180,7 +219,18 @@ async function main(){
         const cold=/** @type {number[]} */ (actual.cold[count][name]);
         assert.equal(cold.length,12);
         assert.ok(cold.every(value=>Number.isFinite(value)&&value>0));
+        const imported=actual.coldImport[count][name];
+        const computed=actual.coldCompute[count][name];
+        assert.equal(imported.length,12);
+        assert.equal(computed.length,12);
+        for(let trial=0;trial<12;trial++){
+          assert.ok(Number.isFinite(imported[trial])&&imported[trial]>0);
+          assert.ok(Number.isFinite(computed[trial])&&computed[trial]>=0);
+          assert.ok(Math.abs(imported[trial]+computed[trial]-cold[trial])<1e-6);
+        }
       }
+      assert.ok(actual.coldCompute['10000'][name].some(value=>value>0),
+        'Synchronous 10000-event cold CPU was not measured: '+name);
     }
     // Two workloads x 12 trials x 4 variants x 3 distinct ESM module URLs.
     assert.equal(coldModuleRequests,288,'All cold ESM graph dependencies must be fetched');
@@ -191,16 +241,33 @@ async function main(){
         nativeToPublished:pairedBudgetBound(actual.cold[count].native,actual.cold[count].published),
         minifiedToPublished:pairedBudgetBound(actual.cold[count].minified,actual.cold[count].published),
         nativeToReconstructed:pairedBudgetBound(actual.cold[count].native,actual.cold[count].reconstructed),
-        samples:actual.cold[count]
+        computePublishedVsNative:count==='10000'?pairedBudgetBound(
+          actual.coldCompute[count].native,actual.coldCompute[count].published):null,
+        computeMinifiedVsNative:count==='10000'?pairedBudgetBound(
+          actual.coldCompute[count].native,actual.coldCompute[count].minified):null,
+        totalMs:actual.cold[count],importMs:actual.coldImport[count],
+        computeMs:actual.coldCompute[count]
       }
     ]));
+    const warmCooBudget=pairedBudgetBound(
+      actual.samples.native,actual.samples.published);
+    const coldCpuCooBudget=pairedBudgetBound(
+      actual.coldCompute['10000'].native,actual.coldCompute['10000'].published);
+    const coldTotalCooBudget=pairedBudgetBound(
+      actual.cold['10000'].native,actual.cold['10000'].published);
     const browserEvidence={
-      node:process.version,platform:process.platform,
+      node:process.version,platform:process.platform,chromeVersion,
+      clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
       freshGraphHttpModuleRequests:coldModuleRequests,coldFreshGraphs,
       minifiedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.minified),
-      publishedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.published),
+      publishedVsNative:warmCooBudget,
+      strictSampleBreaches:{
+        warmed10000Compute:warmCooBudget.samplePairs-warmCooBudget.observedPairsWithinBudget,
+        cold10000Compute:coldCpuCooBudget.samplePairs-coldCpuCooBudget.observedPairsWithinBudget,
+        cold10000Total:coldTotalCooBudget.samplePairs-coldTotalCooBudget.observedPairsWithinBudget
+      },
       publishedVsMinified:pairedBudgetBound(actual.samples.minified,actual.samples.published),
       reconstructedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.reconstructed),
       samples:actual.samples
@@ -211,8 +278,12 @@ async function main(){
     process.stdout.write('MINIFIED_FOUR_WAY_CHROMIUM '+
       JSON.stringify(browserEvidence)+'\n');
   }finally{
-    await new Promise((resolve,reject)=>server.close(
-      error=>error?reject(error):resolve(true)));
+    try{
+      if(browserSession)await browserSession.close();
+    }finally{
+      await new Promise((resolve,reject)=>server.close(
+        error=>error?reject(error):resolve(true)));
+    }
   }
 }
 if(require.main===module)main().catch(error=>{
