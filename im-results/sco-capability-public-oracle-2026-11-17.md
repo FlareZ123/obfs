@@ -1,6 +1,6 @@
 # Public-interface finite-state recovery against SCO private handles (17 November 2026)
 
-**Status:** intermediate adversarial integration test on Agent 17's branch. It is an independent challenge to the experimental Agent 12 SCO handle design, not an established obfuscation-security theorem. The exact positive/negative CI outcome is pending and must be pinned before claiming execution.
+**Status:** reproducible, scope-limited negative attack result against the experimental Agent 12 SCO handle design. The exact executable source `e8c2e2d31bd7a70a39792c6797c5a1251e58ccff` passed the full existing [Linux and Windows manual SCO oracle workflow, run 44146508736](https://github.com/FlareZ123/obfs/actions/runs/44146508736), including this new test and the SCO oracle strict JSDoc checker. This report was amended after that pin. It is not an established general obfuscation-security theorem.
 
 ## Predeclared question
 
@@ -27,4 +27,20 @@ The public facade's 43-character bearer handles are replayable by the issuing au
 
 An exact observable finite-state behavioral clone does **not** reveal the server's private source text, high-entropy secret material, or all possible internal representations. It demonstrates a capability-specific online oracle limitation that should be distinguished from confidentiality of server-private bytes. It does not imply a bypass of principal authorization, server compromise, or unrestricted extraction of arbitrary functions. The comparison is against a four-state behavioral model; ordinary minification of a client-side model is the relevant offline source-disclosure control, while a same-account RPC attacker is the relevant online control.
 
-Real Node 22 Windows/Ubuntu execution, strict JSDoc checks and full application CPU/network measurements are distinct milestones. This test is a security-negative control only and has no 2.5× performance clearance. If the CI run passes, replace this provisional status with the exact tested SHA, run ID, real RPC count, unseen-word denominator and immutable public-byte digest.
+## Pinned cross-platform observation
+
+In both Ubuntu and Windows Node 22 logs at immutable source SHA `e8c2e2d31bd7a70a39792c6797c5a1251e58ccff`:
+
+| Metric | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Attacker RPC calls reported (learner plus one initial handle mint) | 713 | 713 |
+| Distinguishable learned states | 4 | 4 |
+| Binary words of length 1..10 verified after learning | 2,046 / 2,046 | 2,046 / 2,046 |
+| Words absent from complete training-word set | 1,968 | 1,968 |
+| Unauthenticated HTTP status | 403 | 403 |
+| Cross-account handle replay | Denied | Denied |
+| Private source canary and model expressions in public facade | Absent | Absent |
+
+The exact emitted facade SHA-256 is `e70099fb7eb7248d418676afb2c798089ed7930c976842a0d154efc2f0189d1e` on both platforms. The "unseen" denominator excludes complete strings observed among all training traces, including prefixes; it is not a guarantee of fresh substrings under every possible oracle observation. Those 2,046 verifier comparisons are **not** included in the attack's 713 live public API requests. The private reference enters only after the learned model has been produced. The cross-account denial is an expected policy success for the defender.
+
+**Performance limitation:** This test's roughly 700ms Ubuntu target test duration includes mixed local HTTP, instrumentation and assertions. It is not a paired original-versus-protected CPU measurement and makes no 2.5x performance claim. A full representative Node/browser client and server workload remains unmeasured for the handle design.
