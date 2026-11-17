@@ -1072,12 +1072,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
         }
       }
-      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
-         (isWebInstance(node.init,webRecordInstances,webRecords,webRecordNames) ||
-          isWebInstance(node.init,webScalarInstances,webScalars,webScalarNames))) {
-        const fromHeaders=isWebInstance(node.init,webRecordInstances,webRecords,webRecordNames);
-        const fromSearch=isWebInstance(node.init,webScalarInstances,webScalars,webScalarNames);
-        for(const property of node.id.properties) {
+      if((node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern' ||
+          node.type==='AssignmentExpression'&&node.operator==='='&&
+            node.left.type==='ObjectPattern')) {
+        const pattern=node.type==='VariableDeclarator'?node.id:node.left;
+        const value=node.type==='VariableDeclarator'?node.init:node.right;
+        const fromHeaders=isWebInstance(value,webRecordInstances,webRecords,webRecordNames);
+        const fromSearch=isWebInstance(value,webScalarInstances,webScalars,webScalarNames);
+        if(fromHeaders||fromSearch)for(const property of pattern.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
