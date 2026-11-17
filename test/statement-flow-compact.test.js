@@ -72,8 +72,6 @@ test('compact switch states preserve early return and native atomic loop side ef
   const compiled=load(encoded.code);
   const recovered=load(recoverStatementFlow(encoded.code,'f').code);
   for(let value=-20;value<=20;value++){
-    const expected=capture(native,value,/** @type {any} */(tag=>{}));
-    // The function's second parameter is the actual hook; pass it explicitly.
     const effectsNative=[];
     const ref=native(value,tag=>effectsNative.push(tag));
     for(const candidate of [compiled,recovered]){
@@ -81,7 +79,6 @@ test('compact switch states preserve early return and native atomic loop side ef
       assert.equal(candidate(value,tag=>effects.push(tag)),ref);
       assert.deepEqual(effects,effectsNative);
     }
-    assert.equal(typeof expected.result,'number');
   }
 });
 
