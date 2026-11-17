@@ -1,0 +1,28 @@
+name: Targeted implicit console stack source-observation smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'test/implicit-console-stack-source.test.js'
+
+permissions:
+  contents: read
+
+jobs:
+  source-observation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Run implicit source-coordinate differential
+        run: node --test test/implicit-console-stack-source.test.js
+      - name: Validate strict project JSDoc
+        run: npm run typecheck
+      - name: Validate external JSDoc
+        run: npm run typecheck:external
