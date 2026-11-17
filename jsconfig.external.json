@@ -118,7 +118,8 @@
     "test/sco-ratchet-batch-browser.js",
     "sims/sco-ratchet-online-relay.js",
     "sims/sco-ratchet-retry-candidate.js",
-    "test/sco-ratchet-browser-attacker.js"
+    "test/sco-ratchet-browser-attacker.js",
+    "test/sco-ratchet-browser-equal-trust.js"
   ],
   "exclude": [
     "node_modules"
