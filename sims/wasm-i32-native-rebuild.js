@@ -36,14 +36,16 @@ function reconstructPublicWasmCommonJs(publicSource){
         helpers.set(node.id.name,candidate);
     },
     FunctionDeclaration(node){
+      const statement=node.body.body[0];
       if(!node.id||node.params.some(param=>param.type!=='Identifier')||
-          node.body.body.length!==1||node.body.body[0].type!=='ReturnStatement')return;
+          node.body.body.length!==1||statement.type!=='ReturnStatement')return;
       const parameters=node.params.map(param=>
         (/** @type {import('acorn').Identifier} */ (param)).name);
-      let expression=node.body.body[0].argument;
+      let expression=statement.argument;
       if(!expression)return;
       if(expression.type==='BinaryExpression'&&expression.operator==='>>>'&&
-          expression.right.type==='Literal'&&expression.right.value===0)
+          expression.right.type==='Literal'&&expression.right.value===0&&
+          expression.left.type!=='PrivateIdentifier')
         expression=expression.left;
       if(expression.type!=='CallExpression'||expression.callee.type!=='Identifier'||
           expression.arguments.length!==parameters.length||
