@@ -19,6 +19,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Run implicit source-coordinate differential
         run: node --test test/implicit-console-stack-source.test.js test/node-util-format-source-observation.test.js test/implicit-source-mode-matrix.test.js test/implicit-source-mode-fuzz.test.js test/node-process-warning-source-observation.test.js
+      - name: Native fixed-width source-coordinate feasibility
+        run: node sims/source-coordinate-fixed-width-probe.js
       - name: Validate strict project JSDoc
         run: npm run typecheck
       - name: Validate external JSDoc
