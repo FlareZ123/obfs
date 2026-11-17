@@ -86,4 +86,24 @@ test('source-only label normalization has a documented external API collision li
   }
   assert.equal(run(source),'[17,31]');
   assert.equal(run(attacked.files[0].code),'[17,null]');
+  const guarded=normalizePublicFields([
+    {path:'synthetic.cjs',sourceType:'commonjs',code:source}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(guarded.properties,1,
+    'A protected local field must still be independently neutralized');
+  assert.equal(run(guarded.files[0].code),'[17,31]',
+    'The unbound HOST API receiver cannot be relabeled');
+  assert.ok(guarded.files[0].code.includes('HOST.'+field));
+});
+
+test('free-root guard still normalizes same public label across relative ESM imports',()=>{
+  const name='_p123456789abc';
+  const guarded=normalizePublicFields([
+    {path:'state.mjs',sourceType:'module',code:'export const state={'+name+':41};'},
+    {path:'bridge.mjs',sourceType:'module',
+      code:'import {state} from "./state.mjs";export const result=state.'+name+';'}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(guarded.properties,1);
+  assert.ok(guarded.files[0].code.includes('state={_publicField0:41}'));
+  assert.ok(guarded.files[1].code.includes('state._publicField0'));
 });
