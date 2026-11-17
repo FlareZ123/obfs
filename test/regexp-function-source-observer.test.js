@@ -133,6 +133,20 @@ test('RegExp of a known static primitive remains a genuine transformed positive 
 });
 
 
+
+test('native RegExp constructor alias on proven string leaves unrelated Wasm work',()=>{
+  const code='function f(a){return a^17;}'+
+    'const Rx=RegExp;const {test:check}=Rx.prototype;'+
+    'module.exports=[f(3),check.call(/a\\^17/,"a^17")];';
+  const lowered=lowerWasmI32Functions(code,'commonjs',{
+    seed:'regexp-alias-primitive-positive',names:['f']
+  });
+  assert.equal(lowered.functions,1);
+  assert.equal(lowered.declined,0);
+  assert.deepEqual(Array.from(/** @type {unknown[]} */(run(lowered.code))),
+    Array.from(/** @type {unknown[]} */(run(code))));
+});
+
 test('cross-file ESM RegExp consumers reject source-rewriting Wasm while static-string checks remain eligible',()=>{
   const exported='export function f(a){return a^17;}';
   /** @type {import('../src/core').SourceFile[]} */
