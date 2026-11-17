@@ -898,6 +898,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
             if(name==='Symbol')changed=add(symbols,property.value.name)||changed;
+            if(name==='String')
+              changed=add(nativeStringConstructors,property.value.name)||changed;
+            if(name==='RegExp')
+              changed=add(nativeRegExpConstructors,property.value.name)||changed;
           }
           if(name!==null&&webScalarNames.has(name)) {
             changed=add(webScalars,property.value.name)||changed;
