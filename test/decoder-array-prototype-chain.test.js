@@ -62,6 +62,18 @@ for(const [name,mutate] of [
   ['computed-parent-const-key',
     "const key='__proto__';const parent=Array.prototype[key];"+
     "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['object-get-prototype-parent',
+    "const parent=Object.getPrototypeOf(Array.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['reflect-get-prototype-parent',
+    "const parent=Reflect.getPrototypeOf(Array.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['aliased-object-get-prototype-parent',
+    "const O=Object;const parent=O.getPrototypeOf(Array.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['detached-object-get-prototype-parent',
+    "const get=Object.getPrototypeOf;const parent=get(Array.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
   ['array-own-descriptor',
     "Object.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
   ['object-own-descriptor',
