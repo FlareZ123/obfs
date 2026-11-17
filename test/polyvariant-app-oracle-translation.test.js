@@ -58,5 +58,7 @@ test('published COO application admits full three-query, heldout-validated clone
   assert.equal(report.affineHeldoutFunctionComparisons,3*4096);
   assert.equal(report.affineNonlinearNegativeControl,true);
   assert.equal(report.originalGraphUsedForInference,false);
+  assert.ok(report.publishedBytes>report.nativeBytes);
+  assert.ok(report.nativeBytes>0);
   assert.ok(report.attackMs>=0&&Number.isFinite(report.attackMs));
 });
