@@ -358,10 +358,27 @@ The handler invalidates the supplied execution callback once the isolation
 wrapper returns or throws. A detached callback invoked later rejects before
 private work begins, even if the original HTTP request has already failed.
 The [two-platform red/green regression](../im-results/sco-isolation-expired-callback-2026-11-16.md)
-demonstrates this bounded safety property. This does not repair an integrator
-that **starts** execution before returning but fails to await completion and
-releases its application lock prematurely. The original await/locking
-contract remains mandatory.
+demonstrates that original bounded safety property.
+
+The handler also checks that the execution promise has settled before accepting
+the isolation wrapper's return. If a faulty wrapper starts `execute()` and
+returns while an asynchronous authorization check is pending, the handler
+responds with a generic HTTP 500 and invalidates the execution scope.
+Continuation after the pending `authorizeRpc`, `authorizeOperation`, or
+per-item batch policy check verifies that the scope remains active before
+running further policy or protected work. A detached operation's eventual
+return value is also blocked from being sent as a successful RPC response.
+A wrapper which awaits `execute()` but suppresses its exception cannot leave
+the HTTP connection pending without a response.
+
+These guards **cannot cancel private methods already entered**, undo their
+effects, or restore a lock that an integrator prematurely released. A correct
+integrator must still await `execute()` exactly once and hold the lock or
+transaction until the entire operation settles. Tests for detachment across
+pending authorization gates are in
+[`test/sco-rpc-isolation.test.js`](../test/sco-rpc-isolation.test.js).
+The native asynchronous promise lifecycle follows the language's ordinary
+`await` and `finally` semantics.
 
 The hook is optional. With the hook unset, existing early coarse
 authorization and request behavior remain unchanged. When the hook is
