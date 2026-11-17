@@ -59,6 +59,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-spelling-mask-browser.js
+      - name: Compare native and guarded large ESM strings after prototype index mutation in Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-array-prototype-browser.js
       - name: Strict-check pinned TLS Chromium SCO challenge JSDoc
         run: npx tsc -p jsconfig.sco-tls-browser.json
       - name: Execute real SCO client over test-pinned HTTPS in Chromium
