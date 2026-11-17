@@ -50,7 +50,7 @@ for(const mode of ['coo','sco']) {
 }
 
 test('cross-module primitive-only logging does not suppress all transforms',()=>{
-  const producer="export const owner={longPrivateField:73};"+
+  const producer="const owner={longPrivateField:73};"+
     "export function calculate(){return owner.longPrivateField;}";
   const consumer="import {calculate} from './producer.mjs';"+
     "console.log(42);export const value=calculate();";
