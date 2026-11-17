@@ -1,0 +1,5 @@
+{
+  "extends": "./jsconfig.json",
+  "include": ["test/statement-flow-ambient-callback-fuzz.test.js"],
+  "exclude": ["node_modules"]
+}
