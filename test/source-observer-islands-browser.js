@@ -53,12 +53,14 @@ async function main(){
   assert.equal(normalized.properties,2);
   /** @type {Map<string,string>} */
   const resources=new Map();
-  for(const [folder,files] of [
+  /** @type {Array<[string,SourceFile[]]>} */
+  const graphs=[
     ['original',original],
     ['emitted',emitted.files],
     ['normalized',emitted.files.map(file=>file.path==='independent.mjs' ?
       {...file,code:normalized.code} : file)]
-  ]) {
+  ];
+  for(const [folder,files] of graphs) {
     for(const file of files)resources.set('/'+folder+'/'+file.path,String(file.code));
     resources.set('/'+folder+'/index.html',page());
   }
