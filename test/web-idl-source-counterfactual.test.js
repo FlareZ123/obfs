@@ -72,3 +72,19 @@ test('top-level guarded transformation prevents selected Wasm output in the same
     experimentalWasmI32:{'entry.cjs':['f']}
   }),/Wasm i32 requires|declined/i);
 });
+
+for(const [name,body] of [
+  ['Request.headers','const request=new Request("https://example.test/");request.headers.append("x-observed",f);module.exports=request.headers.get("x-observed");'],
+  ['Response.headers','const response=new Response("fixed");response.headers.append("x-observed",f);module.exports=response.headers.get("x-observed");'],
+  ['URL.searchParams','const url=new URL("https://example.test/");url.searchParams.append("q",f);module.exports=url.searchParams.get("q");']
+]) {
+  test('top-level guarded transformation refuses native accessor source: '+name,()=>{
+    const source=original+body;
+    assert.throws(()=>obfuscateFiles([{
+      path:'entry.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode:'sno',seed:'guarded-web-idl-accessor-wasm/'+name,strings:false,
+      experimentalWasmI32:{'entry.cjs':['f']}
+    }),/Wasm i32 requires|declined/i);
+  });
+}
