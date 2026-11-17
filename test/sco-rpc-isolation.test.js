@@ -267,3 +267,76 @@ for (const gate of ['authorizeRpc','authorizeOperation']) {
     }
   });
 }
+
+
+test('SCO masks an execute error swallowed by its isolation wrapper',async()=>{
+  let attempts=0;
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{broken:()=>{
+      attempts++;
+      throw new Error('secret task exception');
+    }},
+    authorizeRpc:()=>true,
+    // A faulty integrator may suppress execution errors instead of
+    // propagating them. The server must terminate the HTTP response.
+    runRpcIsolated:async(_request,execute)=>{
+      try{
+        await execute();
+      }catch{
+        // Faulty wrapper: do not do this in production.
+      }
+    }
+  }));
+  const port=await listen(server);
+  try{
+    const response=await invoke(port,'broken',[]);
+    assert.deepEqual(response,{status:500,body:{ok:false,error:'Operation failed'}});
+    assert.equal(attempts,1);
+    assert.ok(!JSON.stringify(response).includes('secret task exception'));
+  }finally{
+    await close(server);
+  }
+});
+
+test('SCO withholds output when isolation expires after private work has started',async()=>{
+  const entered=latch();
+  const release=latch();
+  let starts=0;
+  /** @type {Promise<{ok:boolean,error?:string}>} */
+  let detached=Promise.resolve({ok:true});
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{privateWork:async()=>{
+      starts++;
+      entered.resolve();
+      await release.promise;
+      return 'sensitive result';
+    }},
+    authorizeRpc:()=>true,
+    runRpcIsolated:async(_request,execute)=>{
+      detached=execute().then(
+        ()=>({ok:true}),
+        error=>({ok:false,error:String(error)})
+      );
+      await entered.promise;
+      // Returning now releases the integrator's scope, despite an
+      // already running private task that the handler cannot cancel.
+    }
+  }));
+  const port=await listen(server);
+  try{
+    const response=invoke(port,'privateWork',[]);
+    await entered.promise;
+    await new Promise(resolve=>setImmediate(resolve));
+    release.resolve();
+    const completion=await detached;
+    const actual=await response;
+    assert.deepEqual(actual,{status:500,body:{ok:false,error:'Operation failed'}});
+    assert.equal(starts,1,'Started work cannot be forcibly rolled back by the handler');
+    assert.equal(completion.ok,false);
+    assert.match(completion.error||'',/RPC isolation execution scope has closed/);
+    assert.ok(!JSON.stringify(actual).includes('sensitive result'));
+  }finally{
+    release.resolve();
+    await close(server);
+  }
+});
