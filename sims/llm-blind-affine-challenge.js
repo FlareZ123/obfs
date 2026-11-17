@@ -36,7 +36,7 @@ function privateAffine(name){
   let expression='(input|0)';
   let offset=0;
   for(let operation=0;operation<10;operation++){
-    const constant=randomInt(1,512);
+    const constant=randomInt(1,256);
     const sign=operation%2===0?'+':'-';
     expression='('+expression+sign+constant+')';
     offset+=operation%2===0?constant:-constant;
