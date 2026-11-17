@@ -20,21 +20,21 @@ function execute(source,mutation='') {
 }
 
 for(const mode of /** @type {const} */ (['sno','coo'])) {
-  test('fixed-arity decoder preserves all 64 possible tail lengths in '+mode,()=>{
-    const strings=Array.from({length:64},(_,index)=>
+  test('fixed-arity decoder preserves all 256 possible tail lengths in '+mode,()=>{
+    const strings=Array.from({length:256},(_,index)=>
       'A'.repeat(1024+index)+'😀'+String.fromCharCode(0xD800,0));
     const source='module.exports=JSON.stringify('+JSON.stringify(strings)+');';
     const output=obfuscateFiles([{path:'value.cjs',sourceType:'commonjs',code:source}],{
       mode,seed:'fixed-arity-64-tails/'+mode,strings:true,properties:false,
       identifiers:false,experimentalFixedArityStrings:true
     }).files[0];
-    assert.equal(output.metrics.literals,64);
+    assert.equal(output.metrics.literals,256);
     assert.match(String(output.code),/fromCharCode\([^)]*charCodeAt/u);
     assert.doesNotMatch(String(output.code),/fromCharCode\(\.\.\./u);
     assert.equal(execute(String(output.code)),execute(source));
     const attacker=recoverObfuscatedStrings(String(output.code),'commonjs');
     assert.equal(attacker.tables,1,'fixed arity retains public XOR recovery');
-    assert.equal(attacker.literals,64);
+    assert.equal(attacker.literals,256);
     assert.equal(execute(attacker.code),execute(source));
   });
 }
@@ -81,7 +81,7 @@ test('fixed-arity option keeps short-only decoder and default strategy unchanged
   }).files[0];
   assert.equal(result.metrics.literals,1);
   assert.equal(execute(String(result.code)),execute(source));
-  assert.doesNotMatch(String(result.code),/\+=64/u);
+  assert.doesNotMatch(String(result.code),/\+=256/u);
   const long='b'.repeat(2049);
   const legacy=obfuscateFiles([{path:'long.cjs',sourceType:'commonjs',
     code:'module.exports='+JSON.stringify(long)+';'}],{
