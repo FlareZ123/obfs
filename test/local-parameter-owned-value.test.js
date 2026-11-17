@@ -66,8 +66,8 @@ const scenarios=[
     objects:0
   },
   {
-    name:'default parameter callback observes owner shape',
-    source:'function inspect(payload=()=>Object.keys(owner)){const owner={secretField:payload};return owner.secretField();}module.exports=inspect();',
+    name:'nested callback observes owner shape',
+    source:'function inspect(payload){const owner={secretField:payload};const keys=()=>Object.keys(owner);return [owner.secretField,keys()];}module.exports=inspect(6);',
     objects:0
   },
   {
