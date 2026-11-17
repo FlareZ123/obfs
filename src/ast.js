@@ -1433,6 +1433,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // conservative refusal, never an unsafe source rewrite.
   const reflectiveReaders=new Set();
   const reflectiveBulkReaders=new Set();
+  const reflectiveApplyMethods=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
     return Boolean(expression && (expression.type==='Identifier' &&
@@ -1457,6 +1458,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           reflectiveReceivers.add(name);
           reflectiveChanged=true;
         }
+        if(value.type==='Identifier' && reflectiveApplyMethods.has(value.name) &&
+           !reflectiveApplyMethods.has(name)) {
+          reflectiveApplyMethods.add(name);
+          reflectiveChanged=true;
+        }
         if(value.type==='Identifier' && reflectiveReaders.has(value.name) &&
            !reflectiveReaders.has(name)) {
           reflectiveReaders.add(name);
@@ -1469,6 +1475,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(value.type==='MemberExpression' && isReflectiveReceiver(value.object)) {
           const method=memberName(value);
+          if((method==='apply'||method===null && value.computed) &&
+             !reflectiveApplyMethods.has(name)) {
+            reflectiveApplyMethods.add(name);
+            reflectiveChanged=true;
+          }
           if(['get','getOwnPropertyDescriptor'].includes(method??'') &&
              !reflectiveReaders.has(name)) {
             reflectiveReaders.add(name);
@@ -1484,6 +1495,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const method=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if((method===null || method==='apply') &&
+             !reflectiveApplyMethods.has(property.value.name)) {
+            reflectiveApplyMethods.add(property.value.name);
+            reflectiveChanged=true;
+          }
           if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
              !reflectiveReaders.has(property.value.name)) {
             reflectiveReaders.add(property.value.name);
@@ -2282,8 +2298,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // Reflect.apply can invoke a detached JSON.parse/rawJSON or other
       // native String coercer without a visible method call on that callee.
       // Preserve source when the first supplied argument is unproved.
-      if(callee.type==='MemberExpression' && memberName(callee)==='apply' &&
-         isReflectiveReceiver(callee.object) && isCoercer(node.arguments[0])) {
+      if((callee.type==='MemberExpression' && memberName(callee)==='apply' &&
+         isReflectiveReceiver(callee.object) || callee.type==='Identifier' &&
+         reflectiveApplyMethods.has(callee.name)) && isCoercer(node.arguments[0])) {
         const supplied=node.arguments[2];
         if(supplied?.type==='ArrayExpression') {
           if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
