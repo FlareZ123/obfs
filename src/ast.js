@@ -1504,6 +1504,70 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(callee?.type==='MemberExpression' &&
       isReflectiveReceiver(callee.object)&&memberName(callee)==='groupBy');
   }
+  // Node console methods format Error objects with captured frame coordinates,
+  // even when the program never reads .stack. console.trace() also captures
+  // the caller's location without an explicit Error construction.
+  const stackErrorConstructors=new Set(['Error','EvalError','RangeError',
+    'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
+  const stackErrorAliases=new Set();
+  const stackConsoleAliases=new Set(['console']);
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isConsoleReceiver(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      stackConsoleAliases.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)==='console'));
+  }
+  /**
+   * Recognize stack-bearing values through simple assignments and literal
+   * containers. A conservative may-flow result is enough to block an unsafe
+   * source-coordinate rewrite when an Error reaches a native logger.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function containsStackError(node,depth=0) {
+    if(!node||depth>32)return false;
+    if(node.type==='Identifier')return stackErrorAliases.has(node.name);
+    if((node.type==='NewExpression'||node.type==='CallExpression') &&
+       node.callee.type==='Identifier' &&
+       stackErrorConstructors.has(node.callee.name))return true;
+    if(node.type==='ArrayExpression')return node.elements.some(
+      (/** @type {AstNode|null} */ value)=>containsStackError(
+        value?.type==='SpreadElement'?value.argument:value,depth+1));
+    if(node.type==='ObjectExpression')return node.properties.some(
+      (/** @type {AstNode} */ property)=>
+        containsStackError(property.type==='Property'?property.value:
+          property.type==='SpreadElement'?property.argument:null,depth+1));
+    if(node.type==='ConditionalExpression')return
+      containsStackError(node.consequent,depth+1)||
+      containsStackError(node.alternate,depth+1);
+    if(node.type==='LogicalExpression')return
+      containsStackError(node.left,depth+1)||
+      containsStackError(node.right,depth+1);
+    return false;
+  }
+  // Monotone alias discovery handles a logger or Error declared after its
+  // consumer and transitive const/assignment aliases without scope guessing.
+  let changedStackAliases;
+  do {
+    changedStackAliases=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(id?.type!=='Identifier'||!value)return;
+      if(isConsoleReceiver(value)&&!stackConsoleAliases.has(id.name)) {
+        stackConsoleAliases.add(id.name);
+        changedStackAliases=true;
+      }
+      if(containsStackError(value)&&!stackErrorAliases.has(id.name)) {
+        stackErrorAliases.add(id.name);
+        changedStackAliases=true;
+      }
+    });
+  }while(changedStackAliases);
   walk(ast,(node,parent,key)=>{
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
@@ -1520,6 +1584,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      if(callee.type==='MemberExpression' && isConsoleReceiver(callee.object)) {
+        const method=memberName(callee);
+        if(method==='trace' ||
+           ['log','info','warn','error','debug','dir'].includes(method??'') &&
+             node.arguments.some((/** @type {AstNode} */ argument)=>
+               containsStackError(argument)))observed=true;
+      }
       if(isObjectGroupBy(callee) &&
          !isPrimitiveGroupByCallback(node.arguments[1]))observed=true;
       if(callee.type==='MemberExpression' && isObjectGroupBy(callee.object)) {
