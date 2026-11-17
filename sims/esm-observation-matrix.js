@@ -198,7 +198,7 @@ async function execute(folder, collection) {
  * Deterministic multi-file semantic differential and property-yield measurement.
  * @param {number} [seeds]
  * @param {'coo'|'sno'|'sco'} [mode]
- * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields:number,totalProtectedRenames:number,nativeControlNeutralizedFields:number}>}
+ * @returns {Promise<{mode:'coo'|'sno'|'sco',graphs:number,scenarios:number,positiveGraphs:number,positiveRenames:number,observedGraphs:number,observedUnsafeRenames:number,renamesByScenario:Record<string,number>,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields:number,totalProtectedRenames:number,nativeControlNeutralizedFields:number,attackerGuardedFreeReceivers:true}>}
  */
 async function runMatrix(seeds=12,mode='coo') {
   assert.ok(Number.isInteger(seeds) && seeds>0 && seeds<=100);
@@ -245,7 +245,8 @@ async function runMatrix(seeds=12,mode='coo') {
     const normalizedCases=protectedCases.map(item=>{
       // This attacker receives only the emitted files, without source input,
       // a secret seed, or compiler internals beyond its public name syntax.
-      const normalized=normalizePublicFields(item.files);
+      const normalized=normalizePublicFields(item.files,
+        {preserveFreeMemberReceivers:true});
       attackerNormalizedFields+=normalized.properties;
       return {index:item.index,files:/** @type {ModuleFile[]} */(normalized.files)};
     });
@@ -260,7 +261,8 @@ async function runMatrix(seeds=12,mode='coo') {
       mode,graphs:fixtures.length,scenarios:SCENARIOS.length,
       positiveGraphs,positiveRenames,observedGraphs,observedUnsafeRenames,
       renamesByScenario,nativeEqual:true,attackerReplayEqual:true,attackerNormalizedFields,
-      totalProtectedRenames,nativeControlNeutralizedFields
+      totalProtectedRenames,nativeControlNeutralizedFields,
+      attackerGuardedFreeReceivers:/** @type {const} */(true)
     };
   }finally{
     await fs.rm(scratch,{recursive:true,force:true});
