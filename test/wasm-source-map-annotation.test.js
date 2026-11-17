@@ -92,3 +92,19 @@ test('invalid WebAssembly container with magic bytes refuses preflight; ordinary
     entry,{path:'ordinary.bin',sourceType:'asset',code:ordinary}
   ],{mode:'coo'}).files[1].code.toString('hex'),ordinary.toString('hex'));
 });
+
+
+test('UTF-8 byte-preserving string-backed Wasm source map asset is also refused',()=>{
+  const wasm=wasmCustomSection('sourceMappingURL',Buffer.from('tiny.map'));
+  const encoded=wasm.toString('utf8');
+  assert.deepEqual(Buffer.from(encoded,'utf8'),wasm);
+  assert.equal(hasWasmSourceMapDirective(encoded),true);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+    assert.throws(()=>obfuscateFiles([
+      entry,{path:'string.wasm',sourceType:'asset',code:encoded}
+    ],{mode}),/WebAssembly source-map custom section/,mode);
+  }
+  assert.throws(()=>createScoHandler([
+    {path:'string.wasm',sourceType:'asset',code:encoded}
+  ]),/WebAssembly source-map custom section/);
+});
