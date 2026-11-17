@@ -98,27 +98,27 @@ test('CommonJS default eager setup remains available for server initialization',
   }),/Expected source/u);
 });
 
-test('SNO group compiler and CLI apply opted-in CommonJS deferred initialization',()=>{
+test('SNO group API and CLI retain eager initialization after runtime budget falsifier',()=>{
   const source='function hot(x){return x^17;}function cold(x){return x&255;}'+
     'module.exports={hot,cold};';
   const selected={'entry.cjs':['hot','cold']};
   const emitted=obfuscateFiles([
     {path:'entry.cjs',sourceType:'commonjs',code:source}
   ],{
-    mode:'sno',seed:'sno-lazy-integration',strings:false,
-    identifiers:false,properties:false,experimentalWasmI32:selected,
-    experimentalWasmI32DeferredCommonjs:true
+    mode:'sno',seed:'sno-eager-budget-default',strings:false,
+    identifiers:false,properties:false,experimentalWasmI32:selected
   });
   assert.equal(emitted.files[0].metrics.wasmI32Functions,2);
   const runtime=loadCounting(String(emitted.files[0].code));
-  assert.equal(runtime.compiled(),0);
+  assert.equal(runtime.compiled(),2,
+    'SNO output must compile selected Wasm during allowed server initialization');
   assert.equal(runtime.exports.hot(3),3^17);
-  assert.equal(runtime.compiled(),1);
+  assert.equal(runtime.compiled(),2);
 
   const opts=readArgs(['--root','.','--entry','entry.cjs',
-    '--wasm-i32','entry.cjs:hot','--wasm-i32-defer-commonjs']);
-  assert.equal(opts.experimentalWasmI32DeferredCommonjs,true);
+    '--wasm-i32','entry.cjs:hot']);
   assert.deepEqual(opts.experimentalWasmI32,{'entry.cjs':['hot']});
   assert.throws(()=>readArgs(['--root','.','--entry','entry.cjs',
-    '--wasm-i32-defer-commonjs']),/requires --wasm-i32/u);
+    '--wasm-i32','entry.cjs:hot','--wasm-i32-defer-commonjs']),
+    /Unknown option/u);
 });
