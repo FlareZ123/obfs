@@ -31,6 +31,11 @@ const scenarios=[
     objects:0
   },
   {
+    name:'anonymous function argument receives no owner-key-inferred name',
+    source:'function inspect(payload){const owner={secretField:payload};return owner.secretField.name;}module.exports=inspect(()=>8);',
+    objects:1
+  },
+  {
     name:'plain object parameter value read preserves object identity',
     source:'function inspect(payload){const owner={secretField:payload,bias:7};return [owner.secretField===payload,owner.secretField.score+owner.bias];}module.exports=inspect({score:12});',
     objects:1
