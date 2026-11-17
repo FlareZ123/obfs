@@ -772,6 +772,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (node.value===null||['string','number','boolean','bigint'].includes(typeof node.value));
     if(node.type==='Identifier')return primitives.has(node.name) ||
       !dynamicScope && importedStrings.has(node.name);
+    // A fresh array literal's initialized numeric slot is an own data
+    // property even when Array.prototype contains a hostile accessor.
+    // Reject holes and spreads: an absent slot can inherit a function,
+    // and a spread can shift the syntactically selected index.
+    if(node.type==='MemberExpression' && node.computed &&
+       node.object.type==='ArrayExpression' &&
+       node.property.type==='Literal' &&
+       typeof node.property.value==='number' &&
+       Number.isSafeInteger(node.property.value) && node.property.value>=0 &&
+       node.object.elements.every((/** @type {AstNode|null} */ item)=>
+         item?.type!=='SpreadElement') &&
+       node.property.value<node.object.elements.length) {
+      const selected=node.object.elements[node.property.value];
+      return Boolean(selected&&isDefinitelyPrimitive(selected,depth+1));
+    }
     if(node.type==='TemplateLiteral')return node.expressions.every(
       (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
     if(node.type==='UnaryExpression') {
