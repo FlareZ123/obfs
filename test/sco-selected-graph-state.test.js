@@ -107,3 +107,42 @@ test('selected SCO graph refuses imported function-object property state in priv
   }]),/exposes shared imported member state/u);
 });
 
+
+
+test('selected SCO private-import alias analysis rejects shared mutable identity paths',()=>{
+  const source=[
+    'import {next} from "./private/counter.mjs";',
+    'export async function secret(){const alias=next;alias.count=(alias.count??0)+1;return alias.count;}',
+    'export function local(){return 1;}'
+  ].join('\n');
+  const sourceThroughCall=[
+    'import {next} from "./private/counter.mjs";',
+    'function mutate(fn){fn.count=(fn.count??0)+1;return fn.count;}',
+    'export async function secret(){return mutate(next);}',
+    'export function local(){return 1;}'
+  ].join('\n');
+  for(const candidate of [source,sourceThroughCall]){
+    assert.throws(()=>partitionScoSelectedGraph([{
+      file:{path:'mixed.mjs',code:candidate,sourceType:'module'},
+      options:{
+        privateNames:['secret'],privateModuleImports:['./private/counter.mjs'],
+        privateModuleSources:[{path:'private/counter.mjs',
+          code:'export function next(){return 7;}'}]
+      }
+    }]),/shared imported member state|identity escapes to unproved consumer/u);
+  }
+  const primitiveAlias=[
+    'import {salt} from "./private/counter.mjs";',
+    'export async function secret(){const copied=salt;return copied+1;}',
+    'export function local(){return 1;}'
+  ].join('\n');
+  assert.doesNotThrow(()=>partitionScoSelectedGraph([{
+    file:{path:'mixed.mjs',code:primitiveAlias},
+    options:{
+      privateNames:['secret'],privateModuleImports:['./private/counter.mjs'],
+      privateModuleSources:[{
+        path:'private/counter.mjs',code:'export const salt=41;'
+      }]
+    }
+  }]));
+});
