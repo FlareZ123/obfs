@@ -166,17 +166,52 @@ function collectImportedFunctionArrays(files) {
       }
       return false;
     }
+    /**
+     * @param {string} name
+     * @returns {void}
+     */
+    function markArray(name) {
+      if(!arrays.has(name)) {
+        arrays.add(name);
+        changed=true;
+      }
+    }
     let changed;
     do {
       changed=false;
       for(const [name,value] of candidates) {
-        if(arrays.has(name))continue;
         if(value.type==='ArrayExpression'&&hasFunction(value) ||
            value.type==='Identifier'&&arrays.has(value.name)) {
-          arrays.add(name);
-          changed=true;
+          markArray(name);
         }
+        // Mutating a simple alias can introduce function elements into
+        // the original exported owner before another ESM module joins it.
+        if(value.type==='Identifier'&&arrays.has(name))
+          markArray(value.name);
       }
+      walk(module.ast,node=>{
+        if(node.type==='CallExpression' &&
+           node.callee.type==='MemberExpression' &&
+           node.callee.object.type==='Identifier') {
+          const method=node.callee.computed?staticString(node.callee.property):
+            node.callee.property.type==='Identifier'?node.callee.property.name:null;
+          const inserted=method==='splice'?node.arguments.slice(2):
+            ['push','unshift','fill'].includes(method??'')?node.arguments:[];
+          if(inserted.some((/** @type {AstNode} */ argument)=>
+             hasFunction(argument.type==='SpreadElement'?argument.argument:argument))) {
+            markArray(node.callee.object.name);
+          }
+        }
+        if(node.type==='AssignmentExpression' &&
+           node.operator==='='&&node.left.type==='MemberExpression' &&
+           node.left.object.type==='Identifier'&&
+           node.left.computed&&
+           node.left.property.type==='Literal'&&
+           /^(?:0|[1-9][0-9]*)$/.test(String(node.left.property.value))&&
+           hasFunction(node.right)) {
+          markArray(node.left.object.name);
+        }
+      });
     }while(changed);
     const publicNames=new Set();
     for(const statement of module.ast.body) {
