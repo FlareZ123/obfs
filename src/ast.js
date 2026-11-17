@@ -1504,6 +1504,45 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(callee?.type==='MemberExpression' &&
       isReflectiveReceiver(callee.object)&&memberName(callee)==='groupBy');
   }
+  // Node warning calls capture caller positions under --trace-warnings.
+  // Native process.emitWarning remains callable after local extraction/binding.
+  const warningMethodAliases=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessReceiver(node) {
+    return Boolean(node && (node.type==='Identifier'&&node.name==='process'||
+      node.type==='MemberExpression'&&isGlobal(node.object)&&
+        memberName(node)==='process'));
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isWarningMethod(node,depth=0) {
+    if(!node||depth>16)return false;
+    if(node.type==='Identifier')return warningMethodAliases.has(node.name);
+    if(node.type==='MemberExpression') {
+      if(memberName(node)==='emitWarning'&&isProcessReceiver(node.object))
+        return true;
+      if(['call','apply'].includes(memberName(node)??''))
+        return isWarningMethod(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isWarningMethod(node.callee.object,depth+1);
+    return false;
+  }
+  let changedWarningAliases;
+  do {
+    changedWarningAliases=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(id?.type==='Identifier'&&isWarningMethod(value)&&
+         !warningMethodAliases.has(id.name)) {
+        warningMethodAliases.add(id.name);
+        changedWarningAliases=true;
+      }
+    });
+  }while(changedWarningAliases);
   // The Node util formatter can expose Error capture locations and function
   // names through inspect/format without an explicit .stack/.name read.
   const nodeUtilNamespaces=new Set();
@@ -1722,13 +1761,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
-      // With Node --trace-warnings, even process.emitWarning('literal')
-      // captures and prints its callsite. No Error or .stack is required.
-      if(callee.type==='MemberExpression'&&memberName(callee)==='emitWarning'&&
-         (callee.object.type==='Identifier'&&callee.object.name==='process' ||
-          callee.object.type==='MemberExpression'&&isGlobal(callee.object.object)&&
-            memberName(callee.object)==='process'))
-        observed=true;
+      // With Node --trace-warnings, a literal-string warning reveals its
+      // callsite even through extracted, bound, or .call/.apply aliases.
+      if(isWarningMethod(callee))observed=true;
       const utilMethod=nodeUtilMethod(callee);
       // Node util.getCallSites returns the live caller's source columns.
       if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
