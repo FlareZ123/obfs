@@ -43,6 +43,39 @@ function respondJson(response,status,payload) {
 }
 
 /**
+ * Deep-copy one JSON.parse argument array without recursive calls.
+ * The HTTP request size is bounded, but JSON nesting can exceed the stack
+ * depth tolerated by structuredClone. Parsed JSON holds only primitives,
+ * arrays and ordinary records, so this loop preserves original number
+ * values (including -0 and overflow) and own '__proto__' data properties.
+ * Copying all keys with defineProperty avoids invoking inherited setters.
+ *
+ * @param {unknown[]} input
+ * @returns {unknown[]}
+ */
+function cloneJsonArgs(input) {
+  /** @type {unknown[]} */
+  const root=[];
+  /** @type {Array<{original:any,copy:any}>} */
+  const pending=[{original:input,copy:root}];
+  while(pending.length) {
+    const {original,copy}=/** @type {{original:any,copy:any}} */ (pending.pop());
+    for(const key of Object.keys(original)) {
+      const value=original[key];
+      const duplicated=value===null||typeof value!=='object'?
+        value:(Array.isArray(value)?[]:{});
+      Object.defineProperty(copy,key,{
+        value:duplicated,enumerable:true,configurable:true,writable:true
+      });
+      if(value!==null&&typeof value==='object') {
+        pending.push({original:value,copy:duplicated});
+      }
+    }
+  }
+  return root;
+}
+
+/**
  * Execute one authenticated server-resident operation, never shipping its
  * implementation to the browser. The caller controls operation granularity,
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
@@ -126,7 +159,7 @@ async function handleRpc(request,response,options) {
     // Batch execution must retain the submitted JSON value graph even if an
     // application authorizer mutates the policy-visible arguments. Snapshot
     // only registered batches; ordinary methods retain their existing contract.
-    const checkedBatchArgs=getScoBatchCalls(task,args)===null?null:structuredClone(args);
+    const checkedBatchArgs=getScoBatchCalls(task,args)===null?null:cloneJsonArgs(args);
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
@@ -148,7 +181,7 @@ async function handleRpc(request,response,options) {
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
           // The policy sees a separate copy. Its mutations, even delayed
           // until another item executes, cannot change the checked batch.
-          const itemAllowed=await options.authorizeOperation(request,call.method,structuredClone(call.args));
+          const itemAllowed=await options.authorizeOperation(request,call.method,cloneJsonArgs(call.args));
           ensureScopeOpen();
           if(itemAllowed!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
