@@ -24,9 +24,25 @@ jobs:
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
+        env:
+          OBFS_FOUR_WAY_AUDIT_FILE: four-way-node-${{ runner.os }}.json
         run: node sims/polyvariant-app-four-way-control.js
+      - name: Upload exact ESM whole-session timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: four-way-node-${{ runner.os }}
+          path: four-way-node-${{ runner.os }}.json
+          if-no-files-found: error
       - name: Real Chromium four-way ESM and host callback differential
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: google-chrome
+          OBFS_FOUR_WAY_BROWSER_AUDIT_FILE: four-way-browser-${{ runner.os }}.json
         run: node test/polyvariant-app-four-way-browser.js
+      - name: Upload exact Chromium app timings
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: four-way-browser-${{ runner.os }}
+          path: four-way-browser-${{ runner.os }}.json
+          if-no-files-found: error
