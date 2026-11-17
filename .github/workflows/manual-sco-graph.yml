@@ -25,5 +25,9 @@ jobs:
         run: node examples/sco-graph/build.cjs --check
       - name: Check private graph semantics, source denial and paired HMAC cost
         run: node --test test/sco-graph.test.js test/sco-graph-private-path-policy.test.js
+      - name: Test real HTTP principal-isolated graph and public relay control
+        run: node --test test/sco-principal-realm.test.js
+      - name: Strict JSDoc for experimental principal realms
+        run: npx tsc -p jsconfig.sco-principal-realm.json
       - name: Strict JSDoc for SCO graph integration
         run: npx tsc -p jsconfig.sco-graph.json
