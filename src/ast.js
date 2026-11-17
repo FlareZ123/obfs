@@ -1564,12 +1564,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function constructObservesSource(target,passed) {
-    if(!isCoercer(target))return false;
+    const nativeStringCoercer=isCoercer(target);
+    const webScalar=isWebConstructor(target,webScalars,webScalarNames);
+    const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
+    const webRecord=isWebConstructor(target,webRecords,webRecordNames);
+    if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord)return false;
     if(passed?.type==='ArrayExpression') {
-      const values=isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
-        passed.elements.slice(0,2):passed.elements.slice(0,1);
+      const values=nativeStringCoercer ?
+        (isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
+          passed.elements.slice(0,2):passed.elements.slice(0,1)) :
+        webDictionary?passed.elements.slice(0,1):passed.elements;
       return values.some((/** @type {AstNode|null} */ value)=>
-        value && !isDefinitelyPrimitive(value));
+        Boolean(value && (webDictionary||webRecord ?
+          mayCoerceSourceWithinWebRecord(value):!isDefinitelyPrimitive(value))));
     }
     return Boolean(passed);
   }
