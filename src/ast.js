@@ -412,6 +412,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  const nativeStringConstructors=new Set(['String']);
+  const nativeRegExpConstructors=new Set(['RegExp']);
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
   const cloneFunctions=new Set(['structuredClone',...importedCloneFunctions]);
@@ -458,6 +460,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function memberName(node) {
     return node.computed?staticString(node.property):
       node.property.type==='Identifier'?node.property.name:null;
+  }
+  /**
+   * Track native constructor aliases separately from generic coercer aliases,
+   * so a destructured method can be attributed to its source observer.
+   * @param {AstNode|null|undefined} node
+   * @param {Set<string>} aliases
+   * @param {string} builtin
+   * @returns {boolean}
+   */
+  function isNativeConstructor(node,aliases,builtin) {
+    return Boolean(node && (node.type==='Identifier' && aliases.has(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        memberName(node)===builtin));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isSymbolConstructor(node) {
@@ -589,6 +604,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isNativeConstructor(value,nativeStringConstructors,'String'))
+          changed=add(nativeStringConstructors,name)||changed;
+        if(isNativeConstructor(value,nativeRegExpConstructors,'RegExp'))
+          changed=add(nativeRegExpConstructors,name)||changed;
         if(isV8Module(value))changed=add(v8Modules,name)||changed;
         if(isV8SerializerConstructor(value))changed=add(v8SerializerConstructors,name)||changed;
         if(isV8SerializerInstance(value))changed=add(v8SerializerInstances,name)||changed;
@@ -844,23 +863,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.init) {
         const target=node.init;
         const proto=target.type==='MemberExpression' &&
-          memberName(target)==='prototype' && target.object.type==='Identifier' ?
-          target.object.name : null;
-        const stringCtor=target.type==='Identifier' && target.name==='String' ||
-          target.type==='MemberExpression' && isGlobal(target.object) &&
-            memberName(target)==='String';
+          memberName(target)==='prototype' ? target.object : null;
+        const regexpProto=isNativeConstructor(proto,nativeRegExpConstructors,'RegExp');
+        const stringProto=isNativeConstructor(proto,nativeStringConstructors,'String');
+        const stringCtor=isNativeConstructor(target,nativeStringConstructors,'String');
         const regexpSymbols=new Set(['match','matchAll','replace','search','split']);
         const stringSymbols=new Set(['iterator']);
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(proto==='RegExp' &&
+          if(regexpProto &&
              (sourceCoercingRegExpMethods.has(name??'') ||
               property.computed && isSourceSymbolKey(property.key,regexpSymbols))) {
             changed=add(detachedRegExpSourceMethods,property.value.name)||changed;
           }
-          if(proto==='String' &&
+          if(stringProto &&
              (sourceCoercingStringReceiverMethods.has(name??'') ||
               property.computed && isSourceSymbolKey(property.key,stringSymbols))) {
             changed=add(detachedStringReceiverMethods,property.value.name)||changed;
