@@ -8,6 +8,7 @@ const {pathToFileURL}=require('node:url');
 const {randomBytes,createHash}=require('node:crypto');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {partitionScoAsyncGraph,createScoGraphHandler}=require('../src/sco-graph');
+const {verifyScoPrivateSourceDigests}=require('../src/sco-private-integrity');
 const {createScoPrincipalRealmPool}=require('./sco-principal-realm-worker');
 
 const fixture=path.resolve(__dirname,'../test/fixtures/sco-principal-realm');
@@ -56,6 +57,7 @@ async function main(){
     {path:'private-counter.mjs',code:dependentCode,sourceType:'module'}
   ],{seed:'sco-principal-realm-session-profile',exposedPaths:['private-api.mjs'],
     batch:true,maxBatchCalls:64});
+  await verifyScoPrivateSourceDigests(graph,fixture);
   const native=await import(pathToFileURL(entry).href);
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:1});
   const context=new AsyncLocalStorage();
