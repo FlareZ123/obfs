@@ -105,3 +105,29 @@ test('SCO ignores caller-owned digest array iterator overrides',()=>{
     {path:'renamed.css',sourceType:'asset',code:secret}
   ]),/original private graph source/i);
 });
+
+test('SCO source file inventory cannot hide manifests through an own map override',()=>{
+  const sourceFiles=[
+    {path:'public.css',sourceType:'asset',code:'body{color:blue}',
+      privateModulePaths:['private.css']},
+    {path:'private.css',sourceType:'asset',code:'PRIVATE_FILE_INVENTORY_CANARY_20261117'}
+  ];
+  let mapCalls=0;
+  Object.defineProperty(sourceFiles,'map',{
+    configurable:true,
+    value:/** @type {typeof sourceFiles.map} */ (function(callback){
+      mapCalls++;
+      if(mapCalls===1){
+        // An overwritten first map can omit declarations while a second
+        // map still publishes both files. The handler must use its own copy.
+        return [
+          {paths:undefined,digests:undefined},
+          {paths:undefined,digests:undefined}
+        ];
+      }
+      return Array.prototype.map.call(sourceFiles,callback);
+    })
+  });
+  assert.throws(()=>createScoHandler(sourceFiles),/must not serve private source/i);
+  assert.equal(mapCalls,0,'The input array map override is never used');
+});
