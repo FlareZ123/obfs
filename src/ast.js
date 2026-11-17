@@ -650,7 +650,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return aliases.has(node.name);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
-    if(isGlobal(node.object))return builtins.has(name??'');
+    if(isGlobal(node.object) && builtins.has(name??''))return true;
     if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys : null;
