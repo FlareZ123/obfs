@@ -21,8 +21,6 @@ jobs:
           node-version: '22'
       - name: Install exact declared minifier and project libraries
         run: npm install --no-package-lock --ignore-scripts
-      - name: Strict JSDoc for original and research comparison code
-        run: npm run typecheck:external
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Validate falsifiable candidate decision and strict sample veto
@@ -52,3 +50,6 @@ jobs:
           name: four-way-browser-${{ runner.os }}
           path: four-way-browser-${{ runner.os }}.json
           if-no-files-found: error
+      - name: Strict JSDoc across the branch after independent experiment results
+        if: always()
+        run: npm run typecheck:external
