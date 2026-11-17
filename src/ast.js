@@ -2035,6 +2035,37 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     });
   }while(loaderChanged);
+  // Detached native reflection functions retain their ability to reach
+  // process's built-in module loader. Follow simple assignment aliases.
+  /** @type {Map<string,'get'|'getOwnPropertyDescriptor'>} */
+  const reflectionMethods=new Map();
+  let reflectionChanged;
+  do {
+    reflectionChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' && node.id.type==='Identifier' ?
+        node.id : node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const value=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type!=='Identifier'||!value)return;
+      /** @type {'get'|'getOwnPropertyDescriptor'|undefined} */
+      let method;
+      if(value.type==='Identifier')method=reflectionMethods.get(value.name);
+      if(value.type==='MemberExpression'&&value.object.type==='Identifier') {
+        const key=value.computed ? knownKey(value.property) :
+          value.property.type==='Identifier'?value.property.name:null;
+        if(value.object.name==='Reflect'&&key==='get')method='get';
+        if(value.object.name==='Object'&&key==='getOwnPropertyDescriptor') {
+          method='getOwnPropertyDescriptor';
+        }
+      }
+      if(method&&!reflectionMethods.has(binding.name)) {
+        reflectionMethods.set(binding.name,method);
+        reflectionChanged=true;
+      }
+    });
+  }while(reflectionChanged);
   let observed=false;
   walk(ast,node=>{
     if(node.type==='ImportDeclaration' || node.type==='ExportAllDeclaration' ||
@@ -2108,6 +2139,19 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       // Cached modules, parent/child links, and the process main module
       // expose constructor._load even without a literal fs import.
       if(canReadLoaderRoot(node.object,key))observed=true;
+    }
+    if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
+       reflectionMethods.has(node.callee.name) && node.arguments[0]) {
+      const root=node.arguments[0];
+      const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
+      if(root.type==='Identifier' && globals.has(root.name) &&
+         (target===null||browserReaders.has(target)||
+          ['require','process','module','getBuiltinModule',
+            'createRequire'].includes(target)) ||
+         canReadLoaderRoot(root,target) ||
+         isProcessModuleRequire(root) && canReachLoader('process',target)) {
+        observed=true;
+      }
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&

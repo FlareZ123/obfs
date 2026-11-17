@@ -465,3 +465,44 @@ test('benign dynamic import of node:os keeps transformable private record',()=>{
     properties:true});
   assert.equal(transformed.files[0].metrics.properties,1);
 });
+
+const detachedReflectionPaths=[
+  ['detached Reflect.get',
+    "const get=Reflect.get;const load=get(process,'getBuiltinModule');"],
+  ['computed and aliased Reflect.get',
+    "const getter=Reflect['get'];const get=getter;const load=get(globalThis.process,'getBuiltinModule');"],
+  ['detached descriptor getter',
+    "const descriptor=Object.getOwnPropertyDescriptor;const load=descriptor(process,'getBuiltinModule').value;"],
+  ['computed descriptor on process require',
+    "const descriptor=Object['getOwnPropertyDescriptor'];const load=descriptor(require('node:process'),'getBuiltinModule').value;"]
+];
+for(const [name,loader] of detachedReflectionPaths) {
+  test('detached source-capable native reflection preserves bytes: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'detached-reflection/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'main.cjs'),native);
+  });
+}
+
+test('benign detached native Reflect.get environment lookup preserves yield',()=>{
+  const code="const get=Reflect.get;const env=get(process,'env');"+
+    "const state={secretField:31};console.log(env.NODE_ENV,state.secretField);";
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'detached-reflect-env-positive',strings:false,
+    properties:true,identifiers:false
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
