@@ -1511,12 +1511,34 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
   const stackErrorAliases=new Set();
   const stackConsoleAliases=new Set(['console']);
+  const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir']);
+  /** @type {Map<string,string>} */
+  const stackConsoleMethods=new Map();
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isConsoleReceiver(node) {
     return Boolean(node && (node.type==='Identifier' &&
       stackConsoleAliases.has(node.name) ||
       node.type==='MemberExpression' && isGlobal(node.object) &&
         memberName(node)==='console'));
+  }
+  /**
+   * Node Console methods remain bound when extracted from the global console.
+   * Follow direct members, simple aliases, and the ordinary .bind wrapper.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {string|null}
+   */
+  function stackConsoleMethod(node,depth=0) {
+    if(!node||depth>16)return null;
+    if(node.type==='Identifier')return stackConsoleMethods.get(node.name)??null;
+    if(node.type==='MemberExpression' && isConsoleReceiver(node.object)) {
+      const method=node.computed?sourceStringKey(node.property):memberName(node);
+      return method!==null && stackConsoleMethodNames.has(method)?method:null;
+    }
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       memberName(node.callee)==='bind')
+      return stackConsoleMethod(node.callee.object,depth+1);
+    return null;
   }
   /**
    * Recognize stack-bearing values through simple assignments and literal
@@ -1570,9 +1592,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.type==='AssignmentExpression'?node.left:null;
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
-      if(id?.type!=='Identifier'||!value)return;
+      if(!value)return;
+      if(id?.type==='ObjectPattern' && isConsoleReceiver(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const method=property.computed?sourceStringKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(method!==null&&stackConsoleMethodNames.has(method)&&
+             !stackConsoleMethods.has(property.value.name)) {
+            stackConsoleMethods.set(property.value.name,method);
+            changedStackAliases=true;
+          }
+        }
+        return;
+      }
+      if(id?.type!=='Identifier')return;
       if(isConsoleReceiver(value)&&!stackConsoleAliases.has(id.name)) {
         stackConsoleAliases.add(id.name);
+        changedStackAliases=true;
+      }
+      const method=stackConsoleMethod(value);
+      if(method!==null&&!stackConsoleMethods.has(id.name)) {
+        stackConsoleMethods.set(id.name,method);
         changedStackAliases=true;
       }
       if(containsStackError(value)&&!stackErrorAliases.has(id.name)) {
@@ -1597,13 +1638,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
-      if(callee.type==='MemberExpression' && isConsoleReceiver(callee.object)) {
-        const method=memberName(callee);
-        if(method==='trace' ||
-           ['log','info','warn','error','debug','dir'].includes(method??'') &&
-             node.arguments.some((/** @type {AstNode} */ argument)=>
-               containsStackError(argument)||containsConsoleFunction(argument)))observed=true;
-      }
+      const consoleMethod=stackConsoleMethod(callee);
+      if(consoleMethod==='trace' ||
+         consoleMethod!==null && consoleMethod!=='trace' &&
+           node.arguments.some((/** @type {AstNode} */ argument)=>
+             containsStackError(argument)||containsConsoleFunction(argument)))
+        observed=true;
       if(isObjectGroupBy(callee) &&
          !isPrimitiveGroupByCallback(node.arguments[1]))observed=true;
       if(callee.type==='MemberExpression' && isObjectGroupBy(callee.object)) {
