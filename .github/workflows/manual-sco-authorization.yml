@@ -49,6 +49,8 @@ jobs:
         run: node sims/sco-selective-challenge.js
       - name: Paired warm two-facade SCO runtime granularity
         run: node sims/sco-selected-graph-budget.js
+      - name: Independent authorized two-module SCO public-only relay
+        run: node sims/sco-selected-graph-relay.js
       - name: Original versus online relay private-constant whole-session timing
         run: node sims/sco-private-const-relay.js
       - name: Real Chromium SCO private-constant ESM and cookie-authenticated RPC
