@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
+const {atomicWrite}=require('../src/atomic');
 const {runEvidence:runCooEvidence}=require('./polyvariant-app-three-way-budget');
 const {runEvidence:runSnoEvidence,profile:profileSno}=require('./polyvariant-app-sno');
 
@@ -191,7 +192,13 @@ async function run(){
   return summary;
 }
 
-if(require.main===module)run().catch(error=>{
+if(require.main===module)run().then(async summary=>{
+  if(process.env.OBFS_RELEASE_AUDIT_FILE){
+    await atomicWrite(process.env.OBFS_RELEASE_AUDIT_FILE,
+      JSON.stringify({source:'sims/release-evidence-gate.js',
+        node:process.version,platform:process.platform,summary},null,2)+'\n');
+  }
+}).catch(error=>{
   console.error(error);process.exitCode=1;
 });
 
