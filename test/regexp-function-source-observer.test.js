@@ -73,6 +73,14 @@ const examples=[
   {
     name:'RegExp Symbol.match key through constructor alias',
     tail:'const Sy=Symbol;const key=Sy.match;module.exports=/a\\^17/[key](f)?.[0]??null;'
+  },
+  {
+    name:'RegExp prototype test method destructuring',
+    tail:'const {test: check}=RegExp.prototype;module.exports=check.call(/a\\^17/,f);'
+  },
+  {
+    name:'RegExp Symbol.match method destructuring',
+    tail:'const {[Symbol.match]: matcher}=RegExp.prototype;module.exports=matcher.call(/a\\^17/,f)?.[0]??null;'
   }
 ];
 
