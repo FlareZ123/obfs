@@ -2061,6 +2061,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'inspector','node:inspector','node:inspector/promises']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Inline classic scripts can read their executing source through DOM nodes.
+  // Track document aliases conservatively alongside global-object aliases.
+  const documentRoots=new Set(['document']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -2086,7 +2089,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,documentRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -2127,7 +2130,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             prop.key.type==='Identifier'?prop.key.name:
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
-            field==='require'?requireRoots:field==='module'?moduleRoots:null;
+            field==='require'?requireRoots:field==='module'?moduleRoots:
+            field==='document'?documentRoots:null;
           if(roots&&!roots.has(prop.value.name)){
             roots.add(prop.value.name);
             changed=true;
@@ -2141,7 +2145,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         const name=initial.computed ? staticString(initial.property) :
           initial.property.type==='Identifier' ? initial.property.name : null;
         const roots=name==='process' ? processRoots :
-          name==='require' ? requireRoots : name==='module' ? moduleRoots : null;
+          name==='require' ? requireRoots : name==='module' ? moduleRoots :
+          name==='document' ? documentRoots : null;
         if(roots && !roots.has(binding.name)) {
           roots.add(binding.name);
           changed=true;
