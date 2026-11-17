@@ -266,11 +266,19 @@ function mutatesDecoderIntrinsic(ast) {
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isObjectPrototype(node) {
     if(node.type==='Identifier')return objectPrototypes.has(node.name);
-    return node.type==='MemberExpression' &&
-      (isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
-       isArrayPrototype(node.object) &&
-         (memberName(node)==='__proto__' ||
-          node.computed && memberName(node)===null));
+    if(node.type==='MemberExpression')return
+      isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
+      isArrayPrototype(node.object) &&
+        (memberName(node)==='__proto__' ||
+         node.computed && memberName(node)===null);
+    // Reading the parent of Array.prototype returns the inherited
+    // Object.prototype in an ordinary realm. Unknown host patches can
+    // change the result, but keeping this alias is conservative.
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      memberName(node.callee)==='getPrototypeOf' &&
+      (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)) &&
+      Boolean(node.arguments[0]&&isArrayPrototype(node.arguments[0]));
   }
   /**
    * The chunked decoder writes its own array indices 0 through 4095.
