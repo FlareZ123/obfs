@@ -81,3 +81,18 @@ For the previously failing Linux 52,500-unit, zero-work **cold** case, 256 opera
 The attacker reconstructs the full literal and passes the hostile browser test as well. This verifies bounded runtime correctness under a particular ambient Array numeric setter, while simultaneously confirming no source-only secrecy benefit. It does not establish protection against arbitrary String intrinsic replacement, runtime extraction, browser DevTools instrumentation or host spoofing.
 
 **Actionable next checks:** rerun the whole targeted gate only after the independent `destructured-parent-alias` corruption is repaired or explicitly kept as a red isolated integration witness; complete strict JSDoc validation on the 256 revision; compare against Chrome cold network+parse+decode, and profile more workloads before selecting a release default.
+
+
+## Real Chromium cold COO ESM timing (02:44 UTC)
+
+A further [pinned run 44005016806](https://github.com/FlareZ123/obfs/actions/runs/44005016806), SHA `6c3becf45d3b24d9625633d177f1a3031919a98e`, successfully ran on Ubuntu: the fixed-arity tests, Node paired runtime profile, hostile-prototype Chromium parity/static reconstruction, a new browser cold-session profile, production strict type check, and strict research JSDoc. The Windows job also passed its own tests, Node profile and both JSDoc checks. **Both jobs subsequently failed only in the separate inherited-Array-prototype guard gate**, on a contemporaneous set of mutated-prototype alias witnesses being addressed by another owner. The full workflow remains red; the successful steps and their exact source revision are independently visible in the job records.
+
+The new `sims/fixed-arity-browser-session.js` serves one native and one compiled COO ESM target per scenario under the same CSP, `Cache-Control: no-store`, and local HTTP origin. An external classic `start.js` records `performance.now()` before the browser fetches, parses and evaluates `entry.mjs` and `target.mjs`; entry reports the clock difference after exact-result production. Each individual observation uses a fresh headless Chromium process under the same script flags. The clock excludes browser-process launch and obfuscator compilation while including module loading, parse and decoder initialization. Native and fixed outputs are checked for identical length, first/last UTF-16 code unit and checksum. The source-only XOR attacker still statically recovers the entire target. Nine alternating native/fixed page pairs per workload were run, with the first three pairs excluded; **six timing samples per candidate** remain.
+
+| Chromium Ubuntu workload | Native median elapsed | Fixed 256 median elapsed | Ratio |
+|---|---:|---:|---:|
+| 2,049 UTF-16 units, decode only | 9.9 ms | 6.6 ms | 0.667× |
+| 52,500 UTF-16 units, decode only | 9.2 ms | 12.2 ms | 1.326× |
+| 52,500 UTF-16 units, 100,000 integer iterations | 14.9 ms | 14.0 ms | 0.940× |
+
+These three sample medians are below 2.5×, including the 52,500-unit cold browser session that had failed the initial 64-wide Linux VM scenario. The 0.667× and 0.940× observations are single-run timing outcomes with network and scheduling variance and are **not evidence that obfuscation generally accelerates code**. Chromium process launch time is outside the page timer. Browser parse/fetch and VM script-compilation timing use different workload boundaries, and neither table proves a universal performance ceiling. The emitted 256-wide string decoder remains directly reconstructable from its public XOR key.
