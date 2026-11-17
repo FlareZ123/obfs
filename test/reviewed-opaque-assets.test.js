@@ -97,7 +97,7 @@ test('strict reviewed manifest with no opaque assets allows transformed-only gra
     assert.equal(output.files.length,1);
     assert.equal(output.files[0].sourceType,'commonjs');
   }
-  assert.equal(typeof createScoHandler([],{
+  assert.equal(typeof createScoHandler([entry],{
     reviewedOpaqueAssets:[]
   }),'function');
 });
