@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/property-in-operator.test.js",
+    "sims/property-in-operator-profile.js",
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
     "sims/source-island-cache-browser-witness.js",
