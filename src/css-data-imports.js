@@ -111,7 +111,9 @@ function hasCssDataImport(code) {
       const keyword=readIdentifier(source,index+1);
       if(keyword.value.toLowerCase()==='import') {
         const url=readImportUrl(source,keyword.next);
-        if(url&&url.trimStart().toLowerCase().startsWith('data:'))return true;
+        // WHATWG URL parsing strips ASCII tab/newline anywhere in the input.
+        // An escaped CSS tab can otherwise disguise d\u0009ata: as a data: scheme.
+        if(url && url.replace(/[\t\n\r]/gu,'').trimStart().toLowerCase().startsWith('data:'))return true;
       }
       index=Math.max(index+1,keyword.next);continue;
     }
