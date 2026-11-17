@@ -520,6 +520,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
   const webRecords=new Set(webRecordNames);
+  const webStringNames=new Set(['Headers','URLSearchParams']);
+  const webStringConstructors=new Set(webStringNames);
+  const webStringInstances=new Set();
   const responseNames=new Set(['Response']);
   const responseConstructors=new Set(responseNames);
   const responseRedirects=new Set();
@@ -530,6 +533,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webRecordObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const responseObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const webStringObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
@@ -653,7 +658,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(isGlobal(node.object) && builtins.has(name??''))return true;
     if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
-      aliases===responseConstructors ? responseObjectKeys : null;
+      aliases===responseConstructors ? responseObjectKeys :
+      aliases===webStringConstructors ? webStringObjectKeys : null;
     const keys=properties?.get(node.object.name);
     // A runtime-computed key could select any recorded native method.
     return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
@@ -744,6 +750,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(webRecordObjectKeys,receiver,key);
     if(isWebConstructor(expression,responseConstructors,responseNames))
       addWebObjectKey(responseObjectKeys,receiver,key);
+    if(isWebConstructor(expression,webStringConstructors,webStringNames))
+      addWebObjectKey(webStringObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
   }
@@ -834,6 +842,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,responseConstructors,responseNames)) {
           changed=add(responseConstructors,name)||changed;
         }
+        if(isWebConstructor(value,webStringConstructors,webStringNames)) {
+          changed=add(webStringConstructors,name)||changed;
+        }
         if(isResponseRedirect(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -851,6 +862,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebInstance(value,formInstances,formConstructors,formNames)) {
           changed=add(formInstances,name)||changed;
+        }
+        if(isWebInstance(value,webStringInstances,webStringConstructors,webStringNames)) {
+          changed=add(webStringInstances,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
            nativeLocaleNames.has(memberName(value)??'') ||
@@ -909,7 +923,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const key of objectFunctionKeys.get(value.name)??[]) {
             addObjectFunctionKey(name,key);
           }
-          for(const map of [webRecordObjectKeys,responseObjectKeys,redirectObjectKeys]) {
+          for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,redirectObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1003,6 +1017,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(webRecords,property.value.name)||changed;
           if(responseObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseConstructors,property.value.name)||changed;
+          if(webStringObjectKeys.get(node.init.name)?.has(key))
+            changed=add(webStringConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
         }
@@ -1113,6 +1129,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           if(name!==null&&formNames.has(name)) {
             changed=add(formConstructors,property.value.name)||changed;
+          }
+          if(name!==null&&webStringNames.has(name)) {
+            changed=add(webStringConstructors,property.value.name)||changed;
           }
         }
       }
@@ -1661,6 +1680,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(positions.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
         }
+        // Headers and URLSearchParams string-coerce names and values in
+        // mutators/readers, even when their constructors had inert inputs.
+        if(isWebInstance(callee.object,webStringInstances,webStringConstructors,
+            webStringNames) &&
+            ['append','set','get','getAll','delete','has'].includes(method??'') &&
+            node.arguments.some((/** @type {AstNode} */ value)=>
+              !isDefinitelyPrimitive(value)))observed=true;
       }
       // Bound, extracted and reflective native method invocations hide the
       // actual string-valued options behind an extra function-call layer.
