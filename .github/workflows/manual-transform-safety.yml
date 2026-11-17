@@ -31,6 +31,11 @@ jobs:
         run: node sims/statement-flow-compact-cold-profile.js
       - name: Three-module CFG differential, offline attacker, full-session budget
         run: node sims/statement-flow-compact-app.js
+      - name: Real Chromium compact CFG native and layered host callback contract
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/statement-flow-browser.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
