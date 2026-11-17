@@ -42,3 +42,25 @@ The same gate measured SCO one-event fresh-client ratios **4.2457 Ubuntu / 2.980
 After the preceding two-platform SNO-only evidence gate, Agent 17 independently added a 95% **simultaneous familywise** median budget diagnostic for four COO and two SCO workloads on main. This changed both release-evidence source and its tests, resulting in a merge conflict for the original SNO-only draft [PR 53](https://github.com/FlareZ123/obfs/pull/53). A follow-on branch based on current main retains that six-workload implementation and adds the **four now-available paired SNO populations**, yielding ten marginal workload populations within one Bonferroni-corrected simultaneous comparison. Each row allocates tail risk 0.05/(2 * 10) = 0.0025. The 13 SNO samples allow an order-statistic upper bound using the 12th-lowest ratio at marginal coverage 0.998291015625, while the six nine-pair COO/SCO controls use the maximum sample at 0.998046875 coverage. The conservative joint lower coverage is at least 0.962890625 under the documented within-workload i.i.d. assumptions.
 
 The per-mode one-sided 95% SNO bounds and the joint 95% familywise confidence statement are now reported **separately**. A joint assessment with ten workloads may be more conservative than the prior six-workload decision; universal timing and security guarantees remain unavailable. The older [pinned green run 44030971984](https://github.com/FlareZ123/obfs/actions/runs/44030971984) certifies only the original SNO-per-mode control, not this new familywise merge. Before adoption, verify all ten simulated families in Node regression and real COO/SNO/SCO profiles across Ubuntu and Windows with exact source commit and saved raw timing rows.
+
+
+## Completed ten-workload cross-platform gate, 2026-11-17 09:01 UTC
+
+The exact [manual cross-mode run 44049123385](https://github.com/FlareZ123/obfs/actions/runs/44049123385) passed Windows and Ubuntu Node 22 strict JSDoc, unit decision logic, and all authentic COO, SNO, SCO adversarial/application workloads at **executable commit `937b800adf2b9147cba9f961477047e45ddbb10c`**. Windows job `133922200085`, Ubuntu job `133922200430`; full output and raw pair samples are retained in their workflow artifacts.
+
+| Measured full application | Windows ratio of separate medians | Windows one-sided upper paired median bound | Ubuntu ratio | Ubuntu upper bound |
+| --- | ---: | ---: | ---: | ---: |
+| COO 1 event | 1.2603× | 1.2978× | 1.2554× | 1.4026× |
+| COO 50 events | 1.3132× | 1.4005× | 1.4393× | 1.4811× |
+| COO 1,000 events | 1.6921× | 1.8402× | 1.4498× | 1.4791× |
+| COO 10,000 events | 1.1551× | 1.3967× | 1.3681× | 1.7243× |
+| SNO 1 event | 1.0978× | 1.1146× | 1.1508× | 1.1554× |
+| SNO 50 events | 1.0953× | 1.1165× | 1.0932× | 1.1349× |
+| SNO 1,000 events | 1.0862× | 1.1146× | 1.1588× | 1.1639× |
+| SNO 10,000 events | 1.1053× | 1.1242× | 1.1196× | 1.1460× |
+| SCO 1 event | 3.0785× | 3.1012× | 4.2273× | 4.3585× |
+| SCO 120,000 events | 2.0724× | 2.1428× | 2.3804× | 2.4435× |
+
+For both operating systems, the 10-workload simultaneous **Bonferroni** diagnostic attained a lower coverage estimate of **96.2890625%** under independent, representative within-workload paired-ratio assumptions. The simultaneous verdict is **sample-exceeded** from the SCO one-event workload. All four SNO workloads are sample-supported using 13 independent child-process pairs each; all four COO workloads and heavy SCO workload are sample-supported using nine pairs each. The light SCO workload had **all nine** observed ratios above 2.5× on both OSes, with maximum observed ratios **3.22957× Windows** and **4.38522× Ubuntu**. Median confidence and individual hard-threshold observations remain distinct.
+
+The overall security outcome is **RELEASE-BLOCKED** on both OSes from existing demonstrated hostile-environment compromises, separate from the SCO lightweight cost exceedance. The joint estimate compares three different execution boundaries (COO reused Node process, SNO fresh Node process, SCO fresh localhost clients), making it suitable for an explicit multi-mode selected workload diagnostic and unsuitable for a universal runtime speed theorem. A production deployment still requires its own network, workload, and adversary evidence.
