@@ -34,3 +34,14 @@ The mutation controls passed:
 Typed arrays provide a credible bounded alternative for the **numeric-index prototype pollution** class, with no universal ambient safety: the test intentionally defeats their mutable iterator. New constructor/iterator alias and cross-file guards would be mandatory before any compiler integration. This specific synthetic 65,536-unit cold COO payload exceeded the allowed 2.5× runtime bound with **both** decoders, and the typed candidate was slower on the tested runner. The typed backend therefore **was not adopted** into the production compiler. The existing conservative fail-closed intrinsic guard remains the preferred behavior-preservation measure for this limited evidence. Eligible SNO server initialization may be amortized according to the project prompt, but client-side COO time cannot; the experiment does not measure a sustained SNO session.
 
 Before any future typed decoder adoption, test cross-platform/browser compatibility, multiple function-arity limits, hostile intrinsic mutation through aliases, cold-start budgets on real workloads, and whether the alternative preserves actual protected-work yield compared to native/minified controls.
+
+## Cross-platform replication
+
+A separate Windows-only job was added to the existing manual cold-start workflow, without repeating unrelated full benchmark suites: [commit `e13b1fb8`](https://github.com/FlareZ123/obfs/commit/e13b1fb81d2583254444bc4f544153a4eef2c5d1). [Run 44003576320](https://github.com/FlareZ123/obfs/actions/runs/44003576320), exact `13b3152ad67d89f1cc6d388ffdf78028ce1bc91b`, passed the original Ubuntu job and new Windows Node 22 job.
+
+| Windows fresh VM sample | Native median (ms) | Ordinary Array median / native ratio | Typed Array median / native ratio |
+|---|---:|---:|---:|
+| 2,049 UTF-16 units | independent baseline ~0.877 | 0.8504 ms / **0.970×** | 1.2320 ms / **1.405×** |
+| 65,536 UTF-16 units | independent baseline ~0.802 | 4.6842 ms / **5.839×** | 4.6616 ms / **5.811×** |
+
+The Windows output independently reproduces all three correctness observations: inherited numeric `Array.prototype` and `Object.prototype` setters corrupt the ordinary-array candidate while the typed-array candidate survives, and patching the typed-array iterator corrupts the typed candidate. The 65,536-code-unit cold ratio exceeds the stated 2.5× ceiling for both isolated decoder strategies on this runner too. These sampled ratios exclude compile time and remain workload-specific; the new evidence strengthens the conservative decision against adopting the typed-array candidate as a generic COO decoder.
