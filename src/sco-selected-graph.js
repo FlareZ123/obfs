@@ -223,8 +223,12 @@ function partitionScoSelectedGraph(units){
         stableSources.push({path:privatePath,code});
       }
       assertImmutablePrivateModuleTopLevels(stableSources);
+      for(const source of stableSources){
+        assertNoPrivateImportMemberState(source.path,source.code);
+      }
       options.privateModuleSources=stableSources;
     }
+    assertNoPrivateImportMemberState(name,file.code);
     const partition=partitionScoSelectedAsyncExports(file,options);
     if(partition.clientFile.path!==name){
       throw new TypeError('Selected SCO graph changed its public path');
