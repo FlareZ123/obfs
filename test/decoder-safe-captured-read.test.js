@@ -47,6 +47,8 @@ for(const source of [
   "const get=Reflect.get;const f=get;f({known:2},'known');",
   "const get=Reflect.get;const f={get};f.get({known:2},'known');",
   "const {get}=Reflect;get({known:2},'known');",
+  "const Reflect={get(){return 2;}};const get=Reflect.get;get({known:2},'known');",
+  "const get=Reflect.get;globalThis.Reflect={get(){return 2;}};get({known:2},'known');",
   "let get;get=Reflect.get;get({known:2},'known');",
   "const get=Reflect.get;const f=function(get){return get({known:2},'known');};",
   "const get=Reflect.get;function g(){const get=()=>2;return get({known:2},'known');}"
