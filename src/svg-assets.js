@@ -3,6 +3,7 @@
 const {SaxesParser}=require('saxes');
 const {decodeMarkup,isEmbeddedExecutableUrl,isEmbeddedRefreshUrl}=require('./html-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
+const {hasCssDataImport}=require('./css-data-imports');
 
 /**
  * Reject executable constructs in SVG served as ordinary static image assets.
@@ -65,6 +66,9 @@ function findInlineSvgSource(xml) {
     if(tag.local.toLowerCase()==='style') {
       if(stylesheet!==null && hasCssSourceMapDirective(stylesheet)) {
         issue='embedded CSS source-map directive';
+      }
+      if(stylesheet!==null && hasCssDataImport(stylesheet)) {
+        issue='embedded stylesheet data import';
       }
       stylesheet=null;
     }
