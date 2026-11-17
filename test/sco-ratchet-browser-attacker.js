@@ -20,12 +20,13 @@ function challenge(index){
  * same-origin API using the browser's automatic credentials and inspect every
  * response. Virtual time only gates asynchronous completion, never CPU.
  *
+ * @param {string} [publicFacadeSource] Optional equal-trust public control.
  * @returns {Promise<void>}
  */
-async function main(){
+async function main(publicFacadeSource){
   const root=randomBytes(32);
   const token=randomBytes(32).toString('hex');
-  const backend=makeServer(root,0);
+  const backend=makeServer(root,0,publicFacadeSource);
   backend.grant(token,'browser-A');
   const inputs=[challenge(0),challenge(1),challenge(2)];
   const attackerApp=[
