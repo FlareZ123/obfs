@@ -35,6 +35,8 @@ jobs:
         run: node sims/application-challenge-sco-order-stat-reanalysis.js
       - name: Reproduce source-pinned post-hardening cold-profile uncertainty
         run: node sims/application-challenge-sco-post-hardening-bootstrap.js
+      - name: Measure fresh-client source-private compute-granularity grid
+        run: node sims/application-challenge-sco-count-grid.js
       - name: Strict JSDoc for finite-sample paired budget bound
         run: npx tsc --project jsconfig.paired-budget.json
       - name: Execute private SCO application facade in real Chromium
