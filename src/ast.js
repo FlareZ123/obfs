@@ -511,8 +511,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // invoke ToString, so exposed source can cross a browser API boundary.
   const webScalarNames=new Set(['DOMException','URL']);
   const webDictionaryNames=new Set(['URLSearchParams','Headers','Blob']);
+  // Fetch Request/Response and File convert string/record/sequence arguments.
+  // Even implicit Web IDL conversions can expose Function#toString bytes.
+  const webRecordNames=new Set(['Request','Response','File']);
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
+  const webRecords=new Set(webRecordNames);
   const encoderNames=new Set(['TextEncoder']);
   const formNames=new Set(['FormData']);
   const encoderConstructors=new Set(encoderNames);
@@ -764,6 +768,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
+        if(isWebConstructor(value,webRecords,webRecordNames)) {
+          changed=add(webRecords,name)||changed;
+        }
         if(isWebConstructor(value,encoderConstructors,encoderNames)) {
           changed=add(encoderConstructors,name)||changed;
         }
@@ -997,6 +1004,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           if(name!==null&&webDictionaryNames.has(name)) {
             changed=add(webDictionaries,property.value.name)||changed;
+          }
+          if(name!==null&&webRecordNames.has(name)) {
+            changed=add(webRecords,property.value.name)||changed;
           }
           if(name!==null&&encoderNames.has(name)) {
             changed=add(encoderConstructors,property.value.name)||changed;
@@ -1646,6 +1656,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isWebConstructor(callee,webDictionaries,webDictionaryNames) &&
           node.arguments[0] &&
           mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
+      // Request/Response/File expose function source through BodyInit, URL,
+      // BlobPart sequences, filenames, headers and string-valued init fields.
+      // Preserve constant primitive records and sequences as positive controls.
+      if(isWebConstructor(callee,webRecords,webRecordNames) &&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
       // Object.fromEntries converts each pair's first value to a property
       // key. A function-valued key exposes the function's native source.
       if(node.type==='CallExpression') {
