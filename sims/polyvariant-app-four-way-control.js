@@ -133,7 +133,7 @@ async function runEvidence(){
       const records=events(count);
       /** @type {Record<Variant,string[]>} */
       const paths={native:[],minified:[],published:[],reconstructed:[]};
-      for(let trial=0;trial<9;trial++){
+      for(let trial=0;trial<12;trial++){
         for(const variant of variants){
           const location=path.join(folder,variant+'-'+count+'-'+trial);
           await materialize(location,graphs[variant]);
@@ -142,7 +142,7 @@ async function runEvidence(){
       }
       /** @type {Record<Variant,number[]>} */
       const timings={native:[],minified:[],published:[],reconstructed:[]};
-      for(let trial=0;trial<9;trial++){
+      for(let trial=0;trial<12;trial++){
         /** @type {Session|undefined} */
         let expected;
         for(const variant of orders[trial%orders.length]){
@@ -162,7 +162,7 @@ async function runEvidence(){
         }
       }
       rows.push({
-        events:count,applicationExecutions:36,
+        events:count,applicationExecutions:48,
         inputRecords:records.length,
         minifiedVsNative:pairedBudgetBound(timings.native,timings.minified),
         publishedVsNative:pairedBudgetBound(timings.native,timings.published),
