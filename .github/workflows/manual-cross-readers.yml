@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Cross-file differential and negative cases
-        run: node --test test/local-root-getter.test.js test/cross-file-local-identity.test.js test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js test/cross-file-source-byte-reader.test.js test/node-loader-source-reader.test.js test/module-registry-source-reader.test.js test/module-registry-source-sample.test.js
+        run: node --test test/local-root-getter.test.js test/cross-file-local-identity.test.js test/cross-file-reader-flow.test.js test/cross-file-reader-matrix.test.js test/cross-file-identity-return.test.js test/cross-file-identity-grid.test.js test/cross-reflection.test.js test/cross-file-ambiguity.test.js test/cross-file-source-introspection.test.js test/cross-file-absolute-url.test.js test/cross-file-hash-collision.test.js test/cross-file-source-byte-reader.test.js test/dom-inline-source-observer.test.js test/node-loader-source-reader.test.js test/module-registry-source-reader.test.js test/module-registry-source-sample.test.js
       - name: Verify exact immediate-owner getter before/after ESM artifact
         run: node examples/direct-owner-read/build-sample.cjs
       - name: Native and emitted ESM host-lock graph behavior
@@ -45,6 +45,11 @@ jobs:
         run: node sims/closed-graph-host-import-map-attack.js
       - name: In-memory computed loader refusal ablation and hostile dynamic import
         run: node sims/computed-refusal-ablation.js
+      - name: Real Chromium inline script source observation and unsafe ablation
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dom-inline-source-browser.js
       - name: Strict external researcher and diagnostic JSDoc
         run: npx tsc -p jsconfig.external.json
       - name: Strict JSDoc type safety
