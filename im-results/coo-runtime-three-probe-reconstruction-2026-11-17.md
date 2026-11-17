@@ -1,0 +1,37 @@
+# Three dynamic observations of public COO affine exports
+
+**Date:** 2026-11-17. **Classification:** Validated intermediate adversarial negative control on the selected affine model. No claim of arbitrary JS reconstruction, anti-tamper protection, or academic novelty.
+
+## Distinct attack question
+
+Can an attacker holding the actual published three-module stateful COO application construct an executable equivalent of its three protected integer functions with one observed runtime output per exported function? This complements the existing source-only AST interpreter. The latter walks compiler-emitted switch/affine instructions; the new attacker does not import the compiler or source-only affine decompiler and learns each offset from a call to its public runtime.
+
+The fixed original program lives in [the native three-file ESM example](../examples/polyvariant-app/native/). Its distributed math module uses two opt-in polyvariant cases for each of three exported integer-normalized affine chains. The downstream stateful application uses Unicode payloads, repeated digest invocations, reflection on state keys, and host callback tracing. The scope of the protection is the three arithmetic leaves; the rest of the graph remains publicly distributed.
+
+## Reconstruction protocol
+
+The [attacker](../sims/coo-runtime-one-query-reconstruct.js) receives a single string containing only distributed public math source. It imports that exact string as a Node data module; for each advertised round1, round2, round3 export, it queries the public function once at numeric input zero and records the signed 32-bit output. Before seeing any native ground truth or held-out result, it commits to the restricted model f(value) = ((value | 0) + offset) | 0. It replaces the corresponding exported function bodies in the distributed source with those expressions, using Acorn solely to locate the original body spans. One invocation per target is counted as one runtime observation; source parsing and module evaluation are separately included in an attacker-duration sample.
+
+The inference needs the declared numeric family. One zero-input observation cannot identify a general JavaScript function, its side effects, or its behavior under arbitrary operands. An adversary able to inspect the publicly executed code can verify this family separately. This experiment deliberately restricts its proof to the compiler's selected affine grammar.
+
+The [held-out regression](../test/coo-runtime-one-query-reconstruct.test.js) creates actual compiler output, commits the attack code, and only then loads the trusted native math reference. It checks 4,096 deterministic signed-Int32 inputs per function, representative special primitive inputs and single-call-to-primitive objects, together with complete JSON and external host traces for 1, 50, 1,000 and 10,000 event sessions in fresh clone/public ESM directories. A separate refusal checks that non-Int32 public outputs cannot accidentally be sold as affine recovery. All three reconstructed leaves must actually have been protected in the generated baseline.
+
+## Layout diversity control
+
+An additional [24-seed regression](../test/coo-runtime-one-query-reconstruct.test.js) rebuilds the same native arithmetic module through 24 distinct compiler seeds, requiring 24 distinct published SHA-256 digests and all three selected polyvariant functions in each output. The runtime attacker is invoked independently with only each generated public source; expected recovery is 72 public runtime observations followed by 9,216 new held-out numeric checks against the separately loaded original. The native arithmetic family is unchanged across seeds, so this demonstrates randomized **layout** coverage, not generalization to 24 unrelated semantic program families.
+
+## Actual Chromium dynamic observation
+
+The [real Chromium host regression](../test/coo-runtime-one-query-browser.js) serves the compiler-generated public math ESM over localhost and presents only those delivered bytes to a browser module. The browser imports the published module, obtains exactly one public value from each of round1/round2/round3, commits three equivalent arithmetic closures, and then checks 4,096 held-out Int32 values plus primitive/coercion boundaries per export. Node validates those reported offsets against the private original only after browser execution completes. Module transfer and parse/evaluation are included in the browser's approximate probe acquisition duration, while browser process startup, page setup and realistic network effects are excluded. The complete-app clone and host-trace regression remains a separately tested Node ESM graph.
+
+## Runtime and resistance interpretation
+
+This is a dynamic execution/observable-export capability test for a fully controlling client. Successful reconstruction would demonstrate that selected published arithmetic functions do not become behaviorally opaque to an attacker allowed to run them, even if their static switch cases become visually cumbersome. It would not necessarily recover original source spelling or compiled private construction details, and would not establish ability to evade unrelated authorization checks.
+
+The attack does not measure wall-clock difficulty for a fresh human or independent model attacker. An arithmetic model is supplied in advance, the toy leaves are structurally homogeneous, and the attacker must be able to run the distributed module. Different protected behavior requires a new adversarial model. Cold/browser and 2.5x application budget evidence remains the subject of separate pinned controls, including draft [PR 49](https://github.com/FlareZ123/obfs/pull/49).
+
+## Reproduction and provisional status
+
+The source is [the runtime attacker](../sims/coo-runtime-one-query-reconstruct.js), [its held-out Node test](../test/coo-runtime-one-query-reconstruct.test.js), and [real Chromium check](../test/coo-runtime-one-query-browser.js), checked by [strict JSDoc configuration](../jsconfig.coo-runtime-probe.json) and the existing branch-extended [Linux/Windows manual affine workflow](../.github/workflows/manual-polyvariant-affine.yml). The standalone [manual COO runtime workflow](../.github/workflows/manual-coo-runtime-probe.yml) is intended for future independent dispatch once registered on the default branch; the GitHub API refused a branch-only workflow filename with 404.
+
+The [exact-source Ubuntu/Windows full affine gate 44032141563](https://github.com/FlareZ123/obfs/actions/runs/44032141563) **PASSED** at commit 2e65eac90db3bda26eaef5a620125e69659c895b, with strict JSDoc, four focused runtime-probe Node tests, existing polyvariant affine coverage, and actual Ubuntu Chromium browser import/probe. The 24 seeded-layout test passed independently on both operating systems, verifying 24 different published source hashes, 72 runtime observations, and 9,216 held-out integer comparisons. The one-graph test additionally passed 12,288 held-out numeric comparisons plus primitive/coercion boundary and complete 1/50/1000/10000-event application callback checks. Browser recorded exactly one public math module fetch, three exported-function observations, 12,348 held-out numeric/primitive comparisons, 18 observable object-coercion probes, and an illustrative 10.9 ms module-load-to-probe duration on the Linux runner. These are selected fixture results, not a general adversary time-to-compromise benchmark or secrecy proof.

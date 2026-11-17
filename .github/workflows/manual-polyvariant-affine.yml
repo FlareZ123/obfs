@@ -36,6 +36,10 @@ jobs:
         run: node --test test/polyvariant-app-heldout-seeds.test.js
       - name: Report 24 independent public-source application rebuilds
         run: node sims/polyvariant-app-heldout-seeds.js
+      - name: Confirm three-query independent black-box translation clone and controls
+        run: node --test test/polyvariant-app-oracle-translation.test.js
+      - name: Emit original/public/cloned full ESM parity and exact chosen-query evidence
+        run: node sims/polyvariant-app-oracle-translation.js
       - name: Sample generated output (base64)
         run: node -e "const {execFileSync}=require('node:child_process'); const code=execFileSync(process.execPath,['examples/polyvariant-affine/build.js','--emit']); process.stdout.write('SAMPLE_B64='+code.toString('base64')+'\\n')"
       - name: Validate checked-in before-after sample
@@ -76,3 +80,14 @@ jobs:
         run: npx tsc --project jsconfig.polyvariant-coverage.json
       - name: JSDoc static check of paired-budget bound
         run: npx tsc --project jsconfig.paired-budget.json
+      - name: Strict JSDoc check for black-box attacker and external corpus
+        run: npm run typecheck:external
+      - name: Strict JSDoc for three-observation runtime reconstruction
+        run: npx tsc --project jsconfig.coo-runtime-probe.json
+      - name: Independently reconstruct COO math from only three public runtime probes
+        run: node --test test/coo-runtime-one-query-reconstruct.test.js
+      - name: Browser-hosted one-output-per-export affine reconstruction
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-runtime-one-query-browser.js

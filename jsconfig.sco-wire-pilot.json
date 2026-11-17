@@ -1,0 +1,12 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/sco-structured-wire-pilot.js",
+    "sims/sco-devalue-wire-pilot.js",
+    "sims/sco-devalue-browser-profile.js",
+    "sims/sco-devalue-untrusted-parser-grid.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

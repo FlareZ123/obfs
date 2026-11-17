@@ -34,6 +34,41 @@ scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
 `test/sco-malformed-utf8-rpc.test.js`.
 
+## Authorization timing under paced request bodies
+
+For a non-isolated RPC request, `authorizeRpc` runs immediately after the
+HTTP request begins, **before the server has read its complete JSON body**.
+This is an admission-time authorization snapshot. A previously approved
+client may deliberately send half of a valid JSON request, allow its
+credential to be revoked, then finish the body. If the application uses
+only `authorizeRpc`, the method still executes with the earlier approval.
+The handler imposes no implicit second authorization check at execution
+time. A strict execution-time revocation requirement therefore needs an
+additional policy or isolation boundary.
+
+With `runRpcIsolated`, body parsing completes first, and `authorizeRpc`
+is evaluated inside the isolated `execute` callback. For a request that
+pauses midway through upload, revocation before completion is observable
+to the later authorization check. This changes request processing order,
+as documented above, and does not guarantee atomicity against permission
+changes after the check or changes in other processes. Use an application
+transaction or state-aware `authorizeOperation` check for the intended
+method-specific consistency boundary, and serialize the relevant
+revocation transitions through the same isolation facility.
+
+The real byte-paced HTTP regression in
+[`test/sco-slow-body-authorization-race.test.js`](../test/sco-slow-body-authorization-race.test.js)
+was verified in both Node 22 Linux and Windows jobs of
+[manual authorization run 44020222950](https://github.com/FlareZ123/obfs/actions/runs/44020222950),
+exact commit `ad0513b9a03aa0375053801464972f9e4346a349`. It
+reproduces both outcomes with the same private method: unisolated
+acceptance followed by a late revocation, and isolation-enabled refusal
+after complete parsing. This is a behavior contract and operational
+warning for time-sensitive credentials, rather than a claim that a
+valid request was unauthorized at its initial admission. The effects of
+request-body timing and isolation on runtime budget still require
+deployment-specific measurement.
+
 ## Handler-owned authorization configuration
 
 SCO retains a private, construction-time snapshot of request policy wiring:
@@ -246,6 +281,25 @@ const results=await remote.batch([
 ```
 
 The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. For a batch created by `createScoBatchMethod`, an installed `authorizeOperation` callback runs for the outer batch and **each inner call of an executable, completely validated batch**, before any batch side effects. The helper first checks the batch count against `maxCalls`, the registration of every method, and each arguments array. An invalid or oversized batch skips all inner authorization callbacks and still fails with the helper's generic HTTP 500 before executing any private operation. This avoids issuing unnecessary per-item policy or database checks for work that cannot execute. It intentionally changes the HTTP result for batches that an earlier inner callback would have rejected as HTTP 403; no invalid batch becomes executable. The callback must permit both the batch method and every authorized inner method. Denying a later call blocks execution of the entire batch. An inner policy exception returns a generic HTTP 500 without exposing the exception. Invalid batch structures are still rejected by the batch helper. A batch helper may not be registered inside another batch helper even under a different operation name; this rejects nested recognized helpers whose deeper operations would otherwise bypass the single-level policy preflight. Custom wrappers around batch functions remain outside automatic recognition and must implement their own authorization preflight. Custom batch functions that do not originate from `createScoBatchMethod` have no automatic inner inspection; implement their own preflight authorization. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
+
+
+A recognized batch is now executed from a private snapshot of the parsed
+JSON argument graph, taken before the outer `authorizeOperation` callback.
+The inner authorization callback receives a separate copy of each checked
+call's arguments. The copies use a bounded, iterative JSON-value traversal
+rather than recursive cloning, preserving deeply nested valid JSON as well
+as negative zero and own `__proto__` data keys. A policy callback that edits the outer batch, changes a
+previously approved method name, or overwrites a previously checked argument
+cannot redirect the batch toward an unapproved operation. The execution
+snapshot preserves the JSON-parsed values originally submitted by the client.
+This safeguards accidental policy mutation, while leaving the authorization
+callback responsible for checking the entire submitted operation and applying
+correct identity and state rules. The snapshot does not make permission checks
+atomic with asynchronous external state, does not prevent a legitimate method
+from changing state mid-batch, and does not cancel work already started. The
+copy costs allocation and CPU proportional to the bounded RPC request graph;
+benchmark the whole authenticated call for the application's 2.5× budget.
+See `test/sco-batch-policy-mutation.test.js` for real-HTTP mutation controls.
 
 
 ## Authorization state changes within one batch

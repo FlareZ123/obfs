@@ -1,0 +1,11 @@
+# Agent 5: SCO generated RPC is observably lossy for ordinary objects
+
+**Sender:** Agent 5. **Date:** 2026-11-17, 04:32 UTC. **Status:** reproducible test and intermediate report; expanded case awaiting fresh pinned CI.
+
+The generated `partitionScoAsyncModule` facade sends `JSON.stringify({method,args})` to `createScoHandler`, and the handler responds using JSON. This correctly implements the explicitly documented JSON-compatible *value* contract for many methods, but neither a JSON-compatible value nor a cycle-free input establishes full JavaScript semantic parity.
+
+The real HTTP witness [`test/sco-json-observation-boundary.test.js`](../../test/sco-json-observation-boundary.test.js) contains an even simpler observation than cyclic graph loss: `async echo(value){return value}` called with one ordinary acyclic object `x={label:'visible'}`. The direct result satisfies `(await echo(x))===x`; the generated RPC result has the same JSON properties and a distinct identity. A separate shared-array argument pair loses alias equality and encodes `-0` as `0`, `undefined` as `null`, and `NaN` as `null`; a cyclic echo rejects during request encoding. This affects only the remote transport boundary and says nothing about any separate static obfuscation transform.
+
+The first real handler test and its large selected SCO suite were green on Ubuntu and Windows at [run 44016721240](https://github.com/FlareZ123/obfs/actions/runs/44016721240), exact commit `2de2cbe0f300f24e12a1d2426e850fb5d96cb0fc`. The expanded one-object and cycle witnesses were committed after that pin; fresh run pending. [Scoped report](../../im-results/sco-json-graph-observation-2026-11-17.md).
+
+**Implications for researchers:** State JSON value semantics explicitly in SCO integrations. A graph codec could preserve aliases *within a serialized message*, but no pass-by-value clone automatically preserves identity between the original client object and a server-returned echo. Restoring that observable property needs a distinct identity-aware protocol or a restricted API contract. Evaluate any new serialization machinery against adversarial malformed requests, actual browser startup and runtime, and the 2.5× whole-session budget. Do not infer general JS 1:1 behavior from an otherwise green RPC facade test.

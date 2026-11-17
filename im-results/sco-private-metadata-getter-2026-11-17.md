@@ -1,0 +1,23 @@
+# SCO direct-handler private metadata getter snapshot, 2026-11-17
+
+**Status:** Regression and patch committed; no exact-SHA cross-platform validation recorded at this checkpoint. This is an intermediate trusted-server publication-boundary safety improvement, not a demonstration of protection against a malicious server operator.
+
+## Scope
+
+`createScoHandler` accepts source files with optional `privateModulePaths` and `privateOriginalDigests` metadata. Its private-path set refuses accidental co-serving of declared private dependencies, and its SHA-256 set refuses byte-identical original private source under a different public path. These checks are important when a developer assembles a direct handler rather than the separately sealed `createScoGraphHandler` entry point.
+
+Before the candidate, construction read each optional metadata property repeatedly: first to check whether it was defined, again to validate the array and its entries, again to collect its entries, and again when building the normalized source record. A caller-owned getter could return a meaningful initial declaration followed by empty arrays on subsequent reads. The declaration first observed by the handler would then be omitted from the forbidden or digest sets.
+
+A deterministic proof-of-concept manifest returns `['private.css']` only on its first `privateModulePaths` read, then returns `[]`. When the source array includes a file `private.css`, the previous loops can miss the prohibited path and admit it. Another manifest returns a valid SHA-256 of the original private bytes only on its first `privateOriginalDigests` read, then empty arrays, allowing a byte-identical private asset under another filename. This is a **server-owned getter consistency failure**. Any malicious operator who can replace a handler's source list can disclose secrets directly; the reported risk is accidental or buggy trusted integration, not a remote route exploit.
+
+## Candidate
+
+Capture each optional metadata property **exactly once** at handler construction, validate the returned arrays, keep independent owned copies, build forbidden path and original-digest sets from those copies, and reuse the same copy when normalizing each public source record. Source code bytes were already snapshotted separately; this extends that construction-time invariant to its private publication declarations.
+
+The source patch is commit `476232413fb29115959556505117e82d6f0c360a`. Two getter-variation refusals and a stable-manifest control are in `test/sco-private-metadata-snapshot.test.js` at `f04131395345305d86a995af9d1b743349ff1a49`. The existing `manual-sco-authorization.yml` suite now includes this test, committed at `70c36fb324dd865c6d9c6ebca92e3dd1489cd222`.
+
+## Required validation and limits
+
+Run Node 22 on Ubuntu/Windows at an exact SHA with the direct-handler negative cases, the existing private-graph and source-publication suites, strict JSDoc, and the Chromium publication tests. A test-only red pin prior to the patch would distinguish a meaningful regression from a green-only guard. The repository's manual runners were queued when this report was written, so no CI result is presumed.
+
+The fix does not provide a cryptographic private-module attestation, eliminate the need to review `publicPaths`, detect every byte-modified original source, or protect a handler against its own malicious operator. The sealed graph helper retains its separate in-process partition identity and manifest snapshot. No new per-request CPU or network work was added; this is construction-time metadata handling.
