@@ -33,14 +33,80 @@ test('both versions cloned by identical attack gives no measured advantage',()=>
   assert.equal(report.pairedFamilywise.comparisons,4);
 });
 
-test('falsifiable equal-budget attacker gap can be boundedly supported',()=>{
+/**
+ * Attach a deliberately explicit hypothetical attack commitment for testing
+ * the classifier's positive path. The real matched four-way attack succeeded
+ * for both versions and does not present these hypothetical failure records.
+ * @param {ReturnType<typeof example>} input
+ */
+function recordMatchedCompletedAttack(input){
+  for(const attack of [input.conventionalControl,input.protectedCandidate]){
+    attack.selectedFunctionSetDigest='a'.repeat(64);
+    attack.verifierCaseDigest='b'.repeat(64);
+    attack.methodCommitmentDigest='c'.repeat(64);
+    attack.preparationBudgetMs=60000;
+    attack.analysisBudgetMs=120000;
+    attack.attackCompleted=true;
+    attack.failureCause='none';
+  }
+  input.protectedCandidate.cloneSucceeded=false;
+  input.protectedCandidate.failureCause='precommitted-budget-exhausted';
+}
+
+test('unsupported candidate failure does not establish a positive advantage',()=>{
   const input=example();
   input.protectedCandidate.cloneSucceeded=false;
+  const report=compareCandidateEvidence(input);
+  assert.equal(report.measurementReady,true);
+  assert.equal(report.attackAdvantage,'inconclusive');
+  assert.equal(report.verdict,'inconclusive');
+});
+
+test('precommitted matched completed attacker gap can be boundedly supported',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
   const report=compareCandidateEvidence(input);
   assert.equal(report.attackAdvantage,'supported');
   assert.equal(report.measuredRuntimeBudget,'supported');
   assert.equal(report.verdict,'supported');
   assert.match(report.caveat,/not proof/u);
+});
+
+test('one held-out comparison versus 12,288 cannot support positive superiority',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
+  input.protectedCandidate.verifiedHeldoutComparisons=1;
+  const report=compareCandidateEvidence(input);
+  assert.equal(report.measurementReady,false);
+  assert.equal(report.attackAdvantage,'inconclusive');
+  assert.equal(report.verdict,'inconclusive');
+});
+
+test('positive gap requires equal case and function witnesses, method and budgets',()=>{
+  for(const field of [
+    'selectedFunctionSetDigest','verifierCaseDigest','methodCommitmentDigest',
+    'preparationBudgetMs','analysisBudgetMs'
+  ]){
+    const input=example();
+    recordMatchedCompletedAttack(input);
+    if(field==='preparationBudgetMs'||field==='analysisBudgetMs'){
+      input.protectedCandidate[field]=30000;
+    }else{
+      input.protectedCandidate[field]='d'.repeat(64);
+    }
+    assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive',field);
+  }
+});
+
+test('positive gap requires completed attack and a budget-exhaustion witness',()=>{
+  const missingCompletion=example();
+  recordMatchedCompletedAttack(missingCompletion);
+  missingCompletion.protectedCandidate.attackCompleted=false;
+  assert.equal(compareCandidateEvidence(missingCompletion).attackAdvantage,'inconclusive');
+  const modelMismatch=example();
+  recordMatchedCompletedAttack(modelMismatch);
+  modelMismatch.protectedCandidate.failureCause='model-mismatch';
+  assert.equal(compareCandidateEvidence(modelMismatch).attackAdvantage,'inconclusive');
 });
 
 test('different oracle budgets, applications or absent protected yield stay inconclusive',()=>{
