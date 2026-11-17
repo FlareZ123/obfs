@@ -81,6 +81,7 @@ for(const count of [1,8,24]) {
     lazy:/** @type {number[]} */([]),
     eager:/** @type {number[]} */([])
   };
+  const expectedWarm=warmWork(session(native).fn,100000);
   for(let trial=0;trial<11;trial++) {
     const namesOrder=/** @type {('native'|'lazy'|'eager')[]} */(
       ['native','lazy','eager']);
@@ -90,9 +91,10 @@ for(const count of [1,8,24]) {
       assert.equal(measured.answer,((0x4f^17)&((0x4f<<2)|63)));
       results[variant].push(measured.ms);
       const start=performance.now();
-      assert.equal(warmWork(measured.fn,100000),warmWork(
-        session(variants.native).fn,100000));
-      warm[variant].push(performance.now()-start);
+      const answer=warmWork(measured.fn,100000);
+      const elapsed=performance.now()-start;
+      assert.equal(answer,expectedWarm);
+      warm[variant].push(elapsed);
     }
   }
   console.log(JSON.stringify({
