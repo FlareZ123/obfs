@@ -25,8 +25,9 @@ jobs:
         run: node sims/sco-large-domain-prf.js
       - name: Measure live third-party relay of an attacker-authorized session
         run: node sims/sco-relay-attack.js
-      - name: Preflight JSDoc and SCO stateful ratchet experiment
-        run: |
-          npm run typecheck
-          npm run typecheck:external
-          node sims/sco-ratchet-boundary.js
+      - name: Strict main JSDoc preflight
+        run: npm run typecheck
+      - name: Strict external JSDoc preflight
+        run: npm run typecheck:external
+      - name: SCO stateful ratchet replay and budget experiment
+        run: node sims/sco-ratchet-boundary.js
