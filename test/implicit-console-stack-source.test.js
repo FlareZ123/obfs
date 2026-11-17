@@ -71,6 +71,14 @@ test('globalThis.console.error observes a computed-member Error',()=>{
   mustPreserveConsoleSource("globalThis.console['error'](new RangeError('probe'));");
 });
 
+test('computed console trace through a local logger alias reveals source',()=>{
+  mustPreserveConsoleSource("const logger=console;logger['trace']();");
+});
+
+test('console.dir formats an Error created through another alias',()=>{
+  mustPreserveConsoleSource("const original=new Error('probe');const copy=original;console.dir(copy);");
+});
+
 test('ordinary primitive logging remains eligible for real property renaming',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;console.log(42);module.exports=value;";
