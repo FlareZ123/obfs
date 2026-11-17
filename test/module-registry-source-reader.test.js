@@ -506,3 +506,44 @@ test('benign detached native Reflect.get environment lookup preserves yield',()=
   });
   assert.equal(output.files[0].metrics.properties,1);
 });
+
+const patternReflectionPaths=[
+  ['Reflect get destructured',
+    "const {get:read}=Reflect;const load=read(process,'getBuiltinModule');"],
+  ['computed Reflect get destructured',
+    "const {['g'+'et']:read}=Reflect;const load=read(globalThis.process,'getBuiltinModule');"],
+  ['Object descriptor destructured',
+    "const {getOwnPropertyDescriptor:desc}=Object;const load=desc(process,'getBuiltinModule').value;"],
+  ['Reflect get destructure plus local alias',
+    "const {get:read}=Reflect;const g=read;const load=g(require('node:process'),'getBuiltinModule');"]
+];
+for(const [name,loader] of patternReflectionPaths) {
+  test('destructured reflection method preserves observable source: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'entry.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'entry.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',seed:'destructured-reflect/'+name,
+      strings:true,properties:true,identifiers:true});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'entry.cjs'),native);
+  });
+}
+
+test('benign destructured Reflect.get process environment preserves field yield',()=>{
+  const code="const {get:read}=Reflect;const env=read(process,'env');"+
+    "const state={secretField:32};console.log(env.NODE_ENV,state.secretField);";
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const output=obfuscateFiles([{path:'safe.cjs',sourceType:'commonjs',code}],{
+    mode:'sno',seed:'benign-reflect-pattern',strings:false,
+    properties:true,identifiers:false
+  });
+  assert.equal(output.files[0].metrics.properties,1);
+});
