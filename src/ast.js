@@ -1847,6 +1847,14 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   const processRoots=new Set(['process']);
   // Follow plain global-object aliases conservatively. An eventual mutable
   // reassignment may create a false positive; it cannot make the guard unsafe.
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isProcessModuleRequire(expression) {
+    if(expression?.type!=='CallExpression' ||
+       expression.callee.type!=='Identifier' ||
+       expression.callee.name!=='require' || !expression.arguments[0])return false;
+    return ['process','node:process'].includes(
+      staticString(expression.arguments[0])??'');
+  }
   let changed;
   do {
     changed=false;
@@ -1861,6 +1869,28 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
+          }
+        }
+      }
+      // The Node process builtin is available from a CJS require and from
+      // ESM namespace/default imports as well as from the global object.
+      if(binding?.type==='Identifier' && isProcessModuleRequire(initial) &&
+         !processRoots.has(binding.name)) {
+        processRoots.add(binding.name);
+        changed=true;
+      }
+      if(node.type==='ImportDeclaration' &&
+         ['process','node:process'].includes(String(node.source?.value))) {
+        for(const specifier of node.specifiers) {
+          if(specifier.type==='ImportDefaultSpecifier' ||
+             specifier.type==='ImportNamespaceSpecifier' ||
+             specifier.type==='ImportSpecifier' &&
+               (specifier.imported.name==='default' ||
+                specifier.imported.value==='default')) {
+            if(!processRoots.has(specifier.local.name)) {
+              processRoots.add(specifier.local.name);
+              changed=true;
+            }
           }
         }
       }
@@ -2012,6 +2042,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(fileModules.has(node.source?.value) ||
          loaderModules.has(node.source?.value))observed=true;
     }
+    if(node.type==='ImportDeclaration' &&
+       ['process','node:process'].includes(String(node.source?.value)) &&
+       node.specifiers.some(specifier=>specifier.type==='ImportSpecifier' &&
+         canReachLoader('process',specifier.imported.type==='Identifier' ?
+           specifier.imported.name:String(specifier.imported.value))))observed=true;
     if(node.type==='ImportExpression') {
       const source=staticString(node.source);
       if(source===null || fileModules.has(source) || loaderModules.has(source))observed=true;
@@ -2030,10 +2065,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     const target=node.type==='VariableDeclarator' ? node.init :
       node.type==='AssignmentExpression' ? node.right : null;
     if(pattern?.type==='ObjectPattern' &&
-       (target?.type==='Identifier'||target?.type==='MemberExpression')) {
+       (target?.type==='Identifier'||target?.type==='MemberExpression'||
+        isProcessModuleRequire(target))) {
       for(const property of pattern.properties) {
         if(property.type!=='Property') {
-          if(canReadLoaderRoot(target,null) ||
+          if(isProcessModuleRequire(target) || canReadLoaderRoot(target,null) ||
              target.type==='Identifier' && globals.has(target.name))observed=true;
           continue;
         }
@@ -2041,7 +2077,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           property.key.type==='Identifier' ? property.key.name :
           property.key.type==='Literal'&&typeof property.key.value==='string' ?
             property.key.value : null;
-        if(canReadLoaderRoot(target,field) || target.type==='Identifier' &&
+        if(isProcessModuleRequire(target) && canReachLoader('process',field) ||
+           canReadLoaderRoot(target,field) || target.type==='Identifier' &&
            globals.has(target.name) &&
            (field===null || browserReaders.has(field) ||
             ['require','module'].includes(field)))observed=true;
@@ -2065,7 +2102,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
        node.callee.object.type==='Identifier' &&
        ['Reflect','Object'].includes(node.callee.object.name) &&
        (node.arguments[0]?.type==='Identifier'||
-        node.arguments[0]?.type==='MemberExpression')) {
+        node.arguments[0]?.type==='MemberExpression'||
+        isProcessModuleRequire(node.arguments[0]))) {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier' ? node.callee.property.name : null;
       const root=node.arguments[0];
@@ -2074,14 +2112,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         if(root.type==='Identifier' && globals.has(root.name) &&
            (target===null || browserReaders.has(target) ||
             ['require','process','module','getBuiltinModule','createRequire'].includes(target)))observed=true;
-        if(canReadLoaderRoot(root,target))observed=true;
+        if(canReadLoaderRoot(root,target) ||
+           isProcessModuleRequire(root) && canReachLoader('process',target))observed=true;
       }
       // Enumerating module-registry descriptors exposes the loader root
       // without spelling the selected member in the local expression.
       if((node.callee.object.name==='Object' &&
           ['getOwnPropertyDescriptors','keys','values','entries'].includes(method??'') ||
           node.callee.object.name==='Reflect' && method==='ownKeys') &&
-          canReadLoaderRoot(root,null))observed=true;
+          (canReadLoaderRoot(root,null)||isProcessModuleRequire(root)))observed=true;
     }
   });
   return observed;
