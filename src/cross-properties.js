@@ -188,8 +188,9 @@ function collectImportedFunctionArrays(files) {
       if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
         const indices=directCarrierFactories.get(node.callee.name);
         if(indices?.some(index=>{
+          if(index===-1)return true;
           const argument=node.arguments[index];
-          return argument && hasFunction(argument.type==='SpreadElement'?
+          return !argument || hasFunction(argument.type==='SpreadElement'?
             argument.argument:argument,depth+1);
         }))return true;
       }
