@@ -343,12 +343,16 @@ function createScoHandler(sourceFiles,options={}) {
     /** @type {string[]|undefined} */
     let digests;
     if(providedDigests!==undefined){
-      if(!Array.isArray(providedDigests)||
-          providedDigests.some(value=>typeof value!=='string'||
-            !/^[0-9a-f]{64}$/u.test(value))){
+      if(!Array.isArray(providedDigests)){
         throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
       }
+      // Snapshot index accessors once, then validate exactly the bytes used
+      // by the publication policy. Getter values may differ on later reads.
       digests=[...providedDigests];
+      if(digests.some(value=>typeof value!=='string'||
+          !/^[0-9a-f]{64}$/u.test(value))){
+        throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
+      }
       for(const digest of digests)privateOriginalDigests.add(digest);
     }
     /** @type {string[]|undefined} */
