@@ -24,6 +24,8 @@
     "test/sco-real-browser.js",
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js",
+    "sims/css-nested-data-import-attack.js",
+    "sims/wasm-debug-metadata-attack.js",
     "workplace/mba-i32-lower.js",
     "sims/mba-i32-profile.js",
     "sims/mba-static-normalize.js",
