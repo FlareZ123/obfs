@@ -3,8 +3,7 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createHash}=require('node:crypto');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-three-way-budget');
@@ -200,6 +199,8 @@ async function main(){
     });
     response.end(assets.get(key));
   });
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browserSession;
   try{
     await new Promise((resolve,reject)=>{
       server.once('error',reject);
@@ -208,12 +209,24 @@ async function main(){
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const root='http://127.0.0.1:'+address.port;
-    const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--timeout=45000','--dump-dom',root+'/index.html'
-    ],{timeout:65000,maxBuffer:8*1024*1024,encoding:'utf8'});
-    const data=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
-    assert.ok(data,'Browser did not complete cold import experiment: '+stdout.slice(-1800));
+    browserSession=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const chromeVersion=await browserSession.version();
+    const chromePage=await browserSession.newPage();
+    await chromePage.goto(root+'/index.html',{
+      waitUntil:'domcontentloaded',timeout:45000
+    });
+    await chromePage.waitForFunction(()=>{
+      const text=document.getElementById('out')?.textContent??'';
+      return text.startsWith('pass:')||text.startsWith('fail:');
+    },{timeout:45000,polling:50});
+    const outputText=await chromePage.$eval('#out',element=>element.textContent??'');
+    assert.ok(outputText.startsWith('pass:'),
+      'Chromium experiment rejected its own semantic/clock checks: '+outputText.slice(0,2500));
+    const data=outputText.slice(5);
     const browser=/** @type {{rows:BrowserRow[],hotCpu:Record<Variant,number[]>,clockProbeMs:number,clockChecksum:number}} */
       (JSON.parse(data));
     assert.ok(Number.isFinite(browser.clockProbeMs)&&browser.clockProbeMs>=0.1,
@@ -273,7 +286,8 @@ async function main(){
       candidate:row.measurements.reconstructed.map(x=>x.totalMs)
     })));
     process.stdout.write('POLYVARIANT_COLD_CHROMIUM '+JSON.stringify({
-      node:process.version,platform:process.platform,chromiumBin:process.env.CHROMIUM_BIN??'google-chrome',
+      node:process.version,platform:process.platform,
+      chromiumBin:process.env.CHROMIUM_BIN??'google-chrome',chromeVersion,
       sourceHashes:{native:originalSha256,published:publishedSha256,
         reconstructed:reconstructedSha256},
       boundary:'same Chromium page, unique non-cached three-module URLs for each session; localhost HTTP fetch + ESM link/evaluate + full synchronous application and host callbacks; browser process/page startup, source build and source-only reconstruction excluded',
@@ -288,6 +302,7 @@ async function main(){
         rawTimings:browser.hotCpu},rows:results
     })+'\n');
   }finally{
+    if(browserSession)await browserSession.close();
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve(true)));
   }
