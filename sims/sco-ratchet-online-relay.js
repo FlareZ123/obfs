@@ -194,6 +194,8 @@ async function experiment(){
     const nativeMedian=median(nativeTimes);
     const directMedian=median(directTimes);
     const relayMedian=median(relayTimes);
+    const directRatios=directTimes.map((value,index)=>value/nativeTimes[index]);
+    const relayRatios=relayTimes.map((value,index)=>value/nativeTimes[index]);
     return {
       platform:process.platform,node:process.version,
       deliveredPublicSha256:createHash('sha256').update(source).digest('hex'),
@@ -210,6 +212,12 @@ async function experiment(){
       directMedianRatio:directMedian/nativeMedian,
       relayMedianRatio:relayMedian/nativeMedian,
       strictMedianRelayWithin2_5x:relayMedian/nativeMedian<=2.5,
+      directStrictOverBudgetPairs:directRatios.filter(value=>value>2.5).length,
+      relayStrictOverBudgetPairs:relayRatios.filter(value=>value>2.5).length,
+      maximumDirectRatio:Math.max(...directRatios),
+      maximumRelayRatio:Math.max(...relayRatios),
+      pairedDirectRatios:directRatios.map(value=>Number(value.toFixed(5))),
+      pairedRelayRatios:relayRatios.map(value=>Number(value.toFixed(5))),
       trialsPerStrategy:7,
       caveat:'All attacker and trusted processes run on one local machine. Online same-account relay succeeds by design, no full-control server compromise or real RTT.'
     };
