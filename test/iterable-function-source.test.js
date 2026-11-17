@@ -67,6 +67,24 @@ for(const [name,body] of [
   });
 }
 
+
+// Map#forEach supplies the key as callback argument two. Set#forEach
+// supplies its value twice; either position may transport function source.
+for(const [name,body] of [
+  ['Map forEach function key',
+    'const map=new Map([[protectedSum,1]]);const list=[];'+
+      'map.forEach((value,key)=>list.push(key));module.exports=list.join(",");'],
+  ['Set forEach second argument',
+    'const set=new Set([protectedSum]);const list=[];'+
+      'set.forEach((value,second)=>list.push(second));module.exports=list.join(",");']
+]) {
+  test(name+' must preserve observed protected source',()=>{
+    const source=protectedSource()+body;
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
 test('primitive-only iterable copies allow unrelated protected work',()=>{
   const source=protectedSource()+
     'const bag=new Set([3,1,3]);const map=new Map([[1,7]]);'+
