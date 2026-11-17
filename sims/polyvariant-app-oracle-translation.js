@@ -182,7 +182,7 @@ function records(count){
  *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean,
  *   publishedBytes:number,nativeBytes:number,
  *   parityOracleCalls:number,parityHeldoutFunctionComparisons:number,
- *   parityNonlinearNegativeControl:boolean
+ *   parityNonlinearNegativeControl:boolean,publicValidationQueries:number
  * }>}
  */
 async function runAttack(){
@@ -242,6 +242,28 @@ async function runAttack(){
     const parityDir=path.join(temporary,'parity-clone');
     await materialize(parityDir,parityCloned);
     const parityMath=await loadModule(parityDir);
+    // The attacker can challenge every hypothesis with unseen PUBLIC inputs
+    // before any native source or original function is available. These are
+    // optional validation queries beyond the 3/6/12 fitting-query budgets.
+    let publicValidationQueries=0;
+    for(const name of targets){
+      for(let i=0;i<64;i++){
+        const input=i<7?
+          [-2147483648,-1,0,1,2147483647,0x12345678|0,-0x12345678|0][i]:
+          Math.imul((i+4096)^0x217c8f31,0x9e3779b1)|0;
+        const actual=publishedMath[name](input);
+        publicValidationQueries++;
+        for(const [variant,fn] of [
+          ['translation',clonedMath[name]],
+          ['affine',affineMath[name]],
+          ['parity',parityMath[name]]
+        ]){
+          assert.ok(Object.is(actual,fn(input)),
+            'Public-only model falsified: '+variant+'/'+name+'/'+i);
+        }
+      }
+    }
+
 
     // This is a validation oracle, deliberately introduced after attack
     // synthesis. Neither native bytes nor original functions identify offsets.
@@ -334,7 +356,7 @@ async function runAttack(){
       affineOracleCalls:targets.length*2,affineSlopes,
       affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes,
       parityOracleCalls:targets.length*4,parityHeldoutFunctionComparisons,
-      parityNonlinearNegativeControl
+      parityNonlinearNegativeControl,publicValidationQueries
     };
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
