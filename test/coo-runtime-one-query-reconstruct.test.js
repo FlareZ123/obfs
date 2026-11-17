@@ -118,12 +118,15 @@ test('three public runtime observations reproduce entire stateful COO applicatio
       /** @type {unknown[]} */ const publicTrace=[];
       /** @type {unknown[]} */ const cloneTrace=[];
       const originalJson=originalEntry.runScenario(-817,records,{
+        /** @param {unknown} value */
         emit(value){expectedTrace.push(value);}
       });
       const publicJson=publishedEntry.runScenario(-817,records,{
+        /** @param {unknown} value */
         emit(value){publicTrace.push(value);}
       });
       const cloneJson=cloneEntry.runScenario(-817,records,{
+        /** @param {unknown} value */
         emit(value){cloneTrace.push(value);}
       });
       assert.equal(publicJson,originalJson,'published graph '+count);
