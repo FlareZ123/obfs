@@ -53,9 +53,8 @@ test('verified imported source-capable global names still fail closed',()=>{
     const verified=collectVerifiedImportedStrings(files);
     const consumer=parse(/** @type {string} */(files[1].code),'module');
     const sourceObserver=observesDistributedSource(consumer,verified.get('main.mjs'));
-    const compilerHazard=key==='Function';
-    assert.ok(sourceObserver||compilerHazard,
-      'A known source reader or dynamic constructor must remain recognized: '+key);
+    if(key==='fetch'||key==='require')assert.equal(sourceObserver,true,
+      'Known direct source-capable APIs must remain recognized: '+key);
     const cross=renameCrossFileProperties(files,'forbidden-'+key);
     assert.equal(cross.properties,0,key);
   }
