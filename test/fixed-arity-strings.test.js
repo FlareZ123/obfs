@@ -47,7 +47,7 @@ test('SCO explicit fixed-arity string option preserves an unpartitioned module',
     properties:false,identifiers:false,experimentalFixedArityStrings:true
   }).files[0];
   assert.equal(result.metrics.literals,1);
-  assert.match(String(result.code),/fromCharCode\\([^)]*charCodeAt/u);
+  assert.match(String(result.code),/fromCharCode\([^)]*charCodeAt/u);
   assert.equal(execute(String(result.code)),execute(source));
   const attacker=recoverObfuscatedStrings(String(result.code),'commonjs');
   assert.equal(attacker.literals,1);
