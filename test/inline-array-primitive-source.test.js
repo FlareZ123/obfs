@@ -56,3 +56,17 @@ test('prototype-filled hole has observable function source in native VM',()=>{
   assert.match(String(result),/function hiddenSourceMarker/u);
   assert.equal(observesFunctionSource(parse(original,'commonjs')),true);
 });
+
+test('source-spelled failed inline element call retains V8 diagnostics',()=>{
+  const source=[
+    "'use strict';",
+    "try{(['first-long-literal','second-long-literal'][0])();}",
+    "catch(error){module.exports=error.message;}"
+  ].join('');
+  const generated=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sno',seed:'array-index-failed-call',properties:false
+  }).files[0];
+  assert.equal(generated.metrics.literals,0,
+    'A native failed call can quote its original inline callee source');
+  assert.equal(execute(String(generated.code)),execute(source));
+});
