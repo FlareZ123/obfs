@@ -156,10 +156,11 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // Batch execution must retain the submitted JSON value graph even if an
-    // application authorizer mutates the policy-visible arguments. Snapshot
-    // only registered batches; ordinary methods retain their existing contract.
-    const checkedBatchArgs=getScoBatchCalls(task,args)===null?null:cloneJsonArgs(args);
+    // A batch is copied only when an argument-aware policy can mutate its
+    // original request graph. Without that policy, preserve the existing
+    // zero-copy execution path and avoid unnecessary RPC overhead.
+    const checkedBatchArgs=options.authorizeOperation &&
+      getScoBatchCalls(task,args)!==null ?cloneJsonArgs(args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
