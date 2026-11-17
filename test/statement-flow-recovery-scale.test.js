@@ -72,3 +72,34 @@ test('seedless recovery keeps early exits and mixed branch joins native',()=>{
     }
   }
 });
+
+
+test('public COO/SNO layered twelve-diamond output remains source-only recoverable',()=>{
+  const {obfuscateFiles}=require('../src');
+  const original=sequentialDiamonds(12);
+  const native=load(original);
+  for(const mode of ['coo','sno']){
+    for(const compactCases of [false,true]){
+      for(let seed=0;seed<4;seed++){
+        const published=obfuscateFiles([{
+          path:'math.mjs',sourceType:'module',code:'export '+original
+        }],{
+          mode,seed:'layered-diamond-'+mode+'-'+compactCases+'-'+seed,
+          strings:true,properties:true,identifiers:true,
+          ...(mode==='coo'?{allowedHosts:['127.0.0.1']}:{ }),
+          experimentalStatementFlow:{'math.mjs':['f']},
+          experimentalStatementFlowCompact:compactCases
+        });
+        assert.equal(published.files[0].metrics.statementFlowFunctions,1);
+        const publicText=String(published.files[0].code);
+        const clone=recoverStatementFlow(publicText,'f','module');
+        assert.ok(clone.blocks>=12);
+        const extracted=load(clone.code.replace(/^export /u,''));
+        for(let x=-65;x<=65;x+=5){
+          assert.equal(extracted(x),native(x),
+            'Public-only multi-pass reconstruction changed '+mode+'/'+compactCases+'/'+seed+'/'+x);
+        }
+      }
+    }
+  }
+});
