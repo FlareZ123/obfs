@@ -56,6 +56,7 @@
     "sims/windows-unicode-uppercase-grid.js",
     "sims/windows-shortname-alias-probe.js",
     "test/source-map-utf16-asset.test.js",
+    "test/reviewed-opaque-assets.test.js",
     "sims/sco-private-runtime-source-trace.js",
     "sims/sco-audience-bound-relay.js",
     "sims/verified-record-session-profile.js",
