@@ -1,6 +1,6 @@
 # Exact zero-breach runtime tail diagnostic (17 November 2026)
 
-**Classification:** intermediate measurement methodology, not a new JS obfuscation or adversarial security result. **Status:** full Linux/Windows/Chromium integration green at a source-pinned commit, dedicated release-evidence application check pending. These bounds cannot certify the project's universal 2.5× compute rule.
+**Classification:** intermediate measurement methodology, not a new JS obfuscation or adversarial security result. **Status:** full Linux/Windows/Chromium integration and independently source-pinned cross-mode adversarial release-evidence jobs green as experiments, with the tested protected system still **RELEASE-BLOCKED**. These bounds cannot certify the project's universal 2.5× compute rule.
 
 ## Why the existing median decision was insufficient
 
@@ -41,3 +41,21 @@ The diagnostic's probabilistic interpretation is invalid when samples are select
 ## Pinned integration
 
 The [full Node 22 Linux/Windows and Ubuntu Chromium run 44201015222](https://github.com/FlareZ123/obfs/actions/runs/44201015222) completed **successfully at exact input source SHA `0debee4b86e0a999f30e089584827494d97fbd04`**. Each operating system ran 2,661 Node tests. Ubuntu passed 2,660, skipped one, failed zero; Windows passed 2,658, skipped three, failed zero. Both JSDoc configurations, baseline benchmark and real Chromium tests passed. The two new strict-tail tests executed at this pin; the generated client/server obfuscator code has not been changed by the new diagnostic. This integration does not exercise the full cross-mode release-evidence sample script, for which a separately pinned experiment is appropriate.
+
+
+## Actual generated cross-mode report, after serialization integration
+
+The [dedicated cross-mode release-evidence gate 44201847675](https://github.com/FlareZ123/obfs/actions/runs/44201847675) **passed** its test scripts, direct attacker comparisons and sample generation on Ubuntu and Windows at exact source SHA `51f0253c7253ac38fd5300769f804b70b9728fdc`. Both full job artifacts emitted `performance.crossModeFamilywise.strictTail` from **real native/protected sampled workloads**, preserving the original `RELEASE-BLOCKED` verdict. The final integrated `sims/release-evidence-gate.js` and its new serialization check are included at this SHA. The preceding run [44201570730](https://github.com/FlareZ123/obfs/actions/runs/44201570730) passed the same experiment at `b3a0671cf241c3ca45daf705a89efaeaab3c8bfc`, but predates surfacing the tail diagnostic in the output; do not claim it validated the new serialized field.
+
+| Source-pinned Node 22 observation | Windows | Ubuntu |
+| --- | ---: | ---: |
+| Distinct paired workload populations | 10 | 10 |
+| Observed strict >2.5× sample pairs | **9** | **10** |
+| Observed maximum paired slowdown | **3.17053×** | **4.22885×** |
+| Cross-mode median verdict | sample-exceeded | sample-exceeded |
+| Overall evaluated release verdict | **RELEASE-BLOCKED** | **RELEASE-BLOCKED** |
+| Independent functional clones recorded | COO, SNO, SCO relay | COO, SNO, SCO relay |
+
+At simultaneous requested 95% confidence over these ten workloads, the zero-breach upper limit for each of the four **9-pair COO** workload populations was **44.49526922%**; for each of the four **13-pair SNO** populations it was **33.47303783%**. In both operating systems the 1-event SCO population had one or more **actual** strict breaches, and its zero-breach bound was correctly `null`. Ubuntu also observed a breach in the 120,000-event SCO population; Windows did not for that population, so its 9-pair zero-breach diagnostic was about 44.495%, not a worst-case clearance. Both operating systems' emitted `strictTail` metadata explicitly state the within-workload representative-independent-pair assumption. Between-workload independence is not required for the Bonferroni adjustment.
+
+The **green workflow** denotes completed experiment execution, **not a positive release verdict**. This source-pinned comparison demonstrates why the prior median-supported labels for some workloads cannot establish the project's strict per-run compute cap. The original independent static and online functional reconstruction findings persist; this statistical reporting change does not strengthen emitted obfuscation or introduce runtime overhead.
