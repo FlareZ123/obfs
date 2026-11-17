@@ -27,6 +27,7 @@ test('576 real native/emitted ESM graphs preserve behavior across compiler modes
     assert.equal(result.observedUnsafeRenames,0);
     assert.equal(result.nativeEqual,true);
     assert.equal(result.attackerReplayEqual,true);
+    assert.equal(result.attackerGuardedFreeReceivers,true);
     assert.equal(result.attackerNormalizedFields,result.totalProtectedRenames);
     assert.equal(result.nativeControlNeutralizedFields,0);
     process.stdout.write('ESM_OBSERVATION_MATRIX '+JSON.stringify(result)+'\n');
