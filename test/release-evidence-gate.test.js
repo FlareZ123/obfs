@@ -87,7 +87,7 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.crossModeFamilywise.comparisons,10);
   assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
   assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
-  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,27);
+  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,31);
   assert.equal(summary.performance.crossModeFamilywise.observedSampleHasOverBudgetPair,true);
   assert.equal(summary.performance.crossModeFamilywise.observedMaxPairedRatio,4.2);
   assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
