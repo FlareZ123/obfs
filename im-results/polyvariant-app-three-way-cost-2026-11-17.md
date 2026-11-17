@@ -31,6 +31,23 @@ The emitted distribution stayed within 2.5x for every observed ratio-of-medians 
 
 An independent static math reconstruction produced one sampled algorithmic parsing time of **10.484 ms on Ubuntu and 14.830 ms on Windows**. The number is a single-process computer timing of a grammar-specific attacker, not a human effort measure, agent complexity measure, portable deobfuscation bound, or evidence for unrelated ciphers. The reconstructed ESM package is smaller than the original because the original math source contains intentionally redundant nested constant arithmetic that the attacker algebraically collapses.
 
+## Real Chromium full ESM execution and steady-state paired CPU observation
+
+The full original/public/attacker-rebuilt **three-graph browser ESM** check in [test/polyvariant-app-three-way-browser.js](../test/polyvariant-app-three-way-browser.js) now executes via actual localhost HTTP imports under headless Chromium. The browser first compares **complete JSON-visible outputs and emitted external host callback traces for all three graphs** at 1, 50, 1,000 and 10,000 stateful events. It independently fingerprints the baseline output and callback trace with WebCrypto SHA-256; Node computes the same output and trace hashes. It additionally verifies that ordinary HTTP access exposes the exact compiler-produced math module and that an absent graph path is not mistakenly served.
+
+After functional equality, the page measures **nine alternating, already-loaded, warmed full-app synchronous sessions** of 10,000 events each, with identical callback work and a count check. [Green Ubuntu real Chromium plus Windows Node/JSDoc run 44000929908](https://github.com/FlareZ123/obfs/actions/runs/44000929908), exact SHA **0827aae56999d2ba329c7623e9a72a130a8984b8**, passed all checks:
+
+| Browser metric, warmed 10,000-event full app | Original | Published obfuscation | Source-only attacker rebuild |
+| --- | ---: | ---: | ---: |
+| Median synchronous elapsed time, ms | 4.3 | 9.9 | 4.3 |
+| Ratio of medians vs original | 1.000x | **2.302x** | 1.000x |
+| One-sided paired-median upper vs original | reference | **2.302x** | 1.179x |
+| Browser-authenticated public import / state / callback checks | original | pass | pass |
+
+The attacker's reconstructed/native original ratio-of-medians was 1.000x, while reconstructed/published was **0.434x** in this specific runner profile; the latter's one-sided paired-median upper was 0.554x. Nine raw chronological browser trial triples and Node-calculated exact paired bounds are emitted in the CI log.
+
+**Essential boundary:** This browser timing is a **warmed, already-imported synchronous application-work estimate**, so it excludes initial browser/module loading, HTTP fetch, parse/compile startup, and page launch. The exact statistical bound assumes iid, stationary observations; a shared browser process and jitter may violate those assumptions. One of nine measured published/native *individual* pairs exceeded 2.5x, despite the median-of-paired-ratios one-sided bound below 2.5x. The hard project-wide compute ceiling is therefore **not proven for arbitrary executions, cold starts or browser devices**. The real-browser result does independently confirm the stronger threat-model observation: publicly distributed executable source alone yields a full, directly importable, correctly behaving attacker replacement in an actual client runtime.
+
 ## Security-performance conclusion
 
 On this frozen application, the protection is focused on three frequently invoked leaf functions, the rest of the 3-file program is publicly readable, and the attacker reconstructs an executable replacement for all three protected leaves. The published code is therefore heavier than both native and reconstructed variants at all tested event counts and still does not provide the claimed general static-clone resistance. This independent source-only attack needs no DevTools runtime secrets, privileged access, server endpoint or known compilation seed.
