@@ -114,7 +114,8 @@
     "sims/sco-ratchet-batch-candidate.js",
     "sims/sco-ratchet-batch-public-attacker.js",
     "sims/sco-ratchet-tls-cost.js",
-    "test/sco-ratchet-batch-browser.js"
+    "test/sco-ratchet-batch-browser.js",
+    "sims/sco-ratchet-online-relay.js"
   ],
   "exclude": [
     "node_modules"
