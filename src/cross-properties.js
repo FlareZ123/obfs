@@ -196,6 +196,12 @@ function collectImportedFunctionArrays(files) {
           if(method==='of')return node.arguments.some((/** @type {AstNode} */ arg)=>
             hasFunction(arg.type==='SpreadElement'?arg.argument:arg,depth+1));
         }
+        if(['union','intersection','difference','symmetricDifference']
+          .includes(method??'')) {
+          if(hasFunction(owner,depth+1))return true;
+          return ['union','symmetricDifference'].includes(method??'') &&
+            hasFunction(node.arguments[0],depth+1);
+        }
         if(['slice','concat','filter','map','flat','flatMap','toReversed',
             'toSorted','toSpliced','with'].includes(method??'')) {
           if(hasFunction(owner,depth+1))return true;
