@@ -77,3 +77,20 @@ test('source observer island still transforms safe JSON/console importer',()=>{
     assert.equal(result.files.find(x=>x.path==='watched.mjs')?.code,watched.code);
   }
 });
+
+test('source observer island rejects browser string timer source readers',()=>{
+  const callbacks=[
+    'setTimeout("fetch(\'./independent.mjs\').then(r=>r.text())",0);',
+    'setInterval("fetch(\'./independent.mjs\').then(r=>r.text())",100);'
+  ];
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    for(const expression of callbacks){
+      assert.throws(()=>obfuscateFiles([watched,leaf,importer(expression)],{
+        mode,closedWorld:true,strings:false,identifiers:false,
+        experimentalSourceObserverIslands:['independent.mjs'],
+        seed:'island-timer-refusal'
+      }),/Source observer island/,
+      'Browser string timer can execute a dynamic source-file reader');
+    }
+  }
+});
