@@ -23,6 +23,10 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Verify string decoder preserves V8 source-spelled failure operands
         run: node --test test/source-spelled-operand-errors.test.js
+      - name: Native statement-flow compaction differential and seedless attacker
+        run: node --test test/statement-flow.test.js test/statement-flow-compact.test.js
+      - name: Native, flattened and compact CFG runtime comparison
+        run: node sims/statement-flow-compact-profile.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
