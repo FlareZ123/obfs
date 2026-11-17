@@ -9,6 +9,7 @@ const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-four-way-control');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const {atomicWrite}=require('../src/atomic');
 
 /** @param {string} value @returns {string} */
 function sha256(value){return createHash('sha256').update(value).digest('hex');}
@@ -149,7 +150,7 @@ async function main(){
       assert.equal(samples.length,9);
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
     }
-    process.stdout.write('MINIFIED_FOUR_WAY_CHROMIUM '+JSON.stringify({
+    const browserEvidence={
       node:process.version,platform:process.platform,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
@@ -158,7 +159,12 @@ async function main(){
       publishedVsMinified:pairedBudgetBound(actual.samples.minified,actual.samples.published),
       reconstructedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.reconstructed),
       samples:actual.samples
-    })+'\n');
+    };
+    if(process.env.OBFS_FOUR_WAY_BROWSER_AUDIT_FILE)
+      await atomicWrite(process.env.OBFS_FOUR_WAY_BROWSER_AUDIT_FILE,
+        JSON.stringify(browserEvidence,null,2)+'\n');
+    process.stdout.write('MINIFIED_FOUR_WAY_CHROMIUM '+
+      JSON.stringify(browserEvidence)+'\n');
   }finally{
     await new Promise((resolve,reject)=>server.close(
       error=>error?reject(error):resolve(true)));
