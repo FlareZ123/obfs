@@ -128,6 +128,9 @@ test('private source input getters are read once for closure and deployment comm
   };
   const sourceList=[getterBackedModule];
   sourceList.map=()=>{throw new Error('compiler must not invoke a custom map method');};
+  Object.defineProperty(sourceList,Symbol.iterator,{value:()=>{
+    throw new Error('compiler must not invoke a custom source array iterator');
+  }});
   const options={
     seed:'sco-input-snapshot-20261117',
     privateNames:['protectedDigest'],
