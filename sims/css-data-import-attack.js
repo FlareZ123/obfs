@@ -109,6 +109,25 @@ async function compare(previousRoot,currentRoot) {
         /(?:CSS data import cannot be audited|HTML asset contains inline CSS data import|SVG asset contains embedded CSS data import)/u);
       refused++;
     }
+    // A safe stylesheet must preserve both ordinary emitted JavaScript
+    // bytes and the exact asset bytes under this preflight-only change.
+    const safeCss='@import url("https://cdn.example.test/public.css");.ok{color:#123}';
+    /** @type {File} */
+    const safeAsset={path:'safe.css',sourceType:'asset',code:Buffer.from(safeCss)};
+    const beforeSafe=previous.obfuscateFiles([entry,safeAsset],{
+      mode,seed:'css-data-safe',strings:false
+    });
+    const afterSafe=current.obfuscateFiles([entry,safeAsset],{
+      mode,seed:'css-data-safe',strings:false
+    });
+    for(const candidate of [entry.path,safeAsset.path]) {
+      const baseline=beforeSafe.files.find(file=>file.path===candidate);
+      const hardened=afterSafe.files.find(file=>file.path===candidate);
+      assert.ok(baseline);
+      assert.ok(hardened);
+      assert.deepEqual(hardened.code,baseline.code,
+        'Preflight addition must not silently modify accepted bytes: '+candidate);
+    }
     modes.push({mode,recovered,refused});
   }
   let httpRecovered=0,httpRefused=0;
