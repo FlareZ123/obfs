@@ -651,7 +651,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     if(isGlobal(node.object))return builtins.has(name??'');
-    if(node.object.type!=='Identifier'||name===null)return false;
+    if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys : null;
     const keys=properties?.get(node.object.name);
