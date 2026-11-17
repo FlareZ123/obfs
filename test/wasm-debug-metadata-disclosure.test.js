@@ -110,3 +110,39 @@ test('Wasm debug name checks read section identities rather than mistaken payloa
   const invalid=Buffer.concat([header,Buffer.from([0,2,10])]);
   assert.throws(()=>hasWasmDebugMetadata(invalid),/Truncated Wasm/);
 });
+
+
+test('seeded multi-section Wasm header fuzz preserves exact-name classification',()=>{
+  let state=0x0b5f5a25;
+  /** @returns {number} */
+  function next() {
+    state^=state<<13;
+    state^=state>>>17;
+    state^=state<<5;
+    return state>>>0;
+  }
+  const names=[
+    'name','.debug_str','.debug_loclists','.zdebug_info','external_debug_info',
+    'application-metadata','nameless','.debug','debug_str','producers'
+  ];
+  for(let trial=0;trial<128;trial++){
+    /** @type {Buffer[]} */
+    const sections=[header];
+    let expected=false;
+    const count=1+(next()%6);
+    for(let index=0;index<count;index++){
+      const name=names[next()%names.length];
+      const bytes=Buffer.from(name);
+      const size=next()%5===0?128+next()%900:next()%80;
+      const data=Buffer.alloc(size,(next()%256));
+      if(data.length>=4)Buffer.from('name').copy(data,0);
+      const body=Buffer.concat([leb(bytes.length),bytes,data]);
+      sections.push(Buffer.concat([Buffer.from([0]),leb(body.length),body]));
+      if(name==='name'||name==='external_debug_info'||
+          name.startsWith('.debug_')||name.startsWith('.zdebug_'))expected=true;
+    }
+    const wasm=Buffer.concat(sections);
+    assert.equal(WebAssembly.validate(wasm),true,'Wasm fixture '+trial);
+    assert.equal(hasWasmDebugMetadata(wasm),expected,'Wasm scanner trial '+trial);
+  }
+});
