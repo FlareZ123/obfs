@@ -39,9 +39,7 @@ references, including `&#x64;ata:`.
 
 [`test/html-data-stylesheet-disclosure.test.js`](../test/html-data-stylesheet-disclosure.test.js)
 covers canonical, alternate and template-nested stylesheet links,
-character-reference normalization, three obfuscation modes, direct SCO
-publication refusal, ordinary linked external CSS and byte-preserved raster
-image data URLs. The existing
+character-reference normalization, including embedded tabs/newlines in a URL scheme, three obfuscation modes, direct SCO publication refusal, ordinary linked external CSS and byte-preserved raster image data URLs. The same normalized `data:` predicate was also applied to HTML `<script src>` URLs, closing an analogous bypass for an arbitrary data MIME: `da&#10;ta:application/octet-stream` previously escaped the original raw-prefix check. The existing HTML disclosure suite now includes both whitespace-obscured script URL variants. The existing
 [`manual-asset-attack.yml`](../.github/workflows/manual-asset-attack.yml)
 runs the paired extraction and focused tests with strict JSDoc on Linux and
 Windows.
