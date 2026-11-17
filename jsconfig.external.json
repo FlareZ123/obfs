@@ -60,6 +60,9 @@
     "test/inline-array-primitive-fuzz.test.js",
     "test/decoder-array-prototype-chain.test.js",
     "test/decoder-array-prototype-browser.js",
+    "sims/local-param-public-tamper.js",
+    "sims/local-parameter-value-profile.js",
+    "sims/local-parameter-example-yield.js",
     "sims/release-evidence-gate.js"
   ],
   "exclude": [
