@@ -188,3 +188,34 @@ test('opaque Reflect.get can reconstruct a hidden Node source-file reader',async
   }),/Source observer island/,
   'Proof must reject opaque reflective dynamic source reader');
 });
+
+test('ambient Symbol overwrite breaks naive island Symbol lowering but stays refused',async ()=>{
+  /** @type {SourceFile} */
+  const poison={path:'poison.mjs',sourceType:'module',
+    code:'Symbol=()=>{throw new Error("patched Symbol")};'};
+  const withPoison=entry('import "./poison.mjs";'+
+    'import {unrelated} from "./independent.mjs";'+
+    'import {watched} from "./watched.mjs";'+
+    'console.log(JSON.stringify({source:watched.toString(),value:unrelated()}));');
+  const originals=[poison,watched,independent,withPoison];
+  const native=await executeEsm(originals);
+  assert.deepEqual(JSON.parse(native),{
+    source:'function watched(){return valueA;}',value:23
+  });
+  const unsafe=obfuscateFiles([independent],{
+    mode:'coo',seed:'poisoned-symbol-control',
+    strings:false,identifiers:false,experimentalSymbolKeys:true
+  });
+  assert.equal(unsafe.files[0].metrics.symbolKeys,2,
+    'Counterfactual must actually introduce native Symbol constructor calls');
+  const counterfactual=originals.map(file=>file.path==='independent.mjs' ?
+    {...file,code:unsafe.files[0].code} : file);
+  await assert.rejects(()=>executeEsm(counterfactual),/patched Symbol/,
+    'An ambient Symbol write in the earlier sibling module must poison injected initializers');
+  assert.throws(()=>obfuscateFiles(originals,{
+    mode:'coo',seed:'poisoned-symbol-admission',
+    closedWorld:true,strings:false,identifiers:false,
+    experimentalSymbolKeys:true,
+    experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer islands support literal property renaming only/);
+});
