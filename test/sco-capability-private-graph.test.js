@@ -26,6 +26,7 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
   const key=randomBytes(32);
   const keyHex=key.toString('hex');
   const canary='SCO_GRAPH_PRIVATE_KEY_MUST_NOT_PUBLISH';
+  /** @type {import('../src/sco-graph').ScoPrivateModule[]} */
   const sources=[
     {
       path:'secrets.mjs',sourceType:/** @type {'module'} */('module'),
@@ -64,7 +65,7 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     exposedPaths:['api.mjs'],seed:'capability-graph-2026-11-17'
   });
   assert.deepEqual(graph.exposedPaths,['api.mjs']);
-  assert.deepEqual(graph.privatePaths.sort(),['secrets.mjs','state.mjs']);
+  assert.deepEqual([...graph.privatePaths].sort(),['secrets.mjs','state.mjs']);
   assert.equal(graph.clientFiles.length,1);
   const publicCode=graph.clientFiles[0].code;
   const publicSha256=createHash('sha256').update(publicCode).digest('hex');
