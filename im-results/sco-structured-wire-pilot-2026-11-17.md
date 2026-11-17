@@ -28,12 +28,12 @@ generated facade or client delivery contracts are changed by the pilot.
 ## Predetermined positive and negative controls
 
 The first codec's graph input contains a cycle, two references to the same object,
-`undefined`, `NaN`, `-0` and `123n`. The pilot asserts that bare JSON
-refuses the cyclic input, the candidate restores each listed data property
-and alias *within the decoded graph*, and the decoded root and shared object
-have distinct identities from the client's original values. If the package
-does not satisfy those checks, the run should fail and the discrepancy should
-be investigated before claiming compatibility.
+`undefined`, `NaN`, `-0` and `123n`. The pilot asserts that bare JSON refuses the cyclic input and records
+independent booleans for the candidate's preservation of each listed
+property and alias *within the decoded graph*. It separately verifies
+that the decoded root cannot preserve the original client's identity.
+Candidates with a failed required observation must be rejected; the amended
+protocol collects descriptive timings even for an incompatible codec.
 
 Performance uses **unchanged, plain JSON-tree inputs** with 1, 32, 256 and
 1,024 records, each containing a deterministic integer and Unicode text.
@@ -94,6 +94,28 @@ fuzzing and dependency audit remain prerequisites for server acceptance.
 All devalue measurements are independent of the `@ungap` candidate's
 pass/fail. An experimental competitor with compatible data shapes could
 still exceed the 2.5× runtime budget on short original tasks.
+
+## Protocol update after tagged-source audit
+
+The original pre-registered `@ungap` pilot SHA
+`eddaf251c0bebd4e7e08080cb88bb29e5704709f`
+was designed to **fail immediately** if any listed special value was not
+preserved. Subsequent inspection of the exact v1.4.0
+[serializer source](https://github.com/ungap/structured-clone/blob/v1.4.0/cjs/serialize.js)
+raised a falsifiable concern: its ordinary number records include
+`NaN`, which a separate `JSON.stringify` envelope serializes as `null`.
+The amended pilot at commit
+`3338142b3752b71a7d8da038c41d50f971613987` records independent
+graph-feature booleans and full plain-tree timing instead of aborting on
+the first negative observation. It also retains the local constructor
+and binary-alias probes. This was an explicit **methodological amendment
+after source inspection**, before any tagged CI result was received, and
+does not retroactively make unsupported features successful.
+
+A candidate is unsuitable for this application if even one required
+graph feature fails, or if untrusted payloads can invoke ambient
+constructors. A completed benchmark job merely means the observations
+were collected. It never means that a protocol is approved for deployment.
 
 ## Separate deserializer trust boundary (source inspection)
 
