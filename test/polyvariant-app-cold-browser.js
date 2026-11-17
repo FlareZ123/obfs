@@ -96,10 +96,11 @@ async function run(variant,count,trial,input){
   const times={totalMs:done-start,importMs:loaded-start,runMs:done-loaded};
   if(!(times.totalMs>0&&times.importMs>0&&times.runMs>=0))
     throw Error('Invalid cold browser timings');
-  return {output,trace:JSON.stringify(emitted),emissions:emitted.length,times};
+  return {output,trace:JSON.stringify(emitted),emissions:emitted.length,times,graph};
 }
 async function main(){
   const rows=[];
+  const hotGraph={};
   for(const count of workloads){
     const input=records(count);
     const measurements={native:[],published:[],reconstructed:[]};
@@ -107,6 +108,7 @@ async function main(){
     for(let trial=0;trial<trials;trial++){
       for(const variant of orders[trial]){
         const observed=await run(variant,count,trial,input);
+        if(count===10000&&trial===0)hotGraph[variant]=observed.graph;
         if(reference===undefined)reference=observed;
         else if(observed.output!==reference.output||observed.trace!==reference.trace||
           observed.emissions!==reference.emissions)
@@ -117,6 +119,30 @@ async function main(){
     rows.push({events:count,outputSha256:await sha(reference.output),
       hostTraceSha256:await sha(reference.trace),emissions:reference.emissions,measurements});
   }
+  // Every warm CPU trial uses a previously imported graph and the same
+  // complete Unicode-state workload, including host callbacks.
+  const hotInput=records(10000);
+  const targetTrace=[];
+  const targetOutput=hotGraph.native.runScenario(-817,hotInput,{
+    emit(value){targetTrace.push(value);}
+  });
+  const targetTraceText=JSON.stringify(targetTrace);
+  function hotRun(variant){
+    const emitted=[];
+    const started=performance.now();
+    const output=hotGraph[variant].runScenario(-817,hotInput,{
+      emit(value){emitted.push(value);}
+    });
+    const elapsed=performance.now()-started;
+    if(output!==targetOutput||JSON.stringify(emitted)!==targetTraceText)
+      throw Error('Warm application output or host trace mismatch: '+variant);
+    return elapsed;
+  }
+  for(let warm=0;warm<3;warm++)
+    for(const variant of variants)hotRun(variant);
+  const hotCpu={native:[],published:[],reconstructed:[]};
+  for(let trial=0;trial<trials;trial++)
+    for(const variant of orders[trial])hotCpu[variant].push(hotRun(variant));
   const probeStart=performance.now();
   let clockChecksum=0;
   for(let index=0;index<5000000;index++)
@@ -124,7 +150,7 @@ async function main(){
   const clockProbeMs=performance.now()-probeStart;
   if(clockProbeMs<0.1)throw Error('Browser clock does not advance during synchronous CPU work');
   document.getElementById('out').textContent='pass:'+JSON.stringify({
-    rows,clockProbeMs,clockChecksum
+    rows,hotCpu,clockProbeMs,clockChecksum
   });
 }
 await main().catch(error=>{document.getElementById('out').textContent='fail:'+error.stack;});
@@ -188,11 +214,16 @@ async function main(){
     ],{timeout:65000,maxBuffer:8*1024*1024,encoding:'utf8'});
     const data=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
     assert.ok(data,'Browser did not complete cold import experiment: '+stdout.slice(-1800));
-    const browser=/** @type {{rows:BrowserRow[],clockProbeMs:number,clockChecksum:number}} */
+    const browser=/** @type {{rows:BrowserRow[],hotCpu:Record<Variant,number[]>,clockProbeMs:number,clockChecksum:number}} */
       (JSON.parse(data));
     assert.ok(Number.isFinite(browser.clockProbeMs)&&browser.clockProbeMs>=0.1,
       'Chromium monotonic clock did not advance with CPU work');
     assert.deepEqual(browser.rows.map(row=>row.events),workloads);
+    for(const variant of variants){
+      assert.equal(browser.hotCpu[variant].length,trials);
+      assert.ok(browser.hotCpu[variant].every(ms=>Number.isFinite(ms)&&ms>0),
+        'Browser warm 10000-event CPU clock did not advance: '+variant);
+    }
     assert.deepEqual(browser.rows.map(({events,outputSha256,hostTraceSha256,emissions})=>({
       events,outputSha256,hostTraceSha256,emissions
     })),expected,'Chromium and native Node outputs or callback traces differ');
@@ -249,7 +280,12 @@ async function main(){
       trials,clockProbeMs:browser.clockProbeMs,clockChecksum:browser.clockChecksum,
       loadsPerVariant:trials*workloads.length,
       verifiedGraphRequests:workloads.length*trials*variants.length*3,
-      publishedFamilywise,reconstructedFamilywise,rows:results
+      publishedFamilywise,reconstructedFamilywise,
+      warmTenThousand:{events:10000,trials,warmedIterations:3,
+        boundary:'previously imported ESM graph, three warmups, full 10000-event application and external host callbacks; no HTTP or import within timed calls',
+        publishedVsNative:pairedBudgetBound(browser.hotCpu.native,browser.hotCpu.published),
+        reconstructedVsNative:pairedBudgetBound(browser.hotCpu.native,browser.hotCpu.reconstructed),
+        rawTimings:browser.hotCpu},rows:results
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>
