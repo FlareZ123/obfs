@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const http=require('node:http');
 const {test}=require('node:test');
-const {obfuscateFiles,createScoHandler}=require('../src');
+const {obfuscateFiles,createScoHandler,assertReviewedOpaqueAssets}=require('../src');
 
 const entry={path:'main.cjs',sourceType:/** @type {const} */('commonjs'),
   code:'module.exports=function(value){return (value+7)|0;};'};
@@ -155,4 +155,17 @@ test('reviewed digest binds the actual byte snapshot, not caller-mutated buffers
     assert.equal(reads,1,'The code getter must be sampled once per input file');
     assert.deepEqual(getterResult.files.find(file=>file.path==='theme.css')?.code,safeCss);
   }
+});
+
+
+test('explicit final-distribution recheck detects modifications of returned output buffers',()=>{
+  const output=obfuscateFiles([entry,safeAsset],{
+    mode:'coo',reviewedOpaqueAssets:approved,seed:'review-then-recheck'
+  });
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets(output.files,approved));
+  const publicCss=output.files.find(file=>file.path==='theme.css');
+  assert.ok(publicCss&&Buffer.isBuffer(publicCss.code));
+  publicCss.code[0]^=1;
+  assert.throws(()=>assertReviewedOpaqueAssets(output.files,approved),
+    /Opaque asset differs from reviewed bytes/);
 });
