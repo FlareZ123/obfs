@@ -63,7 +63,10 @@ function runnerSource(strict){
     '}\n'+
     'let csp="allowed";\n'+
     (strict?
-      'let denied=false;try{await import("/wasm/entry.mjs");}catch{denied=true;}\n'+
+      'const published=await import("/wasm/entry.mjs");\n'+
+      'let denied=false;try{published.run(3,7,11,19,"csp-invocation");}\n'+
+      'catch(error){denied=error instanceof WebAssembly.CompileError &&\n'+
+        '/Content Security Policy|unsafe-eval|wasm-unsafe-eval/i.test(String(error));}\n'+
       'if(!denied)throw Error("strict CSP unexpectedly allowed Wasm compilation");\n'+
       'csp="denied";\n':'')+
     'document.getElementById("answer").textContent='+
