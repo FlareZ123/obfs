@@ -69,12 +69,33 @@ but no independent source-pinned parser-only output is claimed here. The
 frozen and default policies expose different argument mutability; workloads
 must be audited before either configuration is a compatible baseline.
 
-A follow-up branch-only profile raises valid size to 128/256/512
-operations and configures `maxCalls:1024`, with the largest JSON request
-occupying 64,943 bytes under the handler's 65,536-byte default byte limit.
-Manual two-platform run for this subsequent profile was pending when this
-report was first written. Its outcome should be reviewed before making
-a deployment recommendation.
+A follow-up two-platform [SCO workflow 44122484071](https://github.com/FlareZ123/obfs/actions/runs/44122484071)
+at exact `fd1893122660d4de6d9701cf04d26fcc6e9e2875` **passed** Linux
+and Windows Node 22, the strict source and external checks and Ubuntu
+real-browser tests. The sole executable change from the first green pin
+was a profile extension to 128/256/512 operations (configured
+`maxCalls:1024`). The largest valid JSON request occupied 64,943 bytes
+under the default 65,536-byte HTTP body limit.
+
+| Operations/batch | Body bytes | Windows frozen/default | Ubuntu frozen/default |
+| ---: | ---: | ---: | ---: |
+| 1 | 154 | 1.1935× | 1.0004× |
+| 20 | 2,539 | 0.9292× | 0.9457× |
+| 60 | 7,579 | 0.8987× | 0.8650× |
+| 128 | 16,175 | 0.9676× | 0.9661× |
+| 256 | 32,431 | 0.8711× | 0.9266× |
+| 512 | 64,943 | 0.8322× | 0.9868× |
+
+Each number is the ratio of two separate nine-trial sample medians.
+The paired trial ratios at 512 calls had medians **0.847× Windows** and
+**0.941× Ubuntu**, but individual paired ratios spanned
+**0.700–1.253×** and **0.845–1.101×** respectively. This scatter
+precludes a robust cross-platform whole-HTTP speedup guarantee.
+Small-body Windows even favored the default path on this repeat,
+consistent with measurement noise and freezing overhead. These are
+fully authenticated loopback handler ratios under a deliberately
+read-only method, with HTTP transport overhead dominating small bodies.
+
 
 ## Current decision
 
