@@ -42,7 +42,9 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
     }
     const inner=item.consequent[0];
     if(inner?.type!=='BlockStatement')throw new TypeError('Unsupported case form');
-    const statements=inner.body;
+    // The emitter adds semicolons after complete source statements; remove
+    // parsed empty statements before locating a terminal return or jump.
+    const statements=inner.body.filter(stmt=>stmt.type!=='EmptyStatement');
     /** @param {AstNode} node @returns {string} */
     const statementCode=node=>{const text=source.slice(node.start,node.end);return /;\s*$/u.test(text)?text:text+';';};
     const penultimate=statements[statements.length-2];
