@@ -490,6 +490,16 @@ function realmStateObservation(body,checkHostConfiguration=false){
            (keyName(property)==='stack'||keyName(property)===null))){
       stackTouched=true;
     }
+    // An Error origin passed to an opaque call or wrapped in a first-class
+    // container can later expose .stack through a different receiver. Proven
+    // direct name/message reads and simple local aliases stay eligible.
+    if(returnsError(node)&&parent&&
+       (parent.type==='Property'&&key==='value'||
+        parent.type==='ArrayExpression'&&key==='elements'||
+        (parent.type==='CallExpression'||parent.type==='NewExpression')&&
+          key==='arguments')){
+      stackTouched=true;
+    }
     // A locale-dependent method may be extracted and invoked later through
     // Function.call/apply, an alias, or a callback. Inspect the member
     // reference itself rather than requiring a direct CallExpression.
