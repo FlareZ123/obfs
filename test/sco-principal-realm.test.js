@@ -194,7 +194,14 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
   process.env.SCO_REALM_SECRET=randomBytes(32).toString('hex');
   process.env.SCO_REALM_PRINCIPAL='native';
   const approved=['tick'];
+  let methodReads=0;
+  Object.defineProperty(approved,'0',{get(){
+    methodReads++;
+    return methodReads===1?'tick':'unreviewed';
+  }});
+  approved[Symbol.iterator]=function*(){yield 'unreviewed';};
   const pool=createScoPrincipalRealmPool(entry,approved,{maxPrincipals:2});
+  assert.equal(methodReads,1,'reviewed method list must be read once by index');
   approved.push('unreviewed');
   try{
     await Promise.all([pool.initialize('A'),pool.initialize('B')]);
