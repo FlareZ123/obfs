@@ -15,7 +15,9 @@ const {parse,observesFunctionSource}=require('../src/ast');
 async function execute(source) {
   /** @type {{exports:Promise<{observed:string,value:number}>|null}} */
   const module={exports:null};
-  vm.runInNewContext(source,{module,Request,Response,File},{timeout:3000});
+  vm.runInNewContext(source,{module,Request,Response,File,Event,CustomEvent,
+    MessageEvent,BroadcastChannel,TextDecoder,TextDecoderStream,
+    CompressionStream,DecompressionStream},{timeout:3000});
   assert.ok(module.exports);
   const result=await module.exports;
   return {observed:result.observed,value:result.value};
@@ -42,7 +44,15 @@ const sourceObservers=[
   ['Request init method error','(()=>{try{return new Request("https://example.test/",{method:inspect}).method;}catch(error){return error.message;}})()'],
   ['File BlobPart','new File([inspect],"doc.txt").text()'],
   ['File name','new File(["fixed"],inspect).name'],
-  ['File global destructuring alias','(()=>{const {File:NamedFile}=globalThis;return new NamedFile([inspect],"doc.txt").text();})()']
+  ['File global destructuring alias','(()=>{const {File:NamedFile}=globalThis;return new NamedFile([inspect],"doc.txt").text();})()'],
+  ['Event type','new Event(inspect).type'],
+  ['CustomEvent type','new CustomEvent(inspect).type'],
+  ['MessageEvent type','new MessageEvent(inspect).type'],
+  ['BroadcastChannel name','(()=>{const channel=new BroadcastChannel(inspect);const name=channel.name;channel.close();return name;})()'],
+  ['TextDecoder encoding error','(()=>{try{return new TextDecoder(inspect).encoding;}catch(error){return error.message;}})()'],
+  ['TextDecoderStream encoding error','(()=>{try{return new TextDecoderStream(inspect).encoding;}catch(error){return error.message;}})()'],
+  ['CompressionStream enum error','(()=>{try{return new CompressionStream(inspect).constructor.name;}catch(error){return error.message;}})()'],
+  ['DecompressionStream enum error','(()=>{try{return new DecompressionStream(inspect).constructor.name;}catch(error){return error.message;}})()']
 ];
 
 for(const [name,expression] of sourceObservers) {
@@ -77,7 +87,15 @@ const inertCases=[
   ['Request primitive URL','new Request("https://example.test/").url'],
   ['Request primitive options','new Request("https://example.test/",{headers:{"x-observed":"fixed"}}).headers.get("x-observed")'],
   ['File primitive parts','new File(["fixed"],"doc.txt").text()'],
-  ['File primitive filename','new File(["fixed"],"doc.txt",{type:"text/plain"}).name']
+  ['File primitive filename','new File(["fixed"],"doc.txt",{type:"text/plain"}).name'],
+  ['Event primitive type','new Event("ready",{bubbles:true}).type'],
+  ['CustomEvent primitive type','new CustomEvent("ready",{detail:37}).type'],
+  ['MessageEvent primitive type','new MessageEvent("ready",{data:37}).type'],
+  ['BroadcastChannel primitive name','(()=>{const channel=new BroadcastChannel("fixed");const name=channel.name;channel.close();return name;})()'],
+  ['TextDecoder primitive encoding','new TextDecoder("utf-8").encoding'],
+  ['TextDecoderStream primitive encoding','new TextDecoderStream("utf-8").encoding'],
+  ['CompressionStream primitive format','new CompressionStream("gzip").constructor.name'],
+  ['DecompressionStream primitive format','new DecompressionStream("gzip").constructor.name']
 ];
 
 for(const [name,expression] of inertCases) {
