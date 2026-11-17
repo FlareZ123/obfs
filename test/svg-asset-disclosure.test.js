@@ -151,8 +151,11 @@ test('XML stylesheet processing instruction cannot embed unaudited CSS source ma
   assert.ok(publicMap);
   assert.equal(JSON.parse(Buffer.from(publicMap[1],'base64').toString()).sourcesContent[0],original);
   assert.equal(findInlineSvgSource(svg),'embedded XML stylesheet data URL');
+  const escaped=svg.replace('href="data:text/css','href="&#x64;&#97;ta&#58;text/css');
+  assert.equal(findInlineSvgSource(escaped),'embedded XML stylesheet data URL');
   for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.throws(()=>transform(svg,mode),/SVG asset contains embedded XML stylesheet data URL/,mode);
+    assert.throws(()=>transform(escaped,mode),/SVG asset contains embedded XML stylesheet data URL/,mode+' charrefs');
   }
   assert.throws(()=>createScoHandler([
     {path:'assets/icon.svg',sourceType:'asset',code:svg}
