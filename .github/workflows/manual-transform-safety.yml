@@ -42,6 +42,8 @@ jobs:
         run: node sims/path-alias-grid.js
       - name: Enumerate all one-code-point Unicode uppercase collision candidates on filesystem
         run: node sims/windows-unicode-uppercase-grid.js
+      - name: Reject UTF-16 source maps disguised as binary assets across SCO COO SNO
+        run: node --test test/source-map-utf16-asset.test.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
