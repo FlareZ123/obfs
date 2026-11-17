@@ -99,3 +99,47 @@ test('SCO declines nested constructor extraction from an intrinsic',()=>{
       /realm-local intrinsic state/i,body);
   }
 });
+
+
+test('SCO refuses extracted Date host-sensitive statics and constructor binding',()=>{
+  const bodies=[
+    'const tick=Date.now;return tick();',
+    'const Clock=Date;const tick=Clock.now;return tick();',
+    'const {now:tick}=Date;return tick();',
+    "const {parse:parse}=Date;return parse('2020-01-01T00:00');",
+    "const {parse:parse}=globalThis.Date;return parse('2020-01-01T00:00');",
+    'const Clock=globalThis.Date;const {now:tick}=Clock;return tick();',
+    'return Date.now.call(null);',
+    "return Date.parse.call(null,'2020-01-01T00:00');",
+    'const Clock=Date;return Clock.bind(null)();'
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partition(body,'return 1;'),
+      /realm-local configuration/i,body);
+  }
+});
+
+test('SCO refuses locale-sensitive Intl constructor call/bind aliases',()=>{
+  const bodies=[
+    "const {DateTimeFormat:F}=Intl;return F.bind(null)('en-US').resolvedOptions().timeZone;",
+    "const F=Intl.DateTimeFormat;return F.call(null,'en-US').resolvedOptions().timeZone;",
+    "const F=Intl.DateTimeFormat;const Bound=F.bind(null);return Bound('en-US').resolvedOptions().timeZone;",
+    "return Intl.DateTimeFormat.bind(null)('en-US').resolvedOptions().timeZone;"
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partition(body,'return 1;'),
+      /realm-local configuration/i,body);
+  }
+});
+
+test('SCO preserves direct UTC Date statics and extracted Date.UTC',()=>{
+  const bodies=[
+    "return Date.parse('2020-01-01T00:00:00.000Z');",
+    'return Date.UTC(2020,0,1);',
+    'const {UTC:utc}=Date;return utc(2020,0,1);'
+  ];
+  for(const body of bodies){
+    const result=partition(body,'return 1;');
+    assert.deepEqual(result.privateNames,['privateOp'],body);
+  }
+});
