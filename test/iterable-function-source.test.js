@@ -151,6 +151,22 @@ for(const [name,body] of [
   });
 }
 
+
+for(const [name,body] of [
+  ['Set factory with source-bearing default parameter',
+    'function carry(value=protectedSum){return new Set([value]);}'+
+      'module.exports=[...carry()].join(",");'],
+  ['Set factory accessed through const function alias',
+    'function carry(value){return new Set([value]);}'+
+      'const alias=carry;module.exports=[...alias(protectedSum)].join(",");']
+]) {
+  test(name+' conservatively preserves source',()=>{
+    const source=protectedSource()+body;
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
 test('primitive-only carrier factory preserves unrelated affine transformation',()=>{
   const source=protectedSource()+
     'function carry(value){return new Set([value]);}'+
