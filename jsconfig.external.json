@@ -102,7 +102,8 @@
     "test/candidate-vs-minified-decision.test.js",
     "test/polyvariant-app-three-query-competitor.test.js",
     "test/minified-control-static-attacker.test.js",
-    "test/polyvariant-app-four-way-browser.js"
+    "test/polyvariant-app-four-way-browser.js",
+    "test/polyvariant-affine-browser.js"
   ],
   "exclude": [
     "node_modules"

@@ -2,23 +2,14 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const puppeteer=require('puppeteer-core');
 const {obfuscateFiles}=require('../src');
-
-/** @param {string} binary @param {string} url @returns {Promise<string>} */
-async function dumpDom(binary,url) {
-  const {stdout}=await promisify(execFile)(binary,[
-    '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-    '--no-first-run','--virtual-time-budget=5000','--dump-dom',url
-  ],{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
-  return stdout;
-}
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /**
- * Run real browser ESM imports and host-page API calls. All differential
- * inputs are signed Int32 Numbers under the experimental backend's contract.
- * Browser performance is diagnostic and must be evaluated per workload.
+ * Run real browser ESM imports and host-page API calls. Differential inputs
+ * are signed Int32 Numbers under the experimental backend's contract.
+ * Paired warm computation is measured separately from browser/page startup.
  * @returns {Promise<void>}
  */
 async function main() {
@@ -42,30 +33,86 @@ async function main() {
   });
   assert.equal(tripleBuilt.files[0].metrics.wasmI32Functions,1);
   const tripleTransformed=String(tripleBuilt.files[0].code);
-
-  const page='<!doctype html><html><body><div id="answer">pending</div>'+
-    '<script>window.externalBridge={accept:function(x){'+
-    'document.getElementById("answer").textContent=x;}};</script>'+
-    '<script type="module">'+
-    'import {scramble as native} from "/native.mjs";'+
-    'import {scramble as encoded} from "/encoded.mjs";'+
-    'import {fuse as native3} from "/native3.mjs";'+
-    'import {fuse as encoded3} from "/encoded3.mjs";'+
-    'let compared=0;for(let i=-2048;i<=2048;i++){'+
-    'const a=native(i),b=encoded(i);'+
-    'if(!Object.is(a,b))throw Error("i32 mismatch "+i);compared++;}'+
-    'let compared3=0;for(let i=-512;i<=512;i++){'+
-    'const a=i|0,b=(i*1664525)|0,c=(i*69069)|0;'+
-    'if(!Object.is(native3(a,b,c),encoded3(a,b,c)))'+
-    'throw Error("three-arg mismatch "+i);compared3++;}'+
-    'function work(fn){let value=0;for(let i=0;i<200000;i++)'+
-    'value^=fn((i*1664525)|0);return value;}'+
-    'for(let k=0;k<5;k++){if(work(native)!==work(encoded))throw Error("warm mismatch");}'+
-    'let t=performance.now();const expected=work(native);const nativeMs=performance.now()-t;'+
-    't=performance.now();const actual=work(encoded);const encodedMs=performance.now()-t;'+
-    'if(expected!==actual)throw Error("hot checksum mismatch");'+
-    'window.externalBridge.accept("pass:"+compared+":"+compared3+":"+nativeMs+":"+encodedMs);'+
-    '</script></body></html>';
+  const page=[
+    "<!doctype html><html><meta charset=\"utf-8\"><body><div id=\"answer\">pending</div>",
+    "<script>",
+    "window.externalBridge={accept(value){",
+    "  document.getElementById('answer').textContent=value;",
+    "}};",
+    "window.addEventListener('error',event=>{",
+    "  document.getElementById('answer').textContent='fail:'+event.message;",
+    "});",
+    "window.addEventListener('unhandledrejection',event=>{",
+    "  document.getElementById('answer').textContent='fail:'+String(event.reason);",
+    "});",
+    "</script>",
+    "<script type=\"module\">",
+    "import {scramble as native} from \"/native.mjs\";",
+    "import {scramble as encoded} from \"/encoded.mjs\";",
+    "import {fuse as native3} from \"/native3.mjs\";",
+    "import {fuse as encoded3} from \"/encoded3.mjs\";",
+    "let compared=0;",
+    "for(let i=-2048;i<=2048;i++){",
+    "  if(!Object.is(native(i),encoded(i)))throw Error('i32 mismatch '+i);",
+    "  compared++;",
+    "}",
+    "let compared3=0;",
+    "for(let i=-512;i<=512;i++){",
+    "  const a=i|0,b=(i*1664525)|0,c=(i*69069)|0;",
+    "  if(!Object.is(native3(a,b,c),encoded3(a,b,c)))",
+    "    throw Error('three-arg mismatch '+i);",
+    "  compared3++;",
+    "}",
+    "function singleWork(fn){",
+    "  let value=0;",
+    "  for(let i=0;i<2000000;i++)value^=fn((i*1664525)|0);",
+    "  return value;",
+    "}",
+    "function multiWork(fn){",
+    "  let value=0;",
+    "  for(let i=0;i<2000000;i++){",
+    "    const a=(i*1664525)|0,b=(i*69069)|0,c=(i&31)|0;",
+    "    value^=fn(a,b,c);",
+    "  }",
+    "  return value;",
+    "}",
+    "let clockChecksum=0;",
+    "const clockStart=performance.now();",
+    "for(let i=0;i<5000000;i++)clockChecksum=(clockChecksum+(i^0x9e37))|0;",
+    "const clockProbeMs=performance.now()-clockStart;",
+    "if(!Number.isFinite(clockProbeMs)||clockProbeMs<0.1)",
+    "  throw Error('Chromium synchronous monotonic clock did not advance');",
+    "const singleExpected=singleWork(native),multiExpected=multiWork(native3);",
+    "for(let k=0;k<5;k++){",
+    "  if(singleWork(native)!==singleExpected||singleWork(encoded)!==singleExpected||",
+    "     multiWork(native3)!==multiExpected||multiWork(encoded3)!==multiExpected)",
+    "    throw Error('Wasm warmup checksum differs from native');",
+    "}",
+    "function timed(fn,work,expected){",
+    "  const started=performance.now();",
+    "  const checksum=work(fn);",
+    "  const elapsed=performance.now()-started;",
+    "  if(checksum!==expected||!Number.isFinite(elapsed)||elapsed<=0)",
+    "    throw Error('Invalid Wasm browser synchronous CPU sample');",
+    "  return elapsed;",
+    "}",
+    "const samples={",
+    "  single:{native:[],wasm:[]},",
+    "  multi:{native:[],wasm:[]}",
+    "};",
+    "for(let trial=0;trial<12;trial++){",
+    "  const order=trial%2===0?['native','wasm']:['wasm','native'];",
+    "  for(const name of order)",
+    "    samples.single[name].push(timed(name==='native'?native:encoded,singleWork,singleExpected));",
+    "  for(const name of order)",
+    "    samples.multi[name].push(timed(name==='native'?native3:encoded3,multiWork,multiExpected));",
+    "}",
+    "window.externalBridge.accept('pass:'+JSON.stringify({",
+    "  inputs:compared,multiInputs:compared3,clockProbeMs,clockChecksum,",
+    "  singleExpected,multiExpected,samples",
+    "}));",
+    "</script></body></html>"
+  ].join('\n');
   const assets=new Map([
     ['/index.html',{type:'text/html; charset=utf-8',body:page}],
     ['/native.mjs',{type:'text/javascript; charset=utf-8',body:source}],
@@ -75,28 +122,77 @@ async function main() {
   ]);
   const server=http.createServer((request,response)=>{
     const selected=assets.get(request.url??'');
-    if(!selected){response.writeHead(404).end();return;}
+    if(request.method!=='GET'||!selected){response.writeHead(404).end();return;}
     response.writeHead(200,{'Content-Type':selected.type,'Cache-Control':'no-store'});
     response.end(selected.body);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
-  try {
+  /** @type {import('puppeteer-core').Browser|undefined} */
+  let browserSession;
+  try{
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve());
+    });
+    await listening;
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const url='http://127.0.0.1:'+address.port+'/index.html';
-    const html=await dumpDom(process.env.CHROMIUM_BIN??'chromium',url);
-    const match=html.match(/id="answer">pass:(\d+):(\d+):([0-9.]+):([0-9.]+)/u);
-    assert.ok(match,'Chromium ESM graph did not complete: '+html.slice(-2000));
-    assert.equal(Number(match[1]),4097);
-    assert.equal(Number(match[2]),1025);
-    const nativeMs=Number(match[3]),wasmMs=Number(match[4]);
-    assert.ok(nativeMs>=0&&wasmMs>=0);
-    console.log(JSON.stringify({browser:'chromium',inputs:4097,multiInputs:1025,nativeMs,wasmMs,
-      hotRatio:wasmMs/nativeMs}));
-  } finally {
-    await new Promise(resolve=>server.close(resolve));
+    browserSession=await puppeteer.launch({
+      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
+    });
+    const chromeVersion=await browserSession.version();
+    const tab=await browserSession.newPage();
+    await tab.goto(url,{waitUntil:'domcontentloaded',timeout:45000});
+    await tab.waitForFunction(()=>{
+      const text=document.getElementById('answer')?.textContent??'';
+      return text.startsWith('pass:')||text.startsWith('fail:');
+    },{timeout:90000,polling:50});
+    const rendered=await tab.$eval('#answer',element=>element.textContent??'');
+    assert.ok(rendered.startsWith('pass:'),
+      'Wasm browser did not complete live ESM and host API checks: '+rendered.slice(0,2000));
+    const actual=/** @type {{
+      inputs:number,multiInputs:number,clockProbeMs:number,clockChecksum:number,
+      singleExpected:number,multiExpected:number,
+      samples:{single:{native:number[],wasm:number[]},multi:{native:number[],wasm:number[]}}
+    }} */ (JSON.parse(rendered.slice(5)));
+    assert.equal(actual.inputs,4097);
+    assert.equal(actual.multiInputs,1025);
+    assert.ok(Number.isFinite(actual.clockProbeMs)&&actual.clockProbeMs>=0.1);
+    for(const workload of [actual.samples.single,actual.samples.multi]){
+      assert.equal(workload.native.length,12);
+      assert.equal(workload.wasm.length,12);
+      assert.ok([...workload.native,...workload.wasm].every(value=>
+        Number.isFinite(value)&&value>0));
+    }
+    const singleBudget=pairedBudgetBound(actual.samples.single.native,actual.samples.single.wasm);
+    const multiBudget=pairedBudgetBound(actual.samples.multi.native,actual.samples.multi.wasm);
+    console.log('WASM_I32_REALCLOCK '+JSON.stringify({
+      browser:'chromium',chromeVersion,inputs:actual.inputs,multiInputs:actual.multiInputs,
+      clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
+      warmupPass:true,trialPairs:12,pairedOrderCounterbalanced:true,
+      hotRatio:singleBudget.ratioOfMedians,
+      singleBudget,multiBudget,
+      strictObservedBreaches:{
+        single:singleBudget.samplePairs-singleBudget.observedPairsWithinBudget,
+        multi:multiBudget.samplePairs-multiBudget.observedPairsWithinBudget
+      },
+      samples:actual.samples
+    }));
+  }finally{
+    try{
+      if(browserSession)await browserSession.close();
+    }finally{
+      /** @type {Promise<void>} */
+      const closing=new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve()));
+      await closing;
+    }
   }
 }
-
-if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});
+if(require.main===module)main().catch(error=>{
+  console.error(error);process.exitCode=1;
+});
 module.exports={main};
