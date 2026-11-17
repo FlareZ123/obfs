@@ -15,23 +15,23 @@ const {parse}=require('../src/ast');
  */
 function recoverStatementFlow(source,functionName,sourceType='commonjs'){
   const ast=parse(source,sourceType);
-  const wrapper=ast.body.find(stmt=>
+  const wrapper=ast.body.find((/** @type {AstNode} */ stmt)=>
     (stmt.type==='FunctionDeclaration'&&stmt.id?.name===functionName)||
     (stmt.type==='ExportNamedDeclaration'&&stmt.declaration?.type==='FunctionDeclaration'&&
       stmt.declaration.id?.name===functionName));
   const fn=wrapper?.type==='ExportNamedDeclaration'?wrapper.declaration:wrapper;
   if(!fn||fn.type!=='FunctionDeclaration')throw new TypeError('Public function not found');
-  const forLoop=fn.body.body.find(stmt=>stmt.type==='ForStatement'&&stmt.body.type==='BlockStatement');
+  const forLoop=fn.body.body.find((/** @type {AstNode} */ stmt)=>stmt.type==='ForStatement'&&stmt.body.type==='BlockStatement');
   if(!forLoop||forLoop.body.body.length!==1||forLoop.body.body[0].type!=='SwitchStatement'){
     throw new TypeError('No native switch dispatcher found');
   }
   const sw=forLoop.body.body[0];
   if(sw.discriminant.type!=='Identifier')throw new TypeError('Unknown dispatcher');
   const state=sw.discriminant.name;
-  const initialize=fn.body.body.find(stmt=>stmt.type==='VariableDeclaration'&&
-    stmt.declarations.some(d=>d.id.type==='Identifier'&&d.id.name===state));
+  const initialize=fn.body.body.find((/** @type {AstNode} */ stmt)=>stmt.type==='VariableDeclaration'&&
+    stmt.declarations.some((/** @type {AstNode} */ d)=>d.id.type==='Identifier'&&d.id.name===state));
   if(!initialize)throw new TypeError('No entry state found');
-  const entry=initialize.declarations.find(d=>d.id.name===state)?.init;
+  const entry=initialize.declarations.find((/** @type {AstNode} */ d)=>d.id.name===state)?.init;
   if(entry?.type!=='Literal'||typeof entry.value!=='number')throw new TypeError('Invalid entry');
   /** @type {Map<number,{kind:string,code:string,yes?:number,no?:number,next?:number,prefix?:string}>} */
   const blocks=new Map();
@@ -44,7 +44,7 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
     if(inner?.type!=='BlockStatement')throw new TypeError('Unsupported case form');
     // The emitter adds semicolons after complete source statements; remove
     // parsed empty statements before locating a terminal return or jump.
-    const statements=inner.body.filter(stmt=>stmt.type!=='EmptyStatement');
+    const statements=inner.body.filter((/** @type {AstNode} */ stmt)=>stmt.type!=='EmptyStatement');
     /** @param {AstNode} node @returns {string} */
     const statementCode=node=>{const text=source.slice(node.start,node.end);return /;\s*$/u.test(text)?text:text+';';};
     const penultimate=statements[statements.length-2];
@@ -63,7 +63,7 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
         prefix:statements.slice(0,-2).map(statementCode).join('\n'),
         yes:value.consequent.value,no:value.alternate.value});
     }else if(value.type==='Literal'){
-      blocks.set(item.test.value,{kind:'next',code:statements.slice(0,-2).map(stmt=>
+      blocks.set(item.test.value,{kind:'next',code:statements.slice(0,-2).map((/** @type {AstNode} */ stmt)=>
         statementCode(stmt)).join('\n'),next:value.value});
     }else throw new TypeError('Unsupported transition');
   }
@@ -78,8 +78,8 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
       visit(/** @type {number} */(block.yes),depth+1) +
       '}else{' + visit(/** @type {number} */(block.no),depth+1) + '}';
   }
-  const params=fn.params.map(param=>source.slice(param.start,param.end)).join(',');
-  const directives=fn.body.body.filter(stmt=>stmt.directive).map(stmt=>
+  const params=fn.params.map((/** @type {AstNode} */ param)=>source.slice(param.start,param.end)).join(',');
+  const directives=fn.body.body.filter((/** @type {AstNode} */ stmt)=>stmt.directive).map((/** @type {AstNode} */ stmt)=>
     source.slice(stmt.start,stmt.end)+';').join('');
   const code=(wrapper.type==='ExportNamedDeclaration'?'export ':'')+'function '+functionName+
     '('+params+'){'+directives+visit(entry.value,0)+'}';
