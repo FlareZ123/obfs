@@ -33,6 +33,11 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
 function safePath(file) {
   if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
       path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
+  // With Unicode mode this range matches lone surrogates, not valid pairs.
+  // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.
+  if (/[\uD800-\uDFFF]/u.test(file)) {
+    throw new TypeError(`Unsafe non-well-formed Unicode file path: ${file}`);
+  }
   for (const segment of file.split('/')) {
     if (/[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(segment)) {
       throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
