@@ -72,7 +72,7 @@ jobs:
         run: node protected/sims/wasm-debug-metadata-attack.js data-style-previous protected
       - name: Verify HTML, SVG and CSS source-map regressions
         working-directory: protected
-        run: node --test test/html-asset-disclosure.test.js test/html-data-stylesheet-disclosure.test.js test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js test/css-embedded-data-import.test.js test/wasm-source-map-annotation.test.js test/wasm-debug-metadata-disclosure.test.js
+        run: node --test test/html-asset-disclosure.test.js test/html-data-stylesheet-disclosure.test.js test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js test/css-embedded-data-import.test.js test/wasm-source-map-annotation.test.js test/wasm-debug-metadata-disclosure.test.js test/reviewed-opaque-assets.test.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck
