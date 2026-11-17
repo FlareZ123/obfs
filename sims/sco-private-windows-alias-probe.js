@@ -39,8 +39,22 @@ async function readIfPresent(file) {
 }
 
 /**
+ * @typedef {{
+ *   fixture:string,
+ *   original:string,
+ *   alias:string,
+ *   jsLowerCaseCollides:boolean,
+ *   jsUpperCaseCollides:boolean,
+ *   filesystemAlias:boolean,
+ *   entries:string[],
+ *   publicationAdmitted:boolean|null,
+ *   publicStatus:number|null
+ * }} CaseProbe
+ */
+
+/**
  * @param {CaseFixture} sample
- * @returns {Promise<object>}
+ * @returns {Promise<CaseProbe>}
  */
 async function probe(sample) {
   assert.notEqual(sample.original.toLowerCase(),sample.alias.toLowerCase(),
