@@ -50,3 +50,27 @@ test('source-only CFG recovery refuses external reexports with no local dispatch
   assert.throws(()=>recoverStatementFlow(source,'visible','module'),
     /Public function not found/u);
 });
+
+
+test('public-only attacker follows full COO identifier/string layers through export aliases',async()=>{
+  const {obfuscateFiles}=require('../src');
+  const source=implementation+'export {internal as visible};';
+  const native=await load(source);
+  for(let i=0;i<6;i++){
+    const output=obfuscateFiles([{
+      path:'math.mjs',sourceType:'module',code:source
+    }],{
+      mode:'coo',seed:'alias-layered-'+i,
+      allowedHosts:['127.0.0.1'],
+      strings:true,properties:true,identifiers:true,
+      experimentalStatementFlow:{'math.mjs':['internal']}
+    });
+    assert.equal(output.files[0].metrics.statementFlowFunctions,1);
+    const attacker=recoverStatementFlow(String(output.files[0].code),
+      'visible','module');
+    const clone=await load(attacker.code);
+    for(let value=-40;value<=40;value++){
+      assert.equal(clone.visible(value),native.visible(value));
+    }
+  }
+});
