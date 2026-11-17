@@ -46,3 +46,31 @@ for(const mode of ['coo','sno']) {
   }
 }
 console.log('INERT_CLONE_LOCAL',JSON.stringify(states));
+
+for(const [label,entry] of [
+  ['JSON stringify direct',
+    "import {inspect} from './state.mjs';"+
+    "import {observed} from './observer.mjs';"+
+    "process.stdout.write(JSON.stringify({value:inspect(),observed}));"],
+  ['JSON stringify concat',
+    "import {inspect} from './state.mjs';"+
+    "import {observed} from './observer.mjs';"+
+    "process.stdout.write(JSON.stringify({value:inspect(),observed})+'\\n');"],
+  ['constant primitive output',
+    "import {inspect} from './state.mjs';"+
+    "import {observed} from './observer.mjs';"+
+    "process.stdout.write(String(17));"]
+]) {
+  const next=[...graph.slice(0,2),{
+    path:'entry.mjs',sourceType:'module',code:entry
+  }];
+  const proof=observesFunctionSource(parse(entry,'module'));
+  const transformed=obfuscateFiles(next,{
+    mode:'sno',seed:'cross-esm-clone-inert',strings:false
+  });
+  console.log('INERT_CLONE_VARIANT',JSON.stringify({
+    label,sourceObservation:proof,
+    properties:transformed.files[0].metrics.properties,
+    emitted:transformed.files[0].code
+  }));
+}
