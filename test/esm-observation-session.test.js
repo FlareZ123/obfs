@@ -15,6 +15,8 @@ test('two protected ESM private fields preserve a 1-call and 2M-call cold/hot se
   assert.equal(result.rows[1].iterations,2000000);
   assert.equal(result.allOutputsEqual,true);
   for(const row of result.rows){
+    assert.equal(row.protectedMemberReads,row.iterations*2,
+      'Every invocation evaluates exactly two actually renamed owner fields');
     assert.ok(row.nativeProcessMs>0 && row.emittedProcessMs>0);
     assert.ok(row.processRatio>0 && Number.isFinite(row.processRatio));
     assert.ok(row.hotRatio>0 && Number.isFinite(row.hotRatio));
