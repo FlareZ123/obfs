@@ -1,14 +1,14 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {hrtime}=require('node:process');
+const {hrtime,cpuUsage}=require('node:process');
 const {createScoCapabilityScope,createScoPrivateHandles}=
   require('../src/sco-capabilities');
 const {makeMachine}=require('./sco-stateful-oracle');
 
 /** @typedef {{state:number}} StateRecord */
 /** @typedef {'native'|'per-step'|'per-session'} Mode */
-/** @typedef {{mode:Mode,elapsedMs:number,checksum:number}} Sample */
+/** @typedef {{mode:Mode,elapsedMs:number,cpuMs:number,checksum:number}} Sample */
 
 const machine=makeMachine(0x731ab42d);
 const scope=createScoCapabilityScope(()=> 'verified-A');
@@ -47,11 +47,13 @@ function inputs(count){
  */
 async function sample(mode,symbols){
   let elapsedMs=0;
+  let cpuMs=0;
   let checksum=0;
   await scope.runRpcIsolated(request,async()=>{
     const state=/** @type {StateRecord} */ ({state:0});
     const token=mode==='native'?'':handles.issue(state);
     const start=hrtime.bigint();
+    const cpuStart=cpuUsage();
     if(mode==='native'){
       for(const symbol of symbols)checksum+=step(state,symbol);
     }else if(mode==='per-step'){
@@ -67,11 +69,13 @@ async function sample(mode,symbols){
         return sum;
       });
     }
+    const cpuDelta=cpuUsage(cpuStart);
+    cpuMs=(cpuDelta.user+cpuDelta.system)/1000;
     elapsedMs=Number(hrtime.bigint()-start)/1e6;
     if(token)assert.equal(handles.revoke(token),true);
   });
-  assert.ok(elapsedMs>0);
-  return {mode,elapsedMs,checksum};
+  assert.ok(elapsedMs>0&&cpuMs>0);
+  return {mode,elapsedMs,cpuMs,checksum};
 }
 
 /**
@@ -103,8 +107,8 @@ async function run(repeats=6){
       const perSession=/** @type {Sample} */ (outcomes['per-session']);
       assert.equal(native.checksum,perStep.checksum);
       assert.equal(native.checksum,perSession.checksum);
-      const perStepRatio=perStep.elapsedMs/native.elapsedMs;
-      const perSessionRatio=perSession.elapsedMs/native.elapsedMs;
+      const perStepRatio=perStep.cpuMs/native.cpuMs;
+      const perSessionRatio=perSession.cpuMs/native.cpuMs;
       if(perStepRatio>2.5)stepOverBudget++;
       if(perSessionRatio>2.5)sessionOverBudget++;
       stepMax=Math.max(stepMax,perStepRatio);
@@ -113,6 +117,8 @@ async function run(repeats=6){
         nativeMs:native.elapsedMs,
         perStepMs:perStep.elapsedMs,
         perSessionMs:perSession.elapsedMs,
+        nativeCpuMs:native.cpuMs,perStepCpuMs:perStep.cpuMs,
+        perSessionCpuMs:perSession.cpuMs,
         perStepRatio,perSessionRatio,checksum:native.checksum};
       records.push(record);
       console.log(JSON.stringify(record));
