@@ -1,6 +1,6 @@
 # Adversarial SCO capability batch invalid-input semantic counterexample (17 November 2026)
 
-**Status:** predeclared real-HTTP regression. Initial all-valid plus invalid-item counterexample passed the named test step in both operating systems at source ff5cdb2243da12dbdaeb037a56101bb755d2f91b, [workflow 44151887716](https://github.com/FlareZ123/obfs/actions/runs/44151887716); full run status must be checked separately. A follow-up added an explicit per-item first-error guarded batch and awaits its own immutable cross-platform execution. The prior performance comparison at im-results/sco-capability-http-batch-2026-11-17.md showed possible server-side optimization with 16 batch inputs; it does not certify error semantics.
+**Status:** bounded counterexample **and** first-error guarded-batch mitigation verified on actual generated public ESM and real HTTP. Full Ubuntu+Windows Node 22 manual workflow [44152712195](https://github.com/FlareZ123/obfs/actions/runs/44152712195), exact executable SHA ed57acb0ff9c758c4d8af2be58f647d13a0840ae, passed both jobs, including strict SCO JSDoc. Initial narrower all-valid plus invalid-item counterexample also passed full [workflow 44151887716](https://github.com/FlareZ123/obfs/actions/runs/44151887716), SHA ff5cdb2243da12dbdaeb037a56101bb755d2f91b. The prior performance comparison at im-results/sco-capability-http-batch-2026-11-17.md did not certify error semantics.
 
 ## Counterexample hypothesis
 
@@ -38,3 +38,22 @@ The candidate behavior expected for five valid symbols, invalid sixth symbol 2, 
 The new script asserts all-valid output parity, exact returned prefix outputs, and matching post-error continuation between serial and guarded batch. This is a narrow constructive counterexample to an overbroad claim that all batching must violate serial prefix semantics. It is explicitly **not** equivalence under concurrent third-party mutations, mid-batch external visibility, cancellation or arbitrary exception/transaction behavior. Those conditions would require a richer application contract and additional tests.
 
 The guarded batch's syntactic outer authorization now admits integer 2 as part of its envelope, while the trusted private callback must reject that element before the corresponding private state transition. The test checks that no forbidden step is applied; it does not recommend broad acceptance of arbitrary JSON or executing untrusted callbacks inside the private server. A separate exact JSDoc and real-HTTP CI pin is required before calling this mitigation verified.
+
+## Executed guarded-batch observation
+
+Both cross-platform job logs for exact source ed57acb0ff9c758c4d8af2be58f647d13a0840ae printed and independently asserted the following, after the model and HTTP facade were initialized:
+
+| Observable | Ubuntu | Windows |
+| --- | --- | --- |
+| All-valid serial/batch result positions matched | 5/5 | 5/5 |
+| Serial count after valid prefix then invalid sixth symbol | 5 | 5 |
+| Whole-batch preauthorization count after same invalid sixth symbol | 0 | 0 |
+| Invalid step and whole-batch rejected before private work | Yes | Yes |
+| Unauthenticated RPC | 403 | 403 |
+| Guarded per-item batch stopped at first invalid index | 5 | 5 |
+| Guarded per-item batch committed same five prior steps | Yes | Yes |
+| Guarded batch continuation after one further valid step matched serial count/output | Yes | Yes |
+
+The first-error guarded design returns its own explicit partial-success status and commit-prefix outputs. It is a **different documented public contract** from an exception-throwing serial protocol until the client adapter defines and validates how to translate it. It makes one previously failing state-progress example compatible under this selected contract; it cannot be advertised as a general-purpose rewriter of arbitrary Promise, cancellation, exception, interleaving or introspection semantics.
+
+The deliberate counterexample gives a concrete release gate: where callers can see intermediate state changes or errors, only proven equivalence or an explicit batch API migration is admissible. This is independent of the measured heavy-workload 2.5× performance results and of the separate same-account finite-state reconstruction attack.
