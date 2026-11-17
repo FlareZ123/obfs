@@ -25,7 +25,7 @@ const consumers=[
 ];
 
 test('Object.groupBy stringifies function-valued callback return property keys',()=>{
-  assert.equal(typeof Object.groupBy,'function','Requires Node 22+ Object.groupBy');
+  assert.equal(typeof Reflect.get(Object,'groupBy'),'function','Requires Node 22+ Object.groupBy');
   for(const item of consumers){
     const source='function f(a){return a^17;}'+item.tail;
     assert.equal(load(source),true,'Native observer: '+item.name);
