@@ -377,15 +377,19 @@ function realmStateObservation(body,checkHostConfiguration=false){
         node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
           node.id.name:null;
       if(factoryFn&&factoryName){
-        const returned=factoryFn.body.type==='BlockStatement'?
-          factoryFn.body.body.filter(
-            (/** @type {import('./ast').AstNode} */ statement)=>
-              statement.type==='ReturnStatement').map(
-            (/** @type {import('./ast').AstNode} */ statement)=>statement.argument):
-          [factoryFn.body];
-        if(returned.some(
-          (/** @type {import('./ast').AstNode|null} */ value)=>
-            value!==null&&returnsError(value))&&!errorFactories.has(factoryName)){
+        let errorReturn=false;
+        if(factoryFn.body.type==='BlockStatement'){
+          walk(factoryFn.body,(candidate,_parent,_key,ancestors)=>{
+            if(candidate.type!=='ReturnStatement'||!candidate.argument||
+               ancestors.some((/** @type {import('./ast').AstNode} */ ancestor)=>
+                 ['FunctionDeclaration','FunctionExpression',
+                   'ArrowFunctionExpression'].includes(ancestor.type)))return;
+            if(returnsError(candidate.argument))errorReturn=true;
+          });
+        }else{
+          errorReturn=returnsError(factoryFn.body);
+        }
+        if(errorReturn&&!errorFactories.has(factoryName)){
           errorFactories.add(factoryName);
           originChanged=true;
         }
