@@ -1327,7 +1327,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            !isDefinitelyPrimitive(node.arguments[0]))observed=true;
         // Bound/reflective native method calls can conceal that coercion.
         if(['call','apply','bind'].includes(method??'') &&
-           callee.object.type==='MemberExpression' &&
            isDetachedRegExpSourceMethod(callee.object)) {
           if(method==='apply') {
             const values=node.arguments[1];
