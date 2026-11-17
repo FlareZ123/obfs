@@ -101,6 +101,27 @@ test('Unicode whitespace and repeated BOMs cannot bypass UTF-16 map detection',(
   }
 });
 
+test('all Unicode code points trimmed by the runtime are recognized as map prefixes',()=>{
+  /** @type {string[]} */
+  const leadingWhitespace=[];
+  for(let cp=0;cp<=0x10ffff;cp++){
+    if(cp>=0xd800&&cp<=0xdfff)continue;
+    const character=String.fromCodePoint(cp);
+    if(character.trimStart().length===0)leadingWhitespace.push(character);
+  }
+  assert.ok(leadingWhitespace.length>=25,'Expected the standard ECMAScript whitespace set');
+  for(const space of leadingWhitespace){
+    const utf8=Buffer.from(space+sourceMap,'utf8');
+    assert.equal(isSourceMapDocument(utf8),true,
+      'UTF-8 U+'+space.codePointAt(0)?.toString(16));
+    for(const endian of /** @type {const} */(['le','be'])){
+      const code=utf16(space+sourceMap,endian,false);
+      assert.equal(isSourceMapDocument(code),true,
+        'UTF-16 '+endian+' U+'+space.codePointAt(0)?.toString(16));
+    }
+  }
+});
+
 test('ordinary UTF-16 JSON and opaque binary remain byte-identical',()=>{
   const ordinary=JSON.stringify({
     version:3,sources:['public config'],mappings:{kind:'configuration'}
