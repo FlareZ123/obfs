@@ -46,6 +46,10 @@ jobs:
         run: node sims/polyvariant-affine-session-budget.js
       - name: Measure full three-module app import and stateful workload cost
         run: node sims/polyvariant-app-budget.js
+      - name: Count selected function executions in native, published, and rebuilt application
+        run: node --test test/polyvariant-app-execution-coverage.test.js
+      - name: Report independent source-only attacker execution coverage
+        run: node sims/polyvariant-app-execution-coverage.js
       - name: Real Chromium COO ES module and host observation
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
@@ -53,3 +57,5 @@ jobs:
         run: node test/polyvariant-affine-browser.js
       - name: JSDoc static check
         run: npm run typecheck
+      - name: JSDoc static check of execution-coverage experiment
+        run: npx tsc --project jsconfig.polyvariant-coverage.json
