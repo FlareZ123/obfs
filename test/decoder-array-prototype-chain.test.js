@@ -45,7 +45,21 @@ const accessor='const shim={get 0(){return 0;},set 0(value){}};';
 for(const [name,mutate] of [
   ['direct','Array.prototype.__proto__=shim;'],
   ['aliased','const proto=Array.prototype;proto.__proto__=shim;'],
-  ['computed',"Array.prototype['__proto__']=shim;"]
+  ['computed',"Array.prototype['__proto__']=shim;"],
+  ['array-own-descriptor',
+    "Object.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
+  ['object-own-descriptor',
+    "Object.defineProperty(Object.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
+  ['reflect-array-descriptor',
+    "Reflect.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
+  ['reflect-object-descriptor',
+    "Reflect.defineProperty(Object.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
+  ['legacy-array-accessor',
+    "Array.prototype.__defineGetter__('0',function(){return 0;});"+
+    "Array.prototype.__defineSetter__('0',function(v){});"],
+  ['legacy-object-accessor',
+    "Object.prototype.__defineGetter__('0',function(){return 0;});"+
+    "Object.prototype.__defineSetter__('0',function(v){});"]
 ]) {
   for(const mode of /** @type {const} */ (['sno','coo'])) {
     test('inherited Array index setter must disable chunked decoding: '+name+'/'+mode,async()=>{
