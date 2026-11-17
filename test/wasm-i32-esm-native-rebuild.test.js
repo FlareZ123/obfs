@@ -50,7 +50,7 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
     for(let seed=0;seed<4;seed++){
       const compiled=obfuscateFiles(files,{
         mode:'coo',seed:'wasm-graph-static-rebuild-'+seed,closedWorld:true,
-        properties:false,identifiers:false,strings:false,
+        properties:false,identifiers:seed%2===1,strings:false,
         experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
       });
       const emitted=compiled.files.map(file=>({path:file.path,code:String(file.code)}));
@@ -59,8 +59,12 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
       assert.equal(compiled.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,2);
       const attacker=reconstructPublicWasmEsm(kernel.code);
       assert.deepEqual(attacker.functions.map(fn=>fn.name),['scramble','mask']);
-      assert.deepEqual(attacker.functions.map(fn=>fn.expression),
-        ['(((a^b)&(c|d))^((a>>>d)|(c<<b)))','((x^137)&255)']);
+      if(seed%2===0){
+        assert.deepEqual(attacker.functions.map(fn=>fn.expression),
+          ['(((a^b)&(c|d))^((a>>>d)|(c<<b)))','((x^137)&255)']);
+      }else{
+        assert.deepEqual(attacker.functions.map(fn=>fn.parameters.length),[4,1]);
+      }
       assert.ok(attacker.replacementBytes<attacker.sourceBytes);
       assert.doesNotMatch(attacker.code,/WebAssembly|Uint8Array/u);
       const rebuilt=emitted.map(file=>file.path==='kernel.mjs'?
