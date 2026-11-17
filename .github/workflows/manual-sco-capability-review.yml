@@ -23,6 +23,8 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Exercise private capability state and actual SCO HTTP/ESM facade
         run: node --test test/sco-capabilities.test.js test/sco-capabilities-http.test.js test/sco-capabilities-public-facade.test.js
+      - name: Profile actual authenticated HTTP sessions versus native capability work
+        run: node sims/sco-private-capability-session-profile.js
       - name: Typecheck private capability integration
         run: npx tsc -p jsconfig.capability-review.json
       - name: Strict main project JSDoc
