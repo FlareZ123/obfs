@@ -15,10 +15,31 @@ const {parse}=require('../src/ast');
  */
 function recoverStatementFlow(source,functionName,sourceType='commonjs'){
   const ast=parse(source,sourceType);
+  // A named ESM export may expose a local dispatcher under another public
+  // name. Recover that local function solely from the delivered export map.
+  // Reexports with a source module are out of this single-file attack scope.
+  let localName=functionName;
+  let exportClause='';
+  if(sourceType==='module'){
+    for(const statement of ast.body){
+      if(statement.type!=='ExportNamedDeclaration'||statement.source||
+         statement.declaration)continue;
+      for(const specifier of statement.specifiers){
+        if(specifier.type!=='ExportSpecifier'||
+           specifier.local.type!=='Identifier')continue;
+        const published=specifier.exported.name??specifier.exported.value;
+        if(published!==functionName)continue;
+        if(exportClause)throw new TypeError('Ambiguous public export');
+        localName=specifier.local.name;
+        exportClause='export {'+localName+' as '+
+          source.slice(specifier.exported.start,specifier.exported.end)+'};';
+      }
+    }
+  }
   const wrapper=ast.body.find((/** @type {AstNode} */ stmt)=>
-    (stmt.type==='FunctionDeclaration'&&stmt.id?.name===functionName)||
+    (stmt.type==='FunctionDeclaration'&&stmt.id?.name===localName)||
     (stmt.type==='ExportNamedDeclaration'&&stmt.declaration?.type==='FunctionDeclaration'&&
-      stmt.declaration.id?.name===functionName));
+      stmt.declaration.id?.name===localName));
   const fn=wrapper?.type==='ExportNamedDeclaration'?wrapper.declaration:wrapper;
   if(!fn||fn.type!=='FunctionDeclaration')throw new TypeError('Public function not found');
   const forLoop=fn.body.body.find((/** @type {AstNode} */ stmt)=>stmt.type==='ForStatement'&&stmt.body.type==='BlockStatement');
@@ -139,8 +160,8 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
   const params=fn.params.map((/** @type {AstNode} */ param)=>source.slice(param.start,param.end)).join(',');
   const directives=fn.body.body.filter((/** @type {AstNode} */ stmt)=>stmt.directive).map((/** @type {AstNode} */ stmt)=>
     source.slice(stmt.start,stmt.end)+';').join('');
-  const code=(wrapper.type==='ExportNamedDeclaration'?'export ':'')+'function '+functionName+
-    '('+params+'){'+directives+visitUntil(entry.value,END,0)+'}';
+  const code=(wrapper.type==='ExportNamedDeclaration'?'export ':'')+'function '+localName+
+    '('+params+'){'+directives+visitUntil(entry.value,END,0)+'}'+exportClause;
   parse(code,sourceType);
   return {code,blocks:blocks.size};
 }
