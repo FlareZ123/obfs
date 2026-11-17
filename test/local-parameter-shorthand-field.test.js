@@ -24,7 +24,7 @@ const scenarios=[
     source:'function inspect(payload){const owner={payload,bias:3};return owner.payload+owner.bias;}module.exports=inspect(39);',
     objects:1},
   {name:'shorthand retains preexisting anonymous function argument name',
-    source:'function inspect(callback){const owner={callback};return [owner.callback.name,owner.callback()];}module.exports=inspect(()=>17);',
+    source:'function inspect(callback){const owner={callback};const fn=owner.callback;return [fn.name,fn()];}module.exports=inspect(()=>17);',
     objects:1},
   {name:'shorthand and explicit computed field keys rewrite together',
     source:'function inspect(payload){const owner={payload,["bias"]:3};return owner["payload"]+owner.bias;}module.exports=inspect(39);',
