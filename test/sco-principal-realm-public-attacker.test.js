@@ -10,6 +10,7 @@ const {spawn}=require('node:child_process');
 const {randomBytes,createHmac,createHash}=require('node:crypto');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {partitionScoAsyncGraph,createScoGraphHandler}=require('../src/sco-graph');
+const {verifyScoPrivateSourceDigests}=require('../src/sco-private-integrity');
 const {createScoPrincipalRealmPool}=require('../sims/sco-principal-realm-worker');
 
 const dir=path.join(__dirname,'fixtures','sco-principal-realm');
@@ -51,6 +52,7 @@ test('external public-only A process relays A but cannot consume B or read priva
     {path:'private-api.mjs',sourceType:'module',code:api},
     {path:'private-counter.mjs',sourceType:'module',code:dependency}
   ],{exposedPaths:['private-api.mjs'],seed:'external-A-public-only-repro-seed'});
+  await verifyScoPrivateSourceDigests(graph,dir);
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2});
   await Promise.all([pool.initialize('A'),pool.initialize('B')]);
   const scope=new AsyncLocalStorage();
