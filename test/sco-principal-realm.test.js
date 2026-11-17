@@ -193,9 +193,12 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
   const originalPrincipal=process.env.SCO_REALM_PRINCIPAL;
   process.env.SCO_REALM_SECRET=randomBytes(32).toString('hex');
   process.env.SCO_REALM_PRINCIPAL='native';
-  const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2});
+  const approved=['tick'];
+  const pool=createScoPrincipalRealmPool(entry,approved,{maxPrincipals:2});
+  approved.push('unreviewed');
   try{
     await Promise.all([pool.initialize('A'),pool.initialize('B')]);
+    await assert.rejects(pool.call('A','unreviewed',[]),/Invalid private realm/);
     const [a1,a2,b1]=[
       /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[1,'a',0])),
       /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[2,'b',0])),
