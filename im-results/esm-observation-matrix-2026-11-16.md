@@ -48,6 +48,21 @@ The simple source-only token normalizer also has a clearly bounded failure mode.
 
 The control and ordinary-literal decoy cases passed across Node 22 Ubuntu/Windows with strict JSDoc in [focused CI 43997953129](https://github.com/FlareZ123/obfs/actions/runs/43997953129) at exact source `9e7cb68064c00818dbf7e5be3398df75117916af`. The reported 576/576 graph recovery remains limited to the earlier finite fixture family, where no same-spelled outside-host API exists. A stronger public-only attacker should prove receiver ownership or document which external fields it may alter, then re-run the same host collision controls. False-positive avoidance and recovered protected work are separate measurements.
 
+## Public-only attacker provenance frontier: independent synthetic negative controls
+
+A follow-on, **attacker-only** [provenance grid](../sims/public-normalizer-provenance-grid.js) supplies identical compiler-shaped private keys on a locally owned literal and on a *separately provided* host capability. It varies the actual receiver path through direct reads, aliases, function parameters, nested record access, destructuring, opaque imports and reassignment. The input does not come from the obfuscator. The experiment asks whether a syntactic public-source normalizer can change field spelling without changing that synthetic program's behavior.
+
+The two attacker policies were compared over **19 distinct source shapes × 4 deterministic seeds = 76 executions** per policy:
+
+| Public-only policy | Executions with original output parity |
+|---|---:|
+| Naive hash-token substitution | **32 / 76 (42.1%)** |
+| Bounded free-receiver and opaque-pattern guard | **60 / 76 (78.9%)** |
+
+Both Ubuntu and Windows Node 22 tests plus strict JSDoc passed in [focused CI 43999699582](https://github.com/FlareZ123/obfs/actions/runs/43999699582) on exact commit `ee88c3dccaadc2b58d3f3841bcfbd6ad71d39cde`. The 28-case improvement comes from avoiding unauthorized renames of visibly external host members, simple transitive aliases and directly identifiable host destructuring. **Sixteen guarded cases still fail**: among the demonstrated limitations are a *missed* local private read forwarded through a function parameter, an external capability hidden inside a local record, and nested host destructuring. A conservative refusal can lower actual protected-name recovery even when it improves host API preservation. This is a correctness/yield frontier for two simplistic static attacks on synthetic labels, **not a claim about compiler strength, source recovery success on arbitrary JavaScript, runtime attack difficulty or the application's 2.5× budget**.
+
+The broader 576 ESM graph experiment separately exercises the guarded attacker against *actual compiler output*. Its CI status is tracked independently from this synthetic falsification grid; the reported 576/576 earlier successes were obtained with the original naive policy and must not be silently reattributed.
+
 ## Whole-process and hot-path cost on actually rewritten ESM fields
 
 The new [full-session profile](../sims/esm-observation-session.js) feeds native and compiled four-module ESM graphs into separate Node processes. A named external numeric host callback executes with every direct private field read. Two owner fields are genuinely renamed, and every output is compared over **1 and 2,000,000 repeated calls**. The fully evaluated hot workload therefore contains **4,000,000 reads of actually renamed owner fields**, derived from two unconditional member expressions per one of the 2,000,000 calls. The harness now reports this as `protectedMemberReads` rather than equating rewritten source-byte share with dynamic work; it is a source-structure count, not an independent CPU-sampling or confidential-compute measurement. Seven-sample default CLI profiling is available; the CI regression used **five alternating native/emitted samples** per workload, measuring process launch, module imports, computation, and output JSON. Source size was **656 bytes native / 664 bytes generated**; only the same small graph and environment are represented.
