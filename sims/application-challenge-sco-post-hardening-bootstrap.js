@@ -46,6 +46,7 @@ const samples={
 function main(){
   /** @type {Record<string,Record<string,ReturnType<typeof bootstrap>>>} */
   const report={};
+  /** @type {Record<string,Record<string,number>>} */
   const expected={linux:{heavy:2.4242044251456845,light:4.162830044759139},
     win32:{heavy:2.1097667616430043,light:3.1940251684653553}};
   const trials=25000;
