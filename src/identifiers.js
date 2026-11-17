@@ -206,7 +206,13 @@ function renameLocalIdentifiers(source,ast,options) {
         if(parent?.type!=='Property' || !item.ancestors.some(a=>a.type==='ObjectExpression')) {safe=false;break;}
         const span=`${item.node.start}:${item.node.end}`;
         if(!shorthandSpans.has(span)) {
-          local.push({start:item.node.start,end:item.node.end,text:`${JSON.stringify(name)}:${replacement}`});
+          // A shorthand __proto__ creates an ordinary own data property.
+          // A noncomputed explicit "__proto__": value instead invokes the
+          // object-literal prototype setter. Use a computed literal key to
+          // preserve the shorthand's CreateDataProperty semantics.
+          const keyText=name==='__proto__'?
+            '['+JSON.stringify(name)+']' : JSON.stringify(name);
+          local.push({start:item.node.start,end:item.node.end,text:`${keyText}:${replacement}`});
           shorthandSpans.add(span);
         }
         continue;
