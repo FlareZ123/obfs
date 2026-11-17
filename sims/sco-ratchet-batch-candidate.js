@@ -5,6 +5,8 @@ const http=require('node:http');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {randomBytes,createHash}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
 const {createScoHandler,createScoKeyedIsolation,createScoRpcClientSource}=require('../src');
 const {createPrivateMachine}=require('./sco-ratchet-boundary');
 
@@ -141,6 +143,33 @@ async function profile(key,delayMs){
     const source=await sourceResponse.text();
     assert.doesNotMatch(source,/createPrivateMachine|ratchet-step-v1|createHmac/u);
     assert.doesNotMatch(source,new RegExp(key.toString('hex'),'u'));
+    // Independent public-facade runtime attacker operates with A-only access.
+    // B is verified separately with its own credential and original machine.
+    const tokenAttackerA=randomBytes(32).toString('hex');
+    const tokenTargetB=randomBytes(32).toString('hex');
+    backend.grant(tokenAttackerA,'attacker-A');
+    backend.grant(tokenTargetB,'target-B');
+    const child=await promisify(execFile)(process.execPath,[
+      require.resolve('./sco-ratchet-batch-public-attacker'),
+      trusted.base,tokenAttackerA
+    ],{timeout:60000,maxBuffer:1024*1024});
+    const attack=/** @type {{publicSha256:string,outputs:string[]}} */
+      (JSON.parse(child.stdout));
+    assert.equal(attack.publicSha256,createHash('sha256').update(source).digest('hex'));
+    const attackInputs=Array.from({length:32},(_,index)=>challenge(index));
+    const independentNative=createPrivateMachine(key);
+    const expectedAttacker=attackInputs.map((value,index)=>
+      independentNative.advance('attacker-A',index,value));
+    assert.deepEqual(attack.outputs,expectedAttacker);
+    const target=await call(trusted.base,tokenTargetB,0,attackInputs);
+    assert.equal(target.status,200);
+    const expectedTarget=attackInputs.map((value,index)=>
+      independentNative.advance('target-B',index,value));
+    assert.deepEqual(target.value,expectedTarget);
+    const crossAccountMatches=attack.outputs.filter((value,index)=>
+      value===target.value?.[index]).length;
+    assert.equal(crossAccountMatches,0);
+
     const native=createPrivateMachine(key);
     const initialInputs=[challenge(0),challenge(1),challenge(2)];
     const a=await call(trusted.base,tokenA,0,initialInputs);
@@ -217,6 +246,8 @@ async function profile(key,delayMs){
       publishedBytes:Buffer.byteLength(source),
       secretBytes:32,privateWorkBytesPerEvent:8*1024*1024,
       nativeOutputParity:true,accountSeparation:true,
+      independentAOnlyBatchMatches:attack.outputs.length,
+      independentCrossAccountMatches:crossAccountMatches,
       staleReplayStatus:403,malformedOverrideStatus:403,
       unauthenticatedStatus:403,concurrentDuplicateStatuses:[200,403],
       privateExecutions:backend.calls(),budgets,
