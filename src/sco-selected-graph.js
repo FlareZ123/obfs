@@ -82,13 +82,14 @@ function partitionScoSelectedGraph(units){
   }
 
   for(const unit of units){
-    if(!unit||!unit.file||typeof unit.file!=='object'){
+    const suppliedFile=unit?.file;
+    if(!suppliedFile||typeof suppliedFile!=='object'){
       throw new TypeError('Selected SCO graph needs explicit source units');
     }
-    // Read caller-controlled fields once. Accessors must not supply different
-    // source text to admission, hashing and eventual emission.
-    const file={path:unit.file.path,code:unit.file.code,
-      sourceType:unit.file.sourceType};
+    // Capture the file accessor and each source property once. Otherwise
+    // a getter could supply different source text for auditing and hashing.
+    const file={path:suppliedFile.path,code:suppliedFile.code,
+      sourceType:suppliedFile.sourceType};
     const options=unit.options;
     const name=recordPath(file.path);
     if(Object.hasOwn(partitions,name)){
