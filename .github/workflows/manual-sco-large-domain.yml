@@ -44,3 +44,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-ratchet-batch-browser.js
+      - name: Hostile Chromium instrumentation of cookie-credentialed SCO RPC
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-browser-attacker.js
