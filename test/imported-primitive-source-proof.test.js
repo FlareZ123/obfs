@@ -99,3 +99,39 @@ test('open-world imported primitives remain unproved without the graph contract'
   assert.equal(emitted.files[0].metrics.properties,0);
   assert.equal(await execute(/** @type {Source[]} */(emitted.files)),await execute(originals));
 });
+
+
+for(const [name,expression,expected] of /** @type {Array<[string,string,string]>} */([
+  ['arithmetic','1+2*3','7:23'],
+  ['nullable logical','null??42','42:23'],
+  ['primitive addition','"hi"+(2*3)','hi6:23'],
+  ['conditional','true?false:true','false:23'],
+  ['template',`\`x\${5-2}\``,'x3:23'],
+  ['unary typeof','typeof 42','number:23'],
+  ['sequence','(1,2,3)','3:23']
+])) {
+  test('pure imported primitive '+name+' retains unrelated private-property rename',async()=>{
+    const originals=sources(expression);
+    assert.equal(collectVerifiedImportedPrimitives(originals).get('consumer.mjs')?.has('observed'),
+      true,'The exported value is provably primitive');
+    const emitted=compiled(originals);
+    assert.equal(emitted.files[0].metrics.properties,1);
+    assert.equal(await execute(originals),expected);
+    assert.equal(await execute(/** @type {Source[]} */ (emitted.files)),expected);
+  });
+}
+
+for(const [name,expression] of /** @type {Array<[string,string]>} */([
+  ['opaque call','(()=>37)()'],
+  ['function-bearing member','({method(){return 37;}}).method'],
+  ['mutable ambient read','globalThis.marked']
+])) {
+  test('unproved imported '+name+' preserves function-source-sensitive keys',async()=>{
+    const originals=sources(expression);
+    assert.equal(collectVerifiedImportedPrimitives(originals).get('consumer.mjs')?.has('observed'),
+      false);
+    const emitted=compiled(originals);
+    assert.equal(emitted.files[0].metrics.properties,0);
+    if(name!=='mutable ambient read')assert.equal(await execute(/** @type {Source[]} */ (emitted.files)),await execute(originals));
+  });
+}
