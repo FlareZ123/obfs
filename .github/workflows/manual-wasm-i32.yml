@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Differential, negative and public-binary extraction tests
-        run: node --test test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js
+        run: node --test test/wasm-i32.test.js test/wasm-i32-static-recovery.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js
       - name: Verify pinned before/after artifact
         run: |
           node examples/wasm-i32/build.cjs
