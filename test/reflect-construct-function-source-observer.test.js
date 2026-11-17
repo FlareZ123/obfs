@@ -48,7 +48,25 @@ const cases=[
     expression:'Reflect[method](RegExp,[protectedLabel]).source'},
   {name:'indirect constructor argument list',
     declarations:'const args=[protectedLabel];',
-    expression:'Reflect.construct(RegExp,args).source'}
+    expression:'Reflect.construct(RegExp,args).source'},
+  {name:'Reflect.construct via call',declarations:'',
+    expression:'Reflect.construct.call(Reflect,RegExp,[protectedLabel]).source'},
+  {name:'Reflect.construct via apply',declarations:'',
+    expression:'Reflect.construct.apply(Reflect,[RegExp,[protectedLabel]]).source'},
+  {name:'Reflect.apply invoking construct',declarations:'',
+    expression:'Reflect.apply(Reflect.construct,Reflect,[RegExp,[protectedLabel]]).source'},
+  {name:'Reflect.construct bound method',
+    declarations:'const make=Reflect.construct.bind(Reflect);',
+    expression:'make(RegExp,[protectedLabel]).source'},
+  {name:'Reflect.construct alias via call',
+    declarations:'const make=Reflect.construct;',
+    expression:'make.call(Reflect,RegExp,[protectedLabel]).source'},
+  {name:'Reflect.construct alias via apply',
+    declarations:'const make=Reflect.construct;',
+    expression:'make.apply(Reflect,[RegExp,[protectedLabel]]).source'},
+  {name:'Reflect.apply alias invoking construct',
+    declarations:'const invoke=Reflect.apply;',
+    expression:'invoke(Reflect.construct,Reflect,[RegExp,[protectedLabel]]).source'}
 ];
 
 test('native Reflect.construct can expose original Function source',()=>{
