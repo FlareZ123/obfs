@@ -13,7 +13,9 @@ const {createScoHandler,createScoBatchMethod}=require('../src');
  */
 async function request(handler,body){
   const server=http.createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await listening;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Expected server address');
   try{
@@ -22,7 +24,10 @@ async function request(handler,body){
     });
     return {status:response.status,body:await response.json()};
   }finally{
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+    await closed;
   }
 }
 
