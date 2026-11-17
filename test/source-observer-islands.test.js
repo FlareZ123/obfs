@@ -38,7 +38,7 @@ async function executeEsm(files) {
       await atomicWrite(path.join(dir,file.path),file.code);
     }
     const child=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{
-      encoding:'utf8',timeout:10000
+      cwd:dir,encoding:'utf8',timeout:10000
     });
     assert.equal(child.status,0,child.stderr || child.error?.message);
     return child.stdout.trim();
@@ -152,4 +152,39 @@ test('island proof rejects dynamic module access, namespaces, source readers and
   assert.throws(()=>obfuscateFiles([watched,independent,entry(normalEntry)],{
     mode:'coo',closedWorld:false,experimentalSourceObserverIslands:['independent.mjs']
   }),/Source observer islands require closedWorld/);
+});
+
+test('opaque Reflect.get can reconstruct a hidden Node source-file reader',async ()=>{
+  // The forbidden capabilities are assembled from split literal strings and
+  // retrieved reflectively. An exact ESM-only file list still leaves an
+  // untracked native module loader outside the declared import graph.
+  const opaqueEntry='import {watched} from "./watched.mjs";'+
+    'import {unrelated} from "./independent.mjs";'+
+    'const C=Reflect.get(()=>{}, "con"+"structor");'+
+    'const load=C("return import(\\'node:fs\\')");'+
+    'const fs=await load();'+
+    'const read=Reflect.get(fs,"read"+"FileSync");'+
+    'const original=read("./independent.mjs","utf8");'+
+    'console.log(JSON.stringify({source:watched.toString(),n:unrelated(),'+
+      'originalKey:original.includes("privateB")}));';
+  const originals=[watched,independent,entry(opaqueEntry)];
+  const changed=obfuscateFiles([independent],{
+    mode:'coo',seed:'opaque-loader-native-control',strings:false,identifiers:false
+  }).files;
+  assert.equal(changed[0].metrics.properties,2,
+    'Counterfactual must actually rename the source-visible file');
+  const attacked=originals.map(file=>file.path==='independent.mjs' ?
+    {...file,code:changed[0].code} : file);
+  assert.deepEqual(JSON.parse(await executeEsm(originals)),{
+    source:'function watched(){return valueA;}',n:23,originalKey:true
+  });
+  assert.deepEqual(JSON.parse(await executeEsm(attacked)),{
+    source:'function watched(){return valueA;}',n:23,originalKey:false
+  },'Unsafe isolated rewrite must demonstrate a real source-visible contract break');
+  assert.throws(()=>obfuscateFiles(originals,{
+    mode:'coo',seed:'opaque-loader-admission',closedWorld:true,
+    strings:false,identifiers:false,
+    experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer island/,
+  'Proof must reject opaque reflective dynamic source reader');
 });
