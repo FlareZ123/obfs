@@ -1112,12 +1112,55 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       args.slice(1).some(value=>
         value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
   }
+  /**
+   * Object.groupBy converts each callback result to a property key, and a
+   * function-valued key is observable as exact Function#toString source.
+   * Only an inline callback returning a proven primitive can be exempted.
+   * Named and opaque callbacks remain unsafe without whole-program proof.
+   * @param {AstNode|null|undefined} callback
+   * @returns {boolean}
+   */
+  function isPrimitiveGroupByCallback(callback) {
+    if(!callback || !['ArrowFunctionExpression','FunctionExpression'].includes(callback.type))
+      return false;
+    const body=callback.body;
+    if(body.type!=='BlockStatement')return isDefinitelyPrimitive(body);
+    if(body.body.length!==1||body.body[0].type!=='ReturnStatement')return false;
+    return isDefinitelyPrimitive(body.body[0].argument);
+  }
+  /** @param {AstNode|null|undefined} callee @returns {boolean} */
+  function isObjectGroupBy(callee) {
+    return Boolean(callee?.type==='MemberExpression' &&
+      isReflectiveReceiver(callee.object)&&memberName(callee)==='groupBy');
+  }
   walk(ast,(node,parent,key)=>{
     if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
        node.quasi.expressions.some((/** @type {AstNode} */ value)=>
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      if(isObjectGroupBy(callee) &&
+         !isPrimitiveGroupByCallback(node.arguments[1]))observed=true;
+      if(callee.type==='MemberExpression' && isObjectGroupBy(callee.object)) {
+        const method=memberName(callee);
+        if(method==='call' && !isPrimitiveGroupByCallback(node.arguments[2]))
+          observed=true;
+        if(method==='apply') {
+          const input=node.arguments[1];
+          if(input?.type==='ArrayExpression') {
+            if(!isPrimitiveGroupByCallback(input.elements[1]))observed=true;
+          } else observed=true;
+        }
+        if(method==='bind')observed=true;
+      }
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object)&&memberName(callee)==='apply' &&
+         isObjectGroupBy(node.arguments[0])) {
+        const input=node.arguments[2];
+        if(input?.type==='ArrayExpression') {
+          if(!isPrimitiveGroupByCallback(input.elements[1]))observed=true;
+        } else observed=true;
+      }
       if(isStringRaw(callee) && rawObservesSource(node.arguments))observed=true;
       if(callee.type==='MemberExpression' && isStringRaw(callee.object)) {
         const method=memberName(callee);
