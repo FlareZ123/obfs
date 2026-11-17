@@ -46,7 +46,8 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
   const graph=partitionScoAsyncGraph([
     {path:'private-api.mjs',code:api,sourceType:'module'},
     {path:'private-counter.mjs',code:counter,sourceType:'module'}
-  ],{seed:'principal-realm-fixed-repro-seed',exposedPaths:['private-api.mjs']});
+  ],{seed:'principal-realm-fixed-repro-seed',exposedPaths:['private-api.mjs'],
+    batch:true,maxBatchCalls:8});
   const publicBytes=graph.clientFiles[0].code;
   const sourceDigests=[api,counter,publicBytes].map(code=>
     createHash('sha256').update(code).digest('hex'));
@@ -153,6 +154,19 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
     assert.deepEqual(pair.map(result=>result.status).sort(),[200,500]);
     const a6=await rpc(tokenA,[6,'post-race',0]);
     assert.equal(a6.status,200);
+    // Compiler-generated multi-module graph batching must retain A's
+    // private counter, preserve side-effect order, and surface only results.
+    const results=await publicApi.batch([
+      {name:'tick',args:[7,'batch-first',0]},
+      {name:'tick',args:[8,'batch-second',0]}
+    ]);
+    assert.deepEqual(results.map(item=>item.ok),[true,true]);
+    assert.deepEqual(results.map(item=>item.value.sequence),[7,8]);
+    assert.equal(results[1].value.tag,expectedTag(root,'A',8,'batch-second',0));
+    await assert.rejects(publicApi.batch([{name:'unregistered',args:[]}]),/Invalid RPC batch/);
+    const b3=await rpc(tokenB,[3,'after-A-batch',0]);
+    assert.equal(b3.status,200);
+    assert.equal(b3.payload.value.tag,expectedTag(root,'B',3,'after-A-batch',0));
     console.log('SCO realm fixture hashes '+JSON.stringify({
       privateApi:sourceDigests[0],privateCounter:sourceDigests[1],
       compilerFacade:sourceDigests[2],servedFacade:createHash('sha256').update(delivered).digest('hex')
