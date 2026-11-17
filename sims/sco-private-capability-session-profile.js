@@ -108,7 +108,6 @@ async function experiment() {
       nativeFetch(new URL(input instanceof Request?input.url:String(input),origin),{
         ...options,headers:{...options?.headers,cookie:'session='+session}
       }));
-    const imported=await elapsed(async()=>{});
     const startedImport=process.hrtime.bigint();
     const facade=/** @type {{issue:()=>Promise<string>,
       step:(handle:string,input:string,bytes:number)=>Promise<string>}} */
@@ -118,11 +117,11 @@ async function experiment() {
     await scope.runRpcIsolated(nativeRequest,async()=>{
       nativeHandle=handles.issue({counter:0});
     });
+    let remoteHandle='';
     const coldIssueMs=await elapsed(async()=>{
-      const issued=await facade.issue();
-      assert.match(issued,/^[A-Za-z0-9_-]{43}$/u);
+      remoteHandle=await facade.issue();
+      assert.match(remoteHandle,/^[A-Za-z0-9_-]{43}$/u);
     });
-    const remoteHandle=await facade.issue();
     // Separate native and remote state counters stay aligned after both
     // were created with independent private-capability handle values.
     /** @type {SampleGroup[]} */
