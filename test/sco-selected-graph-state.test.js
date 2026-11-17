@@ -89,3 +89,21 @@ test('selected SCO graph inspects private source accessor bytes exactly once',()
   assert.equal(codeReads,1);
   assert.equal(graph.privateSourceDigests.length,2);
 });
+
+
+test('selected SCO graph refuses imported function-object property state in private caller',()=>{
+  const unsafe='import {next} from "./private/counter.mjs";'+
+    'export async function secret(){next.count=(next.count??0)+1;return next.count;}'+
+    'export function local(){return 1;}';
+  assert.throws(()=>partitionScoSelectedGraph([{
+    file:{path:'mixed.mjs',code:unsafe,sourceType:'module'},
+    options:{
+      privateNames:['secret'],privateModuleImports:['./private/counter.mjs'],
+      privateModuleSources:[{
+        path:'private/counter.mjs',
+        code:'export function next(){return 7;}'
+      }]
+    }
+  }]),/exposes shared imported member state/u);
+});
+
