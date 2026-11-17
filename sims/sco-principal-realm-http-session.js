@@ -54,7 +54,8 @@ async function main(){
   const graph=partitionScoAsyncGraph([
     {path:'private-api.mjs',code:originalCode,sourceType:'module'},
     {path:'private-counter.mjs',code:dependentCode,sourceType:'module'}
-  ],{seed:'sco-principal-realm-session-profile',exposedPaths:['private-api.mjs']});
+  ],{seed:'sco-principal-realm-session-profile',exposedPaths:['private-api.mjs'],
+    batch:true,maxBatchCalls:64});
   const native=await import(pathToFileURL(entry).href);
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:1});
   const context=new AsyncLocalStorage();
@@ -64,7 +65,14 @@ async function main(){
     authorizeRpc:request=>request.headers.cookie==='session='+token,
     runRpcIsolated:(request,execute)=>context.run('A',execute)
   });
-  const server=http.createServer(handler);
+  let serverDelayMs=0;
+  // Controlled artificial per-request delay, measured in the full session.
+  // This is not real Internet RTT or a production latency distribution.
+  const server=http.createServer((request,response)=>{
+    if(serverDelayMs>0&&request.method==='POST'&&request.url==='/obfs/rpc'){
+      setTimeout(()=>handler(request,response),serverDelayMs);
+    }else handler(request,response);
+  });
   const nativeFetch=global.fetch;
   let nativeSequence=0;
   let remoteSequence=0;
@@ -92,30 +100,51 @@ async function main(){
       return output;
     }
 
+    /** @param {number} count @param {number} bytes @param {string} label @returns {Promise<unknown[]>} */
+    async function batchedSession(count,bytes,label){
+      const calls=[];
+      for(let i=0;i<count;i++){
+        calls.push({name:'tick',args:[++remoteSequence,label+'/'+i,bytes]});
+      }
+      const results=await publishedApi.batch(calls);
+      assert.equal(results.length,count);
+      assert.equal(results.every(item=>item.ok===true),true,'all private batch items must succeed');
+      return results.map(item=>item.value);
+    }
+
     for(let i=0;i<6;i++){
       const label='warm/'+i;
       assert.deepEqual(await remoteSession(1,8388608,label),await nativeSession(1,8388608,label));
     }
     const outcomes=[];
-    for(const bytes of [0,1048576,8388608]){
-      for(const count of [1,16,64]){
+    const scenarios=[
+      ...[0,1048576,8388608].flatMap(bytes=>
+        [1,16,64].flatMap(count=>
+          ['per-call','batch'].map(transport=>({bytes,count,transport,delayMs:0,trials:7})))),
+      ...[1048576,8388608].flatMap(bytes=>
+        [16,64].flatMap(count=>
+          ['per-call','batch'].map(transport=>({bytes,count,transport,delayMs:25,trials:3}))))
+    ];
+    for(const {bytes,count,transport,delayMs,trials} of scenarios){
+        serverDelayMs=delayMs;
+        const chosenRemote=transport==='batch'?batchedSession:remoteSession;
         /** @type {number[]} */
         const ratios=[];
         /** @type {number[]} */
         const nativeTimes=[];
         /** @type {number[]} */
         const rpcTimes=[];
-        for(let trial=0;trial<7;trial++){
-          const label='pair/'+bytes+'/'+count+'/'+trial;
+        for(let trial=0;trial<trials;trial++){
+          const label='pair/'+bytes+'/'+count+'/'+transport+'/'+delayMs+'/'+trial;
           /** @type {{ns:number,value:unknown}} */
           let nativeMeasurement;
           /** @type {{ns:number,value:unknown}} */
           let remoteMeasurement;
           if(trial%2===0){
             nativeMeasurement=await measured(()=>nativeSession(count,bytes,label));
-            remoteMeasurement=await measured(()=>remoteSession(count,bytes,label));
+            remoteMeasurement=await measured(()=>chosenRemote(count,bytes,label));
           }else{
-            remoteMeasurement=await measured(()=>remoteSession(count,bytes,label));
+            remoteMeasurement=await measured(()=>chosenRemote(count,bytes,label));
             nativeMeasurement=await measured(()=>nativeSession(count,bytes,label));
           }
           assert.deepEqual(remoteMeasurement.value,nativeMeasurement.value);
@@ -123,11 +152,10 @@ async function main(){
           rpcTimes.push(remoteMeasurement.ns/1e6);
           ratios.push(remoteMeasurement.ns/nativeMeasurement.ns);
         }
-        outcomes.push({bytes,calls:count,comparisons:ratios.length,
+        outcomes.push({bytes,calls:count,transport,delayMs,comparisons:ratios.length,
           medianNativeMs:median(nativeTimes),medianRemoteMs:median(rpcTimes),
           medianPairedRatio:median(ratios),maxPairedRatio:Math.max(...ratios),
           strictOverBudget:ratios.filter(ratio=>ratio>2.5).length,ratios});
-      }
     }
     console.log(JSON.stringify({
       kind:'SCO-principal-realm-authenticated-HTTP-full-session',
@@ -135,7 +163,7 @@ async function main(){
       privateSourceSha256:[originalCode,dependentCode].map(code=>createHash('sha256').update(code).digest('hex')),
       publicSourceSha256:createHash('sha256').update(published).digest('hex'),
       explicitServerInitializationMs:initialization.ns/1e6,
-      boundaries:'Server realm initialized before GET and operation sessions; actual compiled facade and HTTP JSON; localhost no TLS or remote RTT.',
+      boundaries:'Server realm initialized before GET and sessions; actual generated SCO facade, HTTP JSON, and optional fixed server delay; no TLS or physical RTT.',
       outcomes
     }));
   }finally{
