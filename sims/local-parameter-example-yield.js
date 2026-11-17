@@ -7,8 +7,8 @@ const path=require('node:path');
 
 const ROOT=path.resolve(__dirname,'../examples');
 
-/** @typedef {{path:string,ownerLine:number,value:string,key:string}} Candidate */
-/** @typedef {{sourceFiles:number,syntaxParameterValues:number,directConstOwners:number,candidates:Candidate[]}} Report */
+/** @typedef {{path:string,ownerLine:number,value:string,key:string,shorthand:boolean}} Candidate */
+/** @typedef {{sourceFiles:number,syntaxParameterValues:number,directConstOwners:number,syntaxShorthandParameterValues:number,directConstShorthandOwners:number,candidates:Candidate[]}} Report */
 
 /**
  * Search a tree deterministically. Only source-before/native fixtures count;
@@ -42,13 +42,15 @@ async function sourceFiles(folder) {
  * @param {string} source
  * @param {'module'|'script'} sourceType
  * @param {string} label
- * @returns {{syntax:number,direct:number,candidates:Candidate[]}}
+ * @returns {{syntax:number,direct:number,shorthandSyntax:number,shorthandDirect:number,candidates:Candidate[]}}
  */
 function analyzeSource(source,sourceType,label) {
   const ast=acorn.parse(source,{ecmaVersion:'latest',
     sourceType,allowReturnOutsideFunction:true,allowHashBang:true,locations:true});
   let syntax=0;
   let direct=0;
+  let shorthandSyntax=0;
+  let shorthandDirect=0;
   /** @type {Candidate[]} */
   const candidates=[];
   walk.fullAncestor(ast,(node,/** @type {unknown} */ _state,ancestors)=>{
@@ -69,19 +71,21 @@ function analyzeSource(source,sourceType,label) {
     if(!fn)return;
     for(const property of owner.properties){
       if(property.type!=='Property'||property.kind!=='init'||property.computed||
-         property.shorthand||property.value.type!=='Identifier')continue;
+         property.value.type!=='Identifier')continue;
       if(!fn.params.some(param=>param.type==='Identifier'&&
           param.name===property.value.name))continue;
       syntax++;
+      if(property.shorthand)shorthandSyntax++;
       if(!directConst)continue;
       direct++;
+      if(property.shorthand)shorthandDirect++;
       candidates.push({path:label,ownerLine:property.loc?.start.line??0,
-        value:property.value.name,
+        value:property.value.name,shorthand:property.shorthand,
         key:property.key.type==='Identifier'?property.key.name:
           String(/** @type {import('acorn').Literal} */(property.key).value)});
     }
   });
-  return {syntax,direct,candidates};
+  return {syntax,direct,shorthandSyntax,shorthandDirect,candidates};
 }
 
 /** @returns {Promise<Report>} */
@@ -89,13 +93,16 @@ async function main() {
   const files=await sourceFiles(ROOT);
   /** @type {Report} */
   const report={sourceFiles:files.length,syntaxParameterValues:0,
-    directConstOwners:0,candidates:[]};
+    directConstOwners:0,syntaxShorthandParameterValues:0,directConstShorthandOwners:0,
+    candidates:[]};
   for(const filename of files){
     const source=await fs.readFile(filename,'utf8');
     const analysis=analyzeSource(source,filename.endsWith('.mjs')?'module':'script',
       path.relative(ROOT,filename).replaceAll(path.sep,'/'));
     report.syntaxParameterValues+=analysis.syntax;
     report.directConstOwners+=analysis.direct;
+    report.syntaxShorthandParameterValues+=analysis.shorthandSyntax;
+    report.directConstShorthandOwners+=analysis.shorthandDirect;
     report.candidates.push(...analysis.candidates);
   }
   process.stdout.write('LOCAL_PARAMETER_VALUE_EXAMPLE_YIELD '+JSON.stringify(report)+'\n');
