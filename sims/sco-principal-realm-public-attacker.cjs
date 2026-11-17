@@ -29,6 +29,14 @@ async function main(){
   });
   const api=await import('data:text/javascript,'+encodeURIComponent(code));
   const a1=await api.tick(1,'public-A-probe',0);
+  const batchCalls=Array.from({length:16},(_,index)=>({
+    name:'tick',args:[index+2,'oracle-A-'+index,0]
+  }));
+  /** @type {Array<{ok:boolean,value:{sequence:number,tag:string}}>} */
+  const batchResults=await api.batch(batchCalls);
+  if(batchResults.length!==16||batchResults.some(item=>item.ok!==true)){
+    throw new Error('Authorized public oracle batch failed');
+  }
   const proxy=http.createServer(async(request,reply)=>{
     let body='';
     for await(const chunk of request)body+=chunk.toString();
@@ -45,7 +53,8 @@ async function main(){
     process.stdout.write(JSON.stringify({
       kind:'SCO-public-only-adversary-ready',
       method,servedSha256:createHash('sha256').update(code).digest('hex'),
-      unauthStatus:unauth.status,accountAResult:a1,proxyPort:address.port,
+      unauthStatus:unauth.status,accountAResult:a1,
+      oracleBatch:batchResults.map(item=>item.value),proxyPort:address.port,
       sawPrivateRoot:Object.hasOwn(process.env,'SCO_REALM_SECRET')
     })+'\n');
   });
