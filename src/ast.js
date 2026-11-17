@@ -654,7 +654,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.object.type!=='Identifier'||name===null)return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys : null;
-    return properties?.get(node.object.name)?.has(name)??false;
+    const keys=properties?.get(node.object.name);
+    // A runtime-computed key could select any recorded native method.
+    return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isResponseRedirect(node) {
@@ -663,7 +665,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (memberName(node)==='redirect' &&
        isWebConstructor(node.object,responseConstructors,responseNames) ||
        node.object.type==='Identifier' &&
-       redirectObjectKeys.get(node.object.name)?.has(memberName(node)??''))));
+       (memberName(node)!==null ?
+         redirectObjectKeys.get(node.object.name)?.has(memberName(node)??'') :
+         node.computed && Boolean(redirectObjectKeys.get(node.object.name)?.size)))));
   }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
