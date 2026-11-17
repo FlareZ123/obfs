@@ -11,7 +11,8 @@ const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} SourceFile */
 /** @typedef {'direct'|'readers'|'identity'} Style */
-/** @typedef {{style:Style,properties:number,sourceBytes:number,emittedBytes:number,
+/** @typedef {'literal'|'pure-expression'} ValueKind */
+/** @typedef {{style:Style,valueKind:ValueKind,properties:number,sourceBytes:number,emittedBytes:number,
  *    coldNativeMs:number,coldObfuscatedMs:number,nativeMedianMs:number,
  *    obfuscatedMedianMs:number,hotRatio:number,wholeRatio:number,matchingProbes:number}} Measurement */
 
@@ -27,11 +28,14 @@ function median(values) {
  * Build one of three positive cross-module ESM property-flow workloads.
  * Both renames are observable through public hot() computations.
  * @param {Style} style
+ * @param {ValueKind} [valueKind]
  * @returns {SourceFile[]}
  */
-function generate(style) {
+function generate(style,valueKind='literal') {
   const state=[
-    'export const state={hotScore:7,hotWeight:13};',
+    valueKind==='pure-expression'?
+      'export const state={hotScore:(21-14),hotWeight:(5<<2)-7};':
+      'export const state={hotScore:7,hotWeight:13};',
     style==='readers'?'export function score(x){return x.hotScore;}'+
       'export function weight(x){return x.hotWeight;}':''
   ].join('');
@@ -76,10 +80,11 @@ async function writeFiles(folder,files) {
  * @param {Style} style
  * @param {number} iterations
  * @param {number} trials
+ * @param {ValueKind} [valueKind]
  * @returns {Promise<Measurement>}
  */
-async function measure(style,iterations,trials) {
-  const files=generate(style);
+async function measure(style,iterations,trials,valueKind='literal') {
+  const files=generate(style,valueKind);
   const result=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,strings:false,identifiers:false,
     seed:'property-hotpath/'+style
@@ -155,7 +160,7 @@ async function measure(style,iterations,trials) {
     const nativeMedianMs=median(nativeDurations);
     const obfuscatedMedianMs=median(obfuscatedDurations);
     return {
-      style,properties:result.crossFile.properties,
+      style,valueKind,properties:result.crossFile.properties,
       sourceBytes:files.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0),
       emittedBytes:result.files.reduce((sum,file)=>sum+Buffer.byteLength(file.code),0),
       coldNativeMs:Number(coldNativeMs.toFixed(3)),
@@ -175,9 +180,10 @@ async function measure(style,iterations,trials) {
 /**
  * @param {number} [iterations]
  * @param {number} [trials]
- * @returns {Promise<{iterations:number,trials:number,measurements:Measurement[]}>}
+ * @param {ValueKind} [valueKind]
+ * @returns {Promise<{iterations:number,trials:number,valueKind:ValueKind,measurements:Measurement[]}>}
  */
-async function runHotpath(iterations=7_000_000,trials=9) {
+async function runHotpath(iterations=7_000_000,trials=9,valueKind='literal') {
   if(!Number.isSafeInteger(iterations)||iterations<1000||iterations>30_000_000)
     throw new RangeError('iterations out of 1000..30000000');
   if(!Number.isSafeInteger(trials)||trials<3||trials>25)
@@ -185,13 +191,14 @@ async function runHotpath(iterations=7_000_000,trials=9) {
   /** @type {Measurement[]} */
   const measurements=[];
   for(const style of /** @type {Style[]} */ (['direct','readers','identity'])) {
-    measurements.push(await measure(style,iterations,trials));
+    measurements.push(await measure(style,iterations,trials,valueKind));
   }
-  return {iterations,trials,measurements};
+  return {iterations,trials,valueKind,measurements};
 }
 
 if(require.main===module) {
-  runHotpath().then(result=>console.log(JSON.stringify(result,null,2)))
+  const valueKind=process.argv.includes('--pure-expressions')?'pure-expression':'literal';
+  runHotpath(7_000_000,9,valueKind).then(result=>console.log(JSON.stringify(result,null,2)))
     .catch(error=>{console.error(error);process.exitCode=1;});
 }
 
