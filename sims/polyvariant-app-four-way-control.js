@@ -158,6 +158,8 @@ async function runEvidence(){
         inputRecords:records.length,
         minifiedVsNative:pairedBudgetBound(timings.native,timings.minified),
         publishedVsNative:pairedBudgetBound(timings.native,timings.published),
+        publishedVsMinified:pairedBudgetBound(timings.minified,timings.published),
+        reconstructedVsMinified:pairedBudgetBound(timings.minified,timings.reconstructed),
         reconstructedVsNative:pairedBudgetBound(timings.native,timings.reconstructed),
         ratioReconstructedVsPublished:median(timings.reconstructed)/median(timings.published),
         timingMs:timings
