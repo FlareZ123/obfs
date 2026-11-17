@@ -30,7 +30,7 @@ jobs:
       - name: Real Chromium browser string-timer source reader adversary
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/source-island-browser-string-timer-attack.js
       - name: Validate repository JSDoc types
         run: npm run typecheck
