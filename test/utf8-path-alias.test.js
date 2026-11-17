@@ -21,6 +21,26 @@ test('Node UTF-8 encoding aliases a lone surrogate with a different filename',()
   assert.notDeepEqual(Buffer.from('module\uD83D\uDE80.js','utf8'),Buffer.from(replacement,'utf8'));
 });
 
+test('POSIX filesystem treats lone-surrogate spelling as replacement-character path',{
+  skip:process.platform==='win32'
+},async()=>{
+  const fs=require('node:fs/promises');
+  const os=require('node:os');
+  const path=require('node:path');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-utf8-alias-'));
+  try{
+    const first=path.join(root,'module\uFFFD.js');
+    const second=path.join(root,'module\uD800.js');
+    await fs.writeFile(first,'first',{flag:'wx'});
+    await assert.rejects(fs.writeFile(second,'second',{flag:'wx'}),
+      error=>/** @type {NodeJS.ErrnoException} */(error).code==='EEXIST');
+    assert.equal(await fs.readFile(second,'utf8'),'first');
+    assert.deepEqual(await fs.readdir(root),['module\uFFFD.js']);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
 test('path preflight rejects lossy surrogate filenames in COO, SNO and SCO',()=>{
   for(const candidate of badPaths){
     assert.throws(()=>safePath(candidate),/non-well-formed Unicode/,candidate);
