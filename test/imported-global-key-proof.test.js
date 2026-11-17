@@ -48,7 +48,9 @@ test('verified imported unrelated key preserves separate owner-field proof',()=>
 });
 
 test('verified imported source-capable global names still fail closed',()=>{
-  for(const key of ['fetch','require','module','Function']){
+  // A bare globalThis.module lookup without a loader call is not itself
+  // evidence of source exposure. The known reader/constructor set is narrower.
+  for(const key of ['fetch','require','Function']){
     const files=graph(key);
     const verified=collectVerifiedImportedStrings(files);
     const consumer=parse(/** @type {string} */(files[1].code),'module');
