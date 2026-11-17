@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install exact declared minifier and project libraries
         run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc for original and research comparison code
+        run: npm run typecheck:external
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
