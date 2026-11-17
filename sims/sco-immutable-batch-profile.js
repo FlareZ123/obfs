@@ -74,6 +74,7 @@ async function main(){
       /** @type {number[]} */
       const immutableTimes=[];
       for(let trial=0;trial<9;trial++){
+        /** @type {[number,number[]][]} */
         const order=trial%2===0?
           [[normal.port,ordinaryTimes],[immutable.port,immutableTimes]]:
           [[immutable.port,immutableTimes],[normal.port,ordinaryTimes]];
