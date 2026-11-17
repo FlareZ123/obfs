@@ -35,3 +35,7 @@ The Windows/light interval is from this exact deterministic 25,000-resample sequ
 **No attacker-security improvement follows.** The same application continues to admit authorized online function relaying. Client-code withholding is source confidentiality under a trusted-server boundary; online functional cloning, source reconstruction, tamper resistance and execution-control guarantees are separate threat dimensions.
 
 The source-pinned run reports exact native/SCO JSON differential matches and a real Chromium client check. This reanalysis recalculates the timing uncertainty alone and does not rerun those behavior tests. It is reproducible offline from the committed raw logs.
+
+## Cross-platform reproducibility gate
+
+[Manual SCO application gate 43998726991](https://github.com/FlareZ123/obfs/actions/runs/43998726991) completed **successfully** on 2026-11-17, checked out exact source `0154568871bbb8c4ccc74bdc4ed7e406735480a8`. The Ubuntu job **133757165032** and Windows job **133757165363** printed byte-for-byte identical `APPLICATION_SCO_POST_HARDENING_BOOTSTRAP` JSON results for the fixed historical samples. Both jobs passed `npx tsc --project jsconfig.paired-budget.json`, frozen SCO application behavior/relay tests, cold startup, and the legacy paired-bootstrap reproduction. Ubuntu also passed real Chromium. This verifies reproducibility of the committed analysis at one downstream source snapshot; it does **not** certify the moving `main` branch or the performance of a new source build.
