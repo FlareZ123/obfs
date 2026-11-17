@@ -25,3 +25,13 @@ A separate failed-operand gate in `src/strings.js` must still prevent rewriting 
 ## Interpretation
 
 The improvement recovers transformation coverage for a precisely proven class of source-level coercions, with no dynamic execution of attacker-supplied code in the proof logic. The new positive also makes the independent public-XOR-table attacker succeed, so it **does not increase static confidentiality** against that attacker. Encoding can add runtime cost, and these correctness tests do **not** prove a universal 2.5× budget. The separate `Object.prototype`/Array-prototype mutation guard in `im-results/inherited-array-index-decoder-2026-11-17.md` remains necessary for string decoder correctness if older modules mutate the ambient realm.
+
+## Additional own-`length` primitive proof
+
+A fresh ArrayLiteral independently owns a numeric `length` data property, including when an earlier module modified `Array.prototype.length` or installed unrelated inherited accessors. Thus an immediate `['private-long-one','private-long-two'].length+'!'` cannot coerce a function source. The compiler now proves this for direct `.length` and statically proven computed `['length']` forms, **only for fresh literals without spreads**. Unselected elisions do not invalidate this proof: the array still owns its length, and a selected numeric own slot remains independent of unrelated holes. The selected **hole** in a numeric-index read remains unsafe because inherited getters may return functions.
+
+- **Red control:** [run 44003208801](https://github.com/FlareZ123/obfs/actions/runs/44003208801), exact `6c081974945cbf81693b42bcaafb101e3eedad22`, failed on Linux and Windows with `Fresh literal own length must be primitive, case 0`; existing indexed positives and source-exposing getter/spread negatives passed.
+- **Patch:** [commit `0cd7ae28`](https://github.com/FlareZ123/obfs/commit/0cd7ae28dd4b3c0aa901b1731b49d42230ee088e) extends `src/ast.js::isDefinitelyPrimitive` with an explicit no-spread fresh ArrayLiteral own-length case, retaining the existing conservative fallthrough for aliased objects and opaque length getters.
+- **Green:** [run 44003323632](https://github.com/FlareZ123/obfs/actions/runs/44003323632), exact `0cd7ae28dd4b3c0aa901b1731b49d42230ee088e`, passed both OS with four new transformed positives, two hostile source-observation negatives, the indexed array corpus, the primitive fuzz suite, independent static source reconstruction, and strict JSDoc checks.
+
+As with the numeric own-element proof, this is a **coverage restoration** that preserves tested behavior. It proves no new resistance to source-only string recovery; in fact, the eligible long literals remain recoverable via the existing independent XOR table decoder.
