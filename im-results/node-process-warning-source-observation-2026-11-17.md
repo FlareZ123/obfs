@@ -1,8 +1,7 @@
 # Node process-warning source-coordinate observer
 
 **Date:** 2026-11-17. **Status:** native Node 22.16.0 red control
-reproduced; direct compiler guard verified; detached/aliased guard has a
-separate pinned run. Intermediate compiler semantics evidence only.
+reproduced; direct and aliased compiler guards verified on pinned CI. Intermediate compiler semantics evidence only.
 
 ## External environment changes source observability
 
@@ -40,8 +39,8 @@ The first direct-call
 **passed** at `09d3aefb5f3a0b4454e3d2cd592e5fc7a33d80d7`,
 including both JSDoc checks. The final alias-extension exact-pin
 [run 44102110246](https://github.com/FlareZ123/obfs/actions/runs/44102110246)
-was submitted at `e6536e5c7283a4d54c3fba55021d20103e09724c`.
-Check its actual outcome; do not infer success from prior runs.
+**passed** at `e6536e5c7283a4d54c3fba55021d20103e09724c`.
+Its native Node regression step and both JSDoc checks passed.
 
 ## Scope limits
 
