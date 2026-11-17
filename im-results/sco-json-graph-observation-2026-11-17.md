@@ -5,11 +5,11 @@ counterexample, not a strong-obfuscation result.
 
 ## Contract and question
 
-The explicit \`partitionScoAsyncModule\` contract accepts server-resident async
+The explicit `partitionScoAsyncModule` contract accepts server-resident async
 ESM exports with JSON-compatible argument/result transport. Its generated
-browser ESM facade calls \`JSON.stringify({method,args})\`, while
-\`createScoHandler\` parses that JSON and serializes \`{ok:true,value:result}\`
-with \`JSON.stringify\`. Consequently, a tuple of individually JSON-serializable
+browser ESM facade calls `JSON.stringify({method,args})`, while
+`createScoHandler` parses that JSON and serializes `{ok:true,value:result}`
+with `JSON.stringify`. Consequently, a tuple of individually JSON-serializable
 objects is insufficient to guarantee native JavaScript equivalence when the
 original method observes *argument identity*. Special numeric values and
 undefined array elements present separate representation losses.
@@ -20,18 +20,18 @@ undefined array elements present separate representation losses.
 constructs the production partition, binds the actual original ESM exports,
 serves its generated facade using the production handler on loopback, imports
 the generated facade, and compares observations with direct calls. A
-JSON-representable reference array \`a=[-0,undefined,7]\` is passed in both
+JSON-representable reference array `a=[-0,undefined,7]` is passed in both
 argument positions:
 
 | Observed property | Direct source | Actual JSON RPC |
 | --- | --- | --- |
-| \`a===b\` | \`true\` | \`false\` |
-| \`Object.is(a[0],-0)\` | \`true\` | \`false\` |
-| \`a[1]===undefined\` | \`true\` | \`false\` |
-| \`a[2]===7\` | \`true\` | \`true\` |
+| `a===b` | `true` | `false` |
+| `Object.is(a[0],-0)` | `true` | `false` |
+| `a[1]===undefined` | `true` | `false` |
+| `a[2]===7` | `true` | `true` |
 
-A separate direct result \`{finite:7,nan:NaN,negative:-0}\` arrives as
-\`{finite:7,nan:null,negative:0}\`. An independent pair of ordinary acyclic
+A separate direct result `{finite:7,nan:NaN,negative:-0}` arrives as
+`{finite:7,nan:null,negative:0}`. An independent pair of ordinary acyclic
 JSON arrays is a positive control with equal direct and RPC results.
 
 **Scope:** The JavaScript source transformations are not implicated.
@@ -48,8 +48,8 @@ budget.
 
 The present RPC contract should specify JSON trees without identity-sensitive
 cross-argument references and restrict values to the JSON representable
-subset. Implementations requiring \`NaN\`, infinities, signed zero,
-\`undefined\`, \`BigInt\`, cycles, symbol keys, custom prototypes, or reference
+subset. Implementations requiring `NaN`, infinities, signed zero,
+`undefined`, `BigInt`, cycles, symbol keys, custom prototypes, or reference
 identity need a separately measured serialization protocol and new
 differential tests. Merely adding syntactic AST support for more async
 functions would silently widen the unsafe acceptance set. Any replacement
@@ -61,9 +61,9 @@ described as universal 1:1 JavaScript semantics.
 
 From the repository root after installing dependencies:
 
-\`\`\`powershell
+```powershell
 node --test test/sco-json-observation-boundary.test.js
-\`\`\`
+```
 
 The exact produced facade is generated at test time from the repository code;
 the test verifies that original private function bodies are absent from the
