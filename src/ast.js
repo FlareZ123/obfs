@@ -281,6 +281,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
             isFunctionValue(value)||containsFunction(value,depth+1));
       }
+      // Set composition returns a new collection of references. Intersection
+      // and difference can only retain receiver elements; union and
+      // symmetricDifference may additionally insert argument elements.
+      const setComposition=new Set(['union','intersection','difference',
+        'symmetricDifference']);
+      if(setComposition.has(member??'')) {
+        if(containsFunction(owner,depth+1))return true;
+        return ['union','symmetricDifference'].includes(member??'') &&
+          containsFunction(node.arguments[0],depth+1);
+      }
       const derivedMethods=new Set(['slice','concat','filter','map','flat',
         'flatMap','toReversed','toSorted','toSpliced','with']);
       if(derivedMethods.has(member??'')) {
