@@ -96,6 +96,57 @@ function synthesizeAffineClone(publicSource,responses){
   return code;
 }
 
+/**
+ * Recover a different affine model for each parity class from 0,2 and 1,3.
+ * Division by 2 is not unique in Z/(2^32), but the two possible slopes
+ * differ by 2^31 and agree on the same parity class when the intercept is
+ * adjusted. Use the canonical unsigned half-difference representative.
+ *
+ * @typedef {{atZero:number,atOne:number,atTwo:number,atThree:number}} ParitySamples
+ * @param {string} publicSource
+ * @param {Record<string,ParitySamples>} responses
+ * @returns {string}
+ */
+function synthesizeParityAffineClone(publicSource,responses){
+  const ast=acorn.parse(publicSource,{ecmaVersion:'latest',sourceType:'module'});
+  /** @type {{start:number,end:number,text:string}[]} */
+  const replacements=[];
+  for(const name of targets){
+    const statement=ast.body.find(item=>
+      item.type==='ExportNamedDeclaration'&&
+      item.declaration?.type==='FunctionDeclaration'&&
+      item.declaration.id?.name===name
+    );
+    const values=responses[name];
+    if(!statement||!values||
+       [values.atZero,values.atOne,values.atTwo,values.atThree].some(
+         value=>!Number.isInteger(value)||(value|0)!==value
+       )){
+      throw new TypeError('Expected four signed Int32 parity oracle responses: '+name);
+    }
+    const evenDelta=(values.atTwo-values.atZero)|0;
+    const oddDelta=(values.atThree-values.atOne)|0;
+    if((evenDelta&1)||(oddDelta&1)){
+      throw new TypeError('No modular parity-affine model for queried values: '+name);
+    }
+    const evenSlope=evenDelta>>>1;
+    const oddSlope=oddDelta>>>1;
+    const evenOffset=values.atZero;
+    const oddOffset=(values.atOne-oddSlope)|0;
+    const text='export function '+name+'(input){const x=input|0;'+
+      'const slope=(x&1)?('+oddSlope+'):('+evenSlope+');'+
+      'const offset=(x&1)?('+oddOffset+'):('+evenOffset+');'+
+      'return ((Math.imul(x,slope)+offset)|0);}';
+    replacements.push({start:statement.start,end:statement.end,text});
+  }
+  let code=publicSource;
+  for(const edit of replacements.sort((a,b)=>b.start-a.start)){
+    code=code.slice(0,edit.start)+edit.text+code.slice(edit.end);
+  }
+  acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  return code;
+}
+
 /** @param {string} variant @returns {Promise<Graph>} */
 async function readGraph(variant){
   return Promise.all(files.map(async name=>({
@@ -133,7 +184,9 @@ function records(count){
  *   originalGraphUsedForInference:boolean,attackMs:number,
  *   affineOracleCalls:number,affineSlopes:Record<string,number>,
  *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean,
- *   publishedBytes:number,nativeBytes:number
+ *   publishedBytes:number,nativeBytes:number,
+ *   parityOracleCalls:number,parityHeldoutFunctionComparisons:number,
+ *   parityNonlinearNegativeControl:boolean
  * }>}
  */
 async function runAttack(){
@@ -167,6 +220,16 @@ async function runAttack(){
       affineSlopes[name]=(atOne-offsets[name])|0;
     }
     const affineSource=synthesizeAffineClone(distributed[0].code,affineResponses);
+    /** @type {Record<string,ParitySamples>} */
+    const parityResponses=Object.create(null);
+    for(const name of targets){
+      parityResponses[name]={
+        atZero:offsets[name],atOne:affineResponses[name].atOne,
+        atTwo:publishedMath[name](2),atThree:publishedMath[name](3)
+      };
+    }
+    const paritySource=synthesizeParityAffineClone(distributed[0].code,parityResponses);
+
 
     const cloned=distributed.map(file=>file.path==='math.mjs'?
       {...file,code:cloneSource}:file);
@@ -178,6 +241,11 @@ async function runAttack(){
     const affineDir=path.join(temporary,'affine-clone');
     await materialize(affineDir,affineCloned);
     const affineMath=await loadModule(affineDir);
+    const parityCloned=distributed.map(file=>file.path==='math.mjs'?
+      {...file,code:paritySource}:file);
+    const parityDir=path.join(temporary,'parity-clone');
+    await materialize(parityDir,parityCloned);
+    const parityMath=await loadModule(parityDir);
 
     // This is a validation oracle, deliberately introduced after attack
     // synthesis. Neither native bytes nor original functions identify offsets.
@@ -190,6 +258,7 @@ async function runAttack(){
     const originalMath=await loadModule(nativeDir);
     let heldoutFunctionComparisons=0;
     let affineHeldoutFunctionComparisons=0;
+    let parityHeldoutFunctionComparisons=0;
     for(const name of targets){
       for(let i=0;i<4096;i++){
         const input=i<7?
@@ -205,11 +274,16 @@ async function runAttack(){
         assert.ok(Object.is(originalMath[name](input),affineMath[name](input)),
           'Held-out affine original disagrees at '+name+'/'+i);
         affineHeldoutFunctionComparisons++;
+        assert.ok(Object.is(publishedMath[name](input),parityMath[name](input)),
+          'Public-oracle parity-affine clone disagrees at '+name+'/'+i);
+        assert.ok(Object.is(originalMath[name](input),parityMath[name](input)),
+          'Held-out parity-affine original disagrees at '+name+'/'+i);
+        parityHeldoutFunctionComparisons++;
       }
     }
 
     const apps=await Promise.all(
-      [nativeDir,publishedDir,cloneDir,affineDir].map(location=>
+      [nativeDir,publishedDir,cloneDir,affineDir,parityDir].map(location=>
         import(pathToFileURL(path.join(location,'entry.mjs')).href)
       )
     );
@@ -249,13 +323,22 @@ async function runAttack(){
       quadratic(0)===linearGuess(0)&&quadratic(1)===linearGuess(1)&&
       quadratic(2)!==linearGuess(2);
     assert.ok(affineNonlinearNegativeControl);
+    const parityNonlinearNegativeControl=(
+      // For f(x)=x*x, 0 and 2 imply an even-branch slope of 2, which
+      // predicts f(4)=8. The quadratic actually returns f(4)=16.
+      Math.imul(4,((4-0)|0)>>>1)!==Math.imul(4,4)
+    );
+    assert.ok(parityNonlinearNegativeControl);
+
 
     return {
       oracleCalls:targets.length,offsets,heldoutFunctionComparisons,
       fullApplicationScenarios,fullApplicationEvents,
       nonlinearNegativeControl,originalGraphUsedForInference:false,attackMs,
       affineOracleCalls:targets.length*2,affineSlopes,
-      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes
+      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes,
+      parityOracleCalls:targets.length*4,parityHeldoutFunctionComparisons,
+      parityNonlinearNegativeControl
     };
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
@@ -268,4 +351,4 @@ if(require.main===module){
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={runAttack,synthesizeTranslationClone,synthesizeAffineClone};
+module.exports={runAttack,synthesizeTranslationClone,synthesizeAffineClone,synthesizeParityAffineClone};
