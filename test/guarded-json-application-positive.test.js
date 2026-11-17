@@ -10,7 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=
   require('../sims/application-challenge-observer-ablation');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
@@ -33,14 +33,7 @@ async function boundedSource(kind) {
   })));
   const base=ablate(files,'both');
   const safe=kind==='own-only'?withOwnKeyCalls(base):withNullPrototypeRecord(base);
-  return safe.map(file=>{
-    if(file.path!=='entry.mjs')return file;
-    const unsafe="const cases=JSON.parse(process.argv[2]||'[[1,1000]]');";
-    const guarded="const inputValue=process.argv[2];"+
-      "const cases=JSON.parse(typeof inputValue==='string'?inputValue:'[[1,1000]]');";
-    assert.ok(file.code.includes(unsafe),'expected the frozen opaque CLI expression');
-    return {...file,code:file.code.replace(unsafe,guarded)};
-  });
+  return withCapturedStringArgv(safe);
 }
 
 /**
