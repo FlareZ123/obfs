@@ -93,13 +93,14 @@ test('real multi-file ESM native and emitted console traces stay equivalent',asy
   const directory=await mkdtemp(path.join(tmpdir(),'obfs-source-mode-'));
   try {
     for(const scenario of scenarios) {
+      /** @type {import('../src/core').SourceFile[]} */
       const files=[
         {path:'producer.mjs',sourceType:'module',code:scenario.producer},
         {path:'consumer.mjs',sourceType:'module',code:scenario.consumer}
       ];
       const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
         seed:'agent50-real-esm-'+scenario.name});
-      /** @param {string} relative @param {{path:string,code:string}[]} sources */
+      /** @param {string} relative @param {{path:string,code:string|Buffer}[]} sources */
       async function build(relative,sources) {
         const destination=path.join(directory,relative);
         for(const item of sources) {
