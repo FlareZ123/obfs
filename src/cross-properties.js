@@ -212,8 +212,7 @@ function collectImportedFunctionArrays(files) {
   do {
     forwarded=false;
     for(const [filename,module] of modules) {
-      const publicNames=exportsByFile.get(filename);
-      if(!publicNames)continue;
+      const publicNames=/** @type {Set<string>} */ (exportsByFile.get(filename));
       for(const statement of module.ast.body) {
         if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type) ||
            statement.source?.type!=='Literal'||
