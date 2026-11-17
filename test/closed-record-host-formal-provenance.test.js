@@ -318,3 +318,31 @@ test('unrelated rest-parameter call retains genuinely safe owner-key rename',asy
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+/**
+ * An argument vector can receive the ambient root through an expression
+ * without a direct Identifier argument. These source-visible carriers test
+ * whether the proof follows the actual value into rest/arguments elements.
+ */
+for(const [name,code] of [
+  ['sequence-wrapped ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire((0,globalThis));"],
+  ['inline array element ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire([globalThis][0]);"],
+  ['inline record field ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(({root:globalThis}).root);"],
+  ['aliased container ambient root',
+    "const roots=[globalThis];function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(roots[0]);"]
+]) {
+  test('nested ambient rest vector: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-nested-rest/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
