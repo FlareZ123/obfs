@@ -14,7 +14,7 @@ const execFileAsync=promisify(execFile);
  * compatibility run or an unattempted attack establishes hostile-runtime
  * security. These are observations about three concrete applications.
  *
- * @typedef {'demonstrated-compromise'|'unmeasured'} AttackVerdict
+ * @typedef {'demonstrated-functional-clone'|'unmeasured'} AttackVerdict
  * @typedef {'sample-supported'|'sample-exceeded'|'sample-inconclusive'} BudgetVerdict
  */
 
@@ -64,15 +64,15 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
   }));
   const attackEvidence={
     coo:{
-      verdict:coo.functionRecovery===3?'demonstrated-compromise':'unmeasured',
+      verdict:coo.functionRecovery===3?'demonstrated-functional-clone':'unmeasured',
       entry:'public-only source reconstruction',recoveredFunctions:coo.functionRecovery,
       graphHashes:coo.sourceHashes,heldoutApplicationParity:true,
-      sourceExtraction:false,originalPrivateSourceUsedByAttacker:false
+      sourceExtraction:'not-measured',originalPrivateSourceUsedByAttacker:false
     },
     sno:{
       verdict:sno.offlineClone&&sno.staticRecovered===sno.selectedFunctions&&
-        sno.runtimeHooked?'demonstrated-compromise':'unmeasured',
-      entry:'public-only reconstruction, signed-manifest rewrite and ESM runtime hook',
+        sno.runtimeHooked?'demonstrated-functional-clone':'unmeasured',
+      entry:'public-only reconstruction, digest-manifest rewrite and ESM runtime hook',
       selectedFunctions:sno.selectedFunctions,recoveredFunctions:sno.staticRecovered,
       heldoutComparisons:sno.staticComparisons,
       offlineClone:sno.offlineClone,directEsmClone:sno.directEsmClone,
@@ -80,7 +80,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       runtimeDiskMutations:sno.runtimeDiskMutations
     },
     sco:{
-      verdict:sco.semanticsPreserved?'demonstrated-compromise':'unmeasured',
+      verdict:sco.semanticsPreserved?'demonstrated-functional-clone':'unmeasured',
       entry:'authorized-token remote facade relay reproduces service outputs',
       privateSourceExtraction:'not-measured',
       unauthorizedTokenBypass:'not-measured',
@@ -99,10 +99,10 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       boundary:sco.measuredBoundary,caveat:sco.caveat}
   };
   const failedSecurity=Object.entries(attackEvidence).filter(([,value])=>
-    value.verdict==='demonstrated-compromise').map(([name])=>name);
+    value.verdict==='demonstrated-functional-clone').map(([name])=>name);
   return {
     verdict:'RELEASE-BLOCKED',
-    reason:'At least one attack demonstrably preserves unauthorized copies or authorized service replay; no general 2.5x or hostile-runtime proof is available',
+    reason:'The tested delivery is reproducible from public files or legitimate service queries; the required general 2.5x and hostile-runtime guarantees remain unestablished',
     attackedModes:failedSecurity,
     attackEvidence,performance,
     note:'Finite sampled security and timing observations. Source secrecy, functional cloning, runtime control, compatibility, and performance are independent requirements. The test does not establish a universal 2.5x bound.'
