@@ -79,6 +79,23 @@ recovered 16/16 randomized native control-flow layouts; the technique
 therefore raises structural inspection effort only, without demonstrated
 source secrecy or hostile-runtime integrity.
 
+The newer, **separately opt-in** `--statement-flow-compact` CLI flag (or
+programmatic `experimentalStatementFlowCompact:true`) fuses uniquely reached
+straight-line, branch and terminal CFG states into fewer native cases.
+At the initial pinned two-platform [hot-path gate 43996692856](https://github.com/FlareZ123/obfs/actions/runs/43996692856),
+a dense arithmetic fixture fell from 44 to 7 dispatch cases and its
+runtime/native ratio from **4.97× to 1.33× (Ubuntu)** and **7.77× to
+1.72× (Windows)**. A [three-module stateful
+challenge](https://github.com/FlareZ123/obfs/actions/runs/43997435553)
+confirmed 96/96 equivalent native/ordinary/compacted/seedlessly reconstructed
+outputs on each platform, with 42% of source bytes in the selected module.
+However, a [fresh-compilation profile](https://github.com/FlareZ123/obfs/actions/runs/43997119211)
+measured **3.24× Ubuntu and 2.81× Windows** at 1,000 calls, exceeding the
+2.5× budget. Seedless static program recovery remains successful, and
+runtime/tamper secrecy is still unproved. Evaluate cold and warm workload
+budgets separately before selecting this backend. See the
+[dated, pinned report](im-results/statement-flow-compact-2026-11-17.md).
+
 **SCO verified-account private-output binding:** An [executable two-account adversarial relay](sims/sco-audience-bound-relay.js) keeps the HMAC key and algorithm on a trusted server and binds results to a verified account identity. In a [pinned Linux/Windows run](https://github.com/FlareZ123/obfs/actions/runs/43835306239), an attacker holding only Account A's bearer replicated **32/32** A outputs but **0/32** B-account outputs across held-out challenges, while eight parallel A/B context checks passed. The A same-account relay still succeeds, and stolen or cooperatively forwarded B credentials restore B access; see the [scoped threat and runtime report](im-results/sco-audience-bound-relay-2026-11-16.md). This is server-side account authorization, not universal client anti-cloning, and the selected localhost heavy-workload timing is not a general 2.5× bound.
 
 **Runnable advanced SCO example:** [`examples/sco-private/`](examples/sco-private/README.md) includes an original keyed ESM implementation, the **actual generated client RPC facade** saved as a before-and-after artifact, a deterministic reproduction/check script, and an authenticated localhost HTTP server. A live differential regression checks the generated client against the server-resident original. This demonstrates a genuine server-only source and key separation, with the runtime and oracle limitations documented in the example. Existing COO/SNO transformations cannot provide the same trusted-server confidentiality under their full-control threat models.
