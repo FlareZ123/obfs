@@ -26,6 +26,8 @@ jobs:
         run: node --test test/static-string-recovery.test.js
       - name: Compare emitted string eligibility and attacker-recovered parity
         run: node sims/string-eligibility-matrix.js
+      - name: Fresh own array-slot source-coercion positive and hostile negatives
+        run: node --test test/inline-array-primitive-source.test.js
       - name: JSDoc
         run: npm run typecheck
       - name: External research tool JSDoc
