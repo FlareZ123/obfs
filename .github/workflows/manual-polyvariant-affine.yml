@@ -76,3 +76,7 @@ jobs:
         run: npx tsc --project jsconfig.polyvariant-coverage.json
       - name: JSDoc static check of paired-budget bound
         run: npx tsc --project jsconfig.paired-budget.json
+      - name: Strict JSDoc for three-observation runtime reconstruction
+        run: npx tsc --project jsconfig.coo-runtime-probe.json
+      - name: Independently reconstruct COO math from only three public runtime probes
+        run: node --test test/coo-runtime-one-query-reconstruct.test.js
