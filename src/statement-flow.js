@@ -120,7 +120,7 @@ function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false){
     }
     for(const block of blocks){
       if(block.kind==='next' && block.next>=0 && block.next!==entry &&
-          blocks[block.next].kind==='next' && incoming[block.next]===1){
+          incoming[block.next]===1){
         absorbed.add(block.next);
       }
     }
