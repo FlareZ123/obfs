@@ -142,6 +142,31 @@ for(const [name,tail,body] of [
   });
 }
 
+
+for(const [name,tail] of [
+  ['Set union receiver',
+    'const source=new Set([protectedSum]);export const values=source.union(new Set());'],
+  ['Set union argument',
+    'export const values=new Set().union(new Set([protectedSum]));'],
+  ['Set intersection',
+    'const source=new Set([protectedSum]);export const values=source.intersection(source);'],
+  ['Set symmetricDifference',
+    'const source=new Set([protectedSum]);export const values=source.symmetricDifference(new Set());']
+]) {
+  test('ESM exported '+name+' retains original function source',()=>{
+    assert.throws(()=>protect(graph(tail,'console.log([...values].join(","));')),
+      /(?:source observation|declined)/i);
+  });
+}
+
+test('ESM primitive Set union retains unrelated protected work',()=>{
+  const files=graph(
+    'export const values=new Set([1,2]).union(new Set([2,3]));',
+    'console.log([...values].join(","));');
+  const out=protect(files);
+  assert.equal(out.files[0].metrics.polyvariantFunctions,1);
+});
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
