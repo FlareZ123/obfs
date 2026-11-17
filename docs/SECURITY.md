@@ -150,6 +150,39 @@ SCO: The obfuscation-controlled server can keep undistributed secrets and enforc
 
 SNO: Under the stated attacker model the adversary owns code, filesystem, and process memory. A hash manifest inside a launcher cannot prevent code modification or bypass. A native Windows/Ubuntu reproduction in [the local-owner manifest attack](../im-results/sno-owner-self-hash-bypass-2026-11-15.md) changes the SNO entry, observes an integrity rejection, then recomputes the expected digest in the attacker-controlled launcher and executes the modified entry successfully. A [second pinned two-platform attack](../im-results/sno-runtime-preload-bypass-2026-11-16.md) uses an attacker-controlled Node loader prelude to change the launched program's result after hash verification while keeping the distributed launcher and entry file byte-identical. This shows a runtime-only interference channel separate from editing the on-disk manifest. For integrity, deploy a remote trust anchor or OS/TEE-backed attestation beyond this project's capabilities.
 
+## Independently reviewed opaque public assets
+
+The optional \`reviewedOpaqueAssets\` manifest provides a positive byte-identity
+publication boundary for COO, SNO and SCO. An integrator supplies an array of
+\`{path,sha256}\` records using exact, relative public asset paths and lowercase
+SHA-256 digests of **separately reviewed input bytes**. For example, pass
+\`{reviewedOpaqueAssets:[{path:'theme.css',sha256:'<reviewed 64-hex digest>'}]}\`
+as the compiler's mode options or as the second argument to
+\`createScoHandler\`. Every \`sourceType:'asset'\` file must match one entry,
+and every entry must match one asset. Missing, extra, case-mismatched and
+byte-changed assets are refused before output files or SCO routes are generated.
+
+This is an explicit trust contract. A manifest computed from the same
+unreviewed files immediately before calling the compiler proves nothing
+about source confidentiality. Reviewers must approve the exact bytes and
+protect the manifest/provenance upstream. Source-bearing content that a
+reviewer knowingly approves remains publishable. It is not a signature,
+anti-tamper protection against a COO client or SNO host owner, or a proof
+about external dependencies or assets created by later deployment steps.
+Recheck all actual deployed output files after bundling, compression and
+delivery if claiming a complete publication boundary.
+
+The compiler snapshots each incoming \`Buffer\` and code getter once before
+preflight. A caller's later mutation of its original Buffer cannot rewrite
+the already validated output. SCO handler startup already snapshots its
+source buffers. The reviewed-asset option adds no emitted JavaScript runtime
+instructions; it adds compile or SCO handler setup hashing work.
+
+See \`test/reviewed-opaque-assets.test.js\` and
+\`workplace/asset-publication-trust-contract-2026-11-17.md\` for a
+source-only encoded canary, manifest refusal, positive safe fixtures, and
+the explicit review assumption.
+
 ## Source-map disclosure preflight
 
 A source map can contain `sourcesContent` with the original untransformed JavaScript, along with original symbol names and source paths. All three programmatic modes now reject supplied assets whose filenames end in `.map` (case-insensitive), reject structurally recognized version-3 source-map JSON (including indexed maps renamed to `.json`, `.txt`, or arbitrary asset extensions), and reject actual `//#`, `//@`, or `/*#` `sourceMappingURL` comments in JavaScript before any transformation. They also reject assets with source-like suffixes (`.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.vue`, `.svelte`, `.astro`, `.mdx`, `.coffee`, `.litcoffee`) when marked as opaque files; otherwise a transformed distribution could contain a direct copy of its original JavaScript or transpiler inputs. SCO's static-serving handler performs the same preflight, including assets explicitly selected by `--asset`. Remove source-map comments and exclude map sidecars in the source build before obfuscating. Refusal is intentional because copying the map would undermine the intended confidentiality, while silently removing runtime-loaded assets could alter behavior.
