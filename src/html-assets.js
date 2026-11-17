@@ -81,7 +81,7 @@ function findInlineHtmlSource(html) {
       const rel=attrs.find(attr=>attr.name==='rel')?.value;
       const href=attrs.find(attr=>attr.name==='href')?.value;
       if(rel && /(?:^|\s)stylesheet(?:\s|$)/iu.test(rel) &&
-          href && /^\s*data:/iu.test(href)) {
+          href && href.replace(/[\x00-\x20]/gu,'').toLowerCase().startsWith('data:')) {
         issue='embedded stylesheet data URL';
         return;
       }
