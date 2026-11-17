@@ -716,6 +716,33 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     // considered a complete effect proof.
     /** @type {Map<string,AstNode[][]>} */
     const localCallFormals=new Map();
+    // A source-visible rest array or the ordinary function arguments object
+    // can forward ambient capabilities through indexed access, which is not
+    // covered by the named-formal provenance transfer below.
+    /** @type {Set<string>} */
+    const implicitArgumentReaders=new Set();
+    walk(source.ast,node=>{
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|null} */
+      let body=null;
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+        name=node.id.name;
+        body=node.body;
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         (node.init?.type==='FunctionExpression'||
+          node.init?.type==='ArrowFunctionExpression')) {
+        name=node.id.name;
+        body=node.init.body;
+      }
+      if(name===null||body===null)return;
+      let usesArguments=false;
+      walk(body,inner=>{
+        if(inner.type==='Identifier'&&inner.name==='arguments')usesArguments=true;
+      });
+      if(usesArguments)implicitArgumentReaders.add(name);
+    });
     /** @param {string} name @param {AstNode[]} params */
     function recordFormals(name,params) {
       const definitions=localCallFormals.get(name)??[];
@@ -786,6 +813,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     do {
       callableChanged=false;
       for(const [alias,origin] of aliasEdges) {
+        if(implicitArgumentReaders.has(origin)&&!implicitArgumentReaders.has(alias)){
+          implicitArgumentReaders.add(alias);
+          callableChanged=true;
+        }
         const originFormals=localCallFormals.get(origin);
         if(!originFormals)continue;
         const aliasFormals=localCallFormals.get(alias)??[];
@@ -802,6 +833,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
       for(const site of boundCallables) {
+        if(implicitArgumentReaders.has(site.origin)&&
+           !implicitArgumentReaders.has(site.name)) {
+          implicitArgumentReaders.add(site.name);
+          callableChanged=true;
+        }
         const original=localCallFormals.get(site.origin);
         if(!original)continue;
         const target=localCallFormals.get(site.name)??[];
@@ -821,6 +857,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /** @type {(AstNode|null)[][]} */
+    const unresolvedArgumentVectors=[];
     /**
      * Native invocation adapters can call a locally known function without
      * spelling that function as the direct CallExpression callee. Join their
@@ -871,6 +909,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       const invocation=localInvocation(node);
       if(!invocation)return;
       const definitions=localCallFormals.get(invocation.name)??[];
+      if(definitions.some(params=>params.some(formal=>formal.type==='RestElement'))||
+         implicitArgumentReaders.has(invocation.name)) {
+        unresolvedArgumentVectors.push(invocation.args);
+      }
       if(definitions.length && invocation.args.some(
         argument=>argument?.type==='SpreadElement'))changedIntrinsic=true;
       for(const params of definitions) {
@@ -910,6 +952,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    // A known ambient root passed through an unresolved argument vector may
+    // reach a rest/arguments element and later mutate host reflection APIs.
+    // Without an element-origin proof, preserve the original property keys.
+    for(const actuals of unresolvedArgumentVectors){
+      if(actuals.some(actual=>actual?.type==='Identifier'&&
+         hostRoots.has(actual.name)))changedIntrinsic=true;
+    }
     // A callsite-rooted destructured formal acquires the same ambient
     // capabilities as a declaration or assignment ObjectPattern.
     for(const {origin,binding} of formalObjectPatterns) {
