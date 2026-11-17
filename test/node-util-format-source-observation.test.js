@@ -118,6 +118,23 @@ test('Node util.getCallSites reveals source column under an unsafe property rewr
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 });
 
+test('proven immutable computed util method key preserves caller coordinates',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "const method='getCallSites';const tool=require('node:util');"+
+    "module.exports=[value,tool[method](1)[0].columnNumber];";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true);
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=JSON.stringify(run(source));
+  const changed=JSON.stringify(run(unsafe));
+  assert.notEqual(changed,native);
+  const output=obfuscateFiles([{
+    path:'util-source-observer.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'agent50-constant-util-method',strings:false}).files[0];
+  assert.equal(output.code,source);
+  assert.equal(JSON.stringify(run(output.code)),native);
+});
+
 test('primitive-only native util.inspect preserves positive own-field renaming',()=>{
   const source="'use strict';const tool=require('node:util');"+
     "const owner={distinctivelyLongPrivateField:73};"+
