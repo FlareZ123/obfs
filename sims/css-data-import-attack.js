@@ -5,6 +5,7 @@ const path=require('node:path');
 const vm=require('node:vm');
 const http=require('node:http');
 const {createHash}=require('node:crypto');
+const {spawnSync}=require('node:child_process');
 
 /**
  * @typedef {'coo'|'sco'|'sno'} Mode
@@ -41,6 +42,23 @@ function recover(delivered) {
   assert.equal(map.version,3);
   assert.ok(Array.isArray(map.sourcesContent));
   return map.sourcesContent[0];
+}
+
+/**
+ * Independent extractor subprocess receives only the emitted asset via stdin.
+ * A successful exit with exact original source output demonstrates an
+ * artifact-only attack interface, without compiler or seed input.
+ * @param {Buffer|string} asset
+ * @returns {string}
+ */
+function recoverInSubprocess(asset) {
+  const attack=spawnSync(process.execPath,[
+    path.join(__dirname,'css-data-import-extractor.js')
+  ],{
+    input:asset,encoding:'utf8',maxBuffer:8*1024*1024
+  });
+  assert.equal(attack.status,0,attack.stderr||'isolated extractor failed');
+  return attack.stdout;
 }
 
 /**
@@ -114,6 +132,7 @@ async function compare(previousRoot,currentRoot) {
       vm.runInNewContext(String(executable.code),compiled,{timeout:1500});
       assert.equal(compiled.module.exports,native.module.exports);
       assert.equal(recover(published.code),original);
+      assert.equal(recoverInSubprocess(published.code),original);
       publishedSha256[asset.path]=sha256(published.code);
       executableSha256[asset.path]=sha256(executable.code);
       recovered++;
@@ -149,6 +168,7 @@ async function compare(previousRoot,currentRoot) {
     const published=await getPublished(previous.createScoHandler([asset]),asset.path);
     assert.equal(published.status,200);
     assert.equal(recover(published.body),original);
+    assert.equal(recoverInSubprocess(published.body),original);
     scoHttpSha256[asset.path]=sha256(published.body);
     httpRecovered++;
     assert.throws(()=>current.createScoHandler([asset]),
