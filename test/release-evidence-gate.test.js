@@ -83,6 +83,9 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.crossModeFamilywise.comparisons,6);
   assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
   assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
+  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,18);
+  assert.equal(summary.performance.crossModeFamilywise.observedSampleHasOverBudgetPair,true);
+  assert.equal(summary.performance.crossModeFamilywise.observedMaxPairedRatio,4.2);
   assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
     ['coo','coo','coo','coo','sco','sco']);
   assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);
@@ -111,6 +114,9 @@ test('familywise paired budget allocates both tails across all tested workloads'
   }));
   const bound=familywiseBudgetBounds(workloads);
   assert.equal(bound.comparisons,6);
+  assert.equal(bound.observedOverBudgetPairs,9);
+  assert.equal(bound.observedMaxPairedRatio,3.1);
+  assert.equal(bound.observedSampleHasOverBudgetPair,true);
   assert.equal(bound.verdict,'sample-exceeded');
   assert.ok(bound.confidenceRequested===0.95);
   assert.ok(bound.perTailConfidenceRequested>0.995);
@@ -124,6 +130,12 @@ test('familywise paired budget allocates both tails across all tested workloads'
   assert.equal(familywiseBudgetBounds(
     workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]})
   )).verdict,'sample-inconclusive');
+  const rareBreach=familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]}))
+  );
+  assert.equal(rareBreach.observedMaxPairedRatio,4);
+  assert.equal(rareBreach.observedOverBudgetPairs,6);
+  assert.equal(rareBreach.observedSampleHasOverBudgetPair,true);
 });
 
 test('familywise bounds reject too few samples to meet joint confidence',()=>{
