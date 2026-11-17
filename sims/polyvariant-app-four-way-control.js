@@ -49,7 +49,10 @@ async function execute(folder,records){
   const app=await import(pathToFileURL(path.join(folder,'entry.mjs')).href);
   /** @type {unknown[]} */
   const trace=[];
-  const output=app.runScenario(-817,records,{emit(value){trace.push(value);}});
+  const output=app.runScenario(-817,records,{
+    /** @param {unknown} value */
+    emit(value){trace.push(value);}
+  });
   return {output,emitted:trace.length,trace,ms:performance.now()-started};
 }
 /**
