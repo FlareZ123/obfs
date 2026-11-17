@@ -94,10 +94,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     oneSidedConfidenceAttained:data.pairedMedianBound.confidenceAttained,
     rawTimingMs:data.samples
   }));
-  // Ten simultaneous COO/SNO/SCO workload populations. Every dimension
-  // exposes raw paired samples; preserve the original six COO/SCO controls
-  // and include four process-level SNO controls without claiming a universal
-  // runtime bound. Bonferroni adjusts both interval tails across ten rows.
+  // All ten paired COO/SNO/SCO workload populations share one Bonferroni
+  // familywise control. Raw samples and tested execution boundaries are
+  // preserved separately; no universal budget guarantee follows.
   const familywise=familywiseBudgetBounds([
     ...cooBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.published})),
@@ -139,6 +138,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       confidenceAttainedAtLeast:familywise.familywiseCoverageAtLeast,
       perTailConfidenceRequested:familywise.perTailConfidenceRequested,
       comparisons:familywise.comparisons,
+      observedMaxPairedRatio:familywise.observedMaxPairedRatio,
+      observedOverBudgetPairs:familywise.observedOverBudgetPairs,
+      observedSampleHasOverBudgetPair:familywise.observedSampleHasOverBudgetPair,
       workloads:[
         ...cooBudget.map(row=>({mode:'coo',events:row.events})),
         ...snoBudget.map(row=>({mode:'sno',events:row.events})),
@@ -149,7 +151,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
         upperMedianBound:row.upperMedianBound,
         marginalOneSidedCoverage:row.confidenceAttained
       })),
-      boundary:'Ten measured paired COO/SNO/SCO populations. COO reuses one Node process with fresh ESM graph; SNO uses fresh child processes; SCO fresh client over localhost. Independent representative samples within each workload remain an assumption.'
+      boundary:'Ten sampled COO/SNO/SCO workloads. COO reuses a Node process, SNO includes fresh Node startup, SCO uses fresh localhost clients. Within-workload representative independent pairs remain an assumption.'
     },
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
@@ -159,7 +161,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     }))),rows:snoBudget,
       descriptiveOverBudgetEvents:snoBudget.filter(row=>
         row.ratioOfMedians>2.5).map(row=>row.events),
-      boundary:'fresh Node child process per paired sample; one-sided bounds concern population median of paired ratios, not all sessions'},
+      boundary:'fresh Node child process per pair; one-sided bounds on median paired ratios, not worst-case sessions'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
