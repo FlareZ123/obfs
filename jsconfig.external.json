@@ -59,7 +59,8 @@
     "test/inline-array-primitive-source.test.js",
     "test/inline-array-primitive-fuzz.test.js",
     "test/decoder-array-prototype-chain.test.js",
-    "test/decoder-array-prototype-browser.js"
+    "test/decoder-array-prototype-browser.js",
+    "sims/release-evidence-gate.js"
   ],
   "exclude": [
     "node_modules"
