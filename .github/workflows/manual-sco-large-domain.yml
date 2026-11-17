@@ -31,3 +31,5 @@ jobs:
         run: npm run typecheck:external
       - name: SCO stateful ratchet replay and budget experiment
         run: node sims/sco-ratchet-boundary.js
+      - name: SCO atomic ratchet batch 25ms RTT-surrogate and budget veto
+        run: node sims/sco-ratchet-batch-candidate.js
