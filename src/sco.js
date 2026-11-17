@@ -123,6 +123,10 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
+    // Batch execution must retain the submitted JSON value graph even if an
+    // application authorizer mutates the policy-visible arguments. Snapshot
+    // only registered batches; ordinary methods retain their existing contract.
+    const checkedBatchArgs=getScoBatchCalls(task,args)===null?null:structuredClone(args);
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
@@ -135,14 +139,16 @@ async function handleRpc(request,response,options) {
       // A permitted batch route is not blanket permission for its individual
       // operations. Check every registered inner method before the batch
       // executes, including later items after an otherwise permitted item.
-      const batchCalls=getScoBatchCalls(task,args);
+      const batchCalls=getScoBatchCalls(task,checkedBatchArgs??args);
       if (batchCalls) {
         for (const call of batchCalls) {
           // The batch helper independently rejects malformed calls before
           // execution. Only valid item shapes can reach policy evaluation.
           if (!call || typeof call!=='object' ||
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
-          const itemAllowed=await options.authorizeOperation(request,call.method,call.args);
+          // The policy sees a separate copy. Its mutations, even delayed
+          // until another item executes, cannot change the checked batch.
+          const itemAllowed=await options.authorizeOperation(request,call.method,structuredClone(call.args));
           ensureScopeOpen();
           if(itemAllowed!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
@@ -152,7 +158,7 @@ async function handleRpc(request,response,options) {
       }
     }
     ensureScopeOpen();
-    const result=await task(...args);
+    const result=await task(...(checkedBatchArgs??args));
     ensureScopeOpen();
     respondJson(response,200,{ok:true,value:result});
     };
