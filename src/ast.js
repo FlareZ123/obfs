@@ -1545,6 +1545,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       containsStackError(node.right,depth+1);
     return false;
   }
+  // Node's util.inspect also prints function names, which identifier
+  // mangling can change without any explicit Function#name or toString read.
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function containsConsoleFunction(node,depth=0) {
+    if(!node||depth>32)return false;
+    if(isFunctionValue(node)||containsFunction(node))return true;
+    if(node.type==='ArrayExpression')return node.elements.some(
+      (/** @type {AstNode|null} */ value)=>containsConsoleFunction(
+        value?.type==='SpreadElement'?value.argument:value,depth+1));
+    if(node.type==='ObjectExpression')return node.properties.some(
+      (/** @type {AstNode} */ property)=>containsConsoleFunction(
+        property.type==='Property'?property.value:
+          property.type==='SpreadElement'?property.argument:null,depth+1));
+    return false;
+  }
   // Monotone alias discovery handles a logger or Error declared after its
   // consumer and transitive const/assignment aliases without scope guessing.
   let changedStackAliases;
@@ -1587,7 +1602,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(method==='trace' ||
            ['log','info','warn','error','debug','dir'].includes(method??'') &&
              node.arguments.some((/** @type {AstNode} */ argument)=>
-               containsStackError(argument)))observed=true;
+               containsStackError(argument)||containsConsoleFunction(argument)))observed=true;
       }
       if(isObjectGroupBy(callee) &&
          !isPrimitiveGroupByCallback(node.arguments[1]))observed=true;
