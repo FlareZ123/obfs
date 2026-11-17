@@ -14,6 +14,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   attempted:boolean,
  *   cloneSucceeded:boolean,
  *   verifiedHeldoutComparisons:number,
+ *   verifiedSelectedFunctions?:number,
  *   selectedFunctionSetDigest?:string,
  *   verifierCaseDigest?:string,
  *   methodCommitmentDigest?:string,
@@ -59,6 +60,9 @@ function compareCandidateEvidence(evidence){
   // for failure. These fields are evidence declarations, not independently
   // authenticated artifacts: the experimenter must verify the commitments.
   const positiveEvidenceReady=measurementReady&&
+    evidence.nativeOutputAndHostTraceParity===true&&
+    control.verifiedSelectedFunctions===evidence.protectedFunctions&&
+    candidate.verifiedSelectedFunctions===evidence.protectedFunctions&&
     control.attackCompleted===true&&candidate.attackCompleted===true&&
     candidate.failureCause==='precommitted-budget-exhausted'&&
     control.cloneSucceeded===true&&candidate.cloneSucceeded===false&&
