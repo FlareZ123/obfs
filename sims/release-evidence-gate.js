@@ -184,7 +184,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
 async function run(){
   const coo=await runCooEvidence();
   const sno=await runSnoEvidence();
-  const snoProfile=await profileSno(7);
+  const snoProfile=await profileSno(13);
   const worker=path.join(__dirname,'application-challenge-sco-cold-session.js');
   const {stdout}=await execFileAsync(process.execPath,[worker],{
     timeout:240000,maxBuffer:4*1024*1024
