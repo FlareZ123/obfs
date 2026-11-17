@@ -161,7 +161,7 @@ test('opaque Reflect.get can reconstruct a hidden Node source-file reader',async
   const opaqueEntry='import {watched} from "./watched.mjs";'+
     'import {unrelated} from "./independent.mjs";'+
     'const C=Reflect.get(()=>{}, "con"+"structor");'+
-    'const load=C("return import(\\'node:fs\\')");'+
+    'const load=C(`return import("node:fs")`);'+
     'const fs=await load();'+
     'const read=Reflect.get(fs,"read"+"FileSync");'+
     'const original=read("./independent.mjs","utf8");'+
