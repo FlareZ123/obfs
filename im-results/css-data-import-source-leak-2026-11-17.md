@@ -66,13 +66,22 @@ across COO/SCO/SNO and SCO direct publication.
 
 ## Validation status
 
-A targeted existing manual Linux/Windows workflow was dispatched
-against branch commit `e93b2beb5c3b775218878fd55adcac79e53a3482`
-as [run 44051545584](https://github.com/FlareZ123/obfs/actions/runs/44051545584).
-**As written, both jobs are still queued.** Do not claim successful
-parser behavior, source recovery, safe compatibility, or strict
-JSDoc until the exact run verifies them. The branch remains
-experimental and unmerged pending that evidence.
+The initial [Linux/Windows attack run 44051545584](https://github.com/FlareZ123/obfs/actions/runs/44051545584)
+at exact branch `e93b2beb5c3b775218878fd55adcac79e53a3482`
+passed the paired nested CSS source extraction/refusal step, reached its
+targeted test suite, and passed **20/20 Node tests on each OS**, including
+escaped CSS import identities and unchanged safe CSS assets.
+The **complete workflow was red**, since `npm run typecheck` failed on
+two unrelated existing `src/ast.js` implicit-any specifier callbacks,
+plus a local JSDoc parser ambiguity: the prose token `@import` was
+misread as TypeScript 5.8's import tag and produced `TS1005: 'from' expected`.
+The branch was subsequently patched to avoid the JSDoc tag and explicitly
+type the AST specifier callbacks without `any`.
+A newer complete strict-JSDoc/attack validation
+[run 44053909775](https://github.com/FlareZ123/obfs/actions/runs/44053909775)
+at exact branch `e5756cd7f4d96825993559a3a412e4c58f87ebb2`
+was queued at report update. Treat this second run as pending.
+The branch remains experimental and unmerged pending that evidence.
 
 This adds no runtime JS to accepted distributions. It does add
 compiler-time CSS parsing and a production parser dependency,
