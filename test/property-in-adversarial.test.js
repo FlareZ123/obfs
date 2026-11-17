@@ -122,7 +122,7 @@ const refused=[
   [
     'error stack source-coordinate observer',
     'const bag={secretField:3};let stack;'+
-      'try{throw Error("original");}catch(error){stack=error.stack;}'+
+      'try{throw Error("original");}catch(error){stack=error.stack.split("\\n").slice(0,2).join("\\n");}'+
       'module.exports=["secretField" in bag,stack];'
   ],
   [
