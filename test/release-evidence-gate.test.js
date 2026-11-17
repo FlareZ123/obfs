@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {sampleVerdict,summarizeEvidence}=require('../sims/release-evidence-gate');
 const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 test('one-sided budget decisions retain failure and uncertainty',()=>{
   assert.equal(sampleVerdict([{decision:'supported'},{decision:'supported'}]),
@@ -37,9 +38,15 @@ function examples(){
     staticRecovered:3,runtimeHooked:true,directEsmClone:true,
     manifestForged:true,runtimeDiskMutations:0
   };
-  const snoProfile=[1,50,1000,10000].map(events=>({
-    events,ratio:events===1?3.5:1.2
-  }));
+  const snoProfile=[1,50,1000,10000].map(events=>{
+    const native=Array(13).fill(1);
+    const sno=Array(13).fill(events===1?3.5:1.2);
+    return {
+      events,ratio:events===1?3.5:1.2,
+      pairedBound:pairedBudgetBound(native,sno),
+      rawTimingMs:{native,sno}
+    };
+  });
   const sco={
     semanticsPreserved:true,
     light:{count:1,ratio:4.2,samples:{native:Array(9).fill(1),remote:Array(9).fill(4.2)},
@@ -75,21 +82,30 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.securityAxes.authorizedServiceRelay.sco,
     'legitimate-token-relay-reproduces-output');
   assert.equal(summary.performance.coo.verdict,'sample-exceeded');
-  assert.equal(summary.performance.sno.verdict,'sample-inconclusive');
+  assert.equal(summary.performance.sno.verdict,'sample-exceeded');
   assert.equal(summary.performance.sco.verdict,'sample-exceeded');
   assert.equal(summary.performance.coo.rows.length,4);
   assert.equal(summary.performance.sno.rows.length,4);
   assert.equal(summary.performance.sco.rows.length,2);
-  assert.equal(summary.performance.crossModeFamilywise.comparisons,6);
+  assert.equal(summary.performance.crossModeFamilywise.comparisons,10);
   assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
   assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
   assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
-    ['coo','coo','coo','coo','sco','sco']);
+    ['coo','coo','coo','coo','sno','sno','sno','sno','sco','sco']);
   assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);
   assert.equal(summary.performance.coo.rows[0].sourceBytes.native,2467);
   assert.equal(summary.performance.sco.rows[0].rawTimingMs.remote.length,9);
   assert.equal(summary.performance.sco.rows[0].upperMedianBound,5.1);
   assert.deepEqual(summary.performance.sno.descriptiveOverBudgetEvents,[1]);
+  assert.equal(summary.performance.sno.rows[0].oneSidedMedianDecision,'exceeded');
+  assert.equal(summary.performance.sno.rows[1].oneSidedMedianDecision,'supported');
+  assert.equal(summary.performance.sno.rows[0].samplePairs,13);
+  assert.equal(summary.performance.sno.rows[0].rawTimingMs.native.length,13);
+  assert.equal(summary.performance.sno.rows[0].rawTimingMs.sno.length,13);
+  assert.ok(summary.performance.sno.rows[1].upperMedianBound<2.5);
+  assert.equal(summary.performance.crossModeFamilywise.bounds.length,10);
+  assert.equal(summary.performance.crossModeFamilywise.bounds[4].decision,'exceeded');
+  assert.equal(summary.performance.crossModeFamilywise.bounds[5].decision,'supported');
 });
 
 test('release evidence rejects vacuous or incomplete controls',()=>{
@@ -120,10 +136,10 @@ test('familywise paired budget allocates both tails across all tested workloads'
   ]);
   assert.equal(familywiseBudgetBounds(
     workloads.map(row=>({...row,candidate:Array(9).fill(1.25)})
-  ).verdict,'sample-supported');
+  )).verdict,'sample-supported');
   assert.equal(familywiseBudgetBounds(
     workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]})
-  ).verdict,'sample-inconclusive');
+  )).verdict,'sample-inconclusive');
 });
 
 test('familywise bounds reject too few samples to meet joint confidence',()=>{
