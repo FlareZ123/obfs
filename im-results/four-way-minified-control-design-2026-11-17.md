@@ -1,6 +1,6 @@
 # Four-way native, minified, obfuscated, and reconstructed ESM release control
 
-**Date:** 2026-11-17. **Classification:** Intermediate experimental control; original nine-trial design passed two-platform CI, balanced 12-trial extension pending validation. This is not a positive obfuscation result.
+**Date:** 2026-11-17. **Classification:** Validated, application-scoped adversarial negative control; both 9-trial baseline and balanced 12-trial extension passed pinned Linux/Windows and Ubuntu Chromium validation. This is not a positive obfuscation result.
 
 ## Question and fixed application
 
@@ -50,3 +50,23 @@ This experiment is intentionally a negative-control fairness check. A safe compi
 ## Execution provenance
 
 Manual workflow: [\`.github/workflows/manual-minified-control.yml\`](../.github/workflows/manual-minified-control.yml) on Linux and Windows Node 22, with actual Chromium on Linux. The [exact pinned two-platform Node and Ubuntu Chromium run 44033291091](https://github.com/FlareZ123/obfs/actions/runs/44033291091) passed at commit `c9e27ed461a318abcdf30657296aa03b438a791f` under the earlier nine-trial ordering. Raw Node Linux/Windows and browser Linux JSON audit artifacts are attached to that run. The subsequent balanced 12-trial change needs separate validation and cannot inherit that pin. Retain exact measured timings and attack outputs when making security or performance comparisons.
+
+
+## Exact twelve-trial cross-platform evidence, 2026-11-17 09:01 UTC
+
+The balanced [manual run 44047990141](https://github.com/FlareZ123/obfs/actions/runs/44047990141) passed Node 22 Windows and Ubuntu strict JSDoc, static recovery, selected-function matched-query probes, Node full application differential, and real Chromium full application plus host-callback and 288 fresh ESM graph request checks. **Executable source SHA:** `69464f296a8e426c1be175960e7130f7e3203646` (a later documentation-only update does not change executable bytes). Windows job `133918367938`, Ubuntu job `133918368141`; full node and browser JSON are retained as workflow artifacts.
+
+The **same three public-runtime chosen fitting queries** against each original, minified, COO and independently reconstructed graph produced `round1=324`, `round2=292`, `round3=324` on both operating systems. Each committed restricted Int32-translation clone then matched 12,288 separate verifier-only signed Int32 comparisons against the public distribution and held-out original reference. The matching offsets and output behavior establish no incremental protection over conventional minification against **this identical bounded query attacker**. Ordinary public-source-only attacks separately recovered the three selected arithmetic leaves from both distributed code families. The generated and native source files remained identical to the prior experiment.
+
+| Node workload events | Windows COO/native median ratio | Windows upper paired median bound | Ubuntu COO/native median ratio | Ubuntu upper paired median bound |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | 1.2592× | 1.7227× | 1.3688× | 1.4450× |
+| 50 | 1.3850× | 1.9366× | 1.4696× | 1.5487× |
+| 1,000 | 1.5157× | 1.6102× | 1.9688× | 2.2485× |
+| 10,000 | 1.2524× | 1.3954× | 1.3138× | 1.4442× |
+
+On **all four workloads** the separate simultaneous familywise diagnostic reported sampled median support with conservative joint coverage at least 97.4609375% (four workload populations, within-workload i.i.d. assumptions). Windows' maximum observed single paired slowdown was 2.02635×, Ubuntu's 2.29839×, with zero actual observations above the stipulated 2.5× limit. This sampled result is neither an arbitrary-code guarantee nor a worst-case time bound.
+
+Ubuntu real Chromium's warmed 10,000-event trial found COO/native ratio of separate medians **2.15493×**, with one-sided upper paired median bound **2.33333×**, 12 of 12 observed ratios within 2.5× and exact full output/callback parity. At the 1-event and 10,000-event fresh ESM graph workloads, all 12 trials per variant loaded and executed with 288 actual HTTP ESM module requests; two sample median ratios were near 1.00× because these include a dominant loopback/browser module-delivery cost. Neither test estimates real WAN, TLS or arbitrary browser startup.
+
+**Decision:** reject the tested selective COO affine/polyvariant configuration as demonstrating an advantage over ordinary esbuild minification on this application and bounded chosen-query attacker. Both distribution families are straightforwardly cloned under the restricted signed Int32 translation hypothesis. This rejects a claim of stronger *measured selected-function confidentiality* rather than implying general obfuscation impossibility, browser lock success or arbitrary application compatibility. The exact same-state-output capability is separately verified; dynamic debugger resistance, integrity tampering and authorization boundaries require separate tests.
