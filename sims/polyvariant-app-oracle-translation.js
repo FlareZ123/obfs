@@ -54,6 +54,48 @@ function synthesizeTranslationClone(publicSource,zeroResponses){
   return code;
 }
 
+/**
+ * A second, weaker structural assumption: each selected Int32 leaf is
+ * f(x) = a*x+b modulo 2^32. Two chosen inputs, x=0 and x=1, identify the
+ * coefficients. This attack does not assume in advance that a=1.
+ *
+ * The result is conditioned on the affine model, which must be tested on
+ * held-out inputs; arbitrary nonlinear code can agree at both query points.
+ *
+ * @param {string} publicSource
+ * @param {Record<string,{atZero:number,atOne:number}>} responses
+ * @returns {string}
+ */
+function synthesizeAffineClone(publicSource,responses){
+  const ast=acorn.parse(publicSource,{ecmaVersion:'latest',sourceType:'module'});
+  /** @type {{start:number,end:number,text:string}[]} */
+  const replacements=[];
+  for(const name of targets){
+    const statement=ast.body.find(item=>
+      item.type==='ExportNamedDeclaration'&&
+      item.declaration?.type==='FunctionDeclaration'&&
+      item.declaration.id?.name===name
+    );
+    const pair=responses[name];
+    if(!statement||!pair||
+       !Number.isInteger(pair.atZero)||(pair.atZero|0)!==pair.atZero||
+       !Number.isInteger(pair.atOne)||(pair.atOne|0)!==pair.atOne){
+      throw new TypeError('Expected public function and two signed Int32 oracle responses: '+name);
+    }
+    const slope=(pair.atOne-pair.atZero)|0;
+    replacements.push({
+      start:statement.start,end:statement.end,
+      text:'export function '+name+'(input){return ((Math.imul((input|0),('+slope+'))+('+pair.atZero+'))|0);}'
+    });
+  }
+  let code=publicSource;
+  for(const item of replacements.sort((a,b)=>b.start-a.start)){
+    code=code.slice(0,item.start)+item.text+code.slice(item.end);
+  }
+  acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  return code;
+}
+
 /** @param {string} variant @returns {Promise<Graph>} */
 async function readGraph(variant){
   return Promise.all(files.map(async name=>({
@@ -88,7 +130,9 @@ function records(count){
  *   oracleCalls:number,offsets:Record<string,number>,
  *   heldoutFunctionComparisons:number,fullApplicationScenarios:number,
  *   fullApplicationEvents:number,nonlinearNegativeControl:boolean,
- *   originalGraphUsedForInference:boolean,attackMs:number
+ *   originalGraphUsedForInference:boolean,attackMs:number,
+ *   affineOracleCalls:number,affineSlopes:Record<string,number>,
+ *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean
  * }>}
  */
 async function runAttack(){
@@ -107,11 +151,27 @@ async function runAttack(){
     }
     const cloneSource=synthesizeTranslationClone(distributed[0].code,offsets);
     const attackMs=performance.now()-start;
+    /** @type {Record<string,{atZero:number,atOne:number}>} */
+    const affineResponses=Object.create(null);
+    /** @type {Record<string,number>} */
+    const affineSlopes=Object.create(null);
+    for(const name of targets){
+      const atOne=publishedMath[name](1);
+      affineResponses[name]={atZero:offsets[name],atOne};
+      affineSlopes[name]=(atOne-offsets[name])|0;
+    }
+    const affineSource=synthesizeAffineClone(distributed[0].code,affineResponses);
+
     const cloned=distributed.map(file=>file.path==='math.mjs'?
       {...file,code:cloneSource}:file);
     const cloneDir=path.join(temporary,'clone');
     await materialize(cloneDir,cloned);
     const clonedMath=await loadModule(cloneDir);
+    const affineCloned=distributed.map(file=>file.path==='math.mjs'?
+      {...file,code:affineSource}:file);
+    const affineDir=path.join(temporary,'affine-clone');
+    await materialize(affineDir,affineCloned);
+    const affineMath=await loadModule(affineDir);
 
     // This is a validation oracle, deliberately introduced after attack
     // synthesis. Neither native bytes nor original functions identify offsets.
@@ -120,6 +180,7 @@ async function runAttack(){
     await materialize(nativeDir,original);
     const originalMath=await loadModule(nativeDir);
     let heldoutFunctionComparisons=0;
+    let affineHeldoutFunctionComparisons=0;
     for(const name of targets){
       for(let i=0;i<4096;i++){
         const input=i<7?
@@ -130,11 +191,16 @@ async function runAttack(){
         assert.ok(Object.is(originalMath[name](input),clonedMath[name](input)),
           'Held-out original disagrees at '+name+'/'+i);
         heldoutFunctionComparisons++;
+        assert.ok(Object.is(publishedMath[name](input),affineMath[name](input)),
+          'Public-oracle affine clone disagrees at '+name+'/'+i);
+        assert.ok(Object.is(originalMath[name](input),affineMath[name](input)),
+          'Held-out affine original disagrees at '+name+'/'+i);
+        affineHeldoutFunctionComparisons++;
       }
     }
 
     const apps=await Promise.all(
-      [nativeDir,publishedDir,cloneDir].map(location=>
+      [nativeDir,publishedDir,cloneDir,affineDir].map(location=>
         import(pathToFileURL(path.join(location,'entry.mjs')).href)
       )
     );
@@ -163,11 +229,21 @@ async function runAttack(){
     const guessed=/** @param {number} x */ x=>((x|0)+nonlinear(0))|0;
     const nonlinearNegativeControl=nonlinear(1)!==guessed(1);
     assert.ok(nonlinearNegativeControl);
+    // A quadratic agrees with the affine interpolant at x=0 and x=1
+    // and diverges at x=2, proving the two-query affine model is bounded.
+    const quadratic=/** @param {number} x */ x=>((Math.imul(x|0,x|0)+9)|0);
+    const linearGuess=/** @param {number} x */ x=>((x|0)+9)|0;
+    const affineNonlinearNegativeControl=
+      quadratic(0)===linearGuess(0)&&quadratic(1)===linearGuess(1)&&
+      quadratic(2)!==linearGuess(2);
+    assert.ok(affineNonlinearNegativeControl);
 
     return {
       oracleCalls:targets.length,offsets,heldoutFunctionComparisons,
       fullApplicationScenarios,fullApplicationEvents,
-      nonlinearNegativeControl,originalGraphUsedForInference:false,attackMs
+      nonlinearNegativeControl,originalGraphUsedForInference:false,attackMs,
+      affineOracleCalls:targets.length*2,affineSlopes,
+      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl
     };
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
@@ -180,4 +256,4 @@ if(require.main===module){
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={runAttack,synthesizeTranslationClone};
+module.exports={runAttack,synthesizeTranslationClone,synthesizeAffineClone};
