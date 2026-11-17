@@ -88,8 +88,12 @@ native-vs-emitted hot `in` workload. The expanded source-only attack
 follow-up also **passed** on both OS at
 `aba4d42ab0d71658146eba8f1c470dec43390d2d`,
 [run 44127272851](https://github.com/FlareZ123/obfs/actions/runs/44127272851).
-A further CI run with extra TDZ/interprocedural cases was dispatched and
-is separate from those pinned successful results.
+The later [run 44127600036](https://github.com/FlareZ123/obfs/actions/runs/44127600036)
+at exact `58508fd9ebf9a0970079ed60cf077d0d6607aac1` passed
+**both Windows and Ubuntu**, including expanded TDZ/interprocedural,
+prototype and source-observation controls, strict JSDoc checks, the
+existing Symbol backend tests, the published-only attack, and Ubuntu
+real Chromium. It is the final behavioral pin for this report.
 
 ## Runtime and static attacker measurements
 
