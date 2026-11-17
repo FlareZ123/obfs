@@ -108,7 +108,52 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
   }
 });
 
-test('ESM native rebuild rejects imports, extra module effects and unproved exports',()=>{
+test('public ESM native replacement retains early cyclic import execution',{
+  timeout:60000
+},async()=>{
+  const kernel='import "./peer.mjs";\n'+
+    'export function f(a,b,c,d){return a?((b^c)&255):((~d)^c);}\n';
+  const peer='import {f} from "./kernel.mjs";\n'+
+    'export const early=['+
+      '[0,-2147483648,0,1],'+
+      '[1,-2147483648,12345,2147483647],'+
+      '[-1,-1,0,0],'+
+      '[0,123456,54321,-1]'+
+    '].map(args=>f(...args));\n';
+  /** @param {string} delivered @returns {Promise<{early:number[],later:number[]}>} */
+  async function cycle(delivered){
+    const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-wasm-rebuild-cycle-'));
+    try{
+      await atomicWrite(path.join(folder,'kernel.mjs'),delivered);
+      await atomicWrite(path.join(folder,'peer.mjs'),peer);
+      const owner=await import(pathToFileURL(path.join(folder,'kernel.mjs')).href);
+      const companion=await import(pathToFileURL(path.join(folder,'peer.mjs')).href);
+      return {early:companion.early,later:[
+        owner.f(0,-2147483648,3,2147483647),
+        owner.f(7,17,31,47),
+        owner.f(-7,17,-31,-47),
+        owner.f(0,-1,2,-3)
+      ]};
+    }finally{
+      await fs.rm(folder,{recursive:true,force:true});
+    }
+  }
+  const original=await cycle(kernel);
+  const {lowerWasmI32Functions}=require('../src/wasm-i32');
+  for(let index=0;index<4;index++){
+    const compiled=lowerWasmI32Functions(kernel,'module',{
+      seed:'native-cycle-'+index,names:['f']
+    });
+    assert.equal(compiled.functions,1);
+    const cloned=reconstructPublicWasmEsm(compiled.code);
+    assert.match(cloned.code,/^import "\.\/peer\.mjs";/u);
+    assert.doesNotMatch(cloned.code,/WebAssembly|Uint8Array/u);
+    assert.deepEqual(await cycle(compiled.code),original);
+    assert.deepEqual(await cycle(cloned.code),original);
+  }
+});
+
+test('ESM native rebuild rejects extra module effects and unproved exports',()=>{
   for(const code of [
     'import "./side-effect.mjs";export function f(x){return x;}',
     'console.log("side-effect");export function f(x){return x;}',
