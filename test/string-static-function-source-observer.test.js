@@ -39,7 +39,9 @@ const cases=[
   {name:'String alias raw method destructuring',tail:
     'const S=String;const {raw}=S;module.exports=raw({raw:["",""]},f).includes("a^17");'},
   {name:'String alias iterator destructuring',tail:
-    'const S=String;const {[Symbol.iterator]:iter}=S.prototype;module.exports=Array.from(iter.call(f)).join("").includes("a^17");'}
+    'const S=String;const {[Symbol.iterator]:iter}=S.prototype;module.exports=Array.from(iter.call(f)).join("").includes("a^17");'},
+  {name:'String global-destructured alias raw method',tail:
+    'const {String:S}=globalThis;const {raw}=S;module.exports=raw({raw:["",""]},f).includes("a^17");'}
 ];
 
 test('String.raw and String Symbol.iterator retain original function-source bytes',()=>{
