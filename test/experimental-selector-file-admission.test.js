@@ -101,3 +101,36 @@ test('validated function names survive later caller-array mutation',()=>{
   assert.equal(output.files[0].metrics.statementFlowFunctions,1,
     'The compiler must preserve its accepted protected-work selection');
 });
+
+const absentNames=[
+  ['Register VM',{experimentalRegisterVm:{'app.cjs':['absent']}}],
+  ['Expression VM',{experimentalExpressionVm:{'app.cjs':['absent']}}],
+  ['Native graph',{experimentalNativeGraph:{'app.cjs':['absent']}}],
+  ['Branch blocks',{experimentalBranchBlocks:{'app.cjs':['absent']}}],
+  ['Statement flow',{experimentalStatementFlow:{'app.cjs':['absent']}}],
+  ['Wasm i32',{experimentalWasmI32:{'app.cjs':['absent']}}],
+  ['Polyvariant affine',{experimentalPolyvariantAffine:{'app.cjs':['absent']}}]
+];
+
+for(const [name,selection] of absentNames){
+  test(name+' refuses missing function in a real selected file',()=>{
+    assert.throws(()=>obfuscateFiles(files,{
+      mode:'coo',seed:'selection-absent-function',strings:false,
+      identifiers:false,properties:false,...selection
+    }),/declined 1.*selected function/u);
+  });
+}
+
+for(const [name,selection] of [
+  ['Register VM',{experimentalRegisterVm:{'app.cjs':['f']}}],
+  ['Expression VM',{experimentalExpressionVm:{'app.cjs':['f']}}],
+  ['Native graph',{experimentalNativeGraph:{'app.cjs':['f']}}],
+  ['Branch blocks',{experimentalBranchBlocks:{'app.cjs':['f']}}]
+]){
+  test(name+' refuses unsupported selected function instead of quietly publishing it',()=>{
+    assert.throws(()=>obfuscateFiles(files,{
+      mode:'coo',seed:'selection-unsupported',strings:false,
+      identifiers:false,properties:false,...selection
+    }),/declined 1.*selected function/u);
+  });
+}
