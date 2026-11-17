@@ -181,6 +181,21 @@ for(const [name,tail] of [
   });
 }
 
+
+for(const [name,tail] of [
+  ['Set factory default argument',
+    'function carry(value=protectedSum){return new Set([value]);}'+
+      'export const values=carry();'],
+  ['aliased Set factory',
+    'function carry(value){return new Set([value]);}'+
+      'const alias=carry;export const values=alias(protectedSum);']
+]) {
+  test('ESM '+name+' keeps imported source text',()=>{
+    assert.throws(()=>protect(graph(tail,
+      'console.log([...values].join(","));')),/source observation|declined/i);
+  });
+}
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
