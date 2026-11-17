@@ -8,6 +8,7 @@ const {performance}=require('node:perf_hooks');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {atomicWrite}=require('../src/atomic');
+const {pairedBudgetBound}=require('./paired-budget-bound');
 const {ROOT,EXPOSED}=require('../examples/application-challenge/sco-build.cjs');
 const {startServer}=require('../examples/application-challenge/sco-server.cjs');
 
@@ -78,6 +79,7 @@ async function main(){
         nativeMs:median(workloads.heavy.native),
         remoteMs:median(workloads.heavy.remote),
         ratio:median(workloads.heavy.remote)/median(workloads.heavy.native),
+        pairedMedianBound:pairedBudgetBound(workloads.heavy.native,workloads.heavy.remote),
         samples:workloads.heavy
       },
       light:{
@@ -85,6 +87,7 @@ async function main(){
         nativeMs:median(workloads.light.native),
         remoteMs:median(workloads.light.remote),
         ratio:median(workloads.light.remote)/median(workloads.light.native),
+        pairedMedianBound:pairedBudgetBound(workloads.light.native,workloads.light.remote),
         samples:workloads.light
       },
       caveat:'Original private SCO server is already initialized; local HTTP only'
