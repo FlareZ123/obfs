@@ -249,6 +249,12 @@ async function main(){
         computeMs:actual.coldCompute[count]
       }
     ]));
+    const warmCooBudget=pairedBudgetBound(
+      actual.samples.native,actual.samples.published);
+    const coldCpuCooBudget=pairedBudgetBound(
+      actual.coldCompute['10000'].native,actual.coldCompute['10000'].published);
+    const coldTotalCooBudget=pairedBudgetBound(
+      actual.cold['10000'].native,actual.cold['10000'].published);
     const browserEvidence={
       node:process.version,platform:process.platform,chromeVersion,
       clockProbeMs:actual.clockProbeMs,clockChecksum:actual.clockChecksum,
@@ -256,7 +262,12 @@ async function main(){
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
       freshGraphHttpModuleRequests:coldModuleRequests,coldFreshGraphs,
       minifiedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.minified),
-      publishedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.published),
+      publishedVsNative:warmCooBudget,
+      strictSampleBreaches:{
+        warmed10000Compute:warmCooBudget.samplePairs-warmCooBudget.observedPairsWithinBudget,
+        cold10000Compute:coldCpuCooBudget.samplePairs-coldCpuCooBudget.observedPairsWithinBudget,
+        cold10000Total:coldTotalCooBudget.samplePairs-coldTotalCooBudget.observedPairsWithinBudget
+      },
       publishedVsMinified:pairedBudgetBound(actual.samples.minified,actual.samples.published),
       reconstructedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.reconstructed),
       samples:actual.samples
