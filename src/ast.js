@@ -1533,7 +1533,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(!node||depth>16)return null;
     if(node.type==='Identifier')return nodeUtilMethods.get(node.name)??null;
     if(node.type==='MemberExpression'&&isNodeUtilNamespace(node.object)) {
-      const name=memberName(node);
+      const name=node.computed?sourceStringKey(node.property):memberName(node);
       return name!==null&&inspectedUtilMethods.has(name)?name:null;
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
