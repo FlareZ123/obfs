@@ -70,6 +70,20 @@ test('String.raw with known primitive substitutions preserves genuine Wasm lower
     Array.from(/** @type {unknown[]} */(load(source))));
 });
 
+
+test('native String.raw constructor alias on primitive preserves Wasm lowering',()=>{
+  const code='function f(a){return a^17;}'+
+    'const S=String;const {raw}=S;'+
+    'module.exports=[f(3),raw({raw:["left","right"]},"safe")];';
+  const output=lowerWasmI32Functions(code,'commonjs',{
+    seed:'string-raw-alias-primitive-positive',names:['f']
+  });
+  assert.equal(output.functions,1);
+  assert.equal(output.declined,0);
+  assert.deepEqual(Array.from(/** @type {unknown[]} */(load(output.code))),
+    Array.from(/** @type {unknown[]} */(load(code))));
+});
+
 test('ESM imported function consumed by String.raw fails closed',()=>{
   /** @type {import('../src/core').SourceFile[]} */
   const files=[
