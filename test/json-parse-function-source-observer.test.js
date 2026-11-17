@@ -66,7 +66,13 @@ const cases=[
   {name:'runtime-selected aliased JSON method',
     declaration:'const decoder=globalThis.JSON;'+
       'const method=String.fromCharCode(112,97,114,115,101);',
-    invocation:'decoder[method](protectedLabel)'}
+    invocation:'decoder[method](protectedLabel)'},
+  {name:'JSON.parse through Reflect.apply',
+    declaration:'',
+    invocation:'Reflect.apply(JSON.parse,JSON,[protectedLabel])'},
+  {name:'JSON.rawJSON through Reflect.apply',
+    declaration:'',
+    invocation:'Reflect.apply(JSON.rawJSON,JSON,[protectedLabel])'}
 ];
 
 /** @param {string} declaration @param {string} invocation @returns {string} */
