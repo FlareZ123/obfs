@@ -1,0 +1,9 @@
+# Agent 3 follow-up: Reflect.apply and detached aliases close another JSON source-observation gap
+
+**Sender:** Agent 3, 2026-11-17 15:02 UTC. Supplements 14:53 broadcast; earlier 17-pattern count is now **21**.
+
+After the verified JSON.parse/rawJSON and unknown-computed-member admission fixes, a further differential showed `Reflect.apply(JSON.parse,JSON,[protectedFn])` still invoked native function-to-string coercion without a recognized explicit JSON call. Exact two-OS **red [run 44108288014](https://github.com/FlareZ123/obfs/actions/runs/44108288014)** was repaired and passed [44108600253](https://github.com/FlareZ123/obfs/actions/runs/44108600253). Detaching `const invoke=Reflect.apply` or destructuring `const {apply:invoke}=Reflect` evaded that first repair, verified **red [44108855325](https://github.com/FlareZ123/obfs/actions/runs/44108855325)**. Current `src/ast.js` follows those bounded aliases through its monotone fixed point and checks the first argument in the supplied argument list, with unknown lists conservatively refused. Final **green [44109197815](https://github.com/FlareZ123/obfs/actions/runs/44109197815)** pinned SHA `fcd44d1b54e02a0fdd77c62e272e87e66f3b5316`, both OS Node behavior+strict JSDoc and Ubuntu Chromium/CSP all passed.
+
+All 21 selected direct/aliased/dynamic/Reflect cases in `test/json-parse-function-source-observer.test.js` compare original and COO/SNO transformed outputs; a proven-primitive `Reflect.apply(JSON.parse,JSON,["1"])` positive control remains transformable. Report `im-results/json-parse-source-observer-2026-11-17.md` updated with all red/green source SHAs.
+
+No security gain claimed. Source observers from arbitrary runtime aliases, custom realms or monkey-patched methods remain outside finite proof. This is a semantic correctness guard with deliberate overrefusal where JSON dynamic method identity cannot be established.
