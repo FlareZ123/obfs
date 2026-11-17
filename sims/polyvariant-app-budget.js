@@ -7,6 +7,7 @@ const assert=require('node:assert/strict');
 const {performance}=require('node:perf_hooks');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
+const {pairedBudgetBound}=require('./paired-budget-bound');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 
 /** @param {number[]} values @returns {number} */
@@ -80,7 +81,8 @@ async function main() {
         }
       }
       const nativeMs=median(nativeTrials),protectedMs=median(protectedTrials);
-      results.push({events,nativeMs,protectedMs,ratio:protectedMs/nativeMs});
+      results.push({events,nativeMs,protectedMs,ratio:protectedMs/nativeMs,
+        pairedMedianBound:pairedBudgetBound(nativeTrials,protectedTrials)});
     }
     process.stdout.write(JSON.stringify({
       node:process.version,platform:process.platform,
