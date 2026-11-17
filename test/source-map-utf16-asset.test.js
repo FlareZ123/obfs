@@ -52,7 +52,7 @@ test('UTF-16 indexed source maps and JSON escaped map field spellings are detect
       version:3,sources:['original.js'],sourcesContent:[original],mappings:'AAAA'
     }}]
   });
-  const escaped=String.raw`{"ver\\u0073ion":3,"sour\\u0063es":["original.js"],"mapp\\u0069ngs":"AAAA"}`;
+  const escaped=String.raw`{"ver\u0073ion":3,"sour\u0063es":["original.js"],"mapp\u0069ngs":"AAAA"}`;
   for(const payload of [indexed,escaped]){
     for(const endian of /** @type {const} */(['le','be'])){
       const code=utf16(payload,endian,true);
