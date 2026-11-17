@@ -2100,13 +2100,13 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     // original process.getBuiltinModule member name locally.
     if((node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration') &&
        ['process','node:process'].includes(String(node.source?.value)) &&
-       (node.type==='ExportAllDeclaration'||node.specifiers.some(specifier=>
+       (node.type==='ExportAllDeclaration'||node.specifiers.some(/** @param {{type:'ExportSpecifier',local:({type:'Identifier',name:string}|{type:'Literal',value:string})}} specifier */ specifier=>
          specifier.type==='ExportSpecifier' &&
          canReachLoader('process',specifier.local.type==='Identifier' ?
            specifier.local.name:String(specifier.local.value)))))observed=true;
     if(node.type==='ImportDeclaration' &&
        ['process','node:process'].includes(String(node.source?.value)) &&
-       node.specifiers.some(specifier=>specifier.type==='ImportSpecifier' &&
+       node.specifiers.some(/** @param {{type:'ImportSpecifier',imported:({type:'Identifier',name:string}|{type:'Literal',value:string})}|{type:'ImportDefaultSpecifier'|'ImportNamespaceSpecifier'}} specifier */ specifier=>specifier.type==='ImportSpecifier' &&
          canReachLoader('process',specifier.imported.type==='Identifier' ?
            specifier.imported.name:String(specifier.imported.value))))observed=true;
     if(node.type==='ImportExpression') {
