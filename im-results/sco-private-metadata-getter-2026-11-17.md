@@ -38,5 +38,19 @@ The test-only original-metadata source branch
 `agent1-sco-private-metadata-red-20261117` at
 `46cb5d41fc45044301bd48b64a7aa35f2df2143e` is queued under
 [run 44048791393](https://github.com/FlareZ123/obfs/actions/runs/44048791393).
-A red execution of the known source limitation is still pending and must
-be reported separately when completed.
+The test-only branch subsequently **failed on both Ubuntu and Windows**
+as expected at that exact SHA. Ubuntu reported 173 tests, 171 pass / 2 fail
+/ 0 skipped, with failures `SCO treats the first declared private path list
+as authoritative` and `SCO treats the first private original digest list
+as authoritative`. Windows reported 173 tests, 170 pass / 2 fail /
+1 platform skip, with the same two expected failures. This pins the
+original repeated-getter gap independently of the later patch.
+The workflow's later runtime, source-integrity and JSDoc steps were
+not executed once targeted tests failed.
+
+The initial patched candidate passed both platforms with three metadata
+cases under run 44048517033. The later four extra cases (changing digest
+index accessor, overridden path array `map`, custom digest iterator,
+and overridden `sourceFiles.map`) are included in the current final
+candidate gate [44051408521](https://github.com/FlareZ123/obfs/actions/runs/44051408521);
+its results remain pending at this revision.
