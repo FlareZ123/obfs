@@ -31,3 +31,10 @@ The guard intentionally refuses potentially legitimate debug-bearing assets. Int
 | Compatibility | Wasm with recognized debug sections now fails explicit preflight; ordinary custom sections and unchanged Wasm program behavior remain accepted |
 
 Arbitrary custom sections can also contain private source or symbols, but exhaustive source-absence detection is not possible with this bounded section-name policy. The demo does not claim to reconstruct original JS from a \`name\` section. The baseline's exact publication leak is independent of other compiler obfuscation gains. Keep the work intermediate, with severe residual runtime and format-coverage limitations.
+
+## Exact pinned two-platform attacker validation, 2026-11-17 11:15 UTC
+
+[GitHub Actions paired asset run 44069436981](https://github.com/FlareZ123/obfs/actions/runs/44069436981) passed on **windows-latest** (job 133991571488) and **ubuntu-latest** (job 133991572074) at protected SHA `f49d1392334988b96fc0506acdc7fde8c3a82b57`. Both jobs successfully executed `sims/wasm-debug-metadata-attack.js` against an older, actual vulnerable compiler and current protected code. Verified outputs include original private function-name extraction from public bytes and real SCO HTTP, unchanged executable Wasm result and native/transformed separate JS behavior, and protected COO/SNO/SCO refusal. Both jobs passed the extended Wasm/HTML/SVG/CSS regression and strict JSDoc source checks. This validates the bounded Wasm guard as it existed at that exact SHA.
+
+The later 128-seed custom section layout fuzz test, reviewed-asset manifest and core input Buffer snapshot change landed after this pinned SHA. They require a separate pinned run, and must not inherit the 44069436981 green claim.
+
