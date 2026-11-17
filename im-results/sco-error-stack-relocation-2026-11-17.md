@@ -1,6 +1,6 @@
 # Selective SCO error-stack execution-origin mismatch (17 November 2026)
 
-**Status:** intermediate semantic-reconstruction finding and compiler admission refinement. The source-only red CI and the post-fix targeted gate were queued at the first documentation checkpoint. Keep the red and green exact source SHAs distinct before claiming a validated compiler fix.
+**Status:** intermediate engineering semantic counterexample, with **confirmed cross-platform pre-fix red**. The post-fix green gate was pending at the next checkpoint. Keep the red and green exact source SHAs distinct.
 
 ## Why the same source can return different JSON-visible text
 
