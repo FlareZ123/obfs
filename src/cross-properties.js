@@ -60,6 +60,14 @@ function collectVerifiedImportedStrings(files) {
     /** @type {Map<string,string>} */
     const names=new Map();
     for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration') {
+        const value=statement.declaration;
+        if(value.type==='Identifier'&&arrays.has(value.name) ||
+           value.type==='ArrayExpression'&&hasFunction(value)) {
+          publicNames.add('default');
+        }
+        continue;
+      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       if(statement.declaration?.type==='VariableDeclaration') {
         for(const item of statement.declaration.declarations) {
@@ -197,6 +205,44 @@ function collectImportedFunctionArrays(files) {
     }
     exportsByFile.set(filename,publicNames);
   }
+  // Resolve named/star reexports to a fixed point. A relay module may be
+  // listed before its producer, and chains can pass through several relays.
+  // The sets grow monotonically, so even a cyclic graph terminates.
+  let forwarded;
+  do {
+    forwarded=false;
+    for(const [filename,module] of modules) {
+      const publicNames=exportsByFile.get(filename);
+      if(!publicNames)continue;
+      for(const statement of module.ast.body) {
+        if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type) ||
+           statement.source?.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/u.test(statement.source.value))continue;
+        const origin=resolveImport(filename,statement.source.value);
+        const target=origin?exportsByFile.get(origin):null;
+        if(!target)continue;
+        /** @param {string} name */
+        function addForwarded(name) {
+          if(!publicNames.has(name)) {
+            publicNames.add(name);
+            forwarded=true;
+          }
+        }
+        if(statement.type==='ExportAllDeclaration') {
+          if(statement.exported)continue;
+          for(const name of target)if(name!=='default')addForwarded(name);
+        } else {
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const name=spec.local.name??spec.local.value;
+            const alias=spec.exported.name??spec.exported.value;
+            if(target.has(name)&&typeof alias==='string')addForwarded(alias);
+          }
+        }
+      }
+    }
+  }while(forwarded);
   /** @type {Map<string,Set<string>>} */
   const imported=new Map();
   for(const [filename,module] of modules) {
@@ -210,10 +256,11 @@ function collectImportedFunctionArrays(files) {
       const exported=origin?exportsByFile.get(origin):null;
       if(!exported)continue;
       for(const spec of statement.specifiers) {
-        if(spec.type!=='ImportSpecifier'||module.bindings.get(spec.local.name)!==1)
-          continue;
-        const name=spec.imported.name??spec.imported.value;
-        if(exported.has(name))names.add(spec.local.name);
+        const name=spec.type==='ImportSpecifier'?
+          spec.imported.name??spec.imported.value:
+          spec.type==='ImportDefaultSpecifier'?'default':null;
+        if(name!==null&&module.bindings.get(spec.local.name)===1&&
+           exported.has(name))names.add(spec.local.name);
       }
     }
     imported.set(filename,names);
