@@ -6,6 +6,7 @@ const vm=require('node:vm');
 const {parse}=require('../src/ast');
 const {provenLocalReflectGetCaptures}=require('../src/decoder-safe-reads');
 const {obfuscateFiles}=require('../src');
+const {recoverObfuscatedStrings}=require('../sims/static-string-recovery');
 
 /** @param {string} source @returns {number} */
 function safeCount(source) {
@@ -71,6 +72,9 @@ for(const mode of /** @type {const} */ (['sno','coo','sco'])) {
     assert.ok(!String(output.code).includes('source-observation-literal'),
       'Safe detached getter should no longer suppress the protected literal');
     assert.equal(execute(String(output.code)),execute(source));
+    const attacker=recoverObfuscatedStrings(String(output.code),'commonjs');
+    assert.ok(attacker.literals>0,'The public XOR table remains statically recoverable');
+    assert.equal(execute(attacker.code),execute(source));
   });
   test('unsafe captured Reflect.get keeps conservative string refusal in '+mode,()=>{
     const source="const text='source-observation-literal';"+
