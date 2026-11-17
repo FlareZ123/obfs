@@ -1,0 +1,143 @@
+'use strict';
+
+const {test} = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs/promises');
+const os = require('node:os');
+const path = require('node:path');
+const {spawnSync} = require('node:child_process');
+const {obfuscateFiles} = require('../src/core');
+const {atomicWrite} = require('../src/atomic');
+
+/** @typedef {import('../src/core').SourceFile} SourceFile */
+
+/** @type {SourceFile} */
+const watched={path:'watched.mjs',sourceType:'module',
+  code:'const recordA={privateA:17};const valueA=recordA.privateA;export function watched(){return valueA;}'};
+/** @type {SourceFile} */
+const independent={path:'independent.mjs',sourceType:'module',
+  code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){return valueB;}'};
+/** @type {SourceFile} */
+const another={path:'another.mjs',sourceType:'module',
+  code:'const recordC={privateC:43};const valueC=recordC.privateC;export function third(){return valueC;}'};
+
+/** @param {string} code @returns {SourceFile} */
+function entry(code) {
+  return {path:'entry.mjs',sourceType:'module',code};
+}
+
+/**
+ * @param {SourceFile[]} files
+ * @returns {Promise<string>}
+ */
+async function executeEsm(files) {
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-observer-island-'));
+  try {
+    for(const file of files) {
+      await atomicWrite(path.join(dir,file.path),file.code);
+    }
+    const child=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{
+      encoding:'utf8',timeout:10000
+    });
+    assert.equal(child.status,0,child.stderr || child.error?.message);
+    return child.stdout.trim();
+  } finally {
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+}
+
+const normalEntry='import {watched} from "./watched.mjs";' +
+  'import {unrelated} from "./independent.mjs";' +
+  'import {third} from "./another.mjs";' +
+  'console.log(JSON.stringify({source:watched.toString(),a:unrelated(),b:third()}));';
+
+test('opt-in isolated ESM property rename preserves watched source and two imported primitive calls',async ()=>{
+  for(const mode of /** @type {const} */ (['coo','sno'])) {
+    for(const seed of ['observer-island-A','observer-island-B','observer-island-C']) {
+      const originals=[watched,independent,another,entry(normalEntry)];
+      const options={mode,closedWorld:true,seed,strings:false,identifiers:false};
+      const legacy=obfuscateFiles(originals,options);
+      assert.equal(legacy.files.reduce((n,f)=>n+f.metrics.properties,0),0,
+        'Default must keep conservative group-wide observer veto');
+
+      const result=obfuscateFiles(originals,{
+        ...options,experimentalSourceObserverIslands:['independent.mjs','another.mjs']
+      });
+      const byPath=new Map(result.files.map(f=>[f.path,f]));
+      assert.equal(byPath.get('watched.mjs')?.code,watched.code);
+      assert.equal(byPath.get('entry.mjs')?.code,normalEntry);
+      assert.ok((byPath.get('independent.mjs')?.metrics.properties ?? 0)>=1);
+      assert.ok((byPath.get('another.mjs')?.metrics.properties ?? 0)>=1);
+      assert.equal(result.crossFile.properties,0,
+        'Source island exception must not re-enable cross-file renaming');
+      assert.equal(result.files.reduce((n,f)=>n+f.metrics.bindings,0),0,
+        'Source island exception must not enable identifier rewriting');
+      assert.equal(result.files.reduce((n,f)=>n+f.metrics.literals,0),0,
+        'Source island exception must not enable decoder rewriting');
+      const expected=await executeEsm(originals);
+      assert.equal(await executeEsm(result.files),expected);
+      assert.equal(JSON.parse(expected).source,'function watched(){return valueA;}');
+    }
+  }
+});
+
+test('island proof rejects observing, exporting, reassigning or reflecting the isolated function',()=>{
+  const invalidEntries=[
+    'console.log(unrelated.toString());',
+    'const leaked=unrelated;console.log(leaked.toString());',
+    'console.log(String(unrelated));',
+    'console.log(unrelated.name);',
+    'console.log(unrelated.call(null));',
+    'console.log(unrelated(123));',
+    'console.log([unrelated][0]());',
+    'console.log({unrelated});',
+    'export {unrelated};',
+    'globalThis.leaked=unrelated;',
+    'console.log(Function.prototype.toString.call(unrelated));'
+  ];
+  for(const suffix of invalidEntries) {
+    const source='import {unrelated} from "./independent.mjs";'+suffix;
+    assert.throws(()=>obfuscateFiles([watched,independent,entry(source)],{
+      mode:'coo',closedWorld:true,seed:'negative-island',strings:false,identifiers:false,
+      experimentalSourceObserverIslands:['independent.mjs']
+    }),/Source observer island/,'Must refuse '+suffix);
+  }
+});
+
+test('island proof rejects dynamic module access, namespaces, source readers and unproved leaves',()=>{
+  const badCases=[
+    {code:'import * as ns from "./independent.mjs";console.log(ns.unrelated());'},
+    {code:'export {unrelated} from "./independent.mjs";'},
+    {code:'export * from "./independent.mjs";'},
+    {code:'import("./independent.mjs").then(console.log);'},
+    {code:'import {readFileSync} from "node:fs";console.log(readFileSync("./independent.mjs","utf8"));'},
+    {code:'import {unrelated} from "./independent.mjs";console.log(globalThis.Function(unrelated()));'},
+    {code:'import {unrelated} from "./independent.mjs";console.log(import.meta.url,unrelated());'},
+    {code:'import {unrelated} from "./independent.mjs";console.log(unrelated[unknown]());'},
+    {code:'import {unrelated} from "./missing.mjs";console.log(unrelated());'}
+  ];
+  for(const {code} of badCases) {
+    assert.throws(()=>obfuscateFiles([watched,independent,entry(code)],{
+      mode:'coo',closedWorld:true,seed:'negative-island',strings:false,identifiers:false,
+      experimentalSourceObserverIslands:['independent.mjs']
+    }),/Source observer island/,'Must reject '+code);
+  }
+  const impureLeaves=[
+    'const recordB={privateB:23};export function unrelated(){return recordB;}',
+    'const recordB={privateB:23};const valueB=recordB.privateB;console.log(valueB);export function unrelated(){return valueB;}',
+    'const recordB={privateB(){return 23}};const valueB=recordB.privateB;export function unrelated(){return valueB;}',
+    'const recordB={privateB:23};const valueB=recordB.privateB;export function unrelated(x){return valueB;}',
+    'const recordB={privateB:23};const valueB=recordB.privateB;export async function unrelated(){return valueB;}',
+    'const recordB={privateB:23};const valueB=recordB.privateB;export const unrelated=()=>valueB;'
+  ];
+  for(const code of impureLeaves) {
+    const modified={...independent,code};
+    assert.throws(()=>obfuscateFiles([watched,modified,entry(normalEntry)],{
+      mode:'coo',closedWorld:true,seed:'negative-island',strings:false,identifiers:false,
+      experimentalSourceObserverIslands:['independent.mjs']
+    }),/Source observer island/,'Must reject impure leaf: '+code);
+  }
+  assert.throws(()=>obfuscateFiles([watched,independent,entry(normalEntry)],{
+    mode:'coo',closedWorld:false,experimentalSourceObserverIslands:['independent.mjs']
+  }),/Source observer islands require closedWorld/);
+});
