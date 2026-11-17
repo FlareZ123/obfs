@@ -101,6 +101,15 @@ test('source-only label normalization has a documented external API collision li
   assert.equal(nestedGuarded.properties,1);
   assert.equal(run(nestedGuarded.files[0].code),'[17,43]');
   assert.ok(nestedGuarded.files[0].code.includes('HOST.api.'+field));
+  const aliasSource='const hidden={'+field+':17};'+
+    'const first=HOST;const second=first;'+
+    'module.exports=[hidden.'+field+',second.'+field+'];';
+  const aliasGuarded=normalizePublicFields([
+    {path:'alias.cjs',sourceType:'commonjs',code:aliasSource}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(aliasGuarded.properties,1);
+  assert.equal(run(aliasGuarded.files[0].code),'[17,31]');
+  assert.ok(aliasGuarded.files[0].code.includes('second.'+field));
 });
 
 test('free-root guard still normalizes same public label across relative ESM imports',()=>{
@@ -113,4 +122,14 @@ test('free-root guard still normalizes same public label across relative ESM imp
   assert.equal(guarded.properties,1);
   assert.ok(guarded.files[0].code.includes('state={_publicField0:41}'));
   assert.ok(guarded.files[1].code.includes('state._publicField0'));
+});
+
+test('unresolved package imports are opaque in free-receiver attacker mode',()=>{
+  const name='_pabcdef123456';
+  const emitted=normalizePublicFields([
+    {path:'consumer.mjs',sourceType:'module',
+      code:'import {api} from "outside-package";export const value=api.'+name+';'}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(emitted.properties,0);
+  assert.ok(emitted.files[0].code.includes('api.'+name));
 });
