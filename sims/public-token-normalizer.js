@@ -2,6 +2,7 @@
 
 const acorn=require('acorn');
 const walk=require('acorn-walk');
+const {posix}=require('node:path');
 
 /** @typedef {{path:string,code:string,sourceType?:'module'|'commonjs'|'script'}} File */
 /** @typedef {{start:number,end:number,text:string}} Edit */
@@ -23,6 +24,8 @@ const walk=require('acorn-walk');
 function normalizePublicFields(files,options={}) {
   /** @type {Map<string,string>} */
   const labels=new Map();
+  // Incoming module paths are the only modules this source-only attacker knows.
+  const publishedPaths=new Set(files.map(file=>posix.normalize(file.path)));
   const emitted=files.map(file=>{
     /** @type {(import('acorn').Token & {value?:unknown})[]} */
     const tokens=[];
@@ -40,10 +43,21 @@ function normalizePublicFields(files,options={}) {
     const externalMemberOffsets=new Set();
     /** @type {Set<string>} */
     const declared=new Set();
+    /** @type {Set<string>} */
+    const externalAliases=new Set();
+    /** @type {[string,string][]} */
+    const aliasEdges=[];
     if(options.preserveFreeMemberReceivers){
       walk.simple(ast,{
         VariableDeclarator(node) {
-          if(node.id.type==='Identifier')declared.add(node.id.name);
+          if(node.id.type!=='Identifier')return;
+          declared.add(node.id.name);
+          if(node.init?.type==='Identifier')
+            aliasEdges.push([node.id.name,node.init.name]);
+        },
+        AssignmentExpression(node) {
+          if(node.left.type==='Identifier'&&node.right.type==='Identifier')
+            aliasEdges.push([node.left.name,node.right.name]);
         },
         FunctionDeclaration(node) {
           if(node.id?.type==='Identifier')declared.add(node.id.name);
@@ -52,9 +66,29 @@ function normalizePublicFields(files,options={}) {
           if(node.id?.type==='Identifier')declared.add(node.id.name);
         },
         ImportDeclaration(node) {
-          for(const spec of node.specifiers)declared.add(spec.local.name);
+          const specifier=typeof node.source.value==='string'?node.source.value:'';
+          const localPath=specifier.startsWith('./')||specifier.startsWith('../') ?
+            posix.normalize(posix.join(posix.dirname(file.path),specifier)) : null;
+          for(const spec of node.specifiers) {
+            // Bare imports and unresolved relative imports can supply
+            // runtime-owned objects with fixed API property spellings.
+            if(localPath!==null&&publishedPaths.has(localPath))
+              declared.add(spec.local.name);
+            else externalAliases.add(spec.local.name);
+          }
         }
       });
+      let changed;
+      do {
+        changed=false;
+        for(const [name,origin] of aliasEdges) {
+          if((!declared.has(origin)||externalAliases.has(origin))&&
+              !externalAliases.has(name)) {
+            externalAliases.add(name);
+            changed=true;
+          }
+        }
+      }while(changed);
     }
     // The default Acorn walker visits member children before their parents.
     // Propagate free-root provenance through HOST.api.sensitiveField chains.
@@ -77,7 +111,8 @@ function normalizePublicFields(files,options={}) {
            typeof node.property.value==='string')
           propertyStringOffsets.add(node.property.start);
         if(options.preserveFreeMemberReceivers && (
-          node.object.type==='Identifier'&&!declared.has(node.object.name) ||
+          node.object.type==='Identifier'&&(
+            !declared.has(node.object.name)||externalAliases.has(node.object.name)) ||
           externalReceivers.has(node.object.start))) {
           externalMemberOffsets.add(node.property.start);
           externalReceivers.add(node.start);
