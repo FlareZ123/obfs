@@ -47,6 +47,9 @@ for(const [name,mutate] of [
   ['aliased','const proto=Array.prototype;proto.__proto__=shim;'],
   ['computed',"Array.prototype['__proto__']=shim;"],
   ['reflect-array-chain',"Reflect.set(Array.prototype,'__proto__',shim);"],
+  ['destructured-parent-alias',
+    "const {__proto__:parent}=Array.prototype;"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
   ['array-own-descriptor',
     "Object.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
   ['object-own-descriptor',
