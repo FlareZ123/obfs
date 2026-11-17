@@ -40,6 +40,25 @@ function provenLocalReflectGetCaptures(ast) {
   }
   if(!candidates.size)return new Set();
 
+  // The proof is about the native global Reflect.get, never a module-local
+  // replacement or an explicitly accessed global Reflect property. Reject
+  // even unrelated uses of this identifier to avoid lexical-shadowing gaps.
+  const trustedReceivers=new Set([...candidates.values()].map(
+    candidate=>candidate.capture.object));
+  let ambiguousReflect=false;
+  walk(ast,node=>{
+    if(node.type==='Identifier'&&node.name==='Reflect'&&!trustedReceivers.has(node)) {
+      ambiguousReflect=true;
+    }
+    if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+       ['globalThis','window','self','global'].includes(node.object.name) &&
+       (node.computed?staticString(node.property):
+         node.property.type==='Identifier'?node.property.name:null)==='Reflect') {
+      ambiguousReflect=true;
+    }
+  });
+  if(ambiguousReflect)return new Set();
+
   /**
    * @param {AstNode} call
    * @returns {boolean}
