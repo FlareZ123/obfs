@@ -79,7 +79,9 @@ function isServerEnvironmentRead(expression){
 function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
-    'Promise','Error','ArrayBuffer','SharedArrayBuffer','DataView','Reflect',
+    'Promise','Error','AggregateError','EvalError','RangeError','ReferenceError',
+    'SyntaxError','TypeError','URIError','ArrayBuffer','SharedArrayBuffer',
+    'DataView','Reflect',
     'Math','JSON','Intl','Atomics','WebAssembly',
     'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
     'Int32Array','Uint32Array','Float32Array','Float64Array','BigInt64Array',
@@ -95,6 +97,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const immutableMathNumbers=new Set(['E','LN10','LN2','LOG10E','LOG2E','PI','SQRT1_2','SQRT2']);
   const immutableNumberValues=new Set(['EPSILON','MAX_SAFE_INTEGER','MIN_SAFE_INTEGER',
     'MAX_VALUE','MIN_VALUE','NaN','NEGATIVE_INFINITY','POSITIVE_INFINITY']);
+  const errorConstructorKinds=new Set(['Error','AggregateError','EvalError',
+    'RangeError','ReferenceError','SyntaxError','TypeError','URIError']);
   const regexpNames=new Set(['RegExp']);
   const regexpStatics=new Set(['input','$_','lastMatch','$&','lastParen',
     '$+','leftContext','$`','rightContext',"$'",'$1','$2','$3','$4',
@@ -302,6 +306,26 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     return undefined;
   }
+  /**
+   * Only known intrinsic Error families capture a native call-site stack.
+   * A plain JSON record with a field named "stack" remains eligible.
+   * @param {import('./ast').AstNode} expression
+   * @returns {boolean}
+   */
+  function isErrorConstructor(expression){
+    if(expression.type==='Identifier'){
+      return errorConstructorKinds.has(intrinsicKinds.get(expression.name)??'');
+    }
+    return expression.type==='MemberExpression'&&
+      expression.object.type==='Identifier'&&
+      globalNames.has(expression.object.name)&&
+      errorConstructorKinds.has(keyName(expression)??'');
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function createsError(expression){
+    return (expression.type==='CallExpression'||expression.type==='NewExpression')&&
+      isErrorConstructor(expression.callee);
+  }
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function pinnedIsoUtcLiteral(expression){
     return expression.type==='Literal' && typeof expression.value==='string' &&
@@ -322,6 +346,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
   // the verified contract and need independent adversarial tests.
   /** @type {Set<string>} */
   const dateInstances=new Set();
+  /** @type {Set<string>} */
+  const errorInstances=new Set();
   /** @type {Set<string>} */
   const intlAliases=new Set();
   let originChanged=true;
@@ -355,6 +381,13 @@ function realmStateObservation(body,checkHostConfiguration=false){
           originChanged=true;
         }
       }
+      if(createsError(initial)||
+         initial.type==='Identifier'&&errorInstances.has(initial.name)){
+        if(!errorInstances.has(binding.name)){
+          errorInstances.add(binding.name);
+          originChanged=true;
+        }
+      }
       if(isIntlConstructor(initial)||
          initial.type==='Identifier'&&intlAliases.has(initial.name)){
         if(!intlAliases.has(binding.name)){
@@ -378,6 +411,19 @@ function realmStateObservation(body,checkHostConfiguration=false){
       utcDateReceivers.add(node.callee.object);
     }
   });
+  const catchBindings=new Set();
+  walk(body,node=>{
+    if(node.type==='CatchClause'&&node.param?.type==='Identifier'){
+      catchBindings.add(node.param.name);
+    }
+  });
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isStackReceiver(expression){
+    return createsError(expression)||
+      expression.type==='Identifier'&&
+        (errorInstances.has(expression.name)||catchBindings.has(expression.name));
+  }
+  let stackTouched=false;
   let configurationTouched=false;
   let entropyTouched=false;
   let clockTouched=false;
@@ -400,6 +446,15 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='MemberExpression'){
       const member=keyName(node);
       if(isMathRoot(node.object)&&member==='random')entropyTouched=true;
+      // Error.stack captures source filenames and call-site coordinates.
+      // These change when selected SCO moves work into a server module.
+      if((member==='stack'||member===null)&&isStackReceiver(node.object)){
+        stackTouched=true;
+      }
+      if(isErrorConstructor(node.object)&&
+         ['captureStackTrace','prepareStackTrace','stackTraceLimit'].includes(member??'')){
+        stackTouched=true;
+      }
       // Extracted Date.now/parse functions can run under a different clock or
       // timezone. Keep the direct, pinned-ISO Date.parse positive exception.
       if(isDateConstructor(node.object)&&
@@ -434,6 +489,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
     if(pattern?.type==='ObjectPattern'&&source){
+      if(isStackReceiver(source)&&pattern.properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>
+          property.type!=='Property'||keyName(property)==='stack'||
+          keyName(property)===null)){
+        stackTouched=true;
+      }
       const properties=pattern.properties.filter(
         (/** @type {import('./ast').AstNode} */ property)=>property.type==='Property');
       if(isMathRoot(source)&&properties.some(
@@ -590,7 +651,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
        isIntrinsic(node.arguments[0]))intrinsicTouched=true;
   });
   return prototypeTouched?'prototype':regexpTouched?'RegExp match':
-    intrinsicTouched?'intrinsic state':checkHostConfiguration&&entropyTouched?'entropy':
+    intrinsicTouched?'intrinsic state':stackTouched?'error stack':
+    checkHostConfiguration&&entropyTouched?'entropy':
     checkHostConfiguration&&clockTouched?'clock':
     checkHostConfiguration&&configurationTouched?'configuration':null;
 }
