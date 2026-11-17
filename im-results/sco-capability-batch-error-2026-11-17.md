@@ -1,6 +1,6 @@
 # Adversarial SCO capability batch invalid-input semantic counterexample (17 November 2026)
 
-**Status:** predeclared executable regression awaiting pinned cross-platform result. The real-HTTP performance comparison at im-results/sco-capability-http-batch-2026-11-17.md showed a possible server-side optimization with 16 batch inputs. This test asks whether that optimization is semantically transparent when an RPC sequence includes invalid input.
+**Status:** predeclared real-HTTP regression. Initial all-valid plus invalid-item counterexample passed the named test step in both operating systems at source ff5cdb2243da12dbdaeb037a56101bb755d2f91b, [workflow 44151887716](https://github.com/FlareZ123/obfs/actions/runs/44151887716); full run status must be checked separately. A follow-up added an explicit per-item first-error guarded batch and awaits its own immutable cross-platform execution. The prior performance comparison at im-results/sco-capability-http-batch-2026-11-17.md showed possible server-side optimization with 16 batch inputs; it does not certify error semantics.
 
 ## Counterexample hypothesis
 
@@ -22,3 +22,19 @@ The script uses partitionScoAsyncModule, the actual server-only ESM and public e
 ## Security, correctness, performance boundaries
 
 The test does not claim that batch-as-atomic-transaction is defective; a batch and a serial sequence are different public APIs unless equivalence has been proved for the application's required error and cancellation semantics. A successful test constrains deployment of the batch performance result, rather than invalidating its measured all-success timings. Cross-account handle replay, source withholding, cryptographic strength, timeout behavior, request concurrency and full applications are separate. The browser compatibility result, where available, also covers only all-success paths.
+
+## Conditional mitigation: first-error prefix-preserving batch
+
+The next version of the test introduces an explicit alternative private batchPrefix operation. Its HTTP admission checks that the envelope contains a bounded array of safe integers, while the trusted callback checks the admissibility of **each** element before mutating state. It processes valid items in order, stops at the first invalid symbol, and returns an error index plus committed prefix outputs.
+
+The candidate behavior expected for five valid symbols, invalid sixth symbol 2, and an optional valid seventh symbol is:
+
+| Public operation pattern | Committed position after failure | Returned error index | Position after one more valid step |
+| --- | ---: | ---: | ---: |
+| Five serial successful steps, then rejected sixth | 5 | Rejected RPC | 6 |
+| Single whole-batch preauthorization | 0 | Rejected RPC | 1 |
+| Trusted ordered batchPrefix with per-element policy | 5 | 5 | 6 |
+
+The new script asserts all-valid output parity, exact returned prefix outputs, and matching post-error continuation between serial and guarded batch. This is a narrow constructive counterexample to an overbroad claim that all batching must violate serial prefix semantics. It is explicitly **not** equivalence under concurrent third-party mutations, mid-batch external visibility, cancellation or arbitrary exception/transaction behavior. Those conditions would require a richer application contract and additional tests.
+
+The guarded batch's syntactic outer authorization now admits integer 2 as part of its envelope, while the trusted private callback must reject that element before the corresponding private state transition. The test checks that no forbidden step is applied; it does not recommend broad acceptance of arbitrary JSON or executing untrusted callbacks inside the private server. A separate exact JSDoc and real-HTTP CI pin is required before calling this mitigation verified.
