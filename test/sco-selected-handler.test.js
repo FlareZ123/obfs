@@ -109,12 +109,12 @@ test('selective SCO handler rejects copied, mutated, untrusted or misconfigured 
   assert.throws(()=>createScoSelectedHandler(partition,native,{
     ...authorized,routePrefix:'/alternate/'
   }),/RPC endpoint does not match routePrefix/);
-  assert.throws(()=>createScoSelectedHandler(partition,native,{
-    ...authorized,publicPaths:['mixed.mjs']
-  }),/separately authorized server options/);
-  assert.throws(()=>createScoSelectedHandler(partition,native,{
-    ...authorized,remoteMethods:{wrong:()=>0}
-  }),/separately authorized server options/);
+  assert.throws(()=>createScoSelectedHandler(partition,native,
+    /** @type {any} */ ({...authorized,publicPaths:['mixed.mjs']})),
+    /separately authorized server options/);
+  assert.throws(()=>createScoSelectedHandler(partition,native,
+    /** @type {any} */ ({...authorized,remoteMethods:{wrong:()=>0}})),
+    /separately authorized server options/);
   assert.throws(()=>createScoSelectedHandler(partition,{},authorized),
     /Missing executable server export/);
 
