@@ -92,7 +92,7 @@ async function checkFixture(fixture) {
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
   try {
     const address=server.address();
@@ -108,7 +108,7 @@ async function checkFixture(fixture) {
     return {fixture:fixture.name,encodedLiterals:target.metrics.literals,
       attackerRecoveredUses:recovered.literals,native};
   }finally {
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 
