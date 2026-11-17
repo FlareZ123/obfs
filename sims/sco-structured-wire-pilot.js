@@ -118,6 +118,38 @@ async function run(){
   assert.notStrictEqual(restored,cyclic);
   assert.notStrictEqual(restored.refs[0],shared);
 
+  // The package's typed-buffer branch is audited separately; sharing a
+  // backing buffer is more demanding than sharing an ordinary object.
+  const backing=new Uint8Array([1,2,3,4]).buffer;
+  const binary=/** @type {{left:ArrayBuffer,right:ArrayBuffer}} */ (
+    graphWire({left:backing,right:backing}));
+  assert.deepEqual([...new Uint8Array(binary.left)],[1,2,3,4]);
+  assert.deepEqual([...new Uint8Array(binary.right)],[1,2,3,4]);
+  const binaryReferencePreserved=binary.left===binary.right;
+
+  // Never enable an untrusted network deserializer solely on a successful
+  // roundtrip test. A crafted wire type label must be checked for unsafe
+  // dynamic constructors. This harmless custom constructor probe performs
+  // no I/O, changes no prototype and is removed from the global immediately.
+  const probeName='__obfsStructuredWireLocalProbe';
+  let constructorCalls=0;
+  class LocalProbe {
+    /** @param {string} marker */
+    constructor(marker){constructorCalls++;this.marker=marker;}
+  }
+  Object.defineProperty(globalThis,probeName,{
+    configurable:true,value:LocalProbe
+  });
+  try{
+    const probed=deserialize([[probeName,'local-only']]);
+    assert.ok(probed instanceof LocalProbe);
+    assert.equal(probed.marker,'local-only');
+  }finally{
+    Reflect.deleteProperty(globalThis,probeName);
+  }
+  assert.equal(constructorCalls,1,
+    'Parser must reveal its ambient constructor trust boundary');
+
   const rows=[];
   for(const count of [1,32,256,1024]){
     const input=payload(count);
@@ -139,6 +171,7 @@ async function run(){
     node:process.version,platform:process.platform,
     encoder:'@ungap/structured-clone@1.4.0 (serialize/deserialize)',
     graphCounterexamplePreserved:true,crossBoundaryIdentityStillLost:true,
+    binaryReferencePreserved,untrustedConstructorInvocationObserved:constructorCalls===1,
     baseline:'JSON.parse(JSON.stringify(value))',
     measurementBoundary:'in-process serialization, parse, task; no HTTP, browser module load or network',
     rows
