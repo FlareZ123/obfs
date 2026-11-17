@@ -304,6 +304,42 @@ copy costs allocation and CPU proportional to the bounded RPC request graph;
 benchmark the whole authenticated call for the application's 2.5× budget.
 See `test/sco-batch-policy-mutation.test.js` for real-HTTP mutation controls.
 
+### Optional read-only batch argument contract
+
+For registered `createScoBatchMethod` batches with an installed
+`authorizeOperation`, setting `immutableBatchArgs:true` in
+`createScoHandler` shares one deeply frozen parsed JSON argument graph
+among the outer policy callback, every inner policy callback and the batch
+executor. The handler uses an iterative traversal so 5,000-level nested
+valid JSON can be frozen without a recursive call-stack overflow. It avoids
+the two extra `JSON.parse` calls normally used to give each stage a private
+mutable view. The option is disabled by default and requires a configured
+`authorizeOperation` callback. Direct non-batch operations are unaffected.
+
+This is an **explicit restricted-API contract**: every operation in these
+batches must treat its argument graph as read-only. Private methods and
+authorization callbacks that write a nested field, extend an array, change
+a prototype or rely on writable property descriptors are **incompatible**.
+Strict-mode mutations throw: a policy error yields generic HTTP 500 and a
+private batch-method error yields the normal generic per-item failure.
+A non-strict mutation can be silently ignored by JavaScript. Code checking
+`Object.isFrozen` or property descriptors can observe the change even if
+it never writes; integrations must opt in only if those observations are
+outside their API contract. It is not a transparent obfuscation of arbitrary
+mutating programs. With the option disabled, the existing three-independent-
+graph behavior and original mutable private argument semantics remain.
+
+The immutable graph prevents a policy callback from retargeting a previously
+authorized call in the trusted server process. It cannot defend against a
+compromised SCO server, a policy that grants the wrong method, concurrent
+authorization-state changes, or a malicious private method executing unrelated
+server actions. An invalid batch still fails the registered helper's
+validation. The profile at `sims/sco-immutable-batch-profile.js` measures
+two configurations over actual authenticated localhost HTTP requests using
+read-only methods. It does not measure speed relative to native application
+execution or guarantee the 2.5× budget. Compatibility and mutation controls
+are in `test/sco-immutable-batch-args.test.js`.
+
 
 ## Authorization state changes within one batch
 
