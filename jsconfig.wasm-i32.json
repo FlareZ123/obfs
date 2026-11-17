@@ -18,6 +18,7 @@
     "test/function-source-coercion-matrix.test.js",
     "test/string-static-function-source-observer.test.js",
     "test/source-observer-counterfactual-differential.test.js",
+    "test/object-groupby-function-source-observer.test.js",
     "test/wasm-i32-nested-fuzz.test.js",
     "test/wasm-i32-early-cycle.test.js",
     "test/wasm-i32-browser.js",
