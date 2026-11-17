@@ -114,3 +114,63 @@ test('SCO batch retains the submitted argument values when policy mutates anothe
     await stop(server);
   }
 });
+
+test('SCO batch snapshots deeply nested but valid JSON without a clone stack limit',async()=>{
+  let effects=0;
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{batch:createScoBatchMethod({constant:()=>{
+      effects++;
+      return 7;
+    }})},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method)=>method==='batch'||method==='constant'
+  }));
+  const port=await start(server);
+  try{
+    // JSON.parse accepts this 5,000-deep value on the tested Node 22 host.
+    // Native structuredClone throws RangeError for it, despite the input
+    // occupying only ~10 KiB of the default 65,536-byte RPC limit.
+    const deep='['.repeat(5000)+'0'+']'.repeat(5000);
+    const payload='{"method":"batch","args":[[{"method":"constant","args":['+
+      deep+']}]]}';
+    const response=await fetch('http://127.0.0.1:'+port+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},body:payload
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:[{ok:true,value:7}]});
+    assert.equal(effects,1);
+  }finally{
+    await stop(server);
+  }
+});
+
+test('SCO batch JSON snapshot preserves negative zero, overflow number and own proto key',async()=>{
+  const methods={
+    /** @param {unknown[]} value */
+    check:value=>[
+      Object.is(value[0],-0),
+      value[1]===Infinity,
+      Object.hasOwn(value[2],'__proto__'),
+      Object.getPrototypeOf(value[2])===Object.prototype
+    ]
+  };
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{batch:createScoBatchMethod(methods)},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method)=>method==='batch'||method==='check'
+  }));
+  const port=await start(server);
+  try{
+    const payload='{"method":"batch","args":[[{"method":"check",'+
+      '"args":[[-0,1e999,{"__proto__":{"marked":true}}]]}]]}';
+    const response=await fetch('http://127.0.0.1:'+port+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},body:payload
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:[{
+      ok:true,value:[true,true,true,true]
+    }]});
+  }finally{
+    await stop(server);
+  }
+});
