@@ -16,3 +16,19 @@ The positive was changed to export the same three-element local array as data, w
 - The tests prove recovery only for recognized emitted XOR tables in these fixtures. They do **not** recover arbitrary code or prove runtime security, original-name recovery, or a general 2.5× runtime bound.
 
 **Decision rule:** when compiler guard changes cause a source-only attacker test to find no transformed protected work, report a **transformation-coverage change** separately from genuine attacker reconstruction success or failure. Keep at least one generated-and-recognized positive in the attack harness.
+
+
+## Additional direct eligibility matrix (17 November, 01:56 UTC)
+
+A separate [six-fixture differential program](../sims/string-eligibility-matrix.js) was run on unchanged compiler inputs, with the independent static attacker and original/generated/recovered CommonJS execution for each case. The exact [Ubuntu/Windows run 43999219908](https://github.com/FlareZ123/obfs/actions/runs/43999219908) passed at `df43286330e74c2476c2035049dbddb3a2f5cd4c`, including both JSDoc checks. The Ubuntu log recorded:
+
+| Source idiom | Source observer | Encoded literals | Recovered tables / replacement uses |
+|---|---:|---:|---:|
+| Export the local literal array | false | 3 | 1 / 3 |
+| Local array `values.join('::')` | false | 3 | 1 / 3 |
+| Read a local `values[0]` | false | 3 | 1 / 3 |
+| `values[0]+'::'+values[1]` | true | 0 | 0 / 0 |
+| Inline literal array `[...].join('::')` | false | 0 | 0 / 0 |
+| Detached `Array.prototype.join.call(values,'::')` | false | 3 | 1 / 3 |
+
+Every original/generated/recovered execution agreed in this finite matrix. **Correction to the tentative motivation:** the current compiler *does* encode the original local-array `.join()` idiom. Thus the older whole-suite test's zero-table failure cannot be attributed to local `.join()` by itself, and might reflect a previous revision or separate influence. The revised array-data positive is valid and robust, but this matrix does not establish that its simplification repaired an actual current compiler defect. The inline-callee zero is a distinct, independently verified source-spelling guard; the string-addition zero is a separate syntactic primitive-provenance refusal. Any source-observation fix requires its own hostile negative control and a pinned paired test, rather than inferring cause from the prior full-suite failure.
