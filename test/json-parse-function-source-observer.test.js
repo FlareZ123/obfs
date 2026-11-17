@@ -44,6 +44,18 @@ const cases=[
     invocation:'decoder.parse(protectedLabel)'},
   {name:'JSON parse global destructure',
     declaration:'const {parse:decode}=globalThis.JSON;',
+    invocation:'decode(protectedLabel)'},
+  {name:'JSON.rawJSON direct',
+    declaration:'',
+    invocation:'JSON.rawJSON(protectedLabel)'},
+  {name:'JSON.rawJSON alias',
+    declaration:'const decode=JSON.rawJSON;',
+    invocation:'decode(protectedLabel)'},
+  {name:'JSON.rawJSON destructured',
+    declaration:'const {rawJSON:decode}=JSON;',
+    invocation:'decode(protectedLabel)'},
+  {name:'JSON.rawJSON bound alias',
+    declaration:'const decode=JSON.rawJSON.bind(JSON);',
     invocation:'decode(protectedLabel)'}
 ];
 
@@ -56,14 +68,17 @@ function source(declaration,invocation) {
     ';return "unexpected-success";}catch(error){return error.message;}};';
 }
 
-test('native JSON.parse error text is a concrete function-source observer',()=>{
+test('native JSON.parse and rawJSON errors reveal function-source text',()=>{
   const original=source('','JSON.parse(protectedLabel)');
   const different=original.replaceAll('protectedLabel','changedFunction');
   assert.notEqual(execute(original),execute(different));
   assert.match(execute(original),/function/u);
+  const raw=source('','JSON.rawJSON(protectedLabel)');
+  assert.notEqual(execute(raw),execute(raw.replaceAll('protectedLabel','changedFunction')));
+  assert.match(execute(raw),/function/u);
 });
 
-test('JSON.parse source-observation guards direct and alias native coercion',()=>{
+test('JSON.parse and JSON.rawJSON source-observation guards direct and aliases',()=>{
   for(const item of cases) {
     const original=source(item.declaration,item.invocation);
     assert.equal(observesFunctionSource(parse(original,'commonjs')),true,
@@ -80,9 +95,9 @@ test('JSON.parse source-observation guards direct and alias native coercion',()=
   }
 });
 
-test('JSON.parse with proven primitive input does not block ordinary transforms',()=>{
+test('JSON.parse and JSON.rawJSON with proven primitive input preserve transformation',()=>{
   const source='"use strict";function active(x){return x^37;}'+
-    'JSON.parse("1");module.exports=active;';
+    'JSON.parse("1");JSON.rawJSON("1");module.exports=active;';
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false);
   const emitted=obfuscateFiles([{path:'main.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',seed:'json-parse-primitive-positive',closedWorld:true,
