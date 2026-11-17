@@ -166,6 +166,66 @@ require a strict per-record schema and allowlist, plus memory/CPU bounds
 and adversarial fuzzing, before choosing this dependency. The pilot
 deliberately avoids altering production parsing.
 
+## First reproduced quantitative verdict, pinned Node 22
+
+The first amended pilot **passed as an evidence-collection job** on
+Ubuntu and Windows in [manual Actions run
+44018781413](https://github.com/FlareZ123/obfs/actions/runs/44018781413),
+exact commit `e027aed2a83e018bf7b49df2cf45260ca0342ec6`.
+Both platform logs include `SCO_DEVALUE_WIRE_PILOT` and
+`SCO_STRUCTURED_WIRE_PILOT` JSON objects with every sample and
+a separately reported semantic verdict. The workflow did not include
+the later Chromium profiling step.
+
+**@ungap 1.4.0: reject as a general untrusted SCO JSON-wire
+replacement.** On both platforms the cyclic and ordinary shared
+object references, `undefined`, `-0` and `BigInt` were restored,
+but `NaN` was not restored after JSON stringification.
+Duplicated references to the same `ArrayBuffer` returned distinct
+buffers. The local crafted type-tag probe invoked the harmless
+globally registered constructor once. These are measured outcomes,
+not merely suspicions from the tagged source. No production server
+used this decoder.
+
+**devalue 6.0.3: narrower graph compatibility success, major hot
+runtime-budget failure.** On both platforms its pinned script
+successfully asserted cycles, shared plain and binary references,
+`NaN`, `-0`, `undefined`, `BigInt` and refusal of an unknown
+type without invoking a harmless ambient constructor. Its decoded
+objects still had distinct identities from the originals.
+
+The following are **median paired ratios of devalue wire plus task to
+direct native task**, with 9 samples per variant. The prescribed
+threshold is 2.5. Counts describe records per call. Measurements
+exclude HTTP and browser loading.
+
+| Records per call | Workload | Ubuntu paired median | Windows paired median | 2.5× decision |
+| ---: | --- | ---: | ---: | --- |
+| 1 | small state task | 58.13× | 67.93× | exceeded, both |
+| 1 | task plus 25k integer rounds | 1.12× | 1.15× | supported, both |
+| 32 | small state task | 600.58× | 757.18× | exceeded, both |
+| 32 | task plus 25k integer rounds | 2.39× | 2.93× | inconclusive Ubuntu, exceeded Windows |
+| 256 | task plus 25k integer rounds | 12.02× | 14.74× | exceeded, both |
+| 1024 | task plus 25k integer rounds | 54.56× | 64.19× | exceeded, both |
+
+The diagnostic's attained one-sided median coverage is
+98.046875% with nine pairs, exceeding its requested 95%; the full
+bound and individual observations are available in the Actions logs.
+One profile meeting 2.5× does not qualify the codec as a
+general replacement. At 1024 records, the bare JSON representation
+was 57,797 bytes and devalue's representation 77,182 bytes
+on this fixture. For the 32-record heavy task, Ubuntu's upper paired
+median bound was 2.79× despite a median below 2.5×, which is why its
+decision remains inconclusive.
+
+**Decision at this checkpoint:** Retain production SCO JSON value
+transport; do not promote either experimental graph format as
+general-purpose semantic parity or budget compliance. A more
+selective strategy might place serialization only around sparse,
+large, inherently private operations, but that still needs honest
+browser cold and real HTTP cost evidence. The separate Chromium
+experiment was authored after the above pin and is pending.
+
 ## Reproduction
 
 Manually dispatch
