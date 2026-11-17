@@ -21,7 +21,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
       - name: Reconstruct renamed cross-file keys and verify executable parity
-        run: node --test test/attacker-normalizer-destructure.test.js test/attacker-token-normalize.test.js test/public-token-normalizer.test.js
+        run: node --test test/attacker-normalizer-destructure.test.js test/attacker-token-normalize.test.js test/public-token-normalizer.test.js test/public-normalizer-provenance-grid.test.js
       - name: Independently recover string-table literals from real emitted JavaScript
         run: node --test test/static-string-recovery.test.js
       - name: Compare emitted string eligibility and attacker-recovered parity
