@@ -162,3 +162,59 @@ test('private source input getters are read once for closure and deployment comm
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+test('selective SCO snapshots option-array slots and coherent private-name metadata',()=>{
+  let namesRead=0;
+  let importRead=0;
+  let namesOptionRead=0;
+  let importOptionRead=0;
+  /** @type {string[]} */
+  const names=[];
+  Object.defineProperty(names,0,{
+    enumerable:true,configurable:true,
+    get(){
+      namesRead++;
+      return namesRead===1?'protectedDigest':'local';
+    }
+  });
+  names.length=1;
+  Object.defineProperty(names,Symbol.iterator,{value:()=>{
+    throw new Error('privateNames must not use caller iterator');
+  }});
+  /** @type {string[]} */
+  const imports=[];
+  Object.defineProperty(imports,0,{
+    enumerable:true,configurable:true,
+    get(){
+      importRead++;
+      return importRead===1?'./private/engine.mjs':'./other.mjs';
+    }
+  });
+  imports.length=1;
+  Object.defineProperty(imports,Symbol.iterator,{value:()=>{
+    throw new Error('privateModuleImports must not use caller iterator');
+  }});
+  const options={
+    seed:'sco-option-snapshot-20261117',
+    get privateNames(){
+      namesOptionRead++;
+      return namesOptionRead===1?names:['local'];
+    },
+    get privateModuleImports(){
+      importOptionRead++;
+      return importOptionRead===1?imports:[];
+    },
+    privateModuleSources:[engine,leaf]
+  };
+  const partition=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:source
+  },options);
+  assert.deepEqual(partition.privateNames,['protectedDigest']);
+  assert.deepEqual(partition.names,['protectedDigest']);
+  assert.deepEqual(partition.clientFile.privateModulePaths,
+    ['private/engine.mjs','private/leaf.mjs']);
+  assert.equal(namesOptionRead,1);
+  assert.equal(importOptionRead,1);
+  assert.equal(namesRead,1);
+  assert.equal(importRead,1);
+});
