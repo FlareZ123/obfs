@@ -116,8 +116,11 @@ from `src/index.js` to compare those commitments with the exact UTF-8 bytes on
 disk. The verifier resolves filesystem realpaths, refuses symlink targets
 outside the selected root, and rejects modified or missing source files. It
 runs once during trusted-server initialization and adds no request-time
-overhead. This check is a separate, **opt-in deployment preflight**; the
-compiler itself does not read the server filesystem.
+overhead. Each supplied digest-array index and each `{path,sha256}` record is
+read once before validation and byte comparison; caller-overridden array
+iterators cannot omit a declared private module during verification. This check
+is a separate, **opt-in deployment preflight**; the compiler itself does not
+read the server filesystem.
 
 The preflight does not make an untrusted or concurrently writable filesystem
 tamper-resistant. Verify before loading the original server module, keep
