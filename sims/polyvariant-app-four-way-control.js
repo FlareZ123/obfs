@@ -17,7 +17,7 @@ const {build}=require('../examples/polyvariant-app/build.cjs');
 /** @typedef {'native'|'minified'|'published'|'reconstructed'} Variant */
 /** @typedef {{path:string,code:string}[]} Graph */
 /** @typedef {{kind:string,payload:string}[]} Events */
-/** @typedef {{output:string,emitted:number,ms:number}} Session */
+/** @typedef {{output:string,emitted:number,trace:unknown[],ms:number}} Session */
 const names=['math.mjs','state.mjs','entry.mjs'];
 
 /** @param {Graph} graph @returns {string} */
@@ -47,9 +47,10 @@ async function materialize(folder,graph){
 async function execute(folder,records){
   const started=performance.now();
   const app=await import(pathToFileURL(path.join(folder,'entry.mjs')).href);
-  let emitted=0;
-  const output=app.runScenario(-817,records,{emit(){emitted++;}});
-  return {output,emitted,ms:performance.now()-started};
+  /** @type {unknown[]} */
+  const trace=[];
+  const output=app.runScenario(-817,records,{emit(value){trace.push(value);}});
+  return {output,emitted:trace.length,trace,ms:performance.now()-started};
 }
 /**
  * Separate the compiler/minifier construction phase from application timing.
@@ -145,10 +146,14 @@ async function runEvidence(){
           const current=await execute(paths[variant][trial],records);
           assert.equal(current.emitted,count,
             'External callback count differs: '+variant+'/'+count);
+          assert.deepEqual(current.trace,JSON.parse(current.output).trace,
+            'Emitted host callback values differ from output: '+variant+'/'+count);
           if(expected){
             assert.equal(current.output,expected.output,
               'Full application state differs: '+variant+'/'+count);
             assert.equal(current.emitted,expected.emitted);
+            assert.deepEqual(current.trace,expected.trace,
+              'External callback trace differs: '+variant+'/'+count);
           }else expected=current;
           timings[variant].push(current.ms);
         }
