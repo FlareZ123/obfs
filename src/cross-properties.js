@@ -181,10 +181,15 @@ function collectImportedFunctionArrays(files) {
           Boolean(element&&hasFunction(element.type==='SpreadElement'?
             element.argument:element,depth+1)));
       }
+      if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+         ['Set','Map'].includes(node.callee.name))
+        return hasFunction(node.arguments[0],depth+1);
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
         const owner=node.callee.object;
         const method=node.callee.computed?staticString(node.callee.property):
           node.callee.property.type==='Identifier'?node.callee.property.name:null;
+        if(['values','keys','entries'].includes(method??'')&&
+           hasFunction(owner,depth+1))return true;
         if(owner.type==='Identifier'&&owner.name==='Array') {
           if(method==='from')return hasFunction(node.arguments[0],depth+1)||
             mapperReturnsFunction(node.arguments[1],depth+1);
@@ -219,7 +224,7 @@ function collectImportedFunctionArrays(files) {
     do {
       changed=false;
       for(const [name,value] of candidates) {
-        if((value.type==='ArrayExpression'||value.type==='CallExpression')&&
+        if(['ArrayExpression','CallExpression','NewExpression'].includes(value.type)&&
              hasFunction(value) ||
            value.type==='Identifier'&&arrays.has(value.name)) {
           markArray(name);
@@ -236,7 +241,8 @@ function collectImportedFunctionArrays(files) {
           const method=node.callee.computed?staticString(node.callee.property):
             node.callee.property.type==='Identifier'?node.callee.property.name:null;
           const inserted=method==='splice'?node.arguments.slice(2):
-            ['push','unshift','fill'].includes(method??'')?node.arguments:[];
+            method==='set'?node.arguments.slice(1):
+            ['push','unshift','fill','add'].includes(method??'')?node.arguments:[];
           if(inserted.some((/** @type {AstNode} */ argument)=>
              hasFunction(argument.type==='SpreadElement'?argument.argument:argument))) {
             markArray(node.callee.object.name);
