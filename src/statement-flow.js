@@ -82,9 +82,10 @@ function buildFlow(statements,next,blocks,source,depth=0) {
  * @param {string} seed
  * @param {Set<string>} used
  * @param {boolean} [compactCases]
+ * @param {boolean} [denseStateIds]
  * @returns {string}
  */
-function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false){
+function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false,denseStateIds=false){
   const hash=/** @param {string} label @returns {Buffer} */ label=>
     createHash('sha256').update(seed).update('\0').update(name).update('\0').update(label).digest();
   let collision=0;
@@ -94,13 +95,23 @@ function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false){
   used.add(state);
   /** @type {number[]} */
   const ids=[];
-  const taken=new Set();
-  for(let i=0;i<blocks.length+1;i++){
-    let suffix=0;
-    let id=hash('state/'+i+'/'+suffix).readUInt32LE(0);
-    while(taken.has(id))id=hash('state/'+i+'/'+(++suffix)).readUInt32LE(0);
-    taken.add(id);
-    ids.push(id);
+  if(denseStateIds){
+    // Opt-in state-number permutation: the public states are still seeded
+    // and case order still shuffled, but V8 may dispatch a small, dense
+    // integer switch more efficiently than sparse 32-bit hash labels.
+    const permutation=Array.from({length:blocks.length+1},(_,i)=>i);
+    permutation.sort((a,b)=>
+      hash('dense-state/'+a).readUInt32LE(0)-hash('dense-state/'+b).readUInt32LE(0)||a-b);
+    ids.push(...permutation);
+  }else{
+    const taken=new Set();
+    for(let i=0;i<blocks.length+1;i++){
+      let suffix=0;
+      let id=hash('state/'+i+'/'+suffix).readUInt32LE(0);
+      while(taken.has(id))id=hash('state/'+i+'/'+(++suffix)).readUInt32LE(0);
+      taken.add(id);
+      ids.push(id);
+    }
   }
   const exit=ids[blocks.length];
   /** @param {number} index @returns {number} */
@@ -154,7 +165,7 @@ function emitFlow(blocks,entry,directives,name,seed,used,compactCases=false){
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[],compactCases?:boolean}} options
+ * @param {{seed:string,names:string[],compactCases?:boolean,denseStateIds?:boolean}} options
  * @returns {StatementFlowResult}
  */
 function flattenStatementFlow(source,sourceType,options){
@@ -213,7 +224,8 @@ function flattenStatementFlow(source,sourceType,options){
     const entry=buildFlow(fn.body.body.slice(first),-1,blocks,source);
     // Control-flow flattening of straight-line code does not justify overhead.
     if(entry===null||!blocks.some(block=>block.kind==='test')||blocks.length<4){declined++;continue;}
-    const code=emitFlow(blocks,entry,directives,name,options.seed,used,options.compactCases===true);
+    const code=emitFlow(blocks,entry,directives,name,options.seed,used,
+      options.compactCases===true,options.denseStateIds===true);
     edits.push({start:fn.body.start,end:fn.body.end,text:code});
     functions++;
     blocksCount+=blocks.length;
