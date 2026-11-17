@@ -26,7 +26,9 @@ function loadCompiler(root) {
  * @returns {string}
  */
 function recoverOriginal(published) {
-  const importUrl=/data:text\/css;base64,([A-Za-z0-9+/=]+)/iu.exec(String(published));
+  const normalized=String(published).replace(/&#(?:x([0-9a-f]+)|([0-9]+));/giu,
+    (_whole,hex,decimal)=>String.fromCodePoint(Number.parseInt(hex??decimal,hex===undefined?10:16)));
+  const importUrl=/data:text\/css;base64,([A-Za-z0-9+/=]+)/iu.exec(normalized);
   assert.ok(importUrl);
   const nested=Buffer.from(importUrl[1],'base64').toString('utf8');
   const map=/sourceMappingURL=data:application\/json;base64,([A-Za-z0-9+/=]+)/iu.exec(nested);
@@ -122,6 +124,17 @@ async function compare(previousRoot,currentRoot) {
       /SVG asset contains embedded XML stylesheet data URL/u);
     svgPiModes.push({mode,extracted:true,refused:true});
   }
+  const escapedSvg=svg.replace('href="data:text/css','href="&#x64;&#97;ta&#58;text/css');
+  /** @type {File} */
+  const escapedAsset={path:'encoded.svg',sourceType:'asset',code:Buffer.from(escapedSvg)};
+  const encodedPublished=previous.obfuscateFiles([entry,escapedAsset],{
+    mode:'coo',seed:'xml-pi-encoded-source-leak',strings:false
+  }).files.find(file=>file.path==='encoded.svg');
+  assert.ok(encodedPublished);
+  assert.equal(recoverOriginal(encodedPublished.code),original);
+  assert.throws(()=>current.obfuscateFiles([entry,escapedAsset],{
+    mode:'coo',seed:'xml-pi-encoded-source-leak',strings:false
+  }),/SVG asset contains embedded XML stylesheet data URL/u);
   const svgResponse=await publishedCssOverHttp(previous.createScoHandler([svgAsset]),'/obfs/icon.svg');
   assert.equal(svgResponse.status,200);
   assert.equal(recoverOriginal(svgResponse.body),original);
