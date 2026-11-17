@@ -130,6 +130,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       confidenceAttainedAtLeast:familywise.familywiseCoverageAtLeast,
       perTailConfidenceRequested:familywise.perTailConfidenceRequested,
       comparisons:familywise.comparisons,
+      observedMaxPairedRatio:familywise.observedMaxPairedRatio,
+      observedOverBudgetPairs:familywise.observedOverBudgetPairs,
+      observedSampleHasOverBudgetPair:familywise.observedSampleHasOverBudgetPair,
       workloads:[
         ...cooBudget.map(row=>({mode:'coo',events:row.events})),
         ...scoBudget.map(row=>({mode:'sco',events:row.events}))
