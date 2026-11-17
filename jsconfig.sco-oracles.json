@@ -20,7 +20,8 @@
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js",
     "test/sco-capability-public-oracle.test.js",
-    "sims/sco-capability-granularity.js"
+    "sims/sco-capability-granularity.js",
+    "sims/sco-capability-http-batch.js"
   ],
   "exclude": [
     "node_modules"
