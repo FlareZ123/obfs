@@ -40,6 +40,24 @@ The three-way cost result has a specific interpretation: deferred compiling unus
 - Test deployment-shaped SNO whole-session cost, with explicit separation of eligible server initialization from charged runtime.
 - Do not claim this improves static reconstruction, runtime extraction, tamper resistance, or lock integrity; all those axes require separate attacker evidence.
 
+## SNO charged-runtime falsifier
+
+The earlier 'cold session' benchmark included module parsing/evaluation, which SNO may deduct from the runtime ceiling. In contrast, **first-use compilation inside the protected function is runtime and must be charged**. The independent `sims/wasm-i32-commonjs-runtime-budget.js` excludes all module loading/initialization from the timer, then measures **1, 16, 256, 4,096 and 65,536 calls** on a fresh exported function. For each selected-function count 1/8/24 and each workload, 21 rotated-order fresh sessions compare native, eager and deferred under the same source/seed; checksums match exactly.
+
+**[Focused green run 44103538152](https://github.com/FlareZ123/obfs/actions/runs/44103538152), source SHA `4a0fe5484849d96775dcf6652de2bd773fd73468`**, passed both OSes, strict typecheck and Ubuntu Chromium CSP tests. The following are descriptive median deferred/native **ratio-of-medians** ranges across the three selected-function counts:
+
+| Charged calls | Windows 1/8/24 selected | Ubuntu 1/8/24 selected | Outcome |
+| --- | --- | --- | --- |
+| 1 | 20.0–29.5× | 25.2–30.9× | violates 2.5× |
+| 16 | 19.5–25.6× | 22.0–22.8× | violates 2.5× |
+| 256 | 7.53–11.25× | 8.16–8.86× | violates 2.5× |
+| 4,096 | 1.54–2.54× | 1.59–2.51× | some violate 2.5× |
+| 65,536 | 1.67–1.89× | 1.62–1.71× | medians under 2.5× in these samples |
+
+Every one of the **21 paired ratios** in each 1-call and 16-call configuration exceeded 2.5×; for 256 calls, **19–21** pairs exceeded. All 65,536-call paired ratios were below 2.5× in these selected samples. At 4,096 calls, some configurations and samples exceeded, so a simple call-count crossover cannot be globally declared. Short process-clock samples have measurement noise and JIT/host variability, but the repeated large violation across independent runner platforms is a strong falsifier for this selected configuration, within the stated benchmark boundaries.
+
+**Candidate decision: reject deferred CommonJS compilation for unbounded SNO deployments under the hard 2.5× runtime ceiling.** This experiment provides **no security benefit** compared to eager compilation, while delaying work into charged runtime. The public CLI/API flag remains explicitly experimental/opt-in only; its availability is not an assurance of budget conformance. Default eager compilation must remain the deployment baseline, and short-use applications must not opt into deferral. Retain the alternative implementation and sample evidence in `im-results/` for engineering research; do not present cold-start savings as an SNO runtime-budget pass. Independent whole-application and long-run evidence would be needed before any context-specific positive choice.
+
 ## Additional static-adversary control
 
-A subsequent source-only test, `test/wasm-i32-deferred-static-recovery.test.js`, asks the existing independent `sims/wasm-i32-static-recover.js` attacker to recover two public binaries across 16 varied seeds and reassemble a native CommonJS equivalent for 16,384 held-out typed comparisons. The old eager-only *full-module* rewriter must decline the new wrapper syntax; that narrow tool mismatch must never be marketed as improved obfuscation. This new regression remains pending a separate exact-SHA focused run.\n
+A subsequent source-only test, `test/wasm-i32-deferred-static-recovery.test.js`, asks the existing independent `sims/wasm-i32-static-recover.js` attacker to recover two public binaries across 16 varied seeds and reassemble a native CommonJS equivalent for 16,384 held-out typed comparisons. The old eager-only *full-module* rewriter must decline the new wrapper syntax; that narrow tool mismatch must never be marketed as improved obfuscation. The new source-only regression was green across both platforms in [run 44102830155](https://github.com/FlareZ123/obfs/actions/runs/44102830155), pinned at `32dcb8f4c5e72947d42b7648faad7d69f0671dcd`, including Ubuntu's real Chromium/CSP and strict JSDoc checks.\n
