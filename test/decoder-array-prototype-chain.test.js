@@ -6,6 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
+const {createHash}=require('node:crypto');
 const {atomicWrite}=require('../src/atomic');
 const {obfuscateFiles}=require('../src');
 
@@ -40,28 +41,36 @@ function graph(mutation) {
   ];
 }
 
-for(const mode of /** @type {const} */ (['sno','coo'])) {
-  test('inherited Array index setter must disable chunked string decoding: '+mode,async()=>{
-    const files=graph([
-      'const shim={get 0(){return 0;},set 0(value){}};',
-      'Array.prototype.__proto__=shim;'
-    ].join(''));
-    const generated=obfuscateFiles(files,{
-      mode,seed:'inherited-array-index-setter/'+mode,properties:false,
-      identifiers:false,strings:true
+const accessor='const shim={get 0(){return 0;},set 0(value){}};';
+for(const [name,mutate] of [
+  ['direct','Array.prototype.__proto__=shim;'],
+  ['aliased','const proto=Array.prototype;proto.__proto__=shim;'],
+  ['computed',"Array.prototype['__proto__']=shim;"]
+]) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('inherited Array index setter must disable chunked decoding: '+name+'/'+mode,async()=>{
+      const files=graph(accessor+mutate);
+      const generated=obfuscateFiles(files,{
+        mode,seed:'inherited-array-index-setter/'+name+'/'+mode,properties:false,
+        identifiers:false,strings:true
+      });
+      const target=generated.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-array-proto-decoder-'));
+      try{
+        const native=await execute(path.join(root,'native'),files);
+        const emitted=await execute(path.join(root,'generated'),generated.files);
+        assert.equal(native,'A'.repeat(2048)+'Z');
+        assert.equal(emitted.charCodeAt(0),native.charCodeAt(0),
+          'First chunk may not read inherited Array[0]');
+        assert.equal(createHash('sha256').update(emitted).digest('hex'),
+          createHash('sha256').update(native).digest('hex'),
+          'Chunked decoder must preserve the full original literal');
+        assert.equal(target.metrics.literals,0,
+          'Compiler must refuse decoder after an Array prototype chain write');
+      }finally{await fs.rm(root,{recursive:true,force:true});}
     });
-    const target=generated.files.find(file=>file.path==='target.cjs');
-    assert.ok(target);
-    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-array-proto-decoder-'));
-    try{
-      const native=await execute(path.join(root,'native'),files);
-      const emitted=await execute(path.join(root,'generated'),generated.files);
-      assert.equal(native,'A'.repeat(2048)+'Z');
-      assert.equal(emitted,native,'Decoder may not rely on inherited Array indices');
-      assert.equal(target.metrics.literals,0,
-        'Compiler must refuse decoder when another file mutates Array prototype chain');
-    }finally{await fs.rm(root,{recursive:true,force:true});}
-  });
+  }
 }
 
 test('ordinary graph still emits a working chunked decoder',async()=>{
