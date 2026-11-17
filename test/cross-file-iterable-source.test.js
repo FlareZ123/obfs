@@ -80,6 +80,31 @@ test('ESM Map function key stringifies through imported keys iterator',()=>{
   assert.throws(()=>protect(files),/(?:source observation|declined)/i);
 });
 
+
+for(const [name,tail,body] of [
+  ['Set inserted through for-of binding',
+    'export const values=new Set();for(const fn of [protectedSum])values.add(fn);',
+    'console.log(Array.from(values).join(","));'],
+  ['Set inserted through forEach callback',
+    'export const values=new Set();[protectedSum].forEach(fn=>values.add(fn));',
+    'console.log([...values].join(","));'],
+  ['Map populated through for-of binding',
+    'export const values=new Map();for(const fn of [protectedSum])values.set(1,fn);',
+    'console.log(Array.from(values.values()).join(","));']
+]) {
+  test('ESM '+name+' exposes protected function source',()=>{
+    assert.throws(()=>protect(graph(tail,body)),/(?:source observation|declined)/i);
+  });
+}
+
+test('ESM primitive-only for-of Set inserts preserve protected work',()=>{
+  const files=graph(
+    'export const values=new Set();for(const n of [1,2,3])values.add(n);',
+    'console.log(Array.from(values).join(","));');
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
