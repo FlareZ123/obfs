@@ -90,6 +90,15 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,31);
   assert.equal(summary.performance.crossModeFamilywise.observedSampleHasOverBudgetPair,true);
   assert.equal(summary.performance.crossModeFamilywise.observedMaxPairedRatio,4.2);
+  const strict=summary.performance.crossModeFamilywise.strictTail;
+  assert.equal(strict.confidenceRequested,0.95);
+  assert.equal(strict.perWorkloadConfidenceRequested,0.995);
+  assert.equal(strict.upperViolationRateWhenZero.length,10);
+  assert.equal(strict.upperViolationRateWhenZero[0],null,'COO short-session overbudget');
+  assert.equal(strict.upperViolationRateWhenZero[4],null,'SNO short-session overbudget');
+  assert.equal(strict.upperViolationRateWhenZero[8],null,'SCO light-session overbudget');
+  assert.ok(strict.upperViolationRateWhenZero[1]!==null);
+  assert.ok(strict.upperViolationRateWhenZero[9]!==null);
   assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
     ['coo','coo','coo','coo','sno','sno','sno','sno','sco','sco']);
   assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);

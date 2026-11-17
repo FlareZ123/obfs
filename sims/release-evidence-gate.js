@@ -141,6 +141,10 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       observedMaxPairedRatio:familywise.observedMaxPairedRatio,
       observedOverBudgetPairs:familywise.observedOverBudgetPairs,
       observedSampleHasOverBudgetPair:familywise.observedSampleHasOverBudgetPair,
+      // A simultaneous binomial bound on future breach frequency when zero
+      // strict breaches were observed in a given workload. This differs from
+      // confidence on the population median and cannot prove a worst-case cap.
+      strictTail:familywise.strictTail,
       workloads:[
         ...cooBudget.map(row=>({mode:'coo',events:row.events})),
         ...snoBudget.map(row=>({mode:'sno',events:row.events})),
