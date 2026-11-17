@@ -23,7 +23,9 @@ const observers=[
   {name:'String.raw tagged template',code:
     'module.exports=String.raw`before${f}after`.includes("a^17");'},
   {name:'String Symbol.iterator function receiver',code:
-    'module.exports=Array.from(String.prototype[Symbol.iterator].call(f)).join("").includes("a^17");'}
+    'module.exports=Array.from(String.prototype[Symbol.iterator].call(f)).join("").includes("a^17");'},
+  {name:'Object.groupBy Function callback key',code:
+    'module.exports=Object.keys(Object.groupBy([1],()=>f))[0].includes("a^17");'}
 ];
 
 test('source rewrite alone measurably changes native source-text observers in the absence of their companion guard',()=>{
