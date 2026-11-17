@@ -17,6 +17,21 @@ const {createScoHandler}=require('./sco');
 const generatedSelectiveSnapshots=new WeakMap();
 
 /**
+ * Copy the declared numeric array slots without invoking caller-controlled
+ * map, iterator or species methods. An accessor at each slot is read once.
+ * @template T
+ * @param {T[]|undefined} source
+ * @returns {T[]|undefined}
+ */
+function snapshotOptionArray(source){
+  if(!Array.isArray(source))return source;
+  /** @type {T[]} */
+  const result=[];
+  for(let index=0;index<source.length;index++)result.push(source[index]);
+  return result;
+}
+
+/**
  * Uncomputed object and member keys are property labels, not variable reads.
  * Shorthand properties still visit their separate value nodes as references.
  * @param {import('./ast').AstNode|null} parent
@@ -829,6 +844,23 @@ function partitionScoSelectedAsyncExports(file,options) {
     file={path:file.path,code:file.code,sourceType:file.sourceType};
   }
   const sourceInputs=options?.privateModuleSources;
+  if(options&&typeof options==='object'){
+    // Each supported configuration property and every array element becomes
+    // one authoritative compiler input, including the returned metadata.
+    // This prevents option accessors changing private/public name selection
+    // after validation or changing the effective server import allowlist.
+    options={
+      privateNames:/** @type {string[]} */ (snapshotOptionArray(options.privateNames)),
+      publicHelperNames:snapshotOptionArray(options.publicHelperNames),
+      privateModuleImports:snapshotOptionArray(options.privateModuleImports),
+      additionalPrivateModulePaths:snapshotOptionArray(options.additionalPrivateModulePaths),
+      privateModuleSources:sourceInputs,
+      allowServerEnvConstants:options.allowServerEnvConstants,
+      allowServerImports:options.allowServerImports,
+      seed:options.seed,endpoint:options.endpoint,
+      batch:options.batch,maxBatchCalls:options.maxBatchCalls
+    };
+  }
   if(!file||typeof file.code!=='string'||typeof file.path!=='string'||
       (file.sourceType!==undefined&&file.sourceType!=='module')||
       file.code.startsWith('#!')||!options||!Array.isArray(options.privateNames)||
