@@ -80,7 +80,7 @@ test('source-only label normalization has a documented external API collision li
    * @returns {string}
    */
   function run(code){
-    const context={module:{exports:null},HOST:{[field]:31}};
+    const context={module:{exports:null},HOST:{[field]:31,api:{[field]:43}}};
     vm.runInNewContext(code,context,{timeout:1000});
     return JSON.stringify(context.module.exports);
   }
@@ -94,6 +94,13 @@ test('source-only label normalization has a documented external API collision li
   assert.equal(run(guarded.files[0].code),'[17,31]',
     'The unbound HOST API receiver cannot be relabeled');
   assert.ok(guarded.files[0].code.includes('HOST.'+field));
+  const nested=source.replace('HOST.'+field,'HOST.api.'+field);
+  const nestedGuarded=normalizePublicFields([
+    {path:'nested.cjs',sourceType:'commonjs',code:nested}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(nestedGuarded.properties,1);
+  assert.equal(run(nestedGuarded.files[0].code),'[17,43]');
+  assert.ok(nestedGuarded.files[0].code.includes('HOST.api.'+field));
 });
 
 test('free-root guard still normalizes same public label across relative ESM imports',()=>{
