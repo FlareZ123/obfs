@@ -61,6 +61,9 @@ test('ordinary external CSS imports and inline image data remain byte-exact',()=
       assert.deepEqual(result.files.find(file=>file.path===filename)?.code,Buffer.from(candidate));
     }
   }
+  assert.equal(typeof createScoHandler([
+    {path:'safe.css',sourceType:'asset',code:Buffer.from(css)}
+  ]),'function');
   assert.equal(hasUnauditedCssDataImport('.x::after{content:"@import data:text/css,unsafe"}'),false);
   assert.equal(hasUnauditedCssDataImport('/*@import "data:text/css,unsafe";*/.x{color:blue}'),false);
 });
