@@ -34,7 +34,10 @@ async function startServer(options={}){
   if(typeof token!=='string'||token.length<12)
     throw new TypeError('Demo bearer token is too short');
   const graph=await build();
-  globalThis.window={externalValue};
+  // The trusted Node fixture deliberately supplies a minimal browser-like
+  // host capability rather than a complete DOM Window.
+  globalThis.window=/** @type {Window & typeof globalThis} */ (
+    /** @type {unknown} */ ({externalValue}));
   const source=await import(pathToFileURL(path.join(ROOT,EXPOSED)).href);
   const registry=bindScoGraphExports(graph,{[EXPOSED]:source});
   const expected=Buffer.from(token,'utf8');
@@ -51,13 +54,14 @@ async function startServer(options={}){
     authorizeRpc:authorize,
     authorizeOperation:(request,method,args)=>authorize(request)&&
       allowedMethod.has(method)&&args.length===2&&
+      typeof args[0]==='number'&&typeof args[1]==='number'&&
       Number.isInteger(args[0])&&args[0]>=0&&args[0]<=0xffffffff&&
       Number.isInteger(args[1])&&args[1]>=0&&args[1]<=150000
   });
   const server=http.createServer(handler);
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(port,host,()=>resolve());
+    server.listen(port,host,()=>resolve(undefined));
   });
   const address=server.address();
   if(!address||typeof address==='string')throw Error('Missing TCP address');
