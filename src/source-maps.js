@@ -30,20 +30,24 @@ function isUntransformedSourceAsset(filename) {
 
 /**
  * Recognize a UTF-16 JSON object prefix without decoding arbitrary binary
- * assets. Only ASCII JSON whitespace and the opening brace are consulted.
- * A leading encoding BOM is optional; both byte orders are supported.
+ * assets. ECMAScript leading whitespace, including repeated U+FEFF,
+ * can precede the opening brace. A BOM is optional in either byte order.
  * @param {Buffer} bytes
  * @returns {'utf-16le'|'utf-16be'|null}
  */
 function utf16JsonEncoding(bytes) {
-  /** @param {'utf-16le'|'utf-16be'} encoding @param {number} start */
+  /**
+   * @param {'utf-16le'|'utf-16be'} encoding
+   * @param {number} start
+   * @returns {boolean}
+   */
   function startsObject(encoding,start){
     for(let index=start;index+1<bytes.length;index+=2){
-      const value=encoding==='utf-16le'?bytes[index]:bytes[index+1];
-      const other=encoding==='utf-16le'?bytes[index+1]:bytes[index];
-      if(other!==0)return false;
+      const value=encoding==='utf-16le'
+        ?bytes[index]|(bytes[index+1]<<8)
+        :(bytes[index]<<8)|bytes[index+1];
       if(value===0x7b)return true;
-      if(value!==0x20&&value!==0x09&&value!==0x0a&&value!==0x0d)return false;
+      if(String.fromCharCode(value).trimStart().length!==0)return false;
     }
     return false;
   }
@@ -72,11 +76,14 @@ function isSourceMapDocument(code) {
       // map JSON as text; only positively recognized JSON objects are refused.
       text=new TextDecoder(utf16).decode(code);
     }else{
-      let index=code[0]===0xef && code[1]===0xbb && code[2]===0xbf ? 3 : 0;
-      while (index<code.length &&
-          (code[index]===0x20 || code[index]===0x09 ||
-           code[index]===0x0a || code[index]===0x0d)) index++;
-      if (code[index]!==0x7b) return false;
+      // A source-map JSON object may begin with any whitespace removed by
+      // String#trimStart, including repeated UTF-8 BOMs and non-ASCII Unicode
+      // spaces. Reject images quickly based on the possible first UTF-8 byte.
+      const first=code[0];
+      if(first!==0x7b&&first!==0x20&&!(first>=0x09&&first<=0x0d)&&
+          first!==0xc2&&first!==0xe1&&first!==0xe2&&first!==0xe3&&first!==0xef){
+        return false;
+      }
       text=code.toString('utf8');
     }
   }else{
