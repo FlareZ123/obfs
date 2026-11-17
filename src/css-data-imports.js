@@ -1,7 +1,5 @@
 'use strict';
 
-const cssTree=require('css-tree');
-
 /**
  * A data: URL in an @import rule is an additional stylesheet embedded within
  * otherwise audited CSS. Its source-map comments and contents are outside
@@ -16,6 +14,8 @@ const cssTree=require('css-tree');
  * @returns {boolean}
  */
 function hasUnauditedCssDataImport(code) {
+  // No CSS parsing dependency is loaded for JavaScript-only compiles.
+  const cssTree=require('css-tree');
   const source=Buffer.isBuffer(code)
     ? new TextDecoder('utf-8',{fatal:true}).decode(code) : code;
   if(source.includes('\0'))throw new TypeError('CSS asset contains NUL bytes');
