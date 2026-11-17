@@ -57,3 +57,29 @@ test('derived primitive-only arrays preserve protected function transformation',
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
   assert.deepEqual(execute(String(emitted.files[0].code)),execute(source));
 });
+
+for(const [name,body] of [
+  ['map returns function from numeric carrier',
+    'const values=[0,1].map(()=>protectedSum);module.exports=values.join(",");'],
+  ['map block returns function from numeric carrier',
+    'const values=[0].map(()=>{return protectedSum;});module.exports=values.join(",");'],
+  ['flatMap returns function array',
+    'const values=[0].flatMap(()=>[protectedSum]);module.exports=values.join(",");'],
+  ['Array.from maps numeric source to function',
+    'const values=Array.from([0],()=>protectedSum);module.exports=values.join(",");']
+]) {
+  test('array mapping callback '+name+' leaks exact function source',()=>{
+    const source=protectedSource()+body;
+    assert.match(String(execute(source)),/function protectedSum\(input\)/);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i);
+  });
+}
+
+test('primitive-only mapper callback retains unrelated protected function',()=>{
+  const source=protectedSource()+
+    'const values=Array.from([1,2,3],value=>value+1);'+
+    'module.exports=[protectedSum(8),values.join(",")];';
+  const emitted=obfuscate(source);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+  assert.deepEqual(execute(String(emitted.files[0].code)),execute(source));
+});
