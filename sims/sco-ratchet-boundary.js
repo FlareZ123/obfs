@@ -5,6 +5,8 @@ const http=require('node:http');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {randomBytes,createHash,createHmac}=require('node:crypto');
 const {performance}=require('node:perf_hooks');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
 const {createScoHandler,createScoKeyedIsolation,createScoRpcClientSource}=require('../src');
 
 const WORK=Buffer.alloc(8*1024*1024,0x5b);
@@ -144,17 +146,27 @@ async function experiment(){
     assert.doesNotMatch(source,/ratchet-step-v1|createHmac|privateMachine|8\*1024\*1024/u);
     assert.doesNotMatch(source,new RegExp(root.toString('hex'),'u'));
 
+    // A separate Node process fetches and executes the actual generated ESM
+    // facade with only its Account A credential. Its B guesses simply reuse
+    // legitimate A outputs, independently confirming online forwarding.
+    const child=await promisify(execFile)(process.execPath,[
+      require.resolve('./sco-ratchet-public-attacker'),trusted.base,tokenA
+    ],{timeout:60000,maxBuffer:1024*1024});
+    const attack=/** @type {{publicSha256:string,guessesForB:string[]}} */
+      (JSON.parse(child.stdout));
+    assert.equal(attack.publicSha256,createHash('sha256').update(source).digest('hex'));
+    assert.equal(attack.guessesForB.length,32);
+
     let ownMatches=0,crossMatches=0,replayDenials=0,
       malformedDenials=0,unauthorizedDenials=0;
     for(let index=0;index<32;index++){
       const input=challenge('held-out',index);
-      const a=await invoke(trusted.base,tokenA,index,input);
+      const aValue=attack.guessesForB[index];
       const b=await invoke(trusted.base,tokenB,index,input);
-      assert.equal(a.status,200);
       assert.equal(b.status,200);
-      if(a.value===native.advance('account-A',index,input))ownMatches++;
+      if(aValue===native.advance('account-A',index,input))ownMatches++;
       assert.equal(b.value,native.advance('account-B',index,input));
-      if(a.value===b.value)crossMatches++;
+      if(aValue===b.value)crossMatches++;
       if((await invoke(trusted.base,tokenA,index,input)).status===403)replayDenials++;
       if((await invoke(trusted.base,tokenA,index,input,[index,input,'account-B'])).status===403)malformedDenials++;
       if((await invoke(trusted.base,undefined,index,input)).status===403)unauthorizedDenials++;
@@ -231,7 +243,7 @@ async function experiment(){
       publishedSourceSha256:createHash('sha256').update(source).digest('hex'),
       publishedSourceBytes:Buffer.byteLength(source),
       protectedWorkBytesPerCall:WORK.length,
-      ownAccountMatched:ownMatches,
+      independentAOnlyRuntimeMatches:ownMatches,
       heldoutCrossAccountCollisions:crossMatches,
       replayDenials,malformedDenials,unauthorizedDenials,
       sameAccountForwardedMatches:forwardedMatches,
