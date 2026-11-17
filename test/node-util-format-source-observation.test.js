@@ -37,8 +37,8 @@ function compare(body,kind) {
   assert.equal(typeof native,'string');
   assert.equal(typeof emitted,'string');
   if(kind==='error') {
-    const nativeFrame=String(native).match(/util-source-observer\\.cjs:1:\\d+/);
-    const emittedFrame=String(emitted).match(/util-source-observer\\.cjs:1:\\d+/);
+    const nativeFrame=String(native).match(/util-source-observer\.cjs:1:\d+/);
+    const emittedFrame=String(emitted).match(/util-source-observer\.cjs:1:\d+/);
     assert.ok(nativeFrame,String(native));
     assert.equal(emittedFrame?.[0],nativeFrame[0]);
   } else {
