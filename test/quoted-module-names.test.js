@@ -20,7 +20,8 @@ async function compare(files) {
     const input = path.join(root, 'input');
     const output = path.join(root, 'output');
     const transformed = obfuscateFiles(files.map(file => ({...file,sourceType:'module'})), {
-      mode:'coo',seed:'quoted-exports-regression',properties:false,identifiers:false,strings:true
+      mode:'coo',seed:'quoted-exports-regression',closedWorld:true,
+      properties:false,identifiers:false,strings:true
     }).files;
     for (const file of files) await atomicWrite(path.join(input,file.path),file.code);
     for (const file of transformed) await atomicWrite(path.join(output,file.path),file.code);
