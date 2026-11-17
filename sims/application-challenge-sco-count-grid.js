@@ -37,7 +37,7 @@ async function invoke(args){
 }
 
 /**
- * Nine fixed, preregistered computational granularities across the same
+ * Eight fixed, preregistered computational granularities across the same
  * frozen application. Alternating native/remote order reduces systematic
  * run-order bias, but does not make noisy CI samples independent.
  * @returns {Promise<void>}
