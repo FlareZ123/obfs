@@ -1,0 +1,140 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
+const {runEvidence:runCooEvidence}=require('./polyvariant-app-three-way-budget');
+const {runEvidence:runSnoEvidence,profile:profileSno}=require('./polyvariant-app-sno');
+
+const execFileAsync=promisify(execFile);
+
+/**
+ * A bounded verdict, deliberately avoiding any implication that a finite
+ * compatibility run or an unattempted attack establishes hostile-runtime
+ * security. These are observations about three concrete applications.
+ *
+ * @typedef {'demonstrated-compromise'|'unmeasured'} AttackVerdict
+ * @typedef {'sample-supported'|'sample-exceeded'|'sample-inconclusive'} BudgetVerdict
+ */
+
+/**
+ * @param {Array<{decision:string}>} samples
+ * @returns {BudgetVerdict}
+ */
+function sampleVerdict(samples){
+  if(samples.some(sample=>sample.decision==='exceeded'))return 'sample-exceeded';
+  if(samples.length && samples.every(sample=>sample.decision==='supported'))
+    return 'sample-supported';
+  return 'sample-inconclusive';
+}
+
+/**
+ * Keep provenance and security dimensions separate. The COO and SNO
+ * implementations are tested on the same frozen three-module stateful
+ * application; SCO uses the established six-module private-service fixture.
+ *
+ * @param {Awaited<ReturnType<typeof runCooEvidence>>} coo
+ * @param {Awaited<ReturnType<typeof runSnoEvidence>>} sno
+ * @param {Awaited<ReturnType<typeof profileSno>>} snoProfile
+ * @param {{semanticsPreserved:boolean,heavy:{count:number,ratio:number,pairedMedianBound:{decision:string}},light:{count:number,ratio:number,pairedMedianBound:{decision:string}},measuredBoundary:string,caveat:string}} sco
+ * @returns {object}
+ */
+function summarizeEvidence(coo,sno,snoProfile,sco){
+  assert.equal(coo.functionRecovery,3,'COO control must exercise three protected functions');
+  assert.equal(sno.selectedFunctions,3,'SNO control must exercise three protected functions');
+  assert.equal(sno.staticComparisons,12288,'SNO held-out control must actually run');
+  assert.equal(coo.rows.length,4,'COO must include short and sustained sessions');
+  assert.equal(snoProfile.length,4,'SNO must include short and sustained sessions');
+  assert.equal(sco.semanticsPreserved,true,'SCO relay must retain expected semantics');
+  const cooBudget=coo.rows.map(row=>({
+    events:row.events,ratioOfMedians:row.publishedVsNative.ratioOfMedians,
+    oneSidedMedianDecision:row.publishedVsNative.decision,
+    upperMedianBound:row.publishedVsNative.upperMedianBound,
+    recoveredToPublishedMedianRatio:row.ratioReconstructedToPublishedMedians,
+    pairs:row.publishedVsNative.samplePairs
+  }));
+  const snoBudget=snoProfile.map(row=>({
+    events:row.events,ratioOfMedians:row.ratio,
+    oneSidedMedianDecision:'not-computed'
+  }));
+  const scoBudget=[['light',sco.light],['heavy',sco.heavy]].map(([label,data])=>({
+    workload:label,events:data.count,ratioOfMedians:data.ratio,
+    oneSidedMedianDecision:data.pairedMedianBound.decision
+  }));
+  const attackEvidence={
+    coo:{
+      verdict:coo.functionRecovery===3?'demonstrated-compromise':'unmeasured',
+      entry:'public-only source reconstruction',recoveredFunctions:coo.functionRecovery,
+      graphHashes:coo.sourceHashes,heldoutApplicationParity:true,
+      sourceExtraction:false,originalPrivateSourceUsedByAttacker:false
+    },
+    sno:{
+      verdict:sno.offlineClone&&sno.staticRecovered===sno.selectedFunctions&&
+        sno.runtimeHooked?'demonstrated-compromise':'unmeasured',
+      entry:'public-only reconstruction, signed-manifest rewrite and ESM runtime hook',
+      selectedFunctions:sno.selectedFunctions,recoveredFunctions:sno.staticRecovered,
+      heldoutComparisons:sno.staticComparisons,
+      offlineClone:sno.offlineClone,directEsmClone:sno.directEsmClone,
+      manifestForged:sno.manifestForged,runtimeHooked:sno.runtimeHooked,
+      runtimeDiskMutations:sno.runtimeDiskMutations
+    },
+    sco:{
+      verdict:sco.semanticsPreserved?'demonstrated-compromise':'unmeasured',
+      entry:'authorized-token remote facade relay reproduces service outputs',
+      privateSourceExtraction:'not-measured',
+      unauthorizedTokenBypass:'not-measured',
+      sameAccountFunctionalReplay:sco.semanticsPreserved,
+      measurementBoundary:sco.measuredBoundary
+    }
+  };
+  const performance={
+    coo:{verdict:sampleVerdict(cooBudget.map(row=>({
+      decision:row.oneSidedMedianDecision}))),rows:cooBudget,
+      boundary:'module graph loaded anew per trial; Node process reused'},
+    sno:{verdict:'sample-inconclusive',rows:snoBudget,
+      boundary:'fresh Node child processes; descriptive median ratios only'},
+    sco:{verdict:sampleVerdict(scoBudget.map(row=>({
+      decision:row.oneSidedMedianDecision}))),rows:scoBudget,
+      boundary:sco.measuredBoundary,caveat:sco.caveat}
+  };
+  const failedSecurity=Object.entries(attackEvidence).filter(([,value])=>
+    value.verdict==='demonstrated-compromise').map(([name])=>name);
+  return {
+    verdict:'RELEASE-BLOCKED',
+    reason:'At least one attack demonstrably preserves unauthorized copies or authorized service replay; no general 2.5x or hostile-runtime proof is available',
+    attackedModes:failedSecurity,
+    attackEvidence,performance,
+    note:'Finite sampled security and timing observations. Source secrecy, functional cloning, runtime control, compatibility, and performance are independent requirements. The test does not establish a universal 2.5x bound.'
+  };
+}
+
+/**
+ * Execute existing adversarial controls and paired application profiles
+ * sequentially to avoid corrupting timing evidence with parallel workloads.
+ * @returns {Promise<ReturnType<typeof summarizeEvidence>>}
+ */
+async function run(){
+  const coo=await runCooEvidence();
+  const sno=await runSnoEvidence();
+  const snoProfile=await profileSno(7);
+  const worker=path.join(__dirname,'application-challenge-sco-cold-session.js');
+  const {stdout}=await execFileAsync(process.execPath,[worker],{
+    timeout:240000,maxBuffer:4*1024*1024
+  });
+  const prefix='APPLICATION_SCO_COLD_SESSION ';
+  const line=stdout.split(/\r?\n/u).find(value=>value.startsWith(prefix));
+  if(!line)throw new Error('SCO frozen-service evidence marker unavailable');
+  const sco=JSON.parse(line.slice(prefix.length));
+  const summary=summarizeEvidence(coo,sno,snoProfile,sco);
+  process.stdout.write('CROSS_MODE_RELEASE_EVIDENCE '+JSON.stringify({
+    node:process.version,platform:process.platform,summary
+  })+'\n');
+  return summary;
+}
+
+if(require.main===module)run().catch(error=>{
+  console.error(error);process.exitCode=1;
+});
+
+module.exports={run,summarizeEvidence,sampleVerdict};
