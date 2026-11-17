@@ -96,6 +96,53 @@ function synthesizeAffineClone(publicSource,responses){
   return code;
 }
 
+/**
+ * Recover a distinct arithmetic-progression model for each parity class.
+ * Write x=2*t+r for r in {0,1}; if the function is affine in t within
+ * each residue class, samples f(r) and f(r+2) recover its base and step.
+ * These steps can be any signed Int32, including odd values that no single
+ * globally affine Int32 expression could produce between x and x+2.
+ *
+ * @typedef {{atZero:number,atOne:number,atTwo:number,atThree:number}} ParitySamples
+ * @param {string} publicSource
+ * @param {Record<string,ParitySamples>} responses
+ * @returns {string}
+ */
+function synthesizeParityAffineClone(publicSource,responses){
+  const ast=acorn.parse(publicSource,{ecmaVersion:'latest',sourceType:'module'});
+  /** @type {{start:number,end:number,text:string}[]} */
+  const replacements=[];
+  for(const name of targets){
+    const statement=ast.body.find(item=>
+      item.type==='ExportNamedDeclaration'&&
+      item.declaration?.type==='FunctionDeclaration'&&
+      item.declaration.id?.name===name
+    );
+    const values=responses[name];
+    if(!statement||!values||
+       [values.atZero,values.atOne,values.atTwo,values.atThree].some(
+         value=>!Number.isInteger(value)||(value|0)!==value
+       )){
+      throw new TypeError('Expected four signed Int32 parity oracle responses: '+name);
+    }
+    const evenStep=(values.atTwo-values.atZero)|0;
+    const oddStep=(values.atThree-values.atOne)|0;
+    const evenBase=values.atZero;
+    const oddBase=values.atOne;
+    const text='export function '+name+'(input){const x=input|0;'+
+      'const step=(x&1)?('+oddStep+'):('+evenStep+');'+
+      'const base=(x&1)?('+oddBase+'):('+evenBase+');'+
+      'return ((Math.imul(x>>1,step)+base)|0);}';
+    replacements.push({start:statement.start,end:statement.end,text});
+  }
+  let code=publicSource;
+  for(const edit of replacements.sort((a,b)=>b.start-a.start)){
+    code=code.slice(0,edit.start)+edit.text+code.slice(edit.end);
+  }
+  acorn.parse(code,{ecmaVersion:'latest',sourceType:'module'});
+  return code;
+}
+
 /** @param {string} variant @returns {Promise<Graph>} */
 async function readGraph(variant){
   return Promise.all(files.map(async name=>({
@@ -133,7 +180,9 @@ function records(count){
  *   originalGraphUsedForInference:boolean,attackMs:number,
  *   affineOracleCalls:number,affineSlopes:Record<string,number>,
  *   affineHeldoutFunctionComparisons:number,affineNonlinearNegativeControl:boolean,
- *   publishedBytes:number,nativeBytes:number
+ *   publishedBytes:number,nativeBytes:number,
+ *   parityOracleCalls:number,parityHeldoutFunctionComparisons:number,
+ *   parityNonlinearNegativeControl:boolean,publicValidationQueries:number
  * }>}
  */
 async function runAttack(){
@@ -167,6 +216,16 @@ async function runAttack(){
       affineSlopes[name]=(atOne-offsets[name])|0;
     }
     const affineSource=synthesizeAffineClone(distributed[0].code,affineResponses);
+    /** @type {Record<string,ParitySamples>} */
+    const parityResponses=Object.create(null);
+    for(const name of targets){
+      parityResponses[name]={
+        atZero:offsets[name],atOne:affineResponses[name].atOne,
+        atTwo:publishedMath[name](2),atThree:publishedMath[name](3)
+      };
+    }
+    const paritySource=synthesizeParityAffineClone(distributed[0].code,parityResponses);
+
 
     const cloned=distributed.map(file=>file.path==='math.mjs'?
       {...file,code:cloneSource}:file);
@@ -178,6 +237,33 @@ async function runAttack(){
     const affineDir=path.join(temporary,'affine-clone');
     await materialize(affineDir,affineCloned);
     const affineMath=await loadModule(affineDir);
+    const parityCloned=distributed.map(file=>file.path==='math.mjs'?
+      {...file,code:paritySource}:file);
+    const parityDir=path.join(temporary,'parity-clone');
+    await materialize(parityDir,parityCloned);
+    const parityMath=await loadModule(parityDir);
+    // The attacker can challenge every hypothesis with unseen PUBLIC inputs
+    // before any native source or original function is available. These are
+    // optional validation queries beyond the 3/6/12 fitting-query budgets.
+    let publicValidationQueries=0;
+    for(const name of targets){
+      for(let i=0;i<64;i++){
+        const input=i<7?
+          [-2147483648,-1,0,1,2147483647,0x12345678|0,-0x12345678|0][i]:
+          Math.imul((i+4096)^0x217c8f31,0x9e3779b1)|0;
+        const actual=publishedMath[name](input);
+        publicValidationQueries++;
+        for(const [variant,fn] of [
+          ['translation',clonedMath[name]],
+          ['affine',affineMath[name]],
+          ['parity',parityMath[name]]
+        ]){
+          assert.ok(Object.is(actual,fn(input)),
+            'Public-only model falsified: '+variant+'/'+name+'/'+i);
+        }
+      }
+    }
+
 
     // This is a validation oracle, deliberately introduced after attack
     // synthesis. Neither native bytes nor original functions identify offsets.
@@ -190,6 +276,7 @@ async function runAttack(){
     const originalMath=await loadModule(nativeDir);
     let heldoutFunctionComparisons=0;
     let affineHeldoutFunctionComparisons=0;
+    let parityHeldoutFunctionComparisons=0;
     for(const name of targets){
       for(let i=0;i<4096;i++){
         const input=i<7?
@@ -205,11 +292,16 @@ async function runAttack(){
         assert.ok(Object.is(originalMath[name](input),affineMath[name](input)),
           'Held-out affine original disagrees at '+name+'/'+i);
         affineHeldoutFunctionComparisons++;
+        assert.ok(Object.is(publishedMath[name](input),parityMath[name](input)),
+          'Public-oracle parity-affine clone disagrees at '+name+'/'+i);
+        assert.ok(Object.is(originalMath[name](input),parityMath[name](input)),
+          'Held-out parity-affine original disagrees at '+name+'/'+i);
+        parityHeldoutFunctionComparisons++;
       }
     }
 
     const apps=await Promise.all(
-      [nativeDir,publishedDir,cloneDir,affineDir].map(location=>
+      [nativeDir,publishedDir,cloneDir,affineDir,parityDir].map(location=>
         import(pathToFileURL(path.join(location,'entry.mjs')).href)
       )
     );
@@ -249,13 +341,22 @@ async function runAttack(){
       quadratic(0)===linearGuess(0)&&quadratic(1)===linearGuess(1)&&
       quadratic(2)!==linearGuess(2);
     assert.ok(affineNonlinearNegativeControl);
+    const parityNonlinearNegativeControl=(
+      // For f(x)=x*x, 0 and 2 imply an even-class step of 4;
+      // at x=4 the model predicts 8 and the quadratic returns 16.
+      Math.imul(2,((4-0)|0))!==Math.imul(4,4)
+    );
+    assert.ok(parityNonlinearNegativeControl);
+
 
     return {
       oracleCalls:targets.length,offsets,heldoutFunctionComparisons,
       fullApplicationScenarios,fullApplicationEvents,
       nonlinearNegativeControl,originalGraphUsedForInference:false,attackMs,
       affineOracleCalls:targets.length*2,affineSlopes,
-      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes
+      affineHeldoutFunctionComparisons,affineNonlinearNegativeControl,publishedBytes,nativeBytes,
+      parityOracleCalls:targets.length*4,parityHeldoutFunctionComparisons,
+      parityNonlinearNegativeControl,publicValidationQueries
     };
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
@@ -268,4 +369,4 @@ if(require.main===module){
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 
-module.exports={runAttack,synthesizeTranslationClone,synthesizeAffineClone};
+module.exports={runAttack,synthesizeTranslationClone,synthesizeAffineClone,synthesizeParityAffineClone};

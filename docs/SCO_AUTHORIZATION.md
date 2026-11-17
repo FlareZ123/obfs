@@ -283,6 +283,25 @@ const results=await remote.batch([
 The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. For a batch created by `createScoBatchMethod`, an installed `authorizeOperation` callback runs for the outer batch and **each inner call of an executable, completely validated batch**, before any batch side effects. The helper first checks the batch count against `maxCalls`, the registration of every method, and each arguments array. An invalid or oversized batch skips all inner authorization callbacks and still fails with the helper's generic HTTP 500 before executing any private operation. This avoids issuing unnecessary per-item policy or database checks for work that cannot execute. It intentionally changes the HTTP result for batches that an earlier inner callback would have rejected as HTTP 403; no invalid batch becomes executable. The callback must permit both the batch method and every authorized inner method. Denying a later call blocks execution of the entire batch. An inner policy exception returns a generic HTTP 500 without exposing the exception. Invalid batch structures are still rejected by the batch helper. A batch helper may not be registered inside another batch helper even under a different operation name; this rejects nested recognized helpers whose deeper operations would otherwise bypass the single-level policy preflight. Custom wrappers around batch functions remain outside automatic recognition and must implement their own authorization preflight. Custom batch functions that do not originate from `createScoBatchMethod` have no automatic inner inspection; implement their own preflight authorization. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
 
 
+A recognized batch is now executed from a private snapshot of the parsed
+JSON argument graph, taken before the outer `authorizeOperation` callback.
+The inner authorization callback receives a separate copy of each checked
+call's arguments. The copies use a bounded, iterative JSON-value traversal
+rather than recursive cloning, preserving deeply nested valid JSON as well
+as negative zero and own `__proto__` data keys. A policy callback that edits the outer batch, changes a
+previously approved method name, or overwrites a previously checked argument
+cannot redirect the batch toward an unapproved operation. The execution
+snapshot preserves the JSON-parsed values originally submitted by the client.
+This safeguards accidental policy mutation, while leaving the authorization
+callback responsible for checking the entire submitted operation and applying
+correct identity and state rules. The snapshot does not make permission checks
+atomic with asynchronous external state, does not prevent a legitimate method
+from changing state mid-batch, and does not cancel work already started. The
+copy costs allocation and CPU proportional to the bounded RPC request graph;
+benchmark the whole authenticated call for the application's 2.5× budget.
+See `test/sco-batch-policy-mutation.test.js` for real-HTTP mutation controls.
+
+
 ## Authorization state changes within one batch
 
 The handler checks a recognized batch's outer method and all inner calls **before**

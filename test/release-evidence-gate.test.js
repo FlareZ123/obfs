@@ -29,7 +29,7 @@ function examples(){
         samplePairs:9,confidenceAttained:0.98
       },
       sourceBytes:{native:2467,published:7518,reconstructed:2362},
-      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(1.4),reconstructed:Array(9).fill(1.1)},
+      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(events===1?3.2:1.4),reconstructed:Array(9).fill(1.1)},
       ratioReconstructedToPublishedMedians:0.9
     }))
   };
@@ -87,7 +87,7 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.crossModeFamilywise.comparisons,10);
   assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
   assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
-  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,18);
+  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,27);
   assert.equal(summary.performance.crossModeFamilywise.observedSampleHasOverBudgetPair,true);
   assert.equal(summary.performance.crossModeFamilywise.observedMaxPairedRatio,4.2);
   assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
