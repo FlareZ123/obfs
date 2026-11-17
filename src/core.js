@@ -589,7 +589,15 @@ function obfuscateFiles(files, options = {}) {
     ['Wasm i32',options.experimentalWasmI32],
     ['Polyvariant affine',options.experimentalPolyvariantAffine]
   ];
+  // Keep the validated selection arrays for code generation. This also
+  // prevents a lazy options getter or mutable caller-owned array from
+  // silently dropping the required transformation on a later read.
+  /** @type {Map<string,Map<string,string[]>>} */
+  const selectedFunctionNames=new Map();
   for(const [backend,selections] of selectedFunctionBackends){
+    /** @type {Map<string,string[]>} */
+    const byPath=new Map();
+    selectedFunctionNames.set(backend,byPath);
     if(!selections)continue;
     for(const [selectedPath,names] of Object.entries(selections)){
       if(!Array.isArray(names)){
@@ -598,6 +606,7 @@ function obfuscateFiles(files, options = {}) {
       if(names.length && !knownJavaScript.has(selectedPath)){
         throw new TypeError(backend+' selects missing or non-JavaScript input '+selectedPath);
       }
+      byPath.set(selectedPath,names.slice());
     }
   }
   // Validate the entire published static graph before permitting a host
@@ -681,7 +690,7 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const vmNames=options.experimentalRegisterVm?.[filename]??[];
+    const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -693,7 +702,7 @@ function obfuscateFiles(files, options = {}) {
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const expressionNames=options.experimentalExpressionVm?.[filename]??[];
+    const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -705,7 +714,7 @@ function obfuscateFiles(files, options = {}) {
       expressionVmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const nativeNames=options.experimentalNativeGraph?.[filename]??[];
+    const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -722,7 +731,7 @@ function obfuscateFiles(files, options = {}) {
       nativeGraphInstructions=optimized.instructions;
       ast=parse(code,sourceType);
     }
-    const branchNames=options.experimentalBranchBlocks?.[filename]??[];
+    const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -735,7 +744,7 @@ function obfuscateFiles(files, options = {}) {
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
-    const statementNames=options.experimentalStatementFlow?.[filename]??[];
+    const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
       if(sourceType==='script'||remoteSourceObserver){
@@ -757,7 +766,7 @@ function obfuscateFiles(files, options = {}) {
       statementFlowBlocks=transformed.blocks;
       ast=parse(code,sourceType);
     }
-    const wasmNames=options.experimentalWasmI32?.[filename]??[];
+    const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -781,7 +790,7 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
-    const polyvariantNames=options.experimentalPolyvariantAffine?.[filename]??[];
+    const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
