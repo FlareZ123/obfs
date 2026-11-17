@@ -158,11 +158,36 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     assert.ok(unseen>0);
     assert.ok(actualAttackerRpcCalls<10000);
     assert.ok(revokedTrainingHandles>0);
+
+    // Post-commitment *verifier-only* RPCs ensure that the private model,
+    // generated public facade and learned offline clone agree on inputs
+    // unavailable to the learner. Keep these outside attack query counts.
+    let verifierRpcCalls=0;
+    let liveHeldoutWords=0;
+    for(let index=0;index<64;index++){
+      const value=(Math.imul(index,37)+5)&1023;
+      const word=Array.from({length:10},(_,bit)=>(value>>>(9-bit))&1);
+      assert.equal(usedTrainingWords.has(JSON.stringify(word)),false);
+      const verifierHandle=await publicApi.begin();
+      verifierRpcCalls++;
+      /** @type {number[]} */const observed=[];
+      for(const symbol of word){
+        observed.push(await publicApi.step(verifierHandle,symbol));
+        verifierRpcCalls++;
+      }
+      assert.equal(await publicApi.close(verifierHandle),true);
+      verifierRpcCalls++;
+      assert.deepEqual(observed,learnedTrace(learned.machine,word));
+      assert.deepEqual(observed,privateTrace(machine,word));
+      liveHeldoutWords++;
+    }
+    assert.equal(verifierRpcCalls,768);
     console.log(JSON.stringify({
       model:'four-state-binary-Mealy',publicSha256,
       attackerRpcCalls:actualAttackerRpcCalls,
       abstractLearnerCalls:learned.requests,
       revokedTrainingHandles,defaultPrincipalQuota:256,
+      verifierRpcCalls,liveHeldoutWords,
       inferredStates:learned.machine.access.length,
       heldoutWords:checked,strictlyUnseenWords:unseen,
       unauthenticatedStatus:denied.status,
