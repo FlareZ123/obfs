@@ -75,7 +75,13 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
   }));
   const snoBudget=snoProfile.map(row=>({
     events:row.events,ratioOfMedians:row.ratio,
-    oneSidedMedianDecision:'not-computed'
+    oneSidedMedianDecision:row.pairedBound.decision,
+    samplePairs:row.pairedBound.samplePairs,
+    lowerMedianBound:row.pairedBound.lowerMedianBound,
+    upperMedianBound:row.pairedBound.upperMedianBound,
+    oneSidedConfidenceAttained:row.pairedBound.confidenceAttained,
+    medianOfPairedRatios:row.pairedBound.medianOfPairedRatios,
+    rawTimingMs:row.rawTimingMs
   }));
   const scoBudget=(/** @type {Array<['light'|'heavy',ScoWorkload]>} */ ([
     ['light',sco.light],['heavy',sco.heavy]
@@ -117,10 +123,12 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
       boundary:'module graph loaded anew per trial; Node process reused'},
-    sno:{verdict:'sample-inconclusive',rows:snoBudget,
+    sno:{verdict:sampleVerdict(snoBudget.map(row=>({
+      decision:row.oneSidedMedianDecision
+    }))),rows:snoBudget,
       descriptiveOverBudgetEvents:snoBudget.filter(row=>
         row.ratioOfMedians>2.5).map(row=>row.events),
-      boundary:'fresh Node child processes; descriptive median ratios only'},
+      boundary:'fresh Node child process per paired sample; one-sided bound on median paired ratios, not all possible sessions'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
