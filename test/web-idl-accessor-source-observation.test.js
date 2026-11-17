@@ -40,6 +40,8 @@ const sourceCases=[
   ['Request.headers destructuring','(()=>{const request=new Request("https://example.test/");const {headers}=request;headers.append("x-observed",inspect);return headers.get("x-observed");})()'],
   ['Response.headers destructuring','(()=>{const response=new Response("plain");const {headers}=response;headers.set("x-observed",inspect);return headers.get("x-observed");})()'],
   ['URL.searchParams destructuring','(()=>{const url=new URL("https://example.test/");const {searchParams}=url;searchParams.append("x",inspect);return searchParams.get("x");})()'],
+  ['Request.headers assignment destructuring','(()=>{const request=new Request("https://example.test/");let headers;({headers}=request);headers.append("x-observed",inspect);return headers.get("x-observed");})()'],
+  ['URL.searchParams assignment destructuring','(()=>{const url=new URL("https://example.test/");let params;({searchParams:params}=url);params.append("x",inspect);return params.get("x");})()'],
   ['Request.headers global ctor alias','(()=>{const {Request:R}=globalThis;const request=new R("https://example.test/");request.headers.append("x-observed",inspect);return request.headers.get("x-observed");})()'],
   ['URL.searchParams global ctor alias','(()=>{const U=globalThis.URL;const url=new U("https://example.test/");url.searchParams.append("x",inspect);return url.searchParams.get("x");})()'],
   ['Request.headers computed property','(()=>{const request=new Request("https://example.test/");const key="headers";request[key].append("x-observed",inspect);return request.headers.get("x-observed");})()'],
