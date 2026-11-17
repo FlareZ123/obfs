@@ -74,6 +74,13 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/polyvariant-app-three-way-browser.js
+      - name: Validate cold Chromium schedule and clock-control construction
+        run: node --test test/polyvariant-app-cold-browser-plan.test.js
+      - name: Cold Chromium full-graph import, execution and callback budget
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/polyvariant-app-cold-browser.js
       - name: JSDoc static check
         run: npm run typecheck
       - name: JSDoc static check of execution-coverage experiment
