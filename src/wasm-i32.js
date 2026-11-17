@@ -282,17 +282,12 @@ function lowerWasmI32Functions(source,sourceType,options) {
       JSON.stringify(binary)+'))).exports.f';
     const helperParameters=names.length===1?'input':names.map((_,i)=>'input'+i).join(',');
     const callParameters=names.join(',');
-    if(sourceType==='module') {
-      // A cyclic importer may call this exported function before this
-      // module's body has evaluated. A hoisted function binding exists during
-      // module instantiation, whereas an eager const helper is still in TDZ.
-      // Replace the helper with the Wasm export on its first invocation so
-      // subsequent hot calls have no per-call initialization branch.
-      init.push('function '+helper+'('+helperParameters+'){'+helper+'='+instance+
-        ';return '+helper+'('+helperParameters+');}');
-    } else {
-      init.push('const '+helper+'='+instance+';');
-    }
+    // Hoisting preserves cyclic ESM calls and CommonJS top-level calls.
+    // Defer Wasm compilation until a protected function actually runs, so
+    // unused CommonJS functions add no eager compilation cost at startup.
+    // The helper replaces its own binding with the Wasm export on first use.
+    init.push('function '+helper+'('+helperParameters+'){'+helper+'='+instance+
+      ';return '+helper+'('+helperParameters+');}');
     const unsigned=resultKind(expression)==='unsigned';
     edits.push({start:fn.body.start,end:fn.body.end,
       text:'{return '+(unsigned?'('+helper+'('+callParameters+')>>>0)':
