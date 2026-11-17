@@ -30,8 +30,8 @@ const source=[
 
 /** @param {string} code @returns {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */
 function load(code){
-  return /** @type {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */
-    (vm.runInNewContext(code+'\n;f;'));
+  const fn=vm.runInNewContext(code+'\n;f;');
+  return /** @type {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} */ (fn);
 }
 
 /** @param {(value:number,flag:boolean,hook:(tag:string)=>void)=>number} fn @param {number} value @param {boolean} flag */
