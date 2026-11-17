@@ -107,7 +107,13 @@ function staticString(node,depth=0){
 function collectDirectCarrierFactories(ast) {
   /** @type {Map<string,number[]>} */
   const factories=new Map();
+  /** @type {Array<{alias:string,source:string}>} */
+  const aliases=[];
   walk(ast,node=>{
+    if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+       node.init?.type==='Identifier') {
+      aliases.push({alias:node.id.name,source:node.init.name});
+    }
     /** @type {string|undefined} */
     let name;
     /** @type {AstNode|undefined} */
@@ -138,11 +144,32 @@ function collectDirectCarrierFactories(ast) {
         for(let index=0;index<fn.params.length;index++) {
           const param=fn.params[index];
           if(param?.type==='Identifier'&&param.name===inner.name)indices.add(index);
+          if(param?.type==='AssignmentPattern' &&
+             param.left?.type==='Identifier'&&param.left.name===inner.name) {
+            indices.add(index);
+            // A default can supply an observable function when the passed
+            // argument is missing or evaluates to undefined.
+            indices.add(-1);
+          }
         }
       });
     }
     if(indices.size)factories.set(name,[...indices]);
   });
+  let changed;
+  do {
+    changed=false;
+    for(const {alias,source} of aliases) {
+      const sourceIndices=factories.get(source);
+      if(!sourceIndices)continue;
+      const prior=factories.get(alias)??[];
+      const merged=[...new Set([...prior,...sourceIndices])];
+      if(merged.length>prior.length) {
+        factories.set(alias,merged);
+        changed=true;
+      }
+    }
+  }while(changed);
   return factories;
 }
 
@@ -321,8 +348,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
       const indices=directCarrierFactories.get(node.callee.name);
       if(indices?.some(index=>{
+        if(index===-1)return true;
         const value=node.arguments[index];
-        if(!value)return false;
+        if(!value)return true;
         const argument=value.type==='SpreadElement'?value.argument:value;
         return isFunctionValue(argument)||containsFunction(argument,depth+1);
       }))return true;
