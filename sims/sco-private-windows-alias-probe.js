@@ -72,14 +72,14 @@ async function probe(sample) {
         ]));
         publicationAdmitted=true;
         try {
-          await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+          await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
           const address=server.address();
           assert.ok(address&&typeof address!=='string');
           const encoded=aliasPath.split('/').map(encodeURIComponent).join('/');
           const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/'+encoded);
           publicStatus=response.status;
         }finally{
-          await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+          await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
         }
       }catch(error){
         if(!(error instanceof TypeError)||!/must not serve private source/u.test(error.message)){
