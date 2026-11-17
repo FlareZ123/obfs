@@ -58,6 +58,17 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.attackEvidence.sno.runtimeHooked,true);
   assert.equal(summary.attackEvidence.sco.unauthorizedTokenBypass,'not-measured');
   assert.equal(summary.attackEvidence.sco.privateSourceExtraction,'not-measured');
+  assert.equal(summary.securityAxes.staticReconstruction.coo,'recovered-selected-functions');
+  assert.equal(summary.securityAxes.staticReconstruction.sno,'recovered-selected-functions');
+  assert.equal(summary.securityAxes.staticReconstruction.sco,
+    'not-measured-private-code-remains-server-side');
+  assert.equal(summary.securityAxes.dynamicInstrumentation.coo,'not-measured');
+  assert.equal(summary.securityAxes.dynamicInstrumentation.sno,'owner-loader-substitution');
+  assert.equal(summary.securityAxes.unauthorizedModification.sno,'public-manifest-forged');
+  assert.equal(summary.securityAxes.environmentControl.sco,
+    'unauthorized-token-bypass-not-measured');
+  assert.equal(summary.securityAxes.authorizedServiceRelay.sco,
+    'legitimate-token-relay-reproduces-output');
   assert.equal(summary.performance.coo.verdict,'sample-exceeded');
   assert.equal(summary.performance.sno.verdict,'sample-inconclusive');
   assert.equal(summary.performance.sco.verdict,'sample-exceeded');
