@@ -15,7 +15,7 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 /** @typedef {'native'|'emitted'|'reconstructed'} Variant */
 /** @typedef {{path:string,code:string}} File */
 /** @typedef {File[]} Graph */
-/** @typedef {{a:number,b:number,c:number,d:number,label:string}} Record */
+/** @typedef {{a:number,b:number,c:number,d:number,label:string}} InputRecord */
 /** @typedef {{ms:number,outputHash:string,callbackHash:string,callbacks:number}} Session */
 
 /** @type {Graph} */
@@ -33,7 +33,7 @@ const original=[
 /** @param {string} value @returns {string} */
 function sha256(value){return createHash('sha256').update(value).digest('hex');}
 
-/** @param {number} count @returns {Record[]} */
+/** @param {number} count @returns {InputRecord[]} */
 function records(count){
   const boundaries=[-2147483648,-1,0,1,31,32,2147483647,0x12345678];
   return Array.from({length:count},(_,i)=>({
@@ -50,7 +50,7 @@ async function materialize(folder,graph){
   for(const file of graph)await atomicWrite(path.join(folder,file.path),file.code);
 }
 
-/** @param {string} folder @param {Record[]} input @returns {Promise<Session>} */
+/** @param {string} folder @param {InputRecord[]} input @returns {Promise<Session>} */
 async function execute(folder,input){
   /** @type {{value:number,label:string}[]} */
   const observed=[];
