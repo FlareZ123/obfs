@@ -44,6 +44,15 @@ test('Wasm name section exposes exact original function name to a public-byte at
   const published=Buffer.from(found[0]);
   assert.equal(published.includes(Buffer.from(privateName)),true);
   assert.equal(hasWasmDebugMetadata(wasm),true);
+  // This fixture uses ASCII-only binary bytes and survives UTF-8 emission.
+  const textBacked=wasm.toString('utf8');
+  assert.deepEqual(Buffer.from(textBacked,'utf8'),wasm);
+  assert.equal(hasWasmDebugMetadata(textBacked),true);
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+    assert.throws(()=>obfuscateFiles([
+      entry,{path:'text-backed.wasm',sourceType:'asset',code:textBacked}
+    ],{mode}),/WebAssembly debug metadata/,mode+' string-backed');
+  }
   for(const path of ['module.wasm','module.bin','module.dat']) {
     for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       assert.throws(()=>obfuscateFiles([
