@@ -37,8 +37,7 @@ function names, CommonJS and ESM spelling variants, and the positive
 primitive-inspection transform. The source-pinned manual workflow is
 `.github/workflows/manual-implicit-console-source.yml`; its combined
 console/util run [44097808187](https://github.com/FlareZ123/obfs/actions/runs/44097808187)
-was **queued** on branch `agent50/node-util-console-observation-20261117`
-at exact `70fbf4e73267f88381093f6a7cf44d747b7404cc` when first documented.
+**passed** on branch `agent50/node-util-console-observation-20261117` at exact `70fbf4e73267f88381093f6a7cf44d747b7404cc`, including both JSDoc gates. Expanded source and native red controls passed independently on combined [run 44099889002](https://github.com/FlareZ123/obfs/actions/runs/44099889002) at exact `ddf5a8bea0c04678e8288b8cf59296c1e364c4cd`.
 
 ## Direct Node call-site API
 
