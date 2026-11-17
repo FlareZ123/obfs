@@ -11,7 +11,7 @@ const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 /** @typedef {{result:number,hotMs:number,processMs:number}} Measure */
-/** @typedef {{iterations:number,nativeProcessMs:number,emittedProcessMs:number,processRatio:number,nativeHotMs:number,emittedHotMs:number,hotRatio:number,within2point5:boolean}} SessionRow */
+/** @typedef {{iterations:number,protectedMemberReads:number,nativeProcessMs:number,emittedProcessMs:number,processRatio:number,nativeHotMs:number,emittedHotMs:number,hotRatio:number,within2point5:boolean}} SessionRow */
 
 /**
  * A closed private owner with two statically proved readers and an explicit
@@ -117,8 +117,12 @@ async function runProfile(samples=7) {
       const emittedHotMs=median(emittedRuns.map(x=>x.hotMs));
       const processRatio=emittedProcessMs/nativeProcessMs;
       const hotRatio=emittedHotMs/nativeHotMs;
-      rows.push({iterations,nativeProcessMs,emittedProcessMs,processRatio,
-        nativeHotMs,emittedHotMs,hotRatio,within2point5:processRatio<=2.5});
+      // The fixed read() body evaluates exactly two private MemberExpressions
+      // per invocation on every path. This source-derived execution count is
+      // distinct from traced CPU work or attacker hardness.
+      rows.push({iterations,protectedMemberReads:iterations*2,
+        nativeProcessMs,emittedProcessMs,processRatio,nativeHotMs,emittedHotMs,
+        hotRatio,within2point5:processRatio<=2.5});
     }
     const report={node:process.version,platform:process.platform,
       renamedFields:transform.crossFile.properties,sourceBytes,emittedBytes,
