@@ -99,6 +99,25 @@ test('native util.inspect reveals unsafe function name rewriting',()=>{
   assert.match(String(rewritten),/Function: x/);
 });
 
+test('Node util.getCallSites reveals source column under an unsafe property rewrite',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "const {getCallSites}=require('node:util');"+
+    "module.exports=[value,getCallSites(1)[0].columnNumber];";
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=JSON.parse(JSON.stringify(run(source)));
+  const rewritten=JSON.parse(JSON.stringify(run(unsafe)));
+  assert.equal(native[0],rewritten[0]);
+  assert.notEqual(native[1],rewritten[1]);
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true);
+  const output=obfuscateFiles([{
+    path:'util-source-observer.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'agent50-get-call-sites',strings:false}).files[0];
+  assert.equal(output.code,source);
+  assert.equal(JSON.stringify(run(output.code)),JSON.stringify(native));
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+});
+
 test('primitive-only native util.inspect preserves positive own-field renaming',()=>{
   const source="'use strict';const tool=require('node:util');"+
     "const owner={distinctivelyLongPrivateField:73};"+
