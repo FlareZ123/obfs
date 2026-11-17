@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "sims/paired-budget-bound.js",
+    "sims/application-challenge-sco-order-stat-reanalysis.js",
     "test/paired-budget-bound.test.js",
     "sims/application-challenge-sco-post-hardening-bootstrap.js"
   ],
