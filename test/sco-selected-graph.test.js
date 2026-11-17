@@ -203,3 +203,34 @@ test('selected SCO handler seals all emitted bytes and requires independent auth
   assert.throws(()=>createScoSelectedGraphHandler(changedMetadata,namespaces,{}),
     /manifest was modified/u);
 });
+
+
+test('selected SCO graph snapshots accessor-backed source records once',()=>{
+  const source='export async function secret(value){return value*3;}'+
+    'export function local(value){return value+2;}';
+  let fileReads=0;
+  let pathReads=0;
+  let codeReads=0;
+  let typeReads=0;
+  const supplied={
+    get path(){pathReads++;return 'owned.mjs';},
+    get code(){codeReads++;return source;},
+    get sourceType(){typeReads++;return /** @type {'module'} */ ('module');}
+  };
+  const unit={
+    get file(){
+      fileReads++;
+      if(fileReads!==1)throw Error('Source record was read more than once');
+      return supplied;
+    },
+    options:{privateNames:['secret'],seed:'single-read-source-owner'}
+  };
+  const graph=partitionScoSelectedGraph([unit]);
+  assert.equal(fileReads,1);
+  assert.equal(pathReads,1);
+  assert.equal(codeReads,1);
+  assert.equal(typeReads,1);
+  assert.deepEqual(graph.exposedPaths,['owned.mjs']);
+  assert.match(graph.clientFiles[0].code,/export function local/u);
+  assert.doesNotMatch(graph.clientFiles[0].code,/value\*3/u);
+});
