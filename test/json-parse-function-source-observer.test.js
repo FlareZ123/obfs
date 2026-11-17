@@ -32,7 +32,19 @@ const cases=[
     invocation:'decoder.parse(protectedLabel)'},
   {name:'JSON.parse via call',
     declaration:'',
-    invocation:'JSON.parse.call(null,protectedLabel)'}
+    invocation:'JSON.parse.call(null,protectedLabel)'},
+  {name:'JSON.parse via apply',
+    declaration:'',
+    invocation:'JSON.parse.apply(null,[protectedLabel])'},
+  {name:'JSON.parse bound alias',
+    declaration:'const decode=JSON.parse.bind(JSON);',
+    invocation:'decode(protectedLabel)'},
+  {name:'JSON namespace global destructure',
+    declaration:'const {JSON:decoder}=globalThis;',
+    invocation:'decoder.parse(protectedLabel)'},
+  {name:'JSON parse global destructure',
+    declaration:'const {parse:decode}=globalThis.JSON;',
+    invocation:'decode(protectedLabel)'}
 ];
 
 /** @param {string} declaration @param {string} invocation @returns {string} */
@@ -46,7 +58,7 @@ function source(declaration,invocation) {
 
 test('native JSON.parse error text is a concrete function-source observer',()=>{
   const original=source('','JSON.parse(protectedLabel)');
-  const different=original.replace('protectedLabel','changedFunction');
+  const different=original.replaceAll('protectedLabel','changedFunction');
   assert.notEqual(execute(original),execute(different));
   assert.match(execute(original),/function/u);
 });
