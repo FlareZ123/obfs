@@ -203,7 +203,7 @@ function moduleBytes(body,arity) {
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[],conditionalStrategy?:'auto'|'select'|'if'}} options
+ * @param {{seed:string,names:string[],conditionalStrategy?:'auto'|'select'|'if',deferCommonJsInitialization?:boolean}} options
  * @returns {WasmI32Result}
  */
 function lowerWasmI32Functions(source,sourceType,options) {
@@ -211,7 +211,9 @@ function lowerWasmI32Functions(source,sourceType,options) {
      !options||typeof options.seed!=='string'||!options.seed||
      !Array.isArray(options.names)||options.names.some(x=>typeof x!=='string')||
       options.conditionalStrategy!==undefined&&
-      !['auto','select','if'].includes(options.conditionalStrategy)) {
+      !['auto','select','if'].includes(options.conditionalStrategy)||
+      options.deferCommonJsInitialization!==undefined&&
+      typeof options.deferCommonJsInitialization!=='boolean') {
     throw new TypeError('Expected source, module type, seed and explicit function names');
   }
   const targets=new Set(options.names);
@@ -282,12 +284,15 @@ function lowerWasmI32Functions(source,sourceType,options) {
       JSON.stringify(binary)+'))).exports.f';
     const helperParameters=names.length===1?'input':names.map((_,i)=>'input'+i).join(',');
     const callParameters=names.join(',');
-    // Hoisting preserves cyclic ESM calls and CommonJS top-level calls.
-    // Defer Wasm compilation until a protected function actually runs, so
-    // unused CommonJS functions add no eager compilation cost at startup.
-    // The helper replaces its own binding with the Wasm export on first use.
-    init.push('function '+helper+'('+helperParameters+'){'+helper+'='+instance+
-      ';return '+helper+'('+helperParameters+');}');
+    if(sourceType==='module'||options.deferCommonJsInitialization===true) {
+      // ESM cyclic calls require a hoisted helper. CommonJS deferred setup
+      // is opt-in because first-call compilation counts toward runtime cost,
+      // while SNO server-only initialization may be amortized separately.
+      init.push('function '+helper+'('+helperParameters+'){'+helper+'='+instance+
+        ';return '+helper+'('+helperParameters+');}');
+    } else {
+      init.push('const '+helper+'='+instance+';');
+    }
     const unsigned=resultKind(expression)==='unsigned';
     edits.push({start:fn.body.start,end:fn.body.end,
       text:'{return '+(unsigned?'('+helper+'('+callParameters+')>>>0)':
