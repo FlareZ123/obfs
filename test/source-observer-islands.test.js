@@ -8,6 +8,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {obfuscateFiles} = require('../src/core');
 const {atomicWrite} = require('../src/atomic');
+const {normalizePublicIsland} = require('../sims/source-island-public-normalizer');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
@@ -76,6 +77,17 @@ test('opt-in isolated ESM property rename preserves watched source and two impor
         'Source island exception must not enable decoder rewriting');
       const expected=await executeEsm(originals);
       assert.equal(await executeEsm(result.files),expected);
+      const emitted=byPath.get('independent.mjs');
+      assert.ok(emitted && typeof emitted.code==='string');
+      const attacker=normalizePublicIsland(/** @type {string} */ (emitted.code));
+      assert.equal(attacker.properties,emitted.metrics.properties,
+        'Source-only attacker should recover each local spelling without the seed');
+      assert.ok(attacker.properties>=1 && attacker.code!==emitted.code);
+      assert.doesNotMatch(attacker.code,/\\b_p[a-f0-9]{10}\\b/u);
+      const neutralized=result.files.map(file=>file.path==='independent.mjs' ?
+        {...file,code:attacker.code} : file);
+      assert.equal(await executeEsm(neutralized),expected,
+        'Public-only neutralized module must preserve the same ESM behavior');
       assert.equal(JSON.parse(expected).source,'function watched(){return valueA;}');
     }
   }
