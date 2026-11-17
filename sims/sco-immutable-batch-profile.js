@@ -31,7 +31,9 @@ async function start(immutableBatchArgs){
     authorizeOperation:(request,method)=>method==='batch'||method==='read'
   });
   const server=createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await listening;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Missing server port');
   return {server,port:address.port};
@@ -96,9 +98,12 @@ async function main(){
       }));
     }
   }finally{
-    await Promise.all([normal,immutable].map(({server})=>
-      new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()))
-    ));
+    await Promise.all([normal,immutable].map(({server})=>{
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve()));
+      return closed;
+    }));
   }
 }
 
