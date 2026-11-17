@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {sampleVerdict,summarizeEvidence}=require('../sims/release-evidence-gate');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('one-sided budget decisions retain failure and uncertainty',()=>{
   assert.equal(sampleVerdict([{decision:'supported'},{decision:'supported'}]),
@@ -24,8 +25,10 @@ function examples(){
         ratioOfMedians:events===1?3.2:1.4,
         decision:events===1?'exceeded':'supported',
         upperMedianBound:events===1?4.1:1.6,
-        samplePairs:9
+        samplePairs:9,confidenceAttained:0.98
       },
+      sourceBytes:{native:2467,published:7518,reconstructed:2362},
+      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(events===1?3.2:1.4),reconstructed:Array(9).fill(1.1)},
       ratioReconstructedToPublishedMedians:0.9
     }))
   };
@@ -39,8 +42,10 @@ function examples(){
   }));
   const sco={
     semanticsPreserved:true,
-    light:{count:1,ratio:4.2,pairedMedianBound:{decision:'exceeded'}},
-    heavy:{count:120000,ratio:2.1,pairedMedianBound:{decision:'supported'}},
+    light:{count:1,ratio:4.2,samples:{native:Array(9).fill(1),remote:Array(9).fill(4.2)},
+      pairedMedianBound:{decision:'exceeded',lowerMedianBound:3.8,upperMedianBound:5.1,confidenceAttained:0.98}},
+    heavy:{count:120000,ratio:2.1,samples:{native:Array(9).fill(10),remote:Array(9).fill(21)},
+      pairedMedianBound:{decision:'supported',lowerMedianBound:1.7,upperMedianBound:2.4,confidenceAttained:0.98}},
     measuredBoundary:'fresh process to result',caveat:'loopback only'
   };
   return [coo,sno,snoProfile,sco];
@@ -58,12 +63,36 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.attackEvidence.sno.runtimeHooked,true);
   assert.equal(summary.attackEvidence.sco.unauthorizedTokenBypass,'not-measured');
   assert.equal(summary.attackEvidence.sco.privateSourceExtraction,'not-measured');
+  assert.equal(summary.securityAxes.staticReconstruction.coo,'recovered-selected-functions');
+  assert.equal(summary.securityAxes.staticReconstruction.sno,'recovered-selected-functions');
+  assert.equal(summary.securityAxes.staticReconstruction.sco,
+    'not-measured-private-code-remains-server-side');
+  assert.equal(summary.securityAxes.dynamicInstrumentation.coo,'not-measured');
+  assert.equal(summary.securityAxes.dynamicInstrumentation.sno,'owner-loader-substitution');
+  assert.equal(summary.securityAxes.unauthorizedModification.sno,'public-manifest-forged');
+  assert.equal(summary.securityAxes.environmentControl.sco,
+    'unauthorized-token-bypass-not-measured');
+  assert.equal(summary.securityAxes.authorizedServiceRelay.sco,
+    'legitimate-token-relay-reproduces-output');
   assert.equal(summary.performance.coo.verdict,'sample-exceeded');
   assert.equal(summary.performance.sno.verdict,'sample-inconclusive');
   assert.equal(summary.performance.sco.verdict,'sample-exceeded');
   assert.equal(summary.performance.coo.rows.length,4);
   assert.equal(summary.performance.sno.rows.length,4);
   assert.equal(summary.performance.sco.rows.length,2);
+  assert.equal(summary.performance.crossModeFamilywise.comparisons,6);
+  assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
+  assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
+  assert.equal(summary.performance.crossModeFamilywise.observedOverBudgetPairs,18);
+  assert.equal(summary.performance.crossModeFamilywise.observedSampleHasOverBudgetPair,true);
+  assert.equal(summary.performance.crossModeFamilywise.observedMaxPairedRatio,4.2);
+  assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
+    ['coo','coo','coo','coo','sco','sco']);
+  assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);
+  assert.equal(summary.performance.coo.rows[0].sourceBytes.native,2467);
+  assert.equal(summary.performance.sco.rows[0].rawTimingMs.remote.length,9);
+  assert.equal(summary.performance.sco.rows[0].upperMedianBound,5.1);
+  assert.deepEqual(summary.performance.sno.descriptiveOverBudgetEvents,[1]);
 });
 
 test('release evidence rejects vacuous or incomplete controls',()=>{
@@ -76,4 +105,62 @@ test('release evidence rejects vacuous or incomplete controls',()=>{
     {...sco,semanticsPreserved:false}),/SCO relay/u);
   assert.throws(()=>summarizeEvidence({...coo,rows:[]},sno,snoProfile,sco),
     /short and sustained sessions/u);
+});
+
+test('familywise paired budget allocates both tails across all tested workloads',()=>{
+  const workloads=Array.from({length:6},(_,i)=>({
+    native:Array(9).fill(1),
+    candidate:Array(9).fill(i===3?3.1:1.25)
+  }));
+  const bound=familywiseBudgetBounds(workloads);
+  assert.equal(bound.comparisons,6);
+  assert.equal(bound.observedOverBudgetPairs,9);
+  assert.equal(bound.observedMaxPairedRatio,3.1);
+  assert.equal(bound.observedSampleHasOverBudgetPair,true);
+  assert.equal(bound.verdict,'sample-exceeded');
+  assert.ok(bound.confidenceRequested===0.95);
+  assert.ok(bound.perTailConfidenceRequested>0.995);
+  assert.ok(bound.familywiseCoverageAtLeast>=0.95);
+  assert.deepEqual(bound.rows.map(row=>row.decision),[
+    'supported','supported','supported','exceeded','supported','supported'
+  ]);
+  assert.equal(familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:Array(9).fill(1.25)})
+  )).verdict,'sample-supported');
+  assert.equal(familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]})
+  )).verdict,'sample-inconclusive');
+  const rareBreach=familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]}))
+  );
+  assert.equal(rareBreach.observedMaxPairedRatio,4);
+  assert.equal(rareBreach.observedOverBudgetPairs,6);
+  assert.equal(rareBreach.observedSampleHasOverBudgetPair,true);
+});
+
+test('familywise median support never hides a sampled hard-threshold breach',()=>{
+  const datasets=Array.from({length:10},(_,i)=>({
+    native:Array(13).fill(1),
+    candidate:i===0?
+      [...Array(12).fill(1.25),3.5]:Array(13).fill(1.25)
+  }));
+  const report=familywiseBudgetBounds(datasets);
+  assert.equal(report.comparisons,10);
+  // Rank 12/13 supports the median despite one high outlier. The raw
+  // observed strict-budget violation must remain independently visible.
+  assert.equal(report.verdict,'sample-supported');
+  assert.equal(report.rows[0].decision,'supported');
+  assert.equal(report.observedOverBudgetPairs,1);
+  assert.equal(report.observedMaxPairedRatio,3.5);
+  assert.equal(report.observedSampleHasOverBudgetPair,true);
+});
+
+test('familywise bounds reject too few samples to meet joint confidence',()=>{
+  assert.throws(()=>familywiseBudgetBounds([]),/At least one paired workload/u);
+  assert.throws(()=>familywiseBudgetBounds([{
+    native:Array(5).fill(1),candidate:Array(5).fill(1.25)
+  }]),/Too few paired samples/u);
+  assert.throws(()=>familywiseBudgetBounds([{
+    native:Array(9).fill(1),candidate:Array(9).fill(1.25)
+  }],{confidence:1}),/Familywise confidence/u);
 });

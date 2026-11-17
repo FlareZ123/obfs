@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
+const {atomicWrite}=require('../src/atomic');
+const {familywiseBudgetBounds}=require('./familywise-budget-bound');
 const {runEvidence:runCooEvidence}=require('./polyvariant-app-three-way-budget');
 const {runEvidence:runSnoEvidence,profile:profileSno}=require('./polyvariant-app-sno');
 
@@ -30,6 +32,22 @@ function sampleVerdict(samples){
 }
 
 /**
+ * @typedef {{
+ *  count:number,ratio:number,
+ *  pairedMedianBound:{
+ *    decision:string,lowerMedianBound:number,upperMedianBound:number,
+ *    confidenceAttained:number
+ *  },
+ *  samples:{native:number[],remote:number[]}
+ * }} ScoWorkload
+ * @typedef {{
+ *  semanticsPreserved:boolean,
+ *  heavy:ScoWorkload,light:ScoWorkload,
+ *  measuredBoundary:string,caveat:string
+ * }} ScoSessionEvidence
+ */
+
+/**
  * Keep provenance and security dimensions separate. The COO and SNO
  * implementations are tested on the same frozen three-module stateful
  * application; SCO uses the established six-module private-service fixture.
@@ -37,7 +55,7 @@ function sampleVerdict(samples){
  * @param {Awaited<ReturnType<typeof runCooEvidence>>} coo
  * @param {Awaited<ReturnType<typeof runSnoEvidence>>} sno
  * @param {Awaited<ReturnType<typeof profileSno>>} snoProfile
- * @param {{semanticsPreserved:boolean,heavy:{count:number,ratio:number,pairedMedianBound:{decision:string}},light:{count:number,ratio:number,pairedMedianBound:{decision:string}},measuredBoundary:string,caveat:string}} sco
+ * @param {ScoSessionEvidence} sco
  * @returns {object}
  */
 function summarizeEvidence(coo,sno,snoProfile,sco){
@@ -52,16 +70,33 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     oneSidedMedianDecision:row.publishedVsNative.decision,
     upperMedianBound:row.publishedVsNative.upperMedianBound,
     recoveredToPublishedMedianRatio:row.ratioReconstructedToPublishedMedians,
-    pairs:row.publishedVsNative.samplePairs
+    pairs:row.publishedVsNative.samplePairs,
+    oneSidedConfidenceAttained:row.publishedVsNative.confidenceAttained,
+    sourceBytes:row.sourceBytes,rawTimingMs:row.rawSamples
   }));
   const snoBudget=snoProfile.map(row=>({
     events:row.events,ratioOfMedians:row.ratio,
     oneSidedMedianDecision:'not-computed'
   }));
-  const scoBudget=[['light',sco.light],['heavy',sco.heavy]].map(([label,data])=>({
+  const scoBudget=(/** @type {Array<['light'|'heavy',ScoWorkload]>} */ ([
+    ['light',sco.light],['heavy',sco.heavy]
+  ])).map(([label,data])=>({
     workload:label,events:data.count,ratioOfMedians:data.ratio,
-    oneSidedMedianDecision:data.pairedMedianBound.decision
+    oneSidedMedianDecision:data.pairedMedianBound.decision,
+    lowerMedianBound:data.pairedMedianBound.lowerMedianBound,
+    upperMedianBound:data.pairedMedianBound.upperMedianBound,
+    oneSidedConfidenceAttained:data.pairedMedianBound.confidenceAttained,
+    rawTimingMs:data.samples
   }));
+  // One joint familywise claim across the six statistically paired COO/SCO
+  // workload populations. The SNO data have descriptive medians only and
+  // cannot be silently included in a simultaneous confidence statement.
+  const familywise=familywiseBudgetBounds([
+    ...cooBudget.map(row=>({native:row.rawTimingMs.native,
+      candidate:row.rawTimingMs.published})),
+    ...scoBudget.map(row=>({native:row.rawTimingMs.native,
+      candidate:row.rawTimingMs.remote}))
+  ]);
   const attackEvidence={
     coo:{
       verdict:coo.functionRecovery===3?'demonstrated-functional-clone':'unmeasured',
@@ -89,14 +124,68 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     }
   };
   const performance={
+    crossModeFamilywise:{
+      verdict:familywise.verdict,
+      confidenceRequested:familywise.confidenceRequested,
+      confidenceAttainedAtLeast:familywise.familywiseCoverageAtLeast,
+      perTailConfidenceRequested:familywise.perTailConfidenceRequested,
+      comparisons:familywise.comparisons,
+      observedMaxPairedRatio:familywise.observedMaxPairedRatio,
+      observedOverBudgetPairs:familywise.observedOverBudgetPairs,
+      observedSampleHasOverBudgetPair:familywise.observedSampleHasOverBudgetPair,
+      workloads:[
+        ...cooBudget.map(row=>({mode:'coo',events:row.events})),
+        ...scoBudget.map(row=>({mode:'sco',events:row.events}))
+      ],
+      bounds:familywise.rows.map(row=>({
+        decision:row.decision,lowerMedianBound:row.lowerMedianBound,
+        upperMedianBound:row.upperMedianBound,
+        marginalOneSidedCoverage:row.confidenceAttained
+      })),
+      boundary:'Six paired COO/SCO workload populations only. SNO has descriptive medians without paired confidence; independent within-workload trials are assumed.'
+    },
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
       boundary:'module graph loaded anew per trial; Node process reused'},
     sno:{verdict:'sample-inconclusive',rows:snoBudget,
+      descriptiveOverBudgetEvents:snoBudget.filter(row=>
+        row.ratioOfMedians>2.5).map(row=>row.events),
       boundary:'fresh Node child processes; descriptive median ratios only'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
+  };
+  // Every requested resistance axis is reported independently. A legitimate
+  // online relay is evidence of reproducible authorized functionality, not
+  // evidence that service credentials or private server code were stolen.
+  const securityAxes={
+    staticReconstruction:{
+      coo:coo.functionRecovery===3?'recovered-selected-functions':'not-established',
+      sno:sno.staticRecovered===sno.selectedFunctions?
+        'recovered-selected-functions':'not-established',
+      sco:'not-measured-private-code-remains-server-side'
+    },
+    dynamicInstrumentation:{
+      coo:'not-measured',
+      sno:sno.runtimeHooked?'owner-loader-substitution':'not-established',
+      sco:'not-measured'
+    },
+    unauthorizedModification:{
+      coo:'not-measured',
+      sno:sno.manifestForged?'public-manifest-forged':'not-established',
+      sco:'not-measured'
+    },
+    environmentControl:{
+      coo:'reconstructed-public-code-runs-offline',
+      sno:sno.offlineClone&&sno.directEsmClone?
+        'owner-copied-public-code-runs-offline':'not-established',
+      sco:'unauthorized-token-bypass-not-measured'
+    },
+    authorizedServiceRelay:{
+      coo:'not-applicable',sno:'not-applicable',
+      sco:sco.semanticsPreserved?'legitimate-token-relay-reproduces-output':
+        'not-established'
+    }
   };
   const failedSecurity=Object.entries(attackEvidence).filter(([,value])=>
     value.verdict==='demonstrated-functional-clone').map(([name])=>name);
@@ -104,7 +193,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     verdict:'RELEASE-BLOCKED',
     reason:'The tested delivery is reproducible from public files or legitimate service queries; the required general 2.5x and hostile-runtime guarantees remain unestablished',
     attackedModes:failedSecurity,
-    attackEvidence,performance,
+    attackEvidence,securityAxes,performance,
     note:'Finite sampled security and timing observations. Source secrecy, functional cloning, runtime control, compatibility, and performance are independent requirements. The test does not establish a universal 2.5x bound.'
   };
 }
@@ -133,7 +222,13 @@ async function run(){
   return summary;
 }
 
-if(require.main===module)run().catch(error=>{
+if(require.main===module)run().then(async summary=>{
+  if(process.env.OBFS_RELEASE_AUDIT_FILE){
+    await atomicWrite(process.env.OBFS_RELEASE_AUDIT_FILE,
+      JSON.stringify({source:'sims/release-evidence-gate.js',
+        node:process.version,platform:process.platform,summary},null,2)+'\n');
+  }
+}).catch(error=>{
   console.error(error);process.exitCode=1;
 });
 

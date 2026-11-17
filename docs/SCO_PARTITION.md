@@ -84,6 +84,13 @@ transitively, handling cycles and preserving each discovered path in
 `clientFile.privateModulePaths`. It refuses missing dependencies, duplicate
 case-insensitive paths, unrelated supplied files, noncanonical imports, unknown
 bare imports, and direct runtime `import()` or common direct loader calls.
+When `createScoHandler` receives source files directly, it now reads each
+`privateModulePaths` and `privateOriginalDigests` getter exactly once,
+validates the declared arrays, and uses owned copies throughout publication.
+This prevents inconsistent successive getter values from making a declared
+private source disappear during preflight. The first supplied declaration must
+still be trustworthy and complete; a reviewed `publicPaths` allowlist remains
+a separate, necessary publication boundary.
 
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original

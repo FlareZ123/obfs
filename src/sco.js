@@ -43,6 +43,39 @@ function respondJson(response,status,payload) {
 }
 
 /**
+ * Deep-copy one JSON.parse argument array without recursive calls.
+ * The HTTP request size is bounded, but JSON nesting can exceed the stack
+ * depth tolerated by structuredClone. Parsed JSON holds only primitives,
+ * arrays and ordinary records, so this loop preserves original number
+ * values (including -0 and overflow) and own '__proto__' data properties.
+ * Copying all keys with defineProperty avoids invoking inherited setters.
+ *
+ * @param {unknown[]} input
+ * @returns {unknown[]}
+ */
+function cloneJsonArgs(input) {
+  /** @type {unknown[]} */
+  const root=[];
+  /** @type {Array<{original:any,copy:any}>} */
+  const pending=[{original:input,copy:root}];
+  while(pending.length) {
+    const {original,copy}=/** @type {{original:any,copy:any}} */ (pending.pop());
+    for(const key of Object.keys(original)) {
+      const value=original[key];
+      const duplicated=value===null||typeof value!=='object'?
+        value:(Array.isArray(value)?[]:{});
+      Object.defineProperty(copy,key,{
+        value:duplicated,enumerable:true,configurable:true,writable:true
+      });
+      if(value!==null&&typeof value==='object') {
+        pending.push({original:value,copy:duplicated});
+      }
+    }
+  }
+  return root;
+}
+
+/**
  * Execute one authenticated server-resident operation, never shipping its
  * implementation to the browser. The caller controls operation granularity,
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
@@ -123,6 +156,11 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
+    // A batch is copied only when an argument-aware policy can mutate its
+    // original request graph. Without that policy, preserve the existing
+    // zero-copy execution path and avoid unnecessary RPC overhead.
+    const checkedBatchArgs=options.authorizeOperation &&
+      getScoBatchCalls(task,args)!==null ?cloneJsonArgs(args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
@@ -135,14 +173,16 @@ async function handleRpc(request,response,options) {
       // A permitted batch route is not blanket permission for its individual
       // operations. Check every registered inner method before the batch
       // executes, including later items after an otherwise permitted item.
-      const batchCalls=getScoBatchCalls(task,args);
+      const batchCalls=getScoBatchCalls(task,checkedBatchArgs??args);
       if (batchCalls) {
         for (const call of batchCalls) {
           // The batch helper independently rejects malformed calls before
           // execution. Only valid item shapes can reach policy evaluation.
           if (!call || typeof call!=='object' ||
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
-          const itemAllowed=await options.authorizeOperation(request,call.method,call.args);
+          // The policy sees a separate copy. Its mutations, even delayed
+          // until another item executes, cannot change the checked batch.
+          const itemAllowed=await options.authorizeOperation(request,call.method,cloneJsonArgs(call.args));
           ensureScopeOpen();
           if(itemAllowed!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
@@ -152,7 +192,7 @@ async function handleRpc(request,response,options) {
       }
     }
     ensureScopeOpen();
-    const result=await task(...args);
+    const result=await task(...(checkedBatchArgs??args));
     ensureScopeOpen();
     respondJson(response,200,{ok:true,value:result});
     };
@@ -317,29 +357,41 @@ function createScoHandler(sourceFiles,options={}) {
   // any HTTP route, even if the private entry appears before its public facade.
   const forbidden=new Set();
   const privateOriginalDigests=new Set();
-  for(const file of sourceFiles){
-    if(file.privateOriginalDigests!==undefined){
-      if(!Array.isArray(file.privateOriginalDigests)||
-          file.privateOriginalDigests.some(value=>typeof value!=='string'||
+  // Read each caller-managed manifest getter only once. Multiple reads can
+  // disagree, leaving a declared private source outside the forbidden sets.
+  // Keep owned array copies for every later check and publication pass.
+  /** @type {Array<{paths:string[]|undefined,digests:string[]|undefined}>} */
+  const privateMetadata=sourceFiles.map(file=>{
+    const providedDigests=file.privateOriginalDigests;
+    const providedPaths=file.privateModulePaths;
+    /** @type {string[]|undefined} */
+    let digests;
+    if(providedDigests!==undefined){
+      if(!Array.isArray(providedDigests)||
+          providedDigests.some(value=>typeof value!=='string'||
             !/^[0-9a-f]{64}$/u.test(value))){
         throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
       }
-      for(const digest of file.privateOriginalDigests)privateOriginalDigests.add(digest);
+      digests=[...providedDigests];
+      for(const digest of digests)privateOriginalDigests.add(digest);
     }
-    if(file.privateModulePaths===undefined)continue;
-    if(!Array.isArray(file.privateModulePaths)){
-      throw new TypeError('SCO privateModulePaths must be an array');
+    /** @type {string[]|undefined} */
+    let paths;
+    if(providedPaths!==undefined){
+      if(!Array.isArray(providedPaths)){
+        throw new TypeError('SCO privateModulePaths must be an array');
+      }
+      paths=providedPaths.map(safePath);
+      for(const privatePath of paths)forbidden.add(privatePath.toLowerCase());
     }
-    for(const privatePath of file.privateModulePaths){
-      forbidden.add(safePath(privatePath).toLowerCase());
-    }
-  }
+    return {paths,digests};
+  });
   // Validate the public route namespace before creating the HTTP handler.
   // Exact duplicates silently overwrite Map values, and case-folded aliases
   // may collide when the source group is deployed on Windows.
   const seen=new Set();
   /** @type {import('./cross-properties').SourceFile[]} */
-  const normalized=sourceFiles.map(file=>{
+  const normalized=sourceFiles.map((file,index)=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
     if(publicAllowlist&&!publicAllowlist.has(filename)){
@@ -373,8 +425,8 @@ function createScoHandler(sourceFiles,options={}) {
     // Build only the documented SourceFile fields: spreading the caller's
     // object would invoke a code getter again even after taking the snapshot.
     const normalizedFile = {path:filename,code,sourceType,
-      privateModulePaths:file.privateModulePaths,
-      privateOriginalDigests:file.privateOriginalDigests};
+      privateModulePaths:privateMetadata[index].paths,
+      privateOriginalDigests:privateMetadata[index].digests};
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });

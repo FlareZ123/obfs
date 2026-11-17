@@ -1,0 +1,34 @@
+name: Manual SCO graph-wire exploratory profile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared project dependencies and exact experimental codec
+        run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0 devalue@6.0.3
+      - name: Compare devalue graph transport against native and JSON value work
+        run: node sims/sco-devalue-wire-pilot.js
+      - name: Bound hostile graph wire parser probes
+        run: node sims/sco-devalue-untrusted-parser-grid.js
+      - name: Real Chromium devalue module bootstrap and repeated compute
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-devalue-browser-profile.js
+      - name: Independently test structured-clone JSON wire and document negative controls
+        run: node sims/sco-structured-wire-pilot.js

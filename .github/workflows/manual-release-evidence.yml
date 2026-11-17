@@ -24,4 +24,12 @@ jobs:
       - name: Test fail-closed release decision semantics
         run: node --test test/release-evidence-gate.test.js
       - name: Compare real COO SNO and SCO adversarial applications
+        env:
+          OBFS_RELEASE_AUDIT_FILE: release-evidence-${{ runner.os }}.json
         run: node sims/release-evidence-gate.js
+      - name: Retain full paired samples and security-axis evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-evidence-${{ runner.os }}
+          path: release-evidence-${{ runner.os }}.json
+          if-no-files-found: error
