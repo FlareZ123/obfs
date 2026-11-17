@@ -64,7 +64,7 @@ for(const count of [1,32,256,1024]){
   const input=payload(count);
   if(JSON.stringify(json(input))!==JSON.stringify(graph(input)))
     throw Error("Graph transport altered ordinary JSON input");
-  const repeats=Math.max(4,Math.min(96,Math.floor(8192/count)));
+  const repeats=Math.max(64,Math.min(2048,Math.floor(131072/count)));
   for(const heavy of [false,true]){
     const values={native:[],json:[],graph:[]},checksums={native:[],json:[],graph:[]};
     for(let warm=0;warm<6;warm++)for(const fn of Object.values(codecs))
@@ -111,7 +111,7 @@ async function browserSample(root,variant){
   const url=root+'/'+variant+'.html';
   const {stdout}=await runFile(process.env.CHROMIUM_BIN??'google-chrome',[
     '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-    '--no-first-run','--virtual-time-budget=12000','--dump-dom',url
+    '--no-first-run','--dump-dom',url
   ],{encoding:'utf8',timeout:60000,maxBuffer:8*1024*1024});
   const json=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
   assert.ok(json,'Browser did not complete module: '+variant+' '+stdout.slice(-800));
@@ -170,13 +170,19 @@ async function run(){
     const hotResults=hot.rows.map(row=>{
       for(const variant of ['native','json','graph']){
         assert.equal(row.values[variant].length,9);
-        assert.ok(row.values[variant].every(ms=>Number.isFinite(ms)&&ms>0));
+        assert.ok(row.values[variant].every(ms=>Number.isFinite(ms)&&ms>=0));
       }
+      const timerResolutionLimited=Object.values(row.values).some(values=>
+        values.some(ms=>ms===0));
       return {
         count:row.count,heavy:row.heavy,repeats:row.repeats,
-        jsonVsNative:pairedBudgetBound(row.values.native,row.values.json),
-        graphVsNative:pairedBudgetBound(row.values.native,row.values.graph),
-        graphVsJson:pairedBudgetBound(row.values.json,row.values.graph),
+        timerResolutionLimited,
+        jsonVsNative:timerResolutionLimited?null:
+          pairedBudgetBound(row.values.native,row.values.json),
+        graphVsNative:timerResolutionLimited?null:
+          pairedBudgetBound(row.values.native,row.values.graph),
+        graphVsJson:timerResolutionLimited?null:
+          pairedBudgetBound(row.values.json,row.values.graph),
         samples:row.values
       };
     });
