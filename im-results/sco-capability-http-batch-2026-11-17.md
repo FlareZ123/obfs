@@ -1,6 +1,6 @@
 # Real compiled SCO capability session: serial versus batch and simulated policy delay (17 November 2026)
 
-**Status:** predeclared experimental scenario, no executed evidence yet for this exact source. This candidate measures the cost of authenticated, principal-scoped private state operations through an actual compiled public ESM facade and HTTP handler. Its performance claim cannot be generalized beyond the specific workload, and a zero reported CPU duration must remain an unresolved observation.
+**Status:** bounded full two-OS cross-platform CPU and wall session experiment, green [manual SCO oracle workflow 44150242792](https://github.com/FlareZ123/obfs/actions/runs/44150242792), immutable executable SHA b9f0b61737881cbc4e6c7f4f1f5b2ef6f0759ad8, Ubuntu and Windows Node 22 plus strict SCO JSDoc. The candidate measures the cost of authenticated, principal-scoped private state operations through an actual compiled public ESM facade and HTTP handler. Its performance claim cannot be generalized beyond the specific workload; observed zeros are never treated as a ratio.
 
 ## Question
 
@@ -32,3 +32,24 @@ One untimed full session of each mode precedes six alternating-order paired tria
 ## Limitations
 
 The payload's 8 MiB HMAC input is a deliberately selected original business computation present in both paths. It cannot be added to an originally cheap operation merely to satisfy the overhead budget. Results concern one process, loopback HTTP, one authenticated test principal, and one Node runtime. The example session uses a synthetic 25 ms delay, not a measured internet RTT. Benchmarks may be sensitive to runner noise and JIT; the raw paired data and actual source revision must accompany any conclusions. No general browser, concurrency, adversarial service-level, or universal compute bound follows.
+
+## Pinned empirical results
+
+Each operating system ran six alternating-order trials per configured request delay. All 16 ordered HMAC digests matched the original native code on every session; the 256-bit random private key and private HMAC implementation were absent from the HTTP-delivered ESM facade, and unauthenticated RPC returned 403. Neither server source nor key is printed. The workflow emitted the raw paired CPU and wall measurements and machine-readable summaries at the exact SHA above.
+
+| Operating system | Injected delay per authorized RPC | Serial wall max / >2.5 pairs | Batch wall max / >2.5 pairs | Serial process CPU max / >2.5 pairs | Batch process CPU max / >2.5 pairs |
+| --- | --- | --- | --- | --- | --- |
+| Ubuntu | 0 ms | 1.22501× / 0 of 6 | 1.04699× / 0 of 6 | 1.31441× / 0 of 6 | 1.11713× / 0 of 6 |
+| Ubuntu | 25 ms | 7.46416× / **6 of 6** | 2.08806× / 0 of 6 | 1.31495× / 0 of 6 | 1.08646× / 0 of 6 |
+| Windows | 0 ms | 1.29769× / 0 of 6 | 1.07634× / 0 of 6 | 1.39744× / 0 of 6 | 1.20513× / 0 of 6 |
+| Windows | 25 ms | 8.36892× / **6 of 6** | 2.23887× / 0 of 6 | 2.39744× / 0 of 6 | 1.32979× / 0 of 6 |
+
+**Combined 24 session pairs for each strategy:** no process CPU pair exceeded the 2.5× threshold for either serial or batch; the *wall time* of the 25-ms serial-RPC sessions exceeded 2.5× on all 12 relevant pairs. Batch stayed under 2.5× wall time for all 24 pairs, with a maximum of 2.23887× Windows at 25 ms. No process CPU pair was unresolved. The Windows serial CPU max of 2.39744× is close to the strict threshold; future different workload/runner samples may cross it. Six observations per cell do not establish a population tail or universal bound.
+
+The 25-ms delay executes asynchronously in authorizeRpc for **each** authenticated request. Native work pays no such delay. Serial handles require 18 RPCs (issue, 16 steps, revoke); batched handles require 3 (issue, one 16-item batch, revoke). The CPU counter measures the whole single Node process including the server and client, whereas the wall counter additionally charges all asynchronous policy waits and local HTTP scheduling. These two quantities are **distinct** and neither establishes execution resistance against a same-principal online relay.
+
+## Engineering selection for this application
+
+For this 8-MiB HMAC and 16-operation stateful service, the observed real-HTTP batched version had the lower runtime overhead and preserved full output semantics. The serial version incurred substantially larger end-to-end wall cost when policy/network delay was injected, even though server CPU remained within the sampled 2.5× budget.
+
+The batch operation consumes all 16 inputs and returns all 16 digests. It is a different public RPC granularity from 16 separate calls, so application migration has to preserve externally observable ordering, error handling and partial-progress semantics; the tested all-success sequence does not prove that such migration is legal for arbitrary applications. Offline source withholding is enabled by the trusted SCO boundary, while online same-account functional relay remains possible. Future test runs with actual remote RTT/TLS, variable session sizes, concurrency and browser work are necessary before any production target claim.
