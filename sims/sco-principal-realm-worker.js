@@ -56,6 +56,9 @@ function createScoPrincipalRealmPool(absoluteEntryPath,allowedMethods,options={}
      new Set(allowedMethods).size!==allowedMethods.length){
     throw new TypeError('Expected absolute private ESM entry and distinct method names');
   }
+  // Caller-owned authorization arrays must not widen the private method
+  // registry after a reviewed pool has been constructed.
+  const methods=Object.freeze([...allowedMethods]);
   const maxPrincipals=options.maxPrincipals??32;
   const maxPending=options.maxPendingPerPrincipal??64;
   if(!Number.isSafeInteger(maxPrincipals)||maxPrincipals<1||
@@ -77,7 +80,7 @@ function createScoPrincipalRealmPool(absoluteEntryPath,allowedMethods,options={}
     if(existing)return existing;
     if(realms.size+failed.size>=maxPrincipals)throw new Error('SCO realm capacity exhausted');
     const worker=new Worker(__filename,{
-      workerData:{scoRealmWorker:true,entryUrl,allowedMethods},
+      workerData:{scoRealmWorker:true,entryUrl,allowedMethods:methods},
       // Worker environment is a *copy*; the principal is trusted server data.
       env:{...process.env,SCO_REALM_PRINCIPAL:principal}
     });
@@ -142,7 +145,7 @@ function createScoPrincipalRealmPool(absoluteEntryPath,allowedMethods,options={}
    */
   async function call(principal,method,args){
     if(closed||typeof principal!=='string'||!principal||principal.length>256||
-       !allowedMethods.includes(method)||!Array.isArray(args)){
+       !methods.includes(method)||!Array.isArray(args)){
       throw new TypeError('Invalid private realm invocation');
     }
     const realm=realmFor(principal);
