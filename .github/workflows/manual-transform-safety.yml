@@ -38,6 +38,8 @@ jobs:
         run: node test/statement-flow-browser.js
       - name: Cross-mode UTF-8 path alias and Unicode namespace safety
         run: node --test test/utf8-path-alias.test.js
+      - name: Observe real filesystem Unicode case equivalences against compiler keys
+        run: node sims/path-alias-grid.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
