@@ -43,6 +43,18 @@ JSDoc [CI run 44102821721](https://github.com/FlareZ123/obfs/actions/runs/441028
 **passed** from `agent50/fixed-width-source-coordinate-20261117` at exact
 `16a21975d5ab6ac1614317770e7ca98b98b896c6`.
 
+## Falsifying equal width as a universal source-preservation method
+
+A separate native Node 22.16.0 test kept the source string byte length
+identical while renaming a field inside
+`function compute(){return owner.veryLongPrivateField;}` to
+`function compute(){return owner.p_aaaaaaaaaaaaaaaaaa;}`.
+A direct `compute.toString()` observer returned **different** source
+strings despite the unchanged byte length. Therefore the candidate is
+restricted to validated coordinate-only observers. Full native-source
+observers still require either exact bytes or another independently proven
+representation strategy.
+
 ## Scope and implementation requirements
 
 Equal width is **insufficient** when an observer reads function body bytes,
