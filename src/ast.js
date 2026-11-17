@@ -905,8 +905,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const key of objectFunctionKeys.get(value.name)??[]) {
             addObjectFunctionKey(name,key);
           }
-          for(const [map] of [[webRecordObjectKeys],[responseObjectKeys],[redirectObjectKeys]]) {
+          for(const map of [webRecordObjectKeys,responseObjectKeys,redirectObjectKeys]) {
+            // A direct object alias shares the original mutable record.
+            // May-flow is bidirectional so later property writes through
+            // either binding remain visible in every fixed-point iteration.
             for(const key of map.get(value.name)??[])addWebObjectKey(map,name,key);
+            for(const key of map.get(name)??[])addWebObjectKey(map,value.name,key);
           }
         }
         if(isOpaqueNamespace(value)) {
