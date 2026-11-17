@@ -1850,7 +1850,7 @@ function renameCrossFileProperties(files,seed) {
             // were initialized before the owner and match its own fields.
             const proof=proveLocalObject(importer.ast,alias,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
-              verifiedStrings.get(importerName));
+              verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size)readerProof=proof;
