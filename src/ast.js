@@ -126,6 +126,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const sourceCoercingArrayMethods=new Set(['join','toString',
     'toLocaleString','sort','toSorted']);
   const detachedArraySourceMethods=new Set();
+  const arrayLikeWithFunctions=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
   /** @type {Map<string,Set<string>>} */
@@ -198,11 +199,50 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         memberName(node.callee)==='getPrototypeOf' &&
         isFunctionValue(node.arguments[0])));
   }
+  /**
+   * Nested arrays stringify recursively through Array#join. A function can
+   * therefore leak through [ [fn] ].join() without any direct element
+   * identifying as a function.
+   * @param {AstNode|null|undefined} node
+   * @param {number} [depth]
+   * @returns {boolean}
+   */
+  function containsFunction(node,depth=0) {
+    if(!node)return false;
+    if(depth>32)return true;
+    if(node.type==='Identifier')return arraysWithFunctions.has(node.name);
+    if(node.type==='ArrayExpression') {
+      return node.elements.some((/** @type {AstNode|null} */ value)=>
+        Boolean(value && (isFunctionValue(value)||
+          value.type==='SpreadElement'?
+            isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
+            containsFunction(value,depth+1))));
+    }
+    return false;
+  }
+  /**
+   * Array builtins are generic: .call(arrayLike) may stringify indexed
+   * properties of a plain object, including values assigned after creation.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isArrayIndexNode(node) {
+    if(!node||node.type!=='Literal'||!['string','number'].includes(typeof node.value))
+      return false;
+    const name=String(node.value);
+    return /^(?:0|[1-9][0-9]*)$/.test(name)&&Number.isSafeInteger(Number(name));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
-  function containsFunction(node) {
-    return Boolean(node && (node.type==='Identifier'&&arraysWithFunctions.has(node.name) ||
-      node.type==='ArrayExpression'&&node.elements.some((/** @type {AstNode|null} */ value)=>
-        value && (isFunctionValue(value)||value.type==='SpreadElement'&&containsFunction(value.argument)))));
+  function containsFunctionInArrayLike(node) {
+    if(containsFunction(node))return true;
+    if(!node)return false;
+    if(node.type==='Identifier')return arrayLikeWithFunctions.has(node.name);
+    if(node.type!=='ObjectExpression')return false;
+    return node.properties.some((/** @type {AstNode} */ property)=>
+      property.type==='Property'&&
+      (isArrayIndexNode(property.key)||
+       property.computed&&isFunctionValue(property.value))&&
+      (isFunctionValue(property.value)||containsFunction(property.value)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isDetachedArraySourceMethod(node) {
@@ -519,6 +559,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(opaqueFunctions,name)||changed;
         }
         if(containsFunction(value))changed=add(arraysWithFunctions,name)||changed;
+        if(containsFunctionInArrayLike(value)) {
+          changed=add(arrayLikeWithFunctions,name)||changed;
+        }
+        if(value?.type==='Identifier'&&arrayLikeWithFunctions.has(name)) {
+          // Mutation through a simple alias changes the original owner too.
+          changed=add(arrayLikeWithFunctions,value.name)||changed;
+        }
         if(containsFunctionKeyEntries(value)) {
           changed=add(entryCollectionsWithFunctionKeys,name)||changed;
         }
@@ -528,6 +575,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.left.object.type==='Identifier' && isFunctionValue(node.right)) {
         const key=memberName(node.left);
         if(key!==null)addObjectFunctionKey(node.left.object.name,key);
+        if(isArrayIndexNode(node.left.property)) {
+          changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
+        }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          node.init?.type==='Identifier') {
@@ -1199,7 +1249,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          sourceCoercingArrayMethods.has(memberName(callee)??'')&&
-         containsFunction(callee.object))observed=true;
+         containsFunctionInArrayLike(callee.object))observed=true;
       // Applying a detached Array builtin observes the receiver's values,
       // even though the actual callee is .call/.apply/.bind or Reflect.apply.
       // Conservatively treat a bind as observable because the returned
@@ -1208,10 +1258,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const invocation=memberName(callee);
         if(['call','apply','bind'].includes(invocation??'') &&
            isDetachedArraySourceMethod(callee.object) &&
-           containsFunction(node.arguments[0]))observed=true;
+           containsFunctionInArrayLike(node.arguments[0]))observed=true;
         if(invocation==='apply'&&isReflectiveReceiver(callee.object)&&
            isDetachedArraySourceMethod(node.arguments[0])&&
-           containsFunction(node.arguments[1]))observed=true;
+           containsFunctionInArrayLike(node.arguments[1]))observed=true;
       }
       /** @type {AstNode|null|undefined} */
       let argument=null;
