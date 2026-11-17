@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Proven own-key membership differential across COO SNO and ESM
+        run: node --test test/property-in-operator.test.js
       - name: Native and attacker differential tests
         run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
       - name: Measure steady-state hot-key performance
@@ -32,6 +34,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/symbol-keys-browser.js
+      - name: Strict external JSDoc typecheck for new membership tests
+        if: ${{ always() }}
+        run: npm run typecheck:external
       - name: Strict JSDoc typecheck
         if: ${{ always() }}
         run: npm run typecheck
