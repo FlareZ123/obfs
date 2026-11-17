@@ -1,6 +1,6 @@
 # Three dynamic observations of public COO affine exports
 
-**Date:** 2026-11-17. **Classification:** Intermediate adversarial test design, awaiting Linux/Windows execution. No claim of arbitrary JS reconstruction, anti-tamper protection, or academic novelty.
+**Date:** 2026-11-17. **Classification:** Validated intermediate adversarial negative control on the selected affine model. No claim of arbitrary JS reconstruction, anti-tamper protection, or academic novelty.
 
 ## Distinct attack question
 
@@ -34,4 +34,4 @@ The attack does not measure wall-clock difficulty for a fresh human or independe
 
 The source is [the runtime attacker](../sims/coo-runtime-one-query-reconstruct.js), [its held-out Node test](../test/coo-runtime-one-query-reconstruct.test.js), and [real Chromium check](../test/coo-runtime-one-query-browser.js), checked by [strict JSDoc configuration](../jsconfig.coo-runtime-probe.json) and the existing branch-extended [Linux/Windows manual affine workflow](../.github/workflows/manual-polyvariant-affine.yml). The standalone [manual COO runtime workflow](../.github/workflows/manual-coo-runtime-probe.yml) is intended for future independent dispatch once registered on the default branch; the GitHub API refused a branch-only workflow filename with 404.
 
-The branch has been committed and syntax-parsed, but no successful two-platform runtime execution has yet been recorded. Fix concrete CI failures, preserve exact test source and run SHA, and report only verified outcomes after the gate completes.
+The [exact-source Ubuntu/Windows full affine gate 44032141563](https://github.com/FlareZ123/obfs/actions/runs/44032141563) **PASSED** at commit 2e65eac90db3bda26eaef5a620125e69659c895b, with strict JSDoc, four focused runtime-probe Node tests, existing polyvariant affine coverage, and actual Ubuntu Chromium browser import/probe. The 24 seeded-layout test passed independently on both operating systems, verifying 24 different published source hashes, 72 runtime observations, and 9,216 held-out integer comparisons. The one-graph test additionally passed 12,288 held-out numeric comparisons plus primitive/coercion boundary and complete 1/50/1000/10000-event application callback checks. Browser recorded exactly one public math module fetch, three exported-function observations, 12,348 held-out numeric/primitive comparisons, 18 observable object-coercion probes, and an illustrative 10.9 ms module-load-to-probe duration on the Linux runner. These are selected fixture results, not a general adversary time-to-compromise benchmark or secrecy proof.
