@@ -75,19 +75,50 @@ function isSimplePatternBinding(value) {
 }
 
 /**
- * Primitive literals and recursively literal-only arrays carry no receiver
- * binding and cannot infer a function name from the enclosing object key.
+ * Primitive-only expression grammar. No identifier, call, member, spread,
+ * update, await, tagged template, or receiver-dependent operation can enter.
+ * JavaScript can evaluate these expressions without invoking user-defined
+ * coercion or observing the private object's names. We preserve their source
+ * without folding values, operator order, short-circuiting, or exceptions.
+ * @param {AstNode} node
+ * @returns {boolean}
+ */
+function isPrimitiveConstantExpression(node) {
+  // Mixed BigInt/Number arithmetic and BigInt zero divisors can throw;
+  // changing preceding source keys would then shift observable stack columns.
+  // Direct BigInt literal property values remain eligible via isLiteralValue.
+  if(node.type==='Literal')return node.value===null||
+    ['string','number','boolean'].includes(typeof node.value);
+  if(node.type==='UnaryExpression')return ['+','-','!','~','void','typeof'].includes(node.operator)&&
+    isPrimitiveConstantExpression(node.argument);
+  if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
+      '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
+    isPrimitiveConstantExpression(node.left)&&
+    isPrimitiveConstantExpression(node.right);
+  if(node.type==='LogicalExpression')return     ['&&','||','??'].includes(node.operator)&&
+    isPrimitiveConstantExpression(node.left)&&
+    isPrimitiveConstantExpression(node.right);
+  if(node.type==='ConditionalExpression')return     isPrimitiveConstantExpression(node.test)&&
+    isPrimitiveConstantExpression(node.consequent)&&
+    isPrimitiveConstantExpression(node.alternate);
+  if(node.type==='SequenceExpression')return     node.expressions.length>0&&
+    node.expressions.every(isPrimitiveConstantExpression);
+  if(node.type==='TemplateLiteral')return     node.expressions.every(isPrimitiveConstantExpression);
+  return false;
+}
+
+/**
+ * Recursively inert object/array initializers can safely carry pure primitive
+ * expressions without exposing a receiver or changing initialization order.
+ * RegExp literals retain the legacy literal-only admission behavior.
  * @param {AstNode} node
  * @returns {boolean}
  */
 function isLiteralValue(node) {
-  if(node.type==='Literal')return true;
+  if(node.type==='Literal'||isPrimitiveConstantExpression(node))return true;
   if(node.type==='ArrayExpression') {
     return node.elements.every((/** @type {AstNode|null} */ element)=>element && isLiteralValue(element));
   }
-  // A nested plain object with static keys and recursively inert values does
-  // not capture the enclosing owner's identity or invoke user code during
-  // construction. Accesses to the nested object's own keys stay untouched.
   if(node.type==='ObjectExpression') {
     return node.properties.every((/** @type {AstNode} */ property)=>
       property.type==='Property' && property.kind==='init' &&
