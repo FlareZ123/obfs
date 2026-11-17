@@ -51,7 +51,8 @@ test('external public-only A process relays A but cannot consume B or read priva
   const graph=partitionScoAsyncGraph([
     {path:'private-api.mjs',sourceType:'module',code:api},
     {path:'private-counter.mjs',sourceType:'module',code:dependency}
-  ],{exposedPaths:['private-api.mjs'],seed:'external-A-public-only-repro-seed'});
+  ],{exposedPaths:['private-api.mjs'],seed:'external-A-public-only-repro-seed',
+    batch:true,maxBatchCalls:64});
   await verifyScoPrivateSourceDigests(graph,dir);
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2});
   await Promise.all([pool.initialize('A'),pool.initialize('B')]);
@@ -86,7 +87,8 @@ test('external public-only A process relays A but cannot consume B or read priva
     running.stderr.on('data',chunk=>{errorOutput+=chunk.toString();});
     /** @type {Promise<{
      *   kind:string,method:string,servedSha256:string,unauthStatus:number,
-     *   accountAResult:{sequence:number,tag:string},proxyPort:number,
+     *   accountAResult:{sequence:number,tag:string},
+     *   oracleBatch:Array<{sequence:number,tag:string}>,proxyPort:number,
      *   sawPrivateRoot:boolean
      * }>} */
     const ready=new Promise((resolve,reject)=>{
@@ -105,16 +107,22 @@ test('external public-only A process relays A but cannot consume B or read priva
     assert.equal(result.unauthStatus,403);
     assert.equal(result.accountAResult.sequence,1);
     assert.equal(result.accountAResult.tag,independentTag(root,'A',1,'public-A-probe'));
+    assert.equal(result.oracleBatch.length,16);
+    for(let index=0;index<16;index++){
+      assert.equal(result.oracleBatch[index].sequence,index+2);
+      assert.equal(result.oracleBatch[index].tag,
+        independentTag(root,'A',index+2,'oracle-A-'+index));
+    }
     assert.equal(result.servedSha256,
       createHash('sha256').update(graph.clientFiles[0].code).digest('hex'));
     const proxied=await fetch('http://127.0.0.1:'+result.proxyPort+'/',{
       method:'POST',headers:{'content-type':'application/json'},
-      body:JSON.stringify({method:result.method,args:[2,'attacker-relay',0]})
+      body:JSON.stringify({method:result.method,args:[18,'attacker-relay',0]})
     });
     assert.equal(proxied.status,200);
     const relayed=await proxied.json();
-    assert.equal(relayed.value.sequence,2);
-    assert.equal(relayed.value.tag,independentTag(root,'A',2,'attacker-relay'));
+    assert.equal(relayed.value.sequence,18);
+    assert.equal(relayed.value.tag,independentTag(root,'A',18,'attacker-relay'));
     const bResponse=await fetch(origin+'/obfs/rpc',{
       method:'POST',headers:{'content-type':'application/json',cookie:'session='+tokenB},
       body:JSON.stringify({method:result.method,args:[1,'B-fresh-heldout',0]})
@@ -126,7 +134,8 @@ test('external public-only A process relays A but cannot consume B or read priva
     assert.notEqual(b.value.tag,relayed.value.tag);
     console.log('Independent A public facade and relay '+JSON.stringify({
       sha256:result.servedSha256,unauthorized:result.unauthStatus,
-      validASequence:result.accountAResult.sequence,relayedSequence:relayed.value.sequence,
+      validASequence:result.accountAResult.sequence,
+      oracleBatchCalls:result.oracleBatch.length,relayedSequence:relayed.value.sequence,
       independentBSequence:b.value.sequence,privateSecretAbsentInChild:!result.sawPrivateRoot
     }));
   }finally{
