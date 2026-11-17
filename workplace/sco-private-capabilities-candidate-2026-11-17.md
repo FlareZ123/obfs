@@ -66,7 +66,10 @@ the private state constructor, state store or projected-secret internals.
   globally and 256 per principal. Expired values are lazily purged at
   capacity pressure or on access. These limits count entries rather than
   stored bytes. Values are references in process memory, without persistence,
-  independent storage transaction guarantees or secure-memory erasure.
+  independent storage transaction guarantees or secure-memory erasure. In a
+  multi-worker deployment, a handle minted in one Node process is unknown
+  to another unless the integrator supplies sticky routing or replaces the
+  in-memory store with a separately designed and authorized shared backend.
 - A scope becomes inactive after the awaited request callback settles.
   Subsequent tasks that retained its asynchronous context cannot access the
   store through the API. Callbacks using previously captured private values
@@ -103,8 +106,11 @@ short/sustained session boundaries on Node and real Chromium. Any measured
 strict over-2.5× compute pair blocks a full project-performance claim. The
 local standalone unit tests and JSDoc check do not establish this budget.
 
-Initial local evidence: four tests of principal isolation, detachment,
+Initial local evidence: six tests of principal isolation, concurrent
+context/FIFO behavior, failed resolver cleanup, detachment,
 expiration/quotas and invalid inputs pass with the *actual*
 `src/rpc-keyed-isolation.js` implementation, and TypeScript's strict JSDoc
-check passes. Broader repository CI and HTTP adversarial comparison are
+check passes. The committed actual-SCO-handler HTTP and compiled-private-to-public
+ESM tests have **not** yet been executed against the full repository.
+Broader repository CI and HTTP adversarial comparison are
 not yet established. Treat this as `workplace/` material.
