@@ -2042,6 +2042,16 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(fileModules.has(node.source?.value) ||
          loaderModules.has(node.source?.value))observed=true;
     }
+    // Node process exports a source-capable filesystem loader. Re-exporting
+    // that method can make a separate file an observer of the original graph.
+    // Preserve the original graph even if the importing file never spells the
+    // original process.getBuiltinModule member name locally.
+    if((node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration') &&
+       ['process','node:process'].includes(String(node.source?.value)) &&
+       (node.type==='ExportAllDeclaration'||node.specifiers.some(specifier=>
+         specifier.type==='ExportSpecifier' &&
+         canReachLoader('process',specifier.local.type==='Identifier' ?
+           specifier.local.name:String(specifier.local.value)))))observed=true;
     if(node.type==='ImportDeclaration' &&
        ['process','node:process'].includes(String(node.source?.value)) &&
        node.specifiers.some(specifier=>specifier.type==='ImportSpecifier' &&

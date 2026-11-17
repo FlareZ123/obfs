@@ -386,3 +386,49 @@ test('cross-file ESM process loader preserves the original owner module bytes',a
   assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
   assert.deepEqual(await execute(output.files,'entry.mjs'),native);
 });
+
+const processReexports=[
+  ['named process loader reexport',
+    "export {getBuiltinModule as load} from 'node:process';",
+    "import {load} from './bridge.mjs';"],
+  ['star process loader reexport',
+    "export * from 'node:process';",
+    "import {getBuiltinModule as load} from './bridge.mjs';"]
+];
+for(const [name,bridge,consumer] of processReexports) {
+  test('source-capable process ESM reexport preserves another file: '+name,async()=>{
+    /** @type {Source[]} */
+    const files=[
+      {path:'owner.mjs',sourceType:'module',
+        code:'const privateObject={secretField:31};console.log(privateObject.secretField);\n'},
+      {path:'bridge.mjs',sourceType:'module',code:bridge+'\n'},
+      {path:'entry.mjs',sourceType:'module',
+        code:"import './owner.mjs';\n"+consumer+'\n'+
+          "const bytes=load('node:fs').readFileSync(new URL('./owner.mjs',import.meta.url),'utf8');\n"+
+          "console.log(bytes.includes('secret'+'Field'));\n"}
+    ];
+    const native=await execute(files,'entry.mjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31\ntrue\n');
+    assert.equal(observesDistributedSource(parse(bridge+'\n','module')),true);
+    const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+      seed:'process-reexport/'+name,strings:true,identifiers:true,properties:true});
+    assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    assert.deepEqual(await execute(output.files,'entry.mjs'),native);
+  });
+}
+
+test('benign named process env reexport retains private-field rewrite yield',()=>{
+  const bridge="export {env as environment} from 'node:process';";
+  assert.equal(observesDistributedSource(parse(bridge,'module')),false);
+  const files=[
+    {path:'owner.mjs',sourceType:/** @type {const} */('module'),
+      code:'const privateObject={secretField:31};console.log(privateObject.secretField);\n'},
+    {path:'bridge.mjs',sourceType:/** @type {const} */('module'),
+      code:bridge+'\n'}
+  ];
+  const emitted=obfuscateFiles(files,{mode:'coo',
+    seed:'process-env-reexport-positive',strings:false,identifiers:false,
+    properties:true});
+  assert.equal(emitted.files[0].metrics.properties,1);
+});
