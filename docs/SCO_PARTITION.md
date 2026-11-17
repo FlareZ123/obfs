@@ -183,11 +183,14 @@ this API, so accidentally passing a private dependency into the serving list
 is structurally impossible through this wrapper.
 
 The helper rejects partition objects reconstructed from JSON or copied through
-object spread, changes to the original compiler result after generation,
+object spread, ordinary serialized changes to the compiler result,
 caller-provided `publicPaths` and `remoteMethods`, mismatched `routePrefix`
-and generated RPC endpoints, and missing server functions. The internal
-`WeakMap` snapshot serves as a process-local provenance check, not an
-attacker-resistant secret when the Node runtime itself is compromised.
+and generated RPC endpoints, and missing server functions. A crafted
+`toJSON` method can disguise a caller-side modification during the equality
+check. Even in that case, every published byte and method identity comes from
+the original compiler-owned `WeakMap` snapshot, so the disguised value never
+enters the live handler. This is process-local provenance and source
+selection, not an attacker-resistant secret against a compromised Node runtime.
 
 ```js
 const {createServer}=require('node:http');
