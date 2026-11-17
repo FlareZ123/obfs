@@ -119,6 +119,6 @@ test('SNO group API and CLI retain eager initialization after runtime budget fal
     '--wasm-i32','entry.cjs:hot']);
   assert.deepEqual(opts.experimentalWasmI32,{'entry.cjs':['hot']});
   assert.throws(()=>readArgs(['--root','.','--entry','entry.cjs',
-    '--wasm-i32','entry.cjs:hot','--wasm-i32-defer-commonjs']),
+    '--wasm-i32','entry.cjs:hot','--wasm-i32-defer-commonjs','unused']),
     /Unknown option/u);
 });
