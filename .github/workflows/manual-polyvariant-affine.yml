@@ -96,5 +96,5 @@ jobs:
       - name: Browser-hosted one-output-per-export affine reconstruction
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/coo-runtime-one-query-browser.js
