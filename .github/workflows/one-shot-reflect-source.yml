@@ -1,4 +1,4 @@
-name: One-shot historical positive-yield control
+name: One-shot reflective sources and closed ESM yield verification
 
 on:
   push:
@@ -9,18 +9,33 @@ permissions:
   contents: read
 
 jobs:
-  historical-positive-yield:
-    runs-on: ubuntu-latest
-    timeout-minutes: 12
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: '590886bea779c34b0f3552d0bd58ebafaf8bd832'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install historically declared dependencies
+      - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Reproduce five positive-yield regressions before Agent 3 source repairs
+      - name: Reflective native source-observation regressions
+        run: node --test test/reflect-construct-function-source-observer.test.js test/regexp-flag-function-source-observer.test.js test/reflect-construct-interfile-source.test.js
+      - name: Compact full-suite differential and adversarial triage
         continue-on-error: true
-        run: node --test --test-reporter=spec test/application-challenge-null-prototype-yield.test.js test/application-challenge-token-neutralize.test.js test/cross-file-reader-flow.test.js test/ownkey-comment-static-recovery.test.js test/quoted-module-names.test.js
+        run: node sims/ci-brief-failures.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external
+      - name: Sample performance
+        run: npm run benchmark
+      - name: Real Chromium integration
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
