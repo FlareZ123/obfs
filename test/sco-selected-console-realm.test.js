@@ -51,3 +51,22 @@ test('Private host-observation rule does not reject ordinary property labels',()
   const graph=compile('const record={console:41};return record.console+1;');
   assert.deepEqual(graph.exposedPaths,['mixed.mjs']);
 });
+
+test('SCO static private children reject unproved client-host reads',()=>{
+  const clientRealmOnly=[
+    'return window.__applicationMode;',
+    'return self.__applicationMode;',
+    'return globalThis.__applicationMode;',
+    'return document.title;',
+    'return navigator.userAgent;',
+    'return location.href;',
+    'return typeof document;'
+  ];
+  for(const body of clientRealmOnly){
+    assert.throws(()=>compile(body),TypeError,body);
+  }
+});
+
+test('SCO static private children cannot move debugger breakpoints',()=>{
+  assert.throws(()=>compile('debugger;return 42;'),/debugger host effects/u);
+});
