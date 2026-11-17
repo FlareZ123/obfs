@@ -11,7 +11,7 @@ a detached method that was **destructured** from a constructor or
 prototype. For example:
 
 ```js
-function f(a) { return a ^ 17; }
+function f(a){return a^17;}
 const {test: check} = RegExp.prototype;
 const exposed = check.call(/a\^17/, f);
 ```
