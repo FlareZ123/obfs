@@ -1294,6 +1294,29 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(tested.some((/** @type {AstNode|null|undefined} */ value)=>
           isFunctionValue(value)||containsFunction(value))) observed=true;
       }
+      // RegExp#test, #exec and legacy #compile coerce their input to text.
+      // A function argument therefore exposes its exact native source bytes
+      // even though the consumer never spells .toString or String(...).
+      // Unknown nonprimitive inputs must be treated conservatively.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression') {
+        const method=memberName(callee);
+        const regexpMethods=['test','exec','compile'];
+        if(regexpMethods.includes(method??'') && node.arguments[0] &&
+           !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+        // Bound/reflective native method calls can conceal that coercion.
+        if(['call','apply','bind'].includes(method??'') &&
+           callee.object.type==='MemberExpression' &&
+           regexpMethods.includes(memberName(callee.object)??'')) {
+          if(method==='apply') {
+            const values=node.arguments[1];
+            if(values?.type==='ArrayExpression') {
+              if(values.elements[0] && !isDefinitelyPrimitive(values.elements[0]))
+                observed=true;
+            } else if(values)observed=true;
+          } else if(node.arguments[1] &&
+                    !isDefinitelyPrimitive(node.arguments[1])) observed=true;
+        }
+      }
       if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
           ['Reflect','Object'].includes(callee.object.name) &&
           ['get','set','has','deleteProperty','defineProperty','getOwnPropertyDescriptor',
