@@ -33,3 +33,5 @@ jobs:
         run: node sims/sco-ratchet-boundary.js
       - name: SCO atomic ratchet batch 25ms RTT-surrogate and budget veto
         run: node sims/sco-ratchet-batch-candidate.js
+      - name: Certificate-validated warm and fresh TLS batch ratchet budget
+        run: node sims/sco-ratchet-tls-cost.js
