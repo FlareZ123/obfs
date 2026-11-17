@@ -820,6 +820,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
  * @returns {ScoSelectivePartition}
  */
 function partitionScoSelectedAsyncExports(file,options) {
+  // Capture compiler inputs once. Accessor-backed source records may otherwise
+  // supply different code for AST auditing, digest commitments and emission.
+  if(file&&typeof file==='object') {
+    file={path:file.path,code:file.code,sourceType:file.sourceType};
+  }
+  const sourceInputs=options?.privateModuleSources;
   if(!file||typeof file.code!=='string'||typeof file.path!=='string'||
       (file.sourceType!==undefined&&file.sourceType!=='module')||
       file.code.startsWith('#!')||!options||!Array.isArray(options.privateNames)||
@@ -841,9 +847,18 @@ function partitionScoSelectedAsyncExports(file,options) {
       (!Array.isArray(options.additionalPrivateModulePaths)||
        options.additionalPrivateModulePaths.some(value=>typeof value!=='string')||
        new Set(options.additionalPrivateModulePaths).size!==options.additionalPrivateModulePaths.length)||
-      options.privateModuleSources!==undefined && !Array.isArray(options.privateModuleSources)) {
+      sourceInputs!==undefined && !Array.isArray(sourceInputs)) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
+  /** @type {ScoPrivateModuleSource[]|undefined} */
+  const auditedSources=sourceInputs?.map(source=>{
+    const sourcePath=source?.path;
+    const code=source?.code;
+    if(typeof sourcePath!=='string'||typeof code!=='string') {
+      throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
+    }
+    return {path:sourcePath,code};
+  });
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
@@ -868,8 +883,8 @@ function partitionScoSelectedAsyncExports(file,options) {
     directPrivatePaths.push(resolved);
     if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
   }
-  if(options.privateModuleSources!==undefined){
-    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,options.privateModuleSources)){
+  if(auditedSources!==undefined){
+    for(const resolved of collectPrivateStaticImportClosure(directPrivatePaths,auditedSources)){
       if(!privateModulePaths.includes(resolved))privateModulePaths.push(resolved);
     }
   }
@@ -878,9 +893,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   // verify these exact UTF-8 input bytes against deployed files before loading
   // the server's original module graph.
   /** @type {ScoPrivateSourceDigest[]|undefined} */
-  const privateSourceDigests=options.privateModuleSources===undefined?undefined:[
+  const privateSourceDigests=auditedSources===undefined?undefined:[
     {path:safePath(file.path),sha256:createHash('sha256').update(file.code,'utf8').digest('hex')},
-    ...options.privateModuleSources.map(source=>({
+    ...auditedSources.map(source=>({
       path:safePath(source.path),
       sha256:createHash('sha256').update(source.code,'utf8').digest('hex')
     }))
