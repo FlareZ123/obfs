@@ -75,7 +75,16 @@ test('potentially throwing BigInt expressions are refused to preserve error stac
     'try{const owner={secret:\`'+String.fromCharCode(36)+'{1n+1}\`};'+
       'module.exports=owner.secret;}catch(error){module.exports=error.stack;}'
   ];
-  for(const code of samples)verify(code,0);
+  for(const code of samples){
+    const compiled=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code}],{
+      mode:'sno',seed:'pure-throwing-values',identifiers:false,strings:false
+    }).files[0];
+    assert.equal(compiled.metrics.objects,0);
+    // Byte-for-byte refusal is stronger than comparing full Error.stack:
+    // separate test invocations themselves have different caller frames.
+    assert.equal(compiled.code,code);
+    assert.match(execute(code),/(TypeError|RangeError):/u);
+  }
 });
 
 test('tagged templates invoke a function and must remain untransformed',()=>{
