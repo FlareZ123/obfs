@@ -32,6 +32,7 @@ function provenLocalReflectGetCaptures(ast) {
          (initial.computed ? staticString(initial.property) :
            initial.property.type==='Identifier'?initial.property.name:null)!=='get')continue;
       const name=declaration.id.name;
+      if(typeof name!=='string')continue;
       const previous=candidates.get(name);
       if(previous)previous.valid=false;
       else candidates.set(name,{capture:initial,binding:declaration.id,
