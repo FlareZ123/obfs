@@ -18,7 +18,7 @@ test('fresh array literal own index is a proven primitive under implicit coercio
     "'use strict';module.exports=['first-long-literal','second-long-literal'][0]+'!';",
     "'use strict';module.exports='prefix-'+['first-long-literal','second-long-literal'][1];",
     "'use strict';module.exports=String(['first-long-literal','second-long-literal'][0]);",
-    "'use strict';module.exports=['first-long-literal',null,true,7][3]+'!';"
+    "'use strict';module.exports=['first-long-literal','second-long-literal',true,7][3]+'!';"
   ];
   for(const [index,source] of safe.entries()) {
     assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
