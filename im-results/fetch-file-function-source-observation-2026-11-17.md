@@ -26,6 +26,18 @@ Commits: `42651e4` (test introduction), `c27d462` (Web constructors), `1d6353f` 
 
 **Manual full validation:** [Node 22 Linux/Windows workflow 44058384771](https://github.com/FlareZ123/obfs/actions/runs/44058384771) was queued at the latest check. Two superseded full runs, including `9e8d12a`, were cancelled before start to avoid waste. A full-success claim requires checking this exact SHA's workflow conclusion, diagnostics, and tested property-yield metrics. 
 
+## Additional independently falsifiable controls
+
+**Actual lowered-code counterfactual.** `test/web-idl-source-counterfactual.test.js` lowers a known supported signed-int32 function with `src/wasm-i32.js::lowerWasmI32Functions`, then invokes twelve real Node 22 Web API source observers against the original and emitted functions. Each of the twelve comparisons requires a directly observable string difference containing the original `a^17` source spelling. A companion integration check requests the same lowering through `obfuscateFiles` and requires a fail-closed refusal when `Response` could observe the function text. Unlike a hypothetical identifier change, this witness uses genuine published backend output.
+
+**Tracked owned local records.** `src/ast.js` now carries bounded may-flow information for native Web constructors and `Response.redirect` stored in plain local object properties. It follows direct initialized fields, post-creation writes, local object aliases in either direction, destructuring, and computed member keys that could select a known function-valued property. `test/web-idl-record-source-observation.test.js` covers **14 source-bearing record cases** and **4 primitive record controls**, with native versus emitted execution over COO, SCO and SNO on source-bearing cases. These may-flow sets are conservative and can refuse harmless reassigned fields; they do not handle arbitrary proxies or opaque function returns.
+
+**Real browser pathway.** `test/web-idl-source-browser.js` runs actual Chromium module imports through a local HTTP server and checks native/emitted `Response`, `File`, `Event` and `Response.redirect` paths. A separate primitive-only module must retain exactly one local private-property rename and match native output. The manual-only Linux/Windows gate is `.github/workflows/manual-web-idl-source.yml` (Chromium on Linux). Browser checks are unverified until the exact pinned run finishes.
+
+**Test-design correction:** In the first version of the Node differential fixtures, an incidental `String(observed)` call would itself trigger the existing generic source-coercion guard, hiding a missed native Web API detector. The committed tests now return the Web API's already-string result directly. Assertions for negative cases therefore exercise the newly introduced detection rather than the unrelated `String` guard.
+
+**Current validation state:** [manual cross-platform source-observer workflow 44060960950](https://github.com/FlareZ123/obfs/actions/runs/44060960950) was queued at commit `89bfe541fb3080bcaa4a78c768af1cc44279252e`, before the later global-object alias extension and its regression. No green claim is made for the latest source head. Native API spot checks were reproduced locally on Node 22.16.0, and a V8 syntax compile of the modified core and test modules succeeded. Those checks do not replace the complete emitted/native integration gate.
+
 ## Boundaries and implications
 
 - The current scanner is finite and syntactic. Opaque imported functions, dynamically computed constructors/method names, host callback reassignment, runtime monkey patching, and arbitrary asynchronous consumers still prevent any universal behavioral equivalence proof.
