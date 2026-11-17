@@ -25,6 +25,18 @@ const examples=[
   {
     name:'constructed regular expression exec',
     tail:'const match=new RegExp("a\\\\^17").exec(f);module.exports=match?.[0]??null;'
+  },
+  {
+    name:'detached RegExp prototype method through call',
+    tail:'const method=RegExp.prototype.test;module.exports=method.call(/a\\^17/,f);'
+  },
+  {
+    name:'bound RegExp prototype method',
+    tail:'const bound=RegExp.prototype.test.bind(/a\\^17/);module.exports=bound(f);'
+  },
+  {
+    name:'Reflect.apply of RegExp prototype method',
+    tail:'module.exports=Reflect.apply(RegExp.prototype.test,/a\\^17/,[f]);'
   }
 ];
 
