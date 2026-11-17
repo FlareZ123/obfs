@@ -330,8 +330,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return detachedRegExpSourceMethods.has(node.name);
     // Unknown .test/.exec aliases may be native RegExp methods. Over-refusal
     // is safer than assuming a function argument cannot become source text.
-    return node.type==='MemberExpression'&&
-      sourceCoercingRegExpMethods.has(memberName(node)??'');
+    if(node.type!=='MemberExpression')return false;
+    if(sourceCoercingRegExpMethods.has(memberName(node)??''))return true;
+    // RegExp @@match, @@matchAll, @@replace, @@search and @@split are
+    // callable native coercers even when a property is symbol-computed.
+    const key=node.property;
+    return node.computed && key.type==='MemberExpression' &&
+      key.object.type==='Identifier' && symbols.has(key.object.name) &&
+      ['match','matchAll','replace','search','split'].includes(memberName(key)??'');
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isDetachedStringReceiverMethod(node) {
@@ -1367,7 +1373,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // Unknown nonprimitive inputs must be treated conservatively.
       if(node.type==='CallExpression' && callee.type==='MemberExpression') {
         const method=memberName(callee);
-        if(sourceCoercingRegExpMethods.has(method??'') && node.arguments[0] &&
+        if(isDetachedRegExpSourceMethod(callee) && node.arguments[0] &&
            !isDefinitelyPrimitive(node.arguments[0]))observed=true;
         // Bound/reflective native method calls can conceal that coercion.
         if(['call','apply','bind'].includes(method??'') &&
