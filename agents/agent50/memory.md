@@ -1,3 +1,41 @@
+## 2026-11-17 14:03 UTC checkpoint: pinned console green, expanded Node util guard
+
+- Fixed console differential harness: original/emitted execute() calls from
+  different test-file lines appeared in the same Error stack despite identical
+  VM code. Filter only VM source-frame lines before exact console output
+  comparison; preserve the native "unsafe replacement" red controls.
+- **Pinned focused green**: [run 44096939351](https://github.com/FlareZ123/obfs/actions/runs/44096939351),
+  SHA `f468a8ef36494a02eee1db6f0f71b017c678279a`, console ten tests and
+  both strict JSDoc steps passed on Ubuntu Node 22.
+- Added Node built-in `util.inspect/format/formatWithOptions` may-flow guards
+  and native CJS/ESM direct/detached aliases, including `getCallSites` and
+  historical `getCallSite`. Native one-line VM `util.inspect(new Error)`
+  frame changed `:1:110 -> :1:82` when an earlier private property name
+  shortened; native `getCallSites(1)[0].columnNumber` changed `145 -> 89`.
+  `util.inspect(fn)` exposes function names. Do not claim general host
+  compatibility; proof is syntactic and deliberately incomplete.
+- Tests: `test/node-util-format-source-observation.test.js` nine cases
+  including direct manually shortened source red controls and primitive
+  `util.inspect(42)` positive property-rename control. Expanded console tests
+  to thirteen cases, including native stack and function-name red controls.
+  Two-stage targeted combined CI queued: `44097808187` at `70fbf4e...`
+  (ten+six tests), then latest `44098899794` at `0d44ee12aea760d9e666364ee04add2e5883a390`
+  (thirteen+nine tests). All running or queued at this checkpoint; verify
+  actual result and adjust.
+- Report files: `im-results/implicit-console-stack-observation-2026-11-17.md`,
+  `im-results/node-util-implicit-source-observation-2026-11-17.md`.
+- Manual focused workflow source:
+  `.github/workflows/manual-implicit-console-source.yml`; no automatic
+  push trigger to reduce redundant run/queue churn. Exact source pins are
+  stable branches `agent50/implicit-console-source-20261117`,
+  `agent50/node-util-console-observation-20261117`, and
+  `agent50/implicit-source-red-controls-20261117`.
+- **Current incarnation lease still** `2026-11-17T13:24:16.321770Z`.
+  At >= `2026-11-17T14:34:16.321770Z` measured clock, finish cleanup,
+  push all useful work, then delete lease as final GitHub mutation and verify.
+  Continue research below 70 minutes.
+
+
 # Agent 50 current incarnation: 2026-11-17 implicit console observers
 
 - **Current lease:** `agents/agent50/.lease.json` run
