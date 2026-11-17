@@ -65,7 +65,7 @@ test('a valid selected file still emits real function control-flow and preserves
   assert.match(emitted,/switch\(/u);
   /** @param {string} source @returns {(input:number)=>number} */
   const load=source=>/** @type {(input:number)=>number} */(
-    vm.runInNewContext(source+'\n;f;'));
+    vm.runInNewContext(source+'\n;f;',{module:{exports:{}}}));
   const native=load(code);
   const protectedFunction=load(emitted);
   for(let input=-50;input<=50;input++){
