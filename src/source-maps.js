@@ -1,6 +1,7 @@
 'use strict';
 
 const acorn = require('acorn');
+const {TextDecoder}=require('node:util');
 const {assertNoInlineHtmlSource}=require('./html-assets');
 const {assertNoInlineSvgSource}=require('./svg-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
@@ -27,6 +28,32 @@ function isUntransformedSourceAsset(filename) {
 }
 
 /**
+ * Recognize a UTF-16 JSON object prefix without decoding arbitrary binary
+ * assets. Only ASCII JSON whitespace and the opening brace are consulted.
+ * A leading encoding BOM is optional; both byte orders are supported.
+ * @param {Buffer} bytes
+ * @returns {'utf-16le'|'utf-16be'|null}
+ */
+function utf16JsonEncoding(bytes) {
+  /** @param {'utf-16le'|'utf-16be'} encoding @param {number} start */
+  function startsObject(encoding,start){
+    for(let index=start;index+1<bytes.length;index+=2){
+      const value=encoding==='utf-16le'?bytes[index]:bytes[index+1];
+      const other=encoding==='utf-16le'?bytes[index+1]:bytes[index];
+      if(other!==0)return false;
+      if(value===0x7b)return true;
+      if(value!==0x20&&value!==0x09&&value!==0x0a&&value!==0x0d)return false;
+    }
+    return false;
+  }
+  if(bytes[0]===0xff&&bytes[1]===0xfe)return startsObject('utf-16le',2)?'utf-16le':null;
+  if(bytes[0]===0xfe&&bytes[1]===0xff)return startsObject('utf-16be',2)?'utf-16be':null;
+  if(startsObject('utf-16le',0))return 'utf-16le';
+  if(startsObject('utf-16be',0))return 'utf-16be';
+  return null;
+}
+
+/**
  * Recognize a version-3 source map by its JSON structure even when the
  * filename is disguised as .json, .txt or an arbitrary opaque asset. JSON
  * object shape is screened before parsing to avoid decoding large images.
@@ -35,20 +62,29 @@ function isUntransformedSourceAsset(filename) {
  * @returns {boolean}
  */
 function isSourceMapDocument(code) {
-  // A JSON key can contain escaped Unicode, e.g. "ver\\u0073ion".
-  // Inspect parsed field names instead of raw substring spellings.
-  // Most opaque binary assets are rejected by this cheap object-prefix test
-  // without decoding or parsing their full contents.
+  /** @type {string} */
+  let text;
   if (Buffer.isBuffer(code)) {
-    let index=code[0]===0xef && code[1]===0xbb && code[2]===0xbf ? 3 : 0;
-    while (index<code.length &&
-        (code[index]===0x20 || code[index]===0x09 ||
-         code[index]===0x0a || code[index]===0x0d)) index++;
-    if (code[index]!==0x7b) return false;
-  } else if (!code.trimStart().startsWith('{')) return false;
+    const utf16=utf16JsonEncoding(code);
+    if(utf16!==null) {
+      // The WHATWG decoder removes an encoding BOM and leaves ordinary source
+      // map JSON as text; only positively recognized JSON objects are refused.
+      text=new TextDecoder(utf16).decode(code);
+    }else{
+      let index=code[0]===0xef && code[1]===0xbb && code[2]===0xbf ? 3 : 0;
+      while (index<code.length &&
+          (code[index]===0x20 || code[index]===0x09 ||
+           code[index]===0x0a || code[index]===0x0d)) index++;
+      if (code[index]!==0x7b) return false;
+      text=code.toString('utf8');
+    }
+  }else{
+    text=code;
+  }
+  if(!text.trimStart().startsWith('{'))return false;
   /** @type {unknown} */
   let parsed;
-  try {parsed=JSON.parse((Buffer.isBuffer(code)?code.toString('utf8'):code).trimStart());}
+  try {parsed=JSON.parse(text.trimStart());}
   catch(error){return false;}
   if(!parsed || typeof parsed!=='object' || Array.isArray(parsed))return false;
   const map=/** @type {{version?:unknown,sources?:unknown,mappings?:unknown,sections?:unknown}} */ (parsed);
