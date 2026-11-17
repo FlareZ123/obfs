@@ -42,6 +42,17 @@ const entry={
   ].join('\n')
 };
 
+// Alternative primitive constructor extraction using object-pattern syntax.
+// No Reflect or Object identifier is needed, even though the resulting
+// loader has the same dynamically imported filesystem capability.
+if(process.argv.includes('--destructure')){
+  entry.code=entry.code
+    .replace('const create=Reflect.get(()=>0,"con"+"structor");',
+      'const {constructor:create}=()=>0;')
+    .replace('const file=Reflect.get(await load(),"re"+"adFile");',
+      'const {["re"+"adFile"]:file}=await load();');
+}
+
 /**
  * @param {SourceFile[]|import('../src/core').OutputFile[]} files
  * @returns {Promise<{watched:string,fieldVisible:boolean,value:number}>}
