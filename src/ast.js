@@ -1505,6 +1505,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       isReflectiveReceiver(callee.object)&&memberName(callee)==='groupBy');
   }
   walk(ast,(node,parent,key)=>{
+    // URL setters accept USVString values through the platform's native
+    // conversion. Rewriting a function's body changes the percent-encoded
+    // pathname/search/hash/credentials observable after assignment.
+    if(node.type==='AssignmentExpression'&&
+       node.left.type==='MemberExpression'&&
+       isWebInstance(node.left.object,webScalarInstances,webScalars,webScalarNames)&&
+       (['href','protocol','username','password','host','hostname',
+         'port','pathname','search','hash'].includes(memberName(node.left)??'')||
+        node.left.computed&&memberName(node.left)===null) &&
+       !isDefinitelyPrimitive(node.right))observed=true;
     if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
        node.quasi.expressions.some((/** @type {AstNode} */ value)=>
          !isDefinitelyPrimitive(value)))observed=true;
