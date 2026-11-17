@@ -20,5 +20,9 @@ jobs:
         run: node sims/inert-clone-source-triage.js
       - name: Bounded independent-source-observer island proof differential
         run: node --test test/source-observer-islands.test.js test/source-observer-coverage.test.js
+      - name: Paired observer-island CPU and cold-start budget profile
+        run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
         run: npm run typecheck
+      - name: Strict external proof and adversarial JSDoc
+        run: npm run typecheck:external
