@@ -199,7 +199,7 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
     methodReads++;
     return methodReads===1?'tick':'unreviewed';
   }});
-  approved[Symbol.iterator]=function*(){yield 'unreviewed';};
+  Object.defineProperty(approved,Symbol.iterator,{value:function*(){yield 'unreviewed';}});
   const pool=createScoPrincipalRealmPool(entry,approved,{maxPrincipals:2});
   assert.equal(methodReads,1,'reviewed method list must be read once by index');
   approved.push('unreviewed');
