@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc check of SNO and cross-mode release evidence
+        run: npm run typecheck:external
       - name: Test fail-closed release decision semantics
         run: node --test test/release-evidence-gate.test.js
       - name: Compare real COO SNO and SCO adversarial applications
