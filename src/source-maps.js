@@ -6,6 +6,7 @@ const {assertNoInlineHtmlSource}=require('./html-assets');
 const {assertNoInlineSvgSource}=require('./svg-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
 const {hasCssDataImport}=require('./css-data-imports');
+const {hasWasmDebugMetadata}=require('./wasm-debug-metadata');
 
 /**
  * Source-map artifacts can contain the unobfuscated program in sourcesContent,
@@ -206,6 +207,9 @@ function assertNoSourceMapDisclosure(file) {
     if(wasmHasMap) {
       throw new TypeError('WebAssembly source-map custom section would disclose original source: '+file.path);
     }
+    if(hasWasmDebugMetadata(file.code)) {
+      throw new TypeError('WebAssembly debug metadata would disclose original names or source references: '+file.path);
+    }
     if(/\.css$/iu.test(file.path)) {
       let hasMap;
       try {
@@ -229,4 +233,4 @@ function assertNoSourceMapDisclosure(file) {
   }
 }
 
-module.exports = {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective,hasCssSourceMapDirective,hasWasmSourceMapDirective,assertNoSourceMapDisclosure};
+module.exports = {isSourceMapAsset,isUntransformedSourceAsset,isSourceMapDocument,hasSourceMapDirective,hasCssSourceMapDirective,hasWasmSourceMapDirective,hasWasmDebugMetadata,assertNoSourceMapDisclosure};
