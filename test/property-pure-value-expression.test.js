@@ -23,8 +23,9 @@ function verify(code,expected){
     mode:'sno',seed:'pure-primitive-values-v1',
     identifiers:false,strings:false,experimentalSymbolKeys:false
   });
-  assert.equal(compiled.files[0].metrics.objects,expected,compiled.files[0].code);
-  assert.equal(execute(compiled.files[0].code),execute(code),compiled.files[0].code);
+  const emitted=/** @type {string} */(compiled.files[0].code);
+  assert.equal(compiled.files[0].metrics.objects,expected,emitted);
+  assert.equal(execute(emitted),execute(code),emitted);
 }
 
 test('pure primitive arithmetic, bitwise, relational and boolean fields can rename',()=>{
@@ -90,9 +91,10 @@ test('private Symbol keys use the same proof for pure primitive values',()=>{
     mode:'sno',seed:'pure-symbol-values',strings:false,identifiers:false,
     experimentalSymbolKeys:true
   }).files[0];
+  const emitted=/** @type {string} */(output.code);
   assert.equal(output.metrics.symbolKeys,2);
-  assert.match(output.code,/=Symbol\(\)/u);
-  assert.equal(execute(output.code),execute(code));
+  assert.match(emitted,/=Symbol\(\)/u);
+  assert.equal(execute(emitted),execute(code));
 });
 
 test('closed-world ESM imported reads preserve output on pure primitive fields',async()=>{
