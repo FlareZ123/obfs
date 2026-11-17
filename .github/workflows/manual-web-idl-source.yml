@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Native and emitted Web IDL source-observer differential
-        run: node --test test/fetch-constructor-function-source.test.js test/web-idl-record-source-observation.test.js test/web-idl-source-counterfactual.test.js test/web-idl-interfile-source.test.js
+        run: node --test test/fetch-constructor-function-source.test.js test/web-idl-record-source-observation.test.js test/web-idl-source-counterfactual.test.js test/web-idl-interfile-source.test.js test/web-idl-string-collection-methods.test.js
       - name: Real Chromium native/emitted Web IDL differential
         if: matrix.os == 'ubuntu-latest'
         env:
