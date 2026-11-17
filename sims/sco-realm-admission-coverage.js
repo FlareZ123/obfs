@@ -53,6 +53,10 @@ const cases=[
     privateBody:'const {PI:pi=0}=Math;return pi>3;'},
   {label:'defaulted immutable Number maximum destructure',kind:'safe-control',
     privateBody:'const {MAX_SAFE_INTEGER:max=0}=Number;return max>0;'},
+  {label:'stable native Error message',kind:'safe-control',
+    privateBody:"return new Error('safe').message;"},
+  {label:'plain local stack field',kind:'safe-control',
+    privateBody:"const record={stack:'safe'};return record.stack;"},
   {label:'Date.parse explicit UTC',kind:'safe-control',
     privateBody:"return Date.parse('2020-01-01T00:00:00.000Z');"},
   {label:'Intl canonical locale tag',kind:'safe-control',
@@ -88,7 +92,13 @@ const cases=[
   {label:'aliased Date.parse host timezone',kind:'unsafe-witness',
     privateBody:"const P=Date.parse;return P('2020-01-01T00:00');"},
   {label:'nested Intl method extraction',kind:'unsafe-witness',
-    privateBody:"const {DateTimeFormat:{supportedLocalesOf:list}}=Intl;return list(['en-US']).length;"}
+    privateBody:"const {DateTimeFormat:{supportedLocalesOf:list}}=Intl;return list(['en-US']).length;"},
+  {label:'native Error.stack direct execution origin',kind:'unsafe-witness',
+    privateBody:"return new Error('trace').stack;"},
+  {label:'native Error.stack direct local factory',kind:'unsafe-witness',
+    privateBody:"function make(){return new Error('trace');}return make().stack;"},
+  {label:'native Error.captureStackTrace',kind:'unsafe-witness',
+    privateBody:"const target={};Error.captureStackTrace(target);return target.stack;"}
 ];
 
 /**
