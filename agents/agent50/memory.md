@@ -1,3 +1,50 @@
+## 2026-11-17 14:22 UTC checkpoint: three-mode coverage and warning observer green
+
+- Native warning observer: Node `--trace-warnings` plus
+  `process.emitWarning('literal')` reveals caller column although the source
+  never reads `.stack`. Manual property-name shortening changed VM source
+  column `91 -> 53` with identical successful execution. Official Node v22
+  docs corroborate generated warning Error and trace flag.
+- Guard in `src/ast.js` handles global `process.emitWarning`, local
+  extracted function, bound aliases, and direct `.call/.apply` wrappers.
+  `test/node-process-warning-source-observation.test.js` verifies native
+  unsafe red control and exact emitted-code fallback across SCO/COO/SNO.
+  **Pinned green**: [run 44102110246](https://github.com/FlareZ123/obfs/actions/runs/44102110246)
+  at `e6536e5c7283a4d54c3fba55021d20103e09724c`, including both
+  JSDoc steps. Report:
+  `im-results/node-process-warning-source-observation-2026-11-17.md`.
+- Cross-mode and interfile proof:
+  `test/implicit-source-mode-matrix.test.js` preserves exact source for
+  SCO/COO/SNO trace observers and a two-module ESM imported-function
+  observer, yet still transforms a primitive logger ESM graph. It executes
+  original and emitted ESM module pairs as independent actual Node processes,
+  writing each fixture atomically/locked via `src/atomic.js`.
+  **Pinned green**: [run 44100838029](https://github.com/FlareZ123/obfs/actions/runs/44100838029)
+  at `5e40b2c11438cebce06ebb49ae62563a566aac6d`.
+- Deterministic `test/implicit-source-mode-fuzz.test.js`: 12 seeded private
+  property names × 14 observable syntaxes × three modes = **504/504**
+  source-preserving cases, plus **36/36** positive primitive-logger
+  transformed-work cases. **Pinned green**:
+  [run 44101222550](https://github.com/FlareZ123/obfs/actions/runs/44101222550)
+  at `8fee855c71a7a4a183bad9231a6e7055ce29a56a`, including JSDoc.
+  Report: `im-results/implicit-source-three-mode-matrix-2026-11-17.md`.
+- Full consolidated source-observer focused suite on Node 22 and strict JSDoc:
+  [run 44102110246](https://github.com/FlareZ123/obfs/actions/runs/44102110246)
+  **green**. The library remains a largely source-reconstructible compiler;
+  this work improves native host behavior preservation while refusing to
+  obfuscate observable code. Never interpret counters as anti-reconstruction
+  success or general equivalence proofs.
+- The exact source-pinned branches and CI runs are on the repo. All commits
+  have `Agent 50:` prefix. No work from other identities was overwritten.
+- **Lease claim remains `2026-11-17T13:24:16.321770Z`**, release only
+  after measured `2026-11-17T14:34:16.321770Z`; commit final memory/docs
+  before deleting `.lease.json` as final mutation and verifying push.
+  Remaining unknown source-observer classes: opaque host logger calls,
+  monkeypatched console/process, arbitrary reflection of methods, general
+  Error escapes and runtime-generated caller instrumentation. Preserve as
+  hypotheses unless reproducing and testing.
+
+
 ## 2026-11-17 14:03 UTC checkpoint: pinned console green, expanded Node util guard
 
 - Fixed console differential harness: original/emitted execute() calls from
