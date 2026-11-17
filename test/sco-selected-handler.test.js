@@ -129,6 +129,41 @@ test('selective SCO handler rejects copied, mutated, untrusted or misconfigured 
   assert.doesNotThrow(()=>createScoSelectedHandler(partition,native,authorized));
 });
 
+test('sealed selective SCO serves original compiler bytes despite a spoofed toJSON view',{
+  timeout:15000
+},async()=>{
+  const partition=compile();
+  const approvedSnapshot=JSON.parse(JSON.stringify(partition));
+  partition.clientFile.code='export const LEAKED_PRIVATE_SOURCE = 41;';
+  // A fake JSON view can make a changed caller object pass its equality
+  // check. The actual served bytes still come from the trusted WeakMap value.
+  Object.defineProperty(partition,'toJSON',{
+    configurable:true,
+    value:()=>approvedSnapshot
+  });
+  const server=http.createServer(createScoSelectedHandler(partition,{
+    protectedDigest:async (/** @type {number} */ v)=>v+41
+  },{authorizeRpc:()=>true,authorizeRead:()=>true}));
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const publicResponse=await fetch(origin+'/obfs/mixed.mjs');
+    assert.equal(publicResponse.status,200);
+    assert.doesNotMatch(await publicResponse.text(),/LEAKED_PRIVATE_SOURCE/u);
+    const rpc=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:approvedSnapshot.methodNames.protectedDigest,args:[1]})
+    });
+    assert.equal(rpc.status,200);
+    assert.deepEqual(await rpc.json(),{ok:true,value:42});
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
+
 test('selected SCO wrapper uses one authoritative route prefix from option accessors',{
   timeout:15000
 },async()=>{
