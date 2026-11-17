@@ -103,7 +103,9 @@ test('COO and SNO emitted multi-function files remain independently recoverable'
 
 test('unrelated executable Module constructors do not count as compiler outputs',()=>{
   const sourceWithOtherModule='if(false) new globalThis.WebAssembly.Module('+
-    'globalThis.Uint8Array.from([1,2,3]));\n';
+    'globalThis.Uint8Array.from([1,2,3]));\n'+
+    'if(false) new globalThis.WebAssembly.Instance('+
+    'new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([4,5,6])));\n';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'other-executable-module',names:['first','second']
   });
