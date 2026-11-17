@@ -33,6 +33,8 @@ jobs:
         run: node sims/sco-stateful-oracle.js
       - name: Recover server-private capability behavior from actual public facade
         run: node --test test/sco-capability-public-oracle.test.js
+      - name: Compare server-private capability per-step and per-session hot CPU
+        run: node sims/sco-capability-granularity.js
       - name: Learn step-only state machine through known synchronizing word
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
