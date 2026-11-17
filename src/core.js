@@ -603,6 +603,12 @@ function obfuscateFiles(files, options = {}) {
   if(options.experimentalSourceObserverIslands?.length && !options.closedWorld) {
     throw new TypeError('Source observer islands require closedWorld');
   }
+  if(options.experimentalSourceObserverIslands?.length && options.experimentalSymbolKeys===true) {
+    // Symbol lowering injects executable Symbol() initializers. Another
+    // source-visible ESM dependency may replace that ambient constructor
+    // before this module executes, unlike native own-key renaming.
+    throw new TypeError('Source observer islands support literal property renaming only');
+  }
   const sourceObserverIslands=options.experimentalSourceObserverIslands?.length ?
     proveSourceObserverIslands(prepared,options.experimentalSourceObserverIslands) : new Set();
   // A hostname wrapper prepends source bytes. Code that can read its own
