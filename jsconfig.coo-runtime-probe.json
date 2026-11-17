@@ -1,0 +1,11 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/coo-runtime-one-query-reconstruct.js",
+    "test/coo-runtime-one-query-reconstruct.test.js",
+    "test/coo-runtime-one-query-browser.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

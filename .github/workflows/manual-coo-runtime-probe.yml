@@ -1,0 +1,29 @@
+name: Manual COO one-query runtime reconstruction
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  runtime-oracle:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc for independent attacker and held-out graph suite
+        run: npx tsc -p jsconfig.coo-runtime-probe.json
+      - name: Validate three runtime probes and held-out full app behavior
+        run: node --test test/coo-runtime-one-query-reconstruct.test.js
+      - name: Verify native and compiler-generated frozen app artifact
+        run: node examples/polyvariant-app/build.cjs
