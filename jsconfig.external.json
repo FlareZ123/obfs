@@ -111,7 +111,8 @@
     "sims/property-hotpath-closedworld.js",
     "sims/sco-ratchet-boundary.js",
     "sims/sco-ratchet-public-attacker.js",
-    "sims/sco-ratchet-batch-candidate.js"
+    "sims/sco-ratchet-batch-candidate.js",
+    "sims/sco-ratchet-batch-public-attacker.js"
   ],
   "exclude": [
     "node_modules"
