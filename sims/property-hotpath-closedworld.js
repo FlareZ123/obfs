@@ -99,10 +99,8 @@ async function measure(style,iterations,trials,valueKind='literal') {
     const coldNativeSamples=[];
     /** @type {number[]} */
     const coldObfuscatedSamples=[];
-    /** @type {((initial:number,iterations:number)=>number)|null} */
-    let originalHot=null;
-    /** @type {((initial:number,iterations:number)=>number)|null} */
-    let obfuscatedHot=null;
+    /** @type {{native:((initial:number,iterations:number)=>number)|null,protected:((initial:number,iterations:number)=>number)|null}} */
+    const loadedFunctions={native:null,protected:null};
     for(let repeat=0;repeat<trials;repeat++) {
       const before=path.join(root,'native-'+repeat);
       const after=path.join(root,'obfuscated-'+repeat);
@@ -113,19 +111,21 @@ async function measure(style,iterations,trials,valueKind='literal') {
         const started=performance.now();
         const loaded=await import(pathToFileURL(path.join(before,'worker.mjs')).href);
         coldNativeSamples.push(performance.now()-started);
-        if(originalHot===null)originalHot=loaded.hot;
+        if(loadedFunctions.native===null)loadedFunctions.native=loaded.hot;
       }
       /** @returns {Promise<void>} */
       async function loadProtected() {
         const started=performance.now();
         const loaded=await import(pathToFileURL(path.join(after,'worker.mjs')).href);
         coldObfuscatedSamples.push(performance.now()-started);
-        if(obfuscatedHot===null)obfuscatedHot=loaded.hot;
+        if(loadedFunctions.protected===null)loadedFunctions.protected=loaded.hot;
       }
       if(repeat%2===0){await loadNative();await loadProtected();}
       else {await loadProtected();await loadNative();}
     }
-    assert.ok(originalHot&&obfuscatedHot);
+    assert.ok(loadedFunctions.native&&loadedFunctions.protected);
+    const originalHot=loadedFunctions.native;
+    const obfuscatedHot=loadedFunctions.protected;
     const coldNativeMs=median(coldNativeSamples);
     const coldObfuscatedMs=median(coldObfuscatedSamples);
     let matchingProbes=0;
