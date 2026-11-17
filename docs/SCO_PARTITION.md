@@ -92,6 +92,14 @@ private source disappear during preflight. The first supplied declaration must
 still be trustworthy and complete; a reviewed `publicPaths` allowlist remains
 a separate, necessary publication boundary.
 
+The selective compiler copies the main `{path,code,sourceType}` and every
+`privateModuleSources` `{path,code}` record into primitive-string snapshots
+before parsing, constructing the closure and creating commitments. Each source
+property is read once, so accessor-backed inputs cannot make the audited
+graph differ from the digest committed for the deployment. The compiler
+does not freeze the filesystem or certify that the supplied sources are
+authentic. The optional startup verifier must still compare the deployed bytes.
+
 When an audited graph is supplied, the returned **server-side partition**
 also carries `privateSourceDigests`: SHA-256 commitments for the original
 mixed module and each supplied private dependency. These commitments are kept
