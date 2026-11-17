@@ -501,8 +501,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
-  // JSON.parse invokes ToString on its first argument before parsing, and
-  // its SyntaxError.message can reveal a function's original source.
+  // JSON.parse and JSON.rawJSON call ToString on their text input.
+  // Their SyntaxError.message can reveal a function's original source.
   const jsonNamespaces=new Set(['JSON']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
@@ -614,7 +614,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='for' && isSymbolConstructor(node.object) ||
-      name==='parse' && isJsonNamespace(node.object);
+      ['parse','rawJSON'].includes(name??'') && isJsonNamespace(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStructuredClone(node) {
@@ -1162,7 +1162,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name===null || name==='parse')
+          if(name===null || name==='parse'||name==='rawJSON')
             changed=add(coercers,property.value.name)||changed;
         }
       }
