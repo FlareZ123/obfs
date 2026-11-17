@@ -61,6 +61,46 @@ test('UTF-16 indexed source maps and JSON escaped map field spellings are detect
   }
 });
 
+test('Unicode whitespace and repeated BOMs cannot bypass UTF-8 map detection',()=>{
+  const prefixes=[
+    '\uFEFF\uFEFF',
+    '\u00A0',
+    '\u1680\u2007',
+    '\u2028\u2029',
+    '\u202F\u205F\u3000',
+    ' \uFEFF\u00A0\t'
+  ];
+  for(const prefix of prefixes){
+    const source=prefix+sourceMap;
+    const code=Buffer.from(source,'utf8');
+    assert.equal(isSourceMapDocument(source),true,JSON.stringify(prefix)+' string');
+    assert.equal(isSourceMapDocument(code),true,JSON.stringify(prefix)+' buffer');
+    for(const mode of /** @type {const} */(['coo','sno','sco'])){
+      assert.throws(()=>obfuscateFiles([
+        app,{path:'unicode-map.bin',sourceType:'asset',code}
+      ],{mode,seed:'unicode-whitespace-preflight'}),/Source-map JSON payload/,mode);
+    }
+  }
+});
+
+test('Unicode whitespace and repeated BOMs cannot bypass UTF-16 map detection',()=>{
+  const prefixes=['\uFEFF\uFEFF','\u00A0','\u1680\u2028','\u2000\u2029\u3000'];
+  for(const prefix of prefixes){
+    for(const endian of /** @type {const} */(['le','be'])){
+      for(const bom of [false,true]){
+        const code=utf16(prefix+sourceMap,endian,bom);
+        assert.equal(isSourceMapDocument(code),true,
+          JSON.stringify(prefix)+' '+endian+' '+String(bom));
+        for(const mode of /** @type {const} */(['coo','sno','sco'])){
+          assert.throws(()=>obfuscateFiles([
+            app,{path:'unicode-map.bin',sourceType:'asset',code}
+          ],{mode,seed:'unicode-whitespace-preflight'}),/Source-map JSON payload/,mode);
+        }
+      }
+    }
+  }
+});
+
 test('ordinary UTF-16 JSON and opaque binary remain byte-identical',()=>{
   const ordinary=JSON.stringify({
     version:3,sources:['public config'],mappings:{kind:'configuration'}
