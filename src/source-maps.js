@@ -6,7 +6,7 @@ const {assertNoInlineHtmlSource}=require('./html-assets');
 const {assertNoInlineSvgSource}=require('./svg-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
 const {hasCssDataImport}=require('./css-data-imports');
-const {hasWasmDebugMetadata}=require('./wasm-debug-metadata');
+const {asWasmBytes,hasWasmDebugMetadata}=require('./wasm-debug-metadata');
 
 /**
  * Source-map artifacts can contain the unobfuscated program in sourcesContent,
@@ -137,10 +137,11 @@ function hasSourceMapDirective(source,sourceType='module') {
  * @returns {boolean}
  */
 function hasWasmSourceMapDirective(code) {
-  if(!Buffer.isBuffer(code) || code.length<8 ||
-      code[0]!==0 || code[1]!==0x61 || code[2]!==0x73 || code[3]!==0x6d) return false;
-  const bytes=new Uint8Array(code.length);
-  bytes.set(code);
+  const source=asWasmBytes(code);
+  if(!source||source.length<8 ||
+      source[0]!==0 || source[1]!==0x61 || source[2]!==0x73 || source[3]!==0x6d) return false;
+  const bytes=new Uint8Array(source.length);
+  bytes.set(source);
   const module=new WebAssembly.Module(bytes);
   return WebAssembly.Module.customSections(module,'sourceMappingURL').length>0;
 }
