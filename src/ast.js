@@ -146,6 +146,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'link','small','strike','sub','sup'
   ]);
   const detachedStringReceiverMethods=new Set();
+  const stringRawAliases=new Set();
   const arrayLikeWithFunctions=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
@@ -343,13 +344,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isDetachedStringReceiverMethod(node) {
     if(!node)return false;
     if(node.type==='Identifier')return detachedStringReceiverMethods.has(node.name);
-    if(node.type!=='MemberExpression'||
-       !sourceCoercingStringReceiverMethods.has(memberName(node)??''))return false;
+    if(node.type!=='MemberExpression')return false;
+    const ordinary=sourceCoercingStringReceiverMethods.has(memberName(node)??'');
+    const iterator=node.computed && node.property.type==='MemberExpression' &&
+      node.property.object.type==='Identifier' &&
+      symbols.has(node.property.object.name) &&
+      memberName(node.property)==='iterator';
+    if(!ordinary&&!iterator)return false;
     const owner=node.object;
     if(owner.type!=='MemberExpression'||memberName(owner)!=='prototype')return false;
     const root=owner.object;
     return root.type==='Identifier'&&root.name==='String' ||
       root.type==='MemberExpression'&&isGlobal(root.object)&&memberName(root)==='String';
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isStringRaw(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return stringRawAliases.has(node.name);
+    return node.type==='MemberExpression'&&memberName(node)==='raw' &&
+      isCoercer(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunctionKeyEntries(node) {
@@ -578,6 +591,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isDetachedArraySourceMethod(value)) {
           changed=add(detachedArraySourceMethods,name)||changed;
         }
+        if(isStringRaw(value))changed=add(stringRawAliases,name)||changed;
         if(isDetachedStringReceiverMethod(value)) {
           changed=add(detachedStringReceiverMethods,name)||changed;
         }
@@ -1058,7 +1072,45 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(reflectiveChanged);
+  /**
+   * String.raw stringifies each visited raw segment and substitution. The
+   * first argument can be a record with nested raw values; all later args
+   * are evaluated substitutions. Unknown values are conservatively unsafe.
+   * @param {AstNode[]} args
+   * @returns {boolean}
+   */
+  function rawObservesSource(args) {
+    return Boolean(args.length && mayCoerceSourceWithinWebRecord(args[0]) ||
+      args.slice(1).some(value=>
+        value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
+  }
   walk(ast,(node,parent,key)=>{
+    if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
+       node.quasi.expressions.some((/** @type {AstNode} */ value)=>
+         !isDefinitelyPrimitive(value)))observed=true;
+    if(node.type==='CallExpression') {
+      const callee=node.callee;
+      if(isStringRaw(callee) && rawObservesSource(node.arguments))observed=true;
+      if(callee.type==='MemberExpression' && isStringRaw(callee.object)) {
+        const method=memberName(callee);
+        if(method==='call' && rawObservesSource(node.arguments.slice(1)))observed=true;
+        if(method==='apply') {
+          const actual=node.arguments[1];
+          if(actual?.type==='ArrayExpression') {
+            if(rawObservesSource(actual.elements.filter(Boolean)))observed=true;
+          } else if(actual)observed=true;
+        }
+        if(method==='bind')observed=true;
+      }
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object)&&memberName(callee)==='apply' &&
+         isStringRaw(node.arguments[0])) {
+        const actual=node.arguments[2];
+        if(actual?.type==='ArrayExpression') {
+          if(rawObservesSource(actual.elements.filter(Boolean)))observed=true;
+        } else if(actual)observed=true;
+      }
+    }
     // A recognized source-coercing Intl callback may be executed by an
     // opaque consumer, including Array#sort's implicit compare invocation.
     // Refuse all unknown callback escapes even without a direct call here.
