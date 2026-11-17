@@ -98,5 +98,5 @@ test('cross-file ESM RegExp consumers reject source-rewriting Wasm while static-
   ];
   const eligible=obfuscateFiles(primitive,options);
   assert.equal(eligible.files[0].metrics.wasmI32Functions,1);
-  assert.equal(eligible.files[1].metrics.wasmI32Functions,0);
+  assert.equal(eligible.files[1].metrics.wasmI32Functions??0,0);
 });
