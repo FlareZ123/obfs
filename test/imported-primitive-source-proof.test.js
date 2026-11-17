@@ -31,16 +31,16 @@ async function execute(files) {
 /** @param {string} primitive @param {string} [exportSyntax] @returns {Source[]} */
 function sources(primitive,exportSyntax) {
   const exporter=exportSyntax??'export const marker='+primitive+';';
-  const importer=exportSyntax?
+  const importer=exportSyntax?.includes('"quoted-public-name"')?
     'import {"quoted-public-name" as observed} from "./state.mjs";':
     'import {marker as observed} from "./state.mjs";';
   return [
     {path:'state.mjs',sourceType:'module',
-      code:'export const state={secretField:23};'+
-        'export function peek(x){return x.secretField;}'+exporter},
+      code:'const owner={secretField:23};const secret=owner.secretField;'+
+        'export function peek(){return secret;}'+exporter},
     {path:'consumer.mjs',sourceType:'module',
-      code:importer+'import {state,peek} from "./state.mjs";'+
-        'export const result=String(observed)+":"+peek(state);'}
+      code:importer+'import {peek} from "./state.mjs";'+
+        'export const result=String(observed)+":"+peek();'}
   ];
 }
 
@@ -62,7 +62,7 @@ for(const [label,literal,rendered] of /** @type {Array<[string,string,string]>} 
     const provenance=collectVerifiedImportedPrimitives(original);
     assert.equal(provenance.get('consumer.mjs')?.has('observed'),true);
     const transformed=compiled(original);
-    assert.equal(transformed.crossFile.properties,1,'Safe field must still change');
+    assert.equal(transformed.files[0].metrics.properties,1,'Safe private field must still change');
     assert.equal(await execute(original),rendered);
     assert.equal(await execute(/** @type {Source[]} */ (transformed.files)),rendered);
   });
@@ -72,7 +72,7 @@ test('quoted public ESM literal alias is proven without renaming syntax tokens',
   const files=sources('37','const internal=37;export {internal as "quoted-public-name"};');
   assert.equal(collectVerifiedImportedPrimitives(files).get('consumer.mjs')?.has('observed'),true);
   const emitted=compiled(files);
-  assert.equal(emitted.crossFile.properties,1);
+  assert.equal(emitted.files[0].metrics.properties,1);
   assert.equal(await execute(/** @type {Source[]} */ (emitted.files)),await execute(files));
   assert.match(/** @type {string} */(emitted.files[0].code),/"quoted-public-name"/u);
 });
@@ -87,7 +87,7 @@ for(const [name,definition,expectedProof] of /** @type {Array<[string,string,boo
     assert.equal(collectVerifiedImportedPrimitives(originals).get('consumer.mjs')?.has('observed'),
       expectedProof);
     const emitted=compiled(originals);
-    assert.equal(emitted.crossFile.properties,0);
+    assert.equal(emitted.files[0].metrics.properties,0);
     assert.equal(await execute(/** @type {Source[]} */(emitted.files)),await execute(originals));
     assert.deepEqual(emitted.files.map(file=>file.code),originals.map(file=>file.code));
   });
@@ -96,6 +96,6 @@ for(const [name,definition,expectedProof] of /** @type {Array<[string,string,boo
 test('open-world imported primitives remain unproved without the graph contract',async()=>{
   const originals=sources('37');
   const emitted=compiled(originals,false);
-  assert.equal(emitted.crossFile.properties,0);
+  assert.equal(emitted.files[0].metrics.properties,0);
   assert.equal(await execute(/** @type {Source[]} */(emitted.files)),await execute(originals));
 });
