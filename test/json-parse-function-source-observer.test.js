@@ -56,7 +56,17 @@ const cases=[
     invocation:'decode(protectedLabel)'},
   {name:'JSON.rawJSON bound alias',
     declaration:'const decode=JSON.rawJSON.bind(JSON);',
-    invocation:'decode(protectedLabel)'}
+    invocation:'decode(protectedLabel)'},
+  {name:'runtime-selected JSON parse member',
+    declaration:'const method=String.fromCharCode(112,97,114,115,101);',
+    invocation:'JSON[method](protectedLabel)'},
+  {name:'runtime-selected JSON rawJSON member',
+    declaration:'const method="raw"+String.fromCharCode(74,83,79,78);',
+    invocation:'JSON[method](protectedLabel)'},
+  {name:'runtime-selected aliased JSON method',
+    declaration:'const decoder=globalThis.JSON;'+
+      'const method=String.fromCharCode(112,97,114,115,101);',
+    invocation:'decoder[method](protectedLabel)'}
 ];
 
 /** @param {string} declaration @param {string} invocation @returns {string} */
