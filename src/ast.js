@@ -750,6 +750,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             if(param?.type==='Identifier')
               changed=add(functions,param.name)||changed;
           }
+          // The third callback argument is the collection itself.
+          if(callback.params[2]?.type==='Identifier') {
+            changed=add(arraysWithFunctions,callback.params[2].name)||changed;
+          }
         }
       }
       // Mutators can introduce function-valued array elements well after
