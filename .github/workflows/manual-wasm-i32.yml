@@ -44,6 +44,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/wasm-i32-browser.js
+      - name: Real Chromium public-only native replacement and strict CSP
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-native-clone-browser.js
       - name: Real Chromium strict CSP denial and targeted Wasm allowance
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:

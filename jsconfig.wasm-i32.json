@@ -29,6 +29,7 @@
     "test/wasm-i32-early-cycle.test.js",
     "test/wasm-i32-browser.js",
     "test/wasm-i32-csp-browser.js",
+    "test/wasm-i32-native-clone-browser.js",
     "examples/wasm-i32/build.cjs",
     "examples/wasm-i32-multi/build.cjs",
     "examples/wasm-i32-conditional/build.cjs",
