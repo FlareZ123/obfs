@@ -332,6 +332,21 @@ function realmStateObservation(body,checkHostConfiguration=false){
         node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const initial=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
+      // Destructuring an Intl constructor is an implicit first-class alias.
+      // Its default host locale/zone is still observable after extraction.
+      if(binding?.type==='ObjectPattern'&&initial&&
+         (initial.type==='Identifier'&&intrinsicKinds.get(initial.name)==='Intl'||
+          initial.type==='MemberExpression'&&initial.object.type==='Identifier'&&
+          globalNames.has(initial.object.name)&&keyName(initial)==='Intl')){
+        for(const property of binding.properties){
+          if(property.type!=='Property'||property.value.type!=='Identifier'||
+             !localeConstructors.has(keyName(property)??''))continue;
+          if(!intlAliases.has(property.value.name)){
+            intlAliases.add(property.value.name);
+            originChanged=true;
+          }
+        }
+      }
       if(binding?.type!=='Identifier'||!initial)return;
       if(initial.type==='NewExpression'&&isDateConstructor(initial.callee)||
          initial.type==='Identifier'&&dateInstances.has(initial.name)){
@@ -508,6 +523,14 @@ function realmStateObservation(body,checkHostConfiguration=false){
     }
     if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
        patternReads(node.id,sensitiveNames))prototypeTouched=true;
+    // Nested/defaulted destructuring from an intrinsic can expose a host
+    // constructor or mutable method without a locally provable alias.
+    if(node.type==='VariableDeclarator'&&node.init&&isIntrinsic(node.init)&&
+       node.id.type==='ObjectPattern'&&node.id.properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type!=='Property'||property.value.type!=='Identifier')){
+      intrinsicTouched=true;
+    }
     // A nested or defaulted binding pattern can silently extract a builtin
     // function, object, or prototype from the global object. Flat simple
     // aliases are tracked above, but deep patterns need a real provenance
