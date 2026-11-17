@@ -84,9 +84,12 @@ function isSimplePatternBinding(value) {
  * @returns {boolean}
  */
 function isPrimitiveConstantExpression(node) {
+  // Mixed BigInt/Number arithmetic and BigInt zero divisors can throw;
+  // changing preceding source keys would then shift observable stack columns.
+  // Direct BigInt literal property values remain eligible via isLiteralValue.
   if(node.type==='Literal')return node.value===null||
-    ['string','number','boolean','bigint'].includes(typeof node.value);
-  if(node.type==='UnaryExpression')return     ['+','-','!','~','void','typeof'].includes(node.operator)&&
+    ['string','number','boolean'].includes(typeof node.value);
+  if(node.type==='UnaryExpression')return ['+','-','!','~','void','typeof'].includes(node.operator)&&
     isPrimitiveConstantExpression(node.argument);
   if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
       '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
