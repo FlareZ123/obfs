@@ -523,6 +523,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
   const webStringInstances=new Set();
+  // Native Request/Response headers and URL searchParams are collection
+  // objects that expose the same coercion methods as directly created ones.
+  const webRecordInstances=new Set();
+  const webScalarInstances=new Set();
   const responseNames=new Set(['Response']);
   const responseConstructors=new Set(responseNames);
   const responseRedirects=new Set();
@@ -680,6 +684,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isWebInstance(node,instances,constructors,names) {
     return Boolean(node && (node.type==='Identifier'&&instances.has(node.name) ||
       node.type==='NewExpression'&&isWebConstructor(node.callee,constructors,names)));
+  }
+  /**
+   * Headers and URLSearchParams arise from constructor calls or via native
+   * Request/Response/URL accessors. Following simple aliases of their owners
+   * preserves source-observer detection without treating every .append call
+   * on arbitrary user objects as a Web IDL coercion.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isWebStringCollection(node) {
+    if(!node)return false;
+    if(isWebInstance(node,webStringInstances,webStringConstructors,webStringNames))
+      return true;
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    return (name==='headers'||node.computed&&name===null) &&
+      isWebInstance(node.object,webRecordInstances,webRecords,webRecordNames) ||
+      (name==='searchParams'||node.computed&&name===null) &&
+      isWebInstance(node.object,webScalarInstances,webScalars,webScalarNames);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isIntlNamespace(node) {
@@ -863,7 +886,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebInstance(value,formInstances,formConstructors,formNames)) {
           changed=add(formInstances,name)||changed;
         }
-        if(isWebInstance(value,webStringInstances,webStringConstructors,webStringNames)) {
+        if(isWebInstance(value,webRecordInstances,webRecords,webRecordNames)) {
+          changed=add(webRecordInstances,name)||changed;
+        }
+        if(isWebInstance(value,webScalarInstances,webScalars,webScalarNames)) {
+          changed=add(webScalarInstances,name)||changed;
+        }
+        if(isWebStringCollection(value)) {
           changed=add(webStringInstances,name)||changed;
         }
         if(value?.type==='MemberExpression' &&
@@ -1682,8 +1711,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         // Headers and URLSearchParams string-coerce names and values in
         // mutators/readers, even when their constructors had inert inputs.
-        if(isWebInstance(callee.object,webStringInstances,webStringConstructors,
-            webStringNames) &&
+        if(isWebStringCollection(callee.object) &&
             (['append','set','get','getAll','delete','has'].includes(method??'') ||
              callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
