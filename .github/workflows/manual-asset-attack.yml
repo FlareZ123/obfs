@@ -30,6 +30,11 @@ jobs:
         with:
           ref: 0a072818f9d46112e25626e5de7ffc357678ee08
           path: style-previous
+      - name: Checkout data-stylesheet prepatch baseline
+        uses: actions/checkout@v4
+        with:
+          ref: 2f980e8103d4b69181e89924d9c4c790f75699ff
+          path: data-style-previous
       - name: Checkout current protected candidate
         uses: actions/checkout@v4
         with:
@@ -47,6 +52,9 @@ jobs:
       - name: Install inline-style prepatch dependencies
         working-directory: style-previous
         run: npm install --no-package-lock --ignore-scripts
+      - name: Install data-stylesheet prepatch dependencies
+        working-directory: data-style-previous
+        run: npm install --no-package-lock --ignore-scripts
       - name: Install protected dependencies
         working-directory: protected
         run: npm install --no-package-lock --ignore-scripts
@@ -56,9 +64,11 @@ jobs:
         run: node protected/sims/xml-data-url-attack.js xml-previous protected
       - name: Paired CSS source-map extraction from HTML and SVG
         run: node protected/sims/inline-style-map-attack.js style-previous protected
+      - name: Paired nested data-URL stylesheet source-map extraction
+        run: node protected/sims/html-data-stylesheet-attack.js data-style-previous protected
       - name: Verify HTML, SVG and CSS source-map regressions
         working-directory: protected
-        run: node --test test/html-asset-disclosure.test.js test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js
+        run: node --test test/html-asset-disclosure.test.js test/html-data-stylesheet-disclosure.test.js test/svg-asset-disclosure.test.js test/css-source-map-annotation.test.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck
