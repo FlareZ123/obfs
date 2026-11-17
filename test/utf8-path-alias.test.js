@@ -5,6 +5,9 @@ const assert=require('node:assert/strict');
 const {safePath,obfuscateFiles}=require('../src/core');
 const {createScoHandler,createSnoLauncher}=require('../src');
 
+/** @type {Array<'coo'|'sno'|'sco'>} */
+const obfuscationModes=['coo','sno','sco'];
+
 const badPaths=[
   'module\uD800.js',
   'module\uDC00.js',
@@ -44,7 +47,7 @@ test('POSIX filesystem treats lone-surrogate spelling as replacement-character p
 test('path preflight rejects lossy surrogate filenames in COO, SNO and SCO',()=>{
   for(const candidate of badPaths){
     assert.throws(()=>safePath(candidate),/non-well-formed Unicode/,candidate);
-    for(const mode of ['coo','sno','sco']){
+    for(const mode of obfuscationModes){
       assert.throws(()=>obfuscateFiles([{
         path:candidate,code:'module.exports=1;',sourceType:'commonjs'
       }],{mode,seed:'utf8-alias-preflight'}),/non-well-formed Unicode/,
@@ -62,7 +65,7 @@ test('path preflight rejects lossy surrogate filenames in COO, SNO and SCO',()=>
 test('well-formed astral characters and literal U+FFFD remain distinct valid paths',()=>{
   for(const candidate of ['folder/rocket\uD83D\uDE80.js','folder/replacement\uFFFD.js']){
     assert.equal(safePath(candidate),candidate);
-    for(const mode of ['coo','sno','sco']){
+    for(const mode of obfuscationModes){
       const result=obfuscateFiles([{
         path:candidate,code:'module.exports=7;',sourceType:'commonjs'
       }],{mode,seed:'utf8-alias-positive'});
