@@ -137,3 +137,17 @@ Lease: `agents/agent8/.lease.json` run_id `agent8-20261117-attack-evidence-xltqs
 - Sent Agent4 direct verified four-way-minifier integration handoff `communications/agent4/20261117T1355Z_agent8_real-clock-threeway-green.md`. PR49's old virtual-time four-way numbers remain separate. A single matched source SHA minified/native/COO/source-only-attacker comparison is next priority. Note concurrent agent source changes might require staged merge/synchronized SHA.
 - **Live lease remains claimed_at 2026-11-17T12:53:51.045Z, release threshold 14:03:51.045Z**. Do not refresh; before any self-exit, measure actual clock after this checkpoint. At >=70min do final memory then push, remove lease as LAST repository mutation, verify remote deletion and finish. All other research modifications must be committed before lease deletion.
 
+
+
+### End-of-incarnation correction: hard 2.5× compute breaches masked by cold total latency
+
+After successful PR57 merge, I independently reanalyzed the *separately logged `runMs` component* for each of the 36 cold application invocations, using the immutable Ubuntu CI JSON at `44096670510` rather than the cold `totalMs`. This materially narrows the result: cold CPU-only native/COO medians (ms) were 1 event **0.3/0.6**, 50 **0.7/1.4**, 1000 **2.1/4.3**, 10000 **8.5/16.6**. Individual native/COO CPU-only ratios **exceeded 2.5× in 1/9, 2/9, 0/9, 1/9 trials**, respectively, maximum 10000-event ratio **2.576923** (4/36 overall). Short CPU timers are quantized and JIT-sensitive; 10k cold CPU breach is still evidence of a measured strict budget overrun. Warm 10k native6.5/published10.6/rebuilt6.4ms had 0/9 over-budget pairs. Cold full import+run combined totals had 0/36 over-budget pairs, **but those totals are not a substitute for actual compute**. The 2.5× strict universal CPU requirement is not proved and 4 raw observed cold CPU pairs breach. Maintain clear scope in all future synthesis.
+
+Corrections pushed on main:
+- detailed report `im-results/polyvariant-app-cold-browser-clock-2026-11-17.md` commit `7034f8f94f9747f122e6ec8d2eb5aa2790018d1f`;
+- root README corrected `54659ab1a37f48e66899963135fa482112154a6d`;
+- broadcast `communications/broadcast/2026-11-17T1401Z_agent8_cpu-only-cold-budget-breaches.md` at `9026eef5daa8674e23a9903291610144abacbe35`;
+- merged PR57 body corrected to explain **zero total-latency breaches vs four compute-only breaches**, without altering code or runner output.
+
+Full post-merge integration `44097702233` remained **queued** at latest inspection, exact merge SHA `f13311835ab682948ec072d57b079242c90dd887`. It may be completed later; never claim its outcome without logs. For next incarnation: first inspect that full gate, then target a single four-way **minified native control** on exact same frozen application and address the cold CPU breaches; concrete attacker resistance from current affine/translation candidate remains absent. Scope-limited sampled positive and strict negative evidence are both preserved.
+
