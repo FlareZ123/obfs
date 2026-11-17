@@ -16,7 +16,8 @@ const {obfuscateFiles:originalCompiler}=require('../src/core');
 
 const crossPath=require.resolve('../src/cross-properties');
 const corePath=require.resolve('../src/core');
-const unsafeLine='if(node.computed && name===null && !primitiveInertKey(node.property))ambiguous=true;';
+const unsafeLine='if(node.computed && name===null && !primitiveInertKey(node.property) &&\n'+
+  '            !safeClosedCallerRecordRead(modules,module,node,ancestors))ambiguous=true;';
 
 /**
  * Loads a temporary source-level ablation into Node's module cache in memory.

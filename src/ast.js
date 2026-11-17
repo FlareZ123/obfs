@@ -2061,6 +2061,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'inspector','node:inspector','node:inspector/promises']);
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Inline classic scripts can read their executing source through DOM nodes.
+  // Track document aliases conservatively alongside global-object aliases.
+  const documentRoots=new Set(['document']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -2086,7 +2089,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,documentRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -2127,7 +2130,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             prop.key.type==='Identifier'?prop.key.name:
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
-            field==='require'?requireRoots:field==='module'?moduleRoots:null;
+            field==='require'?requireRoots:field==='module'?moduleRoots:
+            field==='document'?documentRoots:null;
           if(roots&&!roots.has(prop.value.name)){
             roots.add(prop.value.name);
             changed=true;
@@ -2141,7 +2145,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         const name=initial.computed ? staticString(initial.property) :
           initial.property.type==='Identifier' ? initial.property.name : null;
         const roots=name==='process' ? processRoots :
-          name==='require' ? requireRoots : name==='module' ? moduleRoots : null;
+          name==='require' ? requireRoots : name==='module' ? moduleRoots :
+          name==='document' ? documentRoots : null;
         if(roots && !roots.has(binding.name)) {
           roots.add(binding.name);
           changed=true;
@@ -2212,6 +2217,55 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     const literal=staticString(property);
     if(literal!==null)return literal;
     return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
+  }
+  // Resolve imported or local immutable computed document keys only after
+  // verifying their lexical bindings. This does not assume that an external
+  // Window or Document method is unmodified.
+  let documentChanged;
+  do {
+    documentChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' && node.id.type==='Identifier' ?
+        node.id : node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const initial=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type==='Identifier' && initial?.type==='MemberExpression' &&
+         initial.object.type==='Identifier' && globals.has(initial.object.name) &&
+         (initial.computed ? knownKey(initial.property) :
+           initial.property.type==='Identifier' ? initial.property.name : null)==='document' &&
+         !documentRoots.has(binding.name)) {
+        documentRoots.add(binding.name);
+        documentChanged=true;
+      }
+      if(binding?.type==='Identifier' && initial?.type==='Identifier' &&
+         documentRoots.has(initial.name) && !documentRoots.has(binding.name)) {
+        documentRoots.add(binding.name);
+        documentChanged=true;
+      }
+      const pattern=node.type==='VariableDeclarator' ? node.id :
+        node.type==='AssignmentExpression' && node.operator==='=' ? node.left : null;
+      if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
+         globals.has(initial.name)) {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed ? knownKey(property.key) :
+            property.key.type==='Identifier' ? property.key.name : staticString(property.key);
+          if(field==='document' && !documentRoots.has(property.value.name)) {
+            documentRoots.add(property.value.name);
+            documentChanged=true;
+          }
+        }
+      }
+    });
+  }while(documentChanged);
+  /** @param {AstNode} receiver @returns {boolean} */
+  function isDocumentRoot(receiver) {
+    if(receiver.type==='Identifier')return documentRoots.has(receiver.name);
+    if(receiver.type!=='MemberExpression'||receiver.object.type!=='Identifier'||
+       !globals.has(receiver.object.name))return false;
+    return (receiver.computed ? knownKey(receiver.property) :
+      receiver.property.type==='Identifier' ? receiver.property.name : null)==='document';
   }
   /** @param {string} receiver @param {string|null} key @returns {boolean} */
   function canReachLoader(receiver,key) {
@@ -2361,6 +2415,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           property.key.type==='Identifier' ? property.key.name :
           property.key.type==='Literal'&&typeof property.key.value==='string' ?
             property.key.value : null;
+        // Browser inline-script collections and currentScript expose exact
+        // executable source text through text/textContent/outerHTML.
+        if(isDocumentRoot(target) && (field===null ||
+            ['currentScript','scripts'].includes(field)))observed=true;
         if(isProcessModuleRequire(target) && canReachLoader('process',field) ||
            canReadLoaderRoot(target,field) || target.type==='Identifier' &&
            globals.has(target.name) &&
@@ -2369,9 +2427,27 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    // DOM selectors can retrieve HTMLScriptElements whose text and outerHTML
+    // contain executable inline source. Unknown selectors can target scripts.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       isDocumentRoot(node.callee.object)) {
+      const method=node.callee.computed ? knownKey(node.callee.property) :
+        node.callee.property.type==='Identifier' ? node.callee.property.name : null;
+      const selection=node.arguments[0] ? knownKey(node.arguments[0]) : null;
+      if(['querySelector','querySelectorAll','getElementsByTagName'].includes(method??'') &&
+         (selection===null || selection.toLowerCase().includes('script') ||
+          selection.includes('*')))observed=true;
+      if(method==='getElementsByTagNameNS') {
+        const localName=node.arguments[1] ? knownKey(node.arguments[1]) : null;
+        if(localName===null || localName.toLowerCase()==='script' ||
+           localName==='*')observed=true;
+      }
+    }
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
+      if(isDocumentRoot(node.object) && (node.computed && key===null ||
+          ['currentScript','scripts'].includes(key??'')))observed=true;
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
