@@ -4,6 +4,8 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const vm=require('node:vm');
 const {lowerWasmI32Functions}=require('../src/wasm-i32');
+const {obfuscateFiles}=require('../src/core');
+const {readArgs}=require('../src/cli');
 
 /**
  * Execute one generated CommonJS source under a counting, otherwise native
@@ -94,4 +96,29 @@ test('CommonJS default eager setup remains available for server initialization',
     seed:'bad-deferred-flag',names:['hot'],
     deferCommonJsInitialization:/** @type {boolean} */(/** @type {unknown} */('yes'))
   }),/Expected source/u);
+});
+
+test('SNO group compiler and CLI apply opted-in CommonJS deferred initialization',()=>{
+  const source='function hot(x){return x^17;}function cold(x){return x&255;}'+
+    'module.exports={hot,cold};';
+  const selected={'entry.cjs':['hot','cold']};
+  const emitted=obfuscateFiles([
+    {path:'entry.cjs',sourceType:'commonjs',code:source}
+  ],{
+    mode:'sno',seed:'sno-lazy-integration',strings:false,
+    identifiers:false,properties:false,experimentalWasmI32:selected,
+    experimentalWasmI32DeferredCommonjs:true
+  });
+  assert.equal(emitted.files[0].metrics.wasmI32Functions,2);
+  const runtime=loadCounting(String(emitted.files[0].code));
+  assert.equal(runtime.compiled(),0);
+  assert.equal(runtime.exports.hot(3),3^17);
+  assert.equal(runtime.compiled(),1);
+
+  const opts=readArgs(['--root','.','--entry','entry.cjs',
+    '--wasm-i32','entry.cjs:hot','--wasm-i32-defer-commonjs']);
+  assert.equal(opts.experimentalWasmI32DeferredCommonjs,true);
+  assert.deepEqual(opts.experimentalWasmI32,{'entry.cjs':['hot']});
+  assert.throws(()=>readArgs(['--root','.','--entry','entry.cjs',
+    '--wasm-i32-defer-commonjs']),/requires --wasm-i32/u);
 });
