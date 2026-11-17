@@ -182,12 +182,14 @@ function collectDirectCarrierFactories(ast) {
  * @param {Map<string,string>} [importedStrings] Proven direct ESM string imports.
  * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
+ * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!importedStrings.size&&!importedCloneFunctions.size&&!importedFunctionArrays.size) {
+  if(!importedStrings.size&&!importedCloneFunctions.size&&
+     !importedFunctionArrays.size&&!importedPrimitives.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -283,7 +285,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isFunctionValue(node) {
     return Boolean(node && (node.type==='Identifier'&&
-        !importedStrings.has(node.name) &&
+        !importedStrings.has(node.name) && !importedPrimitives.has(node.name) &&
         (functions.has(node.name)||opaqueFunctions.has(node.name)) ||
       ['FunctionExpression','ArrowFunctionExpression','ClassExpression'].includes(node.type) ||
       node.type==='MemberExpression' &&
@@ -1261,7 +1263,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Literal')return node.regex===undefined &&
       (node.value===null||['string','number','boolean','bigint'].includes(typeof node.value));
     if(node.type==='Identifier')return primitives.has(node.name) ||
-      !dynamicScope && importedStrings.has(node.name);
+      !dynamicScope && (importedStrings.has(node.name)||importedPrimitives.has(node.name));
     // The ArrayLiteral always owns its length data property. Reading it
     // immediately produces a number regardless of inherited getters or
     // setters. Exclude spreads as a bounded side-effect/error safeguard.
@@ -2441,7 +2443,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(argument && !isDefinitelyPrimitive(argument)) observed=true;
     }
   });
-  if(!importedStrings.size&&!importedCloneFunctions.size)sourceObservationCache.set(ast,observed);
+  if(!importedStrings.size&&!importedCloneFunctions.size&&
+     !importedPrimitives.size)sourceObservationCache.set(ast,observed);
   return observed;
 }
 
