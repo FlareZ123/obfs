@@ -851,14 +851,21 @@ function partitionScoSelectedAsyncExports(file,options) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   /** @type {ScoPrivateModuleSource[]|undefined} */
-  const auditedSources=sourceInputs===undefined?undefined:Array.from(sourceInputs,source=>{
-    const sourcePath=source?.path;
-    const code=source?.code;
-    if(typeof sourcePath!=='string'||typeof code!=='string') {
-      throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
+  let auditedSources;
+  if(sourceInputs!==undefined){
+    auditedSources=[];
+    for(let index=0;index<sourceInputs.length;index++){
+      // Inspect the declared array slots without invoking mutable map,
+      // iterator or Symbol.species hooks supplied by the caller.
+      const source=sourceInputs[index];
+      const sourcePath=source?.path;
+      const code=source?.code;
+      if(typeof sourcePath!=='string'||typeof code!=='string') {
+        throw new TypeError('SCO privateModuleSources must contain {path,code} modules');
+      }
+      auditedSources.push({path:sourcePath,code});
     }
-    return {path:sourcePath,code};
-  });
+  }
   const selected=new Set(options.privateNames);
   const requestedPublicHelpers=new Set(options.publicHelperNames??[]);
   const ast=parse(file.code,'module');
