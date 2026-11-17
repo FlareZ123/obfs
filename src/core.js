@@ -310,7 +310,7 @@ function mutatesDecoderIntrinsic(ast) {
           if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
                   (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init)||
-                   isObjectIntrinsic(node.init))) {
+                   isArrayPrototype(node.init)||isObjectIntrinsic(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
@@ -320,6 +320,7 @@ function mutatesDecoderIntrinsic(ast) {
             if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
             if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
             if(name==='prototype'&&isArrayValue(node.init))add(arrayPrototypes,property.value.name);
+            if(name==='__proto__'&&isArrayPrototype(node.init))add(objectPrototypes,property.value.name);
             if(name==='Object'&&isGlobal(node.init))add(objectNames,property.value.name);
             if(name==='prototype'&&isObjectIntrinsic(node.init))add(objectPrototypes,property.value.name);
             if(name==='Reflect'&&isGlobal(node.init))add(reflectNames,property.value.name);
