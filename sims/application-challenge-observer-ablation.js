@@ -67,6 +67,25 @@ function withNullPrototypeRecord(files){
   });
 }
 
+/**
+ * A separate, explicitly type-safe host-input application contract.
+ * Capture the mutable CLI slot exactly once; narrow only the captured const
+ * with typeof before JSON.parse can invoke implicit Function#toString.
+ * The historical frozen original is deliberately NOT rewritten by default.
+ * @param {{path:string,sourceType:'module',code:string}[]} files
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function withCapturedStringArgv(files) {
+  return files.map(file=>{
+    if(file.path!=='entry.mjs')return file;
+    const original="const cases=JSON.parse(process.argv[2]||'[[1,1000]]');";
+    const captured="const inputValue=process.argv[2];"+
+      "const cases=JSON.parse(typeof inputValue==='string'?inputValue:'[[1,1000]]');";
+    assert.ok(file.code.includes(original),'Expected original host CLI JSON.parse');
+    return {...file,code:file.code.replace(original,captured)};
+  });
+}
+
 /** @returns {Promise<unknown[]>} */
 async function main(){
   const originals=await Promise.all(NAMES.map(async name=>({
@@ -78,8 +97,10 @@ async function main(){
     const withoutObservers=ablate(originals,
       /** @type {'none'|'reflect'|'entry'|'both'} */(
         variant==='own-only'||variant==='null-proto'?'both':variant));
-    const sources=variant==='own-only'?withOwnKeyCalls(withoutObservers):
+    const source=variant==='own-only'?withOwnKeyCalls(withoutObservers):
       variant==='null-proto'?withNullPrototypeRecord(withoutObservers):withoutObservers;
+    const sources=variant==='own-only'||variant==='null-proto'?
+      withCapturedStringArgv(source):source;
     const observerPaths=sources.filter(file=>observesFunctionSource(
       parse(file.code,'module'))).map(file=>file.path);
     const compiled=obfuscateFiles(sources,{
@@ -103,4 +124,4 @@ async function main(){
 if(require.main===module){
   main().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={main,ablate,withOwnKeyCalls,withNullPrototypeRecord};
+module.exports={main,ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv};
