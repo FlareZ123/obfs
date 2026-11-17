@@ -61,6 +61,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/polyvariant-affine-browser.js
+      - name: Real Chromium native, distributed and independent rebuilt full ESM applications
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/polyvariant-app-three-way-browser.js
       - name: JSDoc static check
         run: npm run typecheck
       - name: JSDoc static check of execution-coverage experiment
