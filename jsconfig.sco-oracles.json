@@ -19,7 +19,8 @@
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
     "sims/sco-key-search.js",
-    "test/sco-capability-public-oracle.test.js"
+    "test/sco-capability-public-oracle.test.js",
+    "sims/sco-capability-granularity.js"
   ],
   "exclude": [
     "node_modules"
