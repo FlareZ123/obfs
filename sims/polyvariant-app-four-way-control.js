@@ -67,7 +67,7 @@ async function prepare(){
   const protectedResult=await build();
   /** @type {Graph} */
   const published=protectedResult.files.map(file=>({
-    path:file.path,code=/** @type {string} */(file.code)
+    path:file.path,code:/** @type {string} */(file.code)
   }));
   assert.deepEqual(published.map(file=>file.path),names);
   /** @type {Graph} */
