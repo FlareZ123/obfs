@@ -89,6 +89,10 @@ const examples=[
   {
     name:'RegExp alias Symbol.match destructuring',
     tail:'const Rx=RegExp;const {[Symbol.match]:check}=Rx.prototype;module.exports=check.call(/a\\^17/,f)?.[0]??null;'
+  },
+  {
+    name:'RegExp destructured global constructor alias',
+    tail:'const {RegExp:Rx}=globalThis;const {test:check}=Rx.prototype;module.exports=check.call(/a\\^17/,f);'
   }
 ];
 
