@@ -88,7 +88,9 @@ test('CSS escapes and intervening comments cannot disguise a data stylesheet imp
     '@import/**/url/**/(data:text/css,body{});',
     '@\\69mport url(\\64 ata:text/css,body{});',
     '@import "\\64 ata:text/css,body{}";',
-    '@import \t url("  data:text/css,body{}");'
+    '@import \t url("  data:text/css,body{}");',
+    '@import url("da\\9 ta:text/css,body{}");',
+    '@import url("d\\a ata:text/css,body{}");'
   ];
   for(const sample of cases)assert.equal(hasCssDataImport(sample),true,sample);
   assert.equal(hasCssDataImport('@import url(./assets/theme.css)'),false);
