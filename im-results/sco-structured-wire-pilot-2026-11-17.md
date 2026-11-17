@@ -95,6 +95,29 @@ All devalue measurements are independent of the `@ungap` candidate's
 pass/fail. An experimental competitor with compatible data shapes could
 still exceed the 2.5× runtime budget on short original tasks.
 
+## Added real-browser branch, before measurement
+
+The [Chromium harness](../sims/sco-devalue-browser-profile.js) serves
+the exact installed `devalue@6.0.3` ESM source files from one loopback
+origin, alongside two otherwise identical native and graph-loaded
+pages. It captures 9 alternating cold page-ready observations for
+each page variant, including the native ESM module graph load cost.
+It then measures 9 native/JSON/graph hot-loop observations for each
+of the same eight count/workload cases inside real Chromium, with
+a browser graph-shape parity assertion. The Node driver uses the
+repository's paired diagnostic on the raw observations. This is
+separately timed from Node in-process codec costs.
+
+Limitations: browser-process launch time is excluded from
+`performance.now()` and should not be used as an attacker-cost
+metric. Loopback static imports exclude SCO authorization, network
+RPC and production obfuscation overhead. The page origins and browser
+version are fixed by the manual runner; browser platform differences
+and OS scheduling are not fully controlled. The browser script is
+experimental and runs only on Linux in the manual workflow; Windows
+still evaluates the codec's Node path. Only a complete, pinned passing
+run establishes that the simulated browser path actually worked.
+
 ## Protocol update after tagged-source audit
 
 The original pre-registered `@ungap` pilot SHA
