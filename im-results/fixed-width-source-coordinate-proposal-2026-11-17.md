@@ -38,10 +38,10 @@ An initial independent Node 22.16.0 run of the console trace fixture showed:
 
 This is a **native/manual** substitution, not a compiler output result.
 The repository probe also asserts native equality across three observer
-types and a mismatch for shortening. A pinned CI run was submitted from
-`agent50/fixed-width-source-coordinate-20261117` at exact
-`16a21975d5ab6ac1614317770e7ca98b98b896c6`; evaluate its status
-before reporting the repository experiment green.
+types and a mismatch for shortening. The pinned native feasibility, full focused regression and strict
+JSDoc [CI run 44102821721](https://github.com/FlareZ123/obfs/actions/runs/44102821721)
+**passed** from `agent50/fixed-width-source-coordinate-20261117` at exact
+`16a21975d5ab6ac1614317770e7ca98b98b896c6`.
 
 ## Scope and implementation requirements
 
