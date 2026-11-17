@@ -25,10 +25,14 @@ jobs:
         run: node examples/application-challenge/sco-build.cjs --check --dump
       - name: Test source withholding, authorization, online relay, and paired costs
         run: node --test test/application-challenge-sco.test.js
+      - name: Validate exact finite-sample paired slowdown inference
+        run: node --test test/paired-budget-bound.test.js
       - name: Compare real fresh-process full-session client costs
         run: node sims/application-challenge-sco-cold-session.js
       - name: Reproduce pinned cold-profile sample uncertainty
         run: node sims/application-challenge-sco-cold-bootstrap.js
+      - name: Strict JSDoc for finite-sample paired budget bound
+        run: npx tsc --project jsconfig.paired-budget.json
       - name: Execute private SCO application facade in real Chromium
         if: runner.os == 'Linux'
         env:
