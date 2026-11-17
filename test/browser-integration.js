@@ -36,7 +36,7 @@ async function main(){
     path:'parameter-owner.mjs',sourceType:'module',
     code:'function compute(payload){const owner={secretField:payload,bias:3};'+
       'return owner.secretField+owner.bias;}'+
-      'document.getElementById("answer").textContent=String(compute(39));'
+      'document.getElementById("answer").textContent=compute(39);'
   }],{mode:'coo',seed:'chrome-local-formal-owner',
     identifiers:false,strings:false,properties:true});
   assert.equal(parameterSet.files[0].metrics.objects,1);
