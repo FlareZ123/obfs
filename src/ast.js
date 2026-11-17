@@ -873,10 +873,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (node.value===null||['string','number','boolean','bigint'].includes(typeof node.value));
     if(node.type==='Identifier')return primitives.has(node.name) ||
       !dynamicScope && importedStrings.has(node.name);
+    // The ArrayLiteral always owns its length data property. Reading it
+    // immediately produces a number regardless of inherited getters or
+    // setters. Exclude spreads as a bounded side-effect/error safeguard.
+    if(node.type==='MemberExpression' &&
+       node.object.type==='ArrayExpression' &&
+       (node.computed ? staticString(node.property)==='length' :
+         node.property.type==='Identifier' && node.property.name==='length') &&
+       node.object.elements.every((/** @type {AstNode|null} */ item)=>
+         item?.type!=='SpreadElement'))return true;
     // A fresh array literal's initialized numeric slot is an own data
     // property even when Array.prototype contains a hostile accessor.
-    // Reject holes and spreads: an absent slot can inherit a function,
-    // and a spread can shift the syntactically selected index.
+    // Reject the selected hole and all spreads: an absent selected slot
+    // can inherit a function, and a spread can shift the selected index.
     if(node.type==='MemberExpression' && node.computed &&
        node.object.type==='ArrayExpression' &&
        node.property.type==='Literal' &&
