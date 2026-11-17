@@ -14,7 +14,7 @@ const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 const files=[
   {path:'kernel.mjs',sourceType:'module',
     code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
-      'export function mask(x){return ((x^137)&255);}'},
+      'export function mask(x){return x?((x^137)&255):((~x)|7);}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
@@ -61,7 +61,7 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
       assert.deepEqual(attacker.functions.map(fn=>fn.name),['scramble','mask']);
       if(seed%2===0){
         assert.deepEqual(attacker.functions.map(fn=>fn.expression),
-          ['(((a^b)&(c|d))^((a>>>d)|(c<<b)))','((x^137)&255)']);
+          ['(((a^b)&(c|d))^((a>>>d)|(c<<b)))','(x?((x^137)&255):((~x)|7))']);
       }else{
         assert.deepEqual(attacker.functions.map(fn=>fn.parameters.length),[4,1]);
       }
@@ -85,7 +85,9 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
         }
       };
       for(let i=0;i<1024;i++){
-        const a=randomI32(),b=randomI32(),c=randomI32(),d=(i>>>3)&31;
+        const boundary=[-2147483648,-1,0,1,31,32,2147483647,0x12345678];
+        const a=i<boundary.length?boundary[i]:randomI32();
+        const b=randomI32(),c=randomI32(),d=(i>>>3)&31;
         const label='sample-'+i;
         const original=native.run(a,b,c,d,label);
         const protectedResult=protectedApp.run(a,b,c,d,label);
