@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -108,9 +108,10 @@ function collectVerifiedImportedStrings(files) {
 
 /**
  * Prove direct ESM imports whose originating module exports a unique,
- * immutable primitive literal. This carries only a boolean kind of proof:
- * unlike collectVerifiedImportedStrings, no value is propagated for key
- * folding. Reexports, computed initializers and mutable exports are opaque.
+ * immutable primitive literal or proven pure primitive-only expression.
+ * This carries only a boolean kind of proof: unlike
+ * collectVerifiedImportedStrings, no value is propagated for key folding.
+ * Reexports, opaque computed initializers and mutable exports are unproved.
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
@@ -133,10 +134,14 @@ function collectVerifiedImportedPrimitives(files) {
       if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
       for(const entry of declaration.declarations) {
         const init=entry.init;
-        if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||
-           init?.type!=='Literal'||init.regex!==undefined)continue;
-        if(init.value===null||['string','number','boolean','bigint'].includes(typeof init.value))
-          ownPrimitives.add(entry.id.name);
+        if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||!init)continue;
+        // Primitive expressions cannot carry a Function value into native
+        // string coercion in a consumer. Preserve the existing direct BigInt
+        // literal proof, but decline potentially throwing composed BigInt ops.
+        if(init.type==='Literal' && init.regex===undefined &&
+             (init.value===null||
+               ['string','number','boolean','bigint'].includes(typeof init.value)) ||
+           isPrimitiveConstantExpression(init))ownPrimitives.add(entry.id.name);
       }
     }
     const names=new Set();
