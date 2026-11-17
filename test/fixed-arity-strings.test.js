@@ -39,6 +39,21 @@ for(const mode of /** @type {const} */ (['sno','coo'])) {
   });
 }
 
+test('SCO explicit fixed-arity string option preserves an unpartitioned module',()=>{
+  const long='private-data-'+('😀'+String.fromCharCode(0xD800)).repeat(800);
+  const source='module.exports='+JSON.stringify(long)+';';
+  const result=obfuscateFiles([{path:'unpartitioned.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sco',seed:'sco-fixed-arity-parity',strings:true,
+    properties:false,identifiers:false,experimentalFixedArityStrings:true
+  }).files[0];
+  assert.equal(result.metrics.literals,1);
+  assert.match(String(result.code),/fromCharCode\\([^)]*charCodeAt/u);
+  assert.equal(execute(String(result.code)),execute(source));
+  const attacker=recoverObfuscatedStrings(String(result.code),'commonjs');
+  assert.equal(attacker.literals,1);
+  assert.equal(execute(attacker.code),execute(source));
+});
+
 for(const [name,mutation] of [
   ['Array prototype chain',
     'const shim={get 0(){return 0;},set 0(value){}};Array.prototype.__proto__=shim;'],
