@@ -86,8 +86,10 @@ case-insensitive paths, unrelated supplied files, noncanonical imports, unknown
 bare imports, and direct runtime `import()` or common direct loader calls.
 When `createScoHandler` receives source files directly, it now reads each
 `privateModulePaths` and `privateOriginalDigests` getter exactly once,
-snapshots their array elements, validates only the owned copies, and reuses
-those copies throughout publication.
+snapshots their array elements by indexed reads, validates only the owned
+copies, and reuses those copies throughout publication. Caller-owned `map`
+methods and `Symbol.iterator` overrides on manifest arrays do not control
+which private paths or digests enter these admission sets.
 This prevents inconsistent successive getter values from making a declared
 private source disappear during preflight. The first supplied declaration must
 still be trustworthy and complete; a reviewed `publicPaths` allowlist remains
