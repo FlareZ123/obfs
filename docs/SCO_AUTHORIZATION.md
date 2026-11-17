@@ -58,6 +58,9 @@ revocation transitions through the same isolation facility.
 
 The real byte-paced HTTP regression in
 [`test/sco-slow-body-authorization-race.test.js`](../test/sco-slow-body-authorization-race.test.js)
+was verified in both Node 22 Linux and Windows jobs of
+[manual authorization run 44020222950](https://github.com/FlareZ123/obfs/actions/runs/44020222950),
+exact commit `ad0513b9a03aa0375053801464972f9e4346a349`. It
 reproduces both outcomes with the same private method: unisolated
 acceptance followed by a late revocation, and isolation-enabled refusal
 after complete parsing. This is a behavior contract and operational
