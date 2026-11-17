@@ -40,6 +40,8 @@ jobs:
         run: node --test test/utf8-path-alias.test.js
       - name: Observe real filesystem Unicode case equivalences against compiler keys
         run: node sims/path-alias-grid.js
+      - name: Enumerate all one-code-point Unicode uppercase collision candidates on filesystem
+        run: node sims/windows-unicode-uppercase-grid.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
