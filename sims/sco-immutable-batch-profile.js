@@ -26,7 +26,7 @@ async function start(immutableBatchArgs){
     remoteMethods:{batch:createScoBatchMethod({
       /** @param {{n:number,text:string}} input */
       read:input=>input.n+input.text.length
-    })},
+    },{maxCalls:1024})},
     authorizeRpc:()=>true,
     authorizeOperation:(request,method)=>method==='batch'||method==='read'
   });
@@ -64,7 +64,7 @@ async function main(){
   const normal=await start(false);
   const immutable=await start(true);
   try{
-    for(const size of [1,20,60]){
+    for(const size of [1,20,60,128,256,512]){
       const calls=Array.from({length:size},(_,i)=>({
         method:'read',args:[{n:i,text:'x'.repeat(80)}]
       }));
