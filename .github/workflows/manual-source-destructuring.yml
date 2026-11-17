@@ -1,0 +1,26 @@
+name: Manual native source destructuring differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-contract:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Native source observer destructuring and decoder syntax
+        run: node --test test/regexp-function-source-observer.test.js test/string-static-function-source-observer.test.js test/fixed-arity-strings.test.js
+      - name: Strict JSDoc
+        run: npm run typecheck
