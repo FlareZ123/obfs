@@ -32,9 +32,10 @@ function compare(source,renamed,mode){
   const output=obfuscateFiles([
     {path:'owned.cjs',sourceType:'commonjs',code:source}
   ],{mode,seed:'owned-in-operator-'+mode,strings:false,identifiers:false});
-  assert.equal(evaluate(output.files[0].code),evaluate(source),output.files[0].code);
-  assert.equal(output.files[0].metrics.properties,renamed,output.files[0].code);
-  return /** @type {string} */ (output.files[0].code);
+  const emitted=/** @type {string} */ (output.files[0].code);
+  assert.equal(evaluate(emitted),evaluate(source),emitted);
+  assert.equal(output.files[0].metrics.properties,renamed,emitted);
+  return emitted;
 }
 
 for(const [name,source] of [
