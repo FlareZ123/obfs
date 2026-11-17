@@ -21,7 +21,7 @@ function warningColumn(code) {
     {encoding:'utf8',timeout:10000});
   assert.equal(result.error,undefined);
   assert.equal(result.status,0,result.stderr);
-  const match=result.stderr.match(/process-warning-observer\\.cjs:1:(\\d+)/);
+  const match=result.stderr.match(/process-warning-observer\.cjs:1:(\d+)/);
   assert.ok(match,result.stderr);
   return Number(match[1]);
 }
