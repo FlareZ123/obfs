@@ -89,7 +89,10 @@ When `createScoHandler` receives source files directly, it now reads each
 snapshots their array elements by indexed reads, validates only the owned
 copies, and reuses those copies throughout publication. Caller-owned `map`
 methods and `Symbol.iterator` overrides on manifest arrays do not control
-which private paths or digests enter these admission sets.
+which private paths or digests enter these admission sets. The initial
+`sourceFiles` inventory is also copied by indexed reads once so its
+caller-owned methods cannot show different file sets to the policy and
+to the HTTP route builder.
 This prevents inconsistent successive getter values from making a declared
 private source disappear during preflight. The first supplied declaration must
 still be trustworthy and complete; a reviewed `publicPaths` allowlist remains
