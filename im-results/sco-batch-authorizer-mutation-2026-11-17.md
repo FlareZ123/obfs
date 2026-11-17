@@ -1,6 +1,6 @@
 # SCO recognized-batch policy mutation isolation, 2026-11-17
 
-**Status:** Real-HTTP regressions and amended candidate fix committed. The original red and first candidate workflow runs remain queued at this report revision; their results have not been observed. This is an intermediate trusted-server correctness investigation, not an established obfuscation or security-resistance result.
+**Status:** The two original real-HTTP mutation regressions are now confirmed red on Ubuntu and Windows at the exact pre-fix SHA. The current native-JSON-parser candidate has a queued green gate and remains provisional. This is an intermediate trusted-server correctness investigation, not an established obfuscation or security-resistance result.
 
 ## Problem and execution boundary
 
@@ -18,7 +18,11 @@ The tests record both HTTP results and private method side effects:
 - Initial source patch commit `8b4f9a3c361553e663c1fc74ff7420c33f9bfad9`, superseded second manual authorization workflow [run 44045020398](https://github.com/FlareZ123/obfs/actions/runs/44045020398).
 - Extra deep JSON and numeric/property-key controls added at `5036d8d68aaaf5118aeff46dc64809e61771224b`, with an initial iterative copy at `382cc3e8fe21f4e9503be7d0e6a97f81e059c794`, subsequently replaced by independent native JSON parses at `d27eacdd0e78d561bffc9d2cf064ed4495a624f5`.
 
-No passing or failing runner outcome is yet claimed at this document version. These pinned runs must be checked before upgrading the evidence status.
+### Verified pre-fix red execution
+
+[Manual authorization workflow 44044692709](https://github.com/FlareZ123/obfs/actions/runs/44044692709) completed on Ubuntu and Windows Node 22 for exact SHA `140d6fb1392726e4006cc88735b0c7b9113cfb4d`. Both jobs failed the **same two intended new tests** within the 168-test SCO HTTP/partition suite. The first test expected approved `read(1)` and instead received the value `99` from an unapproved registered `forbidden(99)` call. The second expected `charge(1)` to return `10` and instead received `990` after the callback mutated the previously approved first argument to `99`. Ubuntu reported 166 passes / 2 failures. Windows reported 165 passes / 2 failures / 1 skipped. The workflow stopped at the targeted tests as expected; its later performance and typecheck stages did not run. This pins the *pre-fix* behavior, not a green post-fix result.
+
+A newer test includes an additional mutation of the current inner callback argument list, a 5,000-depth valid JSON case, negative-zero and exponent-overflow checks, and own `__proto__` data-property preservation. The current candidate is at `d27eacdd0e78d561bffc9d2cf064ed4495a624f5` with the latest test-only addition at `837f5a277477887e83541be4a1fb419c9961a67d`. Its [manual green attempt 44048517033](https://github.com/FlareZ123/obfs/actions/runs/44048517033) is pending. Any newer conclusion must quote its exact checked SHA and job statuses.
 
 ## Candidate and invariant
 
