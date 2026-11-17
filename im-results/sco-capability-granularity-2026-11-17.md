@@ -17,7 +17,7 @@ node sims/sco-capability-granularity.js
 npx tsc -p jsconfig.sco-oracles.json
 ~~~
 
-The source uses the same fixed four-state hidden machine and a fixed pseudorandom input tape (seed 0x637aa125) for all variants. It warms each variant, then profiles 200,000 and 1,000,000 private transitions with six sequential trials each. Three execution orders rotate, so each position is visited twice by each mode.
+The source uses the same fixed four-state hidden machine and a fixed pseudorandom input tape (seed 0x637aa125) for all variants. It warms each variant with 30,000 transitions, then profiles 200,000- and 1,000,000-element tapes with 100 and 20 sequential passes respectively (20 million executed transitions per trial), six trials per tape size. Three execution orders rotate, so each position is visited twice by each mode. The larger, fixed common pass count was added after a Windows run reported zero process CPU for a short warm-up, which had triggered an invalid positive-resolution assertion.
 
 - **native:** Direct step function using a mutable state record.
 - **per-step:** For every symbol, call the scoped handle lookup/use callback and then run the identical step function.
@@ -25,10 +25,12 @@ The source uses the same fixed four-state hidden machine and a fixed pseudorando
 
 All operations are executed inside the real isolated per-principal request scope. The stopwatch and process CPU counter start inside the settled scope; handle minting and revocation are excluded from the measured hot region in both handle cases. The direct baseline is measured in the same context. Data preparation, module loading, authentication, queuing and allocation of one new handle happen before the timed region. Both wall elapsed time (hrtime.bigint) and process CPU time (cpuUsage) are recorded independently, with ratio decisions based on measured process CPU milliseconds.
 
-Every trial asserts **exact output checksum parity** among all three modes. The raw JSONL output includes exact trial order, CPU milliseconds, wall milliseconds, both ratios, observed 2.5x exceedance counts and maximum ratios. This is one host-process descriptive sample rather than randomized independent samples; no statistical tail or median guarantee is made.
+Every trial asserts **exact output checksum parity** among all three modes. The raw JSONL output includes exact trial order, pass count and executed-step count, CPU milliseconds, wall milliseconds, both ratios, observed 2.5x exceedance counts, zero-resolution/unresolved pair counts and maximum ratios. Zero CPU duration remains a recorded measurement and results in a null ratio, which is inconclusive rather than a fabricated pass. This is one host-process descriptive sample rather than randomized independent samples; no statistical tail or median guarantee is made.
 
 ## Interpretation constraints
 
 The per-step and per-session modes have different RPC semantics if surfaced directly to a client. Per-session dispatch is an architecture option only when the protected application can move a whole operation across the trusted-server boundary while preserving its public contract. This experiment isolates the cost of repeated server-local handle validation; a fully protected client/server comparison must measure each allowed operation, network marshalling and complete workflow.
+
+**Measurement red/green history:** Original source `f3780cb1f9372517bc930e94a4d0a745bbfa359a` in [run 44148761219](https://github.com/FlareZ123/obfs/actions/runs/44148761219) passed the Ubuntu benchmark and the public-oracle test on both systems, but Windows stopped in the benchmark's short warmup at an assertion that process CPU milliseconds must exceed zero. This is a measurement-resolution failure, not a semantic mismatch or observed 2.5x performance violation. The follow-up removes that incorrect assertion and uses larger common hot samples while retaining explicitly unresolved samples. Its performance outcome requires a new immutable run; do not infer a Windows budget verdict from the red predecessor.
 
 The attacker's fixed online source-learning and authorization results are separate from this CPU question. Improving server CPU by batching does not itself increase the difficulty of reconstructing a finite state machine through authorized resettable public observations. 
