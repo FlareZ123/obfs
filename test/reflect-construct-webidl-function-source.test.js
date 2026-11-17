@@ -18,8 +18,8 @@ function execute(code) {
 function source(declarations,expression) {
   return "'use strict';"+
     'function protectedLabel(x){return ((x^173)&255);};'+declarations+
-    'module.exports=function observe(){try{return String('+expression+
-    ');}catch(error){return String(error.message);}};';
+    'module.exports=function observe(){try{return '+expression+
+    ';}catch(error){return error.message;}};';
 }
 
 const cases=[
