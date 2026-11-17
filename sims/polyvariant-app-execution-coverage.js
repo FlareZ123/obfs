@@ -89,7 +89,7 @@ function freshCounts(){return {round1:0,round2:0,round3:0};}
  */
 function observe(app,records){
   const counts=freshCounts();
-  globalThis.__obfsCoverageCounts=counts;
+  /** @type {{__obfsCoverageCounts?:CallCounts}} */ (globalThis).__obfsCoverageCounts=counts;
   let emitted=0;
   const value=app.runScenario(-817,records,{emit(){emitted++;}});
   return {value,counts:{...counts},emitted};
@@ -107,7 +107,7 @@ function records(count){
  * Check observed calls through native, compiler-generated and independently
  * recovered full three-file ESM graphs on exactly the same input sessions.
  * The counter does not estimate exclusive CPU time or security hardness.
- * @returns {Promise<{originalSourceSha256:string,distributedMathSha256:string,reconstructedMathSha256:string,selectedSourceBytes:number,totalOriginalBytes:number,originalSelectedFraction:number,distributedMathBytes:number,reconstructedMathBytes:number,reconstructedFunctions:number,rows:CoverageRow[]}>}
+ * @returns {Promise<{originalSourceSha256:string,distributedMathSha256:string,reconstructedMathSha256:string,selectedSourceBytes:number,selectedFunctionAstBytes:number,totalOriginalBytes:number,originalSelectedFraction:number,distributedMathBytes:number,reconstructedMathBytes:number,reconstructedFunctions:number,rows:CoverageRow[]}>}
  */
 async function runEvidence(){
   const native=/** @type {SourceGroup} */ (await Promise.all(fileNames.map(async name=>({
@@ -124,8 +124,12 @@ async function runEvidence(){
   const recoveredFiles=generated.map(file=>({
     ...file,code:file.path==='math.mjs'?recovered.code:file.code
   }));
-  const selectedSourceBytes=[...selectedFunctions(nativeMath).values()].reduce(
+  const selectedFunctionAstBytes=[...selectedFunctions(nativeMath).values()].reduce(
     (total,fn)=>total+Buffer.byteLength(nativeMath.slice(fn.start,fn.end)),0);
+  const selectedStart=nativeMath.indexOf('export function round1(');
+  const selectedEnd=nativeMath.indexOf('/**',selectedStart);
+  assert.ok(selectedStart>=0 && selectedEnd>selectedStart);
+  const selectedSourceBytes=Buffer.byteLength(nativeMath.slice(selectedStart,selectedEnd));
   const totalOriginalBytes=native.reduce((total,file)=>
     total+Buffer.byteLength(file.code),0);
   assert.equal(selectedSourceBytes,310,'Frozen selected function source changed');
@@ -142,7 +146,7 @@ async function runEvidence(){
     reconstructed:recoveredFiles
   };
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-coverage-'));
-  const prior=globalThis.__obfsCoverageCounts;
+  const prior=/** @type {{__obfsCoverageCounts?:CallCounts}} */ (globalThis).__obfsCoverageCounts;
   try{
     /** @type {Record<string,{runScenario:(seed:number,records:Records,host:{emit:(value:unknown)=>void})=>string}>} */
     const programs={};
@@ -187,15 +191,15 @@ async function runEvidence(){
       originalSourceSha256:sha256(native.map(file=>file.path+'\0'+file.code+'\0').join('')),
       distributedMathSha256:sha256(publishedMath),
       reconstructedMathSha256:sha256(recovered.code),
-      selectedSourceBytes,totalOriginalBytes,
+      selectedSourceBytes,selectedFunctionAstBytes,totalOriginalBytes,
       originalSelectedFraction:selectedSourceBytes/totalOriginalBytes,
       distributedMathBytes:Buffer.byteLength(publishedMath),
       reconstructedMathBytes:Buffer.byteLength(recovered.code),
       reconstructedFunctions:recovered.functions.length,rows
     };
   }finally{
-    if(prior===undefined)delete globalThis.__obfsCoverageCounts;
-    else globalThis.__obfsCoverageCounts=prior;
+    if(prior===undefined)delete /** @type {{__obfsCoverageCounts?:CallCounts}} */ (globalThis).__obfsCoverageCounts;
+    else /** @type {{__obfsCoverageCounts?:CallCounts}} */ (globalThis).__obfsCoverageCounts=prior;
     await fs.rm(root,{recursive:true,force:true});
   }
 }
