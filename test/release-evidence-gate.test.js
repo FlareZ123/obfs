@@ -138,6 +138,23 @@ test('familywise paired budget allocates both tails across all tested workloads'
   assert.equal(rareBreach.observedSampleHasOverBudgetPair,true);
 });
 
+test('familywise median support never hides a sampled hard-threshold breach',()=>{
+  const datasets=Array.from({length:10},(_,i)=>({
+    native:Array(13).fill(1),
+    candidate:i===0?
+      [...Array(12).fill(1.25),3.5]:Array(13).fill(1.25)
+  }));
+  const report=familywiseBudgetBounds(datasets);
+  assert.equal(report.comparisons,10);
+  // Rank 12/13 supports the median despite one high outlier. The raw
+  // observed strict-budget violation must remain independently visible.
+  assert.equal(report.verdict,'sample-supported');
+  assert.equal(report.rows[0].decision,'supported');
+  assert.equal(report.observedOverBudgetPairs,1);
+  assert.equal(report.observedMaxPairedRatio,3.5);
+  assert.equal(report.observedSampleHasOverBudgetPair,true);
+});
+
 test('familywise bounds reject too few samples to meet joint confidence',()=>{
   assert.throws(()=>familywiseBudgetBounds([]),/At least one paired workload/u);
   assert.throws(()=>familywiseBudgetBounds([{
