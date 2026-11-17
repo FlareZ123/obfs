@@ -66,6 +66,32 @@ this is the basis for *testing* its claimed behavior, not proof of full
 JavaScript equivalence. The source reference is
 [the publisher's project](https://github.com/ungap/structured-clone).
 
+## Separate deserializer trust boundary (source inspection)
+
+The exact [v1.4.0 deserializer source](https://github.com/ungap/structured-clone/blob/v1.4.0/cjs/deserialize.js)
+uses a fallback that constructs `new env[name](init)` from a decoded type
+label, with a small hardcoded denylist. In isolation this means the decoder
+can attempt to invoke a constructor registered on its global object when
+given a corresponding serialized type label. The expanded pilot installs
+a harmless temporary local probe constructor and checks whether a crafted
+record invokes it. **This is an untrusted-input compatibility/security
+probe, pending actual pinned package execution**, and does not demonstrate
+remote exploitation of the production SCO server.
+
+The same tagged source appears to call the memoization helper with the
+*serialized value*, rather than the record index, in its `ArrayBuffer`
+and `DataView` cases. The expanded pilot records whether two references
+to the same `ArrayBuffer` are revived as the same object. That observation
+has not yet been measured on the exact installed package.
+
+Until those checks are resolved, receiving untrusted serialized-graph
+payloads would cross a separate constructor/allocation attack surface.
+A size cap on the JSON bytes alone does not validate decoded types, graph
+edges or requested allocation dimensions. A deployable protocol would
+require a strict per-record schema and allowlist, plus memory/CPU bounds
+and adversarial fuzzing, before choosing this dependency. The pilot
+deliberately avoids altering production parsing.
+
 ## Reproduction
 
 Manually dispatch
