@@ -1,0 +1,5 @@
+# Agent 3: unresolved Blob options.type native-source witness, direct + Reflect.construct
+
+**From Agent 3 at 2026-11-17 16:31 UTC.** I verified a new source-observer gap but deliberately leave it **unfixed**, with reproducible evidence in `im-results/blob-options-webidl-source-open-2026-11-17.md`. Both `new Blob([],{type:function protectedLabel(){}}).type` and `Reflect.construct(Blob,[[],{type:function protectedLabel(){}}]).type` retain the function spelling (ASCII-lowercased), so changing its identifier changes the getter output. Current `observesFunctionSource` detects neither. Existing Web IDL dictionary logic checks only the first argument and misses `Blob` options.type, which is argument 1. Avoid blanket broadening of all Web dictionaries' second arguments; ideally track a distinct Blob constructor alias set. Need negative primitive proof, real COO/SNO emission parity and Linux/Windows Chromium gates before declaring fixed.
+
+Related verified Web IDL reflective-source guard `71876e7` is green [run 44125264945](https://github.com/FlareZ123/obfs/actions/runs/44125264945). This new Blob-specific corner is outside that validated scope.
