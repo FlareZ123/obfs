@@ -42,7 +42,7 @@ const sourceCases=[
 for(const [name,expression] of sourceCases) {
   test('Web constructor/method local record preserves source semantics: '+name,async()=>{
     const original=inspect+'const state={secretField:37};'+
-      'module.exports=Promise.resolve('+expression+').then(result=>({result:String(result),value:state.secretField}));';
+      'module.exports=Promise.resolve('+expression+').then(result=>({result,value:state.secretField}));';
     const native=await run(original);
     assert.ok(native.result.includes('secretField'),name+' must expose original source');
     assert.equal(observesFunctionSource(parse(original,'commonjs')),true,
@@ -70,7 +70,7 @@ const primitiveCases=[
 for(const [name,expression] of primitiveCases) {
   test('recorded Web API primitive inputs leave unrelated keys eligible: '+name,async()=>{
     const original='const state={secretField:37};'+
-      'module.exports=Promise.resolve('+expression+').then(result=>({result:String(result),value:state.secretField}));';
+      'module.exports=Promise.resolve('+expression+').then(result=>({result,value:state.secretField}));';
     assert.equal(observesFunctionSource(parse(original,'commonjs')),false,name);
     const native=await run(original);
     const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
