@@ -49,3 +49,11 @@ On Ubuntu, the joined artifact explicitly reported matching SHA-256 digests for 
 
 This is new exact-run evidence for the stricter joined boundary rather than a substitute for Agent8's previous real-clock samples. The six-workload join cannot prove a universal upper time bound, and the observed breaches make a strict sample pass false despite some median-based outcomes being supported. The independently reconstructed protected arithmetic leaves still prevent a claim of incremental confidentiality over ordinary esbuild minification on this application.
 
+
+## Reconciliation replication against moving main, 17:24 UTC
+
+The newer [full two-platform workflow 44136551489](https://github.com/FlareZ123/obfs/actions/runs/44136551489) passed Ubuntu/Windows Node 22, strict external JSDoc, real Chrome, full output/host callback parity and cross-runtime join at exact integrated source SHA `267ccc62226554924d223992ed0d74a34e4a5eff`. Ubuntu job `134227549852`; Windows job `134227549153`. This was a two-parent semantic merge on latest main (at the time), preserving unrelated concurrent changes and carrying the same four-way implementation as the first green run.
+
+On this separate sample, source hashes still matched and the decision remained `RELEASE-BLOCKED`: full source-only static reconstruction, matched-query attacker success, and **2/72 actual strict observed budget breaches**. This time both breaches occurred in **Node fresh 50-event sessions**, and the maximum paired slowdown was **3.18616x**. Warming and scheduler variability shift which workload has the outliers. Chromium warmed 10,000-event CPU median ratio in this run was **2.32353x**, with 0/12 strict observations over budget; fresh 10,000-event Chrome synchronous CPU ratio was **2.06897x**, also 0/12 over. The six-workload simultaneous paired-median verdict remained `sample-inconclusive` at a 96.1914% lower joint coverage bound under the specified sampling assumptions.
+
+A single clean Chrome sample cannot erase the earlier independently pinned Chrome CPU breaches. A different Node workload becoming the strict-limit violator confirms why independent boundary attribution and retention of every paired observation matter. No claimed universal 2.5x budget is supportable from either run.
