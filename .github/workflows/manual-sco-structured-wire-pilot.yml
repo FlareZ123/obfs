@@ -1,0 +1,25 @@
+name: Manual SCO graph-wire exploratory profile
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared project dependencies and exact experimental codec
+        run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0
+      - name: Compare in-process JSON and graph-aware wire semantics and costs
+        run: node sims/sco-structured-wire-pilot.js
