@@ -113,7 +113,8 @@ test('JSON.parse and JSON.rawJSON source-observation guards direct and aliases',
 
 test('JSON.parse and JSON.rawJSON with proven primitive input preserve transformation',()=>{
   const source='"use strict";function active(x){return x^37;}'+
-    'JSON.parse("1");JSON.rawJSON("1");module.exports=active;';
+    'JSON.parse("1");JSON.rawJSON("1");'+
+    'Reflect.apply(JSON.parse,JSON,["1"]);module.exports=active;';
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false);
   const emitted=obfuscateFiles([{path:'main.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',seed:'json-parse-primitive-positive',closedWorld:true,
