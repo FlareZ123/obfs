@@ -121,3 +121,38 @@ test('rejected resolver cannot reuse an old scope on a repeated request object',
  }),/Authenticated principal/);
  assert.throws(()=>scope.currentPrincipal(),/active authenticated RPC scope/);
 });
+
+test('concurrent reuse of one request object cannot replace a queued principal',async()=>{
+  const reused=request('shared');
+  let decisions=0;
+  const scope=createScoCapabilityScope(req=>
+    req===reused?(++decisions===1?'alice':'bob'):verifiedAccount(req));
+  /** @type {()=>void} */
+  let release=()=>{};
+  /** @type {()=>void} */
+  let entered=()=>{};
+  const hold=new Promise(resolve=>{release=()=>resolve(undefined);});
+  const started=new Promise(resolve=>{entered=()=>resolve(undefined);});
+  const blocked=scope.runRpcIsolated(request('alice'),async()=>{
+    entered();
+    await hold;
+  });
+  await started;
+  /** @type {string[]} */
+  const seen=[];
+  const alice=scope.runRpcIsolated(reused,async()=>{
+    seen.push('first:'+scope.currentPrincipal());
+  });
+  const bob=scope.runRpcIsolated(reused,async()=>{
+    seen.push('second:'+scope.currentPrincipal());
+  });
+  try {
+    await bob;
+    assert.deepEqual(seen,['second:bob']);
+  }finally{
+    release();
+  }
+  await Promise.all([blocked,alice]);
+  assert.deepEqual(seen,['second:bob','first:alice']);
+  assert.equal(decisions,2);
+});
