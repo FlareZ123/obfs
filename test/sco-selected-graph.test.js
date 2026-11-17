@@ -251,3 +251,36 @@ test('selected SCO graph snapshots accessor-backed source records once',()=>{
   assert.match(graph.clientFiles[0].code,/export function local/u);
   assert.doesNotMatch(graph.clientFiles[0].code,/value\*3/u);
 });
+
+
+test('selected SCO graph serves sealed code despite a getter changing after manifest comparison',{
+  timeout:15000
+},async()=>{
+  const graph=compile();
+  const original=graph.clientFiles[0].code;
+  const namespaces=Object.create(null);
+  for(const name of graph.exposedPaths){
+    namespaces[name]={secret:async value=>String(value).length+41};
+  }
+  let reads=0;
+  Object.defineProperty(graph.clientFiles[0],'code',{
+    enumerable:true,configurable:true,
+    get(){
+      reads++;
+      return reads<=2?original:
+        'export const PRIVATE_SOURCE_LEAK="should never be served";';
+    }
+  });
+  const server=http.createServer(createScoSelectedGraphHandler(graph,namespaces,{
+    authorizeRead:()=>true,authorizeRpc:()=>true,authorizeOperation:()=>true
+  }));
+  try{
+    const origin=await listen(server);
+    const response=await globalThis.fetch(origin+'/obfs/alpha.mjs');
+    assert.equal(response.status,200);
+    assert.equal(await response.text(),original);
+    assert.ok(reads<=2,'Handler must never reread the untrusted facade getter');
+  }finally{
+    await close(server);
+  }
+});
