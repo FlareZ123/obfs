@@ -165,3 +165,16 @@ test('native extracted Intl and Date operations observe different host timezones
     else process.env.TZ=previousTZ;
   }
 });
+
+
+test('SCO retains defaulted immutable numeric destructuring as a positive control',()=>{
+  const bodies=[
+    'const {PI:pi=0}=Math;return pi>3;',
+    'const {MAX_SAFE_INTEGER:max=0}=Number;return max>0;',
+    'const {NaN:zero=1}=Number;return Number.isNaN(zero);'
+  ];
+  for(const body of bodies){
+    const result=partition(body,'return 1;');
+    assert.deepEqual(result.privateNames,['privateOp'],body);
+  }
+});
