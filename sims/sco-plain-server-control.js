@@ -6,6 +6,8 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {AsyncLocalStorage}=require('node:async_hooks');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
 const {createHash,randomBytes}=require('node:crypto');
 const {pathToFileURL}=require('node:url');
 const {hrtime,cpuUsage}=require('node:process');
@@ -86,7 +88,10 @@ async function compare(repeats=8) {
   const context=new AsyncLocalStorage();
   /** @param {http.IncomingMessage} request @returns {string} */
   const principalOf=request=>{
-    const token=request.headers['x-test-session'];
+    const header=request.headers['x-test-session'];
+    const cookie=request.headers.cookie;
+    const token=typeof header==='string'?header:
+      typeof cookie==='string'&&cookie.startsWith('session=')?cookie.slice(8):undefined;
     return typeof token==='string' ? accounts.get(token)??'unverified' : 'unverified';
   };
   const isolation=createScoKeyedIsolation(principalOf,{
@@ -119,7 +124,7 @@ async function compare(repeats=8) {
       partition.clientFile,
       {path:'manual.mjs',sourceType:'module',code:conventionalSource}
     ];
-    server=http.createServer(createScoHandler(publicFiles,{
+    const privateHandler=createScoHandler(publicFiles,{
       publicPaths:['generated.mjs','manual.mjs'],
       remoteMethods:methods,authorizeRead:()=>true,
       authorizeRpc:request=>principalOf(request)!=='unverified',
@@ -129,7 +134,29 @@ async function compare(repeats=8) {
         /^[a-f0-9]{64}$/u.test(args[0]),
       runRpcIsolated:(request,execute)=>
         isolation(request,()=>context.run(principalOf(request),execute))
-    }));
+    });
+    const browserInput=challenge('browser',0);
+    const page='<!doctype html><html><body><pre id="out">pending</pre>'+
+      '<script type="module">'+
+      'import{derive as generated}from"/obfs/generated.mjs";'+
+      'import{derive as manual}from"/obfs/manual.mjs";'+
+      'try{const input='+JSON.stringify(browserInput)+';'+
+      'const a=await generated(input);const b=await manual(input);'+
+      'document.getElementById("out").textContent=a+"|"+b;}'+
+      'catch(error){document.getElementById("out").textContent="failed:"+String(error);}' +
+      '</script></body></html>';
+    server=http.createServer((request,response)=>{
+      if(request.url==='/'){
+        response.writeHead(200,{
+          'content-type':'text/html; charset=utf-8',
+          'set-cookie':'session='+tokenA+'; Path=/; HttpOnly; SameSite=Strict',
+          'cache-control':'no-store'
+        });
+        response.end(page);
+        return;
+      }
+      privateHandler(request,response);
+    });
     const origin='http://127.0.0.1:'+await listen(server);
     const publicGenerated=await originalFetch(origin+'/obfs/generated.mjs');
     const publicManual=await originalFetch(origin+'/obfs/manual.mjs');
@@ -269,6 +296,22 @@ async function compare(repeats=8) {
       trials.push(row);
       console.log(JSON.stringify({trial:row}));
     }
+    let chromiumParity='not-run';
+    let chromiumPrivateCalls=0;
+    if(process.env.CHROMIUM_BIN){
+      const expectedBrowser=await direct('account-A',browserInput);
+      const beforeBrowserCalls=privateCalls;
+      const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN,[
+        '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+        '--no-first-run','--virtual-time-budget=6000','--dump-dom',origin+'/'
+      ],{timeout:60000,maxBuffer:4*1024*1024,encoding:'utf8'});
+      const observed=stdout.match(/<pre id="out">([^<]+)<\/pre>/u)?.[1];
+      assert.equal(observed,expectedBrowser+'|'+expectedBrowser,
+        'Real Chromium generated/manual mismatch: '+stdout.slice(-1800));
+      chromiumPrivateCalls=privateCalls-beforeBrowserCalls;
+      assert.equal(chromiumPrivateCalls,2);
+      chromiumParity='passed';
+    }
     return {node:process.version,platform:process.platform,repeats,
       publicGeneratedSha256:createHash('sha256').update(generatedText).digest('hex'),
       publicManualSha256:createHash('sha256').update(manualText).digest('hex'),
@@ -281,7 +324,7 @@ async function compare(repeats=8) {
         Buffer.byteLength(JSON.stringify({method:'plain-digest',args:[input]})),0),
       authenticatedNegativeStatus:denied.status,privateFileStatus:404,
       heldoutQueries:heldout.length,generatedRelayMatches,manualRelayMatches,
-      mistakenCrossAccountMatches,privateCalls,
+      mistakenCrossAccountMatches,privateCalls,chromiumParity,chromiumPrivateCalls,
       generatedCpuBreaches,manualCpuBreaches,generatedCpuUnresolved,manualCpuUnresolved,
       generatedWallBreaches,manualWallBreaches,
       medianGeneratedOverManualCpu:median(trials.map(x=>
