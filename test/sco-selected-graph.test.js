@@ -206,9 +206,9 @@ test('selected SCO handler seals all emitted bytes and requires independent auth
   assert.throws(()=>createScoSelectedGraphHandler(source,namespaces,{
     routePrefix:'/different/'
   }),/endpoint does not match/u);
-  assert.throws(()=>createScoSelectedGraphHandler(source,namespaces,{
-    publicPaths:['secret.mjs']
-  }),/authorized server options/u);
+  const forbiddenCallerOptions={routePrefix:'/obfs/',publicPaths:['secret.mjs']};
+  assert.throws(()=>createScoSelectedGraphHandler(source,namespaces,
+    forbiddenCallerOptions),/authorized server options/u);
   assert.throws(()=>createScoSelectedGraphHandler(source,namespaces,{}),
     /Missing selected SCO private namespace/u);
 
@@ -265,7 +265,9 @@ test('selected SCO graph serves sealed code despite a getter changing after mani
   const original=graph.clientFiles[0].code;
   const namespaces=Object.create(null);
   for(const name of graph.exposedPaths){
-    namespaces[name]={secret:async value=>String(value).length+41};
+    /** @param {unknown} value @returns {Promise<number>} */
+    async function secret(value){return String(value).length+41;}
+    namespaces[name]={secret};
   }
   let reads=0;
   Object.defineProperty(graph.clientFiles[0],'code',{
