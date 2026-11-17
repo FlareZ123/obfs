@@ -8,9 +8,9 @@ const {obfuscateFiles}=require('../src/core');
 const {extractPublicWasm,recoverAllPublicWasmExpressions,
   recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 
-// The first byte-array spelling is a misleading comment in delivered source.
-// It is deliberately earlier than both generated public Wasm constructors.
-const source='// Uint8Array.from([1,2,3])\n'+
+// A forged full constructor in a source comment precedes the generated ones.
+// A raw regex would incorrectly treat the comment as executable Wasm code.
+const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1,2,3]))\n'+
   "'use strict';\n"+
   'function first(a){return ((a^137)&255);}\n'+
   'function second(b,c){return (((b|c)^31)<<1);}\n'+
@@ -48,7 +48,7 @@ test('public-only attacker selects both actual Wasm modules despite earlier deco
     });
     assert.equal(lowered.functions,2);
     const decoy=lowered.code.indexOf('Uint8Array.from([1,2,3])');
-    const firstModule=lowered.code.indexOf('new globalThis.WebAssembly.Module(');
+    const firstModule=lowered.code.indexOf('new globalThis.WebAssembly.Instance(');
     assert.ok(decoy>=0&&decoy<firstModule);
     assert.ok(WebAssembly.validate(extractPublicWasm(lowered.code)));
     assert.equal(recoverPublicWasmExpression(lowered.code,'a').expression,expected[0]);

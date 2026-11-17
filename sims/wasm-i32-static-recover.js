@@ -1,5 +1,8 @@
 'use strict';
 
+const acorn=require('acorn');
+const walk=require('acorn-walk');
+
 /**
  * Independent bytecode-only attacker for the public experimental Wasm i32
  * distribution. Uses no compiler imports, original source or seed.
@@ -9,18 +12,36 @@
 /** @typedef {{type:'parameter',index:number}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}|{type:'conditional',test:Expr,consequent:Expr,alternate:Expr}} Expr */
 
 /**
- * Locate precisely the public compiler-generated Wasm constructors. A generic
- * Uint8Array.from spelling in a comment or application string is not evidence
- * of a distributed Wasm module.
+ * The constructor is identified as an executable Acorn NewExpression before
+ * its generated syntax is matched. Comments and strings may contain a complete
+ * forged constructor, so searching raw text alone would corrupt recovery.
+ * This scanner imports only the independent public Acorn parser, not compiler code.
  */
-const GENERATED_WASM=/new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)\s*\)/gu;
+const GENERATED_WASM=/^new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)\s*\)$/u;
+
+/** @typedef {{source:string,array:string,offset:number}} PublicWasmModule */
+/** @param {string} source @returns {PublicWasmModule[]} */
+function compilerModules(source) {
+  const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module',allowHashBang:true});
+  /** @type {PublicWasmModule[]} */
+  const modules=[];
+  walk.simple(ast,{
+    NewExpression(node){
+      const fragment=source.slice(node.start,node.end);
+      const matched=GENERATED_WASM.exec(fragment);
+      if(matched)modules.push({source:fragment,array:matched[1],offset:node.start});
+    }
+  });
+  return modules.sort((a,b)=>a.offset-b.offset);
+}
 
 /** @param {string} source @returns {Uint8Array} */
 function extractPublicWasm(source) {
-  const emitted=[...source.matchAll(GENERATED_WASM)];
-  const found=emitted[0]??/Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)/u.exec(source);
-  if(!found)throw new TypeError('No public embedded WebAssembly module');
-  const values=JSON.parse(found[1]);
+  const emitted=compilerModules(source);
+  const encoded=emitted[0]?.array ??
+    /Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)/u.exec(source)?.[1];
+  if(!encoded)throw new TypeError('No public embedded WebAssembly module');
+  const values=JSON.parse(encoded);
   if(!Array.isArray(values)||values.some(value=>!Number.isInteger(value)||value<0||value>255)) {
     throw new TypeError('Malformed public byte array');
   }
@@ -239,7 +260,7 @@ function recoverPublicWasmExpression(publicJavaScript,parameter='x') {
  * @returns {Array<{expression:string,bytes:number,offset:number}>}
  */
 function recoverAllPublicWasmExpressions(publicJavaScript,parameterSets) {
-  const emitted=[...publicJavaScript.matchAll(GENERATED_WASM)];
+  const emitted=compilerModules(publicJavaScript);
   if(!emitted.length)throw new TypeError('No compiler-emitted WebAssembly modules');
   if(!Array.isArray(parameterSets)||parameterSets.length!==emitted.length ||
       parameterSets.some(names=>!Array.isArray(names)||names.length<1||names.length>4||
@@ -247,11 +268,11 @@ function recoverAllPublicWasmExpressions(publicJavaScript,parameterSets) {
     throw new TypeError('Expected one nonempty parameter set per emitted Wasm module');
   }
   return emitted.map((found,index)=>{
-    const bytes=extractPublicWasm(found[0]);
+    const bytes=extractPublicWasm(found.source);
     return {
       expression:printExpression(symbolicDecode(bytes),parameterSets[index]),
       bytes:bytes.length,
-      offset:found.index??0
+      offset:found.offset
     };
   });
 }
