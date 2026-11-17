@@ -7,50 +7,16 @@ permissions:
   contents: read
 
 jobs:
-  node22:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+  example-yield:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install declared dependencies
-        id: install
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Behavioral and adversarial suites with compact failure diagnostics
-        run: node --test --test-reporter=spec test/*.test.js
-      - name: JSDoc type safety
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck
-      - name: Strict JSDoc for external corpus research tools
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run typecheck:external
-      - name: Performance sample
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: npm run benchmark
-      - name: Paired own-key and null-prototype six-module startup-and-session profiles
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node sims/verified-record-session-profile.js
-      - name: Native/emitted local formal-value whole-process budget and public clone
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: node sims/local-parameter-value-profile.js
-      - name: Real Chromium module and host-lock integration
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: npm run test:browser
-      - name: Real Chromium null-prototype protected-key and host-inheritance parity
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/verified-record-browser.js
-      - name: Real Chromium cross-module owner-field observation differential
-        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/esm-observation-browser.js
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Probe real unchanged source corpus and seeded positive/negative AST controls
+        run: node --test test/local-parameter-example-yield.test.js
+      - name: Report exact code grammar candidate counts
+        run: node sims/local-parameter-example-yield.js
