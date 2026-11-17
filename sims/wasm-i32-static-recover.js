@@ -22,7 +22,8 @@ const GENERATED_WASM=/^new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.
 /** @typedef {{source:string,array:string,offset:number}} PublicWasmModule */
 /** @param {string} source @returns {PublicWasmModule[]} */
 function compilerModules(source) {
-  const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module',allowHashBang:true});
+  const ast=acorn.parse(source,{ecmaVersion:'latest',sourceType:'module',
+    allowHashBang:true,allowReturnOutsideFunction:true});
   /** @type {PublicWasmModule[]} */
   const modules=[];
   walk.simple(ast,{

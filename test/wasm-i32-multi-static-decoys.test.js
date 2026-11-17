@@ -106,3 +106,13 @@ test('multi-module scanner declines missing compiler constructors',()=>{
     'const text="Uint8Array.from([0,97,115,109,1,0,0,0])";',[['x']]),
   /No compiler-emitted WebAssembly modules/u);
 });
+
+
+test('public-only scanner handles Node CommonJS top-level return grammar',()=>{
+  const cjs='function sample(x){return (x^3);}\nmodule.exports=sample;\nreturn 42;\n';
+  const lowered=lowerWasmI32Functions(cjs,'commonjs',{
+    seed:'cjs-top-level-return',names:['sample']
+  });
+  assert.equal(lowered.functions,1);
+  assert.equal(recoverAllPublicWasmExpressions(lowered.code,[['x']])[0].expression,'(x^3)');
+});
