@@ -8,6 +8,7 @@ const http=require('node:http');
 const {randomBytes,createHash,createHmac}=require('node:crypto');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {partitionScoAsyncGraph,createScoGraphHandler}=require('../src/sco-graph');
+const {verifyScoPrivateSourceDigests}=require('../src/sco-private-integrity');
 const {createScoPrincipalRealmPool}=require('../sims/sco-principal-realm-worker');
 
 const fixture=path.join(__dirname,'fixtures','sco-principal-realm');
@@ -48,6 +49,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
     {path:'private-counter.mjs',code:counter,sourceType:'module'}
   ],{seed:'principal-realm-fixed-repro-seed',exposedPaths:['private-api.mjs'],
     batch:true,maxBatchCalls:8});
+  await verifyScoPrivateSourceDigests(graph,fixture);
   const publicBytes=graph.clientFiles[0].code;
   const sourceDigests=[api,counter,publicBytes].map(code=>
     createHash('sha256').update(code).digest('hex'));
