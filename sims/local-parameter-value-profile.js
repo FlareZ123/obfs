@@ -49,6 +49,7 @@ function median(samples) {
 
 /**
  * @typedef {{
+ *   style:'explicit'|'shorthand',
  *   rounds:number,
  *   samples:number,
  *   nativeMs:number,
@@ -61,11 +62,17 @@ function median(samples) {
  * }} ProfileRow
  */
 
-/** @returns {Promise<{rows:ProfileRow[]}>} */
-async function main() {
+/**
+ * @param {'explicit'|'shorthand'} [style]
+ * @returns {Promise<{rows:ProfileRow[]}>}
+ */
+async function main(style='explicit') {
+  const source=style==='shorthand' ?
+    original.replace('secretField:payload','payload')
+      .replace('owner.secretField','owner.payload') : original;
   const obfuscated=obfuscateFiles([{
-    path:'entry.cjs',sourceType:'commonjs',code:original
-  }],{mode:'sno',seed:'private-formal-value-profile-20261117',
+    path:'entry.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'private-formal-value-profile-20261117/'+style,
     identifiers:false,strings:false,properties:true}).files[0];
   assert.equal(obfuscated.metrics.objects,1,'Expected actual local-owner transformation');
   assert.equal(obfuscated.metrics.properties,2,'Expected two private own keys renamed');
@@ -75,7 +82,7 @@ async function main() {
   /** @type {ProfileRow[]} */
   const rows=[];
   try {
-    await atomicWrite(path.join(native,'entry.cjs'),original);
+    await atomicWrite(path.join(native,'entry.cjs'),source);
     await atomicWrite(path.join(emitted,'entry.cjs'),obfuscated.code);
     // The adversary obtains only the distributed bytes, and can run an exact
     // functional clone as-is. Property spelling changes are not an anti-copy
@@ -100,7 +107,7 @@ async function main() {
       const emittedMs=median(emittedTimes);
       const ratio=emittedMs/nativeMs;
       assert.ok(Number.isFinite(ratio)&&ratio>0);
-      rows.push({rounds,samples:9,nativeMs,emittedMs,ratio,
+      rows.push({style,rounds,samples:9,nativeMs,emittedMs,ratio,
         within2point5:ratio<=2.5,equalOutput:true,publicCloneEqual,
         renamedProperties:obfuscated.metrics.properties});
     }
@@ -109,7 +116,7 @@ async function main() {
       fs.rm(directory,{recursive:true,force:true})));
   }
   process.stdout.write('LOCAL_PARAMETER_FIELD_PROFILE '+JSON.stringify({
-    node:process.version,platform:process.platform,rows,
+    node:process.version,platform:process.platform,style,rows,
     scope:'Paired fresh Node CJS processes with one-event and repeated local owner construction. No WAN or hostile instrumentation included.'
   })+'\n');
   assert.ok(rows.every(row=>row.within2point5),
@@ -117,5 +124,6 @@ async function main() {
   return {rows};
 }
 
-if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});
+if(require.main===module)main('explicit').then(()=>main('shorthand'))
+  .catch(error=>{console.error(error);process.exitCode=1;});
 module.exports={main};
