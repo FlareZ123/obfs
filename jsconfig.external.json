@@ -43,6 +43,7 @@
     "sims/sco-private-dynamic-loader-grid.js",
     "sims/sco-private-windows-alias-probe.js",
     "test/utf8-path-alias.test.js",
+    "test/nested-output-junction-boundary.test.js",
     "sims/path-alias-grid.js",
     "sims/windows-unicode-uppercase-grid.js",
     "test/source-map-utf16-asset.test.js",
