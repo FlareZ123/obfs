@@ -743,9 +743,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          containsFunction(node.callee.object)) {
         const callback=node.arguments[0];
         if(callback &&
-           ['FunctionExpression','ArrowFunctionExpression'].includes(callback.type) &&
-           callback.params[0]?.type==='Identifier') {
-          changed=add(functions,callback.params[0].name)||changed;
+           ['FunctionExpression','ArrowFunctionExpression'].includes(callback.type)) {
+          // Set passes the value twice, and Map passes the key second.
+          // Both can carry a source-observable function.
+          for(const param of callback.params.slice(0,2)) {
+            if(param?.type==='Identifier')
+              changed=add(functions,param.name)||changed;
+          }
         }
       }
       // Mutators can introduce function-valued array elements well after
