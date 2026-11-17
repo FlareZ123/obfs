@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/property-in-operator.test.js",
+    "test/property-in-adversarial.test.js",
     "test/property-in-browser.js",
     "sims/property-in-operator-profile.js",
     "sims/property-in-operator-static-recover.js",
