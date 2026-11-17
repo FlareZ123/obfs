@@ -57,3 +57,25 @@ test('SCO stable caller manifests still reject private material',()=>{
     {path:'renamed.css',sourceType:'asset',code:secret}
   ]),/original private graph source/i);
 });
+
+test('SCO snapshots one mutable digest-array element before validating it',()=>{
+  const secret='PRIVATE_ARRAY_DIGEST_CANARY_20261117';
+  const sha=createHash('sha256').update(secret).digest('hex');
+  let reads=0;
+  /** @type {string[]} */
+  const values=[];
+  Object.defineProperty(values,0,{
+    configurable:true,enumerable:true,
+    get(){
+      reads++;
+      return reads===1?sha:'0'.repeat(64);
+    }
+  });
+  values.length=1;
+  assert.throws(()=>createScoHandler([
+    {path:'public.css',sourceType:'asset',code:'body{color:blue}',
+      privateOriginalDigests:values},
+    {path:'private-copy.css',sourceType:'asset',code:secret}
+  ]),/original private graph source/i);
+  assert.equal(reads,1,'An owned metadata snapshot reads each declared element only once');
+});
