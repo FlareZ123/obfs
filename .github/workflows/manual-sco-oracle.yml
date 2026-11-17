@@ -35,6 +35,8 @@ jobs:
         run: node --test test/sco-capability-public-oracle.test.js
       - name: Compare server-private capability per-step and per-session hot CPU
         run: node sims/sco-capability-granularity.js
+      - name: Compare real compiled SCO private-handle serial and batch sessions
+        run: node sims/sco-capability-http-batch.js
       - name: Learn step-only state machine through known synchronizing word
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
