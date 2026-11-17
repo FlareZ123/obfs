@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Focused differential, generated-sample, and static-attacker regressions
-        run: node --test test/expression-vm.test.js test/expression-vm-static-recovery.test.js test/native-graph.test.js test/native-graph-static-recovery.test.js test/expression-graph-fuzz.test.js test/statement-flow.test.js test/statement-flow-compact.test.js test/statement-flow-recovery-scale.test.js
+        run: node --test test/expression-vm.test.js test/expression-vm-static-recovery.test.js test/native-graph.test.js test/native-graph-static-recovery.test.js test/expression-graph-fuzz.test.js test/statement-flow.test.js test/statement-flow-compact.test.js test/statement-flow-recovery-scale.test.js test/statement-flow-random-joins.test.js
       - name: Scaled public-only native CFG decompilation
         run: node sims/statement-flow-attack-scaling.js
       - name: Strict main-library JSDoc check
