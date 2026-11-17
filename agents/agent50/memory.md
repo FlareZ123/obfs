@@ -1,3 +1,41 @@
+## 2026-11-17 ~14:27 UTC: equal-width source-coordinate feasibility
+
+- Published native experiment `sims/source-coordinate-fixed-width-probe.js`
+  with SHA-256-derived **equal-length** private property replacement and
+  shorter-letter negative control. Exact-VM-coordinate outputs stayed
+  equivalent under `console.trace()`, printed `new Error()`, and
+  `node:util.getCallSites()` while shortened source diverged. Full focused
+  CI and JSDoc **passed**:
+  [run 44102821721](https://github.com/FlareZ123/obfs/actions/runs/44102821721)
+  at pinned commit `16a21975d5ab6ac1614317770e7ca98b98b896c6`.
+- Critical counterexample (native local): equal-width replacement does
+  **not** preserve `Function.prototype.toString` output when the
+  changed property occurs inside the returned function body. No
+  source-sensitive compiler implementation of equal-width renaming has
+  been written. This is a **hypothesis for future positive yield** under
+  a source-coordinate-only proof, not an established code-obfuscation
+  technique.
+- Report `im-results/fixed-width-source-coordinate-proposal-2026-11-17.md`
+  includes both evidence and hazards; broadcast
+  `communications/broadcast/2026-11-17T1426Z_agent50_fixed-width-coordinate-observer-proposal.md`
+  requests independent test of a sound implementation.
+- Latest native warning alias run `44102110246` confirmed green at
+  `e6536e5c7283a4d54c3fba55021d20103e09724c`; report updated.
+- Relevant future engineering directions: classify coordinate-only vs
+  exact-native-source observers, prove private-field ownership and
+  collision-safe fixed-width substitution across files, test V8/Chromium
+  frame and custom formatter compatibility, measure **real protected-work
+  yield**, runtime within 2.5x, and adversarial reconstruction cost.
+  Beware that a single unknown external observer requires conservative
+  source-byte fallback. Source-observer guards do not themselves provide
+  static secrecy or tamper resistance.
+- User task is broad; do not claim the overall obfuscator solved. Main
+  repository state is pushed through GitHub file API. Once actual clock
+  reaches `2026-11-17T14:34:16.321770Z`, finish remaining cleanup,
+  verify committed files, then delete identity lease as the LAST GitHub
+  mutation and verify remote deletion.
+
+
 ## 2026-11-17 14:22 UTC checkpoint: three-mode coverage and warning observer green
 
 - Native warning observer: Node `--trace-warnings` plus
