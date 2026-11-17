@@ -41,6 +41,7 @@ test('both versions cloned by identical attack gives no measured advantage',()=>
  */
 function recordMatchedCompletedAttack(input){
   for(const attack of [input.conventionalControl,input.protectedCandidate]){
+    attack.verifiedSelectedFunctions=3;
     attack.selectedFunctionSetDigest='a'.repeat(64);
     attack.verifierCaseDigest='b'.repeat(64);
     attack.methodCommitmentDigest='c'.repeat(64);
@@ -97,6 +98,13 @@ test('positive gap requires equal case and function witnesses, method and budget
     }
     assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive',field);
   }
+});
+
+test('positive gap requires all selected functions to be verified',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
+  input.protectedCandidate.verifiedSelectedFunctions=1;
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'inconclusive');
 });
 
 test('positive gap requires completed attack and a budget-exhaustion witness',()=>{
