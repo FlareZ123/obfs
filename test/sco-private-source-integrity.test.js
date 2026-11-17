@@ -97,3 +97,63 @@ test('private graph commitment validation rejects a symlink escaping the verifie
     await fs.rm(outside,{recursive:true,force:true});
   }
 });
+
+test('private source input getters are read once for closure and deployment commitments',{
+  timeout:15000
+},async()=>{
+  const changedEngine=[
+    'import {hidden} from "./deep/secret.mjs";',
+    'export function deriveProof(v){return hidden+v;}'
+  ].join('\n');
+  const auditedEngine='export function deriveProof(v){return v+1;}';
+  let moduleCodeReads=0;
+  let mainCodeReads=0;
+  let sourceArrayReads=0;
+  const getterBackedModule={
+    path:'private/engine.mjs',
+    get code(){
+      moduleCodeReads++;
+      // Before input snapshotting, the third read produced a digest for a
+      // different, uninspected graph while the closure had audited safe code.
+      return moduleCodeReads<=2?auditedEngine:changedEngine;
+    }
+  };
+  const getterBackedEntry={
+    path:'mixed.mjs',
+    sourceType:'module',
+    get code(){
+      mainCodeReads++;
+      return mainCodeReads<=3?source:source+'\n// changed after AST parsing';
+    }
+  };
+  const options={
+    seed:'sco-input-snapshot-20261117',
+    privateNames:['protectedDigest'],
+    privateModuleImports:['./private/engine.mjs'],
+    get privateModuleSources(){
+      sourceArrayReads++;
+      return [getterBackedModule];
+    }
+  };
+  const partition=partitionScoSelectedAsyncExports(getterBackedEntry,options);
+  assert.equal(mainCodeReads,1,'main entry must be captured once');
+  assert.equal(moduleCodeReads,1,'audited dependency code must be captured once');
+  assert.equal(sourceArrayReads,1,'source graph option must be captured once');
+  assert.deepEqual(partition.clientFile.privateModulePaths,['private/engine.mjs']);
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-accessor-snapshot-'));
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    await atomicWrite(path.join(root,engine.path),auditedEngine);
+    await verifyScoPrivateSourceDigests(partition,root);
+    await atomicWrite(path.join(root,engine.path),changedEngine);
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source bytes changed since partition: private\/engine\.mjs/,
+      'a dependency added after static auditing cannot pass startup verification');
+    await atomicWrite(path.join(root,engine.path),auditedEngine);
+    await atomicWrite(path.join(root,'mixed.mjs'),source+'\n// changed after AST parsing');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source bytes changed since partition: mixed\.mjs/);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
