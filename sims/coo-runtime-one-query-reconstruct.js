@@ -42,7 +42,7 @@ async function reconstructFromRuntime(distributedMath){
   /** @type {ProbedFunction[]} */
   const functions=[];
   for(const name of targets){
-    const matches=ast.body.filter(statement=>
+    const matches=(/** @type {import('../src/ast').AstNode[]} */ (ast.body)).filter(statement=>
       statement.type==='ExportNamedDeclaration'&&
       statement.declaration?.type==='FunctionDeclaration'&&
       statement.declaration.id?.name===name);
