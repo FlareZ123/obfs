@@ -411,6 +411,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
       utcDateReceivers.add(node.callee.object);
     }
   });
+  /** @type {Set<string>} */
   const catchBindings=new Set();
   walk(body,node=>{
     if(node.type==='CatchClause'&&node.param?.type==='Identifier'){
