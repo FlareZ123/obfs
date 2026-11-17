@@ -16,6 +16,10 @@ The inference needs the declared numeric family. One zero-input observation cann
 
 The [held-out regression](../test/coo-runtime-one-query-reconstruct.test.js) creates actual compiler output, commits the attack code, and only then loads the trusted native math reference. It checks 4,096 deterministic signed-Int32 inputs per function, representative special primitive inputs and single-call-to-primitive objects, together with complete JSON and external host traces for 1, 50, 1,000 and 10,000 event sessions in fresh clone/public ESM directories. A separate refusal checks that non-Int32 public outputs cannot accidentally be sold as affine recovery. All three reconstructed leaves must actually have been protected in the generated baseline.
 
+## Actual Chromium dynamic observation
+
+The [real Chromium host regression](../test/coo-runtime-one-query-browser.js) serves the compiler-generated public math ESM over localhost and presents only those delivered bytes to a browser module. The browser imports the published module, obtains exactly one public value from each of round1/round2/round3, commits three equivalent arithmetic closures, and then checks 4,096 held-out Int32 values plus primitive/coercion boundaries per export. Node validates those reported offsets against the private original only after browser execution completes. Module transfer and parse/evaluation are included in the browser's approximate probe acquisition duration, while browser process startup, page setup and realistic network effects are excluded. The complete-app clone and host-trace regression remains a separately tested Node ESM graph.
+
 ## Runtime and resistance interpretation
 
 This is a dynamic execution/observable-export capability test for a fully controlling client. Successful reconstruction would demonstrate that selected published arithmetic functions do not become behaviorally opaque to an attacker allowed to run them, even if their static switch cases become visually cumbersome. It would not necessarily recover original source spelling or compiled private construction details, and would not establish ability to evade unrelated authorization checks.
@@ -24,6 +28,6 @@ The attack does not measure wall-clock difficulty for a fresh human or independe
 
 ## Reproduction and provisional status
 
-The source is [the runtime attacker](../sims/coo-runtime-one-query-reconstruct.js) and [its held-out test](../test/coo-runtime-one-query-reconstruct.test.js), checked by [strict JSDoc configuration](../jsconfig.coo-runtime-probe.json) and [dispatch-only Linux/Windows Node 22 workflow](../.github/workflows/manual-coo-runtime-probe.yml).
+The source is [the runtime attacker](../sims/coo-runtime-one-query-reconstruct.js), [its held-out Node test](../test/coo-runtime-one-query-reconstruct.test.js), and [real Chromium check](../test/coo-runtime-one-query-browser.js), checked by [strict JSDoc configuration](../jsconfig.coo-runtime-probe.json) and the existing branch-extended [Linux/Windows manual affine workflow](../.github/workflows/manual-polyvariant-affine.yml). The standalone [manual COO runtime workflow](../.github/workflows/manual-coo-runtime-probe.yml) is intended for future independent dispatch once registered on the default branch; the GitHub API refused a branch-only workflow filename with 404.
 
 The branch has been committed and syntax-parsed, but no successful two-platform runtime execution has yet been recorded. Fix concrete CI failures, preserve exact test source and run SHA, and report only verified outcomes after the gate completes.
