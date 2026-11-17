@@ -68,6 +68,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
     authorizeRpc:request=>identity(request)!==null,
     runRpcIsolated:(request,execute)=>context.run(identity(request),execute)
   });
+  await Promise.all([pool.initialize('A'),pool.initialize('B')]);
   const server=http.createServer(handler);
   /** @type {http.Server|undefined} */
   let proxy;
@@ -173,6 +174,7 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
   process.env.SCO_REALM_PRINCIPAL='native';
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2});
   try{
+    await Promise.all([pool.initialize('A'),pool.initialize('B')]);
     const [a1,a2,b1]=[
       /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[1,'a',0])),
       /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[2,'b',0])),
@@ -190,6 +192,9 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
     assert.equal(nativeA.sequence,1);
     await assert.rejects(second.tick(1,'x',0),/Stale private sequence/,
       'different ESM entry URLs still reuse a relative imported module');
+    await pool.revoke('A');
+    await assert.rejects(pool.call('A','tick',[3,'after-revocation',0]),
+      /state reset refused/,'revoked account must never restart its private graph');
   }finally{
     await pool.close();
     if(originalSecret===undefined)delete process.env.SCO_REALM_SECRET;
