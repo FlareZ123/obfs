@@ -97,10 +97,11 @@ function synthesizeAffineClone(publicSource,responses){
 }
 
 /**
- * Recover a different affine model for each parity class from 0,2 and 1,3.
- * Division by 2 is not unique in Z/(2^32), but the two possible slopes
- * differ by 2^31 and agree on the same parity class when the intercept is
- * adjusted. Use the canonical unsigned half-difference representative.
+ * Recover a distinct arithmetic-progression model for each parity class.
+ * Write x=2*t+r for r in {0,1}; if the function is affine in t within
+ * each residue class, samples f(r) and f(r+2) recover its base and step.
+ * These steps can be any signed Int32, including odd values that no single
+ * globally affine Int32 expression could produce between x and x+2.
  *
  * @typedef {{atZero:number,atOne:number,atTwo:number,atThree:number}} ParitySamples
  * @param {string} publicSource
@@ -124,19 +125,14 @@ function synthesizeParityAffineClone(publicSource,responses){
        )){
       throw new TypeError('Expected four signed Int32 parity oracle responses: '+name);
     }
-    const evenDelta=(values.atTwo-values.atZero)|0;
-    const oddDelta=(values.atThree-values.atOne)|0;
-    if((evenDelta&1)||(oddDelta&1)){
-      throw new TypeError('No modular parity-affine model for queried values: '+name);
-    }
-    const evenSlope=evenDelta>>>1;
-    const oddSlope=oddDelta>>>1;
-    const evenOffset=values.atZero;
-    const oddOffset=(values.atOne-oddSlope)|0;
+    const evenStep=(values.atTwo-values.atZero)|0;
+    const oddStep=(values.atThree-values.atOne)|0;
+    const evenBase=values.atZero;
+    const oddBase=values.atOne;
     const text='export function '+name+'(input){const x=input|0;'+
-      'const slope=(x&1)?('+oddSlope+'):('+evenSlope+');'+
-      'const offset=(x&1)?('+oddOffset+'):('+evenOffset+');'+
-      'return ((Math.imul(x,slope)+offset)|0);}';
+      'const step=(x&1)?('+oddStep+'):('+evenStep+');'+
+      'const base=(x&1)?('+oddBase+'):('+evenBase+');'+
+      'return ((Math.imul(x>>1,step)+base)|0);}';
     replacements.push({start:statement.start,end:statement.end,text});
   }
   let code=publicSource;
@@ -324,9 +320,9 @@ async function runAttack(){
       quadratic(2)!==linearGuess(2);
     assert.ok(affineNonlinearNegativeControl);
     const parityNonlinearNegativeControl=(
-      // For f(x)=x*x, 0 and 2 imply an even-branch slope of 2, which
-      // predicts f(4)=8. The quadratic actually returns f(4)=16.
-      Math.imul(4,((4-0)|0)>>>1)!==Math.imul(4,4)
+      // For f(x)=x*x, 0 and 2 imply an even-class step of 4;
+      // at x=4 the model predicts 8 and the quadratic returns 16.
+      Math.imul(2,((4-0)|0))!==Math.imul(4,4)
     );
     assert.ok(parityNonlinearNegativeControl);
 
