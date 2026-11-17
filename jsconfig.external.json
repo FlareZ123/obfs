@@ -109,7 +109,8 @@
     "test/property-pure-value-expression.test.js",
     "test/property-pure-expression-hotpath.test.js",
     "sims/property-hotpath-closedworld.js",
-    "sims/sco-ratchet-boundary.js"
+    "sims/sco-ratchet-boundary.js",
+    "sims/sco-ratchet-public-attacker.js"
   ],
   "exclude": [
     "node_modules"
