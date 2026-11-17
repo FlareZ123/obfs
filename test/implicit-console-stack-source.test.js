@@ -92,6 +92,40 @@ test('console.dir exposes a function nested inside a literal record',()=>{
   mustPreserveConsoleSource('function distinctlyNamedNestedFunction(){return value;}console.dir({nested:[distinctlyNamedNestedFunction]});');
 });
 
+test('unsafe private-property rewrite changes native console.trace source column',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;console.trace();module.exports=value;";
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=execute(source);
+  const renamed=execute(unsafe);
+  assert.equal(renamed.value,native.value);
+  assert.notEqual(renamed.printed,native.printed);
+  assert.match(renamed.printed,/implicit-stack-observer\.cjs:1:\d+/);
+});
+
+test('unsafe private-property rewrite changes the logged Error stack',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;console.error(new Error('probe'));module.exports=value;";
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=execute(source);
+  const renamed=execute(unsafe);
+  assert.equal(renamed.value,native.value);
+  assert.notEqual(renamed.printed,native.printed);
+  assert.match(renamed.printed,/implicit-stack-observer\.cjs:1:\d+/);
+});
+
+test('unsafe local function rename changes native console inspection output',()=>{
+  const source="'use strict';function distinctlyNamedLocalFunction(){return 73;}"+
+    "console.log(distinctlyNamedLocalFunction);module.exports=73;";
+  const unsafe=source.replaceAll('distinctlyNamedLocalFunction','x');
+  const native=execute(source);
+  const renamed=execute(unsafe);
+  assert.equal(renamed.value,native.value);
+  assert.notEqual(renamed.printed,native.printed);
+  assert.match(native.printed,/distinctlyNamedLocalFunction/);
+  assert.match(renamed.printed,/Function: x/);
+});
+
 test('ordinary primitive logging remains eligible for real property renaming',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;console.log(42);module.exports=value;";
