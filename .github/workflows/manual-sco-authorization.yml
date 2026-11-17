@@ -27,6 +27,8 @@ jobs:
         run: node sims/sco-private-runtime-source-trace.js
       - name: Native dynamic-loader graph audit and safe-coverage comparison
         run: node sims/sco-private-dynamic-loader-grid.js
+      - name: Compare SCO Unicode private-path guards to actual filesystem aliases
+        run: node sims/sco-private-windows-alias-probe.js
       - name: SCO known-safe versus unsafe realm admission coverage
         run: node sims/sco-realm-admission-coverage.js
       - name: Paired SCO stateful authorization runtime sample
