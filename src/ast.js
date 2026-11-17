@@ -127,6 +127,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const sourceCoercingArrayMethods=new Set(['join','toString',
     'toLocaleString','sort','toSorted']);
   const detachedArraySourceMethods=new Set();
+  // RegExp native methods stringify their argument, including function source.
+  const sourceCoercingRegExpMethods=new Set(['test','exec','compile']);
+  const detachedRegExpSourceMethods=new Set();
+  const boundRegExpSourceMethods=new Set();
   const arrayLikeWithFunctions=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
@@ -304,6 +308,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const owner=node.object;
     return owner.type==='MemberExpression'&&memberName(owner)==='prototype'&&
       owner.object.type==='Identifier'&&owner.object.name==='Array';
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDetachedRegExpSourceMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return detachedRegExpSourceMethods.has(node.name);
+    // Unknown .test/.exec aliases may be native RegExp methods. Over-refusal
+    // is safer than assuming a function argument cannot become source text.
+    return node.type==='MemberExpression'&&
+      sourceCoercingRegExpMethods.has(memberName(node)??'');
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunctionKeyEntries(node) {
@@ -531,6 +544,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isDetachedArraySourceMethod(value)) {
           changed=add(detachedArraySourceMethods,name)||changed;
+        }
+        if(isDetachedRegExpSourceMethod(value)) {
+          changed=add(detachedRegExpSourceMethods,name)||changed;
+        }
+        if(value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isDetachedRegExpSourceMethod(value.callee.object) ||
+           value?.type==='Identifier'&&boundRegExpSourceMethods.has(value.name)) {
+          changed=add(boundRegExpSourceMethods,name)||changed;
         }
         if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
         if(isWebConstructor(value,webScalars,webScalarNames)) {
@@ -1300,13 +1323,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // Unknown nonprimitive inputs must be treated conservatively.
       if(node.type==='CallExpression' && callee.type==='MemberExpression') {
         const method=memberName(callee);
-        const regexpMethods=['test','exec','compile'];
-        if(regexpMethods.includes(method??'') && node.arguments[0] &&
+        if(sourceCoercingRegExpMethods.has(method??'') && node.arguments[0] &&
            !isDefinitelyPrimitive(node.arguments[0]))observed=true;
         // Bound/reflective native method calls can conceal that coercion.
         if(['call','apply','bind'].includes(method??'') &&
            callee.object.type==='MemberExpression' &&
-           regexpMethods.includes(memberName(callee.object)??'')) {
+           isDetachedRegExpSourceMethod(callee.object)) {
           if(method==='apply') {
             const values=node.arguments[1];
             if(values?.type==='ArrayExpression') {
@@ -1316,6 +1338,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           } else if(node.arguments[1] &&
                     !isDefinitelyPrimitive(node.arguments[1])) observed=true;
         }
+      }
+      if(node.type==='CallExpression' && callee.type==='Identifier' &&
+         boundRegExpSourceMethods.has(callee.name) && node.arguments[0] &&
+         !isDefinitelyPrimitive(node.arguments[0])) observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+         isDetachedRegExpSourceMethod(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied) observed=true;
       }
       if(callee.type==='MemberExpression' && callee.object.type==='Identifier' &&
           ['Reflect','Object'].includes(callee.object.name) &&
