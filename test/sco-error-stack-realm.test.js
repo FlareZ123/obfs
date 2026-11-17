@@ -41,6 +41,13 @@ test('SCO must refuse relocating native stack reads and V8 stack capture',()=>{
     "const capture=Error.captureStackTrace;const record={};capture(record);return record.stack;"
   ];
   for(const body of bodies){
+    const code='(()=>{'+body+'})()';
+    const client=vm.runInNewContext(code,{}, {filename:'browser-client.mjs'});
+    const server=vm.runInNewContext(code,{}, {filename:'server-private.mjs'});
+    assert.equal(typeof client,'string',body);
+    assert.match(client,/browser-client\\.mjs/,body);
+    assert.match(server,/server-private\\.mjs/,body);
+    assert.notEqual(client,server,body);
     assert.throws(()=>partition(body),/realm-local.*stack/i,body);
   }
 });
