@@ -79,7 +79,7 @@ jobs:
       - name: Cold Chromium full-graph import, execution and callback budget
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/polyvariant-app-cold-browser.js
       - name: JSDoc static check
         run: npm run typecheck
