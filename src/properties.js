@@ -847,7 +847,7 @@ function renameLocalProperties(source, ast, options) {
     if(!literal)return;
     /** @type {AstNode[]} */
     const properties = literal.properties;
-    if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.shorthand || p.kind !== 'init' ||
+    if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.kind !== 'init' ||
           ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) ||
           !(isLiteralValue(p.value) || literal===node &&
             isDirectParameterValue(p.value,ancestors,bindings)))) return;
@@ -877,7 +877,16 @@ function renameLocalProperties(source, ast, options) {
     // Truncated digests can collide. Duplicating literal keys silently changes
     // both object contents and all subsequent reads, so decline this object.
     if (new Set(mapping.values()).size !== mapping.size) continue;
-    for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
+    for (const prop of candidate.properties) {
+      const renamed=JSON.stringify(mapping.get(ownPropertyName(prop)));
+      // A shorthand field has a single token serving both key and value.
+      // Expand only that token into a string key plus the original bound
+      // identifier. This preserves Evaluation/GetValue of a pre-existing
+      // lexical value and avoids inventing a new anonymous function name.
+      const text=prop.shorthand ?
+        renamed+':'+source.slice(prop.value.start,prop.value.end) : renamed;
+      edits.push({start:prop.key.start,end:prop.key.end,text});
+    }
     for (const member of proof.members) {
       const name=proof.memberNames.get(member);
       if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
