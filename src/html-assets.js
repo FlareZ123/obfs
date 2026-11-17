@@ -3,6 +3,7 @@
 const {parse}=require('parse5');
 const {TextDecoder}=require('node:util');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
+const {hasCssDataImport}=require('./css-data-imports');
 
 const utf8=new TextDecoder('utf-8',{fatal:true});
 
@@ -97,10 +98,16 @@ function findInlineHtmlSource(html) {
         return;
       }
     }
-    if(node.tagName==='style' &&
-        hasCssSourceMapDirective((node.childNodes??[]).map(child=>child.value??'').join(''))) {
-      issue='inline CSS source-map directive';
-      return;
+    if(node.tagName==='style') {
+      const css=(node.childNodes??[]).map(child=>child.value??'').join('');
+      if(hasCssSourceMapDirective(css)) {
+        issue='inline CSS source-map directive';
+        return;
+      }
+      if(hasCssDataImport(css)) {
+        issue='embedded stylesheet data import';
+        return;
+      }
     }
     if(node.tagName==='script' &&
         node.childNodes?.some(child=>typeof child.value==='string' && /\S/u.test(child.value))) {
