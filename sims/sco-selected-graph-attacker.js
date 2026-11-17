@@ -13,8 +13,8 @@ const http=require('node:http');
  * @returns {PublicRpcRoute}
  */
 function recoverSingleRpc(publicCode){
-  const ids=[...new Set(publicCode.match(/\\bm[0-9a-f]{24}\\b/gu)??[])];
-  const match=publicCode.match(/\\bfetch\\(("(?:\\\\.|[^"\\\\])*")\\s*,/u);
+  const ids=[...new Set(publicCode.match(/\bm[0-9a-f]{24}\b/gu)??[])];
+  const match=publicCode.match(/\bfetch\(("(?:\\.|[^"\\])*")\s*,/u);
   if(ids.length!==1||!match){
     throw new TypeError('Unexpected public RPC facade grammar');
   }
