@@ -93,7 +93,26 @@ const orders=[
 for(let trial=0;trial<9;trial++)
   for(const name of orders[trial%orders.length])
     samples[name].push(time(implementations[name]));
-document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples});
+// Distinct URL prefixes force fresh ESM graph fetch, parse, link, evaluate,
+// and first invocation for each measurement, including all dependencies.
+const cold={};
+for(const count of [1,10000]){
+  const input=records(count);
+  const timings={native:[],minified:[],published:[],reconstructed:[]};
+  for(let trial=0;trial<9;trial++){
+    for(const name of orders[trial%orders.length]){
+      const start=performance.now();
+      const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
+      let emitted=0;
+      api.runScenario(-817,input,{emit(){emitted++;}});
+      const elapsed=performance.now()-start;
+      if(emitted!==count||elapsed<=0)throw Error("Invalid cold graph: "+name+":"+count);
+      timings[name].push(elapsed);
+    }
+  }
+  cold[count]=timings;
+}
+document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold});
 </script></body></html>`;
 }
 
@@ -107,22 +126,26 @@ async function main(){
     for(const file of files)assets.set('/'+variant+'/'+file.path,file.code);
   assert.equal(assets.size,12);
   assets.set('/index.html',page());
+  let coldModuleRequests=0;
 
   const native=await import(pathToFileURL(
     path.join(__dirname,'../examples/polyvariant-app/native/entry.mjs')).href);
   const expected=[1,50,1000,10000].map(count=>observeNode(native,count));
   const server=http.createServer((request,response)=>{
     const target=request.url??'';
-    if(request.method!=='GET'||!assets.has(target)){
+    const cold=/^\/cold-(native|minified|published|reconstructed)-(1|10000)-([0-8])\/(math|state|entry)\.mjs$/u.exec(target);
+    const source=cold?assets.get('/'+cold[1]+'/'+cold[4]+'.mjs'):assets.get(target);
+    if(request.method!=='GET'||source===undefined){
       response.writeHead(404).end();
       return;
     }
+    if(cold)coldModuleRequests++;
     response.writeHead(200,{
       'content-type':target.endsWith('.html')?
         'text/html; charset=utf-8':'text/javascript; charset=utf-8',
       'cache-control':'no-store'
     });
-    response.end(assets.get(target));
+    response.end(source);
   });
   try{
     await new Promise((resolve,reject)=>{
@@ -139,7 +162,7 @@ async function main(){
     }
     const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=12000','--dump-dom',root+'/index.html'
+      '--no-first-run','--virtual-time-budget=30000','--dump-dom',root+'/index.html'
     ],{timeout:60000,maxBuffer:8*1024*1024,encoding:'utf8'});
     const text=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
     assert.ok(text,'Browser did not complete four-way ESM application: '+stdout.slice(-1800));
@@ -149,11 +172,29 @@ async function main(){
       const samples=actual.samples[name];
       assert.equal(samples.length,9);
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
+      for(const count of ['1','10000']){
+        const cold=actual.cold[count][name];
+        assert.equal(cold.length,9);
+        assert.ok(cold.every(value=>Number.isFinite(value)&&value>0));
+      }
     }
+    // Two workloads x 9 trials x 4 variants x 3 distinct ESM module URLs.
+    assert.equal(coldModuleRequests,216,'All cold ESM graph dependencies must be fetched');
+    const coldFreshGraphs=Object.fromEntries(['1','10000'].map(count=>[
+      count,{
+        events:Number(count),trialsPerVariant:9,
+        nativeToMinified:pairedBudgetBound(actual.cold[count].native,actual.cold[count].minified),
+        nativeToPublished:pairedBudgetBound(actual.cold[count].native,actual.cold[count].published),
+        minifiedToPublished:pairedBudgetBound(actual.cold[count].minified,actual.cold[count].published),
+        nativeToReconstructed:pairedBudgetBound(actual.cold[count].native,actual.cold[count].reconstructed),
+        samples:actual.cold[count]
+      }
+    ]));
     const browserEvidence={
       node:process.version,platform:process.platform,
       matchedWorkloads:actual.rows.length,verifiedFullOutputs:true,
       verifiedExternalCallbacks:true,pairedHotWorkEvents:10000,
+      freshGraphHttpModuleRequests:coldModuleRequests,coldFreshGraphs,
       minifiedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.minified),
       publishedVsNative:pairedBudgetBound(actual.samples.native,actual.samples.published),
       publishedVsMinified:pairedBudgetBound(actual.samples.minified,actual.samples.published),
