@@ -25,6 +25,8 @@ jobs:
         run: node --test test/property-in-operator.test.js
       - name: Native and attacker differential tests
         run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
+      - name: Native versus rewritten own-key membership hot-loop cost
+        run: node sims/property-in-operator-profile.js
       - name: Measure steady-state hot-key performance
         run: node sims/symbol-key-profile.js
       - name: Report multi-object cold-start cost
