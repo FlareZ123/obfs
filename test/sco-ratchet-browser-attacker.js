@@ -21,10 +21,10 @@ function challenge(index){
  * response. Virtual time only gates asynchronous completion, never CPU.
  *
  * @param {string} [publicFacadeSource] Optional equal-trust public control.
+ * @param {Buffer} [root] Reusable private root for fair side-by-side comparison.
  * @returns {Promise<void>}
  */
-async function main(publicFacadeSource){
-  const root=randomBytes(32);
+async function main(publicFacadeSource,root=randomBytes(32)){
   const token=randomBytes(32).toString('hex');
   const backend=makeServer(root,0,publicFacadeSource);
   backend.grant(token,'browser-A');
