@@ -29,8 +29,8 @@ test('SCO refuses native Error stack extraction through first-class carriers',()
     const client=vm.runInNewContext(expr,{}, {filename:'client.mjs'});
     const server=vm.runInNewContext(expr,{}, {filename:'server-private-long.mjs'});
     assert.equal(typeof client,'string',body);
-    assert.match(client,/client\\.mjs/,body);
-    assert.match(server,/server-private-long\\.mjs/,body);
+    assert.match(client,/client\.mjs/,body);
+    assert.match(server,/server-private-long\.mjs/,body);
     assert.notEqual(client,server,body);
     assert.throws(()=>partition(body),/realm-local error stack/i,body);
   }
