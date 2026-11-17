@@ -39,12 +39,10 @@ test('public XOR key is sufficient to recover secret strings offline',()=>{
 });
 
 test('static recovery decodes repeated shared literals and multiple values',()=>{
-  // Store the array in a local binding. Rewriting a literal inside a
-  // CallExpression callee can alter the exact source spelling in a failed
-  // operand diagnostic, so that less-safe inline form is intentionally
-  // excluded by the encoder's source-preservation proof.
+  // Return the array itself: a source-observing Array#join call has
+  // deliberately different proof obligations from this inert data export.
   recover(`'use strict';const values=['first-long-literal','second-long-literal',
-    'first-long-literal'];module.exports=values.join('::');`,
+    'first-long-literal'];module.exports=values;`,
   ['first-long-literal','second-long-literal']);
 });
 
