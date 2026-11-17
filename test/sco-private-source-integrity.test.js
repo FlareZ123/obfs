@@ -3,6 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs/promises');
+const {createHash}=require('node:crypto');
 const os=require('node:os');
 const path=require('node:path');
 const {atomicWrite}=require('../src/atomic');
@@ -217,4 +218,61 @@ test('selective SCO snapshots option-array slots and coherent private-name metad
   assert.equal(importOptionRead,1);
   assert.equal(namesRead,1);
   assert.equal(importRead,1);
+});
+
+test('SCO source verifier hashes the committed getter value exactly once',{
+  timeout:15000
+},async()=>{
+  const partition=compile();
+  const commits=partition.privateSourceDigests;
+  assert.ok(commits);
+  const changed=leaf.code+'\n// changed after compiler snapshot';
+  const changedSha=createHash('sha256').update(changed).digest('hex');
+  const target=commits[2];
+  assert.ok(target);
+  const originalSha=target.sha256;
+  let reads=0;
+  Object.defineProperty(target,'sha256',{
+    configurable:true,enumerable:true,
+    get(){
+      reads++;
+      return reads===1?originalSha:changedSha;
+    }
+  });
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-digest-getter-'));
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    await atomicWrite(path.join(root,engine.path),engine.code);
+    await atomicWrite(path.join(root,leaf.path),changed);
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source bytes changed since partition: private\/leaf\.mjs/u);
+    assert.equal(reads,1,'Validation and comparison must use the same digest value');
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('SCO source verifier checks all digest array indices despite iterator overrides',{
+  timeout:15000
+},async()=>{
+  const partition=compile();
+  const commits=partition.privateSourceDigests;
+  assert.ok(commits);
+  Object.defineProperty(commits,Symbol.iterator,{
+    configurable:true,
+    value:function*(){
+      // A caller-specific iterator can hide unverified modules from for-of.
+      yield commits[0];
+    }
+  });
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-digest-iterator-'));
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),source);
+    await atomicWrite(path.join(root,engine.path),engine.code);
+    await atomicWrite(path.join(root,leaf.path),leaf.code+'\n// mutated');
+    await assert.rejects(()=>verifyScoPrivateSourceDigests(partition,root),
+      /private source bytes changed since partition: private\/leaf\.mjs/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
 });
