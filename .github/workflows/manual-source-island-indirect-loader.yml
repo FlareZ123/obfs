@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install dependencies without lock modification
         run: npm install --no-package-lock --ignore-scripts
+      - name: Verify source-island native/generated regression and positive control
+        run: node --test test/source-observer-islands.test.js test/source-observer-islands-reflection-gate.test.js
       - name: Execute exact native/generated source-read differential
         run: node sims/source-island-indirect-loader-attack.js
       - name: Validate repository JSDoc types
