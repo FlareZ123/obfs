@@ -120,6 +120,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // addition to direct String/RegExp coercers.
   const functions=new Set();
   const arraysWithFunctions=new Set();
+  // Native Array algorithms can implicitly stringify contained functions.
+  // Track methods detached from Array.prototype through simple assignments;
+  // their .call/.apply/.bind invocations otherwise hide the true receiver.
+  const sourceCoercingArrayMethods=new Set(['join','toString',
+    'toLocaleString','sort','toSorted']);
+  const detachedArraySourceMethods=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
   /** @type {Map<string,Set<string>>} */
@@ -197,6 +203,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(node && (node.type==='Identifier'&&arraysWithFunctions.has(node.name) ||
       node.type==='ArrayExpression'&&node.elements.some((/** @type {AstNode|null} */ value)=>
         value && (isFunctionValue(value)||value.type==='SpreadElement'&&containsFunction(value.argument)))));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isDetachedArraySourceMethod(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return detachedArraySourceMethods.has(node.name);
+    if(node.type!=='MemberExpression'||
+       !sourceCoercingArrayMethods.has(memberName(node)??''))return false;
+    const owner=node.object;
+    return owner.type==='MemberExpression'&&memberName(owner)==='prototype'&&
+      owner.object.type==='Identifier'&&owner.object.name==='Array';
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function containsFunctionKeyEntries(node) {
@@ -422,6 +438,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(cloneFunctions,name)||changed;
         }
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
+        if(isDetachedArraySourceMethod(value)) {
+          changed=add(detachedArraySourceMethods,name)||changed;
+        }
         if(isAggregateError(value))changed=add(aggregateErrors,name)||changed;
         if(isWebConstructor(value,webScalars,webScalarNames)) {
           changed=add(webScalars,name)||changed;
@@ -777,12 +796,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const stringCoercionMethods=new Set(['includes','startsWith','endsWith',
     'indexOf','lastIndexOf','split','replace','replaceAll','match','matchAll',
     'search','localeCompare','concat','padStart','padEnd']);
-  // Array methods that can implicitly call a contained function's source-
-  // revealing string conversion. Sorting is especially easy to overlook:
-  // its default comparator applies ToString to elements without an explicit
-  // String(...) call in the program.
-  const sourceCoercingArrayMethods=new Set(['join','toString',
-    'toLocaleString','sort','toSorted']);
   // A captured Reflect.get or Object.getOwnPropertyDescriptor can retrieve
   // Function#toString without any direct reflective call at the use site.
   // Overapproximate named aliases: shadowing or mutation can only cause a
@@ -1187,6 +1200,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
          sourceCoercingArrayMethods.has(memberName(callee)??'')&&
          containsFunction(callee.object))observed=true;
+      // Applying a detached Array builtin observes the receiver's values,
+      // even though the actual callee is .call/.apply/.bind or Reflect.apply.
+      // Conservatively treat a bind as observable because the returned
+      // function may be invoked outside the statically visible expression.
+      if(node.type==='CallExpression'&&callee.type==='MemberExpression') {
+        const invocation=memberName(callee);
+        if(['call','apply','bind'].includes(invocation??'') &&
+           isDetachedArraySourceMethod(callee.object) &&
+           containsFunction(node.arguments[0]))observed=true;
+        if(invocation==='apply'&&isReflectiveReceiver(callee.object)&&
+           isDetachedArraySourceMethod(node.arguments[0])&&
+           containsFunction(node.arguments[1]))observed=true;
+      }
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
