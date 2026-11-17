@@ -501,6 +501,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Error','TypeError','RangeError','ReferenceError','SyntaxError',
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
+  // JSON.parse invokes ToString on its first argument before parsing, and
+  // its SyntaxError.message can reveal a function's original source.
+  const jsonNamespaces=new Set(['JSON']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
   // Failed structured cloning can expose a function's exact source spelling
@@ -598,13 +601,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         memberName(node)==='Symbol'));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isJsonNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      jsonNamespaces.has(node.name) || node.type==='MemberExpression' &&
+      isGlobal(node.object) && memberName(node)==='JSON'));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
-      name==='for' && isSymbolConstructor(node.object);
+      name==='for' && isSymbolConstructor(node.object) ||
+      name==='parse' && isJsonNamespace(node.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStructuredClone(node) {
@@ -787,7 +797,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const name=node.type==='VariableDeclarator'?node.id.name:node.left.name;
         const value=node.type==='VariableDeclarator'?node.init:node.right;
         if(isStringValue(value))changed=add(strings,name)||changed;
-        if(isCoercer(value))changed=add(coercers,name)||changed;
+        if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
+        if(isCoercer(value) || value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isCoercer(value.callee.object))
+          changed=add(coercers,name)||changed;
         if(isNativeConstructor(value,nativeStringConstructors,'String'))
           changed=add(nativeStringConstructors,name)||changed;
         if(isNativeConstructor(value,nativeRegExpConstructors,'RegExp'))
@@ -1142,12 +1157,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isJsonNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name===null || name==='parse')
+            changed=add(coercers,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property' || property.value.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
+          if(name==='JSON')changed=add(jsonNamespaces,property.value.name)||changed;
           if(name==='structuredClone')changed=add(cloneFunctions,property.value.name)||changed;
           if(name!==null && builtinCoercers.has(name)) {
             changed=add(coercers,property.value.name)||changed;
