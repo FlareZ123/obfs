@@ -62,7 +62,7 @@ for(const [name,body] of [
 ]) {
   test(name+' retains function-source semantics',()=>{
     const source=protectedSource()+body;
-    assert.match(String(execute(source)),/function protectedSum\\(input\\)/);
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
     assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
   });
 }
