@@ -129,6 +129,7 @@ function mutatesDecoderIntrinsic(ast) {
   const arrayNames=new Set(['Array']);
   const arrayPrototypes=new Set();
   const objectNames=new Set(['Object']);
+  const objectPrototypes=new Set();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -262,6 +263,30 @@ function mutatesDecoderIntrinsic(ast) {
        node.arguments[0] && isArrayValue(node.arguments[0]) &&
        node.arguments[1] && staticString(node.arguments[1])==='prototype');
   }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isObjectPrototype(node) {
+    if(node.type==='Identifier')return objectPrototypes.has(node.name);
+    return node.type==='MemberExpression' &&
+      (isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
+       isArrayPrototype(node.object) && memberName(node)==='__proto__');
+  }
+  /**
+   * The chunked decoder writes its own array indices 0 through 4095.
+   * Inherited getters/setters on any of these keys can intercept writes
+   * to a newly created [] and corrupt String.fromCharCode(...units).
+   * @param {import('./ast').AstNode|null|undefined} key
+   * @returns {boolean}
+   */
+  function mayInterceptChunkIndex(key) {
+    if(!key)return true;
+    const name=key.type==='Literal' && key.regex===undefined &&
+      ['number','bigint','boolean'].includes(typeof key.value) ?
+      String(key.value) : staticString(key);
+    if(name===null)return true;
+    if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
+    const index=Number(name);
+    return Number.isSafeInteger(index) && index<4096;
+  }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
   // positive, which is safer than assuming a potentially mutable alias is pure.
@@ -281,9 +306,11 @@ function mutatesDecoderIntrinsic(ast) {
           if(isArrayValue(node.init))add(arrayNames,node.id.name);
           if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
           if(isObjectIntrinsic(node.init))add(objectNames,node.id.name);
+          if(isObjectPrototype(node.init))add(objectPrototypes,node.id.name);
           if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
-                  (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init))) {
+                  (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init)||
+                   isObjectIntrinsic(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
@@ -294,6 +321,7 @@ function mutatesDecoderIntrinsic(ast) {
             if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
             if(name==='prototype'&&isArrayValue(node.init))add(arrayPrototypes,property.value.name);
             if(name==='Object'&&isGlobal(node.init))add(objectNames,property.value.name);
+            if(name==='prototype'&&isObjectIntrinsic(node.init))add(objectPrototypes,property.value.name);
             if(name==='Reflect'&&isGlobal(node.init))add(reflectNames,property.value.name);
           }
         }
@@ -305,6 +333,7 @@ function mutatesDecoderIntrinsic(ast) {
         if(isArrayValue(node.right))add(arrayNames,node.left.name);
         if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
         if(isObjectIntrinsic(node.right))add(objectNames,node.left.name);
+        if(isObjectPrototype(node.right))add(objectPrototypes,node.left.name);
         if(isReflectIntrinsic(node.right))add(reflectNames,node.left.name);
       }
     });
@@ -350,6 +379,16 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='MemberExpression') {
       const receiver=node.object;
       const method=memberName(node);
+      // Legacy prototype accessor writers may be detached and invoked
+      // later with an arbitrary receiver, so only an immediate, statically
+      // unrelated key invocation can retain the decoder.
+      if(['__defineGetter__','__defineSetter__'].includes(method??'') &&
+         (isArrayPrototype(receiver)||isObjectPrototype(receiver)) &&
+         !(parent?.type==='CallExpression' && parent.callee===node &&
+           !mayInterceptChunkIndex(parent.arguments[0]))) {
+        mutated=true;
+        return;
+      }
       if((isObjectIntrinsic(receiver) &&
            (method===null||mutatorsObject.has(method)||sensitiveReadsObject.has(method)) ||
           isReflectIntrinsic(receiver) &&
@@ -435,13 +474,17 @@ function mutatesDecoderIntrinsic(ast) {
       if(isGlobal(first) && method==='defineProperty' &&
          (node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
     }
-    if(isArrayPrototype(first) && isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
-      const key=node.arguments[1];
-      if(method!=='defineProperty' || !key || key.type!=='Literal')mutated=true;
+    if((isArrayPrototype(first)||isObjectPrototype(first)) &&
+       isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
+      if(method!=='defineProperty' || mayInterceptChunkIndex(node.arguments[1])) {
+        mutated=true;
+      }
     }
-    if(isArrayPrototype(first) && isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
-      const key=node.arguments[1];
-      if(method==='setPrototypeOf'||!key||key.type!=='Literal')mutated=true;
+    if((isArrayPrototype(first)||isObjectPrototype(first)) &&
+       isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
+      if(method!=='defineProperty' || mayInterceptChunkIndex(node.arguments[1])) {
+        mutated=true;
+      }
     }
     if(isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
       if(touchesString(first))mutated=true;
