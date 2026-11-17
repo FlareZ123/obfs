@@ -28,8 +28,8 @@ function execute(code) {
   // Stack frames above the VM belong to the test harness. Their columns
   // change between the native and emitted execute() calls even if the VM
   // source is byte-identical. Compare only the actual program's frames.
-  const observed=printed.split('\\n').filter(line=>
-    !/^\\s*at /.test(line) || line.includes('implicit-stack-observer.cjs:')).join('\\n');
+  const observed=printed.split('\n').filter(line=>
+    !/^\s*at /.test(line) || line.includes('implicit-stack-observer.cjs:')).join('\n');
   return {value:context.module.exports,printed:observed};
 }
 
@@ -50,7 +50,7 @@ function mustPreserveConsoleSource(statement) {
   const transformed=execute(output.code);
   assert.equal(native.value,73);
   assert.equal(transformed.value,native.value);
-  assert.match(native.printed,/implicit-stack-observer\\.cjs:1:|\\[Function: distinctlyNamed/);
+  assert.match(native.printed,/implicit-stack-observer\.cjs:1:|\[Function: distinctlyNamed/);
   assert.equal(transformed.printed,native.printed,output.code);
   assert.equal(output.code,source);
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
