@@ -523,6 +523,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const responseNames=new Set(['Response']);
   const responseConstructors=new Set(responseNames);
   const responseRedirects=new Set();
+  // A native Web constructor can flow through a plain local object property.
+  // Keep may-flow sets for properties and aliases; writes add candidates
+  // monotonically, so an overwritten property merely causes over-refusal.
+  /** @type {Map<string,Set<string>>} */
+  const webRecordObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const responseObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
   const formNames=new Set(['FormData']);
   const encoderConstructors=new Set(encoderNames);
@@ -639,15 +648,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isWebConstructor(node,aliases,builtins) {
     if(!node)return false;
     if(node.type==='Identifier')return aliases.has(node.name);
-    return node.type==='MemberExpression'&&isGlobal(node.object)&&
-      builtins.has(memberName(node)??'');
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(isGlobal(node.object))return builtins.has(name??'');
+    if(node.object.type!=='Identifier'||name===null)return false;
+    const properties=aliases===webRecords ? webRecordObjectKeys :
+      aliases===responseConstructors ? responseObjectKeys : null;
+    return properties?.get(node.object.name)?.has(name)??false;
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isResponseRedirect(node) {
     return Boolean(node && (node.type==='Identifier' &&
       responseRedirects.has(node.name) || node.type==='MemberExpression' &&
-      memberName(node)==='redirect' &&
-      isWebConstructor(node.object,responseConstructors,responseNames)));
+      (memberName(node)==='redirect' &&
+       isWebConstructor(node.object,responseConstructors,responseNames) ||
+       node.object.type==='Identifier' &&
+       redirectObjectKeys.get(node.object.name)?.has(memberName(node)??''))));
   }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
@@ -699,6 +715,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       objectFunctionKeys.set(receiver,keys);
     }
     if(!keys.has(name)){keys.add(name);changed=true;}
+  }
+  /**
+   * Record one local object property holding a native Web constructor/method.
+   * @param {Map<string,Set<string>>} map
+   * @param {string} receiver
+   * @param {string} name
+   * @returns {void}
+   */
+  function addWebObjectKey(map,receiver,name) {
+    let keys=map.get(receiver);
+    if(!keys){keys=new Set();map.set(receiver,keys);}
+    if(!keys.has(name)){keys.add(name);changed=true;}
+  }
+  /**
+   * Track a directly initialized or assigned native Web object property.
+   * @param {string} receiver
+   * @param {string} key
+   * @param {AstNode} expression
+   * @returns {void}
+   */
+  function addWebObjectExpression(receiver,key,expression) {
+    if(isWebConstructor(expression,webRecords,webRecordNames))
+      addWebObjectKey(webRecordObjectKeys,receiver,key);
+    if(isWebConstructor(expression,responseConstructors,responseNames))
+      addWebObjectKey(responseObjectKeys,receiver,key);
+    if(isResponseRedirect(expression))
+      addWebObjectKey(redirectObjectKeys,receiver,key);
   }
   do {
     changed=false;
@@ -851,12 +894,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             if(property.type!=='Property')continue;
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
-            if(key!==null && isFunctionValue(property.value))addObjectFunctionKey(name,key);
+            if(key!==null) {
+              if(isFunctionValue(property.value))addObjectFunctionKey(name,key);
+              if(property.kind==='init'&&!property.method)
+                addWebObjectExpression(name,key,property.value);
+            }
           }
         }
         if(value?.type==='Identifier') {
           for(const key of objectFunctionKeys.get(value.name)??[]) {
             addObjectFunctionKey(name,key);
+          }
+          for(const [map] of [[webRecordObjectKeys],[responseObjectKeys],[redirectObjectKeys]]) {
+            for(const key of map.get(value.name)??[])addWebObjectKey(map,name,key);
           }
         }
         if(isOpaqueNamespace(value)) {
@@ -922,23 +972,31 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='MemberExpression' &&
-         node.left.object.type==='Identifier' && isFunctionValue(node.right)) {
+         node.left.object.type==='Identifier') {
         const key=memberName(node.left);
-        if(key!==null)addObjectFunctionKey(node.left.object.name,key);
-        if(isArrayIndexNode(node.left.property)) {
+        if(key!==null) {
+          if(isFunctionValue(node.right))addObjectFunctionKey(node.left.object.name,key);
+          addWebObjectExpression(node.left.object.name,key,node.right);
+        }
+        if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          node.init?.type==='Identifier') {
         const known=objectFunctionKeys.get(node.init.name);
-        if(known)for(const property of node.id.properties) {
+        for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const key=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(key!==null&&known.has(key)) {
-            changed=add(functions,property.value.name)||changed;
-          }
+          if(key===null)continue;
+          if(known?.has(key))changed=add(functions,property.value.name)||changed;
+          if(webRecordObjectKeys.get(node.init.name)?.has(key))
+            changed=add(webRecords,property.value.name)||changed;
+          if(responseObjectKeys.get(node.init.name)?.has(key))
+            changed=add(responseConstructors,property.value.name)||changed;
+          if(redirectObjectKeys.get(node.init.name)?.has(key))
+            changed=add(responseRedirects,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
