@@ -186,7 +186,10 @@ async function runEvidence(){
     await fs.rm(folder,{recursive:true,force:true});
   }
 }
-if(require.main===module)runEvidence().then(report=>{
+if(require.main===module)runEvidence().then(async report=>{
+  if(process.env.OBFS_FOUR_WAY_AUDIT_FILE)
+    await atomicWrite(process.env.OBFS_FOUR_WAY_AUDIT_FILE,
+      JSON.stringify(report,null,2)+'\n');
   process.stdout.write('MINIFIED_FOUR_WAY_CONTROL '+JSON.stringify(report)+'\n');
 }).catch(error=>{console.error(error);process.exitCode=1;});
 
