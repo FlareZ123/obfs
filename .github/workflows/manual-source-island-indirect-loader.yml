@@ -1,0 +1,29 @@
+name: Source island indirect loader adversary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  island-escape:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies without lock modification
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Execute exact native/generated source-read differential
+        run: node sims/source-island-indirect-loader-attack.js
+      - name: Validate repository JSDoc types
+        run: npm run typecheck
+      - name: Validate external corpus JSDoc types
+        run: npm run typecheck:external
