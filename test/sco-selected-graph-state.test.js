@@ -57,7 +57,7 @@ test('selected SCO graph refuses mutable imported module-level state and first-c
     assert.throws(()=>compile(source),/unproved module-level mutable state/u,source);
   }
   assert.throws(()=>compile(functionObject),/escapes a shared function identity/u);
-  const safe='export const salt=41;'+
+  const safe='"use strict";export const salt=41;'+
     'export function next(){return salt;}';
   assert.doesNotThrow(()=>compile(safe),
     'Private immutable constants and stateless direct exported functions remain eligible');
