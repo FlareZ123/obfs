@@ -39,16 +39,17 @@ function recoverOriginal(published) {
 
 /**
  * @param {import('node:http').RequestListener} handler
+ * @param {string} [resource]
  * @returns {Promise<{status:number,body:Buffer}>}
  */
-async function publishedCssOverHttp(handler) {
+async function publishedCssOverHttp(handler,resource='/obfs/style.css') {
   const server=http.createServer(handler);
   await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   try {
     return await new Promise((resolve,reject)=>{
-      http.get({hostname:'127.0.0.1',port:address.port,path:'/obfs/style.css'},response=>{
+      http.get({hostname:'127.0.0.1',port:address.port,path:resource},response=>{
         /** @type {Buffer[]} */
         const buffers=[];
         response.on('data',part=>buffers.push(Buffer.from(part)));
@@ -64,7 +65,7 @@ async function publishedCssOverHttp(handler) {
 /**
  * @param {string} previousRoot
  * @param {string} currentRoot
- * @returns {Promise<{prepatch:string,protected:string,modes:{mode:Mode,extracted:boolean,refused:boolean}[],scoHttpExtracted:boolean,scoPublicationRefused:boolean}>}
+ * @returns {Promise<{prepatch:string,protected:string,modes:{mode:Mode,extracted:boolean,refused:boolean}[],svgPiModes:{mode:Mode,extracted:boolean,refused:boolean}[],scoHttpExtracted:boolean,scoPublicationRefused:boolean,scoSvgHttpExtracted:boolean,scoSvgPublicationRefused:boolean}>}
  */
 async function compare(previousRoot,currentRoot) {
   const previous=loadCompiler(previousRoot),current=loadCompiler(currentRoot);
@@ -104,8 +105,31 @@ async function compare(previousRoot,currentRoot) {
   assert.equal(recoverOriginal(response.body),original);
   assert.throws(()=>current.createScoHandler([asset]),
     /CSS data import would publish unaudited nested stylesheet/u);
+  const svg='<?xml-stylesheet type="text/css" href="data:text/css;base64,'+
+    Buffer.from(nested).toString('base64')+'"?>'+
+    '<svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>';
+  /** @type {File} */
+  const svgAsset={path:'icon.svg',sourceType:'asset',code:Buffer.from(svg)};
+  /** @type {{mode:Mode,extracted:boolean,refused:boolean}[]} */
+  const svgPiModes=[];
+  for(const mode of /** @type {Mode[]} */ (['coo','sco','sno'])) {
+    const options={mode,seed:'xml-pi-source-leak',strings:false};
+    const output=previous.obfuscateFiles([entry,svgAsset],options);
+    const published=output.files.find(file=>file.path==='icon.svg');
+    assert.ok(published);
+    assert.equal(recoverOriginal(published.code),original);
+    assert.throws(()=>current.obfuscateFiles([entry,svgAsset],options),
+      /SVG asset contains embedded XML stylesheet data URL/u);
+    svgPiModes.push({mode,extracted:true,refused:true});
+  }
+  const svgResponse=await publishedCssOverHttp(previous.createScoHandler([svgAsset]),'/obfs/icon.svg');
+  assert.equal(svgResponse.status,200);
+  assert.equal(recoverOriginal(svgResponse.body),original);
+  assert.throws(()=>current.createScoHandler([svgAsset]),
+    /SVG asset contains embedded XML stylesheet data URL/u);
   return {prepatch:path.resolve(previousRoot),protected:path.resolve(currentRoot),
-    modes,scoHttpExtracted:true,scoPublicationRefused:true};
+    modes,svgPiModes,scoHttpExtracted:true,scoPublicationRefused:true,
+    scoSvgHttpExtracted:true,scoSvgPublicationRefused:true};
 }
 
 if(require.main===module) {
