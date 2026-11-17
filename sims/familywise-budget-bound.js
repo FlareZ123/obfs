@@ -21,6 +21,9 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
  *   perTailConfidenceRequested:number,
  *   familywiseCoverageAtLeast:number,
  *   comparisons:number,
+ *   observedMaxPairedRatio:number,
+ *   observedOverBudgetPairs:number,
+ *   observedSampleHasOverBudgetPair:boolean,
  *   rows:ReturnType<typeof pairedBudgetBound>[]
  * }}
  */
@@ -44,12 +47,26 @@ function familywiseBudgetBounds(workloads,options={}){
     (sum,row)=>sum+2*(1-row.confidenceAttained),0
   );
   const familywiseCoverageAtLeast=Math.max(0,1-uncoveredRisk);
+  // The project's 2.5x requirement is strict, while the inference above is
+  // about population medians. Record any observed violation separately.
+  // This is a descriptive finite-sample fact, not a probabilistic bound on
+  // the worst possible runtime or an independent statistical test.
+  const observedMaxPairedRatio=Math.max(...workloads.map((workload,index)=>
+    Math.max(...workload.native.map((native,i)=>
+      workload.candidate[i]/native
+    ))
+  ));
+  const observedOverBudgetPairs=rows.reduce((sum,row)=>
+    sum+(row.samplePairs-row.observedPairsWithinBudget),0);
+
   const verdict=rows.some(row=>row.decision==='exceeded')?
     'sample-exceeded':rows.every(row=>row.decision==='supported')?
       'sample-supported':'sample-inconclusive';
   return {
     verdict,confidenceRequested:confidence,perTailConfidenceRequested,
-    familywiseCoverageAtLeast,comparisons:rows.length,rows
+    familywiseCoverageAtLeast,comparisons:rows.length,
+    observedMaxPairedRatio,observedOverBudgetPairs,
+    observedSampleHasOverBudgetPair:observedOverBudgetPairs>0,rows
   };
 }
 
