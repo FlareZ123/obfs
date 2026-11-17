@@ -51,7 +51,7 @@ function debugWasm() {
 /** @param {Buffer|string} distributed @returns {string} */
 function extractFunctionName(distributed) {
   const bytes=Buffer.isBuffer(distributed)?distributed:Buffer.from(distributed,'utf8');
-  const module=new WebAssembly.Module(bytes);
+  const module=new WebAssembly.Module(new Uint8Array(bytes));
   const section=WebAssembly.Module.customSections(module,'name');
   assert.equal(section.length,1);
   const text=Buffer.from(section[0]).toString('utf8');
@@ -97,7 +97,7 @@ async function compare(previousRoot,protectedRoot){
   const previous=loadCompiler(previousRoot),current=loadCompiler(protectedRoot);
   const original='function PrivateMeaningfulFunction_593184(x){return x*5+2;}module.exports=PrivateMeaningfulFunction_593184(8);';
   const wasm=debugWasm();
-  const wasmModule=new WebAssembly.Module(wasm);
+  const wasmModule=new WebAssembly.Module(new Uint8Array(wasm));
   const bareModule=new WebAssembly.Module(base);
   assert.equal(/** @type {Function} */ (new WebAssembly.Instance(wasmModule).exports.run)(),42);
   assert.equal(/** @type {Function} */ (new WebAssembly.Instance(bareModule).exports.run)(),42);
