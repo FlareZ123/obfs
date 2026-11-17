@@ -728,6 +728,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(entryCollectionsWithFunctionKeys,name)||changed;
         }
       }
+      // A known function-bearing iterable can pass the function to a
+      // local for-of binding or a synchronous Array#forEach callback.
+      if(node.type==='ForOfStatement' &&
+         node.left.type==='VariableDeclaration' &&
+         node.left.declarations.length===1 &&
+         node.left.declarations[0].id.type==='Identifier' &&
+         containsFunction(node.right)) {
+        changed=add(functions,node.left.declarations[0].id.name)||changed;
+      }
+      if(node.type==='CallExpression' &&
+         node.callee.type==='MemberExpression' &&
+         memberName(node.callee)==='forEach' &&
+         containsFunction(node.callee.object)) {
+        const callback=node.arguments[0];
+        if(callback &&
+           ['FunctionExpression','ArrowFunctionExpression'].includes(callback.type) &&
+           callback.params[0]?.type==='Identifier') {
+          changed=add(functions,callback.params[0].name)||changed;
+        }
+      }
       // Mutators can introduce function-valued array elements well after
       // declaration. Fixed-point alias propagation handles mutation via
       // another local identifier before the original owner is stringified.
