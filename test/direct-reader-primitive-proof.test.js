@@ -69,6 +69,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   });
 }
 
+/** @type {[string,SourceFile[]][]} */
 const refusals=[
   ['function-valued field',graph(
     'export const state={secretField:function inspectable(){return 23;}};'+
