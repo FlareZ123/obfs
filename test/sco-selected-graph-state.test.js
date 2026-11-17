@@ -37,6 +37,7 @@ test('independent source modules have distinct per-client lexical state before S
       await atomicWrite(path.join(root,name,'mixed.mjs'),publicSource);
       await atomicWrite(path.join(root,name,'private/counter.mjs'),counter);
     }
+    /** @param {string} name */
     const load=async name=>import(pathToFileURL(path.join(root,name,'mixed.mjs')).href);
     const [clientA,clientB,server]=await Promise.all([
       load('client-a'),load('client-b'),load('shared-server')
