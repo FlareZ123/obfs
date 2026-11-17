@@ -31,6 +31,8 @@ jobs:
         run: node sims/application-challenge-sco-cold-session.js
       - name: Reproduce pinned cold-profile sample uncertainty
         run: node sims/application-challenge-sco-cold-bootstrap.js
+      - name: Reproduce source-pinned post-hardening cold-profile uncertainty
+        run: node sims/application-challenge-sco-post-hardening-bootstrap.js
       - name: Strict JSDoc for finite-sample paired budget bound
         run: npx tsc --project jsconfig.paired-budget.json
       - name: Execute private SCO application facade in real Chromium
