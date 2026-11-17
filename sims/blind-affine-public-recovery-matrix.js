@@ -8,7 +8,7 @@ const {recover}=require('./polyvariant-affine-static-recover');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {'coo'|'sno'} Mode */
-/** @typedef {{mode:Mode,sourceSha256:string,commitment:string,originalSource:string,salt:string,answer:Record<string,number>,attackerMs:number,emittedBytes:number,heldoutChecks:number}} Transcript */
+/** @typedef {{mode:Mode,sourceSha256:string,publishedSource:string,commitment:string,originalSource:string,salt:string,answer:Record<string,number>,attackerMs:number,emittedBytes:number,heldoutChecks:number}} Transcript */
 /** @typedef {{samples:number,recoveredFunctions:number,heldoutChecks:number,medianAttackMs:number,minAttackMs:number,maxAttackMs:number,minEmittedBytes:number,maxEmittedBytes:number}} ModeSummary */
 
 /** @param {string} value @returns {string} */
@@ -88,7 +88,7 @@ async function runEvidence(runsPerMode=12){
       attackTimes.push(attackerMs);
       emittedSizes.push(emittedBytes);
       transcripts.push({
-        mode,sourceSha256:question.sourceSha256,
+        mode,sourceSha256:question.sourceSha256,publishedSource:question.source,
         commitment:question.originalCommitment,
         originalSource:privateState.originalSource,salt:privateState.salt,
         answer,attackerMs,emittedBytes,heldoutChecks:verdict.comparisons
