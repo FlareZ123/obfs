@@ -60,14 +60,6 @@ function collectVerifiedImportedStrings(files) {
     /** @type {Map<string,string>} */
     const names=new Map();
     for(const statement of module.ast.body) {
-      if(statement.type==='ExportDefaultDeclaration') {
-        const value=statement.declaration;
-        if(value.type==='Identifier'&&arrays.has(value.name) ||
-           value.type==='ArrayExpression'&&hasFunction(value)) {
-          publicNames.add('default');
-        }
-        continue;
-      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       if(statement.declaration?.type==='VariableDeclaration') {
         for(const item of statement.declaration.declarations) {
@@ -188,6 +180,14 @@ function collectImportedFunctionArrays(files) {
     }while(changed);
     const publicNames=new Set();
     for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration') {
+        const value=statement.declaration;
+        if(value.type==='Identifier'&&arrays.has(value.name) ||
+           value.type==='ArrayExpression'&&hasFunction(value)) {
+          publicNames.add('default');
+        }
+        continue;
+      }
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
       if(statement.declaration?.type==='VariableDeclaration') {
         for(const item of statement.declaration.declarations) {
