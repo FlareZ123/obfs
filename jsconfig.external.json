@@ -19,6 +19,8 @@
     "sims/sco-private-graph-relay.js",
     "sims/sco-utf8-admission-profile.js",
     "sims/sco-batch-json-parse-cost.js",
+    "sims/sco-immutable-batch-profile.js",
+    "test/sco-immutable-batch-args.test.js",
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
     "sims/jsdeobsbench-coverage.js",
