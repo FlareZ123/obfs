@@ -275,6 +275,74 @@ comparison `timerResolutionLimited` with **null** confidence diagnostics
 rather than hiding or dividing by zero. It retains raw duration arrays
 for audit. The new pinned combined workflow is pending.
 
+## Reproduced parser grid and real Chromium, exact pinned source
+
+The combined manual [run
+44019732431](https://github.com/FlareZ123/obfs/actions/runs/44019732431)
+passed Ubuntu and Windows Node 22 jobs at exact source commit
+`cc92104a9ed9e95d26c03eae7e0a5faef3342eff`. This includes
+the prior semantic and Node timing controls, the newly bounded parser
+grid, and Chromium browser-module loading and hot tasks on Ubuntu.
+The browser timing runner no longer uses virtual time. Later source
+edits, if any, are outside this run's pin.
+
+**Bounded malformed devalue inputs:** On both platforms the seeded
+267-case local suite accepted 100 and refused 167, while never
+invoking the harmless ambient constructor probe. It refused both
+`__proto__` object-key payloads and the out-of-range graph index,
+and rejected the gigantic typed-array view over an insufficient
+ArrayBuffer with `RangeError`. It accepted an input only **29 bytes**
+long that produced a sparse array with length
+`4,294,967,295`; the tagged parser's dictionary-mode array
+construction avoided immediate huge allocation in this fixture.
+This still creates a large logical length that an application could
+accidentally iterate. The 4,096-deep linear reference chain
+(**27,575 bytes**) produced `RangeError` after 5.32 ms
+on Ubuntu and 5.44 ms on Windows. The 1,024-deep chain
+was accepted. This corpus and timing envelope do not prove
+rejection of all malicious graphs, concurrent resource safety,
+network hardening or prototype safety for all host objects.
+
+**Chromium cold static ESM load:** Nine alternating process-launch
+samples of native and devalue-import pages yielded medians of
+21.4 ms versus 50.8 ms on Ubuntu. The paired median devalue/native
+ratio was **2.37×**, with the 98.05%-coverage one-sided median
+upper bound **2.67×**, so the threshold verdict was
+**inconclusive**. The native first trial was an outlier at
+134.9 ms, making this environment particularly noisy. The
+published boot figure uses in-page `performance.now()` and
+excludes the executable's process-launch cost.
+
+**Chromium hot in-page task + serialization:** Nine observed
+rotated trials per scenario in an otherwise identical browser
+document returned these paired medians:
+
+| Records | Workload | Browser devalue/native paired median | Upper paired median bound | 2.5× verdict |
+| ---: | --- | ---: | ---: | --- |
+| 1 | +25k integer rounds | 1.08× | 1.09× | supported |
+| 32 | +25k integer rounds | 2.03× | 2.47× | supported |
+| 256 | small state task | 486.00× | 511.00× | exceeded |
+| 256 | +25k integer rounds | 9.02× | 9.22× | exceeded |
+| 1024 | small state task | 510.00× | 538.00× | exceeded |
+| 1024 | +25k integer rounds | 34.16× | 35.00× | exceeded |
+
+The **1- and 32-record small-state task** cases still recorded
+at least one zero-duration measurement even after increased
+repetition. Their raw samples are retained and their bound fields
+are explicitly `null` with `timerResolutionLimited:true`;
+no threshold conclusion is assigned to those two browser cases.
+All browser JSON-tree results, task checksums and graph-shape
+positive controls passed.
+
+This is an in-browser static ESM timing experiment in a
+loopback-served document. It has no SCO POST request, no session
+authentication or production obfuscation; its median/upper
+comparisons are descriptive diagnostic evidence. The conclusion
+remains that **general graph transport cannot presently replace
+the narrow JSON value contract while meeting 2.5× across these
+workloads**, even though some compute-heavy sparse calls can
+amortize its cost.
+
 ## Reproduction
 
 Manually dispatch
