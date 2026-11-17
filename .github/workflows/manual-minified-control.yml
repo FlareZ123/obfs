@@ -25,3 +25,8 @@ jobs:
         run: node --test test/minified-control-static-attacker.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
         run: node sims/polyvariant-app-four-way-control.js
+      - name: Real Chromium four-way ESM and host callback differential
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/polyvariant-app-four-way-browser.js
