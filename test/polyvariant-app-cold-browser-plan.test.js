@@ -28,4 +28,7 @@ test('browser page executes the exact validated counterbalanced schedule',()=>{
   assert.ok(html.includes('for(const variant of orders[trial])'));
   assert.ok(html.includes("await import('/graphs/'+variant+'/'+count+'/'+trial+'/entry.mjs')"));
   assert.ok(html.includes('clockProbeMs<0.1'));
+  assert.ok(html.includes('const hotCpu={native:[],published:[],reconstructed:[]}'));
+  assert.ok(html.includes('hotCpu[variant].push(hotRun(variant))'));
+  assert.ok(html.includes('const targetOutput=hotGraph.native.runScenario'));
 });
