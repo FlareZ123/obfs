@@ -31,6 +31,8 @@ jobs:
         run: node --test test/sco-stateful-oracle.test.js
       - name: Print bounded stateful oracle reconstruction evidence
         run: node sims/sco-stateful-oracle.js
+      - name: Recover server-private capability behavior from actual public facade
+        run: node --test test/sco-capability-public-oracle.test.js
       - name: Learn step-only state machine through known synchronizing word
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
