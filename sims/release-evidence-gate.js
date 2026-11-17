@@ -30,6 +30,22 @@ function sampleVerdict(samples){
 }
 
 /**
+ * @typedef {{
+ *  count:number,ratio:number,
+ *  pairedMedianBound:{
+ *    decision:string,lowerMedianBound:number,upperMedianBound:number,
+ *    confidenceAttained:number
+ *  },
+ *  samples:{native:number[],remote:number[]}
+ * }} ScoWorkload
+ * @typedef {{
+ *  semanticsPreserved:boolean,
+ *  heavy:ScoWorkload,light:ScoWorkload,
+ *  measuredBoundary:string,caveat:string
+ * }} ScoSessionEvidence
+ */
+
+/**
  * Keep provenance and security dimensions separate. The COO and SNO
  * implementations are tested on the same frozen three-module stateful
  * application; SCO uses the established six-module private-service fixture.
@@ -37,7 +53,7 @@ function sampleVerdict(samples){
  * @param {Awaited<ReturnType<typeof runCooEvidence>>} coo
  * @param {Awaited<ReturnType<typeof runSnoEvidence>>} sno
  * @param {Awaited<ReturnType<typeof profileSno>>} snoProfile
- * @param {{semanticsPreserved:boolean,heavy:{count:number,ratio:number,pairedMedianBound:{decision:string}},light:{count:number,ratio:number,pairedMedianBound:{decision:string}},measuredBoundary:string,caveat:string}} sco
+ * @param {ScoSessionEvidence} sco
  * @returns {object}
  */
 function summarizeEvidence(coo,sno,snoProfile,sco){
@@ -60,7 +76,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     events:row.events,ratioOfMedians:row.ratio,
     oneSidedMedianDecision:'not-computed'
   }));
-  const scoBudget=[['light',sco.light],['heavy',sco.heavy]].map(([label,data])=>({
+  const scoBudget=(/** @type {Array<['light'|'heavy',ScoWorkload]>} */ ([
+    ['light',sco.light],['heavy',sco.heavy]
+  ])).map(([label,data])=>({
     workload:label,events:data.count,ratioOfMedians:data.ratio,
     oneSidedMedianDecision:data.pairedMedianBound.decision,
     lowerMedianBound:data.pairedMedianBound.lowerMedianBound,
