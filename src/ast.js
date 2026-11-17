@@ -837,6 +837,38 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
         }
       }
+      // Destructuring a native method is equivalent to detaching it.
+      // The method may stringify a function argument or receiver even
+      // though no MemberExpression for the selected method survives.
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         node.init) {
+        const target=node.init;
+        const proto=target.type==='MemberExpression' &&
+          memberName(target)==='prototype' && target.object.type==='Identifier' ?
+          target.object.name : null;
+        const stringCtor=target.type==='Identifier' && target.name==='String' ||
+          target.type==='MemberExpression' && isGlobal(target.object) &&
+            memberName(target)==='String';
+        const regexpSymbols=new Set(['match','matchAll','replace','search','split']);
+        const stringSymbols=new Set(['iterator']);
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(proto==='RegExp' &&
+             (sourceCoercingRegExpMethods.has(name??'') ||
+              property.computed && isSourceSymbolKey(property.key,regexpSymbols))) {
+            changed=add(detachedRegExpSourceMethods,property.value.name)||changed;
+          }
+          if(proto==='String' &&
+             (sourceCoercingStringReceiverMethods.has(name??'') ||
+              property.computed && isSourceSymbolKey(property.key,stringSymbols))) {
+            changed=add(detachedStringReceiverMethods,property.value.name)||changed;
+          }
+          if(stringCtor && name==='raw')
+            changed=add(stringRawAliases,property.value.name)||changed;
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
          isGlobal(node.init)) {
         for(const property of node.id.properties) {
