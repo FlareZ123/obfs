@@ -80,10 +80,11 @@ async function main(){
   try {
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
+    const port=address.port;
     const browser=process.env.CHROMIUM_BIN??'chromium';
     /** @param {string} name @returns {Promise<string|undefined>} */
     async function run(name){
-      const url='http://127.0.0.1:'+address.port+'/'+name+'.html';
+      const url='http://127.0.0.1:'+port+'/'+name+'.html';
       const {stdout}=await execFileAsync(browser,[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
         '--no-first-run','--virtual-time-budget=3500','--dump-dom',url
