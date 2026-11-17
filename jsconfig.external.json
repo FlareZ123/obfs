@@ -21,6 +21,7 @@
     "sims/jsdeobsbench-public-protocol.js",
     "test/jsdeobsbench-public-browser.js",
     "test/polyvariant-app-cold-browser.js",
+    "test/polyvariant-app-cold-browser-plan.test.js",
     "sims/destructuring-assignment-performance.js",
     "sims/external-function-source-contract.js",
     "examples/sco-private/build-sample.cjs",
