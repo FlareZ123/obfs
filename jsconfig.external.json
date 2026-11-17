@@ -1,6 +1,9 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "sims/source-island-public-normalizer.js",
+    "sims/source-island-session-profile.js",
+    "test/source-observer-islands.test.js",
     "sims/host-capability-transport-grid.js",
     "sims/sco-selective-challenge.js",
     "sims/sco-selected-graph-budget.js",
