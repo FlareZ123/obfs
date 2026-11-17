@@ -125,7 +125,11 @@ function proveSourceObserverIslands(files,selections) {
 
   const forbiddenIdentifiers=new Set([
     'process','globalThis','global','window','self','document','navigator',
+    // Ambient reflection can reconstruct Function from computed string fragments,
+    // then import filesystem readers without a visible import/eval node.
+    // A sound allowlist requires an explicit capability proof, so decline both.
     'location','Deno','Bun','require','eval','Function','AsyncFunction',
+    'Object','Reflect',
     'GeneratorFunction','AsyncGeneratorFunction','Worker','SharedWorker',
     'importScripts','fetch','XMLHttpRequest','FileReader','Request','Response',
     'URL','Blob','WebSocket','readFile','readFileSync','createRequire',
