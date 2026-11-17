@@ -3,10 +3,12 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const fs=require('node:fs/promises');
+const {createHash}=require('node:crypto');
 const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
+const {obfuscateFiles}=require('../src');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 const {reconstructFromRuntime}=require('../sims/coo-runtime-one-query-reconstruct');
 
@@ -138,6 +140,45 @@ test('three public runtime observations reproduce entire stateful COO applicatio
   }finally{
     await fs.rm(temporary,{recursive:true,force:true});
   }
+});
+
+test('24 independently seeded published layouts all admit three-probe numeric cloning',async()=>{
+  const inputFile=path.join(__dirname,'../examples/polyvariant-app/native/math.mjs');
+  const nativeText=(await fs.readFile(inputFile,'utf8')).replace(/\r\n/g,'\n');
+  const native=await import(pathToFileURL(inputFile).href);
+  const digests=new Set();
+  let observed=0,heldout=0;
+  for(let index=0;index<24;index++){
+    const result=obfuscateFiles([{
+      path:'math.mjs',sourceType:/** @type {const} */ ('module'),code:nativeText
+    }],{
+      mode:'coo',seed:'runtime-three-probe/public-seed-'+index,
+      closedWorld:false,strings:false,
+      experimentalPolyvariantAffine:{'math.mjs':['round1','round2','round3']},
+      experimentalPolyvariantCount:2
+    });
+    assert.equal(result.files[0].metrics.polyvariantFunctions,3);
+    assert.equal(result.files[0].metrics.polyvariantPaths,6);
+    const distributed=/** @type {string} */ (result.files[0].code);
+    digests.add(createHash('sha256').update(distributed).digest('hex'));
+    // The independent attacker receives only distributed source text,
+    // even though this verifier holds the corresponding trusted original.
+    const recovered=await reconstructFromRuntime(distributed);
+    assert.equal(recovered.oracleCalls,3);
+    observed+=recovered.oracleCalls;
+    const rebuilt=await importText(recovered.code);
+    for(const name of ['round1','round2','round3']){
+      for(let trial=0;trial<128;trial++){
+        const input=(Math.imul((index*131+trial)^0x761ec55d,0x9e3779b1)|0);
+        assert.equal(rebuilt[name](input),native[name](input),
+          'Randomized output '+index+'/'+name+'/'+trial);
+        heldout++;
+      }
+    }
+  }
+  assert.equal(digests.size,24);
+  assert.equal(observed,72);
+  assert.equal(heldout,24*3*128);
 });
 
 test('one-probe affine inference declines non-Int32 public outputs',async()=>{
