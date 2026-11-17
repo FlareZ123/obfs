@@ -81,6 +81,14 @@ const examples=[
   {
     name:'RegExp Symbol.match method destructuring',
     tail:'const {[Symbol.match]: matcher}=RegExp.prototype;module.exports=matcher.call(/a\\^17/,f)?.[0]??null;'
+  },
+  {
+    name:'RegExp alias prototype test destructuring',
+    tail:'const Rx=RegExp;const {test:check}=Rx.prototype;module.exports=check.call(/a\\^17/,f);'
+  },
+  {
+    name:'RegExp alias Symbol.match destructuring',
+    tail:'const Rx=RegExp;const {[Symbol.match]:check}=Rx.prototype;module.exports=check.call(/a\\^17/,f)?.[0]??null;'
   }
 ];
 
