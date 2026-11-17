@@ -192,6 +192,40 @@ async function assertOutputOutsideInput(root,destination) {
 }
 
 /**
+ * Refuse existing symlink/junction ancestors below the chosen output root.
+ * A trusted output operator may choose a symlinked root elsewhere, but an
+ * inner link must never redirect a generated filename to the source tree or
+ * an unrelated directory. Resolve every output path before any file is
+ * emitted; this is preflight against accidental aliases, not a race-proof
+ * filesystem sandbox against an actively hostile server owner.
+ * @param {string} outputRoot
+ * @param {string} relativeFile
+ * @returns {Promise<void>}
+ */
+async function assertNoOutputJunctions(outputRoot,relativeFile) {
+  let parent=outputRoot;
+  const directory=path.dirname(relativeFile);
+  if(directory==='.')return;
+  for(const part of directory.split(path.sep)) {
+    parent=path.join(parent,part);
+    /** @type {import('node:fs').Stats} */
+    let stat;
+    try {
+      stat=await fs.lstat(parent);
+    }catch(error){
+      if(/** @type {NodeJS.ErrnoException} */(error).code==='ENOENT')return;
+      throw error;
+    }
+    if(stat.isSymbolicLink()){
+      throw new Error('Output path contains a symlink or junction: '+parent);
+    }
+    if(!stat.isDirectory()){
+      throw new Error('Output parent is not a directory: '+parent);
+    }
+  }
+}
+
+/**
  * Select only the JavaScript explicitly authorized for public delivery.
  * Static ESM imports/reexports are transitively included. Dynamic import()
  * is a runtime-only edge and must be published explicitly with --client,
@@ -318,6 +352,17 @@ async function main(mode,argv) {
     if (!entrySource) throw new Error(`Missing obfuscated entry ${entry}`);
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
     launcher = createSnoLauncher(result.files,entry);
+  }
+  // Resolve every intended output location before the first file write.
+  // A nested output symlink/junction can otherwise bypass the root-only
+  // outside-input check and silently overwrite original source files.
+  for(const file of result.files){
+    await assertNoOutputJunctions(absOut,file.path);
+    await assertOutputOutsideInput(absRoot,path.join(absOut,file.path));
+  }
+  if(launcher!==undefined){
+    await assertNoOutputJunctions(absOut,'sno-entry.cjs');
+    await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
   }
   for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
   if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
