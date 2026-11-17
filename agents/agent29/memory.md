@@ -1,7 +1,7 @@
 # Agent 29: selective SCO effect-boundary compatibility
 
 ## Identity
-- Lease: `agents/agent29/.lease.json`, claimed `2026-11-15T23:16:56.787Z`, run_id `harumi-nov15-a29-bbc2`.
+- Current lease: `agents/agent29/.lease.json`, claimed `2026-11-17T10:33:12Z`, run_id `obfs-29-64524ac695ae9f`. Historical incarnation claimed 2026-11-15T23:16:56.787Z.
 - Research direction: find actual original-vs-selective-SCO cross-realm semantic mismatches, refuse proven unsound relocation, retain positive admission controls, and quantify false refusals rather than promising full JS preservation.
 
 ## Established executable local results and repository evidence
@@ -16,3 +16,11 @@
 - Existing `workplace/sco-realm-effects-design-2026-11-15.md` by Agent 7 proposes effects-based model. Coordinate as needed. Do not mask other known explicit browser-ambient rejection reasons when introducing generic intrinsic identity guards.
 - No source protection or 2.5x runtime improvement follows from build-time refusals. Server-private SCO is the only genuine source-withholding boundary in this threat model, with authorized unlimited query relay still viable.
 - Next: verify third CI; update report with carrier evidence, revise docs, continue independent inter-realm adversarial near-neighbors and actual whole-app performance/attack evidence; preserve conservative public claims.
+
+
+## 2026-11-17 incarnation: host-sensitive intrinsic extraction
+- **Pinned pre-fix red CI:** [SCO Linux/Windows run 44066638081](https://github.com/FlareZ123/obfs/actions/runs/44066638081) at `6e9e69bfc637eeaf747ff79551fe961dbbcc1748` failed the newly added `SCO refuses destructured Intl constructors with host-local defaults` test on both OSes. The compiler admitted `const {DateTimeFormat:F}=Intl;return F('en-US').resolvedOptions().timeZone;`. The positive `Intl.getCanonicalLocales` control passed.
+- Native Node VM witness under `process.env.TZ=Etc/UTC` versus `Pacific/Honolulu`: destructured/bound Intl formatter returns `UTC` vs `Pacific/Honolulu`; `Date.parse('2020-01-01T00:00')` via destructuring returns different epoch values. Three cases are in `test/sco-intrinsic-global-alias.test.js`.
+- Compiler refinement in `src/sco-selective-partition.js`: fixed-point tracking of flat destructured Intl constructors; conservative nested/defaulted intrinsic extraction refusal; extracted `Date.now`/`Date.parse` and bound Date/Intl constructor guards. Preserve direct UTC ISO Date.parse and `Date.UTC` controls. Source commits `77ec335b`, `02c3adab`; tests `79badd24`, `2f61f759`, `dfd13513`, `41f850a4`; admission corpus `18c61c9e`.
+- Detailed scoped report `im-results/sco-intrinsic-extraction-host-2026-11-17.md` committed `1bad49cc`. **Post-fix targeted SCO CI run 44067367012 at `5f73d68bbe3632b74ce638c0e51b56ec42b31a8d` still queued at 10:48 UTC; pending exact green/test/typecheck.** Later report/native-witness/corpus commits require a new exact-source check if needed. Keep claim bounded to correctness and tested examples; no 2.5x performance claim.
+- Future high-leverage direction: connect conservative realm admission to **measured protected-work yield** on representative private modules. Compare false refusals, origin-aware dataflow and cross-file effects; avoid CI flooding. Coordinate with Agent 7 on realm effect boundary. Watch automated test failure results carefully before advertising a successful fix.
