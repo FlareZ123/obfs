@@ -12,6 +12,8 @@ const cases=JSON.parse(process.argv[2]||'[[1,1000]]');
 
 The mutable `process.argv[2]` host cell may be replaced by a function before entry. `JSON.parse` coerces that function to source text for parsing/error generation. Therefore the unguarded expression has an authentic source observation and the compiler must retain its conservative whole-graph refusal. Ordinary CLI invocation without a preloader does not prove an immutable host input.
 
+The normative [ECMAScript JSON.parse algorithm](https://tc39.es/ecma262/multipage/structured-data.html#sec-json.parse) calls `ToString(text)` before parsing, and the official [Node process.argv API](https://nodejs.org/api/process.html#processargv) describes the host-provided argument array. The executable preloader tests additionally establish that a user-controlled in-process replacement can become a function at the actual ToString boundary. The host-mutability conclusion is a tested runtime property here, rather than an assertion that every Node CLI argument is normally a function.
+
 Separately, old tests deliberately changed the frozen six-module graph through `ablate(...,'both')` and either `withOwnKeyCalls` or `withNullPrototypeRecord`, thereby defining two **different, modified** application contracts. The three historic positive gates expected 2 protected field renames in those modified graphs but the added JSON.parse guard produced 0. The original frozen program is unchanged and remains the correct 0-field refusal control.
 
 ## Bounded proof
@@ -35,6 +37,7 @@ Important limitation: the guarded application has a different hostile-input cont
 - `test/guarded-json-application-positive.test.js` executes each distinct six-module input on Node as native and emitted ESM files, including a `--require` preloader assigning `process.argv[2]` a function before entry. It checks full stdout native==emitted and **2/2** cross-file renamed fields per variant.
 - Three historical positive tests, `test/application-challenge-null-prototype-yield.test.js`, `test/application-challenge-token-neutralize.test.js`, and `test/ownkey-comment-static-recovery.test.js`, now compile the **explicitly guarded** modified contracts; all pass. They retain independent public-only source-copy/static reconstruction success as **negative security evidence** rather than a confidentiality win.
 - `sims/application-challenge-observer-ablation.js` distinguishes the known native observers and reports `[0,0,0,0,2,2]` private-field coverage across `none`, `reflect`, `entry`, `both`, `own-only`, `null-proto`.
+- The independent public-only Acorn token normalization succeeded at four variant/seed pairs with **2/2** published protected properties and **10/10** locally renamed identifiers normalized on each, on **84 observed and 160 held-out cases** per pair. The Ubuntu runner reported static scans of **13.478, 9.444, 9.374, and 9.246 ms**, with neither original source nor compiler loaded in the attacker process. The separate comment-based attacker recovered both original private property names and matched **84** native/emitted/reconstructed cases. These timings are raw scanner observations, excluding any manual attack development, and are not a matched minifier-human workload.
 
 ### Source-pinned validation
 
