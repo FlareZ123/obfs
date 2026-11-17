@@ -29,9 +29,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/fixed-arity-strings-browser.js
-      - name: Separate inherited Array mutation safety neighbor
-        run: node --test test/decoder-array-prototype-chain.test.js
       - name: Strict production JSDoc
         run: npm run typecheck
       - name: Strict fixed-arity research JSDoc
         run: npx tsc -p jsconfig.fixed-arity.json
+      - name: Separate inherited Array mutation safety neighbor
+        run: node --test test/decoder-array-prototype-chain.test.js
