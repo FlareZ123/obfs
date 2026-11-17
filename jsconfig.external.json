@@ -3,6 +3,7 @@
   "include": [
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
+    "sims/source-island-cache-browser-witness.js",
     "test/source-observer-islands.test.js",
     "test/source-observer-islands-browser.js",
     "test/source-observer-islands-fuzz.test.js",
