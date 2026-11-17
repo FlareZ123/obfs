@@ -94,6 +94,45 @@ are treated as potentially functions, which can refuse extra safe
 rewrites of ordinary array-index callbacks. This precision limitation
 has not been independently measured.
 
+## Collection callback owner and modern Set algebra
+
+Extended the callback proof to its third argument, which is the original
+collection. Without that dataflow, `Map#forEach((value,key,owner) => ...)`
+can iterate `owner.values()` and stringify a function that was never
+named in the callback body. Identical behavior arises for `Set`.
+
+- [Red 44006539785](https://github.com/FlareZ123/obfs/actions/runs/44006539785)
+  at `2d9704da`: 4 missed owner-argument source observers; 121/125
+  tests pass per OS.
+- [Green 44006669728](https://github.com/FlareZ123/obfs/actions/runs/44006669728)
+  at `d5aeefe2`: 125/125 and JSDoc green on Ubuntu and Windows.
+
+Modern `Set` composition also carries object references through
+`union`, `intersection`, `difference`, and
+`symmetricDifference`. See
+[MDN union](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set/union)
+and [MDN symmetric difference](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set/symmetricDifference).
+The compiler's new source-observer rule follows receiver values for
+all four operations, and additional argument elements for union and
+symmetric difference. The proof is deliberately conservative when
+membership is statically unknown.
+
+- [Red 44006799003](https://github.com/FlareZ123/obfs/actions/runs/44006799003)
+  at `49166851`: 5 same-file function-bearing Set composition
+  observations were missed, alongside an **unproved** ESM primitive-only
+  positive-control expectation. 130/136 tests passed per OS.
+- The ESM primitive-only composition positive was removed from the
+  candidate evidence because the existing conservative cross-file
+  source-observer gate already declines that graph. An ordinary imported
+  primitive-only `Set` remains in the suite as a verified positive.
+- [Green 44006989359](https://github.com/FlareZ123/obfs/actions/runs/44006989359)
+  at `6e49b1ac`: revised targeted suite and strict JSDoc green on
+  both operating systems.
+
+These tests assert semantic refusal of source-changing transformations.
+They do not demonstrate deobfuscation hardness, protected execution under
+an attacker-controlled runtime, or any workload-independent runtime bound.
+
 ## Limits and project implications
 
 The guard favors **preserving native semantics** over transformation yield
