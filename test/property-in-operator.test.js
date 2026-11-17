@@ -49,7 +49,15 @@ for(const [name,source] of [
   ['nested function owner membership',
     'const bag={secretField:3};function check(){return "secretField" in bag;}module.exports=check();'],
   ['multiple owning objects',
-    'const a={secretField:3},b={secretField:7};module.exports=["secretField" in a,"secretField" in b];']
+    'const a={secretField:3},b={secretField:7};module.exports=["secretField" in a,"secretField" in b];'],
+  ['interprocedural call with only proven owner',
+    'function check(input){return "secretField" in input;}const bag={secretField:3};module.exports=check(bag);'],
+  ['membership before lexical initialization retains TDZ exception',
+    'let output;try{output="secretField" in bag;}catch(error){output=error.name;}'+
+    'const bag={secretField:3};module.exports=output;'],
+  ['native prototype accessor is still shadowed by existing own key',
+    'Object.defineProperty(Object.prototype,"secretField",{get(){throw Error("inherited");}});'+
+    'const bag={secretField:3};module.exports="secretField" in bag;']
 ]) {
   test('proven own membership rewrites local fields in '+name,()=>{
     for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])){
@@ -73,7 +81,15 @@ for(const [name,source] of [
   ['mutation through function-valued assignment',
     'const bag={secretField:3};bag.secretField=function(){return Object.keys(this)[0]};module.exports="secretField" in bag;'],
   ['owner value used as left operand of in',
-    'const bag={secretField:3};try{module.exports=bag in {}}catch(e){module.exports=e.name;}']
+    'const bag={secretField:3};try{module.exports=bag in {}}catch(e){module.exports=e.name;}'],
+  ['same function called on different owner shape',
+    'function check(input){return "secretField" in input;}'+
+    'const bag={secretField:3};module.exports=[check(bag),check({secretField:4})];'],
+  ['own and inherited membership both observed',
+    'const bag={secretField:3};module.exports=["secretField" in bag,"toString" in bag];'],
+  ['native function-source observation',
+    'const bag={secretField:3};function probe(){return "secretField" in bag;}'+
+    'module.exports=[probe(),String(probe)];']
 ]) {
   test('unproved or unsafe membership refuses local rewrite: '+name,()=>{
     for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])){
