@@ -79,6 +79,14 @@ test('console.dir formats an Error created through another alias',()=>{
   mustPreserveConsoleSource("const original=new Error('probe');const copy=original;console.dir(copy);");
 });
 
+test('console.log exposes a local function name through native inspection',()=>{
+  mustPreserveConsoleSource('function distinctlyNamedLocalFunction(){return value;}console.log(distinctlyNamedLocalFunction);');
+});
+
+test('console.dir exposes a function nested inside a literal record',()=>{
+  mustPreserveConsoleSource('function distinctlyNamedNestedFunction(){return value;}console.dir({nested:[distinctlyNamedNestedFunction]});');
+});
+
 test('ordinary primitive logging remains eligible for real property renaming',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;console.log(42);module.exports=value;";
