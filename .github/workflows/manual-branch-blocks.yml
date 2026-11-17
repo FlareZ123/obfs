@@ -37,6 +37,10 @@ jobs:
         run: node sims/branch-block-profile.js
       - name: Held-out 160-graph statement CFG differential and static attack
         run: node sims/statement-flow-fuzz.js
+      - name: Hostile external callback and exceptional iterator source-only CFG differential
+        run: node --test test/statement-flow-ambient-callback-fuzz.test.js
+      - name: Strict JSDoc for hostile-host callback graph challenger
+        run: npx tsc -p jsconfig.statement-flow-ambient.json
       - name: Source-only statement tamper against distributed dispatcher
         run: node sims/statement-flow-tamper.js
       - name: Full COO layered seedless attacker recovery cost
