@@ -349,7 +349,16 @@ function realmStateObservation(body,checkHostConfiguration=false){
   /** @type {Set<string>} */
   const errorInstances=new Set();
   /** @type {Set<string>} */
+  const errorFactories=new Set();
+  /** @type {Set<string>} */
   const intlAliases=new Set();
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function returnsError(expression){
+    return createsError(expression)||
+      expression.type==='Identifier'&&errorInstances.has(expression.name)||
+      expression.type==='CallExpression'&&expression.callee.type==='Identifier'&&
+        errorFactories.has(expression.callee.name);
+  }
   let originChanged=true;
   while(originChanged){
     originChanged=false;
@@ -358,6 +367,29 @@ function realmStateObservation(body,checkHostConfiguration=false){
         node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const initial=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
+      // A direct local function that returns a constructed Error is also an
+      // Error origin for its call sites, even if the caller never names Error.
+      const factoryFn=node.type==='FunctionDeclaration'?node:
+        node.type==='VariableDeclarator'&&node.init&&
+        ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)?
+          node.init:null;
+      const factoryName=node.type==='FunctionDeclaration'?node.id?.name:
+        node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+          node.id.name:null;
+      if(factoryFn&&factoryName){
+        const returned=factoryFn.body.type==='BlockStatement'?
+          factoryFn.body.body.filter(
+            (/** @type {import('./ast').AstNode} */ statement)=>
+              statement.type==='ReturnStatement').map(
+            (/** @type {import('./ast').AstNode} */ statement)=>statement.argument):
+          [factoryFn.body];
+        if(returned.some(
+          (/** @type {import('./ast').AstNode|null} */ value)=>
+            value!==null&&returnsError(value))&&!errorFactories.has(factoryName)){
+          errorFactories.add(factoryName);
+          originChanged=true;
+        }
+      }
       // Destructuring an Intl constructor is an implicit first-class alias.
       // Its default host locale/zone is still observable after extraction.
       if(binding?.type==='ObjectPattern'&&initial&&
@@ -381,8 +413,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
           originChanged=true;
         }
       }
-      if(createsError(initial)||
-         initial.type==='Identifier'&&errorInstances.has(initial.name)){
+      if(initial.type==='Identifier'&&errorFactories.has(initial.name)&&
+         !errorFactories.has(binding.name)){
+        errorFactories.add(binding.name);
+        originChanged=true;
+      }
+      if(returnsError(initial)){
         if(!errorInstances.has(binding.name)){
           errorInstances.add(binding.name);
           originChanged=true;
@@ -420,9 +456,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
   });
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function isStackReceiver(expression){
-    return createsError(expression)||
-      expression.type==='Identifier'&&
-        (errorInstances.has(expression.name)||catchBindings.has(expression.name));
+    return returnsError(expression)||
+      expression.type==='Identifier'&&catchBindings.has(expression.name);
   }
   let stackTouched=false;
   let configurationTouched=false;
