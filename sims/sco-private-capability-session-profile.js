@@ -8,7 +8,7 @@ const {createScoHandler,createScoCapabilityScope,createScoPrivateHandles,createS
 const WORK=Buffer.alloc(8*1024*1024,0x37);
 
 /** @typedef {{counter:number}} PrivateCounter */
-/** @typedef {{bytes:number,calls:number,ratios:number[],nativeMs:number[],remoteMs:number[]}} SampleGroup */
+/** @typedef {{bytes:number,calls:number,ratios:number[],cpuRatios:number[],nativeMs:number[],remoteMs:number[],nativeCpuMs:number[],remoteCpuMs:number[]}} SampleGroup */
 
 /** @param {number[]} values @returns {number} */
 function median(values) {
@@ -22,6 +22,20 @@ async function elapsed(operation) {
   const started=process.hrtime.bigint();
   await operation();
   return Number(process.hrtime.bigint()-started)/1e6;
+}
+
+/**
+ * The client facade and server run inside the same benchmark process. The
+ * before/after process CPU counter therefore includes both HTTP handling and
+ * private HMAC work, unlike a wall-clock timer alone.
+ * @param {()=>Promise<void>} operation
+ * @returns {Promise<{wallMs:number,cpuMs:number}>}
+ */
+async function timed(operation) {
+  const started=process.cpuUsage();
+  const wallMs=await elapsed(operation);
+  const usage=process.cpuUsage(started);
+  return {wallMs,cpuMs:(usage.user+usage.system)/1000};
 }
 
 /**
@@ -128,7 +142,7 @@ async function experiment() {
     const groups=[];
     for(const bytes of [0,WORK.length])for(const calls of [1,16,64]) {
       /** @type {SampleGroup} */
-      const group={bytes,calls,ratios:[],nativeMs:[],remoteMs:[]};
+      const group={bytes,calls,ratios:[],cpuRatios:[],nativeMs:[],remoteMs:[],nativeCpuMs:[],remoteCpuMs:[]};
       for(let trial=0;trial<7;trial++) {
         const inputs=Array.from({length:calls},(_,index)=>
           'same-input/'+bytes+'/'+calls+'/'+trial+'/'+index);
@@ -147,19 +161,23 @@ async function experiment() {
             remoteOutput.push(await facade.step(remoteHandle,input,bytes));
           }
         };
-        let nativeMs,remoteMs;
+        let nativeTiming,remoteTiming;
         if(trial%2===0) {
-          nativeMs=await elapsed(nativeOperation);
-          remoteMs=await elapsed(remoteOperation);
+          nativeTiming=await timed(nativeOperation);
+          remoteTiming=await timed(remoteOperation);
         }else{
-          remoteMs=await elapsed(remoteOperation);
-          nativeMs=await elapsed(nativeOperation);
+          remoteTiming=await timed(remoteOperation);
+          nativeTiming=await timed(nativeOperation);
         }
         assert.deepEqual(remoteOutput,nativeOutput);
-        assert.ok(nativeMs>0 && remoteMs>0);
-        group.nativeMs.push(nativeMs);
-        group.remoteMs.push(remoteMs);
-        group.ratios.push(remoteMs/nativeMs);
+        assert.ok(nativeTiming.wallMs>0 && remoteTiming.wallMs>0 &&
+          nativeTiming.cpuMs>0 && remoteTiming.cpuMs>0);
+        group.nativeMs.push(nativeTiming.wallMs);
+        group.remoteMs.push(remoteTiming.wallMs);
+        group.nativeCpuMs.push(nativeTiming.cpuMs);
+        group.remoteCpuMs.push(remoteTiming.cpuMs);
+        group.ratios.push(remoteTiming.wallMs/nativeTiming.wallMs);
+        group.cpuRatios.push(remoteTiming.cpuMs/nativeTiming.cpuMs);
       }
       groups.push(group);
     }
@@ -177,9 +195,14 @@ async function experiment() {
         medianNativeMs:median(group.nativeMs),medianRemoteMs:median(group.remoteMs),
         medianPairedRatio:median(group.ratios),maximumPairedRatio:Math.max(...group.ratios),
         strictAbove2_5:group.ratios.filter(ratio=>ratio>2.5).length,
-        pairedRatios:group.ratios.map(ratio=>Number(ratio.toFixed(6)))
+        pairedRatios:group.ratios.map(ratio=>Number(ratio.toFixed(6))),
+        medianNativeCpuMs:median(group.nativeCpuMs),medianRemoteCpuMs:median(group.remoteCpuMs),
+        medianCpuPairedRatio:median(group.cpuRatios),
+        maximumCpuPairedRatio:Math.max(...group.cpuRatios),
+        strictCpuAbove2_5:group.cpuRatios.filter(ratio=>ratio>2.5).length,
+        pairedCpuRatios:group.cpuRatios.map(ratio=>Number(ratio.toFixed(6)))
       })),
-      scope:'Workload-specific sampled full-session overhead; strict above-2.5 pairs veto sampled scope; no universal claim'
+      scope:'Workload-specific wall and combined-process CPU measurements; observed strict above-2.5 compute pairs veto sampled scope, no universal guarantee'
     };
   }finally {
     globalThis.fetch=nativeFetch;
