@@ -31,7 +31,11 @@ const cases=[
   {name:'String Symbol.iterator bound',tail:
     'const iter=String.prototype[Symbol.iterator].bind(f);module.exports=Array.from(iter()).join("").includes("a^17");'},
   {name:'String Symbol.iterator reflective',tail:
-    'module.exports=Array.from(Reflect.apply(String.prototype[Symbol.iterator],f,[])).join("").includes("a^17");'}
+    'module.exports=Array.from(Reflect.apply(String.prototype[Symbol.iterator],f,[])).join("").includes("a^17");'},
+  {name:'String.raw destructured method',tail:
+    'const {raw}=String;module.exports=raw({raw:["",""]},f).includes("a^17");'},
+  {name:'String iterator destructured method',tail:
+    'const {[Symbol.iterator]:iter}=String.prototype;module.exports=Array.from(iter.call(f)).join("").includes("a^17");'}
 ];
 
 test('String.raw and String Symbol.iterator retain original function-source bytes',()=>{
