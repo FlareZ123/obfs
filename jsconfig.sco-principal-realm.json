@@ -3,6 +3,7 @@
   "include": [
     "src/**/*.js",
     "sims/sco-principal-realm-worker.js",
+    "sims/sco-principal-realm-profile.js",
     "test/sco-principal-realm.test.js"
   ],
   "exclude": ["node_modules"]
