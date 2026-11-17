@@ -76,7 +76,13 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
   }));
   const snoBudget=snoProfile.map(row=>({
     events:row.events,ratioOfMedians:row.ratio,
-    oneSidedMedianDecision:'not-computed'
+    oneSidedMedianDecision:row.pairedBound.decision,
+    samplePairs:row.pairedBound.samplePairs,
+    lowerMedianBound:row.pairedBound.lowerMedianBound,
+    upperMedianBound:row.pairedBound.upperMedianBound,
+    oneSidedConfidenceAttained:row.pairedBound.confidenceAttained,
+    medianOfPairedRatios:row.pairedBound.medianOfPairedRatios,
+    rawTimingMs:row.rawTimingMs
   }));
   const scoBudget=(/** @type {Array<['light'|'heavy',ScoWorkload]>} */ ([
     ['light',sco.light],['heavy',sco.heavy]
@@ -88,12 +94,15 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     oneSidedConfidenceAttained:data.pairedMedianBound.confidenceAttained,
     rawTimingMs:data.samples
   }));
-  // One joint familywise claim across the six statistically paired COO/SCO
-  // workload populations. The SNO data have descriptive medians only and
-  // cannot be silently included in a simultaneous confidence statement.
+  // Ten simultaneous COO/SNO/SCO workload populations. Every dimension
+  // exposes raw paired samples; preserve the original six COO/SCO controls
+  // and include four process-level SNO controls without claiming a universal
+  // runtime bound. Bonferroni adjusts both interval tails across ten rows.
   const familywise=familywiseBudgetBounds([
     ...cooBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.published})),
+    ...snoBudget.map(row=>({native:row.rawTimingMs.native,
+      candidate:row.rawTimingMs.sno})),
     ...scoBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.remote}))
   ]);
@@ -132,6 +141,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       comparisons:familywise.comparisons,
       workloads:[
         ...cooBudget.map(row=>({mode:'coo',events:row.events})),
+        ...snoBudget.map(row=>({mode:'sno',events:row.events})),
         ...scoBudget.map(row=>({mode:'sco',events:row.events}))
       ],
       bounds:familywise.rows.map(row=>({
@@ -139,15 +149,17 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
         upperMedianBound:row.upperMedianBound,
         marginalOneSidedCoverage:row.confidenceAttained
       })),
-      boundary:'Six paired COO/SCO workload populations only. SNO has descriptive medians without paired confidence; independent within-workload trials are assumed.'
+      boundary:'Ten measured paired COO/SNO/SCO populations. COO reuses one Node process with fresh ESM graph; SNO uses fresh child processes; SCO fresh client over localhost. Independent representative samples within each workload remain an assumption.'
     },
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
       boundary:'module graph loaded anew per trial; Node process reused'},
-    sno:{verdict:'sample-inconclusive',rows:snoBudget,
+    sno:{verdict:sampleVerdict(snoBudget.map(row=>({
+      decision:row.oneSidedMedianDecision
+    }))),rows:snoBudget,
       descriptiveOverBudgetEvents:snoBudget.filter(row=>
         row.ratioOfMedians>2.5).map(row=>row.events),
-      boundary:'fresh Node child processes; descriptive median ratios only'},
+      boundary:'fresh Node child process per paired sample; one-sided bounds concern population median of paired ratios, not all sessions'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
@@ -203,7 +215,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
 async function run(){
   const coo=await runCooEvidence();
   const sno=await runSnoEvidence();
-  const snoProfile=await profileSno(7);
+  const snoProfile=await profileSno(13);
   const worker=path.join(__dirname,'application-challenge-sco-cold-session.js');
   const {stdout}=await execFileAsync(process.execPath,[worker],{
     timeout:240000,maxBuffer:4*1024*1024
