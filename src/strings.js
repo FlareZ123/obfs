@@ -125,12 +125,16 @@ function encodeStrings(source, ast, options) {
   const useChunks=encoded.some(value=>value.length>=1024);
   const chunkedDecoder = `for(let ${offsetName}=0;${offsetName}<${raw}.length;${offsetName}+=4096){const ${units}=[];for(let ${j}=${offsetName};${j}<${raw}.length&&${j}<${offsetName}+4096;${j}++)${units}[${j}-${offsetName}]=${raw}.charCodeAt(${j})^${key};${decoded}+=String.fromCharCode(...${units});}`;
   // Fixed-arity calls avoid temporary [] writes and spread iteration.
-  // On short-only files or when disabled, retain the existing decoder and
-  // avoid allocating the unrolled 256-operand source during compilation.
+  // Select a shorter helper for a small total payload. 64 direct arguments
+  // reduce source size for small programs; 256 amortize call overhead when
+  // many large literals share one decoder. This is a measured heuristic, not
+  // a universal 2.5x runtime guarantee.
   // The XOR table remains source-only recoverable and is not a secrecy layer.
   let longDecoder=chunkedDecoder;
   if(options.fixedArity&&useChunks) {
-    const width=256;
+    let longUnits=0;
+    for(const value of encoded)if(value.length>=1024)longUnits+=value.length;
+    const width=longUnits<8192?64:256;
     const args=Array.from({length:width},(_,index)=>
       `${raw}.charCodeAt(${offsetName}+${index})^${key}`).join(',');
     longDecoder=`let ${offsetName}=0;for(;${offsetName}+${width}<=${raw}.length;${offsetName}+=${width})${decoded}+=String.fromCharCode(${args});for(let ${j}=${offsetName};${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
