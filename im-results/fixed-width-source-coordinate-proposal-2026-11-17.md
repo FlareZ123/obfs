@@ -55,6 +55,8 @@ restricted to validated coordinate-only observers. Full native-source
 observers still require either exact bytes or another independently proven
 representation strategy.
 
+The same native feasibility script subsequently **passed on both Ubuntu and Windows Node 22** in [run 44103793268](https://github.com/FlareZ123/obfs/actions/runs/44103793268), pinned to `adbfd942dc4d87ec03e4a5734750ba0492bf78f4`. Both strict typecheck steps and the complete focused semantic regression suite passed on each runner. The result remains a native manual-substitution observation, with no integrated equal-width compiler pass.
+
 ## Scope and implementation requirements
 
 Equal width is **insufficient** when an observer reads function body bytes,
