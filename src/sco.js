@@ -324,6 +324,10 @@ function createScoHandler(sourceFiles,options={}) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
+  // Both manifest proof and published file normalization must inspect the
+  // same indexed inventory. Caller-owned map/iterator overrides cannot
+  // silently change which array entries appear at either phase.
+  const files=snapshotMetadataEntries(sourceFiles);
   // An explicit positive publication boundary can protect source files that
   // no static private dependency audit could discover. Build the allowlist
   // from independently reviewed public entrypoints and assets, not from
@@ -353,7 +357,7 @@ function createScoHandler(sourceFiles,options={}) {
   // disagree, leaving a declared private source outside the forbidden sets.
   // Keep owned array copies for every later check and publication pass.
   /** @type {Array<{paths:string[]|undefined,digests:string[]|undefined}>} */
-  const privateMetadata=sourceFiles.map(file=>{
+  const privateMetadata=files.map(file=>{
     const providedDigests=file.privateOriginalDigests;
     const providedPaths=file.privateModulePaths;
     /** @type {string[]|undefined} */
@@ -387,7 +391,7 @@ function createScoHandler(sourceFiles,options={}) {
   // may collide when the source group is deployed on Windows.
   const seen=new Set();
   /** @type {import('./cross-properties').SourceFile[]} */
-  const normalized=sourceFiles.map((file,index)=>{
+  const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
     if(publicAllowlist&&!publicAllowlist.has(filename)){
