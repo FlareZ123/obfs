@@ -809,6 +809,26 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       return node.type==='Identifier'&&globalRoots.has(node.name) ||
         node.type==='MemberExpression'&&rootedInGlobal(node.object);
     }
+    // Console output and debugger breakpoints would move from the original
+    // client realm to the SCO server when this dependency is partitioned.
+    // A value-return-only comparison does not observe that semantic change.
+    // Leave property labels named "console" usable on private local records.
+    walk(ast,(node,parent,key)=>{
+      if(node.type==='DebuggerStatement'){
+        throw new TypeError('SCO private static dependency cannot migrate debugger host effects: '+filename);
+      }
+      const consoleReference=node.type==='Identifier'&&node.name==='console'&&
+        !isStaticKey(parent,key)&&
+        !(parent?.type==='VariableDeclarator'&&key==='id')&&
+        !(parent?.type==='FunctionDeclaration'&&key==='id');
+      const globalConsoleMember=node.type==='MemberExpression'&&
+        rootedInGlobal(node.object)&&
+        (node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:null)==='console';
+      if(consoleReference||globalConsoleMember){
+        throw new TypeError('SCO private static dependency cannot migrate console host effects: '+filename);
+      }
+    });
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
