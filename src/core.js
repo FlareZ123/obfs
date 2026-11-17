@@ -268,17 +268,19 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='Identifier')return objectPrototypes.has(node.name);
     if(node.type==='MemberExpression')return (
       isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
-      isArrayPrototype(node.object) &&
+      (isArrayPrototype(node.object)||isStringPrototype(node.object)) &&
         (memberName(node)==='__proto__' ||
          node.computed && memberName(node)===null));
-    // Reading the parent of Array.prototype returns the inherited
-    // Object.prototype in an ordinary realm. Unknown host patches can
-    // change the result, but keeping this alias is conservative.
+    // Both Array.prototype and String.prototype normally inherit from
+    // Object.prototype, whose indexed accessors affect the decoder's [].
+    // Unknown host patches can change these parents; overapproximating
+    // an alias is safer than silently emitting corrupting array writes.
     return node.type==='CallExpression' &&
       node.callee.type==='MemberExpression' &&
       memberName(node.callee)==='getPrototypeOf' &&
       (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)) &&
-      Boolean(node.arguments[0]&&isArrayPrototype(node.arguments[0]));
+      Boolean(node.arguments[0] &&
+        (isArrayPrototype(node.arguments[0])||isStringPrototype(node.arguments[0])));
   }
   /**
    * The chunked decoder writes its own array indices 0 through 4095.
