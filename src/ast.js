@@ -1722,6 +1722,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      // With Node --trace-warnings, even process.emitWarning('literal')
+      // captures and prints its callsite. No Error or .stack is required.
+      if(callee.type==='MemberExpression'&&memberName(callee)==='emitWarning'&&
+         (callee.object.type==='Identifier'&&callee.object.name==='process' ||
+          callee.object.type==='MemberExpression'&&isGlobal(callee.object.object)&&
+            memberName(callee.object)==='process'))
+        observed=true;
       const utilMethod=nodeUtilMethod(callee);
       // Node util.getCallSites returns the live caller's source columns.
       if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
