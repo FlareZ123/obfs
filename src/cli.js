@@ -12,10 +12,10 @@ const {parse,walk}=require('./ast');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalWasmI32DeferredCommonjs?:boolean,experimentalSymbolKeys:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalWasmI32DeferredCommonjs?:boolean,experimentalSymbolKeys:boolean}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[],experimentalSymbolKeys:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -23,7 +23,6 @@ function readArgs(argv) {
     if (option === '--js-module') {opts.jsModule=true;continue;}
     if (option === '--symbol-keys') {opts.experimentalSymbolKeys=true;continue;}
     if (option === '--statement-flow-compact') {opts.experimentalStatementFlowCompact=true;continue;}
-    if (option === '--wasm-i32-defer-commonjs') {opts.experimentalWasmI32DeferredCommonjs=true;continue;}
     const value = argv[++i];
     if (value === undefined) throw new TypeError(`Missing value for ${option}`);
     if (option === '--root') opts.root=value;
@@ -106,9 +105,6 @@ function readArgs(argv) {
   if (!opts.root || !opts.entry) throw new TypeError('Required: --root directory --entry relative-file');
   if (opts.experimentalStatementFlowCompact && !opts.experimentalStatementFlow) {
     throw new TypeError('--statement-flow-compact requires --statement-flow relative-file:functionName');
-  }
-  if (opts.experimentalWasmI32DeferredCommonjs && !opts.experimentalWasmI32) {
-    throw new TypeError('--wasm-i32-defer-commonjs requires --wasm-i32 relative-file:functionName');
   }
   if (!Number.isInteger(opts.port) || opts.port<1 || opts.port>65535) throw new TypeError('Invalid port');
   return opts;
@@ -316,9 +312,8 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalWasmI32DeferredCommonjs,experimentalSymbolKeys} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
-  if (experimentalWasmI32DeferredCommonjs && mode!=='sno') throw new TypeError('--wasm-i32-defer-commonjs is available only for SNO CommonJS output');
   if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalStatementFlow||experimentalStatementFlowCompact||experimentalPolyvariantAffine||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
   const absRoot = path.resolve(root);
   const sourceTree = await readSourceTree(absRoot);
@@ -346,7 +341,7 @@ async function main(mode,argv) {
   if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalWasmI32DeferredCommonjs,experimentalSymbolKeys});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {
