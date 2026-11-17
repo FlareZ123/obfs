@@ -278,4 +278,4 @@ if(require.main===module){
     'SCO_EQUAL_TRUST_CONTROL_RESULT '+JSON.stringify(result)+'\n'),
   error=>{process.stderr.write((error.stack||String(error))+'\n');process.exitCode=1;});
 }
-module.exports={experiment};
+module.exports={experiment,ordinarySource};
