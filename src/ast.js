@@ -639,7 +639,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='TemplateLiteral')return node.expressions.every(
       (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
     if(node.type==='UnaryExpression') {
-      return ['!','~','+','-','typeof','void'].includes(node.operator) &&
+      // These unary operators return a primitive without invoking
+      // ToPrimitive on their operand. A function reference can therefore
+      // be used under typeof/void/! without observing its source spelling.
+      if(['typeof','void','!'].includes(node.operator))return true;
+      // Numeric unaries can invoke user-defined coercion on nonprimitives.
+      return ['~','+','-'].includes(node.operator) &&
         isDefinitelyPrimitive(node.argument,depth+1);
     }
     if(node.type==='BinaryExpression') {
