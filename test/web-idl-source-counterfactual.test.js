@@ -23,7 +23,7 @@ async function observe(code,expression) {
   /** @type {{exports:Promise<unknown>|null}} */
   const module={exports:null};
   vm.runInNewContext(code+'module.exports=Promise.resolve('+expression+');',{
-    module,Response,Request,File,Event,CustomEvent,MessageEvent,
+    module,Response,Request,File,Headers,URL,URLSearchParams,Event,CustomEvent,MessageEvent,
     BroadcastChannel,TextDecoder,TextDecoderStream,
     CompressionStream,DecompressionStream
   },{timeout:3000});
@@ -37,6 +37,11 @@ const cases=[
   ['File BlobPart','new File([f],"doc.txt").text()'],
   ['Request parse error','(()=>{try{return new Request(f).url;}catch(error){return error.message;}})()'],
   ['Response redirect parse error','(()=>{try{return Response.redirect(f).url;}catch(error){return error.message;}})()'],
+  ['Request.headers append','(()=>{const request=new Request("https://example.test/");request.headers.append("x-observed",f);return request.headers.get("x-observed");})()'],
+  ['Response.headers append','(()=>{const response=new Response("fixed");response.headers.append("x-observed",f);return response.headers.get("x-observed");})()'],
+  ['URL.searchParams append','(()=>{const url=new URL("https://example.test/");url.searchParams.append("q",f);return url.searchParams.get("q");})()'],
+  ['Headers append','(()=>{const h=new Headers();h.append("x-observed",f);return h.get("x-observed");})()'],
+  ['URLSearchParams append','(()=>{const p=new URLSearchParams();p.append("q",f);return p.get("q");})()'],
   ['Event type','new Event(f).type'],
   ['CustomEvent type','new CustomEvent(f).type'],
   ['MessageEvent type','new MessageEvent(f).type'],
