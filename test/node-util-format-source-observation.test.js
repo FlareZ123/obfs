@@ -59,6 +59,11 @@ test('detached util.format inspects an Error object',()=>{
   compare("const tool=require('node:util');const format=tool.format;module.exports=format('%O',new TypeError('probe'));",'error');
 });
 
+test('native util.formatWithOptions formats an Error stack',()=>{
+  compare("const {formatWithOptions:format}=require('node:util');"+
+    "module.exports=format({colors:false},'%O',new Error('probe'));",'error');
+});
+
 test('direct require(util).inspect nested member is recognized',()=>{
   compare("module.exports=require('util').inspect(new Error('probe'));",'error');
 });
