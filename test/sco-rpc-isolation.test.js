@@ -222,3 +222,48 @@ test('SCO refuses a detached isolation execute callback after a failed request',
     await close(server);
   }
 });
+
+
+for (const gate of ['authorizeRpc','authorizeOperation']) {
+  test('SCO refuses detached isolation execution across pending '+gate,async()=>{
+    const entered=latch();
+    const release=latch();
+    let protectedCalls=0;
+    /** @type {Promise<{ok:boolean,error?:string}>} */
+    let detached=Promise.resolve({ok:true});
+    const delayed=async()=>{
+      entered.resolve();
+      await release.promise;
+      return true;
+    };
+    const server=http.createServer(createScoHandler([],{
+      remoteMethods:{privateWork:()=>{protectedCalls++;return 'sensitive';}},
+      authorizeRpc:gate==='authorizeRpc'?delayed:()=>true,
+      ...(gate==='authorizeOperation'?{authorizeOperation:delayed}:{}),
+      // This callback begins execution while holding its scope but releases
+      // the scope before the asynchronous policy gate has settled.
+      runRpcIsolated:async(_request,execute)=>{
+        detached=execute().then(
+          ()=>({ok:true}),
+          error=>({ok:false,error:String(error)})
+        );
+      }
+    }));
+    const port=await listen(server);
+    try{
+      const response=invoke(port,'privateWork',[]);
+      await entered.promise;
+      await new Promise(resolve=>setImmediate(resolve));
+      release.resolve();
+      const execution=await detached;
+      const actual=await response;
+      assert.deepEqual(actual,{status:500,body:{ok:false,error:'Operation failed'}});
+      assert.equal(execution.ok,false,'Detached execution must reject after its scope closes');
+      assert.match(execution.error||'',/RPC isolation execution scope has closed/);
+      assert.equal(protectedCalls,0,'Private work must not start after isolation expires');
+    }finally{
+      release.resolve();
+      await close(server);
+    }
+  });
+}
