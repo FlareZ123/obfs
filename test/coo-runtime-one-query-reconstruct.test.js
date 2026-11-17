@@ -76,6 +76,7 @@ test('three public runtime observations reproduce entire stateful COO applicatio
     }
     for(const primitive of [5,'8',null,undefined,Symbol('test'),1n]){
       let nativeCalls=0,rebuiltCalls=0,publishedCalls=0;
+      /** @param {()=>void} increment @returns {object} */
       const make=increment=>({
         [Symbol.toPrimitive](){increment();return primitive;}
       });
