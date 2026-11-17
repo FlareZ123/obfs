@@ -74,7 +74,7 @@ function isServerEnvironmentRead(expression){
  *
  * @param {import('./ast').AstNode} body
  * @param {boolean} [checkHostConfiguration] Only relocated private code inherits a new host configuration.
- * @returns {'prototype'|'RegExp match'|'intrinsic state'|'configuration'|'entropy'|'clock'|null}
+ * @returns {'prototype'|'RegExp match'|'intrinsic state'|'error stack'|'configuration'|'entropy'|'clock'|null}
  */
 function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
