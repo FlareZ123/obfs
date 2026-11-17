@@ -84,6 +84,7 @@ test('published COO application admits full three-query, heldout-validated clone
   assert.equal(report.affineHeldoutFunctionComparisons,3*4096);
   assert.equal(report.affineNonlinearNegativeControl,true);
   assert.equal(report.parityOracleCalls,12);
+  assert.equal(report.publicValidationQueries,3*64);
   assert.equal(report.parityHeldoutFunctionComparisons,3*4096);
   assert.equal(report.parityNonlinearNegativeControl,true);
   assert.equal(report.originalGraphUsedForInference,false);
