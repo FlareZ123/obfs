@@ -21,7 +21,8 @@
     "sims/sco-key-search.js",
     "test/sco-capability-public-oracle.test.js",
     "sims/sco-capability-granularity.js",
-    "sims/sco-capability-http-batch.js"
+    "sims/sco-capability-http-batch.js",
+    "test/sco-capability-public-browser.js"
   ],
   "exclude": [
     "node_modules"
