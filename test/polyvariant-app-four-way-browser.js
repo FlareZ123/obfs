@@ -98,15 +98,19 @@ for(let trial=0;trial<9;trial++)
 const cold={};
 for(const count of [1,10000]){
   const input=records(count);
+  const expected=observe(native,input);
   const timings={native:[],minified:[],published:[],reconstructed:[]};
   for(let trial=0;trial<9;trial++){
     for(const name of orders[trial%orders.length]){
       const start=performance.now();
       const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
-      let emitted=0;
-      api.runScenario(-817,input,{emit(){emitted++;}});
+      const callbacks=[];
+      const output=api.runScenario(-817,input,{emit(item){callbacks.push(item);}});
       const elapsed=performance.now()-start;
-      if(emitted!==count||elapsed<=0)throw Error("Invalid cold graph: "+name+":"+count);
+      if(output!==expected.output||
+         JSON.stringify(callbacks)!==expected.callbacks||
+         callbacks.length!==count||elapsed<=0)
+        throw Error("Fresh ESM graph output or host trace differs: "+name+":"+count);
       timings[name].push(elapsed);
     }
   }
