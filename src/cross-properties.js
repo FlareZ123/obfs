@@ -235,6 +235,31 @@ function collectImportedFunctionArrays(files) {
           markArray(value.name);
       }
       walk(module.ast,node=>{
+        if(node.type==='ForOfStatement' &&
+           node.left.type==='VariableDeclaration' &&
+           node.left.declarations.length===1 &&
+           node.left.declarations[0].id.type==='Identifier' &&
+           hasFunction(node.right)) {
+          const name=node.left.declarations[0].id.name;
+          if(!functions.has(name)) {
+            functions.add(name);
+            changed=true;
+          }
+        }
+        if(node.type==='CallExpression' &&
+           node.callee.type==='MemberExpression' &&
+           (node.callee.computed?staticString(node.callee.property):
+             node.callee.property.type==='Identifier'?node.callee.property.name:null)==='forEach' &&
+           hasFunction(node.callee.object)) {
+          const callback=node.arguments[0];
+          if(callback &&
+             ['ArrowFunctionExpression','FunctionExpression'].includes(callback.type) &&
+             callback.params[0]?.type==='Identifier' &&
+             !functions.has(callback.params[0].name)) {
+            functions.add(callback.params[0].name);
+            changed=true;
+          }
+        }
         if(node.type==='CallExpression' &&
            node.callee.type==='MemberExpression' &&
            node.callee.object.type==='Identifier') {
