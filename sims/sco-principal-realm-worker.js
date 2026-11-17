@@ -51,14 +51,20 @@ if(!isMainThread&&workerData?.scoRealmWorker===true){
  */
 function createScoPrincipalRealmPool(absoluteEntryPath,allowedMethods,options={}){
   if(typeof absoluteEntryPath!=='string'||!path.isAbsolute(absoluteEntryPath)||
-     !Array.isArray(allowedMethods)||!allowedMethods.length||
-     allowedMethods.some(name=>typeof name!=='string'||!name)||
-     new Set(allowedMethods).size!==allowedMethods.length){
+     !Array.isArray(allowedMethods)||allowedMethods.length===0){
     throw new TypeError('Expected absolute private ESM entry and distinct method names');
   }
-  // Caller-owned authorization arrays must not widen the private method
-  // registry after a reviewed pool has been constructed.
-  const methods=Object.freeze([...allowedMethods]);
+  // Read each index exactly once. User-supplied iterators or accessors must
+  // never give the validation stage a different method set than the Worker.
+  /** @type {string[]} */
+  const methodCopy=[];
+  const length=allowedMethods.length;
+  for(let index=0;index<length;index++)methodCopy.push(allowedMethods[index]);
+  if(methodCopy.some(name=>typeof name!=='string'||!name)||
+     new Set(methodCopy).size!==methodCopy.length){
+    throw new TypeError('Expected distinct valid private method names');
+  }
+  const methods=Object.freeze(methodCopy);
   const maxPrincipals=options.maxPrincipals??32;
   const maxPending=options.maxPendingPerPrincipal??64;
   if(!Number.isSafeInteger(maxPrincipals)||maxPrincipals<1||
