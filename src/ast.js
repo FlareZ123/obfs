@@ -2444,7 +2444,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
-     !importedPrimitives.size)sourceObservationCache.set(ast,observed);
+     !importedFunctionArrays.size&&!importedPrimitives.size)
+    sourceObservationCache.set(ast,observed);
   return observed;
 }
 
