@@ -2427,6 +2427,22 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       }
     }
     if(node.type==='Identifier' && browserReaders.has(node.name))observed=true;
+    // DOM selectors can retrieve HTMLScriptElements whose text and outerHTML
+    // contain executable inline source. Unknown selectors can target scripts.
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+       isDocumentRoot(node.callee.object)) {
+      const method=node.callee.computed ? knownKey(node.callee.property) :
+        node.callee.property.type==='Identifier' ? node.callee.property.name : null;
+      const selection=node.arguments[0] ? knownKey(node.arguments[0]) : null;
+      if(['querySelector','querySelectorAll','getElementsByTagName'].includes(method??'') &&
+         (selection===null || selection.toLowerCase().includes('script') ||
+          selection.includes('*')))observed=true;
+      if(method==='getElementsByTagNameNS') {
+        const localName=node.arguments[1] ? knownKey(node.arguments[1]) : null;
+        if(localName===null || localName.toLowerCase()==='script' ||
+           localName==='*')observed=true;
+      }
+    }
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
