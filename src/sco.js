@@ -8,6 +8,7 @@ const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedI
 const {getScoBatchCalls} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
+const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 /**
@@ -19,6 +20,7 @@ const {assertNoSourceMapDisclosure} = require('./source-maps');
  * @property {string[]} [publicPaths] Exact, opt-in allowlist of every file
  *   deliberately distributed through this SCO handler. Rejects accidental
  *   extra source files even when a private dependency was not discovered.
+ * @property {import('./reviewed-assets').ReviewedOpaqueAsset[]} [reviewedOpaqueAssets] Exact reviewed path+digest manifest for all opaque public assets; caller must approve bytes independently.
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
@@ -430,6 +432,7 @@ function createScoHandler(sourceFiles,options={}) {
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
+  assertReviewedOpaqueAssets(normalized,options.reviewedOpaqueAssets);
   if(publicAllowlist&&publicAllowlist.size!==normalized.length){
     throw new TypeError('SCO publicPaths must exactly match supplied sourceFiles');
   }
