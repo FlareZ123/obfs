@@ -4,7 +4,8 @@
     "src/**/*.js",
     "test/fixed-arity-strings.test.js",
     "sims/fixed-arity-decoder-profile.js",
-    "test/fixed-arity-strings-browser.js"
+    "test/fixed-arity-strings-browser.js",
+    "sims/fixed-arity-browser-session.js"
   ],
   "exclude": [
     "node_modules"
