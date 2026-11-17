@@ -5,6 +5,7 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
+const {recoverObfuscatedStrings}=require('../sims/static-string-recovery');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 /** @typedef {import('../src/core').OutputFile} OutputFile */
@@ -45,7 +46,7 @@ function graph(mutation) {
 
 /**
  * @param {{name:string,mutation:string,expectEncoded:boolean}} fixture
- * @returns {Promise<{fixture:string,encodedLiterals:number,native:{first:number,last:number,length:number}}>}
+ * @returns {Promise<{fixture:string,encodedLiterals:number,attackerRecoveredUses:number,native:{first:number,last:number,length:number}}>}
  */
 async function checkFixture(fixture) {
   const original=graph(fixture.mutation);
@@ -57,13 +58,23 @@ async function checkFixture(fixture) {
   assert.ok(target);
   assert.equal(target.metrics.literals,fixture.expectEncoded?1:0,
     'Unexpected string-encoding coverage: '+fixture.name);
+  const recovered=recoverObfuscatedStrings(String(target.code),'module');
+  assert.equal(recovered.tables,fixture.expectEncoded?1:0);
+  if(fixture.expectEncoded) {
+    assert.ok(recovered.literals>=1,'Independent ESM source-only attacker missed decoder uses');
+    assert.ok(recovered.code.includes(JSON.stringify('A'.repeat(2048)+'Z')),
+      'Source reconstruction did not recover the complete literal');
+  }
+  const reconstructed=obfuscated.map(file=>
+    file.path==='target.mjs'?{...file,code:recovered.code}:file);
   const originals=/** @type {OutputFile[]} */(original.map(file=>({
     ...file,metrics:{literals:0,objects:0,properties:0,bindings:0}
   })));
   const server=http.createServer((request,response)=>{
     const url=request.url??'';
     const group=url.startsWith('/native/')?originals:
-      url.startsWith('/protected/')?obfuscated:null;
+      url.startsWith('/protected/')?obfuscated:
+      url.startsWith('/reconstructed/')?reconstructed:null;
     const suffix=url.slice(url.lastIndexOf('/')+1);
     if(!group){response.writeHead(404);response.end();return;}
     if(suffix==='page'){
@@ -89,9 +100,13 @@ async function checkFixture(fixture) {
     const base='http://127.0.0.1:'+address.port;
     const native=await browserOutput(base+'/native/page');
     const emitted=await browserOutput(base+'/protected/page');
+    const reconstructedOutput=await browserOutput(base+'/reconstructed/page');
     assert.deepEqual(native,{first:65,last:90,length:2049});
     assert.deepEqual(emitted,native,fixture.name+' browser host and decoder parity');
-    return {fixture:fixture.name,encodedLiterals:target.metrics.literals,native};
+    assert.deepEqual(reconstructedOutput,native,
+      fixture.name+' independent recovered ESM browser behavior');
+    return {fixture:fixture.name,encodedLiterals:target.metrics.literals,
+      attackerRecoveredUses:recovered.literals,native};
   }finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
