@@ -9,7 +9,7 @@ const {lowerWasmI32Functions}=require('../src/wasm-i32');
  * Execute one generated CommonJS source under a counting, otherwise native
  * WebAssembly implementation. The counter observes compilation only.
  * @param {string} source
- * @returns {{exports:{hot:(x:number)=>number,cold:(x:number)=>number},compiled:()=>number}}
+ * @returns {{exports:{hot:(x:number)=>number,cold:(x:number)=>number,initial?:number},compiled:()=>number}}
  */
 function loadCounting(source) {
   let count=0;
@@ -29,7 +29,7 @@ function loadCounting(source) {
   const module={exports:/** @type {unknown} */(null)};
   vm.runInNewContext(source,{module,globalThis:host},{timeout:3000});
   return {
-    exports:/** @type {{hot:(x:number)=>number,cold:(x:number)=>number}} */(module.exports),
+    exports:/** @type {{hot:(x:number)=>number,cold:(x:number)=>number,initial?:number}} */(module.exports),
     compiled:()=>count
   };
 }
@@ -68,7 +68,7 @@ test('CommonJS lazy helper remains callable during top-level module initializati
   const runtime=loadCounting(lowered.code);
   assert.equal(runtime.compiled(),1,
     'A called-before-export function must compile exactly once at top level');
-  assert.equal(/** @type {{initial:number}} */(runtime.exports).initial,42^13);
+  assert.equal(runtime.exports.initial,42^13);
   assert.equal(runtime.exports.hot(11),11^13);
   assert.equal(runtime.compiled(),1);
   assert.equal(runtime.exports.cold(300),300&255);
