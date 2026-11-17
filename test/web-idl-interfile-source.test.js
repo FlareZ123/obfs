@@ -74,3 +74,40 @@ test('cross-file Response with literal input leaves independent local record tra
   assert.ok(!emitted[0].code.includes('secretField'),
     'The unrelated local field should be renamed when observer input is proven primitive');
 });
+
+/** @type {Array<[string,string]>} */
+const collectionCases=[
+  ['Request.headers','(()=>{const request=new Request("https://example.test/");request.headers.append("x-observed",inspect);return request.headers.get("x-observed");})()'],
+  ['Response.headers','(()=>{const response=new Response("fixed");response.headers.append("x-observed",inspect);return response.headers.get("x-observed");})()'],
+  ['URL.searchParams','(()=>{const url=new URL("https://example.test/");url.searchParams.append("q",inspect);return url.searchParams.get("q");})()'],
+  ['Headers.append','(()=>{const headers=new Headers();headers.append("x-observed",inspect);return headers.get("x-observed");})()'],
+  ['URLSearchParams.append','(()=>{const params=new URLSearchParams();params.append("q",inspect);return params.get("q");})()']
+];
+
+for(const [name,expression] of collectionCases) {
+  test('cross-file native '+name+' preserves imported function source',async()=>{
+    const before=sources(expression);
+    const emitted=generated(before);
+    assert.equal(emitted[0].code,before[0].code,'Cross-file observer must preserve producer');
+    const native=await execute(before);
+    assert.ok(native.text.includes('secretField'),'Imported native function source witness');
+    assert.equal(native.value,19);
+    assert.deepEqual(await execute(emitted),native);
+  });
+}
+
+for(const [name,expression] of [
+  ['Request.headers','(()=>{const request=new Request("https://example.test/");request.headers.append("x-observed","fixed");return request.headers.get("x-observed");})()'],
+  ['URL.searchParams','(()=>{const url=new URL("https://example.test/");url.searchParams.append("q","fixed");return url.searchParams.get("q");})()']
+]) {
+  test('cross-file native '+name+' primitive values retain unrelated rename',async()=>{
+    const before=sources(expression);
+    before[0].code='const state={secretField:19};const value=state.secretField;'+
+      'export function inspect(){return value;}';
+    const emitted=generated(before);
+    const native=await execute(before);
+    assert.equal(native.text,'fixed');
+    assert.deepEqual(await execute(emitted),native);
+    assert.ok(!emitted[0].code.includes('secretField'),'Unrelated top-level owner is eligible');
+  });
+}
