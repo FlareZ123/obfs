@@ -18,3 +18,7 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
+      - name: Bounded independent-source-observer island proof differential
+        run: node --test test/source-observer-islands.test.js test/source-observer-coverage.test.js
+      - name: Strict JSDoc proof implementation
+        run: npm run typecheck
