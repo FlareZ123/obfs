@@ -27,6 +27,11 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
  * @property {number} [maxRpcBytes]
+ * @property {boolean} [immutableBatchArgs] Opt-in read-only JSON argument contract
+ *   for recognized batches with authorizeOperation: recursively freeze the
+ *   parsed arguments shared by outer policy, inner policy, and private batch.
+ *   This saves two JSON.parse calls. Private operations must not mutate args
+ *   or rely on mutable/described property attributes. Off by default.
  * @property {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>} [runRpcIsolated]
  */
 
@@ -45,12 +50,32 @@ function respondJson(response,status,payload) {
 }
 
 /**
+ * Deep-freeze one JSON.parse argument graph without recursive stack growth.
+ * A JSON graph contains own, enumerable data properties and no cycles.
+ * Freeze before any user callback can hold a reference to its components.
+ * @param {unknown[]} args
+ * @returns {void}
+ */
+function freezeJsonArguments(args) {
+  /** @type {object[]} */
+  const pending=[args];
+  while(pending.length){
+    const value=pending.pop();
+    if(!value)continue;
+    for(const child of Object.values(value)){
+      if(child!==null && typeof child==='object')pending.push(child);
+    }
+    Object.freeze(value);
+  }
+}
+
+/**
  * Execute one authenticated server-resident operation, never shipping its
  * implementation to the browser. The caller controls operation granularity,
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
  * @param {import('node:http').IncomingMessage} request
  * @param {import('node:http').ServerResponse} response
- * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'>} options
+ * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'|'immutableBatchArgs'>} options
  * @returns {Promise<void>}
  */
 async function handleRpc(request,response,options) {
@@ -128,16 +153,18 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // Registered batches with an argument-aware policy require three
-    // independent views of the exact validated JSON text: outer policy,
-    // inner policy, and execution. Native JSON.parse preserves deep nesting
-    // and parsed numeric values without custom recursive clone machinery.
-    // No extra parsing happens for unrecognized methods or absent policy.
+    // The default recognized-batch policy requires separate argument graphs
+    // for outer authorization, inner authorization, and private execution.
+    // The opt-in immutable contract shares one deep-frozen JSON graph across
+    // all three, eliminating two parses for read-only private operations.
+    // Non-batches and handlers without an operation policy are unchanged.
     const needsBatchViews=options.authorizeOperation &&
       getScoBatchCalls(task,args)!==null;
-    const checkedBatchArgs=needsBatchViews ?
+    const immutableBatch=needsBatchViews && options.immutableBatchArgs===true;
+    if(immutableBatch)freezeJsonArguments(args);
+    const checkedBatchArgs=needsBatchViews && !immutableBatch ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
-    const innerPolicyArgs=needsBatchViews ?
+    const innerPolicyArgs=needsBatchViews && !immutableBatch ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
@@ -322,6 +349,13 @@ function createScoHandler(sourceFiles,options={}) {
   if (options.runRpcIsolated !== undefined && typeof options.runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');
   }
+  if(options.immutableBatchArgs!==undefined &&
+      typeof options.immutableBatchArgs!=='boolean'){
+    throw new TypeError('immutableBatchArgs must be a boolean');
+  }
+  if(options.immutableBatchArgs===true && typeof options.authorizeOperation!=='function'){
+    throw new TypeError('immutableBatchArgs requires authorizeOperation');
+  }
   if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
@@ -494,7 +528,8 @@ function createScoHandler(sourceFiles,options={}) {
         authorizeRpc:policy.authorizeRpc,
         authorizeOperation:policy.authorizeOperation,
         runRpcIsolated:policy.runRpcIsolated,
-        maxRpcBytes:policy.maxRpcBytes
+        maxRpcBytes:policy.maxRpcBytes,
+        immutableBatchArgs:policy.immutableBatchArgs
       });
       return;
     }
