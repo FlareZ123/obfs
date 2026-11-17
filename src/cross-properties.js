@@ -952,13 +952,6 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
-    // A known ambient root passed through an unresolved argument vector may
-    // reach a rest/arguments element and later mutate host reflection APIs.
-    // Without an element-origin proof, preserve the original property keys.
-    for(const actuals of unresolvedArgumentVectors){
-      if(actuals.some(actual=>actual?.type==='Identifier'&&
-         hostRoots.has(actual.name)))changedIntrinsic=true;
-    }
     // A callsite-rooted destructured formal acquires the same ambient
     // capabilities as a declaration or assignment ObjectPattern.
     for(const {origin,binding} of formalObjectPatterns) {
@@ -991,6 +984,20 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    // Every expression supplied to an unresolved rest/arguments vector may
+    // evaluate to an ambient capability through comma expressions, arrays,
+    // inline records or container aliases. Only non-ambient vectors remain
+    // eligible for the existing private own-property proof.
+    for(const actuals of unresolvedArgumentVectors) {
+      for(const actual of actuals) {
+        if(!actual)continue;
+        walk(actual,node=>{
+          if(node.type==='Identifier'&&
+             (hostRoots.has(node.name)||hostContainers.has(node.name)))
+            changedIntrinsic=true;
+        });
+      }
+    }
     /**
      * Recognize a source of an opaque host callable, including a descriptor
      * value and a Reflect.get result. Decline only if it is later called.
