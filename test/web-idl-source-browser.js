@@ -20,11 +20,12 @@ async function main() {
     '}'
   ].join('\n');
   const primitiveSource=[
-    'export async function sample(){',
     'const state={secretField:37};',
+    'const value=state.secretField;',
+    'export async function sample(){',
     'const response=await new Response("ready").text();',
     'const event=new Event("fixed").type;',
-    'return {response,event,value:state.secretField};',
+    'return {response,event,value};',
     '}'
   ].join('\n');
   const transform=(/** @type {string} */ code,/** @type {string} */ seed)=>
