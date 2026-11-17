@@ -106,6 +106,122 @@ function collectVerifiedImportedStrings(files) {
 }
 
 /**
+ * Find named ESM imports that resolve to exported const arrays which
+ * syntactically contain a function or nested function-valued array.
+ * An imported array is opaque to a consumer's local source-observation
+ * analysis; preserving the producer's function source requires this graph
+ * provenance before a consumer invokes sorting or stringification.
+ *
+ * This is a positive, conservative may-contain proof. Unknown factories,
+ * mutable imported arrays, and indirect reexports need separate handling.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectImportedFunctionArrays(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    }
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exportsByFile=new Map();
+  for(const [filename,module] of modules) {
+    const functions=new Set();
+    /** @type {Map<string,AstNode>} */
+    const candidates=new Map();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='ExportNamedDeclaration'&&!statement.source?
+        statement.declaration:statement;
+      if((declaration?.type==='FunctionDeclaration'||
+          declaration?.type==='ClassDeclaration') &&
+         declaration.id?.type==='Identifier')functions.add(declaration.id.name);
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations) {
+        if(item.id.type!=='Identifier'||!item.init||
+           module.bindings.get(item.id.name)!==1)continue;
+        candidates.set(item.id.name,item.init);
+        if(['FunctionExpression','ArrowFunctionExpression','ClassExpression']
+          .includes(item.init.type))functions.add(item.id.name);
+      }
+    }
+    const arrays=new Set();
+    /**
+     * @param {AstNode|null|undefined} node
+     * @param {number} [depth]
+     * @returns {boolean}
+     */
+    function hasFunction(node,depth=0) {
+      if(!node||depth>32)return false;
+      if(node.type==='Identifier')return functions.has(node.name)||arrays.has(node.name);
+      if(['FunctionExpression','ArrowFunctionExpression','ClassExpression']
+        .includes(node.type))return true;
+      if(node.type==='ArrayExpression') {
+        return node.elements.some((/** @type {AstNode|null} */ element)=>
+          Boolean(element&&hasFunction(element.type==='SpreadElement'?
+            element.argument:element,depth+1)));
+      }
+      return false;
+    }
+    let changed;
+    do {
+      changed=false;
+      for(const [name,value] of candidates) {
+        if(arrays.has(name))continue;
+        if(value.type==='ArrayExpression'&&hasFunction(value) ||
+           value.type==='Identifier'&&arrays.has(value.name)) {
+          arrays.add(name);
+          changed=true;
+        }
+      }
+    }while(changed);
+    const publicNames=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const item of statement.declaration.declarations) {
+          if(item.id.type==='Identifier'&&arrays.has(item.id.name))
+            publicNames.add(item.id.name);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !arrays.has(spec.local.name))continue;
+          const name=spec.exported.name??spec.exported.value;
+          if(typeof name==='string')publicNames.add(name);
+        }
+      }
+    }
+    exportsByFile.set(filename,publicNames);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration' ||
+         statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string'||
+         /[?#%\\]/u.test(statement.source.value))continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const exported=origin?exportsByFile.get(origin):null;
+      if(!exported)continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type!=='ImportSpecifier'||module.bindings.get(spec.local.name)!==1)
+          continue;
+        const name=spec.imported.name??spec.imported.value;
+        if(exported.has(name))names.add(spec.local.name);
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
+
+/**
  * Find uniquely imported ESM bindings that resolve to a top-level immutable
  * alias of the native structuredClone source observer. This is a conservative
  * source-preservation proof: a false positive only declines obfuscation.
@@ -1555,4 +1671,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays};
