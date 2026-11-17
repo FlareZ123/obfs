@@ -72,7 +72,8 @@ function profile(label,source,iterations,heavy){
   const compactCases=(compact.code.match(/case\s+\d+:/gu)||[]).length;
   assert.ok(compactCases<normalCases);
   const recovered=recoverStatementFlow(compact.code,'route');
-  const functions=[original,compile(normal.code),compile(compact.code),compile(recovered.code)];
+  const functions=[original,compile(normal.code),compile(compact.code),
+    compile(recovered.code+'\nmodule.exports={route};')];
   for(const sample of [128,8192]){
     const baseline=measure(original,sample,heavy);
     for(const fn of functions.slice(1))assert.equal(measure(fn,sample,heavy).checksum,baseline.checksum);
