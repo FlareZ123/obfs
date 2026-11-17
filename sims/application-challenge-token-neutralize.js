@@ -8,7 +8,7 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=
   require('./application-challenge-observer-ablation');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
@@ -73,8 +73,8 @@ async function run(seeds=4){
     (i*317)%5000
   ]);
   const variants=[
-    {name:'own-only',files:withOwnKeyCalls(withoutObservers)},
-    {name:'null-proto',files:withNullPrototypeRecord(withoutObservers)}
+    {name:'own-only',files:withCapturedStringArgv(withOwnKeyCalls(withoutObservers))},
+    {name:'null-proto',files:withCapturedStringArgv(withNullPrototypeRecord(withoutObservers))}
   ];
   const working=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-public-token-attack-'));
   /** @type {Row[]} */
