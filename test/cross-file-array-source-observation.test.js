@@ -182,3 +182,24 @@ test('derived primitive-only ESM arrays retain selected unrelated function',()=>
   const emitted=protect(files);
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
 });
+
+for(const [name,producerTail] of [
+  ['Array.from map callback',
+    'export const values=Array.from([0],()=>protectedSum);'],
+  ['Array.map callback',
+    'const numbers=[0];export const values=numbers.map(()=>protectedSum);'],
+  ['Array.flatMap callback',
+    'const numbers=[0];export const values=numbers.flatMap(()=>[protectedSum]);']
+]) {
+  test('ESM exported '+name+' can carry protected function from numeric input',()=>{
+    const files=graph(producerTail,'console.log(values.join(","));');
+    assert.throws(()=>protect(files),/(?:source observation|declined)/i);
+  });
+}
+
+test('ESM primitive-only mapped export retains an unrelated protected function',()=>{
+  const files=graph('export const values=Array.from([0],n=>n+1);',
+    'console.log(values.join(","));');
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
