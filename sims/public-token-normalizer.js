@@ -1,6 +1,7 @@
 'use strict';
 
 const acorn=require('acorn');
+const walk=require('acorn-walk');
 
 /** @typedef {{path:string,code:string,sourceType?:'module'|'commonjs'|'script'}} File */
 /** @typedef {{start:number,end:number,text:string}} Edit */
@@ -23,10 +24,33 @@ function normalizePublicFields(files) {
   const emitted=files.map(file=>{
     /** @type {(import('acorn').Token & {value?:unknown})[]} */
     const tokens=[];
-    acorn.parse(file.code,{
+    const ast=acorn.parse(file.code,{
       ecmaVersion:'latest',
       sourceType:file.sourceType??'module',
       onToken:tokens
+    });
+    // Data literals can accidentally resemble a generated private key.
+    // Only change quoted keys in actual property syntax.  A public-only
+    // attacker must preserve unrelated host strings and application data.
+    /** @type {Set<number>} */
+    const propertyStringOffsets=new Set();
+    walk.simple(ast,{
+      Property(node) {
+        if(node.key.type==='Literal'&&typeof node.key.value==='string')
+          propertyStringOffsets.add(node.key.start);
+      },
+      ObjectPattern(node) {
+        for(const property of node.properties) {
+          if(property.type==='Property'&&property.key.type==='Literal'&&
+             typeof property.key.value==='string')
+            propertyStringOffsets.add(property.key.start);
+        }
+      },
+      MemberExpression(node) {
+        if(node.computed&&node.property.type==='Literal'&&
+           typeof node.property.value==='string')
+          propertyStringOffsets.add(node.property.start);
+      }
     });
     /** @type {Edit[]} */
     const edits=[];
@@ -34,6 +58,7 @@ function normalizePublicFields(files) {
       if(token.type.label!=='name'&&token.type.label!=='string')continue;
       if(typeof token.value!=='string'||
           !/^_p[0-9a-f]{10}(?:[0-9a-f]{2})?$/.test(token.value))continue;
+      if(token.type.label==='string'&&!propertyStringOffsets.has(token.start))continue;
       let label=labels.get(token.value);
       if(label===undefined) {
         label='_publicField'+labels.size;
