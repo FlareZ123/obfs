@@ -168,7 +168,7 @@ async function run(){
     const hot=await browserSample(root,'graph-hot');
     assert.equal(hot.rows.length,8);
     const hotResults=hot.rows.map(row=>{
-      for(const variant of ['native','json','graph']){
+      for(const variant of /** @type {const} */ (['native','json','graph'])){
         assert.equal(row.values[variant].length,9);
         assert.ok(row.values[variant].every(ms=>Number.isFinite(ms)&&ms>=0));
       }
