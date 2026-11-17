@@ -37,7 +37,9 @@ test('embedded data-URL stylesheets must not publish original JS through CSS sou
     '<!doctype html><link rel="stylesheet" href="data:text/css;base64,'+encodedCss+'">',
     '<!doctype html><link rel="alternate stylesheet" href="data:text/css;base64,'+encodedCss+'">',
     '<template><link REL="StyleSheet" HREF="data:text/css;base64,'+encodedCss+'"></template>',
-    '<link rel="stylesheet" href="&#x64;ata:text/css;base64,'+encodedCss+'">'
+    '<link rel="stylesheet" href="&#x64;ata:text/css;base64,'+encodedCss+'">',
+    '<link rel="stylesheet" href="da&#10;ta:text/css;base64,'+encodedCss+'">',
+    '<link rel="stylesheet" href="d&#9;ata:text/css;base64,'+encodedCss+'">'
   ];
   for(const html of fixtures) {
     if(html.includes('data:text/css;base64,')) {
