@@ -48,6 +48,25 @@ for(const [name,body] of [
   });
 }
 
+
+for(const [name,body] of [
+  ['Set inserted from for-of binding',
+    'const bag=new Set();for(const fn of [protectedSum])bag.add(fn);'+
+      'module.exports=Array.from(bag).join(",");'],
+  ['Set inserted from forEach callback',
+    'const bag=new Set();[protectedSum].forEach(fn=>bag.add(fn));'+
+      'module.exports=Array.from(bag).join(",");'],
+  ['Map value inserted from for-of binding',
+    'const map=new Map();for(const fn of [protectedSum])map.set(0,fn);'+
+      'module.exports=Array.from(map.values()).join(",");']
+]) {
+  test(name+' retains function-source semantics',()=>{
+    const source=protectedSource()+body;
+    assert.match(String(execute(source)),/function protectedSum\\(input\\)/);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
 test('primitive-only iterable copies allow unrelated protected work',()=>{
   const source=protectedSource()+
     'const bag=new Set([3,1,3]);const map=new Map([[1,7]]);'+
