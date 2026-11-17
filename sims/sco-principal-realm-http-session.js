@@ -106,6 +106,7 @@ async function main(){
       for(let i=0;i<count;i++){
         calls.push({name:'tick',args:[++remoteSequence,label+'/'+i,bytes]});
       }
+      /** @type {{ok:boolean,value:unknown}[]} */
       const results=await publishedApi.batch(calls);
       assert.equal(results.length,count);
       assert.equal(results.every(item=>item.ok===true),true,'all private batch items must succeed');
