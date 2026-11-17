@@ -71,7 +71,7 @@ test('two selected SCO modules share a private static ESM dependency and publish
   for(const file of graph.clientFiles){
     assert.doesNotMatch(file.code,/PRIVATE_BETA_SEED|SHARED_PRIVATE_CANARY|function hidden/u);
     assert.deepEqual(file.privateModulePaths,[leaf.path]);
-    assert.equal(file.privateOriginalDigests.length,3);
+    assert.equal(file.privateOriginalDigests?.length,3);
   }
 
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-selected-graph-'));
