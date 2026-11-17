@@ -1507,6 +1507,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // The Node util formatter can expose Error capture locations and function
   // names through inspect/format without an explicit .stack/.name read.
   const nodeUtilNamespaces=new Set();
+  /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
   const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
