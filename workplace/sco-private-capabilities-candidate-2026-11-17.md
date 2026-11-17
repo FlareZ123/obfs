@@ -70,6 +70,15 @@ the private state constructor, state store or projected-secret internals.
   multi-worker deployment, a handle minted in one Node process is unknown
   to another unless the integrator supplies sticky routing or replaces the
   in-memory store with a separately designed and authorized shared backend.
+- **Token authorization is not object-graph ownership.** Values remain JS
+  references and are not deep-copied. If trusted server code issues the same
+  object, or distinct objects containing a shared nested reference, to two
+  accounts, both accounts can observe its shared mutations through their
+  separate *authorized* handles. The runnable negative canary is
+  `sims/sco-private-shared-alias-canary.js`. Deployments requiring private
+  per-principal mutable state must allocate disjoint state graphs or supply
+  an independently validated isolation/clone policy. Do not infer state
+  segregation solely from account-bound token lookup.
 - A scope becomes inactive after the awaited request callback settles.
   Subsequent tasks that retained its asynchronous context cannot access the
   store through the API. Callbacks using previously captured private values
