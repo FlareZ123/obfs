@@ -65,10 +65,11 @@ function symbolizeLocalProperties(source,ast,options) {
   let objects=0,properties=0;
   for(const candidate of candidates) {
     const proof=proveLocalObject(ast,candidate.name,bindings);
-    if(!proof||(!proof.members.length&&!proof.patterns.length))continue;
+    if(!proof||(!proof.members.length&&!proof.patterns.length&&!proof.inChecks.length))continue;
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if(proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);})||
-       proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))continue;
+       proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))||
+       proof.inChecks.some(check=>!ownNames.has(check.left.value)))continue;
     /** @type {Map<string,string>} */
     const symbols=new Map();
     for(const prop of candidate.properties) {
@@ -107,6 +108,12 @@ function symbolizeLocalProperties(source,ast,options) {
         edits.push({start:property.key.start,end:property.key.end,
           text:property.computed?symbol:'['+symbol+']'});
       }
+    }
+    // The left string is known to refer to an own field. A private Symbol
+    // key preserves its true membership result when queried by identity.
+    for(const check of proof.inChecks){
+      const symbol=symbols.get(check.left.value);
+      if(symbol)edits.push({start:check.left.start,end:check.left.end,text:symbol});
     }
     objects++;
     properties+=symbols.size;
