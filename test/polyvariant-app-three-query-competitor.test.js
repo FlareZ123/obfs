@@ -5,6 +5,7 @@ const {test}=require('node:test');
 const {threeQueryTranslationClone}=require('../sims/polyvariant-app-three-query-competitor');
 
 test('same three-output probe recovers selected signed Int32 translations',()=>{
+  /** @type {Record<string,(n:number)=>number>} */
   const exposed={
     round1:/** @param {number} n */ n=>((n|0)+324)|0,
     round2:/** @param {number} n */ n=>((n|0)+292)|0,
@@ -21,6 +22,7 @@ test('same three-output probe recovers selected signed Int32 translations',()=>{
 });
 
 test('the three-query model does not recover arbitrary nonlinear functions',()=>{
+  /** @type {Record<string,(n:number)=>number>} */
   const exposed={
     round1:/** @param {number} n */ n=>Math.imul(n|0,n|0)|0,
     round2:/** @param {number} n */ n=>Math.imul(n|0,3)|0,
