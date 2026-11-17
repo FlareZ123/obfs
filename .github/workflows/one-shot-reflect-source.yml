@@ -1,4 +1,4 @@
-name: One-shot reflective sources and primitive-owner yield verification
+name: One-shot reflective sources and primitive-coercion parity
 
 on:
   push:
