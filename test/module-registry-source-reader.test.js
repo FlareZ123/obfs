@@ -225,3 +225,47 @@ test('safe global process destructuring still allows private-property renaming',
   });
   assert.equal(output.files[0].metrics.properties,1);
 });
+
+/**
+ * Node 22's process.getBuiltinModule provides the real filesystem module
+ * without require/import. Destructured and reflected copies of this method
+ * must preserve source bytes even when the call uses an unrelated alias.
+ */
+const builtinLoaderRoutes=[
+  ['destructured process',"const {getBuiltinModule:load}=process;"],
+  ['destructured global process',"const {getBuiltinModule:load}=globalThis.process;"],
+  ['computed process pattern',
+    "const key='getBuiltinModule';const {[key]:load}=process;"],
+  ['process alias pattern',
+    "const p=globalThis.process;const {getBuiltinModule:load}=p;"],
+  ['reflected process method',
+    "const load=Reflect.get(process,'getBuiltinModule');"],
+  ['reflected global process method',
+    "const load=Reflect.get(globalThis.process,'getBuiltinModule');"],
+  ['global process method descriptor',
+    "const load=Object.getOwnPropertyDescriptor(globalThis.process,'getBuiltinModule').value;"]
+];
+
+for(const [name,loader] of builtinLoaderRoutes) {
+  test('process.getBuiltinModule source reader preserves exact bytes: '+name,async()=>{
+    const code="'use strict';\n"+loader+'\n'+
+      "const io=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=io.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+    /** @type {Source[]} */
+    const files=[{path:'main.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'main.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    for(const mode of /** @type {const} */ (['sno','coo'])) {
+      const emitted=obfuscateFiles(files,{
+        mode,seed:'get-builtin-module/'+name,strings:true,
+        properties:true,identifiers:true
+      });
+      assert.equal(emitted.files[0].code,code);
+      assert.deepEqual(await execute(emitted.files,'main.cjs'),native);
+    }
+  });
+}

@@ -1969,7 +1969,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       moduleRoots.has(receiver) &&
       (key===null || ['children','parent','constructor'].includes(key)) ||
       processRoots.has(receiver) &&
-        (key===null || ['mainModule','binding','_linkedBinding','dlopen'].includes(key));
+        (key===null || ['mainModule','binding','_linkedBinding','dlopen',
+          'getBuiltinModule'].includes(key));
   }
   /** @param {AstNode} receiver @param {string|null} key @returns {boolean} */
   function canReadLoaderRoot(receiver,key) {
@@ -2028,7 +2029,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       node.type==='AssignmentExpression'&&node.operator==='=' ? node.left : null;
     const target=node.type==='VariableDeclarator' ? node.init :
       node.type==='AssignmentExpression' ? node.right : null;
-    if(pattern?.type==='ObjectPattern' && target?.type==='Identifier') {
+    if(pattern?.type==='ObjectPattern' &&
+       (target?.type==='Identifier'||target?.type==='MemberExpression')) {
       for(const property of pattern.properties) {
         if(property.type!=='Property') {
           if(globals.has(target.name)||moduleRoots.has(target.name)||
@@ -2039,7 +2041,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           property.key.type==='Identifier' ? property.key.name :
           property.key.type==='Literal'&&typeof property.key.value==='string' ?
             property.key.value : null;
-        if(canReachLoader(target.name,field) || globals.has(target.name) &&
+        if(canReadLoaderRoot(target,field) || target.type==='Identifier' &&
+           globals.has(target.name) &&
            (field===null || browserReaders.has(field) ||
             ['require','module'].includes(field)))observed=true;
       }
@@ -2061,23 +2064,24 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
        node.callee.object.type==='Identifier' &&
        ['Reflect','Object'].includes(node.callee.object.name) &&
-       node.arguments[0]?.type==='Identifier') {
+       (node.arguments[0]?.type==='Identifier'||
+        node.arguments[0]?.type==='MemberExpression')) {
       const method=node.callee.computed ? knownKey(node.callee.property) :
         node.callee.property.type==='Identifier' ? node.callee.property.name : null;
-      const root=node.arguments[0].name;
+      const root=node.arguments[0];
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
       if(['get','getOwnPropertyDescriptor'].includes(method??'')) {
-        if(globals.has(root) &&
+        if(root.type==='Identifier' && globals.has(root.name) &&
            (target===null || browserReaders.has(target) ||
             ['require','process','module','getBuiltinModule','createRequire'].includes(target)))observed=true;
-        if(canReachLoader(root,target))observed=true;
+        if(canReadLoaderRoot(root,target))observed=true;
       }
       // Enumerating module-registry descriptors exposes the loader root
       // without spelling the selected member in the local expression.
       if((node.callee.object.name==='Object' &&
           ['getOwnPropertyDescriptors','keys','values','entries'].includes(method??'') ||
           node.callee.object.name==='Reflect' && method==='ownKeys') &&
-          (requireRoots.has(root)||moduleRoots.has(root)||processRoots.has(root)))observed=true;
+          canReadLoaderRoot(root,null))observed=true;
     }
   });
   return observed;
