@@ -52,7 +52,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     oneSidedMedianDecision:row.publishedVsNative.decision,
     upperMedianBound:row.publishedVsNative.upperMedianBound,
     recoveredToPublishedMedianRatio:row.ratioReconstructedToPublishedMedians,
-    pairs:row.publishedVsNative.samplePairs
+    pairs:row.publishedVsNative.samplePairs,
+    oneSidedConfidenceAttained:row.publishedVsNative.confidenceAttained,
+    sourceBytes:row.sourceBytes,rawTimingMs:row.rawSamples
   }));
   const snoBudget=snoProfile.map(row=>({
     events:row.events,ratioOfMedians:row.ratio,
@@ -60,7 +62,11 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
   }));
   const scoBudget=[['light',sco.light],['heavy',sco.heavy]].map(([label,data])=>({
     workload:label,events:data.count,ratioOfMedians:data.ratio,
-    oneSidedMedianDecision:data.pairedMedianBound.decision
+    oneSidedMedianDecision:data.pairedMedianBound.decision,
+    lowerMedianBound:data.pairedMedianBound.lowerMedianBound,
+    upperMedianBound:data.pairedMedianBound.upperMedianBound,
+    oneSidedConfidenceAttained:data.pairedMedianBound.confidenceAttained,
+    rawTimingMs:data.samples
   }));
   const attackEvidence={
     coo:{
@@ -93,6 +99,8 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
       boundary:'module graph loaded anew per trial; Node process reused'},
     sno:{verdict:'sample-inconclusive',rows:snoBudget,
+      descriptiveOverBudgetEvents:snoBudget.filter(row=>
+        row.ratioOfMedians>2.5).map(row=>row.events),
       boundary:'fresh Node child processes; descriptive median ratios only'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
