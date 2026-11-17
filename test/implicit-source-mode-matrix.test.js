@@ -4,6 +4,11 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
+const {atomicWrite}=require('../src/atomic');
+const {mkdtemp,rm}=require('node:fs/promises');
+const {tmpdir}=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
 
 /**
  * Single-file Node console tracing is a source-coordinate observer in every
@@ -61,4 +66,63 @@ test('cross-module primitive-only logging does not suppress all transforms',()=>
   assert.ok(output.files.some(file=>file.code!==[producer,consumer][
     file.path==='producer.mjs'?0:1
   ]),JSON.stringify(output));
+});
+
+/**
+ * Run the original and actually generated ESM module groups as independent
+ * Node processes. The two graphs share relative import structure and external
+ * console I/O. Temporary source writes are atomic and locked.
+ */
+test('real multi-file ESM native and emitted console traces stay equivalent',async()=>{
+  const scenarios=[
+    {
+      name:'primitive',
+      producer:"const owner={longPrivateField:73};"+
+        "export function compute(){return owner.longPrivateField;}",
+      consumer:"import {compute} from './producer.mjs';"+
+        "console.log(42,compute());"
+    },
+    {
+      name:'function',
+      producer:"export function visiblyNamedExport(){"+
+        "const owner={longPrivateField:73};return owner.longPrivateField;}",
+      consumer:"import {visiblyNamedExport} from './producer.mjs';"+
+        "console.log(visiblyNamedExport);console.log(visiblyNamedExport());"
+    }
+  ];
+  const directory=await mkdtemp(path.join(tmpdir(),'obfs-source-mode-'));
+  try {
+    for(const scenario of scenarios) {
+      const files=[
+        {path:'producer.mjs',sourceType:'module',code:scenario.producer},
+        {path:'consumer.mjs',sourceType:'module',code:scenario.consumer}
+      ];
+      const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
+        seed:'agent50-real-esm-'+scenario.name});
+      /** @param {string} relative @param {{path:string,code:string}[]} sources */
+      async function build(relative,sources) {
+        const destination=path.join(directory,relative);
+        for(const item of sources) {
+          await atomicWrite(path.join(destination,item.path),item.code);
+        }
+        const processResult=spawnSync(process.execPath,[
+          path.join(destination,'consumer.mjs')
+        ],{encoding:'utf8',timeout:10000});
+        assert.equal(processResult.error,undefined);
+        assert.equal(processResult.status,0,processResult.stderr);
+        return processResult.stdout;
+      }
+      const native=await build(scenario.name+'-native',files);
+      const emitted=await build(scenario.name+'-emitted',output.files);
+      assert.equal(emitted,native,scenario.name);
+      assert.match(native,/73/);
+      if(scenario.name==='primitive')
+        assert.ok(output.files.some((file,index)=>file.code!==files[index].code),
+          'positive primitive-only graph must actually transform');
+      else
+        assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  } finally {
+    await rm(directory,{recursive:true,force:true});
+  }
 });
