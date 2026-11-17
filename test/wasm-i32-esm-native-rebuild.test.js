@@ -40,6 +40,25 @@ let state=0x9bf34621;
 /** @returns {number} */
 function randomI32(){state^=state<<13;state^=state>>>17;state^=state<<5;return state|0;}
 
+test('unconstrained label string coercion declines cross-file Wasm rewriting',()=>{
+  const observed=files.map(file=>file.path==='entry.mjs'?{
+    ...file,code:file.code.replace(
+      'return forward((scramble(a,b,c,d)^mask(a))|0,label);',
+      'return forward(scramble(a,b,c,d),label+":"+mask(a));'
+    )
+  }:file);
+  assert.notEqual(observed[2].code,files[2].code);
+  const options={
+    mode:/** @type {const} */('coo'),seed:'label-source-observation',
+    closedWorld:true,properties:false,identifiers:false,strings:false,
+    experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
+  };
+  assert.throws(()=>obfuscateFiles(observed,options),
+    /Wasm i32 requires a module\\/CommonJS without cross-file source observation/u);
+  const safe=obfuscateFiles(files,options);
+  assert.equal(safe.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,2);
+});
+
 test('offline ESM native rebuild replaces both published Wasm functions across a three-file app',{
   timeout:60000
 },async()=>{
