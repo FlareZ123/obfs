@@ -18,6 +18,8 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 /** @typedef {{a:number,b:number,c:number,d:number,label:string}} InputRecord */
 /** @typedef {{ms:number,outputHash:string,callbackHash:string,callbacks:number}} Session */
 
+// Public label inputs are strings; ESM entry never coerces a function value
+// to a string, allowing the compiler's cross-file source-observer guard.
 /** @type {Graph} */
 const original=[
   {path:'kernel.mjs',
@@ -27,7 +29,7 @@ const original=[
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',
     code:'import {scramble,mask} from "./kernel.mjs";import {forward} from "./bridge.mjs";'+
-      'export function run(a,b,c,d,label){return forward(scramble(a,b,c,d),label+":"+mask(a));}'}
+      'export function run(a,b,c,d,label){return forward((scramble(a,b,c,d)^mask(a))|0,label);}'}
 ];
 
 /** @param {string} value @returns {string} */

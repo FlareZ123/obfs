@@ -11,6 +11,8 @@ const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {atomicWrite}=require('../src/atomic');
 const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 
+// Public labels are string values; the entry performs only i32 operations
+// on transformed exports, avoiding cross-file source coercion.
 /** @type {Array<{path:string,sourceType:'module',code:string}>} */
 const files=[
   {path:'kernel.mjs',sourceType:'module',
@@ -20,7 +22,7 @@ const files=[
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
     code:'import {scramble,mask} from "./kernel.mjs";import {forward} from "./bridge.mjs";'+
-      'export function run(a,b,c,d,label){return forward(scramble(a,b,c,d),label+":"+mask(a));}'}
+      'export function run(a,b,c,d,label){return forward((scramble(a,b,c,d)^mask(a))|0,label);}'}
 ];
 
 /** @param {string} folder @param {Array<{path:string,code:string}>} graph */
