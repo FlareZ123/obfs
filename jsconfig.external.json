@@ -49,6 +49,8 @@
     "test/esm-observation-matrix.test.js",
     "sims/public-token-normalizer.js",
     "test/public-token-normalizer.test.js",
+    "sims/public-normalizer-provenance-grid.js",
+    "test/public-normalizer-provenance-grid.test.js",
     "sims/esm-observation-session.js",
     "test/esm-observation-session.test.js",
     "test/esm-observation-browser.js"
