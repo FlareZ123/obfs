@@ -346,3 +346,31 @@ for(const [name,code] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+/**
+ * A call result can be the ambient root even if the argument expression
+ * contains no syntactic globalThis identifier. These cases challenge the
+ * bounded source-visible producer-to-rest argument origin proof.
+ */
+for(const [name,code] of [
+  ['local function returns ambient root',
+    "function root(){return globalThis;}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['arrow function returns ambient root',
+    "const root=()=>globalThis;function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['local function returns a capability container',
+    "const capsule={root:globalThis};function root(){return capsule.root;}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['imported callback passed into a rest vector',
+    "function root(){return globalThis;}function forward(fn){return fn();}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(forward(root));"]
+]) {
+  test('unknown rest call-result provenance: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-factory/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
