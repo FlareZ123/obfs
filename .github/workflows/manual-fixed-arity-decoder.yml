@@ -22,5 +22,9 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Fixed-arity and neighboring string differential tests
         run: node --test test/fixed-arity-strings.test.js test/chunked-strings.test.js test/static-string-recovery.test.js test/decoder-array-prototype-chain.test.js
+      - name: Paired exact-source runtime and static attacker profile
+        run: node sims/fixed-arity-decoder-profile.js
       - name: Strict production JSDoc
         run: npm run typecheck
+      - name: Strict fixed-arity research JSDoc
+        run: npx tsc -p jsconfig.fixed-arity.json
