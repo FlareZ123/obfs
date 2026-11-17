@@ -2279,6 +2279,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
            isDetachedArraySourceMethod(node.arguments[0])&&
            containsFunctionInArrayLike(node.arguments[1]))observed=true;
       }
+      // Reflect.apply can invoke a detached JSON.parse/rawJSON or other
+      // native String coercer without a visible method call on that callee.
+      // Preserve source when the first supplied argument is unproved.
+      if(callee.type==='MemberExpression' && memberName(callee)==='apply' &&
+         isReflectiveReceiver(callee.object) && isCoercer(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied) observed=true;
+      }
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
