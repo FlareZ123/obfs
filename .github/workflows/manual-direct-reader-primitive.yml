@@ -23,6 +23,12 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Prove field-reader positive, hostile cases and function-observer negatives
         run: node --test test/direct-reader-primitive-proof.test.js test/typeof-guarded-json-source.test.js test/guarded-json-application-positive.test.js test/cross-file-reader-flow.test.js test/implicit-console-stack-source.test.js test/implicit-source-mode-matrix.test.js
+      - name: Reconcile three historical modified-application positives and public-only attackers
+        run: node --test test/application-challenge-null-prototype-yield.test.js test/application-challenge-token-neutralize.test.js test/ownkey-comment-static-recovery.test.js
+      - name: Audit six-module source-observer ablation and full-session 2.5x sampling
+        run: |
+          node sims/application-challenge-observer-ablation.js
+          node sims/verified-record-session-profile.js
       - name: Strict compiler JSDoc
         run: npm run typecheck
       - name: Strict external JSDoc
