@@ -103,3 +103,13 @@ test('opt-in compiler integration compacts generated COO and SNO function cases'
     }
   }
 });
+
+
+test('COO/SNO CLI parses explicit compact-case selector with a selected source',()=>{
+  const {readArgs}=require('../src/cli');
+  const parsed=readArgs(['--root','fixture','--entry','app.cjs','--out','output',
+    '--statement-flow','app.cjs:f','--statement-flow-compact']);
+  assert.equal(parsed.experimentalStatementFlowCompact,true);
+  assert.deepEqual(parsed.experimentalStatementFlow,{'app.cjs':['f']});
+  assert.equal(readArgs(['--root','fixture','--entry','app.cjs']).experimentalStatementFlowCompact,undefined);
+});
