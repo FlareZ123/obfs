@@ -1,4 +1,4 @@
-name: One-shot reflective Web IDL construction validation
+name: One-shot isolated Web IDL source-observer red-green
 
 on:
   push:
