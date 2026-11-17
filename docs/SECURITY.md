@@ -169,6 +169,10 @@ protect the manifest/provenance upstream. Source-bearing content that a
 reviewer knowingly approves remains publishable. It is not a signature,
 anti-tamper protection against a COO client or SNO host owner, or a proof
 about external dependencies or assets created by later deployment steps.
+The public `assertReviewedOpaqueAssets(files,reviewedOpaqueAssets)` helper can
+recheck output assets after compilation or later packaging. This second check
+catches changed bytes after the compiler's initial preflight, provided the
+publisher retains the independently approved manifest unchanged.
 Recheck all actual deployed output files after bundling, compression and
 delivery if claiming a complete publication boundary.
 
