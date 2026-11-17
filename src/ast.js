@@ -1662,6 +1662,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isWebConstructor(callee,webRecords,webRecordNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          memberName(callee)==='redirect' &&
+          isWebConstructor(callee.object,webRecords,webRecordNames) &&
+          node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
       // Object.fromEntries converts each pair's first value to a property
       // key. A function-valued key exposes the function's native source.
       if(node.type==='CallExpression') {
