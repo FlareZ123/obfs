@@ -5,6 +5,7 @@ const {TextDecoder}=require('node:util');
 const {assertNoInlineHtmlSource}=require('./html-assets');
 const {assertNoInlineSvgSource}=require('./svg-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
+const {hasCssDataImport}=require('./css-data-imports');
 
 /**
  * Source-map artifacts can contain the unobfuscated program in sourcesContent,
@@ -207,6 +208,9 @@ function assertNoSourceMapDisclosure(file) {
       }
       if(hasMap) {
         throw new TypeError('CSS source-map directive would disclose original source: '+file.path);
+      }
+      if(hasCssDataImport(file.code)) {
+        throw new TypeError('CSS data import would publish unaudited nested stylesheet: '+file.path);
       }
     }
     assertNoInlineHtmlSource(file.path,file.code);
