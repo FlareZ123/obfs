@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Pure primitive initializer property lowering and reflected-owner regressions
+        run: node --test test/property-pure-value-expression.test.js test/array-property-values.test.js test/property-proof-safety.test.js
       - name: Verify string decoder preserves V8 source-spelled failure operands
         run: node --test test/source-spelled-operand-errors.test.js
       - name: Native statement-flow compaction differential and seedless attacker
