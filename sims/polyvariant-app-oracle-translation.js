@@ -211,7 +211,10 @@ async function runAttack(){
       const outputs=apps.map(app=>{
         /** @type {unknown[]} */
         const trace=[];
-        const output=app.runScenario(-817,inputs,{emit(value){trace.push(value);}});
+        const output=app.runScenario(-817,inputs,{
+          /** @param {unknown} value */
+          emit(value){trace.push(value);}
+        });
         return {output,trace:JSON.stringify(trace)};
       });
       for(const result of outputs.slice(1)){
