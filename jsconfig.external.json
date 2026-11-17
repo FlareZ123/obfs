@@ -53,7 +53,13 @@
     "test/public-normalizer-provenance-grid.test.js",
     "sims/esm-observation-session.js",
     "test/esm-observation-session.test.js",
-    "test/esm-observation-browser.js"
+    "test/esm-observation-browser.js",
+    "sims/string-eligibility-matrix.js",
+    "sims/typed-array-decoder-tradeoff.js",
+    "test/inline-array-primitive-source.test.js",
+    "test/inline-array-primitive-fuzz.test.js",
+    "test/decoder-array-prototype-chain.test.js",
+    "test/decoder-array-prototype-browser.js"
   ],
   "exclude": [
     "node_modules"
