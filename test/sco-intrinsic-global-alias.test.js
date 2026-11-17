@@ -87,3 +87,15 @@ test('SCO still admits a locale-independent Intl canonical tag call',()=>{
   assert.deepEqual(result.privateNames,['privateOp']);
   assert.deepEqual(result.publicNames,['publicRead']);
 });
+
+
+test('SCO declines nested constructor extraction from an intrinsic',()=>{
+  const bodies=[
+    "const {DateTimeFormat:{supportedLocalesOf:list}}=Intl;return list(['en-US']).length;",
+    "const {DateTimeFormat:F=Intl.DateTimeFormat}=Intl;return F('en-US').resolvedOptions().timeZone;"
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partition(body,'return 1;'),
+      /realm-local intrinsic state/i,body);
+  }
+});
