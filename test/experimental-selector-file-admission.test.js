@@ -91,8 +91,8 @@ test('validated function names survive later caller-array mutation',()=>{
   const functions=['f'];
   const output=obfuscateFiles(files,{
     mode:'coo',seed:'selection-array-snapshot',strings:false,identifiers:false,
-    experimentalStatementFlow:{'app.cjs':functions},
-    get properties(){
+    properties:false,experimentalStatementFlow:{'app.cjs':functions},
+    get closedWorld(){
       functions.length=0;
       return false;
     }
