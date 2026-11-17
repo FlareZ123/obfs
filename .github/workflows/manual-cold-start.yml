@@ -21,6 +21,8 @@ jobs:
         run: node sims/cold-start.js
       - name: Compare UTF-16 decoder strategies
         run: node sims/decoder-candidates.js
+      - name: Measure typed-array decoder exposure to inherited array setters
+        run: node sims/typed-array-decoder-tradeoff.js
       - name: Validate offline static string recovery
         run: node --test test/static-string-recovery.test.js
       - name: Validate offline property and module normalization
