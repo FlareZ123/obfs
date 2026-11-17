@@ -129,6 +129,41 @@ test('selective SCO handler rejects copied, mutated, untrusted or misconfigured 
   assert.doesNotThrow(()=>createScoSelectedHandler(partition,native,authorized));
 });
 
+test('selected SCO wrapper uses one authoritative route prefix from option accessors',{
+  timeout:15000
+},async()=>{
+  const partition=compile();
+  let routePrefixReads=0;
+  const native={protectedDigest:async (/** @type {number} */ x)=>x+41};
+  const options={
+    authorizeRpc:()=>true,
+    get routePrefix(){
+      routePrefixReads++;
+      return routePrefixReads===1?'/obfs/':'/different/';
+    }
+  };
+  const server=http.createServer(createScoSelectedHandler(partition,native,options));
+  try{
+    assert.equal(routePrefixReads,1,'The endpoint and handler must use one captured prefix');
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/rpc',{
+      method:'POST',
+      headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:partition.methodNames.protectedDigest,
+        args:[1]
+      })
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:42});
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
+
 test('selective SCO handler snapshots compiler-owned source across changing getters',()=>{
   const partition=compile();
   const native={protectedDigest:async (/** @type {number} */ x)=>x+41};
