@@ -2,6 +2,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const {randomBytes}=require('node:crypto');
 const {createScoHandler,createScoCapabilityScope,createScoPrivateHandles}=require('../src');
 
 /** @param {number} port @param {string} session @param {string} method @param {unknown[]} args @returns {Promise<{status:number,body:any}>} */
@@ -16,7 +17,9 @@ async function rpc(port,session,method,args){
 test('real SCO HTTP handler keeps opaque server values principal-scoped',{
  timeout:15000
 },async()=>{
- const sessions=new Map([['fixture-credential-A','alice'],['fixture-credential-B','bob']]);
+ const sessionA=randomBytes(32).toString('hex');
+ const sessionB=randomBytes(32).toString('hex');
+ const sessions=new Map([[sessionA,'alice'],[sessionB,'bob']]);
  /** @param {import('node:http').IncomingMessage} request @returns {string|undefined} */
  const sessionPrincipal=request=>sessions.get(String(request.headers['x-test-session']??''));
  const scope=createScoCapabilityScope(request=>sessionPrincipal(request)??'unverified',{
@@ -47,27 +50,27 @@ test('real SCO HTTP handler keeps opaque server values principal-scoped',{
   const denied=await rpc(port,'forged','issue',[]);
   assert.equal(denied.status,403);
   assert.equal(issued,0);
-  const created=await rpc(port,'fixture-credential-A','issue',[]);
+  const created=await rpc(port,sessionA,'issue',[]);
   assert.equal(created.status,200);
   const token=/** @type {string} */ (created.body.value);
   assert.match(token,/^[A-Za-z0-9_-]{43}$/u);
   assert.equal(JSON.stringify(created).includes('never-public'),false);
-  const replayedAcrossAccounts=await rpc(port,'fixture-credential-B','publicValue',[token]);
+  const replayedAcrossAccounts=await rpc(port,sessionB,'publicValue',[token]);
   assert.deepEqual(replayedAcrossAccounts,{status:500,body:{ok:false,error:'Operation failed'}});
   assert.equal(privateReads,0);
-  assert.deepEqual(await rpc(port,'fixture-credential-A','publicValue',[token]),{
+  assert.deepEqual(await rpc(port,sessionA,'publicValue',[token]),{
    status:200,body:{ok:true,value:41}
   });
   assert.equal(privateReads,1);
   // Attacker-operated same-account relay is permitted under the stated threat model.
-  assert.deepEqual(await rpc(port,'fixture-credential-A','publicValue',[token]),{
+  assert.deepEqual(await rpc(port,sessionA,'publicValue',[token]),{
    status:200,body:{ok:true,value:41}
   });
   assert.equal(privateReads,2);
-  assert.deepEqual(await rpc(port,'fixture-credential-A','revoke',[token]),{
+  assert.deepEqual(await rpc(port,sessionA,'revoke',[token]),{
    status:200,body:{ok:true,value:true}
   });
-  assert.equal((await rpc(port,'fixture-credential-A','publicValue',[token])).status,500);
+  assert.equal((await rpc(port,sessionA,'publicValue',[token])).status,500);
   assert.equal(privateReads,2);
  }finally{
   await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
