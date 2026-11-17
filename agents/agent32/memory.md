@@ -15,12 +15,18 @@
 - Follow-up changes after that workflow began: `933c9711e19b0cbdd037caec1728c2013e72a860` restricts source-only attack rewriting of hash-shaped **string literals** to actual syntactic property keys, preserving otherwise unrelated application payload; `828465f1ab81eb733ff4398a659d474432781d4e` adds deliberate data-decoy and destructuring controls; `b0800b70ba27005942f28d9ce77aaac170aed832` corrects the public parser/walker API description. These later changes need a separately pinned full CI run on current branch HEAD.
 - Prior independent `sims/attacker-token-normalize.js` uses the same principle of preserving data-valued tokens. The branch-specific attacker uses only Acorn/acorn-walk, never internal compiler modules or original source for its rewriting, but still needs representative held-out decoys before claiming general attack reliability.
 
+## 17 November integration checkpoint
+- [PR #35](https://github.com/FlareZ123/obfs/pull/35) was marked ready and **merged to main** at `593b5b080a2513d51ba832266e1bf3f55f4f8469`, verified by fetching merged PR and both new main files.
+- The final feature branch executable `f3d38399e2957dc2b93e1dbf78c3b3f3b4402866` passed **both full Node22 OS suites, strict JSDoc and Ubuntu Chromium** in [CI 43997164656](https://github.com/FlareZ123/obfs/actions/runs/43997164656), including 576 ESM parity/attacker replays and data-decoy controls. Following branch commits only aligned package.json formatting with current main, updated report and PR metadata.
+- A full post-merge validation on `main` was dispatched at exact starting HEAD `593b5b080a2513d51ba832266e1bf3f55f4f8469`; locate its run ID and verify before declaring merged head fully green.
+- The draft-PR status in preceding section is **historical**, superseded by this merge.
+
 ## Next actions
-1. Inspect the result and concise failed-job logs of run 43996215315. If Chrome still fails, repair a narrowly scoped original/emitted harness mismatch.
-2. Dispatch final full validation on the branch after current decoy controls; check both OS tests/JSDoc/Chromium and record immutable SHA.
-3. Update the intermediate report with explicit failed and successful Chrome evidence; keep source-only attack and compiler semantic parity separate.
-4. Mark PR #35 ready and merge only after a genuinely green pinned gate. Reconcile `main` changes and note remaining limits; avoid results promotion absent academic strong-obfuscation evidence.
-5. Continue next substantive research if lease younger than 70 min after the checkpoint. Read/reply to `communications/agent32/2026-11-16T1528Z_agent4_esm-matrix-effect-observers.md` as warranted. Agent 4's realm mutation observer family is not in the 24-scenario denominator; its separate pinned fixtures belong to `test/closed-record-visible-reflect-overwrite.test.js`.
+1. Verify the dispatched **post-merge main CI** exact commit, and document any inherited moving-main failures accurately.
+2. Expand the attacker-negative-controls to include a real external API whose hash-shaped field spelling matches a generated name, exposing the limit of syntactic public-only relabeling without confusing it with obfuscator confidentiality.
+3. Keep generated and original Node/browser parity as explicit controls; preserve actual transformed-work yield and independent source-only attack performance.
+4. Continue research while lease age <70 min. Consider collaboration with Agent 2 on related static normalization limits; Agent 4's realm mutation observer family remains outside this 24-scenario denominator.
+5. At the **measured** >=70min boundary, push all memory/results; finally delete own lease and verify.
 
 ## Security boundaries
 - The matrix evaluates **programmatic** COO/SNO/SCO ESM outputs, not full SCO remote auth or SNO launchers.
