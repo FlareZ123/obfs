@@ -17,7 +17,10 @@ async function run(source) {
   const module={exports:null};
   vm.runInNewContext(source,{module,Response,File,Request},{timeout:3000});
   assert.ok(module.exports);
-  return await module.exports;
+  const result=await module.exports;
+  // A node:vm result carries its context's Object.prototype. Normalize to
+  // the host realm before using strict deep equality across two executions.
+  return {result:result.result,value:result.value};
 }
 
 const inspect='function inspect(){const state={secretField:19};return state.secretField;}';
