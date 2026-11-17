@@ -139,7 +139,7 @@ test('closed-world ESM owner membership is renamed in imported consumer',async()
 
 test('closed-world ESM membership alongside exported owner read preserves outputs',async()=>{
   await compareEsm(
-    'export const bag={secretField:4};export const peek=x=>x.secretField;',
+    'export const bag={secretField:4};export function peek(x){return x.secretField;}',
     'import {bag,peek} from "./owner.mjs";'+
       'console.log(["secretField" in bag,peek(bag)]);',
     1
