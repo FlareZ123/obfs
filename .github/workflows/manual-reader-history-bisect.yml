@@ -19,10 +19,22 @@ jobs:
           node-version: '22'
       - name: Install current declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Identify first property-coverage failure over a known green-to-red interval
+      - name: Identify first property-coverage failures over a known green-to-red interval
         shell: bash
         run: |
           git bisect start f13311835ab682948ec072d57b079242c90dd887 87c8126e2185c01204c63f32f74ca69d50dae50d
           git bisect run node --test --test-name-pattern="closed-world ESM imported reader is safe across multiple consumers" test/cross-file-reader-flow.test.js
+          git bisect log
+          git bisect reset
+          git bisect start 7872c87deab926e7e41ee6e20e41da9209e8a14b 87c8126e2185c01204c63f32f74ca69d50dae50d
+          git bisect run node --test test/application-challenge-null-prototype-yield.test.js
+          git bisect log
+          git bisect reset
+          git bisect start 7872c87deab926e7e41ee6e20e41da9209e8a14b 87c8126e2185c01204c63f32f74ca69d50dae50d
+          git bisect run node --test test/application-challenge-token-neutralize.test.js
+          git bisect log
+          git bisect reset
+          git bisect start 7872c87deab926e7e41ee6e20e41da9209e8a14b 87c8126e2185c01204c63f32f74ca69d50dae50d
+          git bisect run node --test test/ownkey-comment-static-recovery.test.js
           git bisect log
           git bisect reset
