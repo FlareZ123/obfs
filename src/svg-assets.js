@@ -30,8 +30,16 @@ function findInlineSvgSource(xml) {
   // XML/SVG can associate external stylesheets through processing instructions.
   // Data URLs can inline an unaudited stylesheet and original-source map here.
   parser.on('processinginstruction',instruction=>{
-    if(instruction.target.toLowerCase()==='xml-stylesheet' &&
-        /data:/iu.test(instruction.body))issue='embedded XML stylesheet data URL';
+    if(instruction.target.toLowerCase()!=='xml-stylesheet')return;
+    // XML stylesheet pseudo-attributes expand numeric character references,
+    // even though saxes deliberately leaves PI body text uninterpreted.
+    const body=instruction.body.replace(/&#(?:x([0-9a-f]+)|([0-9]+));/giu,
+      (_whole,hex,decimal)=>{
+        const point=Number.parseInt(hex??decimal,hex===undefined?10:16);
+        return point>0&&point<=0x10ffff&&
+          !(point>=0xd800&&point<=0xdfff)?String.fromCodePoint(point):'\uFFFD';
+      });
+    if(/data:/iu.test(body))issue='embedded XML stylesheet data URL';
   });
   parser.on('opentag',tag=>{
     const element=tag.local.toLowerCase();
