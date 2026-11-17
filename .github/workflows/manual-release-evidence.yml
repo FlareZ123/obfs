@@ -1,0 +1,27 @@
+name: Manual cross-mode security and runtime release evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  adversarial-applications:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Test fail-closed release decision semantics
+        run: node --test test/release-evidence-gate.test.js
+      - name: Compare real COO SNO and SCO adversarial applications
+        run: node sims/release-evidence-gate.js
