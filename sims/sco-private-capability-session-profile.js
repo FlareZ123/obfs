@@ -140,7 +140,7 @@ async function experiment() {
     // were created with independent private-capability handle values.
     /** @type {SampleGroup[]} */
     const groups=[];
-    for(const bytes of [0,WORK.length])for(const calls of [1,16,64]) {
+    for(const bytes of [0,WORK.length])for(const calls of bytes===0?[1,16,64,2048]:[1,16,64]) {
       /** @type {SampleGroup} */
       const group={bytes,calls,ratios:[],cpuRatios:[],nativeMs:[],remoteMs:[],nativeCpuMs:[],remoteCpuMs:[]};
       for(let trial=0;trial<7;trial++) {
@@ -170,14 +170,20 @@ async function experiment() {
           nativeTiming=await timed(nativeOperation);
         }
         assert.deepEqual(remoteOutput,nativeOutput);
-        assert.ok(nativeTiming.wallMs>0 && remoteTiming.wallMs>0 &&
-          nativeTiming.cpuMs>0 && remoteTiming.cpuMs>0);
+        // Windows CPU accounting can quantize a short native operation to
+        // zero despite a positive wall duration. Never fabricate a CPU ratio
+        // for a zero-resolution sample; retain its wall observation and count
+        // measurable CPU pairs independently. The long cheap-work session
+        // supplies a high-work CPU-resolution positive control.
+        assert.ok(nativeTiming.wallMs>0 && remoteTiming.wallMs>0);
         group.nativeMs.push(nativeTiming.wallMs);
         group.remoteMs.push(remoteTiming.wallMs);
-        group.nativeCpuMs.push(nativeTiming.cpuMs);
-        group.remoteCpuMs.push(remoteTiming.cpuMs);
         group.ratios.push(remoteTiming.wallMs/nativeTiming.wallMs);
-        group.cpuRatios.push(remoteTiming.cpuMs/nativeTiming.cpuMs);
+        if(nativeTiming.cpuMs>0 && remoteTiming.cpuMs>0) {
+          group.nativeCpuMs.push(nativeTiming.cpuMs);
+          group.remoteCpuMs.push(remoteTiming.cpuMs);
+          group.cpuRatios.push(remoteTiming.cpuMs/nativeTiming.cpuMs);
+        }
       }
       groups.push(group);
     }
@@ -196,13 +202,15 @@ async function experiment() {
         medianPairedRatio:median(group.ratios),maximumPairedRatio:Math.max(...group.ratios),
         strictAbove2_5:group.ratios.filter(ratio=>ratio>2.5).length,
         pairedRatios:group.ratios.map(ratio=>Number(ratio.toFixed(6))),
-        medianNativeCpuMs:median(group.nativeCpuMs),medianRemoteCpuMs:median(group.remoteCpuMs),
-        medianCpuPairedRatio:median(group.cpuRatios),
-        maximumCpuPairedRatio:Math.max(...group.cpuRatios),
+        measurableCpuPairs:group.cpuRatios.length,
+        medianNativeCpuMs:group.cpuRatios.length?median(group.nativeCpuMs):null,
+        medianRemoteCpuMs:group.cpuRatios.length?median(group.remoteCpuMs):null,
+        medianCpuPairedRatio:group.cpuRatios.length?median(group.cpuRatios):null,
+        maximumCpuPairedRatio:group.cpuRatios.length?Math.max(...group.cpuRatios):null,
         strictCpuAbove2_5:group.cpuRatios.filter(ratio=>ratio>2.5).length,
         pairedCpuRatios:group.cpuRatios.map(ratio=>Number(ratio.toFixed(6)))
       })),
-      scope:'Workload-specific wall and combined-process CPU measurements; observed strict above-2.5 compute pairs veto sampled scope, no universal guarantee'
+      scope:'Workload-specific wall and combined-process CPU measurements; sub-resolution native CPU samples are excluded from CPU ratio rather than invented; observed strict above-2.5 compute pairs veto sampled scope, no universal guarantee'
     };
   }finally {
     globalThis.fetch=nativeFetch;
