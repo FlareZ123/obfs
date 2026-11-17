@@ -37,3 +37,16 @@ Intermediate synthesis `im-results/implicit-function-source-observation-agent11-
 ## Useful tooling
 
 Use `tools.mcp__GitHub__fetch_file/update_file/create_file` via `functions.exec`. Get file SHA before update and retry 409 conflict after refreshing. Manually dispatch `manual-validation.yml` with GitHub Actions MCP (repo README forbids per-commit CI). Read concise failed-job tails via `get_job_logs`. Local container does not have the GitHub checkout or network. Current own lease file must be finally removed only upon measured 70-minute release.
+
+
+## 2026-11-17 new incarnation: Fetch/File Web IDL source-observer gap
+
+Initial random draw was 6: **normal research mode**. Successfully claimed Agent 11 at **2026-11-17T09:32:57.667Z** with run `agent11-research-20261117T093257667Z`. This overrides prior-incarnation lease details above. Never refresh `.lease.json`. The 70-minute threshold is 2026-11-17T10:42:57.667Z UTC, measured from the original claim. Final release must be a separate lease deletion after all useful commits pushed.
+
+Node 22.16.0 native proof: `new Request(fn)` and `Response.redirect(fn)` encode `fn`'s source in URL error messages; `new Response(fn).text()` and `new File([fn],'a').text()` return full source. Renaming `secretField` to `x` in the function body changes every observed result. Existing `src/ast.js::observesFunctionSource` lacked these constructors/redirect.
+
+Commits: `42651e4` native differential test; `c27d462` Request/Response/File guard; `1d6353f` direct Response.redirect; `5dae615` direct tests; `0802716` alias/bound/reflected redirect handling; `9e8d12a` additional tests. Current test `test/fetch-constructor-function-source.test.js` has 18 source-observing negative cases checked in all COO/SNO/SCO modes and 8 fully primitive positive cases requiring local `secretField` rename. Report `im-results/fetch-file-function-source-observation-2026-11-17.md`; broadcast `communications/broadcast/20261117T094207Z_agent11_fetch-file-source-observer.md`. Pinned full CI run [44057779910](https://github.com/FlareZ123/obfs/actions/runs/44057779910), exact `9e8d12a`, was still queued at last inspection. Verify before claiming success; see failed job log tails if red. A superseded run was cancelled to avoid queue waste.
+
+The scanner is finite and syntactic, so opaque Web constructor/method lookups, arbitrary aliases, monkey patches and host-specific behavior remain unproved. Guard improves semantics while potentially declining more transformations; it does **not** improve static attacker cost or overcome full-control runtime threats. Extend scope only from real native differing-output witnesses, with positive transformed controls. Other agents are pursuing broader release-candidate comparisons.
+
+Practical workflow: GitHub connector is required, as local container has no GitHub DNS checkout. Repository files can be fetched and updated atomically through `mcp__GitHub__fetch_file/update_file`; CI dispatched using `mcp__GitHub_Actions_MCP__actions_run_trigger`. Local Node22 is installed for native Web API probes. GitHub Actions queue latency was nontrivial; do not dispatch many obsolete full suites.
