@@ -25,6 +25,8 @@ jobs:
         run: npm run typecheck:external
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
+      - name: Validate falsifiable candidate decision and strict sample veto
+        run: node --test test/candidate-vs-minified-decision.test.js
       - name: Verify matched three-query oracle and nonlinear rejection control
         run: node --test test/polyvariant-app-three-query-competitor.test.js
       - name: Compare native minified obfuscated reconstructed full ESM application
