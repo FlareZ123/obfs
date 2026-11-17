@@ -104,8 +104,8 @@ async function main(){
   }finally{
     await fs.rm(scratch,{recursive:true,force:true});
     await new Promise((resolve,reject)=>service.server.close(
-      error=>error?reject(error):resolve()));
-    if(originalWindow===undefined)delete globalThis.window;
+      error=>error?reject(error):resolve(undefined)));
+    if(originalWindow===undefined)Reflect.deleteProperty(globalThis,'window');
     else globalThis.window=originalWindow;
   }
 }
