@@ -27,6 +27,17 @@ test('SCO pre-authorized batch does not emulate serial partial progress on an in
     'export async function batch(token,values){',
     ' return store.use(token,record=>values.map(x=>next(record,x)));',
     '}',
+    'export async function batchPrefix(token,values){',
+    ' return store.use(token,record=>{',
+    '  const committed=[];',
+    '  for(let index=0;index<values.length;index++){',
+    '   const x=values[index];',
+    '   if(x!==0&&x!==1)return {ok:false,errorIndex:index,values:committed};',
+    '   committed.push(next(record,x));',
+    '  }',
+    '  return {ok:true,errorIndex:null,values:committed};',
+    ' });',
+    '}',
     'export async function position(token){return store.use(token,record=>record.count);}',
     'export async function close(token){return store.revoke(token);}'
   ].join('\n');
@@ -66,6 +77,12 @@ test('SCO pre-authorized batch does not emulate serial partial progress on an in
         }
         if(m===method.step)return args.length===2&&
           typeof args[0]==='string'&&(args[1]===0||args[1]===1);
+        // This alternative envelope authorizes bounded integer symbols, then
+        // applies private per-item policy in order, preserving valid prefixes.
+        if(m===method.batchPrefix)return args.length===2&&
+          typeof args[0]==='string'&&Array.isArray(args[1])&&
+          args[1].length>=1&&args[1].length<=16&&
+          args[1].every(x=>Number.isSafeInteger(x));
         if(m===method.batch)return args.length===2&&
           typeof args[0]==='string'&&Array.isArray(args[1])&&
           args[1].length>=1&&args[1].length<=16&&
@@ -100,6 +117,7 @@ test('SCO pre-authorized batch does not emulate serial partial progress on an in
      * begin:()=>Promise<string>,
      * step:(token:string,x:number)=>Promise<number>,
      * batch:(token:string,values:number[])=>Promise<number[]>,
+     * batchPrefix:(token:string,values:number[])=>Promise<{ok:boolean,errorIndex:number|null,values:number[]}>,
      * position:(token:string)=>Promise<number>,
      * close:(token:string)=>Promise<boolean>
      * }} */
@@ -114,6 +132,12 @@ test('SCO pre-authorized batch does not emulate serial partial progress on an in
     assert.equal(await client.position(batchHandle),5);
     assert.equal(await client.close(serialHandle),true);
     assert.equal(await client.close(batchHandle),true);
+    const validPrefixHandle=await client.begin();
+    assert.deepEqual(await client.batchPrefix(validPrefixHandle,valid),{
+      ok:true,errorIndex:null,values:serial
+    });
+    assert.equal(await client.position(validPrefixHandle),5);
+    assert.equal(await client.close(validPrefixHandle),true);
 
     const serialInvalid=await client.begin();
     const batchInvalid=await client.begin();
@@ -129,12 +153,25 @@ test('SCO pre-authorized batch does not emulate serial partial progress on an in
     assert.equal(batchPosition,0);
     assert.notEqual(serialPosition,batchPosition,
       'Invalid serial prefix and prevalidated batch are not state-equivalent');
+    const prefixHandle=await client.begin();
+    const partial=await client.batchPrefix(prefixHandle,[...valid,2,0]);
+    assert.deepEqual(partial,{
+      ok:false,errorIndex:5,values:serial
+    });
+    assert.equal(await client.position(prefixHandle),serialPosition);
+    // First-invalid-prefix semantics remain stable under future continuation.
+    assert.equal(await client.step(serialInvalid,1),7);
+    assert.equal(await client.step(prefixHandle,1),7);
+    assert.equal(await client.position(serialInvalid),6);
+    assert.equal(await client.position(prefixHandle),6);
+    assert.equal(await client.close(prefixHandle),true);
     assert.equal(await client.close(serialInvalid),true);
     assert.equal(await client.close(batchInvalid),true);
     console.log(JSON.stringify({validOutputsMatched:5,
       serialPositionAfterInvalid:serialPosition,batchPositionAfterInvalid:batchPosition,
       invalidCallsDeniedBeforePrivateWork:true,unauthenticatedStatus:403,
-      verdict:'batching-not-transparent-for-failing-partial-progress-contract'}));
+      prefixBatchMatchesSerialAfterErrorAndContinuation:true,
+      verdict:'prevalidated-batch-fails-partial-progress;guarded-prefix-batch-preserves-selected-contract'}));
   }finally{
     globalThis.fetch=nativeFetch;
     delete globals.__SCO_PARTIAL_BATCH_HANDLES__;
