@@ -2417,7 +2417,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             property.key.value : null;
         // Browser inline-script collections and currentScript expose exact
         // executable source text through text/textContent/outerHTML.
-        if(isDocumentRoot(target) && ['currentScript','scripts'].includes(field??''))observed=true;
+        if(isDocumentRoot(target) && (field===null ||
+            ['currentScript','scripts'].includes(field)))observed=true;
         if(isProcessModuleRequire(target) && canReachLoader('process',field) ||
            canReadLoaderRoot(target,field) || target.type==='Identifier' &&
            globals.has(target.name) &&
@@ -2429,7 +2430,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(node.type==='MemberExpression') {
       const key=node.computed ? knownKey(node.property) :
         node.property.type==='Identifier' ? node.property.name : null;
-      if(isDocumentRoot(node.object) && ['currentScript','scripts'].includes(key??''))observed=true;
+      if(isDocumentRoot(node.object) && (node.computed && key===null ||
+          ['currentScript','scripts'].includes(key??'')))observed=true;
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
