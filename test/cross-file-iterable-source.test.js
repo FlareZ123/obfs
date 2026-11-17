@@ -1,0 +1,62 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const {obfuscateFiles}=require('../src');
+
+/** @returns {string} */
+function protectedSource() {
+  let expression='(input|0)';
+  for(const step of [17,-8,213,-55,64,-2,34,-10])
+    expression='('+expression+(step>=0?'+':'')+step+')';
+  return 'export function protectedSum(input){return ('+expression+'|0);}\n';
+}
+
+/** @param {string} tail @param {string} body @returns {import('../src/core').SourceFile[]} */
+function graph(tail,body) {
+  return [
+    {path:'producer.mjs',sourceType:'module',code:protectedSource()+tail},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {values} from "./producer.mjs";'+body}
+  ];
+}
+
+/** @param {import('../src/core').SourceFile[]} files */
+function protect(files) {
+  return obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'cross-esm-iterable-source',
+    strings:false,identifiers:false,properties:false,
+    experimentalPolyvariantAffine:{'producer.mjs':['protectedSum']},
+    experimentalPolyvariantCount:2
+  });
+}
+
+for(const [name,tail,body] of [
+  ['exported function-bearing Set',
+    'export const values=new Set([protectedSum]);',
+    'console.log(Array.from(values).join(","));'],
+  ['exported function-bearing Map',
+    'export const values=new Map([[0,protectedSum]]);',
+    'console.log(Array.from(values.values()).join(","));'],
+  ['Set mutated after declaration',
+    'export const values=new Set();values.add(protectedSum);',
+    'console.log([...values].join(","));'],
+  ['Map mutated after declaration',
+    'export const values=new Map();values.set(0,protectedSum);',
+    'console.log([...values.values()].join(","));'],
+  ['Set alias mutated after declaration',
+    'const owner=new Set();const alias=owner;alias.add(protectedSum);export {owner as values};',
+    'console.log(Array.from(values).join(","));']
+]) {
+  test('ESM '+name+' observes protected function source',()=>{
+    assert.throws(()=>protect(graph(tail,body)),/(?:source observation|declined)/i);
+  });
+}
+
+test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
+  const files=graph(
+    'export const values=new Set([1,2,3]);',
+    'console.log(Array.from(values).join(","));'
+  );
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
