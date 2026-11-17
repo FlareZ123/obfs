@@ -51,6 +51,36 @@ test('captured unique const typeof string guard admits a genuine property rewrit
   }finally{await fs.rm(base,{recursive:true,force:true});}
 });
 
+test('actual Node host getter exposes second-read implicit JSON function coercion',()=>{
+  const setup=[
+    "let reads=0,coercions=0;",
+    "const injected=function sensitiveHostCanary(){};",
+    "injected.toString=()=>{coercions++;return '[23]';};",
+    "Object.defineProperty(process.argv,2,{configurable:true,get(){",
+    "return ++reads===1?'[7]':injected;}});"
+  ].join('');
+  const unsafe=setup+
+    "const result=JSON.parse(typeof process.argv[2]==='string'?process.argv[2]:'[]');"+
+    "console.log(JSON.stringify({result,reads,coercions}));";
+  const guarded=setup+
+    "const inputValue=process.argv[2];"+
+    "const result=JSON.parse(typeof inputValue==='string'?inputValue:'[]');"+
+    "console.log(JSON.stringify({result,reads,coercions}));";
+  /** @param {string} source @returns {{result:number[],reads:number,coercions:number}} */
+  function executeSource(source) {
+    const child=spawnSync(process.execPath,['-e',source],{
+      encoding:'utf8',timeout:10000
+    });
+    assert.equal(child.error,undefined);
+    assert.equal(child.status,0,child.stderr);
+    return JSON.parse(child.stdout);
+  }
+  assert.deepEqual(executeSource(unsafe),{result:[23],reads:2,coercions:1});
+  assert.deepEqual(executeSource(guarded),{result:[7],reads:1,coercions:0});
+  assert.equal(observes(unsafe),true);
+  assert.equal(observes(guarded),false);
+});
+
 const negative=[
   ['unrestricted argv read',
     "const raw=process.argv[2];JSON.parse(raw||'[]');"],
