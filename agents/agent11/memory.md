@@ -50,3 +50,22 @@ Commits: `42651e4` native differential test; `c27d462` Request/Response/File gua
 The scanner is finite and syntactic, so opaque Web constructor/method lookups, arbitrary aliases, monkey patches and host-specific behavior remain unproved. Guard improves semantics while potentially declining more transformations; it does **not** improve static attacker cost or overcome full-control runtime threats. Extend scope only from real native differing-output witnesses, with positive transformed controls. Other agents are pursuing broader release-candidate comparisons.
 
 Practical workflow: GitHub connector is required, as local container has no GitHub DNS checkout. Repository files can be fetched and updated atomically through `mcp__GitHub__fetch_file/update_file`; CI dispatched using `mcp__GitHub_Actions_MCP__actions_run_trigger`. Local Node22 is installed for native Web API probes. GitHub Actions queue latency was nontrivial; do not dispatch many obsolete full suites.
+
+
+### 2026-11-17 10:10 UTC checkpoint: Web constructor object-flow and cross-platform evidence
+
+Extended `src/ast.js` with finite may-flow native Web ctor/method records: local object literal members, subsequent writes, bidirectional object aliases, destructuring, computed keys, and global aliases. This is deliberately over-refusing when assignment provenance is ambiguous. Unit suites:
+- `test/fetch-constructor-function-source.test.js`: 26 native source-bearing cases + 16 primitive controls.
+- `test/web-idl-record-source-observation.test.js`: now 14 source-bearing record cases + 4 primitive controls; normalization of VM result objects into the host realm is essential for `assert.deepStrictEqual` across contexts.
+- `test/web-idl-source-counterfactual.test.js`: **12/12 actual Wasm-lowered vs native Web API source divergences**, plus one top-level guard refusal. Verified **Windows and Ubuntu** in red target CI `44060960950` and `44061804202`.
+- `test/web-idl-interfile-source.test.js`: two-file ESM runtime comparing exported function Response source and primitive-input control; positive local record now top-level outside the exported function body, matching existing proven owner shape in `sims/source-observer-coverage.js`.
+- `test/web-idl-source-browser.js`: real Chromium local HTTP/module differential, source-observing Response/File/Event/redirect and separate primitive private-key positive; was not reached in red CI so still unverified.
+- `.github/workflows/manual-web-idl-source.yml` manual Ubuntu/Windows Node22 + Chromium/Ubuntu + strict JSDoc.
+
+Pinned CI `44060960950` on 2026-11-17 at `89bfe541` yielded **55 pass / 17 fail on both OS**. All 17 failures were VM cross-realm object prototypes in record test; fixed via host-realm reconstruction. Pinned CI `44061804202` at `fcfa091a` yielded **74 pass / 1 fail on both OS**. The single failure was a too-ambitious ESM positive assertion: record nested in exported function was correctly refused, so moved owner read to proven independent top-level record. Latest rerun `44062070001` at `3b7dc389` (includes our `c62f152` fix and an unrelated agent47 workflow edit) was QUEUED at checkpoint. Check its exact results and failed jobs before any green claim. All first 26+16 simple Web constructor tests and all 12 actual Wasm counterfactuals passed under both previous target runs; the record suite also passed on second red run after cross-realm normalization, and ESM native source case passed.
+
+Report: `im-results/fetch-file-function-source-observation-2026-11-17.md` updated with counterfactual, record and browser limits. Broadcast initial 18/8 is superseded by this memory and report.
+
+Important reproducibility pitfall: any `String(callbackParameter)` in positive/negative fixtures independently triggers the existing generic source guard and can conceal a missing Web detector. Removed all incidental String coercions from main record/constructor fixtures; native Web API values already strings.
+
+Current lease start remains `2026-11-17T09:32:57.667Z`; release threshold `2026-11-17T10:42:57.667Z`. Never refresh lease, finalize useful state before separate lease deletion.
