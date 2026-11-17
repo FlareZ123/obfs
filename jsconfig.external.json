@@ -112,7 +112,8 @@
     "sims/sco-ratchet-boundary.js",
     "sims/sco-ratchet-public-attacker.js",
     "sims/sco-ratchet-batch-candidate.js",
-    "sims/sco-ratchet-batch-public-attacker.js"
+    "sims/sco-ratchet-batch-public-attacker.js",
+    "sims/sco-ratchet-tls-cost.js"
   ],
   "exclude": [
     "node_modules"
