@@ -1,6 +1,6 @@
 # Four-way cross-runtime release evidence: one pinned source graph and separate compute boundaries
 
-**Date:** 2026-11-17. **Status:** experimental integrator, pending exact source-pinned CI. **Scope:** the fixed three-module COO polyvariant application and matching conventional esbuild control.
+**Date:** 2026-11-17. **Status:** cross-platform source-pinned green experimental evidence with strict CPU sample breach. **Scope:** the fixed three-module COO polyvariant application and matching conventional esbuild control.
 
 ## Why this was needed
 
@@ -32,4 +32,20 @@ The static/black-box attack choice is kept on its own axis. The actual known thr
 
 The join is specific to this frozen ESM application and browser protocol. Hash equality between two files generated in one CI checkout cannot establish external actor provenance. The 2.5x performance rule concerns compute; a full production browser resource budget would also need cold parsing/evaluation CPU, external network/API latency, memory, alternate browsers, and adversarial runtime extraction. Existing SCO and SNO release questions remain independent. No positive strong obfuscation result is claimed.
 
-Exact CI SHA, Linux/Windows status, observed raw strict breaches, and cross-runtime aggregate output should be added after a completed pinned run.
+## Pinned integrated comparison, 2026-11-17 at 17:21 UTC
+
+The [manually dispatched two-operating-system workflow 44135777833](https://github.com/FlareZ123/obfs/actions/runs/44135777833) passed the original static attacks, same-model chosen-query tests, full Node four-way graph parity, real Chrome 157 output/callback parity, fresh HTTP graph checks, **nine focused cross-runtime verifier tests**, and strict external JSDoc. Tested **executable source SHA:** `7c41e609074cea6152ac7a784770e4b1953d6f32`. Ubuntu job `134224800609`; Windows job `134224801055`. The documentation-only source commit created after workflow dispatch does not change executable bytes. Each job's original raw Node timings and the Ubuntu real-Chrome and cross-runtime JSON outputs are preserved as workflow artifacts.
+
+On Ubuntu, the joined artifact explicitly reported matching SHA-256 digests for all four three-file source graphs, `candidateChoice=reject`, `staticAttackerVerdict=reconstructed`, `strictComputeBudget=sample-breached`, and `releaseVerdict=RELEASE-BLOCKED`. The median-based six-workload familywise diagnostic was `sample-inconclusive`, with requested 95% confidence and conservatively estimated joint coverage **at least 96.1914%** under within-workload paired-sampling assumptions. Crucially, **two of 72 joined paired measurements exceeded 2.5x**, both from actual warmed 10,000-event Chromium synchronous CPU, with maximum paired slowdown **2.54762x**. The latest sampled medians and strict violations were:
+
+| Boundary / workload | COO/native ratio of medians | Strict CPU pairs >2.5x |
+| --- | ---: | ---: |
+| Node fresh 1 event | 1.35417x | 0/12 |
+| Node fresh 50 events | 1.44023x | 0/12 |
+| Node fresh 1000 events | 1.31814x | 0/12 |
+| Node fresh 10000 events | 1.36094x | 0/12 |
+| Chrome warmed 10000 events, synchronous CPU | 2.05814x | **2/12** |
+| Chrome fresh 10000 events, synchronous CPU | 2.05600x | 0/12 |
+
+This is new exact-run evidence for the stricter joined boundary rather than a substitute for Agent8's previous real-clock samples. The six-workload join cannot prove a universal upper time bound, and the observed breaches make a strict sample pass false despite some median-based outcomes being supported. The independently reconstructed protected arithmetic leaves still prevent a claim of incremental confidentiality over ordinary esbuild minification on this application.
+
