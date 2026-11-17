@@ -79,3 +79,29 @@ test('SCO snapshots one mutable digest-array element before validating it',()=>{
   ]),/original private graph source/i);
   assert.equal(reads,1,'An owned metadata snapshot reads each declared element only once');
 });
+
+test('SCO ignores caller-owned private path array map overrides',()=>{
+  const paths=['hidden.css'];
+  Object.defineProperty(paths,'map',{
+    value:()=>[],configurable:true
+  });
+  assert.throws(()=>createScoHandler([
+    {path:'public.css',sourceType:'asset',code:'body{color:blue}',
+      privateModulePaths:paths},
+    {path:'hidden.css',sourceType:'asset',code:'PRIVATE_PATH_ARRAY_MAP_CANARY_20261117'}
+  ]),/must not serve private source/i);
+});
+
+test('SCO ignores caller-owned digest array iterator overrides',()=>{
+  const secret='PRIVATE_ARRAY_ITERATOR_CANARY_20261117';
+  const digest=createHash('sha256').update(secret).digest('hex');
+  const digests=[digest];
+  Object.defineProperty(digests,Symbol.iterator,{
+    value:function*(){},configurable:true
+  });
+  assert.throws(()=>createScoHandler([
+    {path:'public.css',sourceType:'asset',code:'body{color:blue}',
+      privateOriginalDigests:digests},
+    {path:'renamed.css',sourceType:'asset',code:secret}
+  ]),/original private graph source/i);
+});
