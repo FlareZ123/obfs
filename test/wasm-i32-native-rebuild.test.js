@@ -11,7 +11,7 @@ const {reconstructPublicWasmCommonJs}=
 const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1,2,3]))\n'+
   "'use strict';\n"+
   'function first(a){return ((a^137)&255);}\n'+
-  'function second(b,c){return (((b|c)^31)>>>1);}\n'+
+  'function second(b,c){return (((b|c)^31)>>>0);}\n'+
   'module.exports={first,second};\n';
 
 /**
@@ -31,6 +31,7 @@ function i32(){state^=state<<13;state^=state>>>17;state^=state<<5;return state|0
 
 test('automated public-only native replacement needs no WebAssembly, original source or seed',()=>{
   const original=load(source,globalThis);
+  assert.ok(original.second(-1,0)>0x7fffffff);
   let reconstructed=0,checks=0;
   for(let seed=0;seed<8;seed++){
     const emitted=lowerWasmI32Functions(source,'commonjs',{
@@ -41,7 +42,7 @@ test('automated public-only native replacement needs no WebAssembly, original so
     assert.deepEqual(attack.functions.map(item=>item.name),['first','second']);
     assert.deepEqual(attack.functions.map(item=>item.parameters),[['a'],['b','c']]);
     assert.deepEqual(attack.functions.map(item=>item.expression),
-      ['((a^137)&255)','(((b|c)^31)>>>1)']);
+      ['((a^137)&255)','(((b|c)^31)>>>0)']);
     assert.ok(attack.replacementBytes<attack.sourceBytes);
     assert.doesNotMatch(attack.code,/WebAssembly|Uint8Array/u);
     const compiled=load(emitted.code,globalThis);

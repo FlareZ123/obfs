@@ -38,7 +38,8 @@ function reconstructPublicWasmCommonJs(publicSource){
     FunctionDeclaration(node){
       if(!node.id||node.params.some(param=>param.type!=='Identifier')||
           node.body.body.length!==1||node.body.body[0].type!=='ReturnStatement')return;
-      const parameters=node.params.map(param=>param.name);
+      const parameters=node.params.map(param=>
+        (/** @type {import('acorn').Identifier} */ (param)).name);
       let expression=node.body.body[0].argument;
       if(!expression)return;
       if(expression.type==='BinaryExpression'&&expression.operator==='>>>'&&
