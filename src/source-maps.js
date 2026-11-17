@@ -199,16 +199,17 @@ function assertNoSourceMapDisclosure(file) {
     if (isSourceMapDocument(file.code)) {
       throw new TypeError('Source-map JSON payload would disclose original source: ' + file.path);
     }
-    let wasmHasMap;
+    let wasmHasMap,wasmHasDebug;
     try {
       wasmHasMap=hasWasmSourceMapDirective(file.code);
+      wasmHasDebug=hasWasmDebugMetadata(file.code);
     } catch(error) {
-      throw new TypeError('WebAssembly asset cannot be validated for source maps: '+file.path);
+      throw new TypeError('WebAssembly asset cannot be validated for source maps or debug metadata: '+file.path);
     }
     if(wasmHasMap) {
       throw new TypeError('WebAssembly source-map custom section would disclose original source: '+file.path);
     }
-    if(hasWasmDebugMetadata(file.code)) {
+    if(wasmHasDebug) {
       throw new TypeError('WebAssembly debug metadata would disclose original names or source references: '+file.path);
     }
     if(/\.css$/iu.test(file.path)) {
