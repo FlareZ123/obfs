@@ -120,10 +120,10 @@ test('familywise paired budget allocates both tails across all tested workloads'
   ]);
   assert.equal(familywiseBudgetBounds(
     workloads.map(row=>({...row,candidate:Array(9).fill(1.25)})
-  ).verdict,'sample-supported');
+  )).verdict,'sample-supported');
   assert.equal(familywiseBudgetBounds(
     workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]})
-  ).verdict,'sample-inconclusive');
+  )).verdict,'sample-inconclusive');
 });
 
 test('familywise bounds reject too few samples to meet joint confidence',()=>{
