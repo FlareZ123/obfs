@@ -8,6 +8,7 @@ const {promisify}=require('node:util');
 const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-three-way-budget');
+const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /** @param {string} text @returns {string} */
 function digest(text){return createHash('sha256').update(text).digest('hex');}
@@ -75,7 +76,36 @@ for(const count of [1,50,1000,10000]){
   rows.push({events:count,outputSha256:await sha(expected.output),
     hostTraceSha256:await sha(expected.trace),emissions:expected.emissions});
 }
-document.getElementById("out").textContent="pass:"+JSON.stringify(rows);
+const profiling=events(10000);
+const implementations={native,published,reconstructed:attacker};
+function timed(fn){
+  let emissions=0;
+  const started=performance.now();
+  fn(-817,profiling,{emit(){emissions++;}});
+  const elapsed=performance.now()-started;
+  if(emissions!==profiling.length||elapsed<=0){
+    throw Error("Invalid full-application hot profile");
+  }
+  return elapsed;
+}
+for(let warm=0;warm<4;warm++)
+  for(const fn of Object.values(implementations))timed(fn);
+const browserHotSamples={native:[],published:[],reconstructed:[]};
+const orders=[
+  ["native","published","reconstructed"],
+  ["reconstructed","published","native"],
+  ["published","native","reconstructed"],
+  ["native","reconstructed","published"],
+  ["published","reconstructed","native"],
+  ["reconstructed","native","published"]
+];
+for(let trial=0;trial<9;trial++){
+  for(const name of orders[trial%orders.length]){
+    browserHotSamples[name].push(timed(implementations[name]));
+  }
+}
+document.getElementById("out").textContent="pass:"+
+  JSON.stringify({rows,browserHotSamples});
 </script></body></html>`;
 }
 
@@ -123,18 +153,35 @@ async function main(){
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
       '--no-first-run','--virtual-time-budget=12000','--dump-dom',root+'/index.html'
     ],{timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'});
-    const data=stdout.match(/<pre id="out">pass:(\[[^<]*\])<\/pre>/u)?.[1];
+    const data=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
     assert.ok(data,'Browser did not complete three-way ESM: '+stdout.slice(-1800));
-    const actual=/** @type {typeof expected} */(JSON.parse(data));
-    assert.deepEqual(actual,expected);
+    const actual=/** @type {{rows:typeof expected,browserHotSamples:{native:number[],published:number[],reconstructed:number[]}}} */(JSON.parse(data));
+    assert.deepEqual(actual.rows,expected);
+    for(const method of /** @type {const} */(['native','published','reconstructed'])){
+      const observations=actual.browserHotSamples[method];
+      assert.equal(observations.length,9);
+      assert.ok(observations.every(t=>Number.isFinite(t)&&t>0));
+    }
+    const browserHotProfile={
+      eventsPerSession:10000,
+      rounds:9,
+      timingBoundary:'already loaded Chromium ESM, entire synchronous stateful application and host callbacks',
+      publishedVsNative:pairedBudgetBound(actual.browserHotSamples.native,
+        actual.browserHotSamples.published),
+      attackerVsNative:pairedBudgetBound(actual.browserHotSamples.native,
+        actual.browserHotSamples.reconstructed),
+      attackerVsPublished:pairedBudgetBound(actual.browserHotSamples.published,
+        actual.browserHotSamples.reconstructed),
+      samples:actual.browserHotSamples
+    };
     process.stdout.write('POLYVARIANT_THREE_WAY_CHROMIUM '+JSON.stringify({
-      node:process.version,matchedWorkloads:actual.length,
+      node:process.version,matchedWorkloads:actual.rows.length,
       verifiedCompleteOutputs:true,verifiedExternalCallbacks:true,
       servedPublishedMathBytes:Buffer.byteLength(variants.published[0].code),
       publishedPublicSourceFetchedExactly:true,
       independentAttackerFunctionsRecovered:3,
       originalSha256,publishedSha256,reconstructedSha256,
-      rows:actual
+      rows:actual.rows,browserHotProfile
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>
