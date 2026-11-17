@@ -96,10 +96,11 @@ async function main(){
   /** @type {File[]} */
   const copied=published.map(file=>file.path==='kernel.mjs'?
     {path:file.path,code:attacker.code}:file);
+  /** @type {Map<string,{type:string,body:string,policy?:string}>} */
   const assets=new Map();
-  for(const [prefix,files] of [
-    ['native',graph],['wasm',published],['clone',copied]
-  ]){
+  /** @type {Array<[string,File[]]>} */
+  const groups=[['native',graph],['wasm',published],['clone',copied]];
+  for(const [prefix,files] of groups){
     for(const file of files)assets.set('/'+prefix+'/'+file.path,{
       type:'text/javascript; charset=utf-8',body:file.code
     });
