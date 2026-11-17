@@ -76,6 +76,29 @@ test('native Node util imported ESM method is a source observer',()=>{
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 });
 
+test('native util Error inspection detects a manual source-column rewrite',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "module.exports=require('node:util').inspect(new Error('probe'));";
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=String(run(source)).match(/util-source-observer\.cjs:1:\d+/);
+  const rewritten=String(run(unsafe)).match(/util-source-observer\.cjs:1:\d+/);
+  assert.ok(native);
+  assert.ok(rewritten);
+  assert.notEqual(rewritten[0],native[0]);
+});
+
+test('native util.inspect reveals unsafe function name rewriting',()=>{
+  const source="'use strict';function distinctivelyNamedUtilFunction(){return 73;}"+
+    "module.exports=require('node:util').inspect(distinctivelyNamedUtilFunction);";
+  const unsafe=source.replaceAll('distinctivelyNamedUtilFunction','x');
+  const native=run(source);
+  const rewritten=run(unsafe);
+  assert.notEqual(native,rewritten);
+  assert.match(String(native),/distinctivelyNamedUtilFunction/);
+  assert.match(String(rewritten),/Function: x/);
+});
+
 test('primitive-only native util.inspect preserves positive own-field renaming',()=>{
   const source="'use strict';const tool=require('node:util');"+
     "const owner={distinctivelyLongPrivateField:73};"+
