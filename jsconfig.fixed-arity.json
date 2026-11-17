@@ -3,7 +3,8 @@
   "include": [
     "src/**/*.js",
     "test/fixed-arity-strings.test.js",
-    "sims/fixed-arity-decoder-profile.js"
+    "sims/fixed-arity-decoder-profile.js",
+    "test/fixed-arity-strings-browser.js"
   ],
   "exclude": [
     "node_modules"
