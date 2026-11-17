@@ -13,7 +13,7 @@ const targetNames=Object.freeze(['round1','round2','round3']);
  * or held-out output is consulted during the attack. The verifier must
  * separately test the resulting clone against unseen inputs.
  *
- * @param {Record<string,(input:unknown)=>number>} exposed
+ * @param {Record<string,(input:number)=>number>} exposed
  * @returns {{
  *   clone:Record<string,(input:unknown)=>number>,
  *   offsets:Record<string,number>,
