@@ -58,13 +58,16 @@ filename and Node `Console` capture. It verifies direct/aliased loggers,
 constructed Error objects, nested values, `console.trace()`, an exact
 source-coordinate fallback and an unaffected `console.log(42)` positive
 property-renaming control. The targeted Ubuntu Node 22 preflight is
-`.github/workflows/manual-implicit-console-source.yml`, dispatched on
-edits to that specific test file, including strict project and external
-JSDoc checks.
+`.github/workflows/manual-implicit-console-source.yml`, manually dispatchable on a source-pinned branch, including strict project
+and external JSDoc checks.
 
 The expected fallback preserves the original source where an implicit stack
 observer exists. This means zero transformed content in that file or graph;
 it is a correctness measure and may reduce obfuscation yield.
+
+## First targeted CI: harness false negative
+
+[Ubuntu Node 22 run 44094229530](https://github.com/FlareZ123/obfs/actions/runs/44094229530), pinned to `77a997aeaa9180d7f5816bc986988626d44f242e`, **failed** its eight-case test at 7/8 failing, 1/8 passing. The failures came from comparing stack strings containing **the test harness's own two distinct `execute()` invocation lines**. The VM script's own source column was identical on both sides, and the primitive logger positive control passed. This was a *test oracle defect*, not evidence of a compiler output mismatch. The corrected test extracts only fixed-name in-VM source frames before exact native/emitted comparison, at `f468a8ef36494a02eee1db6f0f71b017c678279a`. The ten-case pinned follow-up [run 44096939351](https://github.com/FlareZ123/obfs/actions/runs/44096939351) was queued when the report was updated. Check the actual CI outcome before claiming success.
 
 ## Limitations and next falsifiers
 
