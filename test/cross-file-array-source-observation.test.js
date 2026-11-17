@@ -160,3 +160,25 @@ test('primitive-only array mutation in exported ESM producer retains protected w
   const emitted=protect(files);
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
 });
+
+for(const [name,expression] of [
+  ['slice of source array','source.slice()'],
+  ['concat of source array','source.concat([])'],
+  ['Array.from source array','Array.from(source)'],
+  ['filter source array','source.filter(()=>true)'],
+  ['map source array','source.map(value=>value)'],
+  ['toReversed source array','source.toReversed()']
+]) {
+  test('derived exported '+name+' preserves original function source in importer',()=>{
+    const tail='const source=[protectedSum];export const values='+expression+';';
+    const files=graph(tail,'console.log(values.join(","));');
+    assert.throws(()=>protect(files),/(?:source observation|declined)/i);
+  });
+}
+
+test('derived primitive-only ESM arrays retain selected unrelated function',()=>{
+  const files=graph('const source=[1,2,3];export const values=Array.from(source);',
+    'console.log(values.join(","));');
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
