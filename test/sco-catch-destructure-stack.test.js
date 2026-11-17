@@ -10,8 +10,8 @@ const {partitionScoSelectedAsyncExports}=require('../src');
  * @returns {ReturnType<typeof partitionScoSelectedAsyncExports>}
  */
 function partition(privateBody){
-  const code='export async function privateOp(){'+privateBody+'}\\n'+
-    'export function publicRead(){return 7;}\\n';
+  const code='export async function privateOp(){'+privateBody+'}\n'+
+    'export function publicRead(){return 7;}\n';
   return partitionScoSelectedAsyncExports(
     {path:'catch-stack-realm.mjs',sourceType:'module',code},
     {privateNames:['privateOp'],seed:'catch-stack-realm-20261117'});
