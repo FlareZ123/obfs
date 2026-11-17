@@ -40,3 +40,25 @@ test('shared public field spelling receives the same neutral token in separate f
   assert.equal(owner.code.includes(name),false);
   assert.equal(consumer.code.includes(name),false);
 });
+
+test('hash-shaped ordinary data never gets rewritten as a protected property',()=>{
+  const name='_pabcdef123456';
+  const source='const state={'+name+':17};'+
+    'const payload="'+name+'";module.exports=[state.'+name+',payload];';
+  const attacked=normalizePublicFields([{path:'entry.cjs',sourceType:'commonjs',code:source}]);
+  assert.equal(attacked.properties,1);
+  assert.equal(execute(attacked.files[0].code),execute(source));
+  assert.ok(attacked.files[0].code.includes('const payload="'+name+'"'));
+  assert.ok(attacked.files[0].code.includes('state._publicField0'));
+});
+
+test('quoted destructuring keys and computed member keys remain jointly normalizable',()=>{
+  const name='_p123456789abc';
+  const source='const state={"'+name+'":29};'+
+    'const {"'+name+'":reading}=state;'+
+    'module.exports=[reading,state["'+name+'"]];';
+  const attacked=normalizePublicFields([{path:'entry.cjs',sourceType:'commonjs',code:source}]);
+  assert.equal(attacked.properties,1);
+  assert.equal(execute(attacked.files[0].code),execute(source));
+  assert.equal(attacked.files[0].code.includes(name),false);
+});
