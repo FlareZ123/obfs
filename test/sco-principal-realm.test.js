@@ -156,6 +156,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
     assert.equal(a6.status,200);
     // Compiler-generated multi-module graph batching must retain A's
     // private counter, preserve side-effect order, and surface only results.
+    /** @type {Array<{ok:boolean,value:{sequence:number,tag:string}}>} */
     const results=await publicApi.batch([
       {name:'tick',args:[7,'batch-first',0]},
       {name:'tick',args:[8,'batch-second',0]}
