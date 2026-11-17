@@ -31,7 +31,7 @@ non-provably-primitive argument reaches `inspect` or `format`, or a
 payload argument reaches `formatWithOptions`. A primitive direct call
 `util.inspect(42)` remains eligible for a separate own-property rewrite.
 
-The six-case `test/node-util-format-source-observation.test.js` checks
+The expanded nine-case `test/node-util-format-source-observation.test.js` checks
 compiler source preservation, node-native Error frame extraction, printed
 function names, CommonJS and ESM spelling variants, and the positive
 primitive-inspection transform. The source-pinned manual workflow is
@@ -39,6 +39,19 @@ primitive-inspection transform. The source-pinned manual workflow is
 console/util run [44097808187](https://github.com/FlareZ123/obfs/actions/runs/44097808187)
 was **queued** on branch `agent50/node-util-console-observation-20261117`
 at exact `70fbf4e73267f88381093f6a7cf44d747b7404cc` when first documented.
+
+## Direct Node call-site API
+
+Node 22.16.0's native `require('node:util').getCallSites(1)[0].columnNumber`
+in a fixed-name VM program returned **145** before shortening an earlier
+private-property identifier and **89** afterward. The program returned the
+same protected value in each case. The AST proof now treats
+`util.getCallSites()`, its historical `getCallSite` spelling, direct
+native imports and simple aliases as source observers even with primitive
+arguments. See [Node's v22 util documentation](https://nodejs.org/download/release/latest-jod/docs/api/util.html).
+The corresponding actual-emitted SNO test includes a separate
+unsafe-rewrite red control. Additional function-name and
+`util.inspect(Error)` red controls are also in the suite.
 
 ## Boundaries and follow-up
 
