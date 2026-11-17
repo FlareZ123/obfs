@@ -38,7 +38,13 @@ for(const [label,observation] of [
   ['unproved computed collection','let field="scripts";document[field][0].text'],
   ['unknown dynamic property','document[globalThis.chosenField]'],
   ['direct global computed document','globalThis["document"].scripts[0].text'],
-  ['computed destructured source key','const {["currentScript"]:element}=document;element.text']
+  ['computed destructured source key','const {["currentScript"]:element}=document;element.text'],
+  ['direct script query','document.querySelector("script").textContent'],
+  ['selector all scripts','document.querySelectorAll("script")[0].text'],
+  ['HTML tag script collection','document.getElementsByTagName("SCRIPT")[0].innerHTML'],
+  ['namespace script selector','document.getElementsByTagNameNS("*","script")[0].text'],
+  ['dynamic element selector','const selector=window.dynamicSelector;document.querySelector(selector)'],
+  ['all element selector','document.querySelector("*").textContent']
 ]) {
   test('inline browser source observation retains executable spelling: '+label,()=>{
     const code=script(observation);
@@ -53,7 +59,8 @@ for(const [label,observation] of [
 }
 
 test('unrelated browser document access retains normal identifier mangling',()=>{
-  const code=script('const title=document.title;globalThis.propertyName=title');
+  const code=script('const title=document.title;'+
+    'const element=document.querySelector("div");globalThis.propertyName=title+Boolean(element)');
   const ast=parse(code,'script');
   assert.equal(observesDistributedSource(ast),false);
   const result=compile(code,'coo');
