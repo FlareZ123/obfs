@@ -1469,6 +1469,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           reflectiveConstructMethods.add(name);
           reflectiveChanged=true;
         }
+        if(value.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isReflectConstructMethod(value.callee.object) &&
+           !reflectiveConstructMethods.has(name)) {
+          reflectiveConstructMethods.add(name);
+          reflectiveChanged=true;
+        }
         if(value.type==='Identifier' && reflectiveReaders.has(value.name) &&
            !reflectiveReaders.has(name)) {
           reflectiveReaders.add(name);
@@ -1530,6 +1538,39 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(reflectiveChanged);
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isReflectConstructMethod(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      reflectiveConstructMethods.has(node.name) ||
+      node.type==='MemberExpression' &&
+      isReflectiveReceiver(node.object) &&
+      (memberName(node)==='construct'||node.computed&&memberName(node)===null)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isReflectApplyMethod(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      reflectiveApplyMethods.has(node.name) ||
+      node.type==='MemberExpression' &&
+      isReflectiveReceiver(node.object) && memberName(node)==='apply'));
+  }
+  /**
+   * An indirect native constructor can stringify its first argument, and
+   * RegExp can also stringify its optional flags argument. An opaque list
+   * may contain functions, so the proof must refuse that invocation.
+   * @param {AstNode|null|undefined} target
+   * @param {AstNode|null|undefined} passed
+   * @returns {boolean}
+   */
+  function constructObservesSource(target,passed) {
+    if(!isCoercer(target))return false;
+    if(passed?.type==='ArrayExpression') {
+      const values=isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
+        passed.elements.slice(0,2):passed.elements.slice(0,1);
+      return values.some((/** @type {AstNode|null} */ value)=>
+        value && !isDefinitelyPrimitive(value));
+    }
+    return Boolean(passed);
+  }
   /**
    * String.raw stringifies each visited raw segment and substitution. The
    * first argument can be a record with nested raw values; all later args
@@ -2314,38 +2355,32 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // Reflect.apply can invoke a detached JSON.parse/rawJSON or other
       // native String coercer without a visible method call on that callee.
       // Preserve source when the first supplied argument is unproved.
-      if((callee.type==='MemberExpression' && memberName(callee)==='apply' &&
-         isReflectiveReceiver(callee.object) || callee.type==='Identifier' &&
-         reflectiveApplyMethods.has(callee.name)) && isCoercer(node.arguments[0])) {
+      if(isReflectApplyMethod(callee) &&
+         constructObservesSource(node.arguments[0],node.arguments[2]))observed=true;
+      // Reflect.construct may itself be called, applied, bound, or passed to
+      // Reflect.apply. Its native argument list remains a source observer.
+      if(node.type==='CallExpression' && isReflectConstructMethod(callee) &&
+         constructObservesSource(node.arguments[0],node.arguments[1]))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isReflectConstructMethod(callee.object)) {
+        const invocation=memberName(callee);
+        if(invocation==='call' &&
+           constructObservesSource(node.arguments[1],node.arguments[2]))observed=true;
+        if(invocation==='apply') {
+          const supplied=node.arguments[1];
+          if(supplied?.type==='ArrayExpression') {
+            if(constructObservesSource(supplied.elements[0],supplied.elements[1]))
+              observed=true;
+          } else if(supplied)observed=true;
+        }
+        if(invocation==='bind')observed=true;
+      }
+      if(node.type==='CallExpression' && isReflectApplyMethod(callee) &&
+         isReflectConstructMethod(node.arguments[0])) {
         const supplied=node.arguments[2];
         if(supplied?.type==='ArrayExpression') {
-          // RegExp also ToString-coerces flags (argument 1), which may hold
-          // a function even when its pattern (argument 0) is primitive.
-          const values=isNativeConstructor(node.arguments[0],
-            nativeRegExpConstructors,'RegExp') ? supplied.elements :
-            supplied.elements.slice(0,1);
-          if(values.some((/** @type {AstNode|null} */ item)=>
-            item && !isDefinitelyPrimitive(item)))observed=true;
-        } else if(supplied) observed=true;
-      }
-      // Reflect.construct forwards an argument list to native constructors
-      // such as RegExp, Error and String. They can stringify a function and
-      // disclose its original source without any direct constructor call.
-      if(node.type==='CallExpression' &&
-         (callee.type==='MemberExpression' &&
-            isReflectiveReceiver(callee.object) &&
-            (memberName(callee)==='construct'||
-             callee.computed&&memberName(callee)===null) ||
-          callee.type==='Identifier' &&
-            reflectiveConstructMethods.has(callee.name)) &&
-         isCoercer(node.arguments[0])) {
-        const supplied=node.arguments[1];
-        if(supplied?.type==='ArrayExpression') {
-          const values=isNativeConstructor(node.arguments[0],
-            nativeRegExpConstructors,'RegExp') ? supplied.elements :
-            supplied.elements.slice(0,1);
-          if(values.some((/** @type {AstNode|null} */ item)=>
-            item && !isDefinitelyPrimitive(item)))observed=true;
+          if(constructObservesSource(supplied.elements[0],supplied.elements[1]))
+            observed=true;
         } else if(supplied)observed=true;
       }
       /** @type {AstNode|null|undefined} */
