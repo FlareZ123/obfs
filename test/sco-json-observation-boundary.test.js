@@ -19,7 +19,8 @@ test('real SCO generated facade loses shared references and non-JSON numeric val
     'return {same:a===b,negative:Object.is(a[0],-0),',
     'missing:a[1]===undefined,finite:a[2]===7};',
     '}',
-    'export async function result(){return {finite:7,nan:NaN,negative:-0};}'
+    'export async function result(){return {finite:7,nan:NaN,negative:-0};}',
+    'export async function echo(value){return value;}'
   ].join('\n');
   const original=await import('data:text/javascript;base64,'+
     Buffer.from(source).toString('base64'));
@@ -69,6 +70,17 @@ test('real SCO generated facade loses shared references and non-JSON numeric val
     assert.equal(Number.isNaN(nativeResult.nan),true);
     assert.equal(Object.is(nativeResult.negative,-0),true);
     assert.deepEqual(remoteResult,{finite:7,nan:null,negative:0});
+    // This ordinary JSON object has no cycle or shared internal reference.
+    // Its JavaScript identity still cannot survive a remote pass-by-value call.
+    const originalInput={label:'visible'};
+    assert.strictEqual(await original.echo(originalInput),originalInput);
+    const remoteEcho=await client.echo(originalInput);
+    assert.deepEqual(remoteEcho,originalInput);
+    assert.notStrictEqual(remoteEcho,originalInput);
+    const cyclic={};
+    cyclic.self=cyclic;
+    assert.strictEqual(await original.echo(cyclic),cyclic);
+    await assert.rejects(()=>client.echo(cyclic),/circular|cyclic/iu);
   }finally{
     globalThis.fetch=originalFetch;
     await new Promise((resolve,reject)=>server.close(
