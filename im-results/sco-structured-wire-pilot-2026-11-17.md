@@ -226,6 +226,32 @@ large, inherently private operations, but that still needs honest
 browser cold and real HTTP cost evidence. The separate Chromium
 experiment was authored after the above pin and is pending.
 
+## Bounded parser-adversary grid (source-authored, pending CI)
+
+The separate [devalue malformed-wire grid](../sims/sco-devalue-untrusted-parser-grid.js)
+makes 267 local parse requests, each capped at 65,536 wire bytes,
+on the exact pinned parser. Eleven targeted cases include a valid
+roundtrip, a forged global-constructor type, direct and null-prototype
+`__proto__` keys, an unrelated own `constructor` key, an out-of-range
+graph index, a large typed-array view over a one-byte backing store,
+the maximum legal sparse-array length represented in a tiny record,
+and nested references of depths 64, 1,024 and 4,096.
+The remaining 256 cases are one-byte mutations of a deterministic
+valid serialized value using xorshift seed `0xC0FFEE`.
+The grid records accepted/refused counts, per-case duration,
+and a harmless locally installed global-constructor invocation count.
+Every case must return or throw and leave `Object.prototype`
+without the probe property. The original server remains unmodified.
+
+The purpose is to expose candidate parser surface area and verify a
+small adversarial corpus, without claiming denial-of-service resistance.
+Synchronous stack overflow may be caught while still wasting resources;
+a gigantic *logical* sparse-array length can be represented with tiny
+input bytes and later exhaust application work if iterated. Browser and
+server process isolation, network RTT and concurrent adversarial loads
+are absent. The script has not yet been run on pinned Linux/Windows
+builders, so no passing verdict is inferred.
+
 ## Reproduction
 
 Manually dispatch
