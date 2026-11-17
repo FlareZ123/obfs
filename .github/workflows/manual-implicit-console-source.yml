@@ -2,9 +2,6 @@ name: Targeted implicit console stack source-observation smoke
 
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - 'test/implicit-console-stack-source.test.js'
 
 permissions:
   contents: read
