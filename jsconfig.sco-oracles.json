@@ -22,7 +22,8 @@
     "test/sco-capability-public-oracle.test.js",
     "sims/sco-capability-granularity.js",
     "sims/sco-capability-http-batch.js",
-    "test/sco-capability-public-browser.js"
+    "test/sco-capability-public-browser.js",
+    "test/sco-capability-batch-error-contract.test.js"
   ],
   "exclude": [
     "node_modules"
