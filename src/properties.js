@@ -98,6 +98,26 @@ function isLiteralValue(node) {
 }
 
 /**
+ * A direct lexical parameter read does not infer a function name from its
+ * enclosing object key. Restrict this local-owner extension to a unique
+ * simple formal in the nearest function, avoiding unresolved names and
+ * closure-scoped guesses. The separate owner-use proof still rejects escapes,
+ * reflection, and source observers.
+ * @param {AstNode} value
+ * @param {AstNode[]} ancestors
+ * @param {Map<string,number>} bindings
+ * @returns {boolean}
+ */
+function isDirectParameterValue(value,ancestors,bindings) {
+  if(value.type!=='Identifier'||bindings.get(value.name)!==1)return false;
+  const fn=[...ancestors].reverse().find(node=>
+    node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+    node.type==='ArrowFunctionExpression');
+  return Boolean(fn && fn.params.some((/** @type {AstNode} */ param)=>
+    param.type==='Identifier'&&param.name===value.name));
+}
+
+/**
  * Each simple binding's visible lexical region. A unique name alone cannot
  * prove that a same-spelled free reference outside the region is the binding.
  * Derived from Agent 2's lexical-containment counterexample and implementation.
@@ -828,7 +848,9 @@ function renameLocalProperties(source, ast, options) {
     /** @type {AstNode[]} */
     const properties = literal.properties;
     if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.shorthand || p.kind !== 'init' ||
-          ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) || !isLiteralValue(p.value))) return;
+          ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) ||
+          !(isLiteralValue(p.value) || literal===node &&
+            isDirectParameterValue(p.value,ancestors,bindings)))) return;
     const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
     candidates.push({node:literal,name:parent.id.name,properties});
