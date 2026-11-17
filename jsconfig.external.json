@@ -60,7 +60,8 @@
     "test/inline-array-primitive-fuzz.test.js",
     "test/decoder-array-prototype-chain.test.js",
     "test/decoder-array-prototype-browser.js",
-    "sims/release-evidence-gate.js"
+    "sims/release-evidence-gate.js",
+    "sims/familywise-budget-bound.js"
   ],
   "exclude": [
     "node_modules"
