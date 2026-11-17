@@ -143,3 +143,25 @@ test('SCO preserves direct UTC Date statics and extracted Date.UTC',()=>{
     assert.deepEqual(result.privateNames,['privateOp'],body);
   }
 });
+
+
+test('native extracted Intl and Date operations observe different host timezones',()=>{
+  const previousTZ=process.env.TZ;
+  const expressions=[
+    "const {DateTimeFormat:F}=Intl;F('en-US').resolvedOptions().timeZone",
+    "const {DateTimeFormat:F}=Intl;F.bind(null)('en-US').resolvedOptions().timeZone",
+    "const {parse:parse}=Date;parse('2020-01-01T00:00')"
+  ];
+  try{
+    for(const expression of expressions){
+      process.env.TZ='Etc/UTC';
+      const original=vm.runInNewContext(expression,{});
+      process.env.TZ='Pacific/Honolulu';
+      const migrated=vm.runInNewContext(expression,{});
+      assert.notEqual(original,migrated,expression);
+    }
+  }finally{
+    if(previousTZ===undefined)delete process.env.TZ;
+    else process.env.TZ=previousTZ;
+  }
+});
