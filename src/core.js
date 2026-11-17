@@ -7,7 +7,7 @@ const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -587,6 +587,8 @@ function obfuscateFiles(files, options = {}) {
   // consumer, so preserve all original source spellings across the file group.
   const importedStringProof=prepared.length>1 && options.closedWorld ?
     collectVerifiedImportedStrings(prepared) : new Map();
+  const importedPrimitiveProof=prepared.length>1 && options.closedWorld ?
+    collectVerifiedImportedPrimitives(prepared) : new Map();
   const importedCloneProof=prepared.length>1 ?
     collectVerifiedImportedCloneAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
@@ -596,7 +598,7 @@ function obfuscateFiles(files, options = {}) {
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path))));
+        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path))));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
