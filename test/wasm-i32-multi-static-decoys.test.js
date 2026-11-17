@@ -101,6 +101,20 @@ test('COO and SNO emitted multi-function files remain independently recoverable'
   }
 });
 
+test('unrelated executable Module constructors do not count as compiler outputs',()=>{
+  const sourceWithOtherModule='if(false) new globalThis.WebAssembly.Module('+
+    'globalThis.Uint8Array.from([1,2,3]));\n';
+  const lowered=lowerWasmI32Functions(source,'commonjs',{
+    seed:'other-executable-module',names:['first','second']
+  });
+  assert.equal(lowered.functions,2);
+  const delivered=sourceWithOtherModule+lowered.code;
+  assert.deepEqual(recoverAllPublicWasmExpressions(delivered,parameterSets)
+    .map(item=>item.expression),expected);
+  assert.equal(recoverPublicWasmExpression(delivered,'a').expression,expected[0]);
+  assert.ok(WebAssembly.validate(extractPublicWasm(delivered)));
+});
+
 test('multi-module scanner declines missing compiler constructors',()=>{
   assert.throws(()=>recoverAllPublicWasmExpressions(
     'const text="Uint8Array.from([0,97,115,109,1,0,0,0])";',[['x']]),
