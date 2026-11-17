@@ -133,3 +133,29 @@ test('unresolved package imports are opaque in free-receiver attacker mode',()=>
   assert.equal(emitted.properties,0);
   assert.ok(emitted.files[0].code.includes('api.'+name));
 });
+
+test('host-owned destructuring keys stay fixed under source-only free-root guard',()=>{
+  const field='_pabcdef123456';
+  const source='const hidden={'+field+':17};'+
+    'const {'+field+':received}=HOST;'+
+    'module.exports=[hidden.'+field+',received];';
+  /**
+   * @param {string} code
+   * @returns {string}
+   */
+  function run(code){
+    const context={module:{exports:null},HOST:{[field]:31}};
+    vm.runInNewContext(code,context,{timeout:1000});
+    return JSON.stringify(context.module.exports);
+  }
+  const original=[{path:'opaque.cjs',sourceType:/** @type {const} */('commonjs'),code:source}];
+  const naive=normalizePublicFields(original);
+  const guarded=normalizePublicFields(original,{preserveFreeMemberReceivers:true});
+  assert.equal(run(source),'[17,31]');
+  assert.equal(naive.properties,1);
+  assert.equal(run(naive.files[0].code),'[17,null]');
+  assert.equal(guarded.properties,1);
+  assert.equal(run(guarded.files[0].code),'[17,31]');
+  assert.ok(guarded.files[0].code.includes('{'+field+':received}=HOST'));
+  assert.ok(guarded.files[0].code.includes('hidden._publicField0'));
+});
