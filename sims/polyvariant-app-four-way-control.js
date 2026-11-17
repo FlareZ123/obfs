@@ -13,6 +13,7 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 const {reconstructPublicMath}=require('./polyvariant-app-static-clone');
 const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-attacker');
 const {threeQueryTranslationClone}=require('./polyvariant-app-three-query-competitor');
+const {compareCandidateEvidence}=require('./candidate-vs-minified-decision');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 
 /** @typedef {'native'|'minified'|'published'|'reconstructed'} Variant */
@@ -60,7 +61,7 @@ async function execute(folder,records){
  * Separate the compiler/minifier construction phase from application timing.
  * Only the three exact frozen modules are used, with unbundled ESM imports.
  *
- * @returns {Promise<{graphs:Record<Variant,Graph>,minifiedAttack:{recovered:number,attackMs:number,functions:{name:string,local:string,source:string}[]},publishedAttack:{functions:{name:string,paths:number,offset:number}[],attackMs:number}}>}
+ * @returns {Promise<{graphs:Record<Variant,Graph>,minifiedAttack:{recovered:number,attackMs:number,functions:{name:string,local:string,source:string}[]},publishedAttack:{functions:{name:string,paths:number,offset:number}[],attackMs:number},protectedFunctions:number}>}
  */
 async function prepare(){
   /** @type {Graph} */
@@ -83,6 +84,8 @@ async function prepare(){
       legalComments:'none',sourcefile:file.path
     })).code
   })));
+  const protectedFunctions=protectedResult.files[0].metrics.polyvariantFunctions;
+  assert.equal(protectedFunctions,3,'Experiment must transform the three selected numeric helpers');
   const minifiedAttack=recoverMinifiedPublicMath(minified[0].code);
   const publishedAttack=reconstructPublicMath(published[0].code);
   assert.equal(minifiedAttack.recovered,3);
@@ -92,7 +95,7 @@ async function prepare(){
     code:file.path==='math.mjs'?publishedAttack.code:file.code
   }));
   return {graphs:{native,minified,published,reconstructed},
-    minifiedAttack,publishedAttack};
+    minifiedAttack,publishedAttack,protectedFunctions};
 }
 /**
  * Frozen same-input four-way ESM sessions. The static minified attacker
@@ -102,7 +105,7 @@ async function prepare(){
  * @returns {Promise<object>}
  */
 async function runEvidence(){
-  const {graphs,minifiedAttack,publishedAttack}=await prepare();
+  const {graphs,minifiedAttack,publishedAttack,protectedFunctions}=await prepare();
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-four-way-control-'));
   const variants=/** @type {Variant[]} */(['native','minified','published','reconstructed']);
   const orders=/** @type {Variant[][]} */([
@@ -213,6 +216,32 @@ async function runEvidence(){
       bytes[variant]=graphs[variant].reduce((sum,file)=>sum+Buffer.byteLength(file.code),0);
       hashes[variant]=digest(graphs[variant]);
     }
+    const candidateDecision=compareCandidateEvidence({
+      frozenSameApplication:true,nativeOutputAndHostTraceParity:true,
+      protectedFunctions,
+      conventionalControl:{
+        protocol:'int32-translation/three-f0-queries',
+        oracleCalls:matchedThreeQueryAttacks.minified.oracleCalls,
+        attempted:true,cloneSucceeded:
+          matchedThreeQueryAttacks.minified.heldoutComparisons===protectedFunctions*4096,
+        verifiedHeldoutComparisons:
+          matchedThreeQueryAttacks.minified.heldoutComparisons
+      },
+      protectedCandidate:{
+        protocol:'int32-translation/three-f0-queries',
+        oracleCalls:matchedThreeQueryAttacks.published.oracleCalls,
+        attempted:true,cloneSucceeded:
+          matchedThreeQueryAttacks.published.heldoutComparisons===protectedFunctions*4096,
+        verifiedHeldoutComparisons:
+          matchedThreeQueryAttacks.published.heldoutComparisons
+      },
+      sessionPairs:rows.map(row=>({
+        native:/** @type {number[]} */ (row.timingMs.native),
+        candidate:/** @type {number[]} */ (row.timingMs.published)
+      }))
+    });
+    assert.equal(candidateDecision.attackAdvantage,'contradicted',
+      'Known baseline must remain recoverable under the matched probe');
     return {node:process.version,platform:process.platform,
       minifier:'esbuild 0.28.2 transform, unbundled minify:true, ESM ES2022',
       sourceBytes:bytes,sha256:hashes,
@@ -221,7 +250,8 @@ async function runEvidence(){
         locals:minifiedAttack.functions.map(item=>({name:item.name,local:item.local}))},
       publishedStaticRecovery:{recovered:publishedAttack.functions.length,
         attackMs:publishedAttack.attackMs,paths:publishedAttack.functions},
-      matchedThreeQueryAttacks,heldoutNativeParity:true,rows};
+      matchedThreeQueryAttacks,candidateDecision,protectedFunctions,
+      heldoutNativeParity:true,rows};
   }finally{
     await fs.rm(folder,{recursive:true,force:true});
   }
