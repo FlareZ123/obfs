@@ -2,7 +2,8 @@
 
 **Date:** 2026-11-17. **Classification:** intermediate protocol feasibility
 experiment, not a deployed obfuscation backend and not a security result.
-Actual Linux/Windows execution is pending.
+Actual Linux/Windows execution is pending. Two experimental codecs are
+compared as separate, independently checked candidate paths.
 
 ## Motivation and contract
 
@@ -26,7 +27,7 @@ generated facade or client delivery contracts are changed by the pilot.
 
 ## Predetermined positive and negative controls
 
-The graph input contains a cycle, two references to the same object,
+The first codec's graph input contains a cycle, two references to the same object,
 `undefined`, `NaN`, `-0` and `123n`. The pilot asserts that bare JSON
 refuses the cyclic input, the candidate restores each listed data property
 and alias *within the decoded graph*, and the decoded root and shared object
@@ -53,7 +54,7 @@ uncertainty. All measurements are descriptive.
 
 ## Security and deployment caveats
 
-A third-party parser would process attacker-controlled request bodies on the
+Any third-party parser would process attacker-controlled request bodies on the
 trusted SCO server. The pilot does not audit malformed graph inputs or bound
 decoder recursion, memory allocation and prototype behavior. It must not be
 enabled in the server handler without those defenses, a version-pinned
@@ -65,6 +66,34 @@ cycles and types beyond JSON, while acknowledging unsupported host objects;
 this is the basis for *testing* its claimed behavior, not proof of full
 JavaScript equivalence. The source reference is
 [the publisher's project](https://github.com/ungap/structured-clone).
+
+## Alternative candidate: devalue 6.0.3
+
+The [devalue experiment](../sims/sco-devalue-wire-pilot.js) uses the
+publisher's `stringify/parse` API from **devalue 6.0.3**, imported
+dynamically into the same CommonJS Node benchmark. The exact package is
+installed only by the manual workflow. Its publisher describes support
+for cycles, shared references, signed zero, `NaN`, `undefined`,
+`BigInt`, and typed-array backing-store identity. These properties
+are asserted on a nontrivial graph in the script. The reproduction
+compares a single identical JSON-tree application under three variants:
+original native work; JSON transport followed by work; devalue transport
+followed by work. Each has 9 same-input, ordered-rotation samples and
+raw timings with paired diagnostics for the two protocols against native
+and against each other.
+
+The script also installs a harmless local global constructor, gives
+`parse` an unknown type tag, and checks that it rejects the tag without
+invoking that constructor. This is a narrowly defined safety test, not
+an audit of arbitrary hostile payloads. Source reviewed:
+[devalue's exact v6.0.3 parser](https://github.com/sveltejs/devalue/blob/v6.0.3/src/parse.js).
+Modern tags and guards in that file make it a plausible candidate, while
+the project has experienced multiple earlier parser advisories. Full
+fuzzing and dependency audit remain prerequisites for server acceptance.
+
+All devalue measurements are independent of the `@ungap` candidate's
+pass/fail. An experimental competitor with compatible data shapes could
+still exceed the 2.5× runtime budget on short original tasks.
 
 ## Separate deserializer trust boundary (source inspection)
 
