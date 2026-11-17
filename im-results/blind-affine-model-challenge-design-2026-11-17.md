@@ -36,6 +36,15 @@ The local external reviewer worker was contacted on 2026-11-17 with *only* the p
 
 At the time of this draft, the helper and pure test code have been syntax parsed, and their two-platform execution in repository CI is pending. Test parity and exact field counts must be verified by a completed workflow before treating any empirical result as established.
 
+
+## Independent private-program recovery matrix
+
+The additional [\`sims/blind-affine-public-recovery-matrix.js\`](../sims/blind-affine-public-recovery-matrix.js) creates **twelve entirely different private sources in each of COO and SNO**, for 24 separate distributions, and tests the existing independent AST recovery algorithm against **all 72 emitted functions**. Every answer is submitted while the original remains sealed, then checked against 3,072 held-out comparisons and revealed for commitment auditing. The 24*3*1024 = 73,728 held-out arithmetic checks are repetitions of a bounded grammar-family test. Every distribution receives its own cryptographic source and compiler randomness.
+
+The matrix reports distribution uniqueness, public output sizes, attack times, complete selected-function recovery counts, and byte-exact auditability. When CI sets \`OBFS_BLIND_AUDIT_FILE\`, a cross-process-locked atomic write preserves a full post-verification JSON transcript containing each \`publishedSource\`, answer, original private source and salt. This avoids treating a successful claim from a static attacker as reproducible without access to the actual distributed bytes and private commitment.
+
+[\`test/blind-affine-public-recovery-matrix.test.js\`](../test/blind-affine-public-recovery-matrix.test.js) exercises a smaller six-distribution matrix and replays its static recovery and SHA-256 source commitments independently of the matrix's verdict. The branch's manual-validation workflow adds the full 24-distribution experiment and uploads \`blind-affine-audit-<OS>.json\` for each OS. The first branch CI run was queued before these additions; a new run at the updated branch SHA is required.
+
 ## Security and design limitations
 
 - COO and SNO distribute executable code to their stated fully controlling attackers, and this toy family has a straightforward public AST recovery. This experiment tests a model's ability to recover a known affine family, not environment-lock enforcement or source confidentiality of general JavaScript.
