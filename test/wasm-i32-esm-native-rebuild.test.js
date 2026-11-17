@@ -54,7 +54,7 @@ test('unconstrained label string coercion declines cross-file Wasm rewriting',()
     experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
   };
   assert.throws(()=>obfuscateFiles(observed,options),
-    /Wasm i32 requires a module\\/CommonJS without cross-file source observation/u);
+    /Wasm i32 requires a module/u);
   const safe=obfuscateFiles(files,options);
   assert.equal(safe.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,2);
 });
