@@ -51,6 +51,10 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
   const publicBytes=graph.clientFiles[0].code;
   const sourceDigests=[api,counter,publicBytes].map(code=>
     createHash('sha256').update(code).digest('hex'));
+  assert.deepEqual(sourceDigests.slice(0,2),[
+    '05fa9d3d71bb4a675fb1ad43cc209ea03f2f431f6e1bd5f12106b6a07a6f8047',
+    'a41aa6d7226e94d0898e8b71f957c363580c663091c7495f42cc7cb92dfcbc23'
+  ],'original ESM bytes must be identical on Windows and Ubuntu');
   const tokenA=randomBytes(16).toString('hex');
   const tokenB=randomBytes(16).toString('hex');
   /** @param {http.IncomingMessage} request @returns {string|null} */
