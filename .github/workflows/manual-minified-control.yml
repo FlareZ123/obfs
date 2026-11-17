@@ -40,7 +40,7 @@ jobs:
       - name: Real Chromium four-way ESM and host callback differential
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
           OBFS_FOUR_WAY_BROWSER_AUDIT_FILE: four-way-browser-${{ runner.os }}.json
         run: node test/polyvariant-app-four-way-browser.js
       - name: Upload exact Chromium app timings
