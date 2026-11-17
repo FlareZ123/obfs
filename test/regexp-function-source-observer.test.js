@@ -37,6 +37,30 @@ const examples=[
   {
     name:'Reflect.apply of RegExp prototype method',
     tail:'module.exports=Reflect.apply(RegExp.prototype.test,/a\\^17/,[f]);'
+  },
+  {
+    name:'RegExp Symbol.match direct',
+    tail:'module.exports=/a\\^17/[Symbol.match](f)?.[0]??null;'
+  },
+  {
+    name:'RegExp Symbol.search direct',
+    tail:'module.exports=/a\\^17/[Symbol.search](f)>=0;'
+  },
+  {
+    name:'RegExp Symbol.replace direct',
+    tail:'module.exports=/a\\^17/[Symbol.replace](f,"MATCH").includes("MATCH");'
+  },
+  {
+    name:'RegExp Symbol.split direct',
+    tail:'module.exports=/a\\^17/[Symbol.split](f).length>1;'
+  },
+  {
+    name:'RegExp Symbol.matchAll direct',
+    tail:'module.exports=Array.from(/a\\^17/g[Symbol.matchAll](f)).length>0;'
+  },
+  {
+    name:'RegExp Symbol.match detached alias',
+    tail:'const match=RegExp.prototype[Symbol.match];module.exports=match.call(/a\\^17/,f)?.[0]??null;'
   }
 ];
 
