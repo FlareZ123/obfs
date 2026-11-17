@@ -17,13 +17,14 @@ const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
+const {proveSourceObserverIslands}=require('./source-observer-islands');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -596,6 +597,14 @@ function obfuscateFiles(files, options = {}) {
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path))));
+  // Only explicitly selected, proved primitive-returning ESM leaves can
+  // retain local property renaming despite a separate source observer.
+  // No other backend is enabled by this exception, and it is opt-in.
+  if(options.experimentalSourceObserverIslands?.length && !options.closedWorld) {
+    throw new TypeError('Source observer islands require closedWorld');
+  }
+  const sourceObserverIslands=options.experimentalSourceObserverIslands?.length ?
+    proveSourceObserverIslands(prepared,options.experimentalSourceObserverIslands) : new Set();
   // A hostname wrapper prepends source bytes. Code that can read its own
   // distributed script would observe the wrapper and violate the original
   // source-byte contract, so an explicit host lock must fail closed.
@@ -766,7 +775,8 @@ function obfuscateFiles(files, options = {}) {
     let objects = 0;
     let properties = 0;
     let symbolKeys = 0;
-    if (!remoteSourceObserver && options.properties !== false && sourceType !== 'script') {
+    if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
+        options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
         symbolizeLocalProperties(code,ast,{seed:salt}) :
         renameLocalProperties(code,ast,{seed:salt});
