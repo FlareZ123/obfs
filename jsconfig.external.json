@@ -61,7 +61,9 @@
     "test/decoder-array-prototype-chain.test.js",
     "test/decoder-array-prototype-browser.js",
     "sims/release-evidence-gate.js",
-    "sims/familywise-budget-bound.js"
+    "sims/familywise-budget-bound.js",
+    "sims/polyvariant-app-oracle-translation.js",
+    "test/polyvariant-app-oracle-translation.test.js"
   ],
   "exclude": [
     "node_modules"
