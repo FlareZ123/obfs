@@ -164,6 +164,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
+  const directCarrierFactories=collectDirectCarrierFactories(ast);
   // Aliased string prefixes and aliased String constructors can coerce
   // functions to their exact source text without a literal at the use site.
   const strings=new Set();
@@ -317,6 +318,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='NewExpression' && node.callee.type==='Identifier' &&
        ['Set','Map'].includes(node.callee.name))
       return containsFunction(node.arguments[0],depth+1);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+      const indices=directCarrierFactories.get(node.callee.name);
+      if(indices?.some(index=>{
+        const value=node.arguments[index];
+        if(!value)return false;
+        const argument=value.type==='SpreadElement'?value.argument:value;
+        return isFunctionValue(argument)||containsFunction(argument,depth+1);
+      }))return true;
+    }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const member=memberName(node.callee);
       const owner=node.callee.object;
@@ -2045,4 +2055,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories};
