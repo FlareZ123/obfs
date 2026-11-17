@@ -18,7 +18,7 @@ New **test-only expanded exact source** `c6db6fd4ed0c85b529829b67fea404d5a12ce2b
 
 The subsequent branch change `07514767ea83fd893e542def50cb89aae2a3b758` checks unresolved actual expression ASTs only after the existing host-container alias closure, declining if a known ambient root or host-capability container can be found recursively in any actual expression. It keeps the safe unrelated rest-helper as a positive owner-rename control. This is deliberate over-approximation for syntactically visible ambient flows, not a sound whole-JavaScript effect system; unknown factories, dynamic code and hostile realm mutation still invalidate broader assumptions.
 
-**Candidate green validation:** pending exact-source two-platform semantics workflow. Freeze the executable SHA and record the actual completed status before integrating or upgrading a compatibility claim.
+**Pinned candidate green validation:** [full two-platform transformation semantics workflow 44202795133](https://github.com/FlareZ123/obfs/actions/runs/44202795133) completed **success on Ubuntu and Windows Node 22** at exact executable SHA `07514767ea83fd893e542def50cb89aae2a3b758`. Both jobs passed the expanded 32 real Node ESM differential and transformed-positive tests, followed by broad property and source-observer regression suites, two strict JSDoc configurations, sampled profiles, and Ubuntu real Chromium statement-flow integration. This is a scoped semantics gate; a current-main full 2,653+ test integration remains distinct.
 
 ## Reproduction and decision
 
