@@ -40,6 +40,18 @@ async function main(){
   }],{mode:'coo',seed:'chrome-local-formal-owner',
     identifiers:false,strings:false,properties:true});
   assert.equal(parameterSet.files[0].metrics.objects,1);
+  // Two actual browser ESM files retain their public import and DOM
+  // contracts while a bound formal supplies a shorthand private own field.
+  const parameterShorthandSet=obfuscateFiles([
+    {path:'parameter-shorthand-helper.mjs',sourceType:'module',
+      code:'export function compute(payload){const owner={payload,bias:3};'+
+        'return owner.payload+owner.bias;}'},
+    {path:'parameter-shorthand-entry.mjs',sourceType:'module',
+      code:'import {compute} from "./parameter-shorthand-helper.mjs";'+
+        'document.getElementById("answer").textContent=compute(39);'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-local-formal-shorthand',
+    identifiers:false,strings:false,properties:true});
+  assert.equal(parameterShorthandSet.files.reduce((sum,file)=>sum+file.metrics.objects,0),1);
   // Calling a passed function as an owner method exposes its receiver's
   // original enumerable key. Keep that owner unrenamed.
   const parameterRefusalSet=obfuscateFiles([{
@@ -218,7 +230,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -229,6 +241,7 @@ async function main(){
     '<script src="/trace.js"></script>'+ 
     '<script>document.getElementById("answer").textContent='+
     'String(globalThis.__obfsTraceResult)+":"+__capture.join("");</script></body></html>');
+  content.set('/parameter-shorthand.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-shorthand-entry.mjs"></script></body></html>');
   content.set('/parameter-owner.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-owner.mjs"></script></body></html>');
   content.set('/parameter-refusal.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-refusal.mjs"></script></body></html>');
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
@@ -270,6 +283,7 @@ async function main(){
     const base=`http://127.0.0.1:${addr.port}`;
     for(const [path,result] of [
       ['/module.html','41'],['/parameter-owner.html','42'],
+      ['/parameter-shorthand.html','42'],
       ['/parameter-refusal.html','secretField'],
       ['/audited-module.html','41'],['/js-module.html','23'],
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
