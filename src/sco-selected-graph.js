@@ -131,6 +131,12 @@ function partitionScoSelectedGraph(units){
     if(publicSet.has(name)){
       throw new TypeError('Selected SCO public facade overlaps a private dependency: '+name);
     }
+    // The graph helper promises a complete startup source commitment.
+    // A separately declared private import with no audited source bytes
+    // would otherwise be absent from privateSourceDigests.
+    if(!digestByPath.has(name)){
+      throw new TypeError('Selected SCO private dependency lacks an audited source digest: '+name);
+    }
   }
   const privateSourceDigests=[...digestByPath].map(([path,sha256])=>({path,sha256}));
   const privateOriginalDigests=[...new Set(privateSourceDigests.map(entry=>entry.sha256))];
