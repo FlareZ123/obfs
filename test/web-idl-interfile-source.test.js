@@ -62,6 +62,11 @@ test('cross-file Response function-source observer preserves exact exporting mod
 
 test('cross-file Response with literal input leaves independent local record transformation eligible',async()=>{
   const before=sources('await new Response("plain").text()');
+  // Keep the owner and its read outside the exported function body. This is
+  // a proven local-record shape; a captured owner inside an exported function
+  // is intentionally more conservative in the current property analysis.
+  before[0].code='const state={secretField:19};const value=state.secretField;'+
+    'export function inspect(){return value;}';
   const emitted=generated(before);
   const native=await execute(before);
   assert.equal(native.text,'plain');
