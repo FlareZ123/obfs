@@ -1,0 +1,8 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/polyvariant-app-execution-coverage.js",
+    "test/polyvariant-app-execution-coverage.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
