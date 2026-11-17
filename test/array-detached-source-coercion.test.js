@@ -77,3 +77,34 @@ test('detached native array join sources function when receiver contains it',()=
   assert.match(String(execute(code)),/function protectedSum\(input\)/);
   assert.throws(()=>obfuscate(code),/(?:source observation|declined)/i);
 });
+
+for(const [name,setup,expression] of [
+  ['nested literal array','const list=[[protectedSum]];', 'list.join(",")'],
+  ['deep nested literal array','const list=[[[protectedSum]]];', 'list.join(",")'],
+  ['nested array alias','const inner=[protectedSum];const list=[inner];', 'list.join(",")'],
+  ['direct generic indexed record','const list={0:protectedSum,length:1};', 'Array.prototype.join.call(list,",")'],
+  ['aliased generic indexed record','const list={0:protectedSum,length:1};const indirect=list;const join=Array.prototype.join;', 'join.call(indirect,",")'],
+  ['assigned generic indexed record','const list={length:1};list[0]=protectedSum;', 'Array.prototype.join.call(list,",")']
+]) {
+  test('array source coercion observes a function in '+name,()=>{
+    const code=source(setup+'module.exports='+expression+';');
+    assert.match(String(execute(code)),/function protectedSum\\(input\\)/,name);
+    assert.throws(()=>obfuscate(code),/(?:source observation|declined)/i,name);
+  });
+}
+
+test('generic array-like default sort observes a function-valued numeric field',()=>{
+  const code=source('const list={0:protectedSum,1:"function protectedSum(input){m",length:2};'+
+    'const sorter=Array.prototype.sort;sorter.call(list);'+
+    'module.exports=[list[0],list[1]].map(x=>typeof x==="function"?"fn":"str").join(",");');
+  assert.equal(execute(code),'str,fn');
+  assert.throws(()=>obfuscate(code),/(?:source observation|declined)/i);
+});
+
+test('detached sort of a primitive-only generic array-like retains protected work',()=>{
+  const code=source('const list={0:3,1:1,length:2};'+
+    'Array.prototype.sort.call(list);module.exports=[protectedSum(9),list[0]];');
+  const out=obfuscate(code);
+  assert.equal(out.files[0].metrics.polyvariantFunctions,1);
+  assert.deepEqual(execute(String(out.files[0].code)),execute(code));
+});
