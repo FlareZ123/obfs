@@ -263,4 +263,4 @@ if(require.main===module)runEvidence().then(async report=>{
   process.stdout.write('MINIFIED_FOUR_WAY_CONTROL '+JSON.stringify(report)+'\n');
 }).catch(error=>{console.error(error);process.exitCode=1;});
 
-module.exports={prepare,runEvidence};
+module.exports={prepare,runEvidence,digest};

@@ -103,7 +103,9 @@
     "test/polyvariant-app-three-query-competitor.test.js",
     "test/minified-control-static-attacker.test.js",
     "test/polyvariant-app-four-way-browser.js",
-    "test/polyvariant-affine-browser.js"
+    "test/polyvariant-affine-browser.js",
+    "sims/four-way-cross-runtime-verdict.js",
+    "test/four-way-cross-runtime-verdict.test.js"
   ],
   "exclude": [
     "node_modules"
