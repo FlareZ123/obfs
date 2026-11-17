@@ -66,3 +66,60 @@ test('verified imported primitive array still permits a protected function rewri
   assert.equal(output.files[0].metrics.polyvariantFunctions,1);
   assert.ok(String(output.files[0].code).includes('protectedSum'));
 });
+
+for(const [name,relay] of [
+  ['named reexport','export {values} from "./producer.mjs";'],
+  ['renamed reexport','export {values as forwarded} from "./producer.mjs";'],
+  ['star reexport','export * from "./producer.mjs";']
+]) {
+  test('transitive ESM '+name+' retains observable function source',()=>{
+    const producer={path:'producer.mjs',sourceType:'module',
+      code:protectedSource()+'export const values=[protectedSum];'};
+    const bridge={path:'relay.mjs',sourceType:'module',code:relay};
+    const binding=name==='renamed reexport'?'forwarded as values':'values';
+    const entry={path:'entry.mjs',sourceType:'module',
+      code:'import {'+binding+'} from "./relay.mjs";console.log(values.join(","));'};
+    assert.throws(()=>protect([producer,bridge,entry]),/(?:source observation|declined)/i);
+  });
+}
+
+test('double-hop ESM reexport of function-array cannot bypass source closure',()=>{
+  const producer={path:'producer.mjs',sourceType:'module',
+    code:protectedSource()+'export const values=[protectedSum];'};
+  const relay={path:'relay.mjs',sourceType:'module',
+    code:'export {values} from "./producer.mjs";'};
+  const relay2={path:'relay2.mjs',sourceType:'module',
+    code:'export * from "./relay.mjs";'};
+  const entry={path:'entry.mjs',sourceType:'module',
+    code:'import {values} from "./relay2.mjs";console.log(values.join(","));'};
+  assert.throws(()=>protect([producer,relay,relay2,entry]),/(?:source observation|declined)/i);
+});
+
+for(const [name,producerBody,importClause] of [
+  ['inline default array','export default [protectedSum];',
+    'import values from "./producer.mjs";'],
+  ['default alias','const values=[protectedSum];export default values;',
+    'import values from "./producer.mjs";']
+]) {
+  test('ESM '+name+' import of function array retains source bytes',()=>{
+    const files=[
+      {path:'producer.mjs',sourceType:'module',code:protectedSource()+producerBody},
+      {path:'entry.mjs',sourceType:'module',
+        code:importClause+'console.log(values.join(","));'}
+    ];
+    assert.throws(()=>protect(files),/(?:source observation|declined)/i);
+  });
+}
+
+test('primitive-only arrays forwarded through ESM reexports retain protected work',()=>{
+  const files=[
+    {path:'producer.mjs',sourceType:'module',
+      code:protectedSource()+'export const values=[3,1,2];'},
+    {path:'relay.mjs',sourceType:'module',
+      code:'export {values} from "./producer.mjs";'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {values} from "./relay.mjs";values.sort();console.log(values.join(","));'}
+  ];
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
