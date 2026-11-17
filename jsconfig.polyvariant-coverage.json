@@ -5,7 +5,9 @@
     "test/polyvariant-app-execution-coverage.test.js",
     "sims/polyvariant-app-three-way-budget.js",
     "test/polyvariant-app-three-way-budget.test.js",
-    "test/polyvariant-app-three-way-browser.js"
+    "test/polyvariant-app-three-way-browser.js",
+    "sims/polyvariant-app-heldout-seeds.js",
+    "test/polyvariant-app-heldout-seeds.test.js"
   ],
   "exclude": ["node_modules"]
 }
