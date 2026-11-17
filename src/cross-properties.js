@@ -164,6 +164,25 @@ function collectImportedFunctionArrays(files) {
           Boolean(element&&hasFunction(element.type==='SpreadElement'?
             element.argument:element,depth+1)));
       }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+        const owner=node.callee.object;
+        const method=node.callee.computed?staticString(node.callee.property):
+          node.callee.property.type==='Identifier'?node.callee.property.name:null;
+        if(owner.type==='Identifier'&&owner.name==='Array') {
+          if(method==='from')return hasFunction(node.arguments[0],depth+1);
+          if(method==='of')return node.arguments.some((/** @type {AstNode} */ arg)=>
+            hasFunction(arg.type==='SpreadElement'?arg.argument:arg,depth+1));
+        }
+        if(['slice','concat','filter','map','flat','flatMap','toReversed',
+            'toSorted','toSpliced','with'].includes(method??'')) {
+          if(hasFunction(owner,depth+1))return true;
+          const inserted=method==='concat'?node.arguments:
+            method==='with'?node.arguments.slice(1):
+            method==='toSpliced'?node.arguments.slice(2):[];
+          return inserted.some((/** @type {AstNode} */ arg)=>
+            hasFunction(arg.type==='SpreadElement'?arg.argument:arg,depth+1));
+        }
+      }
       return false;
     }
     /**
