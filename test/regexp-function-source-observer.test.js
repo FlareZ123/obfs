@@ -75,3 +75,28 @@ test('RegExp of a known static primitive remains a genuine transformed positive 
   assert.deepEqual(Array.from(/** @type {unknown[]} */(run(result.code))),
     Array.from(/** @type {unknown[]} */(run(source))));
 });
+
+
+test('cross-file ESM RegExp consumers reject source-rewriting Wasm while static-string checks remain eligible',()=>{
+  const exported='export function f(a){return a^17;}';
+  /** @type {import('../src/core').SourceFile[]} */
+  const observed=[
+    {path:'state.mjs',sourceType:'module',code:exported},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {f} from "./state.mjs";console.log(/a\\^17/.test(f));'}
+  ];
+  const options={
+    mode:/** @type {const} */('coo'),closedWorld:true,strings:false,
+    seed:'cross-ESM-RegExp-source',experimentalWasmI32:{'state.mjs':['f']}
+  };
+  assert.throws(()=>obfuscateFiles(observed,options),
+    /Wasm i32 requires a module\/CommonJS without cross-file source observation/u);
+  const primitive=[
+    observed[0],
+    {path:'entry.mjs',sourceType:/** @type {const} */('module'),
+      code:'import {f} from "./state.mjs";console.log(f(3),/a\\^17/.test("a^17"));'}
+  ];
+  const eligible=obfuscateFiles(primitive,options);
+  assert.equal(eligible.files[0].metrics.wasmI32Functions,1);
+  assert.equal(eligible.files[1].metrics.wasmI32Functions,0);
+});
