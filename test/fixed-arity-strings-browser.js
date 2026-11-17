@@ -77,8 +77,9 @@ async function main() {
   ]);
   const server=http.createServer((request,response)=>{
     const parts=(request.url??'').split('/').filter(Boolean);
-    const environment=parts[0],file=parts[1];
-    if(!['clean','poisoned'].includes(environment)){
+    const environment=parts[0],variant=parts[1],file=parts[2];
+    if(!['clean','poisoned'].includes(environment)||
+       !['original','fixed','recovered','legacy'].includes(variant)){
       response.writeHead(404);response.end();return;
     }
     if(file==='page') {
@@ -91,8 +92,8 @@ async function main() {
     }
     const body=file==='mutator.mjs'?
       environment==='poisoned'?mutator:'export const safe=1;':
-      file==='entry.mjs'?entry:files.get('target-'+(file==='target.mjs'?
-        (parts[2]??'original'):'original')+'.mjs');
+      file==='entry.mjs'?entry:
+      file==='target.mjs'?files.get('target-'+variant+'.mjs'):undefined;
     if(body===undefined){response.writeHead(404);response.end();return;}
     response.writeHead(200,{'content-type':'text/javascript; charset=utf-8'});
     response.end(body);
@@ -111,8 +112,10 @@ async function main() {
       observations[environment]={};
       for(const variant of ['original','fixed','recovered','legacy']) {
         observations[environment][variant]=await browserOutput(
-          base+'/'+environment+'/page?target='+variant);
+          base+'/'+environment+'/'+variant+'/page');
       }
+      assert.ok(observations[environment].original,
+        environment+' native ESM did not render');
       assert.deepEqual(observations[environment].fixed,
         observations[environment].original,
         environment+' actual delivered fixed-arity ESM changed native behavior');
