@@ -146,3 +146,46 @@ control, alongside its existing native/minified-local control, with
 the same attacker query budget. More complex public code or opaque
 method names should not be promoted to security without a distinct
 reproducible attacker-cost advantage.
+
+## Actual browser parity follow-up
+
+The same precommitted API control was subsequently exercised in **real
+headless Chromium on Ubuntu**, using browser-native same-origin ESM imports
+of both public stubs. The server serves one top-level HTML document with
+a random 256-bit account-A session token in an `HttpOnly; SameSite=Strict`
+cookie; the generated and conventional `fetch` helpers use
+`credentials:"same-origin"`. Both browser requests pass the identical
+`authorizeRpc` and `authorizeOperation` policy as the Node runs,
+with the cookie mapped to the same account-A principal as the test's
+header-authenticated Node session. The page invokes each `derive`
+on one held-out challenge, and the parent verifier checks the rendered
+DOM digests against direct native account-A output and checks that
+exactly two private RPCs ran.
+
+**Exact browser+Node green:**
+[workflow 44157437373](https://github.com/FlareZ123/obfs/actions/runs/44157437373),
+executable source SHA `c4a373b90ee680dcd07265329e40e2ba170125bf`.
+Ubuntu real Chromium reported `chromiumParity:"passed"` and
+`chromiumPrivateCalls:2`; the generated and conventional digests
+both matched the native server. Windows deliberately had no Chromium
+step and reported `chromiumParity:"not-run"`. Both OSes independently
+passed their 8×16 native/HTTP paired sessions with no process-CPU
+or wall ratio above 2.5×, plus both strict JSDoc checkers. This is
+**functional browser parity only**; Chrome's `--virtual-time-budget`
+was used to let a module script finish and **not** as a CPU clock.
+The native-versus-HTTP process CPU measurements remain Node-only.
+
+The browser addition was isolated from measured Node trials by running
+the Chromium page **after** the rotated benchmark rounds. Ubuntu's
+private call total became 450, versus 448 on Windows, because of those
+two explicit browser RPCs. Per-trial ratios vary between runs:
+in the browser follow-up, median generated/manual process CPU ratios
+were 1.03025× Ubuntu and 0.80769× Windows, and median wall ratios
+1.02332× and 1.02491× respectively. These paired observations are
+not a statistical claim that either wrapper is intrinsically faster.
+
+The temporary manual workflow was again restored to the upstream
+file contents after this exact-source run at commit `49bce1659fe189fdced4bd88ba10dc361a315a85`.
+All original limits on authorized in-browser instrumentation, cookie
+visibility to the controlling attacker, cheap operations, WAN latency
+and universal runtime budgets remain in force.
