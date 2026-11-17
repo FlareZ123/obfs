@@ -21,14 +21,15 @@ const {createScoKeyedIsolation}=require('./rpc-keyed-isolation');
  */
 function createScoCapabilityScope(principalOf,options={}) {
   if(typeof principalOf!=='function')throw new TypeError('principalOf must be a function');
-  /** @type {WeakMap<import('node:http').IncomingMessage,string>} */
-  const resolved=new WeakMap();
   /** @type {AsyncLocalStorage<ScoScopeState>} */
   const storage=new AsyncLocalStorage();
   const isolate=createScoKeyedIsolation(async request=>{
     const principal=await principalOf(request);
-    // Let the underlying keyed-isolation validation reject invalid names.
-    if(typeof principal==='string')resolved.set(request,principal);
+    // Associate the resolved identity with this asynchronous invocation.
+    // The same IncomingMessage may be reused by an integrator while a
+    // prior call is queued, so a WeakMap keyed by request is insufficient.
+    const scope=storage.getStore();
+    if(scope && typeof principal==='string')scope.principal=principal;
     return principal;
   },options);
 
@@ -45,21 +46,17 @@ function createScoCapabilityScope(principalOf,options={}) {
    * @returns {Promise<void>}
    */
   async function runRpcIsolated(request,execute) {
-    try {
-      await isolate(request,async()=>{
-        const principal=resolved.get(request);
-        if(!principal)throw new Error('Authenticated RPC principal is unavailable');
-        /** @type {ScoScopeState} */
-        const scope={principal,active:true};
-        try {
-          await storage.run(scope,execute);
-        }finally{
-          scope.active=false;
-        }
-      });
-    }finally{
-      resolved.delete(request);
-    }
+    /** @type {ScoScopeState} */
+    const scope={principal:'',active:false};
+    await storage.run(scope,()=>isolate(request,async()=>{
+      if(!scope.principal)throw new Error('Authenticated RPC principal is unavailable');
+      scope.active=true;
+      try {
+        await execute();
+      }finally{
+        scope.active=false;
+      }
+    }));
   }
   return {runRpcIsolated,currentPrincipal};
 }
