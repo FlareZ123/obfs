@@ -159,3 +159,21 @@ test('host-owned destructuring keys stay fixed under source-only free-root guard
   assert.ok(guarded.files[0].code.includes('{'+field+':received}=HOST'));
   assert.ok(guarded.files[0].code.includes('hidden._publicField0'));
 });
+
+test('free-root refusal sacrifices private parameter-forwarding yield without ownership proof',()=>{
+  const field='_pabcdef123456';
+  const source='const hidden={'+field+':17};'+
+    'function read(input){return input.'+field+';}'+
+    'module.exports=[read(hidden)];';
+  const graph=[{path:'forward.cjs',sourceType:/** @type {const} */('commonjs'),code:source}];
+  const naive=normalizePublicFields(graph);
+  const guarded=normalizePublicFields(graph,{preserveFreeMemberReceivers:true});
+  assert.equal(execute(source),'[17]');
+  assert.equal(execute(naive.files[0].code),'[17]');
+  assert.equal(naive.properties,1);
+  assert.equal(guarded.properties,1);
+  assert.equal(execute(guarded.files[0].code),'[null]');
+  // Avoid silently presenting a zero-false-positive policy as a general
+  // static reconstruction strategy: it currently misses the known local call.
+  assert.ok(guarded.files[0].code.includes('input.'+field));
+});
