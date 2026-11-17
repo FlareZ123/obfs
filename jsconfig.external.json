@@ -59,7 +59,11 @@
     "test/inline-array-primitive-source.test.js",
     "test/inline-array-primitive-fuzz.test.js",
     "test/decoder-array-prototype-chain.test.js",
-    "test/decoder-array-prototype-browser.js"
+    "test/decoder-array-prototype-browser.js",
+    "sims/polyvariant-app-minified-static-attacker.js",
+    "sims/polyvariant-app-four-way-control.js",
+    "test/minified-control-static-attacker.test.js",
+    "test/polyvariant-app-four-way-browser.js"
   ],
   "exclude": [
     "node_modules"
