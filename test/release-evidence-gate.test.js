@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {sampleVerdict,summarizeEvidence}=require('../sims/release-evidence-gate');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 test('one-sided budget decisions retain failure and uncertainty',()=>{
   assert.equal(sampleVerdict([{decision:'supported'},{decision:'supported'}]),
@@ -79,6 +80,11 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.coo.rows.length,4);
   assert.equal(summary.performance.sno.rows.length,4);
   assert.equal(summary.performance.sco.rows.length,2);
+  assert.equal(summary.performance.crossModeFamilywise.comparisons,6);
+  assert.equal(summary.performance.crossModeFamilywise.verdict,'sample-exceeded');
+  assert.ok(summary.performance.crossModeFamilywise.confidenceAttainedAtLeast>=0.95);
+  assert.deepEqual(summary.performance.crossModeFamilywise.workloads.map(row=>row.mode),
+    ['coo','coo','coo','coo','sco','sco']);
   assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);
   assert.equal(summary.performance.coo.rows[0].sourceBytes.native,2467);
   assert.equal(summary.performance.sco.rows[0].rawTimingMs.remote.length,9);
@@ -96,4 +102,36 @@ test('release evidence rejects vacuous or incomplete controls',()=>{
     {...sco,semanticsPreserved:false}),/SCO relay/u);
   assert.throws(()=>summarizeEvidence({...coo,rows:[]},sno,snoProfile,sco),
     /short and sustained sessions/u);
+});
+
+test('familywise paired budget allocates both tails across all tested workloads',()=>{
+  const workloads=Array.from({length:6},(_,i)=>({
+    native:Array(9).fill(1),
+    candidate:Array(9).fill(i===3?3.1:1.25)
+  }));
+  const bound=familywiseBudgetBounds(workloads);
+  assert.equal(bound.comparisons,6);
+  assert.equal(bound.verdict,'sample-exceeded');
+  assert.ok(bound.confidenceRequested===0.95);
+  assert.ok(bound.perTailConfidenceRequested>0.995);
+  assert.ok(bound.familywiseCoverageAtLeast>=0.95);
+  assert.deepEqual(bound.rows.map(row=>row.decision),[
+    'supported','supported','supported','exceeded','supported','supported'
+  ]);
+  assert.equal(familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:Array(9).fill(1.25)})
+  ).verdict,'sample-supported');
+  assert.equal(familywiseBudgetBounds(
+    workloads.map(row=>({...row,candidate:[1,1,1,1,1,1,1,1,4]})
+  ).verdict,'sample-inconclusive');
+});
+
+test('familywise bounds reject too few samples to meet joint confidence',()=>{
+  assert.throws(()=>familywiseBudgetBounds([]),/At least one paired workload/u);
+  assert.throws(()=>familywiseBudgetBounds([{
+    native:Array(5).fill(1),candidate:Array(5).fill(1.25)
+  }]),/Too few paired samples/u);
+  assert.throws(()=>familywiseBudgetBounds([{
+    native:Array(9).fill(1),candidate:Array(9).fill(1.25)
+  }],{confidence:1}),/Familywise confidence/u);
 });
