@@ -30,11 +30,13 @@ const sourceCases=[
   ['record alias mutation','(()=>{const box={};const alias=box;alias.Constructor=Response;return new box.Constructor(inspect).text();})()'],
   ['record destructuring','(()=>{const box={Constructor:Response};const {Constructor:Reply}=box;return new Reply(inspect).text();})()'],
   ['record property detached','(()=>{const box={Constructor:Response};const Reply=box.Constructor;return new Reply(inspect).text();})()'],
+  ['record computed constructor key','(()=>{const box={Constructor:Response};const key="Constructor";return new box[key](inspect).text();})()'],
   ['record indirect constructor','(()=>{const box={Constructor:Response};const wrapped={Another:box.Constructor};return new wrapped.Another(inspect).text();})()'],
   ['redirect method record','(()=>{const methods={go:Response.redirect};try{return methods.go(inspect).url;}catch(error){return error.message;}})()'],
   ['redirect method alias record','(()=>{const methods={go:Response.redirect};const alias=methods;try{return alias.go(inspect).url;}catch(error){return error.message;}})()'],
   ['redirect method destructured','(()=>{const methods={go:Response.redirect};const {go:method}=methods;try{return method(inspect).url;}catch(error){return error.message;}})()'],
-  ['redirect method reassigned','(()=>{const methods={};methods.go=Response.redirect;try{return methods.go(inspect).url;}catch(error){return error.message;}})()']
+  ['redirect method reassigned','(()=>{const methods={};methods.go=Response.redirect;try{return methods.go(inspect).url;}catch(error){return error.message;}})()'],
+  ['redirect computed method key','(()=>{const methods={go:Response.redirect};const key="go";try{return methods[key](inspect).url;}catch(error){return error.message;}})()']
 ];
 
 for(const [name,expression] of sourceCases) {
