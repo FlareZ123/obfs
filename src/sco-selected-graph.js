@@ -48,7 +48,8 @@ function assertImmutablePrivateModuleTopLevels(sources){
     /** @type {Set<string>} */
     const moduleFunctions=new Set();
     for(const statement of ast.body){
-      if(statement.type==='ImportDeclaration'||statement.type==='EmptyStatement'){
+      if(statement.type==='ImportDeclaration'||statement.type==='EmptyStatement'||
+         statement.type==='ExpressionStatement'&&statement.directive==='use strict'){
         continue;
       }
       const declaration=statement.type==='ExportNamedDeclaration'&&
