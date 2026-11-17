@@ -33,7 +33,7 @@ function workload(utf16Units,work) {
   const units=motif.repeat(Math.ceil(utf16Units/motif.length)).slice(0,utf16Units);
   return 'const literal='+JSON.stringify(units)+';'+
     'let acc=0;for(let k=0;k<'+work+';k++){'+
-    'acc=(Math.imul(acc^literal.charCodeAt(k%literal.length),1664525)+1013904223)|0;'+
+    'acc=(Math.imul(acc^literal.length^k,1664525)+1013904223)|0;'+
     '}module.exports=acc+":"+literal;';
 }
 
