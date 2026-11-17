@@ -163,6 +163,12 @@ function proveSourceObserverIslands(files,selections) {
         const name=memberName(node);
         if(name===null || forbiddenMembers.has(name))opaque=true;
       }
+      // Destructuring is also property access. An inherited constructor
+      // can be extracted without a MemberExpression or direct Function name.
+      if(node.type==='Property' && parent?.type==='ObjectPattern') {
+        const name=node.computed ? staticString(node.key) : staticName(node.key);
+        if(name===null || forbiddenMembers.has(name))opaque=true;
+      }
       if(node.type==='Literal' && typeof node.value==='string' &&
          forbiddenMembers.has(node.value))opaque=true;
     });
