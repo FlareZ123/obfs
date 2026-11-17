@@ -90,11 +90,16 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     await atomicWrite(secretPath,sources[0].code);
     await verifyScoPrivateSourceDigests(graph,root);
 
-    const scope=createScoCapabilityScope(request=>{
-      if(request.headers['x-verified-account']==='verified-A')return 'account-A';
-      if(request.headers['x-verified-account']==='verified-B')return 'account-B';
+    const sessionA=randomBytes(32).toString('hex');
+    const sessionB=randomBytes(32).toString('hex');
+    /** @param {http.IncomingMessage} request @returns {string} */
+    const principalOf=request=>{
+      const session=request.headers['x-private-fixture-session'];
+      if(session===sessionA)return 'account-A';
+      if(session===sessionB)return 'account-B';
       return 'unauthenticated';
-    });
+    };
+    const scope=createScoCapabilityScope(principalOf);
     const handles=createScoPrivateHandles(scope.currentPrincipal);
     globals.__SCO_GRAPH_PRIVATE_HANDLES__=handles;
     const api=await import(pathToFileURL(path.join(root,'api.mjs')).href);
@@ -102,11 +107,9 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     const ids=graph.partitions['api.mjs'].methodNames;
     server=http.createServer(createScoGraphHandler(graph,{'api.mjs':api},{
       authorizeRead:()=>true,
-      authorizeRpc:request=>request.headers['x-verified-account']==='verified-A'||
-        request.headers['x-verified-account']==='verified-B',
+      authorizeRpc:request=>principalOf(request)!=='unauthenticated',
       authorizeOperation:(request,method,args)=>{
-        const valid=request.headers['x-verified-account']==='verified-A'||
-          request.headers['x-verified-account']==='verified-B';
+        const valid=principalOf(request)!=='unauthenticated';
         if(!valid)return false;
         if(method===ids.begin)return args.length===0;
         if(method===ids.close)return args.length===1&&typeof args[0]==='string';
@@ -131,16 +134,23 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
       body:JSON.stringify({method:ids.begin,args:[]})
     });
     assert.equal(deniedRpc.status,403);
+    const forgedPrincipal=await nativeFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json',
+        'x-verified-account':'verified-B',
+        'x-private-fixture-session':randomBytes(32).toString('hex')},
+      body:JSON.stringify({method:ids.begin,args:[]})
+    });
+    assert.equal(forgedPrincipal.status,403);
     const publicResponse=await nativeFetch(origin+'/obfs/api.mjs');
     assert.equal(publicResponse.status,200);
     const served=await publicResponse.text();
     assert.equal(served,publicCode);
     const servedPath=path.join(root,'served.mjs');
     await atomicWrite(servedPath,served);
-    let account='verified-A';
+    let session=sessionA;
     globalThis.fetch=/** @type {typeof fetch} */(async(input,options)=>{
       const headers=new Headers(options?.headers);
-      headers.set('x-verified-account',account);
+      headers.set('x-private-fixture-session',session);
       return nativeFetch(new URL(String(input),origin),{...options,headers});
     });
     /** @type {{
@@ -157,10 +167,10 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     const expected=inputs.map(v=>createHmac('sha256',key)
       .update(String(counter++)).update(':').update(v).digest('hex'));
     assert.deepEqual(first,expected.slice(0,3));
-    account='verified-B';
+    session=sessionB;
     await assert.rejects(facade.batch(token,inputs.slice(3,4)),
       /Remote operation failed/);
-    account='verified-A';
+    session=sessionA;
     assert.deepEqual(await facade.batch(token,inputs.slice(3)),expected.slice(3));
     assert.equal(await facade.close(token),true);
     await assert.rejects(facade.batch(token,inputs.slice(0,1)),
@@ -178,7 +188,7 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
       const result=await nativeFetch(origin+'/obfs/rpc',{
         method:'POST',
         headers:{'content-type':'application/json',
-          'x-verified-account':principal},
+          'x-private-fixture-session':principal==='verified-A'?sessionA:sessionB},
         body:JSON.stringify({method,args})
       });
       assert.equal(result.status,200);
@@ -210,6 +220,7 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     assert.equal(await invoke('verified-B',ids.close,[tokenB]),true);
     console.log(JSON.stringify({privateModules:3,publicFiles:1,
       privateDependencyPathsDenied:2,unauthenticatedRpcStatus:403,
+      forgedPrincipalDenied:true,randomCredentialBytes:32,
       crossAccountReplayDenied:true,revokedTokenDenied:true,
       outputsMatched:inputs.length,concurrentPrincipals:2,
       concurrentOutputsMatched:16,verifiedSecretDigestSeal:true,
