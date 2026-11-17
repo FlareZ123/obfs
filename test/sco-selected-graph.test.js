@@ -289,3 +289,56 @@ test('selected SCO graph serves sealed code despite a getter changing after mani
     await close(server);
   }
 });
+
+
+test('two selected SCO modules retain separate bounded authenticated batch identities',{
+  timeout:15000
+},async()=>{
+  const left='export async function secret(value){return value+13;}'+
+    'export function local(value){return value*2;}';
+  const right='export async function secret(value){return value+29;}'+
+    'export function local(value){return value*3;}';
+  const units=[{path:'alpha.mjs',code:left,offset:13},
+    {path:'beta.mjs',code:right,offset:29}];
+  const graph=partitionScoSelectedGraph(units.map(unit=>({
+    file:{path:unit.path,code:unit.code,sourceType:'module'},
+    options:{privateNames:['secret'],seed:'multi-batch-proof',batch:true,maxBatchCalls:4}
+  })));
+  assert.equal(graph.partitions['alpha.mjs'].maxBatchCalls,4);
+  assert.notEqual(graph.partitions['alpha.mjs'].batchMethod,
+    graph.partitions['beta.mjs'].batchMethod);
+  const namespaces=Object.create(null);
+  for(const unit of units){
+    namespaces[unit.path]=await import('data:text/javascript,'+
+      encodeURIComponent(unit.code));
+  }
+  const registry=bindScoSelectedGraphExports(graph,namespaces);
+  assert.equal(Object.keys(registry).length,4);
+  const server=http.createServer(createScoSelectedGraphHandler(graph,namespaces,{
+    authorizeRead:()=>true,authorizeRpc:()=>true,authorizeOperation:()=>true
+  }));
+  const originalFetch=globalThis.fetch;
+  try{
+    const origin=await listen(server);
+    globalThis.fetch=(url,options)=>originalFetch(new URL(
+      /** @type {string} */ (url),origin),options);
+    for(const unit of units){
+      const client=await import('data:text/javascript,'+encodeURIComponent(
+        graph.partitions[unit.path].clientFile.code));
+      assert.equal(client.local(3),unit.path==='alpha.mjs'?6:9);
+      assert.deepEqual(await client.batch([
+        {name:'secret',args:[1]},{name:'secret',args:[3]}
+      ]),[
+        {ok:true,value:unit.offset+1},{ok:true,value:unit.offset+3}
+      ]);
+      await assert.rejects(client.batch([
+        {name:'secret',args:[1]},{name:'secret',args:[2]},
+        {name:'secret',args:[3]},{name:'secret',args:[4]},
+        {name:'secret',args:[5]}
+      ]),/Invalid RPC batch/u);
+    }
+  }finally{
+    globalThis.fetch=originalFetch;
+    await close(server);
+  }
+});
