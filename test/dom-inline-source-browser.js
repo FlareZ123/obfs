@@ -57,6 +57,8 @@ async function main(){
   const samples=[
     {name:'current-script',observation:'const observed=document.currentScript.text;'},
     {name:'script-collection',observation:'const observed=document.scripts[0].textContent;'},
+    {name:'script-query-selector',observation:
+      'const observed=document.querySelector("script").textContent;'},
     {name:'window-document-alias',observation:
       'const root=globalThis;const doc=root.document;'+
       'const observed=doc.currentScript.text;'}
