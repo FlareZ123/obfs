@@ -16,9 +16,11 @@ const walk=require('acorn-walk');
  * whether an arbitrary identifier has a particular semantic meaning.
  *
  * @param {File[]} files
+ * @param {{preserveFreeMemberReceivers?:boolean}} [options] Optional bounded
+ *   source-only refusal for syntactically free, external member receivers.
  * @returns {{files:File[],properties:number}}
  */
-function normalizePublicFields(files) {
+function normalizePublicFields(files,options={}) {
   /** @type {Map<string,string>} */
   const labels=new Map();
   const emitted=files.map(file=>{
@@ -34,6 +36,38 @@ function normalizePublicFields(files) {
     // attacker must preserve unrelated host strings and application data.
     /** @type {Set<number>} */
     const propertyStringOffsets=new Set();
+    /** @type {Set<number>} */
+    const externalMemberOffsets=new Set();
+    /** @type {Set<string>} */
+    const declared=new Set();
+    if(options.preserveFreeMemberReceivers){
+      walk.simple(ast,{
+        VariableDeclarator(node) {
+          if(node.id.type==='Identifier')declared.add(node.id.name);
+        },
+        FunctionDeclaration(node) {
+          if(node.id?.type==='Identifier')declared.add(node.id.name);
+        },
+        ClassDeclaration(node) {
+          if(node.id?.type==='Identifier')declared.add(node.id.name);
+        },
+        ImportDeclaration(node) {
+          for(const spec of node.specifiers)declared.add(spec.local.name);
+        }
+      });
+    }
+    /**
+     * An unbound root is a possible host-owned API. Rewriting its known-looking
+     * public name would alter a foreign receiver. Local aliases, parameters,
+     * and imported packages still need a fuller ownership proof.
+     * @param {import('acorn').Node} expression
+     * @returns {string|null}
+     */
+    function rootIdentifier(expression) {
+      let current=expression;
+      while(current.type==='MemberExpression')current=current.object;
+      return current.type==='Identifier'?current.name:null;
+    }
     walk.simple(ast,{
       Property(node) {
         if(node.key.type==='Literal'&&typeof node.key.value==='string')
@@ -50,6 +84,11 @@ function normalizePublicFields(files) {
         if(node.computed&&node.property.type==='Literal'&&
            typeof node.property.value==='string')
           propertyStringOffsets.add(node.property.start);
+        if(options.preserveFreeMemberReceivers){
+          const root=rootIdentifier(node.object);
+          if(root!==null&&!declared.has(root))
+            externalMemberOffsets.add(node.property.start);
+        }
       }
     });
     /** @type {Edit[]} */
@@ -59,6 +98,7 @@ function normalizePublicFields(files) {
       if(typeof token.value!=='string'||
           !/^_p[0-9a-f]{10}(?:[0-9a-f]{2})?$/.test(token.value))continue;
       if(token.type.label==='string'&&!propertyStringOffsets.has(token.start))continue;
+      if(externalMemberOffsets.has(token.start))continue;
       let label=labels.get(token.value);
       if(label===undefined) {
         label='_publicField'+labels.size;
