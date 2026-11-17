@@ -65,7 +65,7 @@ for(const [name,expression] of observedCases) {
 const primitiveCases=[
   ['Headers append primitive','(()=>{const h=new Headers();h.append("x-observed","fixed");return h.get("x-observed");})()'],
   ['Headers set primitive','(()=>{const h=new Headers();h.set("x-observed","fixed");return h.get("x-observed");})()'],
-  ['Headers get primitive','(()=>{const h=new Headers();return String(h.get("x-observed"));})()'],
+  ['Headers get primitive','(()=>{const h=new Headers({"x-observed":"fixed"});return h.get("x-observed");})()'],
   ['URLSearchParams append primitive','(()=>{const p=new URLSearchParams();p.append("x","fixed");return p.get("x");})()'],
   ['URLSearchParams set primitive','(()=>{const p=new URLSearchParams();p.set("x","fixed");return p.get("x");})()'],
   ['URLSearchParams instance alias primitive','(()=>{const p=new URLSearchParams();const q=p;q.append("x","fixed");return p.get("x");})()'],
