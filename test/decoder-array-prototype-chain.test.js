@@ -50,6 +50,18 @@ for(const [name,mutate] of [
   ['destructured-parent-alias',
     "const {__proto__:parent}=Array.prototype;"+
     "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['destructured-assignment-parent',
+    "let parent;({__proto__:parent}=Array.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['destructured-computed-parent',
+    "const {['__proto__']:parent}=Array.prototype;"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['destructured-dynamic-parent',
+    "const key=JSON.parse('\\\"__proto__\\\"');const {[key]:parent}=Array.prototype;"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['computed-parent-const-key',
+    "const key='__proto__';const parent=Array.prototype[key];"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
   ['array-own-descriptor',
     "Object.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
   ['object-own-descriptor',
