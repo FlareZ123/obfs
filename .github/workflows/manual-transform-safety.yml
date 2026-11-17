@@ -38,6 +38,8 @@ jobs:
         run: node test/statement-flow-browser.js
       - name: Cross-mode UTF-8 path alias and Unicode namespace safety
         run: node --test test/utf8-path-alias.test.js
+      - name: Nested output junction must not redirect generated source files
+        run: node --test test/nested-output-junction-boundary.test.js
       - name: Observe real filesystem Unicode case equivalences against compiler keys
         run: node sims/path-alias-grid.js
       - name: Enumerate all one-code-point Unicode uppercase collision candidates on filesystem
