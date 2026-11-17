@@ -5,6 +5,7 @@
     "sims/source-island-session-profile.js",
     "test/source-observer-islands.test.js",
     "test/source-observer-islands-browser.js",
+    "test/source-observer-islands-fuzz.test.js",
     "sims/host-capability-transport-grid.js",
     "sims/sco-selective-challenge.js",
     "sims/sco-selected-graph-budget.js",
