@@ -105,6 +105,82 @@ function collectVerifiedImportedStrings(files) {
   return imported;
 }
 
+
+/**
+ * Prove direct ESM imports whose originating module exports a unique,
+ * immutable primitive literal. This carries only a boolean kind of proof:
+ * unlike collectVerifiedImportedStrings, no value is propagated for key
+ * folding. Reexports, computed initializers and mutable exports are opaque.
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedPrimitives(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType!=='module'||typeof file.code!=='string')continue;
+    const ast=parse(file.code,'module');
+    modules.set(file.path,{ast,bindings:collectBindings(ast)});
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exported=new Map();
+  for(const [filename,module] of modules) {
+    const ownPrimitives=new Set();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const entry of declaration.declarations) {
+        const init=entry.init;
+        if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||
+           init?.type!=='Literal'||init.regex!==undefined)continue;
+        if(init.value===null||['string','number','boolean','bigint'].includes(typeof init.value))
+          ownPrimitives.add(entry.id.name);
+      }
+    }
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const entry of statement.declaration.declarations)
+          if(entry.id.type==='Identifier'&&ownPrimitives.has(entry.id.name))
+            names.add(entry.id.name);
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers)
+          if(spec.type==='ExportSpecifier'&&spec.local.type==='Identifier'&&
+             ownPrimitives.has(spec.local.name)) {
+            const exposed=spec.exported.name??spec.exported.value;
+            if(typeof exposed==='string')names.add(exposed);
+          }
+      }
+    }
+    exported.set(filename,names);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const names=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string')continue;
+      const specifier=statement.source.value;
+      if(/[?#%\\]/u.test(specifier))continue;
+      const origin=resolveImport(filename,specifier);
+      const target=origin?exported.get(origin):null;
+      if(!target)continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type!=='ImportSpecifier'||module.bindings.get(spec.local.name)!==1)continue;
+        const exposed=spec.imported.name??spec.imported.value;
+        if(target.has(exposed))names.add(spec.local.name);
+      }
+    }
+    imported.set(filename,names);
+  }
+  return imported;
+}
+
+
 /**
  * Find named ESM imports that resolve to exported const arrays which
  * syntactically contain a function or nested function-valued array.
@@ -1846,4 +1922,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays};
