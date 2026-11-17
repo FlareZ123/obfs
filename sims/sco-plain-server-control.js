@@ -114,6 +114,7 @@ async function compare(repeats=8) {
         return task(...args);
       };
     }
+    /** @type {import('../src/core').SourceFile[]} */
     const publicFiles=[
       partition.clientFile,
       {path:'manual.mjs',sourceType:'module',code:conventionalSource}
@@ -206,6 +207,7 @@ async function compare(repeats=8) {
     assert.equal(mistakenCrossAccountMatches,0);
 
     const inputs=Array.from({length:16},(_,i)=>challenge('performance',i));
+    /** @type {string[]} */
     const expected=[];
     for(const input of inputs)expected.push(await direct('account-A',input));
     /** @param {Mode} mode @returns {Promise<Sample>} */
