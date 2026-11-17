@@ -36,19 +36,25 @@ function obfuscate(code) {
   });
 }
 
-for(const [name,invoke] of [
-  ['direct Array.prototype.sort.call','Array.prototype.sort.call(list)'],
-  ['aliased sort.call','const sorter=Array.prototype.sort;sorter.call(list)'],
-  ['forwarded sort.apply','const sorter=Array.prototype["sort"];const copy=sorter;copy.apply(list,[])'],
-  ['Reflect.apply sort','Reflect.apply(Array.prototype.sort,list,[])'],
-  ['Reflect.apply alias','const sorter=Array.prototype.sort;const copy=sorter;Reflect.apply(copy,list,[])'],
-  ['direct Array.prototype.toSorted.call','Array.prototype.toSorted.call(list)'],
-  ['aliased toSorted.apply','const sortCopy=Array.prototype.toSorted;sortCopy.apply(list,[])']
+for(const [name,prefix,invoke] of [
+  ['direct Array.prototype.sort.call','',
+    'Array.prototype.sort.call(list)'],
+  ['aliased sort.call','const sorter=Array.prototype.sort;',
+    'sorter.call(list)'],
+  ['forwarded sort.apply','const sorter=Array.prototype["sort"];const copy=sorter;',
+    'copy.apply(list,[])'],
+  ['Reflect.apply sort','',
+    'Reflect.apply(Array.prototype.sort,list,[])'],
+  ['Reflect.apply alias','const sorter=Array.prototype.sort;const copy=sorter;',
+    'Reflect.apply(copy,list,[])'],
+  ['direct Array.prototype.toSorted.call','',
+    'Array.prototype.toSorted.call(list)'],
+  ['aliased toSorted.apply','const sortCopy=Array.prototype.toSorted;',
+    'sortCopy.apply(list,[])']
 ]) {
   test('detached '+name+' observes exact function source during default comparison',()=>{
     const code=source('const list=[protectedSum,"function protectedSum(input){m"];'+
-      'const sorted=(()=>{'+(invoke.includes('sorter=')||invoke.includes('const copy')||invoke.includes('sortCopy=') ?
-        'return '+invoke+';' : 'return '+invoke+';')+'})();'+
+      prefix+'const sorted='+invoke+';'+
       'module.exports=sorted.map(x=>typeof x==="function"?"fn":"str").join(",");');
     assert.equal(execute(code),'str,fn',name);
     assert.throws(()=>obfuscate(code),/(?:source observation|declined)/i,name);
