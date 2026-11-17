@@ -39,6 +39,8 @@ jobs:
         run: node sims/sco-capability-http-batch.js
       - name: Falsify transparent SCO capability batching on partial-progress errors
         run: node --test test/sco-capability-batch-error-contract.test.js
+      - name: Verify three-file private SCO capability graph and source digest seal
+        run: node --test test/sco-capability-private-graph.test.js
       - name: Learn step-only state machine through known synchronizing word
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
