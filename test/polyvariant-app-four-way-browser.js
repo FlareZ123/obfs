@@ -90,7 +90,7 @@ const orders=[
   ["minified","native","reconstructed","published"],
   ["published","reconstructed","native","minified"]
 ];
-for(let trial=0;trial<9;trial++)
+for(let trial=0;trial<12;trial++)
   for(const name of orders[trial%orders.length])
     samples[name].push(time(implementations[name]));
 // Distinct URL prefixes force fresh ESM graph fetch, parse, link, evaluate,
@@ -100,7 +100,7 @@ for(const count of [1,10000]){
   const input=records(count);
   const expected=observe(native,input);
   const timings={native:[],minified:[],published:[],reconstructed:[]};
-  for(let trial=0;trial<9;trial++){
+  for(let trial=0;trial<12;trial++){
     for(const name of orders[trial%orders.length]){
       const start=performance.now();
       const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
@@ -137,7 +137,7 @@ async function main(){
   const expected=[1,50,1000,10000].map(count=>observeNode(native,count));
   const server=http.createServer((request,response)=>{
     const target=request.url??'';
-    const cold=/^\/cold-(native|minified|published|reconstructed)-(1|10000)-([0-8])\/(math|state|entry)\.mjs$/u.exec(target);
+    const cold=/^\/cold-(native|minified|published|reconstructed)-(1|10000)-([0-9]|1[01])\/(math|state|entry)\.mjs$/u.exec(target);
     const source=cold?assets.get('/'+cold[1]+'/'+cold[4]+'.mjs'):assets.get(target);
     if(request.method!=='GET'||source===undefined){
       response.writeHead(404).end();
@@ -174,19 +174,19 @@ async function main(){
     assert.deepEqual(actual.rows,expected);
     for(const name of ['native','minified','published','reconstructed']){
       const samples=/** @type {number[]} */ (actual.samples[name]);
-      assert.equal(samples.length,9);
+      assert.equal(samples.length,12);
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
       for(const count of ['1','10000']){
         const cold=/** @type {number[]} */ (actual.cold[count][name]);
-        assert.equal(cold.length,9);
+        assert.equal(cold.length,12);
         assert.ok(cold.every(value=>Number.isFinite(value)&&value>0));
       }
     }
-    // Two workloads x 9 trials x 4 variants x 3 distinct ESM module URLs.
-    assert.equal(coldModuleRequests,216,'All cold ESM graph dependencies must be fetched');
+    // Two workloads x 12 trials x 4 variants x 3 distinct ESM module URLs.
+    assert.equal(coldModuleRequests,288,'All cold ESM graph dependencies must be fetched');
     const coldFreshGraphs=Object.fromEntries(['1','10000'].map(count=>[
       count,{
-        events:Number(count),trialsPerVariant:9,
+        events:Number(count),trialsPerVariant:12,
         nativeToMinified:pairedBudgetBound(actual.cold[count].native,actual.cold[count].minified),
         nativeToPublished:pairedBudgetBound(actual.cold[count].native,actual.cold[count].published),
         minifiedToPublished:pairedBudgetBound(actual.cold[count].minified,actual.cold[count].published),
