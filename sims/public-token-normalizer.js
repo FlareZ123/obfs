@@ -56,18 +56,10 @@ function normalizePublicFields(files,options={}) {
         }
       });
     }
-    /**
-     * An unbound root is a possible host-owned API. Rewriting its known-looking
-     * public name would alter a foreign receiver. Local aliases, parameters,
-     * and imported packages still need a fuller ownership proof.
-     * @param {import('acorn').Node} expression
-     * @returns {string|null}
-     */
-    function rootIdentifier(expression) {
-      let current=expression;
-      while(current.type==='MemberExpression')current=current.object;
-      return current.type==='Identifier'?current.name:null;
-    }
+    // The default Acorn walker visits member children before their parents.
+    // Propagate free-root provenance through HOST.api.sensitiveField chains.
+    /** @type {Set<number>} */
+    const externalReceivers=new Set();
     walk.simple(ast,{
       Property(node) {
         if(node.key.type==='Literal'&&typeof node.key.value==='string')
@@ -84,10 +76,11 @@ function normalizePublicFields(files,options={}) {
         if(node.computed&&node.property.type==='Literal'&&
            typeof node.property.value==='string')
           propertyStringOffsets.add(node.property.start);
-        if(options.preserveFreeMemberReceivers){
-          const root=rootIdentifier(node.object);
-          if(root!==null&&!declared.has(root))
-            externalMemberOffsets.add(node.property.start);
+        if(options.preserveFreeMemberReceivers && (
+          node.object.type==='Identifier'&&!declared.has(node.object.name) ||
+          externalReceivers.has(node.object.start))) {
+          externalMemberOffsets.add(node.property.start);
+          externalReceivers.add(node.start);
         }
       }
     });
