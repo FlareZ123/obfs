@@ -80,6 +80,13 @@ for(const [name,observer] of [
 test('function-free ESM structuredClone input preserves one private owner key',async()=>{
   const files=graph("const observed=structuredClone({kind:'ping',records:[1,{ready:true}]});"+
     "export {observed};");
+  // This positive isolates the clone input: the shared graph() fixture's
+  // JSON.stringify(...)+'\\n' coerces an *unknown call result*. A mutable
+  // JSON.stringify may return a function, whose exact source would be exposed
+  // by that concat; declining a rewrite there is the safe behavior.
+  files[2].code="import {inspect} from './state.mjs';"+
+    "import {observed} from './observer.mjs';"+
+    "process.stdout.write(JSON.stringify({value:inspect(),observed}));";
   const transformed=obfuscateFiles(files,{
     mode:'sno',seed:'cross-esm-clone-inert',strings:false
   });
@@ -93,4 +100,15 @@ test('function-free ESM structuredClone input preserves one private owner key',a
     const emitted=await execute(path.join(folder,'emitted'),transformed.files);
     assert.deepEqual(emitted,native);
   }finally{await fs.rm(folder,{recursive:true,force:true});}
+});
+
+test('opaque stringify-result concat conservatively refuses an ESM private owner',()=>{
+  const files=graph("const observed=structuredClone({kind:'ping',records:[1,{ready:true}]});"+
+    "export {observed};");
+  const transformed=obfuscateFiles(files,{
+    mode:'sno',seed:'cross-esm-clone-inert-concat',strings:false
+  });
+  assert.equal(transformed.files[0].metrics.properties,0);
+  assert.equal(transformed.crossFile.properties,0);
+  assert.equal(transformed.files[0].code,files[0].code);
 });
