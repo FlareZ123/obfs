@@ -96,6 +96,57 @@ function staticString(node,depth=0){
 }
 
 /**
+ * Identify direct local factories that may place an argument inside a
+ * returned native Set or Map. The result is a may-carry relationship:
+ * duplicate names and multiple return sites are unioned conservatively.
+ * Dynamic or indirect factories remain outside this bounded proof.
+ *
+ * @param {AstNode} ast
+ * @returns {Map<string,number[]>}
+ */
+function collectDirectCarrierFactories(ast) {
+  /** @type {Map<string,number[]>} */
+  const factories=new Map();
+  walk(ast,node=>{
+    /** @type {string|undefined} */
+    let name;
+    /** @type {AstNode|undefined} */
+    let fn;
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+      name=node.id.name;
+      fn=node;
+    } else if(node.type==='VariableDeclarator'&&
+              node.id.type==='Identifier'&&node.init&&
+              ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type)) {
+      name=node.id.name;
+      fn=node.init;
+    }
+    if(!name||!fn)return;
+    const returned=fn.body.type==='BlockStatement'?
+      fn.body.body.filter((/** @type {AstNode} */ stmt)=>
+        stmt.type==='ReturnStatement').map((/** @type {AstNode} */ stmt)=>stmt.argument):
+      [fn.body];
+    const indices=new Set(factories.get(name)??[]);
+    for(const value of returned) {
+      if(!value||value.type!=='NewExpression'||
+         value.callee.type!=='Identifier'||
+         !['Set','Map'].includes(value.callee.name))continue;
+      const input=value.arguments[0];
+      if(!input)continue;
+      walk(input,inner=>{
+        if(inner.type!=='Identifier')return;
+        for(let index=0;index<fn.params.length;index++) {
+          const param=fn.params[index];
+          if(param?.type==='Identifier'&&param.name===inner.name)indices.add(index);
+        }
+      });
+    }
+    if(indices.size)factories.set(name,[...indices]);
+  });
+  return factories;
+}
+
+/**
  * Detect common source-observing operations before rewriting AST subtrees.
  * Native Function#toString can expose changed source spelling at runtime.
  * This is a conservative opt-out for known direct operations; arbitrary
