@@ -34,13 +34,14 @@ function loadCounting(source) {
   };
 }
 
-test('CommonJS opt-in Wasm compiles only invoked functions on first use',()=>{
+test('CommonJS opted-in deferred Wasm compiles only invoked functions on first use',()=>{
   const source='"use strict";'+
     'function hot(x){return (x^17)>>2;}'+
     'function cold(x){return (x<<3)^7;}'+
     'module.exports={hot,cold};';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
-    seed:'lazy-commonjs-first-call',names:['hot','cold']
+    seed:'lazy-commonjs-first-call',names:['hot','cold'],
+    deferCommonJsInitialization:true
   });
   assert.equal(lowered.functions,2);
   assert.equal(lowered.declined,0);
@@ -62,7 +63,8 @@ test('CommonJS lazy helper remains callable during top-level module initializati
     'function cold(x){return x&255;}'+
     'const initial=hot(42);module.exports={hot,cold,initial};';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
-    seed:'lazy-commonjs-top-level',names:['hot','cold']
+    seed:'lazy-commonjs-top-level',names:['hot','cold'],
+    deferCommonJsInitialization:true
   });
   assert.equal(lowered.functions,2);
   const runtime=loadCounting(lowered.code);
@@ -73,4 +75,23 @@ test('CommonJS lazy helper remains callable during top-level module initializati
   assert.equal(runtime.compiled(),1);
   assert.equal(runtime.exports.cold(300),300&255);
   assert.equal(runtime.compiled(),2);
+});
+
+
+test('CommonJS default eager setup remains available for server initialization',()=>{
+  const source='function hot(x){return x^17;}'+
+    'function cold(x){return x&255;}module.exports={hot,cold};';
+  const eager=lowerWasmI32Functions(source,'commonjs',{
+    seed:'commonjs-default-eager',names:['hot','cold']
+  });
+  assert.equal(eager.functions,2);
+  const runtime=loadCounting(eager.code);
+  assert.equal(runtime.compiled(),2,'Server initialization compiles both functions');
+  assert.equal(runtime.exports.hot(4),4^17);
+  assert.equal(runtime.exports.cold(300),300&255);
+  assert.equal(runtime.compiled(),2);
+  assert.throws(()=>lowerWasmI32Functions(source,'commonjs',{
+    seed:'bad-deferred-flag',names:['hot'],
+    deferCommonJsInitialization:/** @type {boolean} */(/** @type {unknown} */('yes'))
+  }),/Expected source/u);
 });
