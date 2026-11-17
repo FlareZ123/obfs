@@ -42,7 +42,8 @@ for(const scenario of [
       {path:'entry.mjs',sourceType:'module',code:
         'import {shared} from "./state.mjs";let captured=0;'+
         '({privateField:captured}=shared);'+
-        'console.log([captured,shared.otherField].join(","));'}
+        'const displayed=[captured,shared.otherField];'+
+        'console.log(displayed.join(","));'}
     ]
   },
   {
