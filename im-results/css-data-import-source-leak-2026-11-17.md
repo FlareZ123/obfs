@@ -51,6 +51,14 @@ and `src/svg-assets.js` call this scanner for ordinary CSS and
 inline stylesheet text. The checks occur during compilation or
 SCO handler creation, before protected files are published.
 
+The CSS-tree dependency is loaded lazily when a stylesheet is
+actually audited, leaving JavaScript-only compilation outside the
+new parser initialization. The paired attacker also checks that the
+candidate emits byte-identical executable JavaScript and public CSS
+for an accepted external stylesheet under the same seed and options.
+The original and candidate still require independent
+runtime-budget measurements for untested applications.
+
 The new [regression tests](../test/css-data-import-disclosure.test.js)
 include direct CSS `url(...)`, quoted imports, escaped CSS
 identifiers, and safe external stylesheet and PNG URL controls,
