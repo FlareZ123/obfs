@@ -517,6 +517,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
   const webRecords=new Set(webRecordNames);
+  const responseNames=new Set(['Response']);
+  const responseConstructors=new Set(responseNames);
+  const responseRedirects=new Set();
   const encoderNames=new Set(['TextEncoder']);
   const formNames=new Set(['FormData']);
   const encoderConstructors=new Set(encoderNames);
@@ -635,6 +638,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return aliases.has(node.name);
     return node.type==='MemberExpression'&&isGlobal(node.object)&&
       builtins.has(memberName(node)??'');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isResponseRedirect(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      responseRedirects.has(node.name) || node.type==='MemberExpression' &&
+      memberName(node)==='redirect' &&
+      isWebConstructor(node.object,responseConstructors,responseNames)));
   }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
@@ -770,6 +780,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebConstructor(value,webRecords,webRecordNames)) {
           changed=add(webRecords,name)||changed;
+        }
+        if(isWebConstructor(value,responseConstructors,responseNames)) {
+          changed=add(responseConstructors,name)||changed;
+        }
+        if(isResponseRedirect(value) || value?.type==='CallExpression' &&
+           value.callee.type==='MemberExpression' &&
+           memberName(value.callee)==='bind' &&
+           isResponseRedirect(value.callee.object)) {
+          changed=add(responseRedirects,name)||changed;
         }
         if(isWebConstructor(value,encoderConstructors,encoderNames)) {
           changed=add(encoderConstructors,name)||changed;
@@ -940,6 +959,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isWebConstructor(node.init,responseConstructors,responseNames)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='redirect')changed=add(responseRedirects,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          isIntlNamespace(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
@@ -1007,6 +1035,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           if(name!==null&&webRecordNames.has(name)) {
             changed=add(webRecords,property.value.name)||changed;
+          }
+          if(name!==null&&responseNames.has(name)) {
+            changed=add(responseConstructors,property.value.name)||changed;
           }
           if(name!==null&&encoderNames.has(name)) {
             changed=add(encoderConstructors,property.value.name)||changed;
@@ -1662,10 +1693,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isWebConstructor(callee,webRecords,webRecordNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             mayCoerceSourceWithinWebRecord(value)))observed=true;
-      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
-          memberName(callee)==='redirect' &&
-          isWebConstructor(callee.object,webRecords,webRecordNames) &&
+      if(node.type==='CallExpression' && isResponseRedirect(callee) &&
           node.arguments[0] && !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          isResponseRedirect(callee.object)) {
+        const invocation=memberName(callee);
+        if((invocation==='call'||invocation==='bind') && node.arguments[1] &&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(invocation==='apply') {
+          const supplied=node.arguments[1];
+          if(supplied?.type==='ArrayExpression') {
+            if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+              observed=true;
+          } else if(supplied)observed=true;
+        }
+      }
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          isReflectiveReceiver(callee.object) && memberName(callee)==='apply' &&
+          isResponseRedirect(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied)observed=true;
+      }
       // Object.fromEntries converts each pair's first value to a property
       // key. A function-valued key exposes the function's native source.
       if(node.type==='CallExpression') {
