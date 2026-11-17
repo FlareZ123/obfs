@@ -1,0 +1,20 @@
+name: Manual source-proof conservative-refusal triage
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Inspect inert-clone group versus local owner proofs
+        run: node sims/inert-clone-source-triage.js
