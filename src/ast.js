@@ -614,7 +614,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='for' && isSymbolConstructor(node.object) ||
-      ['parse','rawJSON'].includes(name??'') && isJsonNamespace(node.object);
+      isJsonNamespace(node.object) &&
+      (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isStructuredClone(node) {
