@@ -15,11 +15,34 @@ const walk=require('acorn-walk');
  * The constructor is identified as an executable Acorn NewExpression before
  * its generated syntax is matched. Comments and strings may contain a complete
  * forged constructor, so searching raw text alone would corrupt recovery.
- * A standalone executable Module constructor is also excluded because the
- * compiler embeds it directly inside a WebAssembly.Instance constructor.
+ * Standalone Module and unrelated Instance constructors are also excluded.
+ * The compiler obtains the generated function from Instance.exports.f.
  * This scanner imports only the independent public Acorn parser, not compiler code.
  */
 const GENERATED_WASM=/^new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)\s*\)$/u;
+
+/**
+ * Match the exact compiler-generated eager Wasm export expression by AST
+ * structure. Merely containing a nested Wasm constructor would allow extra
+ * operations that an offline native replacement must not silently discard.
+ *
+ * @param {import('acorn').Expression} expression
+ * @param {string} source
+ * @returns {boolean}
+ */
+function isGeneratedWasmExportReference(expression,source){
+  if(expression.type!=='MemberExpression'||expression.computed||
+      expression.property.type!=='Identifier'||expression.property.name!=='f')return false;
+  const exported=expression.object;
+  if(exported.type!=='MemberExpression'||exported.computed||
+      exported.property.type!=='Identifier'||exported.property.name!=='exports')return false;
+  const instance=exported.object;
+  if(instance.type!=='NewExpression'||instance.arguments.length!==1||
+      source.slice(instance.callee.start,instance.callee.end)!==
+        'globalThis.WebAssembly.Instance')return false;
+  const module=instance.arguments[0];
+  return module.type==='NewExpression'&&GENERATED_WASM.test(source.slice(module.start,module.end));
+}
 
 /** @typedef {{source:string,array:string,offset:number}} PublicWasmModule */
 /** @param {string} source @returns {PublicWasmModule[]} */
@@ -30,11 +53,10 @@ function compilerModules(source) {
   const modules=[];
   walk.ancestor(ast,{
     NewExpression(node,_state,ancestors){
-      const parent=ancestors[ancestors.length-2];
-      if(parent?.type!=='NewExpression')return;
-      const instance=/** @type {import('acorn').NewExpression} */ (parent);
-      if(source.slice(instance.callee.start,instance.callee.end)!==
-        'globalThis.WebAssembly.Instance')return;
+      const exportMember=ancestors[ancestors.length-4];
+      if(exportMember?.type!=='MemberExpression'||
+          !isGeneratedWasmExportReference(
+            /** @type {import('acorn').MemberExpression} */(exportMember),source))return;
       const fragment=source.slice(node.start,node.end);
       const matched=GENERATED_WASM.exec(fragment);
       if(matched)modules.push({source:fragment,array:matched[1],offset:node.start});
@@ -285,4 +307,5 @@ function recoverAllPublicWasmExpressions(publicJavaScript,parameterSets) {
   });
 }
 
-module.exports={recoverPublicWasmExpression,recoverAllPublicWasmExpressions,extractPublicWasm};
+module.exports={recoverPublicWasmExpression,recoverAllPublicWasmExpressions,extractPublicWasm,
+  isGeneratedWasmExportReference};

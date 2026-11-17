@@ -34,6 +34,41 @@ scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
 `test/sco-malformed-utf8-rpc.test.js`.
 
+## Authorization timing under paced request bodies
+
+For a non-isolated RPC request, `authorizeRpc` runs immediately after the
+HTTP request begins, **before the server has read its complete JSON body**.
+This is an admission-time authorization snapshot. A previously approved
+client may deliberately send half of a valid JSON request, allow its
+credential to be revoked, then finish the body. If the application uses
+only `authorizeRpc`, the method still executes with the earlier approval.
+The handler imposes no implicit second authorization check at execution
+time. A strict execution-time revocation requirement therefore needs an
+additional policy or isolation boundary.
+
+With `runRpcIsolated`, body parsing completes first, and `authorizeRpc`
+is evaluated inside the isolated `execute` callback. For a request that
+pauses midway through upload, revocation before completion is observable
+to the later authorization check. This changes request processing order,
+as documented above, and does not guarantee atomicity against permission
+changes after the check or changes in other processes. Use an application
+transaction or state-aware `authorizeOperation` check for the intended
+method-specific consistency boundary, and serialize the relevant
+revocation transitions through the same isolation facility.
+
+The real byte-paced HTTP regression in
+[`test/sco-slow-body-authorization-race.test.js`](../test/sco-slow-body-authorization-race.test.js)
+was verified in both Node 22 Linux and Windows jobs of
+[manual authorization run 44020222950](https://github.com/FlareZ123/obfs/actions/runs/44020222950),
+exact commit `ad0513b9a03aa0375053801464972f9e4346a349`. It
+reproduces both outcomes with the same private method: unisolated
+acceptance followed by a late revocation, and isolation-enabled refusal
+after complete parsing. This is a behavior contract and operational
+warning for time-sensitive credentials, rather than a claim that a
+valid request was unauthorized at its initial admission. The effects of
+request-body timing and isolation on runtime budget still require
+deployment-specific measurement.
+
 ## Handler-owned authorization configuration
 
 SCO retains a private, construction-time snapshot of request policy wiring:

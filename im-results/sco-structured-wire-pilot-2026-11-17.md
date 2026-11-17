@@ -28,12 +28,12 @@ generated facade or client delivery contracts are changed by the pilot.
 ## Predetermined positive and negative controls
 
 The first codec's graph input contains a cycle, two references to the same object,
-`undefined`, `NaN`, `-0` and `123n`. The pilot asserts that bare JSON
-refuses the cyclic input, the candidate restores each listed data property
-and alias *within the decoded graph*, and the decoded root and shared object
-have distinct identities from the client's original values. If the package
-does not satisfy those checks, the run should fail and the discrepancy should
-be investigated before claiming compatibility.
+`undefined`, `NaN`, `-0` and `123n`. The pilot asserts that bare JSON refuses the cyclic input and records
+independent booleans for the candidate's preservation of each listed
+property and alias *within the decoded graph*. It separately verifies
+that the decoded root cannot preserve the original client's identity.
+Candidates with a failed required observation must be rejected; the amended
+protocol collects descriptive timings even for an incompatible codec.
 
 Performance uses **unchanged, plain JSON-tree inputs** with 1, 32, 256 and
 1,024 records, each containing a deterministic integer and Unicode text.
@@ -95,6 +95,51 @@ All devalue measurements are independent of the `@ungap` candidate's
 pass/fail. An experimental competitor with compatible data shapes could
 still exceed the 2.5× runtime budget on short original tasks.
 
+## Added real-browser branch, before measurement
+
+The [Chromium harness](../sims/sco-devalue-browser-profile.js) serves
+the exact installed `devalue@6.0.3` ESM source files from one loopback
+origin, alongside two otherwise identical native and graph-loaded
+pages. It captures 9 alternating cold page-ready observations for
+each page variant, including the native ESM module graph load cost.
+It then measures 9 native/JSON/graph hot-loop observations for each
+of the same eight count/workload cases inside real Chromium, with
+a browser graph-shape parity assertion. The Node driver uses the
+repository's paired diagnostic on the raw observations. This is
+separately timed from Node in-process codec costs.
+
+Limitations: browser-process launch time is excluded from
+`performance.now()` and should not be used as an attacker-cost
+metric. Loopback static imports exclude SCO authorization, network
+RPC and production obfuscation overhead. The page origins and browser
+version are fixed by the manual runner; browser platform differences
+and OS scheduling are not fully controlled. The browser script is
+experimental and runs only on Linux in the manual workflow; Windows
+still evaluates the codec's Node path. Only a complete, pinned passing
+run establishes that the simulated browser path actually worked.
+
+## Protocol update after tagged-source audit
+
+The original pre-registered `@ungap` pilot SHA
+`eddaf251c0bebd4e7e08080cb88bb29e5704709f`
+was designed to **fail immediately** if any listed special value was not
+preserved. Subsequent inspection of the exact v1.4.0
+[serializer source](https://github.com/ungap/structured-clone/blob/v1.4.0/cjs/serialize.js)
+raised a falsifiable concern: its ordinary number records include
+`NaN`, which a separate `JSON.stringify` envelope serializes as `null`.
+The amended pilot at commit
+`3338142b3752b71a7d8da038c41d50f971613987` records independent
+graph-feature booleans and full plain-tree timing instead of aborting on
+the first negative observation. It also retains the local constructor
+and binary-alias probes. This was an explicit **methodological amendment
+after source inspection**, before any tagged CI result was received, and
+does not retroactively make unsupported features successful.
+
+A candidate is unsuitable for this application if even one required
+graph feature fails, or if untrusted payloads can invoke ambient
+constructors. A completed benchmark job merely means the observations
+were collected. It never means that a protocol is approved for deployment.
+
 ## Separate deserializer trust boundary (source inspection)
 
 The exact [v1.4.0 deserializer source](https://github.com/ungap/structured-clone/blob/v1.4.0/cjs/deserialize.js)
@@ -120,6 +165,183 @@ edges or requested allocation dimensions. A deployable protocol would
 require a strict per-record schema and allowlist, plus memory/CPU bounds
 and adversarial fuzzing, before choosing this dependency. The pilot
 deliberately avoids altering production parsing.
+
+## First reproduced quantitative verdict, pinned Node 22
+
+The first amended pilot **passed as an evidence-collection job** on
+Ubuntu and Windows in [manual Actions run
+44018781413](https://github.com/FlareZ123/obfs/actions/runs/44018781413),
+exact commit `e027aed2a83e018bf7b49df2cf45260ca0342ec6`.
+Both platform logs include `SCO_DEVALUE_WIRE_PILOT` and
+`SCO_STRUCTURED_WIRE_PILOT` JSON objects with every sample and
+a separately reported semantic verdict. The workflow did not include
+the later Chromium profiling step.
+
+**@ungap 1.4.0: reject as a general untrusted SCO JSON-wire
+replacement.** On both platforms the cyclic and ordinary shared
+object references, `undefined`, `-0` and `BigInt` were restored,
+but `NaN` was not restored after JSON stringification.
+Duplicated references to the same `ArrayBuffer` returned distinct
+buffers. The local crafted type-tag probe invoked the harmless
+globally registered constructor once. These are measured outcomes,
+not merely suspicions from the tagged source. No production server
+used this decoder.
+
+**devalue 6.0.3: narrower graph compatibility success, major hot
+runtime-budget failure.** On both platforms its pinned script
+successfully asserted cycles, shared plain and binary references,
+`NaN`, `-0`, `undefined`, `BigInt` and refusal of an unknown
+type without invoking a harmless ambient constructor. Its decoded
+objects still had distinct identities from the originals.
+
+The following are **median paired ratios of devalue wire plus task to
+direct native task**, with 9 samples per variant. The prescribed
+threshold is 2.5. Counts describe records per call. Measurements
+exclude HTTP and browser loading.
+
+| Records per call | Workload | Ubuntu paired median | Windows paired median | 2.5× decision |
+| ---: | --- | ---: | ---: | --- |
+| 1 | small state task | 58.13× | 67.93× | exceeded, both |
+| 1 | task plus 25k integer rounds | 1.12× | 1.15× | supported, both |
+| 32 | small state task | 600.58× | 757.18× | exceeded, both |
+| 32 | task plus 25k integer rounds | 2.39× | 2.93× | inconclusive Ubuntu, exceeded Windows |
+| 256 | task plus 25k integer rounds | 12.02× | 14.74× | exceeded, both |
+| 1024 | task plus 25k integer rounds | 54.56× | 64.19× | exceeded, both |
+
+The diagnostic's attained one-sided median coverage is
+98.046875% with nine pairs, exceeding its requested 95%; the full
+bound and individual observations are available in the Actions logs.
+One profile meeting 2.5× does not qualify the codec as a
+general replacement. At 1024 records, the bare JSON representation
+was 57,797 bytes and devalue's representation 77,182 bytes
+on this fixture. For the 32-record heavy task, Ubuntu's upper paired
+median bound was 2.79× despite a median below 2.5×, which is why its
+decision remains inconclusive.
+
+**Decision at this checkpoint:** Retain production SCO JSON value
+transport; do not promote either experimental graph format as
+general-purpose semantic parity or budget compliance. A more
+selective strategy might place serialization only around sparse,
+large, inherently private operations, but that still needs honest
+browser cold and real HTTP cost evidence. The separate Chromium
+experiment was authored after the above pin and is pending.
+
+## Bounded parser-adversary grid (source-authored, pending CI)
+
+The separate [devalue malformed-wire grid](../sims/sco-devalue-untrusted-parser-grid.js)
+makes 267 local parse requests, each capped at 65,536 wire bytes,
+on the exact pinned parser. Eleven targeted cases include a valid
+roundtrip, a forged global-constructor type, direct and null-prototype
+`__proto__` keys, an unrelated own `constructor` key, an out-of-range
+graph index, a large typed-array view over a one-byte backing store,
+the maximum legal sparse-array length represented in a tiny record,
+and nested references of depths 64, 1,024 and 4,096.
+The remaining 256 cases are one-byte mutations of a deterministic
+valid serialized value using xorshift seed `0xC0FFEE`.
+The grid records accepted/refused counts, per-case duration,
+and a harmless locally installed global-constructor invocation count.
+Every case must return or throw and leave `Object.prototype`
+without the probe property. The original server remains unmodified.
+
+The purpose is to expose candidate parser surface area and verify a
+small adversarial corpus, without claiming denial-of-service resistance.
+Synchronous stack overflow may be caught while still wasting resources;
+a gigantic *logical* sparse-array length can be represented with tiny
+input bytes and later exhaust application work if iterated. Browser and
+server process isolation, network RTT and concurrent adversarial loads
+are absent. The script has not yet been run on pinned Linux/Windows
+builders, so no passing verdict is inferred.
+
+## Chromium timer-resolution falsification and controlled rerun
+
+The first Chromium-enabled [run
+44019300099](https://github.com/FlareZ123/obfs/actions/runs/44019300099),
+pinned to `d66a99d925afea04a2a7677e272a7a9adeb34110`, was
+**red overall**. Windows Node profile passed; Ubuntu failed at
+`sims/sco-devalue-browser-profile.js:173` because an in-browser
+hot sample measured `0` milliseconds, violating the profile's
+strict positive-time assertion. Its page had successfully loaded and
+executed the candidate; this error prevents asserting a browser budget
+from that run. The initial invocation used Chromium's
+`--virtual-time-budget=12000` and ran very brief sampled loops, making
+timer resolution a plausible confound. The exact platform trace does
+not establish whether virtual-clock behavior alone caused the zero.
+
+The [fix at
+`95da13f7982f241a156c5c3febaa38d2a00b2ddf`](https://github.com/FlareZ123/obfs/commit/95da13f7982f241a156c5c3febaa38d2a00b2ddf)
+removes virtual-time forcing, increases repeated hot work, permits
+finite zero samples as observations, and labels any affected
+comparison `timerResolutionLimited` with **null** confidence diagnostics
+rather than hiding or dividing by zero. It retains raw duration arrays
+for audit. The new pinned combined workflow is pending.
+
+## Reproduced parser grid and real Chromium, exact pinned source
+
+The combined manual [run
+44019732431](https://github.com/FlareZ123/obfs/actions/runs/44019732431)
+passed Ubuntu and Windows Node 22 jobs at exact source commit
+`cc92104a9ed9e95d26c03eae7e0a5faef3342eff`. This includes
+the prior semantic and Node timing controls, the newly bounded parser
+grid, and Chromium browser-module loading and hot tasks on Ubuntu.
+The browser timing runner no longer uses virtual time. Later source
+edits, if any, are outside this run's pin.
+
+**Bounded malformed devalue inputs:** On both platforms the seeded
+267-case local suite accepted 100 and refused 167, while never
+invoking the harmless ambient constructor probe. It refused both
+`__proto__` object-key payloads and the out-of-range graph index,
+and rejected the gigantic typed-array view over an insufficient
+ArrayBuffer with `RangeError`. It accepted an input only **29 bytes**
+long that produced a sparse array with length
+`4,294,967,295`; the tagged parser's dictionary-mode array
+construction avoided immediate huge allocation in this fixture.
+This still creates a large logical length that an application could
+accidentally iterate. The 4,096-deep linear reference chain
+(**27,575 bytes**) produced `RangeError` after 5.32 ms
+on Ubuntu and 5.44 ms on Windows. The 1,024-deep chain
+was accepted. This corpus and timing envelope do not prove
+rejection of all malicious graphs, concurrent resource safety,
+network hardening or prototype safety for all host objects.
+
+**Chromium cold static ESM load:** Nine alternating process-launch
+samples of native and devalue-import pages yielded medians of
+21.4 ms versus 50.8 ms on Ubuntu. The paired median devalue/native
+ratio was **2.37×**, with the 98.05%-coverage one-sided median
+upper bound **2.67×**, so the threshold verdict was
+**inconclusive**. The native first trial was an outlier at
+134.9 ms, making this environment particularly noisy. The
+published boot figure uses in-page `performance.now()` and
+excludes the executable's process-launch cost.
+
+**Chromium hot in-page task + serialization:** Nine observed
+rotated trials per scenario in an otherwise identical browser
+document returned these paired medians:
+
+| Records | Workload | Browser devalue/native paired median | Upper paired median bound | 2.5× verdict |
+| ---: | --- | ---: | ---: | --- |
+| 1 | +25k integer rounds | 1.08× | 1.09× | supported |
+| 32 | +25k integer rounds | 2.03× | 2.47× | supported |
+| 256 | small state task | 486.00× | 511.00× | exceeded |
+| 256 | +25k integer rounds | 9.02× | 9.22× | exceeded |
+| 1024 | small state task | 510.00× | 538.00× | exceeded |
+| 1024 | +25k integer rounds | 34.16× | 35.00× | exceeded |
+
+The **1- and 32-record small-state task** cases still recorded
+at least one zero-duration measurement even after increased
+repetition. Their raw samples are retained and their bound fields
+are explicitly `null` with `timerResolutionLimited:true`;
+no threshold conclusion is assigned to those two browser cases.
+All browser JSON-tree results, task checksums and graph-shape
+positive controls passed.
+
+This is an in-browser static ESM timing experiment in a
+loopback-served document. It has no SCO POST request, no session
+authentication or production obfuscation; its median/upper
+comparisons are descriptive diagnostic evidence. The conclusion
+remains that **general graph transport cannot presently replace
+the narrow JSON value contract while meeting 2.5× across these
+workloads**, even though some compute-heavy sparse calls can
+amortize its cost.
 
 ## Reproduction
 

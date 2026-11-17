@@ -50,7 +50,7 @@ test('public-only attacker selects both actual Wasm modules despite earlier deco
     const decoy=lowered.code.indexOf('Uint8Array.from([1,2,3])');
     const firstModule=lowered.code.indexOf('new globalThis.WebAssembly.Instance(');
     assert.ok(decoy>=0&&decoy<firstModule);
-    assert.ok(WebAssembly.validate(extractPublicWasm(lowered.code)));
+    assert.ok(WebAssembly.validate(Uint8Array.from(extractPublicWasm(lowered.code))));
     assert.equal(recoverPublicWasmExpression(lowered.code,'a').expression,expected[0]);
     const recovered=recoverAllPublicWasmExpressions(lowered.code,parameterSets);
     assert.deepEqual(recovered.map(item=>item.expression),expected);
@@ -103,7 +103,9 @@ test('COO and SNO emitted multi-function files remain independently recoverable'
 
 test('unrelated executable Module constructors do not count as compiler outputs',()=>{
   const sourceWithOtherModule='if(false) new globalThis.WebAssembly.Module('+
-    'globalThis.Uint8Array.from([1,2,3]));\n';
+    'globalThis.Uint8Array.from([1,2,3]));\n'+
+    'if(false) new globalThis.WebAssembly.Instance('+
+    'new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([4,5,6])));\n';
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'other-executable-module',names:['first','second']
   });
@@ -112,7 +114,7 @@ test('unrelated executable Module constructors do not count as compiler outputs'
   assert.deepEqual(recoverAllPublicWasmExpressions(delivered,parameterSets)
     .map(item=>item.expression),expected);
   assert.equal(recoverPublicWasmExpression(delivered,'a').expression,expected[0]);
-  assert.ok(WebAssembly.validate(extractPublicWasm(delivered)));
+  assert.ok(WebAssembly.validate(Uint8Array.from(extractPublicWasm(delivered))));
 });
 
 test('multi-module scanner declines missing compiler constructors',()=>{

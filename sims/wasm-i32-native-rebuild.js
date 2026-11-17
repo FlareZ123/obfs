@@ -1,7 +1,8 @@
 'use strict';
 
 const acorn=require('acorn');
-const {recoverPublicWasmExpression}=require('./wasm-i32-static-recover');
+const {recoverPublicWasmExpression,isGeneratedWasmExportReference}=
+  require('./wasm-i32-static-recover');
 
 /**
  * Public-output-only reconstruction of a small CommonJS API from actual
@@ -37,7 +38,7 @@ function reconstructPublicWasmCommonJs(publicSource){
         if(declaration.id.type!=='Identifier'||!declaration.init)
           throw new TypeError('Unsupported top-level binding');
         const candidate=publicSource.slice(declaration.init.start,declaration.init.end);
-        if(!candidate.includes('new globalThis.WebAssembly.Instance(')||
+        if(!isGeneratedWasmExportReference(declaration.init,publicSource)||
             helpers.has(declaration.id.name))
           throw new TypeError('Unproved CommonJS initializer');
         helpers.set(declaration.id.name,candidate);

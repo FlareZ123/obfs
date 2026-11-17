@@ -108,15 +108,15 @@ async function run(){
   cyclic.self=cyclic;
   assert.throws(()=>jsonWire(cyclic),TypeError);
   const restored=/** @type {typeof cyclic} */ (graphWire(cyclic));
-  assert.strictEqual(restored.self,restored);
-  assert.strictEqual(restored.refs[0],restored.refs[1]);
-  assert.equal(restored.missing,undefined);
-  assert.equal(Number.isNaN(restored.nan),true);
-  assert.equal(Object.is(restored.negative,-0),true);
-  assert.equal(restored.large,123n);
-  // Cross-boundary identity is different even when graph structure survives.
-  assert.notStrictEqual(restored,cyclic);
-  assert.notStrictEqual(restored.refs[0],shared);
+  const graphFeatures={
+    cyclePreserved:restored.self===restored,
+    sharedReferencePreserved:restored.refs[0]===restored.refs[1],
+    undefinedValuePreserved:Object.hasOwn(restored,'missing')&&restored.missing===undefined,
+    nanPreserved:Number.isNaN(restored.nan),
+    negativeZeroPreserved:Object.is(restored.negative,-0),
+    bigintPreserved:restored.large===123n,
+    originalReferenceDetached:restored!==cyclic&&restored.refs[0]!==shared
+  };
 
   // The package's typed-buffer branch is audited separately; sharing a
   // backing buffer is more demanding than sharing an ordinary object.
@@ -170,8 +170,10 @@ async function run(){
   return {
     node:process.version,platform:process.platform,
     encoder:'@ungap/structured-clone@1.4.0 (serialize/deserialize)',
-    graphCounterexamplePreserved:true,crossBoundaryIdentityStillLost:true,
+    graphFeatures,graphSemanticContractMet:Object.values(graphFeatures).every(Boolean),
+    crossBoundaryIdentityStillLost:graphFeatures.originalReferenceDetached,
     binaryReferencePreserved,untrustedConstructorInvocationObserved:constructorCalls===1,
+    safeForUntrustedRequests:false,
     baseline:'JSON.parse(JSON.stringify(value))',
     measurementBoundary:'in-process serialization, parse, task; no HTTP, browser module load or network',
     rows

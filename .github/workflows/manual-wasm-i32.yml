@@ -33,6 +33,8 @@ jobs:
         run: node sims/wasm-i32-runtime-extraction.js
       - name: Whole-session initialization cost curve
         run: node sims/wasm-i32-cold-counterexample.js
+      - name: Whole-graph cold native versus Wasm versus offline-native control
+        run: node sims/wasm-i32-esm-rebuild-profile.js
       - name: Strict JSDoc checks
         run: npm run typecheck
       - name: Strict Wasm research and attacker JSDoc checks
@@ -42,6 +44,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/wasm-i32-browser.js
+      - name: Real Chromium public-only native replacement and strict CSP
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-native-clone-browser.js
       - name: Real Chromium strict CSP denial and targeted Wasm allowance
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:

@@ -23,5 +23,12 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0 devalue@6.0.3
       - name: Compare devalue graph transport against native and JSON value work
         run: node sims/sco-devalue-wire-pilot.js
+      - name: Bound hostile graph wire parser probes
+        run: node sims/sco-devalue-untrusted-parser-grid.js
+      - name: Real Chromium devalue module bootstrap and repeated compute
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-devalue-browser-profile.js
       - name: Independently test structured-clone JSON wire and document negative controls
         run: node sims/sco-structured-wire-pilot.js

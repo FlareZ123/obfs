@@ -74,5 +74,10 @@ node --test test/sco-json-observation-boundary.test.js
 
 The exact produced facade is generated at test time from the repository code;
 the test verifies that original private function bodies are absent from the
-delivered client file. Record exact source SHA and green Windows/Linux Node 22
-workflow before using the witness as checked integration evidence.
+delivered client file. Verified in the manually dispatched SCO authorization workflow
+[run 44017272913](https://github.com/FlareZ123/obfs/actions/runs/44017272913)
+with green Linux and Windows Node 22 jobs, exact source commit
+`f95902e5dc2c7c932e43d4bb560c540859dea921`. The first
+shorter witness also passed in [run 44016721240](https://github.com/FlareZ123/obfs/actions/runs/44016721240).
+These are source-transport boundary findings; they do not establish a
+release verdict for the full obfuscator.

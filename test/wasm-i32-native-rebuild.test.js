@@ -94,6 +94,17 @@ test('native rebuild declines unrelated top-level effects even with valid emitte
   ])assert.throws(()=>reconstructPublicWasmCommonJs(extra+lowered.code),TypeError);
 });
 
+test('native reconstruction refuses an embedded Wasm constructor with extra initializer work',()=>{
+  const lowered=lowerWasmI32Functions(source,'commonjs',{
+    seed:'no-unproved-initializer',names:['first','second']
+  });
+  assert.equal(lowered.functions,2);
+  const polluted=lowered.code.replace('.exports.f;','.exports.f||0;');
+  assert.notEqual(polluted,lowered.code);
+  assert.throws(()=>reconstructPublicWasmCommonJs(polluted),
+    /Unproved CommonJS initializer/u);
+});
+
 test('native rebuild refuses an incomplete, noncompiler or ambiguous exported graph',()=>{
   for(const delivered of [
     'function first(a){return a;}module.exports={first};',

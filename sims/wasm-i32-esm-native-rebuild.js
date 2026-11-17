@@ -1,13 +1,15 @@
 'use strict';
 
 const acorn=require('acorn');
-const {recoverPublicWasmExpression}=require('./wasm-i32-static-recover');
+const {recoverPublicWasmExpression,isGeneratedWasmExportReference}=
+  require('./wasm-i32-static-recover');
 
 /** @typedef {{name:string,parameters:string[],expression:string,wasmBytes:number}} RecoveredExport */
 
 /**
  * Rebuild a pure, explicitly exported ESM WebAssembly kernel solely from the
- * publicly distributed compiler output. Reject extra top-level effects.
+ * publicly distributed compiler output. Retain public static imports in
+ * their original order; reject all other unproved top-level effects.
  * Does not inspect compiler internals, original source or build seed.
  *
  * @param {string} publicSource
@@ -16,11 +18,17 @@ const {recoverPublicWasmExpression}=require('./wasm-i32-static-recover');
 function reconstructPublicWasmEsm(publicSource){
   if(typeof publicSource!=='string')throw new TypeError('Expected delivered ESM JavaScript text');
   const ast=acorn.parse(publicSource,{ecmaVersion:'latest',sourceType:'module',allowHashBang:true});
+  /** @type {string[]} */
+  const preservedImports=[];
   /** @type {Map<string,import('acorn').FunctionDeclaration>} */
   const helpers=new Map();
   /** @type {import('acorn').FunctionDeclaration[]} */
   const exported=[];
   for(const statement of ast.body){
+    if(statement.type==='ImportDeclaration'){
+      preservedImports.push(publicSource.slice(statement.start,statement.end));
+      continue;
+    }
     if(statement.type==='FunctionDeclaration'){
       if(helpers.has(statement.id.name))throw new TypeError('Duplicate top-level function');
       helpers.set(statement.id.name,statement);
@@ -56,16 +64,36 @@ function reconstructPublicWasmEsm(publicSource){
     const helperName=expression.callee.name;
     const helper=helpers.get(helperName);
     if(!helper)throw new TypeError('Missing compiler helper '+helperName);
-    const helperSource=publicSource.slice(helper.start,helper.end);
-    if(!helperSource.includes('new globalThis.WebAssembly.Instance('))
+    const statements=helper.body.body;
+    const initializer=statements[0]?.type==='ExpressionStatement'?
+      statements[0].expression:null;
+    const returning=statements[1];
+    if(statements.length!==2||initializer?.type!=='AssignmentExpression'||
+        initializer.operator!=='='||initializer.left.type!=='Identifier'||
+        initializer.left.name!==helperName||
+        !isGeneratedWasmExportReference(initializer.right,publicSource)||
+        returning?.type!=='ReturnStatement'||!returning.argument||
+        returning.argument.type!=='CallExpression'||
+        returning.argument.callee.type!=='Identifier'||
+        returning.argument.callee.name!==helperName||
+        helper.params.length!==parameters.length||
+        helper.params.some(param=>param.type!=='Identifier'))
       throw new TypeError('Unrecognized compiler helper '+helperName);
+    const helperParameters=helper.params.map(param=>
+      (/** @type {import('acorn').Identifier} */(param)).name);
+    if(returning.argument.arguments.length!==helperParameters.length||
+        returning.argument.arguments.some((arg,index)=>arg.type!=='Identifier'||
+          arg.name!==helperParameters[index]))
+      throw new TypeError('Unproved compiler helper forwarding '+helperName);
+    const helperSource=publicSource.slice(helper.start,helper.end);
     const recovered=recoverPublicWasmExpression(helperSource,parameters);
     functions.push({name:fn.id.name,parameters,expression:recovered.expression,wasmBytes:recovered.bytes});
     observedHelpers.add(helperName);
   }
   if(observedHelpers.size!==helpers.size||new Set(functions.map(fn=>fn.name)).size!==functions.length)
     throw new TypeError('Unrecognized top-level declarations');
-  const code=functions.map(fn=>'export function '+fn.name+'('+fn.parameters.join(',')+')'+
+  const code=preservedImports.join('\n')+(preservedImports.length?'\n':'')+
+    functions.map(fn=>'export function '+fn.name+'('+fn.parameters.join(',')+')'+
     '{return '+fn.expression+';}').join('\n')+'\n';
   return {code,functions,sourceBytes:Buffer.byteLength(publicSource),
     replacementBytes:Buffer.byteLength(code)};
