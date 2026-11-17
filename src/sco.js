@@ -108,15 +108,27 @@ async function handleRpc(request,response,options) {
     // Run the coarse gate, all inner policy checks and the actual task under
     // the same application-supplied isolation scope. A server-supplied mutex
     // or transaction can then serialize state-changing RPCs for one identity.
+    // The isolation scope becomes invalid the moment its wrapper returns.
+    // Recheck at every async boundary before more policy or private work.
+    let scopeOpen=true;
+    const ensureScopeOpen=()=>{
+      if(!scopeOpen)throw new TypeError('RPC isolation execution scope has closed');
+    };
     const execute=async()=>{
-    if (options.runRpcIsolated && (await options.authorizeRpc(request))!==true) {
-      respondJson(response,403,{ok:false,error:'Forbidden'});
-      return;
+    if (options.runRpcIsolated) {
+      const authorized=await options.authorizeRpc(request);
+      ensureScopeOpen();
+      if(authorized!==true) {
+        respondJson(response,403,{ok:false,error:'Forbidden'});
+        return;
+      }
     }
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
-      if ((await options.authorizeOperation(request,method,args))!==true) {
+      const operationAllowed=await options.authorizeOperation(request,method,args);
+      ensureScopeOpen();
+      if(operationAllowed!==true) {
         respondJson(response,403,{ok:false,error:'Forbidden'});
         return;
       }
@@ -130,30 +142,37 @@ async function handleRpc(request,response,options) {
           // execution. Only valid item shapes can reach policy evaluation.
           if (!call || typeof call!=='object' ||
               typeof call.method!=='string' || !Array.isArray(call.args)) continue;
-          if ((await options.authorizeOperation(request,call.method,call.args))!==true) {
+          const itemAllowed=await options.authorizeOperation(request,call.method,call.args);
+          ensureScopeOpen();
+          if(itemAllowed!==true) {
             respondJson(response,403,{ok:false,error:'Forbidden'});
             return;
           }
         }
       }
     }
+    ensureScopeOpen();
     const result=await task(...args);
+    ensureScopeOpen();
     respondJson(response,200,{ok:true,value:result});
     };
     if(options.runRpcIsolated) {
       // A trusted integrator callback MUST await execute exactly once and
       // hold whatever transaction or lock is needed until it settles.
       let invoked=false;
-      // A retained execution callback must not outlive the isolation
-      // invocation that supplied it. Otherwise a buggy integrator could
-      // start private work after the HTTP request has already failed.
-      let scopeOpen=true;
+      let executionSettled=false;
+      // The execution capability is limited to the callback's active scope.
+      // A detached promise must never authorize additional private work.
       try{
         await options.runRpcIsolated(request,async()=>{
-          if(!scopeOpen)throw new TypeError('RPC isolation execution scope has closed');
+          ensureScopeOpen();
           if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
           invoked=true;
-          await execute();
+          try{
+            await execute();
+          }finally{
+            executionSettled=true;
+          }
         });
       }catch(error){
         // A capacity refusal happens before any protected operation starts.
@@ -167,6 +186,10 @@ async function handleRpc(request,response,options) {
         scopeOpen=false;
       }
       if(!invoked)throw new TypeError('RPC isolation callback omitted execute');
+      if(!executionSettled)throw new TypeError('RPC isolation callback returned before execute settled');
+      if(!response.headersSent && !response.destroyed) {
+        throw new TypeError('RPC isolation callback completed without an HTTP response');
+      }
     } else await execute();
   } catch (error) {
     // Server-resident exceptions must never be classified by their type.
