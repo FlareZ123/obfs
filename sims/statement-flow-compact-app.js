@@ -1,7 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {mkdtemp,rm,readFile}=require('node:fs/promises');
+const {mkdtemp,rm}=require('node:fs/promises');
 const path=require('node:path');
 const {tmpdir}=require('node:os');
 const {pathToFileURL}=require('node:url');
@@ -127,7 +127,7 @@ function execute(mod,seed,count){
 }
 
 /**
- * @param {ReturnType<typeof importGraph> extends Promise<infer T> ? T : never} mod
+ * @param {{runSession:(seed:number,events:unknown[],host:{emit:(tag:string,keys:string[])=>void})=>string}} mod
  * @param {number} count
  * @param {number} repetitions
  */
@@ -146,9 +146,11 @@ function timed(mod,count,repetitions){
 /** @returns {Promise<void>} */
 async function main(){
   const tmp=await mkdtemp(path.join(tmpdir(),'obfs-cfg-full-app-'));
-  const prevTag=globalThis.appTag;
-  globalThis.appTag='externally-owned-tag';
+  const hostGlobal=/** @type {any} */ (globalThis);
+  const prevTag=hostGlobal.appTag;
+  hostGlobal.appTag='externally-owned-tag';
   try{
+    /** @type {import('../src/core').ObfuscationOptions} */
     const common={mode:'coo',seed:'compact-app-20261117',
       identifiers:false,strings:false,properties:false,
       experimentalStatementFlow:{'math.mjs':['route']}};
@@ -161,7 +163,8 @@ async function main(){
     assert.ok(am&&bm);
     assert.equal(plain.files.find(file=>file.path==='math.mjs')?.metrics.statementFlowFunctions,1);
     assert.equal(compact.files.find(file=>file.path==='math.mjs')?.metrics.statementFlowFunctions,1);
-    const cases=/** @param {string} code */ code=>(code.match(/case\s+\d+:/gu)||[]).length;
+    /** @param {string} code */
+    const cases=code=>(code.match(/case\s+\d+:/gu)||[]).length;
     assert.ok(cases(bm.code)<cases(am.code));
     const recovered=recoverStatementFlow(bm.code,'route','module');
     const clone=b.map(file=>file.path==='math.mjs'?{...file,code:recovered.code}:file);
@@ -191,6 +194,7 @@ async function main(){
       const samples=[native,standard,optimized];
       const repetitions=count<=50?100:count===1000?25:5;
       for(let trial=0;trial<7;trial++){
+        /** @type {number|null} */
         let checksum=null;
         const order=[trial%3,(trial+1)%3,(trial+2)%3];
         for(const index of order){
@@ -207,6 +211,7 @@ async function main(){
         compactPasses2_5x:c<=n*2.5});
     }
     const sourceBytes=originals.reduce((sum,file)=>sum+file.code.length,0);
+    /** @param {File[]} files */
     const outputBytes=files=>files.reduce((sum,file)=>sum+file.code.length,0);
     const summary={
       platform:process.platform,node:process.version,sourceBytes,
@@ -224,7 +229,7 @@ async function main(){
     };
     process.stdout.write(JSON.stringify(summary,null,2)+'\n');
   }finally{
-    globalThis.appTag=prevTag;
+    hostGlobal.appTag=prevTag;
     await rm(tmp,{recursive:true,force:true});
   }
 }
