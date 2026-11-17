@@ -88,7 +88,7 @@ for(const [name,setup,expression] of [
 ]) {
   test('array source coercion observes a function in '+name,()=>{
     const code=source(setup+'module.exports='+expression+';');
-    assert.match(String(execute(code)),/function protectedSum\\(input\\)/,name);
+    assert.match(String(execute(code)),/function protectedSum\(input\)/,name);
     assert.throws(()=>obfuscate(code),/(?:source observation|declined)/i,name);
   });
 }
