@@ -39,6 +39,7 @@
     "test/application-challenge-sno.test.js",
     "test/polyvariant-app-sno.test.js",
     "sims/sco-private-dynamic-loader-grid.js",
+    "sims/sco-private-windows-alias-probe.js",
     "sims/sco-private-runtime-source-trace.js",
     "sims/sco-audience-bound-relay.js",
     "sims/verified-record-session-profile.js",
