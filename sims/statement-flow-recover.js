@@ -33,7 +33,7 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
   if(!initialize)throw new TypeError('No entry state found');
   const entry=initialize.declarations.find(d=>d.id.name===state)?.init;
   if(entry?.type!=='Literal'||typeof entry.value!=='number')throw new TypeError('Invalid entry');
-  /** @type {Map<number,{kind:string,code:string,yes?:number,no?:number,next?:number}>} */
+  /** @type {Map<number,{kind:string,code:string,yes?:number,no?:number,next?:number,prefix?:string}>} */
   const blocks=new Map();
   for(const item of sw.cases){
     if(item.test?.type!=='Literal'||typeof item.test.value!=='number')continue;
@@ -42,14 +42,15 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
     }
     const inner=item.consequent[0];
     if(inner?.type!=='BlockStatement')throw new TypeError('Unsupported case form');
-    const statements=inner.body;
+    // The emitter adds semicolons after complete source statements; remove
+    // parsed empty statements before locating a terminal return or jump.
+    const statements=inner.body.filter(stmt=>stmt.type!=='EmptyStatement');
     /** @param {AstNode} node @returns {string} */
     const statementCode=node=>{const text=source.slice(node.start,node.end);return /;\s*$/u.test(text)?text:text+';';};
-    const first=statements[0];
     const penultimate=statements[statements.length-2];
     const terminator=statements[statements.length-1];
-    if(first?.type==='ReturnStatement'||first?.type==='ThrowStatement'){
-      blocks.set(item.test.value,{kind:'terminal',code:statementCode(first)});
+    if(terminator?.type==='ReturnStatement'||terminator?.type==='ThrowStatement'){
+      blocks.set(item.test.value,{kind:'terminal',code:statements.map(statementCode).join('\n')});
       continue;
     }
     if(terminator?.type!=='BreakStatement'||penultimate?.type!=='ExpressionStatement'||
@@ -59,6 +60,7 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
     if(value.type==='ConditionalExpression'){
       if(value.consequent.type!=='Literal'||value.alternate.type!=='Literal')throw new TypeError('Unknown test state');
       blocks.set(item.test.value,{kind:'test',code:source.slice(value.test.start,value.test.end),
+        prefix:statements.slice(0,-2).map(statementCode).join('\n'),
         yes:value.consequent.value,no:value.alternate.value});
     }else if(value.type==='Literal'){
       blocks.set(item.test.value,{kind:'next',code:statements.slice(0,-2).map(stmt=>
@@ -72,7 +74,8 @@ function recoverStatementFlow(source,functionName,sourceType='commonjs'){
     if(!block)throw new TypeError('Unrecognized state');
     if(block.kind==='exit'||block.kind==='terminal')return block.code;
     if(block.kind==='next')return block.code+'\n'+visit(/** @type {number} */(block.next),depth+1);
-    return 'if('+block.code+'){' + visit(/** @type {number} */(block.yes),depth+1) +
+    return (block.prefix?block.prefix+'\n':'')+'if('+block.code+'){' +
+      visit(/** @type {number} */(block.yes),depth+1) +
       '}else{' + visit(/** @type {number} */(block.no),depth+1) + '}';
   }
   const params=fn.params.map(param=>source.slice(param.start,param.end)).join(',');
