@@ -220,6 +220,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
             containsFunction(value,depth+1)))));
     }
+    if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
+      const member=memberName(node.callee);
+      const owner=node.callee.object;
+      const arrayStatic=owner.type==='Identifier'&&owner.name==='Array';
+      if(arrayStatic&&member==='from')
+        return containsFunction(node.arguments[0],depth+1);
+      if(arrayStatic&&member==='of') {
+        return node.arguments.some((/** @type {AstNode} */ value)=>
+          value.type==='SpreadElement'?
+            isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
+            isFunctionValue(value)||containsFunction(value,depth+1));
+      }
+      const derivedMethods=new Set(['slice','concat','filter','map','flat',
+        'flatMap','toReversed','toSorted','toSpliced','with']);
+      if(derivedMethods.has(member??'')) {
+        if(containsFunction(owner,depth+1))return true;
+        // concat/splice-like methods can insert function values into a new
+        // array even when the original receiver contains only primitives.
+        const inserted=member==='concat'?node.arguments:
+          member==='with'?node.arguments.slice(1):
+          member==='toSpliced'?node.arguments.slice(2):[];
+        return inserted.some((/** @type {AstNode} */ value)=>
+          value.type==='SpreadElement'?
+            isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
+            isFunctionValue(value)||containsFunction(value,depth+1));
+      }
+    }
     return false;
   }
   /**
