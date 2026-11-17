@@ -151,3 +151,62 @@ Next work: prioritize independent end-to-end attacker-cost and full-session
 performance evidence; do not count incremental AST transformations as proof of
 static secrecy. Recheck working `main` before editing others' files and read
 new Critic broadcasts when possible.
+
+
+
+## 2026-11-17 01:49 UTC checkpoint, CFG hot/cold optimization and full app
+
+After the SCO isolation regression at `d0b75970`, pursued the known
+`src/statement-flow.js` native CFG dispatcher ≤2.5× budget risk.
+Built an **opt-in unique-incoming straight-line successor fusion**
+(`compactCases:true` / `experimentalStatementFlowCompact:true` /
+`--statement-flow-compact`) at `af1d0ff`/`1421779`/`9a75baa`.
+Without the opt-in, default emission is unchanged.
+New differential and source-only attacker tests
+`test/statement-flow-compact.test.js`, standalone profiler
+`sims/statement-flow-compact-profile.js`, startup-inclusive profile
+`sims/statement-flow-compact-cold-profile.js`, and full graph
+`sims/statement-flow-compact-app.js`, all in manual transform gate.
+Chrome integration extended in `test/statement-flow-browser.js` (pending
+pinned final validation at this checkpoint).
+
+Initial pinned stable Linux/Windows hot gate **43996692856**, SHA `6cb2acb8`:
+dense arithmetic 44→7 cases, native ratios standard→compact 4.968→1.334
+Ubuntu and 7.772→1.723 Windows; seedless AST recovery still passes.
+Pinned cold gate **43997119211**, SHA `90b6b025`: at 1000 calls
+per freshly compiled session compact/native **3.237 Ubuntu /2.807 Windows**,
+**outside** 2.5; 1,10,100k calls passed in that selected harness.
+Pinned full app **43997435553**, exact SHA `1448c32a`, green both OS:
+3-file ESM graph 1165 source bytes, selected 491-byte math module (42.15%),
+emitted ordinary/compact 2886/1722 bytes and 30/9 cases. 96/96 native,
+regular CFG, compact, and public-source attacker-cloned stateful scenarios
+passed with external callback and reflection. Seven-trial warm application
+performance across 1,50,1000,10000 event workloads ≤2.5 on Ubuntu and
+Windows. Full report `im-results/statement-flow-compact-2026-11-17.md`
+at `a02ee50`; this is intermediate semantics+performance, zero
+demonstrated source secrecy.
+
+Experimented separately with additionally fusing unique terminal/test states
+into predecessor straight-line blocks on branch
+`agent1-cfg-terminal-fusion-20261117` from exact `1448c32a`.
+Branch commits `7f325db6` for emitter and `7dd4e539`/`452ab9b4` for
+generalized public-source AST attacker (skip empty AST statements).
+First pinned branch run **43997856018** passed Ubuntu/Windows including
+hot, cold, full app, strict checks, source-only recovery. It produced
+44→5 dense cases; dense compact/native **1.280 Ubuntu /1.178 Windows**;
+initial cold1000 **1.077 Ubuntu /2.159 Windows**, all sampled ≤2.5.
+A second branch run is queued to measure tiering instability, since the
+prior straight-line-only cold1000 sample failed. Browser Chrome mainline
+integration at `0e6594ff`, manual gate step at `06b64bc0`, pending
+pinned Chromium confirmation. Avoid claiming terminal fusion security
+or unconditional performance without the repeat and full run.
+
+Important residual: static attacker reconstructs both opt-in variants
+without a seed, including the complete tested three-module processing
+behavior. Any improved runtime ratio measures performance only.
+Next actions: inspect repeated branch cold/profile variance; decide
+whether to land terminal fusion with preserved source-only recovery;
+verify real Chromium; update docs and results with exact SHA; re-run
+full mainline; preserve memory and communicate bounded evidence.
+The lease remains immutable from 01:17:43Z; **release only at or after
+02:27:43Z** and only following final push, as specified.
