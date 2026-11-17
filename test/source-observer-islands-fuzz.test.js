@@ -20,11 +20,11 @@ const VARIANTS=[
   {index:1,key:'secret_field',alternate:'other_field',value:0,alternateValue:true,computed:true},
   {index:2,key:'π',alternate:'Ω',value:'π-value',alternateValue:false,computed:false},
   {index:3,key:'文',alternate:'字',value:null,alternateValue:'word',computed:true},
-  {index:4,key:'with spaces',alternate:'quote\"',value:'foo',alternateValue:8,computed:false},
+  {index:4,key:'with spaces',alternate:'quote\"',value:'foo',alternateValue:8,computed:true},
   {index:5,key:'x-y',alternate:'z/w',value:false,alternateValue:64,computed:true},
   {index:6,key:'field0',alternate:'field9',value:true,alternateValue:0,computed:false},
   {index:7,key:'number',alternate:'sibling',value:98247,alternateValue:'v',computed:true},
-  {index:8,key:'🙂',alternate:'💡',value:'emoji',alternateValue:'signal',computed:false},
+  {index:8,key:'🙂',alternate:'💡',value:'emoji',alternateValue:'signal',computed:true},
   {index:9,key:'k0',alternate:'k1',value:4,alternateValue:0,computed:true},
   {index:10,key:'_pdeadbeef',alternate:'x2',value:7,alternateValue:'safe',computed:false},
   {index:11,key:'literal\\slash',alternate:'apostrophe\'',value:'\\t',alternateValue:null,computed:true}
@@ -34,7 +34,7 @@ const VARIANTS=[
 function makeFiles(item) {
   const owner=JSON.stringify(item.key);
   const other=JSON.stringify(item.alternate);
-  const access=item.computed ? 'recordB['+owner+']' : 'recordB['+owner+']';
+  const access=item.computed ? 'recordB['+owner+']' : 'recordB.'+item.key;
   return [
     {path:'watched.mjs',sourceType:'module',
       code:'const recordA={privateA:17};const valueA=recordA.privateA;export function watched(){return valueA;}'},
