@@ -87,8 +87,10 @@ async function main() {
     const {stdout,stderr}=await promisify(execFile)(chrome,args,{
       timeout:45000,maxBuffer:8*1024*1024,encoding:'utf8'
     });
-    assert.match(stdout,/PASS Web IDL native\/emitted/,String(stderr));
-    assert.doesNotMatch(stdout,/FAIL /);
+    // The inline module's source contains both PASS and FAIL string literals.
+    // Inspect only the rendered result element, not raw script text.
+    assert.match(stdout,/<pre id="result">PASS Web IDL native\/emitted<\/pre>/,
+      String(stderr));
     console.log(JSON.stringify({browser:'Chromium',
       sourceObservedCases:4,primitiveRenamedKeys:positive.metrics.properties,
       nativeEmittedDifferential:'PASS'}));
