@@ -147,6 +147,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   ]);
   const detachedStringReceiverMethods=new Set();
   const stringRawAliases=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const sourceSymbolKeyAliases=new Map();
+  const sourceSymbolMethods=new Set(['iterator','match','matchAll','replace','search','split']);
   const arrayLikeWithFunctions=new Set();
   const entryCollectionsWithFunctionKeys=new Set();
   const fromEntriesMethods=new Set();
@@ -325,6 +328,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return owner.type==='MemberExpression'&&memberName(owner)==='prototype'&&
       owner.object.type==='Identifier'&&owner.object.name==='Array';
   }
+  /** @param {AstNode|null|undefined} expression @param {Set<string>} names @returns {boolean} */
+  function isSourceSymbolKey(expression,names) {
+    if(!expression)return false;
+    if(expression.type==='Identifier')return [...(sourceSymbolKeyAliases.get(expression.name)??[])]
+      .some(name=>names.has(name));
+    return expression.type==='MemberExpression' &&
+      isSymbolConstructor(expression.object) &&
+      names.has(memberName(expression)??'');
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isDetachedRegExpSourceMethod(node) {
     if(!node)return false;
@@ -335,10 +347,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(sourceCoercingRegExpMethods.has(memberName(node)??''))return true;
     // RegExp @@match, @@matchAll, @@replace, @@search and @@split are
     // callable native coercers even when a property is symbol-computed.
-    const key=node.property;
-    return node.computed && key.type==='MemberExpression' &&
-      key.object.type==='Identifier' && symbols.has(key.object.name) &&
-      ['match','matchAll','replace','search','split'].includes(memberName(key)??'');
+    const regexpSymbolMethods=new Set(['match','matchAll','replace','search','split']);
+    return node.computed && isSourceSymbolKey(node.property,regexpSymbolMethods);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isDetachedStringReceiverMethod(node) {
@@ -346,10 +356,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Identifier')return detachedStringReceiverMethods.has(node.name);
     if(node.type!=='MemberExpression')return false;
     const ordinary=sourceCoercingStringReceiverMethods.has(memberName(node)??'');
-    const iterator=node.computed && node.property.type==='MemberExpression' &&
-      node.property.object.type==='Identifier' &&
-      symbols.has(node.property.object.name) &&
-      memberName(node.property)==='iterator';
+    const iterator=node.computed && isSourceSymbolKey(node.property,new Set(['iterator']));
     if(!ordinary&&!iterator)return false;
     const owner=node.object;
     if(owner.type!=='MemberExpression'||memberName(owner)!=='prototype')return false;
@@ -590,6 +597,27 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isObjectFromEntries(value))changed=add(fromEntriesMethods,name)||changed;
         if(isDetachedArraySourceMethod(value)) {
           changed=add(detachedArraySourceMethods,name)||changed;
+        }
+        // Symbol.match/iterator aliases can be assigned repeatedly. Preserve
+        // every observed candidate to avoid assuming immutable bindings.
+        if(value?.type==='Identifier' && sourceSymbolKeyAliases.has(value.name) ||
+           value?.type==='MemberExpression'&&
+             isSymbolConstructor(value.object)&&
+             sourceSymbolMethods.has(memberName(value)??'')) {
+          let keys=sourceSymbolKeyAliases.get(name);
+          if(!keys) {
+            keys=new Set();
+            sourceSymbolKeyAliases.set(name,keys);
+          }
+          const source=value.type==='Identifier' ?
+            sourceSymbolKeyAliases.get(value.name)??new Set() :
+            new Set([memberName(value)]);
+          for(const key of source) {
+            if(!keys.has(key)) {
+              keys.add(key);
+              changed=true;
+            }
+          }
         }
         if(isStringRaw(value))changed=add(stringRawAliases,name)||changed;
         if(isDetachedStringReceiverMethod(value)) {
