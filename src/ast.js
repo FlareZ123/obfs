@@ -2319,8 +2319,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          reflectiveApplyMethods.has(callee.name)) && isCoercer(node.arguments[0])) {
         const supplied=node.arguments[2];
         if(supplied?.type==='ArrayExpression') {
-          if(supplied.elements[0] && !isDefinitelyPrimitive(supplied.elements[0]))
-            observed=true;
+          // RegExp also ToString-coerces flags (argument 1), which may hold
+          // a function even when its pattern (argument 0) is primitive.
+          const values=isNativeConstructor(node.arguments[0],
+            nativeRegExpConstructors,'RegExp') ? supplied.elements :
+            supplied.elements.slice(0,1);
+          if(values.some((/** @type {AstNode|null} */ item)=>
+            item && !isDefinitelyPrimitive(item)))observed=true;
         } else if(supplied) observed=true;
       }
       // Reflect.construct forwards an argument list to native constructors
@@ -2336,13 +2341,33 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isCoercer(node.arguments[0])) {
         const supplied=node.arguments[1];
         if(supplied?.type==='ArrayExpression') {
-          if(supplied.elements[0] &&
-             !isDefinitelyPrimitive(supplied.elements[0]))observed=true;
+          const values=isNativeConstructor(node.arguments[0],
+            nativeRegExpConstructors,'RegExp') ? supplied.elements :
+            supplied.elements.slice(0,1);
+          if(values.some((/** @type {AstNode|null} */ item)=>
+            item && !isDefinitelyPrimitive(item)))observed=true;
         } else if(supplied)observed=true;
       }
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
+      // Native RegExp constructors stringify an explicit flags operand too.
+      if(isNativeConstructor(callee,nativeRegExpConstructors,'RegExp') &&
+         node.arguments[1] && !isDefinitelyPrimitive(node.arguments[1]))
+        observed=true;
+      if(callee.type==='MemberExpression' &&
+         isNativeConstructor(callee.object,nativeRegExpConstructors,'RegExp')) {
+        const method=memberName(callee);
+        if(['call','bind'].includes(method??'') && node.arguments[2] &&
+           !isDefinitelyPrimitive(node.arguments[2]))observed=true;
+        if(method==='apply') {
+          const passed=node.arguments[1];
+          if(passed?.type==='ArrayExpression') {
+            if(passed.elements[1] && !isDefinitelyPrimitive(passed.elements[1]))
+              observed=true;
+          } else if(passed) observed=true;
+        }
+      }
       // BigInt.asIntN/asUintN apply ToBigInt to argument 1. A function
       // can appear verbatim in the resulting SyntaxError's message.
       if(callee.type==='MemberExpression' && isCoercer(callee.object) &&
