@@ -29,12 +29,12 @@ async function main(){
   let nativeSeq=0;
   let workerSeq=0;
   try{
-    // Single-principal worker creation and ESM graph initialization are
-    // separately identified. These costs cannot be silently omitted from a
-    // client-side session or a fresh server-account deployment.
-    const cold=await timed(()=>pool.call('A','tick',[++workerSeq,'cold',0]));
+    // Account graph setup is explicitly measured as a server initialization
+    // phase and excluded only when the application actually preinitializes.
+    const initialization=await timed(()=>pool.initialize('A'));
+    const firstCall=await timed(()=>pool.call('A','tick',[++workerSeq,'cold',0]));
     const reference=await native.tick(++nativeSeq,'cold',0);
-    assert.deepEqual(cold.value,reference);
+    assert.deepEqual(firstCall.value,reference);
     /** @type {Array<{bytes:number,pairs:number,medianRatio:number,maxRatio:number,
      * strictOverBudget:number,allRatios:number[]}>} */
     const results=[];
@@ -69,7 +69,8 @@ async function main(){
     }
     console.log(JSON.stringify({
       kind:'SCO-private-worker-IPC-only',node:process.version,platform:process.platform,
-      coldWorkerFirstCallMs:cold.ns/1e6,results,
+      serverInitializationMs:initialization.ns/1e6,
+      firstWorkerCallAfterInitializationMs:firstCall.ns/1e6,results,
       restrictions:'No HTTP/TLS/RTT; no client initialization; no universal runtime guarantee'
     }));
   }finally{
