@@ -23,7 +23,8 @@
     "sims/sco-capability-granularity.js",
     "sims/sco-capability-http-batch.js",
     "test/sco-capability-public-browser.js",
-    "test/sco-capability-batch-error-contract.test.js"
+    "test/sco-capability-batch-error-contract.test.js",
+    "test/sco-capability-private-graph.test.js"
   ],
   "exclude": [
     "node_modules"
