@@ -511,9 +511,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // invoke ToString, so exposed source can cross a browser API boundary.
   const webScalarNames=new Set(['DOMException','URL']);
   const webDictionaryNames=new Set(['URLSearchParams','Headers','Blob']);
-  // Fetch Request/Response and File convert string/record/sequence arguments.
-  // Even implicit Web IDL conversions can expose Function#toString bytes.
-  const webRecordNames=new Set(['Request','Response','File']);
+  // Built-in Web APIs convert string/record/sequence arguments through Web IDL.
+  // Even implicit conversion and rejected enum/encoding labels can expose
+  // Function#toString bytes without an explicit source-reading expression.
+  const webRecordNames=new Set(['Request','Response','File',
+    'Event','CustomEvent','MessageEvent','BroadcastChannel',
+    'TextDecoder','TextDecoderStream','CompressionStream','DecompressionStream']);
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
   const webRecords=new Set(webRecordNames);
