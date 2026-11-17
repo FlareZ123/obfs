@@ -28,3 +28,16 @@ A separate Node 22 synthetic-graph exercise constructed 80 sequential diamonds (
 This improvement makes the **source-only attack stronger and more scalable** against the public CFG layout. It does not increase the obfuscator's static resistance. The static source reconstruction is not identical to original source spelling, and source/stack observers remain outside this backend's native semantic proof. Generated CFG execution may violate the project 2.5x budget on cold or hot workloads; measuring the attacker offline is a distinct cost dimension. All claims remain bounded until the relevant CI produces a pinned result.
 
 Manual workflow: .github/workflows/manual-expression-vm.yml, including Node 22 Ubuntu/Windows tests, JSDoc, a browser ESM fixture and the attack-scaling script. Initial dispatch run 44032889915 predates the final early-exit and scaling changes; later dispatch run 44033197513 includes the new files but was queued at this checkpoint.
+
+
+## Pinned two-platform integrated result (06:56 UTC)
+
+The full focused [run 44033197513](https://github.com/FlareZ123/obfs/actions/runs/44033197513) **passed** at exact commit 4e2f3db0901d2db89789cc4ead4500b7bc06dd5c. Node 22.23.4 on Ubuntu and Windows each ran **36 focused tests, all passed**, including native/C++-free CFG source reconstruction regressions. The job also executed the 14-case public-source-only extraction scaling script, strict main-library JSDoc, and a real Ubuntu Chromium fixture whose native and bytecode COO ESM graphs matched output 98.
+
+For the largest 80-diamond function (242 compiler blocks), the genuine emitter produced 17,485 bytes in ordinary mode and 17,431 bytes in compact mode from a 3,574-byte original. The seedless recovered function was **3,654 bytes (1.02238x the original byte count)** in either mode, with 41 equal-input native/emitted/reconstructed checks per row. At that pinned source, static extraction times on the CI runner were:
+- Ubuntu ordinary: **17.11 ms**; compact: **12.64 ms**.
+- Windows ordinary: **7.95 ms**; compact: **4.79 ms**.
+
+These single-run timings describe the attacker process, not application execution performance. They are neither an estimated statistical advantage over minification nor evidence that the 2.5x runtime budget is met. The scaling script's other six branch counts (3, 6, 9, 12, 20 and 40) completed on both OSes. The prior [run 44032889915](https://github.com/FlareZ123/obfs/actions/runs/44032889915) also passed Node/Windows/Chromium and JSDoc at its older pinned commit ad7a04dd0cb9a8ca492f3788adab401ff54cffee.
+
+After this pin, a separate seeded random-join compiler regression was added in test/statement-flow-random-joins.test.js. Its current validation status is distinct from the above 36-test run; do not count it as covered by 44033197513.
