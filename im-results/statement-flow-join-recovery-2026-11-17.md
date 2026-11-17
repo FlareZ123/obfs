@@ -41,3 +41,15 @@ For the largest 80-diamond function (242 compiler blocks), the genuine emitter p
 These single-run timings describe the attacker process, not application execution performance. They are neither an estimated statistical advantage over minification nor evidence that the 2.5x runtime budget is met. The scaling script's other six branch counts (3, 6, 9, 12, 20 and 40) completed on both OSes. The prior [run 44032889915](https://github.com/FlareZ123/obfs/actions/runs/44032889915) also passed Node/Windows/Chromium and JSDoc at its older pinned commit ad7a04dd0cb9a8ca492f3788adab401ff54cffee.
 
 After this pin, a separate seeded random-join compiler regression was added in test/statement-flow-random-joins.test.js. Its current validation status is distinct from the above 36-test run; do not count it as covered by 44033197513.
+
+
+## Seeded nested-return/throw and fully layered static clone (07:01 UTC)
+
+The expanded integration [run 44035311664](https://github.com/FlareZ123/obfs/actions/runs/44035311664) **passed on Node 22.23.4 Ubuntu/Windows** at exact commit fbf631af523b9f0d5092dda6489f3d0b4d185990. Both jobs passed **38/38** Node subtests, strict main-library JSDoc, 14 CFG static-scaling rows, and the Ubuntu real-Chromium ESM page integration. This pin includes:
+- test/statement-flow-random-joins.test.js: a deterministic xorshift-generated corpus of 160 original functions, two ordinary/compact variants per function, 9,280 equal-input native/emitted/recovered comparisons across nested joins, early returns and **primitive** throws.
+- test/statement-flow-recovery-scale.test.js: after the initial 12-diamond/early-exit checks, a further full COO/SNO pipeline test with 12 sequential diamonds across both compaction settings and four seeds each, recovering functions from only delivered transformed ESM text after ordinary layers and selected host-locking.
+- The earlier 80-diamond scaling experiment, typecheck, and Chromium exercise. Runtime 2.5x compliance remains unproven.
+
+The predecessor [run 44035066453](https://github.com/FlareZ123/obfs/actions/runs/44035066453) at 6fb8c5dfdf0a4ccf1c27404d111a4c171eb02362 **failed 1/37** on both platforms because the generated fixture used new TypeError("bad"+y), which triggered the existing conservative function-source observer guard and declined selected CFG transformation at index 0. The fixture was changed to numeric primitive throws and retained exact thrown-value comparison. This was **not** repaired by disabling or weakening the compiler's observer guard. Subsequent 38/38 success validates the intentionally narrower supported input contract, not handling of all Error-constructing functions.
+
+A separate paired native/ordinary/compact 80-diamond **hot-function plus cold vm.Script compilation profile** was committed as sims/statement-flow-diamond-runtime-profile.js. It checks exact native outputs and reports nine paired samples per workload without enforcing a universal runtime release verdict. This profile was committed after run 44035311664 and requires its own pinned validation before any reported measurements.
