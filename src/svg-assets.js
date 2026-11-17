@@ -27,6 +27,12 @@ function findInlineSvgSource(xml) {
   // DTD/entity processing can change the bytes seen by a browser's XML
   // parser. Refuse it rather than analyzing an incomplete entity expansion.
   parser.on('doctype',()=>{issue='DTD declaration';});
+  // XML/SVG can associate external stylesheets through processing instructions.
+  // Data URLs can inline an unaudited stylesheet and original-source map here.
+  parser.on('processinginstruction',instruction=>{
+    if(instruction.target.toLowerCase()==='xml-stylesheet' &&
+        /data:/iu.test(instruction.body))issue='embedded XML stylesheet data URL';
+  });
   parser.on('opentag',tag=>{
     const element=tag.local.toLowerCase();
     if(stylesheet!==null)issue='nested markup inside style element';
