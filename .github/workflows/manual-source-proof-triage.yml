@@ -24,6 +24,8 @@ jobs:
         run: node sims/inert-clone-source-triage.js
       - name: Bounded independent-source-observer island proof differential
         run: node --test test/source-observer-islands.test.js test/source-observer-coverage.test.js
+      - name: Held-out 36-case source-island ESM and seedless normalization grid
+        run: node --test test/source-observer-islands-fuzz.test.js
       - name: Real Chromium source-island ESM linker, source parity and public normalizer
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
