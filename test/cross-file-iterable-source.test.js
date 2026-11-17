@@ -52,6 +52,34 @@ for(const [name,tail,body] of [
   });
 }
 
+
+test('ESM default-exported function Set preserves original function source',()=>{
+  const files=[
+    {path:'producer.mjs',sourceType:'module',
+      code:protectedSource()+'export default new Set([protectedSum]);'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import values from "./producer.mjs";console.log([...values].join(","));'}
+  ];
+  assert.throws(()=>protect(files),/(?:source observation|declined)/i);
+});
+
+test('ESM reexported Set carries protected function source across modules',()=>{
+  const producer={path:'producer.mjs',sourceType:'module',
+    code:protectedSource()+'export const values=new Set([protectedSum]);'};
+  const relay={path:'relay.mjs',sourceType:'module',
+    code:'export {values as forwarded} from "./producer.mjs";'};
+  const entry={path:'entry.mjs',sourceType:'module',
+    code:'import {forwarded as values} from "./relay.mjs";'+
+      'console.log(Array.from(values).join(","));'};
+  assert.throws(()=>protect([producer,relay,entry]),/(?:source observation|declined)/i);
+});
+
+test('ESM Map function key stringifies through imported keys iterator',()=>{
+  const files=graph('export const values=new Map([[protectedSum,0]]);',
+    'console.log(Array.from(values.keys()).join(","));');
+  assert.throws(()=>protect(files),/(?:source observation|declined)/i);
+});
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
