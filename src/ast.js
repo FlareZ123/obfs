@@ -1539,11 +1539,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (/** @type {AstNode} */ property)=>
         containsStackError(property.type==='Property'?property.value:
           property.type==='SpreadElement'?property.argument:null,depth+1));
-    if(node.type==='ConditionalExpression')return
-      containsStackError(node.consequent,depth+1)||
+    if(node.type==='ConditionalExpression')return containsStackError(node.consequent,depth+1)||
       containsStackError(node.alternate,depth+1);
-    if(node.type==='LogicalExpression')return
-      containsStackError(node.left,depth+1)||
+    if(node.type==='LogicalExpression')return containsStackError(node.left,depth+1)||
       containsStackError(node.right,depth+1);
     return false;
   }
