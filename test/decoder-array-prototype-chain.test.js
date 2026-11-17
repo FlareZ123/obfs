@@ -87,6 +87,39 @@ for(const [name,mutate] of [
   }
 }
 
+for(const [name,mutation] of [
+  ['array-descriptor',
+    "Object.defineProperty(Array.prototype,'unrelatedAppField',{value:7,configurable:true});"],
+  ['object-descriptor',
+    "Object.defineProperty(Object.prototype,'unrelatedAppField',{value:7,configurable:true});"],
+  ['array-reflect-set',"Reflect.set(Array.prototype,'unrelatedAppField',7);"],
+  ['object-reflect-set',"Reflect.set(Object.prototype,'unrelatedAppField',7);"],
+  ['array-legacy-getter',
+    "Array.prototype.__defineGetter__('unrelatedAppField',function(){return 7;});"],
+  ['object-legacy-getter',
+    "Object.prototype.__defineGetter__('unrelatedAppField',function(){return 7;});"]
+]) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('unrelated prototype key preserves chunked decoder coverage: '+name+'/'+mode,async()=>{
+      const files=graph(mutation);
+      const generated=obfuscateFiles(files,{
+        mode,seed:'unrelated-prototype-key/'+name+'/'+mode,properties:false,
+        identifiers:false,strings:true
+      });
+      const target=generated.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      assert.equal(target.metrics.literals,1,'Safe graph must retain encoded work');
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-array-proto-positive-'));
+      try {
+        const native=await execute(path.join(root,'native'),files);
+        const emitted=await execute(path.join(root,'generated'),generated.files);
+        assert.equal(createHash('sha256').update(emitted).digest('hex'),
+          createHash('sha256').update(native).digest('hex'));
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
+
 test('ordinary graph still emits a working chunked decoder',async()=>{
   const files=graph("module.exports='unrelated';");
   const generated=obfuscateFiles(files,{
