@@ -109,27 +109,39 @@ for(let trial=0;trial<12;trial++)
 // Distinct URL prefixes force fresh ESM graph fetch, parse, link, evaluate,
 // and first invocation for each measurement, including all dependencies.
 const cold={};
+const coldImport={};
+const coldCompute={};
 for(const count of [1,10000]){
   const input=records(count);
   const expected=observe(native,input);
   const timings={native:[],minified:[],published:[],reconstructed:[]};
+  const importTimings={native:[],minified:[],published:[],reconstructed:[]};
+  const computeTimings={native:[],minified:[],published:[],reconstructed:[]};
   for(let trial=0;trial<12;trial++){
     for(const name of orders[trial%orders.length]){
       const start=performance.now();
       const api=await import('/cold-'+name+'-'+count+'-'+trial+'/entry.mjs');
+      const loaded=performance.now();
       const callbacks=[];
       const output=api.runScenario(-817,input,{emit(item){callbacks.push(item);}});
-      const elapsed=performance.now()-start;
+      const finished=performance.now();
+      const elapsed=finished-start;
+      const importMs=loaded-start;
+      const computeMs=finished-loaded;
       if(output!==expected.output||
          JSON.stringify(callbacks)!==expected.callbacks||
          callbacks.length!==count||elapsed<=0)
         throw Error("Fresh ESM graph output or host trace differs: "+name+":"+count);
       timings[name].push(elapsed);
+      importTimings[name].push(importMs);
+      computeTimings[name].push(computeMs);
     }
   }
   cold[count]=timings;
+  coldImport[count]=importTimings;
+  coldCompute[count]=computeTimings;
 }
-document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold,clockProbeMs,clockChecksum});
+document.getElementById("out").textContent="pass:"+JSON.stringify({rows,samples,cold,coldImport,coldCompute,clockProbeMs,clockChecksum});
 </script></body></html>`;
 }
 
@@ -194,7 +206,7 @@ async function main(){
     const rendered=await chromePage.$eval('#out',element=>element.textContent??'');
     assert.ok(rendered.startsWith('pass:'),
       'Browser rejected four-way application: '+rendered.slice(0,2000));
-    const actual=/** @type {{rows:unknown[],samples:Record<string,number[]>,cold:Record<string,Record<string,number[]>>,clockProbeMs:number,clockChecksum:number}} */
+    const actual=/** @type {{rows:unknown[],samples:Record<string,number[]>,cold:Record<string,Record<string,number[]>>,coldImport:Record<string,Record<string,number[]>>,coldCompute:Record<string,Record<string,number[]>>,clockProbeMs:number,clockChecksum:number}} */
       (JSON.parse(rendered.slice(5)));
     assert.ok(Number.isFinite(actual.clockProbeMs)&&actual.clockProbeMs>=0.1,
       'Real Chromium CPU clock positive control did not advance');
@@ -207,7 +219,18 @@ async function main(){
         const cold=/** @type {number[]} */ (actual.cold[count][name]);
         assert.equal(cold.length,12);
         assert.ok(cold.every(value=>Number.isFinite(value)&&value>0));
+        const imported=actual.coldImport[count][name];
+        const computed=actual.coldCompute[count][name];
+        assert.equal(imported.length,12);
+        assert.equal(computed.length,12);
+        for(let trial=0;trial<12;trial++){
+          assert.ok(Number.isFinite(imported[trial])&&imported[trial]>0);
+          assert.ok(Number.isFinite(computed[trial])&&computed[trial]>=0);
+          assert.ok(Math.abs(imported[trial]+computed[trial]-cold[trial])<1e-6);
+        }
       }
+      assert.ok(actual.coldCompute['10000'][name].some(value=>value>0),
+        'Synchronous 10000-event cold CPU was not measured: '+name);
     }
     // Two workloads x 12 trials x 4 variants x 3 distinct ESM module URLs.
     assert.equal(coldModuleRequests,288,'All cold ESM graph dependencies must be fetched');
@@ -218,7 +241,12 @@ async function main(){
         nativeToPublished:pairedBudgetBound(actual.cold[count].native,actual.cold[count].published),
         minifiedToPublished:pairedBudgetBound(actual.cold[count].minified,actual.cold[count].published),
         nativeToReconstructed:pairedBudgetBound(actual.cold[count].native,actual.cold[count].reconstructed),
-        samples:actual.cold[count]
+        computePublishedVsNative:count==='10000'?pairedBudgetBound(
+          actual.coldCompute[count].native,actual.coldCompute[count].published):null,
+        computeMinifiedVsNative:count==='10000'?pairedBudgetBound(
+          actual.coldCompute[count].native,actual.coldCompute[count].minified):null,
+        totalMs:actual.cold[count],importMs:actual.coldImport[count],
+        computeMs:actual.coldCompute[count]
       }
     ]));
     const browserEvidence={
