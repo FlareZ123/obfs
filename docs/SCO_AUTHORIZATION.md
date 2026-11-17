@@ -286,7 +286,9 @@ The examples use application-supplied placeholder functions. The same outer `aut
 A recognized batch is now executed from a private snapshot of the parsed
 JSON argument graph, taken before the outer `authorizeOperation` callback.
 The inner authorization callback receives a separate copy of each checked
-call's arguments. A policy callback that edits the outer batch, changes a
+call's arguments. The copies use a bounded, iterative JSON-value traversal
+rather than recursive cloning, preserving deeply nested valid JSON as well
+as negative zero and own `__proto__` data keys. A policy callback that edits the outer batch, changes a
 previously approved method name, or overwrites a previously checked argument
 cannot redirect the batch toward an unapproved operation. The execution
 snapshot preserves the JSON-parsed values originally submitted by the client.
