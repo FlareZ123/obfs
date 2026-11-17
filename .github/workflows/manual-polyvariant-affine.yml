@@ -20,6 +20,11 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
+      - name: Counterbalanced real-clock Chromium COO affine CPU differential
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/polyvariant-affine-browser.js
       - name: Differential and integration cases
         run: node --test test/polyvariant-affine.test.js test/polyvariant-affine-fuzz.test.js test/polyvariant-affine-cli.test.js test/polyvariant-app.test.js
       - name: Emit real three-file application outputs as JSON
@@ -64,11 +69,6 @@ jobs:
         run: node --test test/polyvariant-app-three-way-budget.test.js
       - name: Emit paired native, public and reconstructed full-session cost evidence
         run: node sims/polyvariant-app-three-way-budget.js
-      - name: Real Chromium COO ES module and host observation
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/polyvariant-affine-browser.js
       - name: Real Chromium native, distributed and independent rebuilt full ESM applications
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
