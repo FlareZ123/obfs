@@ -8,6 +8,7 @@ const {spawnSync}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const {obfuscateFiles,createSnoLauncher}=require('../src');
 const {atomicWrite}=require('../src/atomic');
+const {pairedBudgetBound}=require('./paired-budget-bound');
 
 const ROOT=path.join(__dirname,'../examples/polyvariant-app');
 const NAMES=['math.mjs','state.mjs','entry.mjs'];
@@ -222,13 +223,20 @@ function median(values){
 }
 
 /**
- * Seven paired, order-alternated whole-process trials for selected event
- * loads. Unlike a tight microbenchmark these include complete stateful
- * application runs, module loading, Node startup, output and SNO checks.
+ * Independent fresh Node process per sample. Alternating order within pairs
+ * limits one source of startup drift but does not establish independence.
+ * SNO manifest checks, ESM import, full callback handling and JSON output
+ * are included. Keep raw paired samples and distribution-free median bounds.
+ *
+ * @typedef {{events:number,nativeMs:number,snoMs:number,ratio:number,
+ *   pairedBound:ReturnType<typeof pairedBudgetBound>,
+ *   rawTimingMs:{native:number[],sno:number[]}}} SnoSessionProfile
  * @param {number} [rounds]
- * @returns {Promise<{events:number,nativeMs:number,snoMs:number,ratio:number}[]>}
+ * @returns {Promise<SnoSessionProfile[]>}
  */
-async function profile(rounds=7){
+async function profile(rounds=13){
+  if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
+    throw new RangeError('SNO profile requires 5 through 100 paired trials');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-sno-profile-'));
   try{
     const native=path.join(root,'native');
@@ -236,7 +244,7 @@ async function profile(rounds=7){
     await emitSno(native,true);
     await emitSno(protectedDir);
     const loads=[1,50,1000,10000];
-    /** @type {{events:number,nativeMs:number,snoMs:number,ratio:number}[]} */
+    /** @type {SnoSessionProfile[]} */
     const results=[];
     for(const count of loads){
       /** @type {Scenario[]} */
@@ -265,7 +273,11 @@ async function profile(rounds=7){
         }
       }
       const base=median(nativeTimings),obfuscated=median(snoTimings);
-      results.push({events:count,nativeMs:base,snoMs:obfuscated,ratio:obfuscated/base});
+      results.push({
+        events:count,nativeMs:base,snoMs:obfuscated,ratio:obfuscated/base,
+        pairedBound:pairedBudgetBound(nativeTimings,snoTimings),
+        rawTimingMs:{native:nativeTimings,sno:snoTimings}
+      });
     }
     return results;
   }finally{
