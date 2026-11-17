@@ -1684,7 +1684,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         // mutators/readers, even when their constructors had inert inputs.
         if(isWebInstance(callee.object,webStringInstances,webStringConstructors,
             webStringNames) &&
-            ['append','set','get','getAll','delete','has'].includes(method??'') &&
+            (['append','set','get','getAll','delete','has'].includes(method??'') ||
+             callee.computed && method===null) &&
             node.arguments.some((/** @type {AstNode} */ value)=>
               !isDefinitelyPrimitive(value)))observed=true;
       }
