@@ -284,19 +284,28 @@ function lowerWasmI32Functions(source,sourceType,options) {
       JSON.stringify(binary)+'))).exports.f';
     const helperParameters=names.length===1?'input':names.map((_,i)=>'input'+i).join(',');
     const callParameters=names.join(',');
-    if(sourceType==='module'||options.deferCommonJsInitialization===true) {
-      // ESM cyclic calls require a hoisted helper. CommonJS deferred setup
-      // is opt-in because first-call compilation counts toward runtime cost,
-      // while SNO server-only initialization may be amortized separately.
+    const deferredCommonJs=sourceType==='commonjs'&&
+      options.deferCommonJsInitialization===true;
+    if(sourceType==='module') {
+      // ESM cyclic callers can invoke a hoisted function before module body.
       init.push('function '+helper+'('+helperParameters+'){'+helper+'='+instance+
         ';return '+helper+'('+helperParameters+');}');
+    } else if(deferredCommonJs) {
+      // A lexical cache plus a direct conditional call from the protected
+      // function avoids the permanently deoptimized self-rebinding wrapper.
+      // Compilation is charged to the first invocation of each function.
+      init.push('let '+helper+';function '+helper+'_init('+helperParameters+
+        '){'+helper+'='+instance+';return '+helper+'('+helperParameters+');}');
     } else {
       init.push('const '+helper+'='+instance+';');
     }
     const unsigned=resultKind(expression)==='unsigned';
+    const invoked=deferredCommonJs?
+      '('+helper+'?'+helper+'('+callParameters+'):'+
+        helper+'_init('+callParameters+'))':
+      helper+'('+callParameters+')';
     edits.push({start:fn.body.start,end:fn.body.end,
-      text:'{return '+(unsigned?'('+helper+'('+callParameters+')>>>0)':
-        helper+'('+callParameters+')')+';}'});
+      text:'{return '+(unsigned?'('+invoked+'>>>0)':invoked)+';}'});
     count++;instructions+=state.steps;wasmBytes+=binary.length;
   }
   if(!count)return {code:source,functions:0,instructions:0,wasmBytes:0,declined};
