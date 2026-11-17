@@ -28,7 +28,7 @@ function examples(){
         samplePairs:9,confidenceAttained:0.98
       },
       sourceBytes:{native:2467,published:7518,reconstructed:2362},
-      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(1.4),reconstructed:Array(9).fill(1.1)},
+      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(events===1?3.2:1.4),reconstructed:Array(9).fill(1.1)},
       ratioReconstructedToPublishedMedians:0.9
     }))
   };
