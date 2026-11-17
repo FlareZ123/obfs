@@ -269,3 +269,32 @@ for(const [name,loader] of builtinLoaderRoutes) {
     }
   });
 }
+
+// Directly disabling the file-source preflight gives a measurable native
+// discrepancy. This control separates compatibility from any security claim.
+test('unguarded local property rewrite changes observable Node module source',async()=>{
+  const {renameLocalProperties}=require('../src/properties');
+  const code="'use strict';\n"+
+    "const {getBuiltinModule:load}=process;\n"+
+    "const io=load('node:fs');\n"+
+    'const privateObject={secretField:31};\n'+
+    "const bytes=io.readFileSync(__filename,'utf8');\n"+
+    "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n";
+  /** @type {Source[]} */
+  const nativeFiles=[{path:'main.cjs',sourceType:'commonjs',code}];
+  const unchecked=renameLocalProperties(code,parse(code,'commonjs'),{
+    seed:'builtin-source-unguarded'
+  });
+  assert.equal(unchecked.properties,1,'negative control must actually transform');
+  const unguardedFiles=[{...nativeFiles[0],code:unchecked.code}];
+  const native=await execute(nativeFiles,'main.cjs');
+  const altered=await execute(unguardedFiles,'main.cjs');
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(altered.status,0,altered.stderr);
+  assert.equal(native.stdout,'31 true\n');
+  assert.equal(altered.stdout,'31 false\n');
+  const guarded=obfuscateFiles(nativeFiles,{mode:'sno',
+    seed:'builtin-source-guarded',strings:true,properties:true,identifiers:true});
+  assert.equal(guarded.files[0].code,code);
+  assert.deepEqual(await execute(guarded.files,'main.cjs'),native);
+});
