@@ -132,6 +132,34 @@ test('primitive-only Set compositions preserve unrelated protected work',()=>{
   assert.deepEqual(execute(String(emitted.files[0].code)),execute(source));
 });
 
+
+for(const [name,body] of [
+  ['Set returned by local factory',
+    'function carry(value){return new Set([value]);}'+
+      'module.exports=[...carry(protectedSum)].join(",");'],
+  ['Map returned by local factory',
+    'function carry(value){return new Map([[0,value]]);}'+
+      'module.exports=Array.from(carry(protectedSum).values()).join(",");'],
+  ['Set returned by direct arrow factory',
+    'const carry=value=>new Set([value]);'+
+      'module.exports=[...carry(protectedSum)].join(",");']
+]) {
+  test(name+' preserves source across a call boundary',()=>{
+    const source=protectedSource()+body;
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
+test('primitive-only carrier factory preserves unrelated affine transformation',()=>{
+  const source=protectedSource()+
+    'function carry(value){return new Set([value]);}'+
+    'module.exports=[protectedSum(8),[...carry(3)].join(",")];';
+  const out=obfuscate(source);
+  assert.equal(out.files[0].metrics.polyvariantFunctions,1);
+  assert.deepEqual(execute(String(out.files[0].code)),execute(source));
+});
+
 test('primitive-only iterable copies allow unrelated protected work',()=>{
   const source=protectedSource()+
     'const bag=new Set([3,1,3]);const map=new Map([[1,7]]);'+
