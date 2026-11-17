@@ -851,7 +851,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     throw new TypeError('Selective SCO requires a module and distinct privateNames');
   }
   /** @type {ScoPrivateModuleSource[]|undefined} */
-  const auditedSources=sourceInputs?.map(source=>{
+  const auditedSources=sourceInputs===undefined?undefined:Array.from(sourceInputs,source=>{
     const sourcePath=source?.path;
     const code=source?.code;
     if(typeof sourcePath!=='string'||typeof code!=='string') {
