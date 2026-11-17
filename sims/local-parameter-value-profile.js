@@ -22,7 +22,7 @@ const original=[
   'const rounds=Number(process.argv[2]);',
   'let checksum=0;',
   'for(let index=0;index<rounds;index++)checksum+=calculate(index&1023);',
-  'process.stdout.write(String(checksum)+"\\n");'
+  'console.log(checksum);'
 ].join('\n');
 
 /**
