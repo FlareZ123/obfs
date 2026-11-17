@@ -27,16 +27,23 @@ async function verifyScoPrivateSourceDigests(partition,root){
   const seen=new Set();
   /** @type {{path:string,sha256:string}[]} */
   const commitments=[];
-  for(const expected of partition.privateSourceDigests){
-    if(!expected||typeof expected.path!=='string'||
-       typeof expected.sha256!=='string'||!/^[0-9a-f]{64}$/u.test(expected.sha256)){
+  // The verifier must inspect every declared array slot, independent of
+  // caller-overridden Symbol.iterator, and must use precisely the same
+  // getter values for validation and the later deployed-byte comparison.
+  const expectedSources=partition.privateSourceDigests;
+  for(let index=0;index<expectedSources.length;index++){
+    const entry=expectedSources[index];
+    const declaredPath=entry?.path;
+    const declaredSha=entry?.sha256;
+    if(typeof declaredPath!=='string'||typeof declaredSha!=='string'||
+       !/^[0-9a-f]{64}$/u.test(declaredSha)){
       throw new TypeError('SCO private source commitment is malformed');
     }
-    const filename=safePath(expected.path);
+    const filename=safePath(declaredPath);
     const caseName=filename.toLowerCase();
     if(seen.has(caseName))throw new TypeError('SCO private source commitment path duplicated: '+filename);
     seen.add(caseName);
-    commitments.push({path:filename,sha256:expected.sha256});
+    commitments.push({path:filename,sha256:declaredSha});
   }
   const realRoot=await fs.realpath(root);
   for(const expected of commitments){
