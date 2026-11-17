@@ -400,6 +400,22 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(node.type==='MemberExpression'){
       const member=keyName(node);
       if(isMathRoot(node.object)&&member==='random')entropyTouched=true;
+      // Extracted Date.now/parse functions can run under a different clock or
+      // timezone. Keep the direct, pinned-ISO Date.parse positive exception.
+      if(isDateConstructor(node.object)&&
+         (member==='now'||member==='parse')&&
+         !(parent?.type==='CallExpression'&&parent.callee===node&&
+           member==='parse'&&parent.arguments.length===1&&
+           pinnedIsoUtcLiteral(parent.arguments[0]))){
+        configurationTouched=true;
+      }
+      // Calling or binding an intrinsic constructor through Function methods
+      // bypasses the direct invocation check. Its eventual host is unproved.
+      if(['bind','call','apply'].includes(member??'')&&
+         (isDateConstructor(node.object)||isIntlConstructor(node.object)||
+          node.object.type==='Identifier'&&intlAliases.has(node.object.name))){
+        configurationTouched=true;
+      }
       const hostKind=hostSourceKind(node.object);
       if(hostKind==='entropy')entropyTouched=true;
       if(hostKind==='clock')clockTouched=true;
@@ -423,6 +439,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
       if(isMathRoot(source)&&properties.some(
         (/** @type {import('./ast').AstNode} */ property)=>keyName(property)==='random')){
         entropyTouched=true;
+      }
+      if(isDateConstructor(source)&&properties.some(
+        (/** @type {import('./ast').AstNode} */ property)=>
+          ['now','parse'].includes(keyName(property)??''))){
+        configurationTouched=true;
       }
       const origin=hostSourceKind(source);
       if(origin==='entropy')entropyTouched=true;
