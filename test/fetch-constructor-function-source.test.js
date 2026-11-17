@@ -28,6 +28,7 @@ const sourceObservers=[
   ['Response body','new Response(inspect).text()'],
   ['Response statusText','new Response("fixed",{statusText:inspect}).statusText'],
   ['Response header','new Response("fixed",{headers:{"x-observed":inspect}}).headers.get("x-observed")'],
+  ['Response redirect URL error','(()=>{try{return Response.redirect(inspect).url;}catch(error){return error.message;}})()'],
   ['Request URL error','(()=>{try{return new Request(inspect).url;}catch(error){return error.message;}})()'],
   ['Request alias URL error','(()=>{const FetchRequest=Request;try{return new FetchRequest(inspect).url;}catch(error){return error.message;}})()'],
   ['Request init header','new Request("https://example.test/",{headers:{"x-observed":inspect}}).headers.get("x-observed")'],
@@ -64,6 +65,7 @@ for(const [name,expression] of sourceObservers) {
 const inertCases=[
   ['Response primitive body','new Response("fixed").text()'],
   ['Response primitive options','new Response("fixed",{statusText:"OK",headers:{"x-observed":"fixed"}}).headers.get("x-observed")'],
+  ['Response redirect primitive URL','Response.redirect("https://example.test/").url'],
   ['Request primitive URL','new Request("https://example.test/").url'],
   ['Request primitive options','new Request("https://example.test/",{headers:{"x-observed":"fixed"}}).headers.get("x-observed")'],
   ['File primitive parts','new File(["fixed"],"doc.txt").text()'],
