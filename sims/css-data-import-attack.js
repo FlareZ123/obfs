@@ -4,6 +4,7 @@ const assert=require('node:assert/strict');
 const path=require('node:path');
 const vm=require('node:vm');
 const http=require('node:http');
+const {createHash}=require('node:crypto');
 
 /**
  * @typedef {'coo'|'sco'|'sno'} Mode
@@ -13,6 +14,11 @@ const http=require('node:http');
  *   createScoHandler:(files:File[])=>import('node:http').RequestListener
  * }} Compiler
  */
+
+/** @param {string|Buffer} bytes @returns {string} */
+function sha256(bytes) {
+  return createHash('sha256').update(bytes).digest('hex');
+}
 
 /** @param {string} root @returns {Compiler} */
 function loadCompiler(root) {
@@ -65,7 +71,7 @@ async function getPublished(handler,file) {
 /**
  * @param {string} previousRoot
  * @param {string} currentRoot
- * @returns {Promise<{modes:{mode:Mode,recovered:number,refused:number}[],httpRecovered:number,httpRefused:number}>}
+ * @returns {Promise<{originalSha256:string,modes:{mode:Mode,recovered:number,refused:number,publishedSha256:Record<string,string>,executableSha256:Record<string,string>}[],httpRecovered:number,httpRefused:number,scoHttpSha256:Record<string,string>}>}
  */
 async function compare(previousRoot,currentRoot) {
   const previous=loadCompiler(previousRoot);
@@ -87,10 +93,14 @@ async function compare(previousRoot,currentRoot) {
     {path:'icon.svg',sourceType:'asset',
       code:'<svg xmlns="http://www.w3.org/2000/svg"><style><![CDATA['+importCss+']]></style></svg>'}
   ];
-  /** @type {{mode:Mode,recovered:number,refused:number}[]} */
+  /** @type {{mode:Mode,recovered:number,refused:number,publishedSha256:Record<string,string>,executableSha256:Record<string,string>}[]} */
   const modes=[];
   for(const mode of /** @type {Mode[]} */ (['coo','sco','sno'])) {
     let recovered=0,refused=0;
+    /** @type {Record<string,string>} */
+    const publishedSha256={};
+    /** @type {Record<string,string>} */
+    const executableSha256={};
     for(const asset of assets) {
       const options={mode,seed:'css-data-attack',strings:false};
       const previousOut=previous.obfuscateFiles([entry,asset],options);
@@ -104,6 +114,8 @@ async function compare(previousRoot,currentRoot) {
       vm.runInNewContext(String(executable.code),compiled,{timeout:1500});
       assert.equal(compiled.module.exports,native.module.exports);
       assert.equal(recover(published.code),original);
+      publishedSha256[asset.path]=sha256(published.code);
+      executableSha256[asset.path]=sha256(executable.code);
       recovered++;
       assert.throws(()=>current.obfuscateFiles([entry,asset],options),
         /(?:CSS data import cannot be audited|HTML asset contains inline CSS data import|SVG asset contains embedded CSS data import)/u);
@@ -128,19 +140,22 @@ async function compare(previousRoot,currentRoot) {
       assert.deepEqual(hardened.code,baseline.code,
         'Preflight addition must not silently modify accepted bytes: '+candidate);
     }
-    modes.push({mode,recovered,refused});
+    modes.push({mode,recovered,refused,publishedSha256,executableSha256});
   }
   let httpRecovered=0,httpRefused=0;
+  /** @type {Record<string,string>} */
+  const scoHttpSha256={};
   for(const asset of assets) {
     const published=await getPublished(previous.createScoHandler([asset]),asset.path);
     assert.equal(published.status,200);
     assert.equal(recover(published.body),original);
+    scoHttpSha256[asset.path]=sha256(published.body);
     httpRecovered++;
     assert.throws(()=>current.createScoHandler([asset]),
       /(?:CSS data import cannot be audited|HTML asset contains inline CSS data import|SVG asset contains embedded CSS data import)/u);
     httpRefused++;
   }
-  return {modes,httpRecovered,httpRefused};
+  return {originalSha256:sha256(original),modes,httpRecovered,httpRefused,scoHttpSha256};
 }
 
 if(require.main===module) {
