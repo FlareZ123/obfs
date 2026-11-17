@@ -47,3 +47,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-ratchet-browser-attacker.js
+      - name: Matched generated and minified facade hostile Chromium A-only interception
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-browser-equal-trust.js
