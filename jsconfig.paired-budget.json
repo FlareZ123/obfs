@@ -2,7 +2,8 @@
   "extends": "./jsconfig.json",
   "include": [
     "sims/paired-budget-bound.js",
-    "test/paired-budget-bound.test.js"
+    "test/paired-budget-bound.test.js",
+    "sims/application-challenge-sco-post-hardening-bootstrap.js"
   ],
   "exclude": ["node_modules"]
 }
