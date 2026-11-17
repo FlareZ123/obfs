@@ -148,10 +148,48 @@ function partitionScoSelectedGraph(units){
     // a getter could supply different source text for auditing and hashing.
     const file={path:suppliedFile.path,code:suppliedFile.code,
       sourceType:suppliedFile.sourceType};
-    const options=unit.options;
     const name=recordPath(file.path);
     if(Object.hasOwn(partitions,name)){
       throw new TypeError('Duplicate selected SCO graph entry: '+name);
+    }
+    const suppliedOptions=unit.options;
+    if(!suppliedOptions||typeof suppliedOptions!=='object'){
+      throw new TypeError('Selected SCO graph requires explicit partition options');
+    }
+    // Capture the approved option properties and any source record getters
+    // exactly once. The separate statelessness audit and the underlying
+    // partitioner's closure verifier then inspect the same input bytes.
+    const suppliedSources=suppliedOptions.privateModuleSources;
+    /** @type {ScoSelectiveOptions} */
+    const options={
+      privateNames:suppliedOptions.privateNames,
+      publicHelperNames:suppliedOptions.publicHelperNames,
+      privateModuleImports:suppliedOptions.privateModuleImports,
+      additionalPrivateModulePaths:suppliedOptions.additionalPrivateModulePaths,
+      allowServerEnvConstants:suppliedOptions.allowServerEnvConstants,
+      allowServerImports:suppliedOptions.allowServerImports,
+      seed:suppliedOptions.seed,
+      endpoint:suppliedOptions.endpoint,
+      batch:suppliedOptions.batch,
+      maxBatchCalls:suppliedOptions.maxBatchCalls
+    };
+    if(suppliedSources!==undefined){
+      if(!Array.isArray(suppliedSources)){
+        throw new TypeError('Selected SCO privateModuleSources must be an array');
+      }
+      /** @type {ScoPrivateModuleSource[]} */
+      const stableSources=[];
+      for(let index=0;index<suppliedSources.length;index++){
+        const record=suppliedSources[index];
+        const privatePath=record?.path;
+        const code=record?.code;
+        if(typeof privatePath!=='string'||typeof code!=='string'){
+          throw new TypeError('Selected SCO privateModuleSources requires source records');
+        }
+        stableSources.push({path:privatePath,code});
+      }
+      assertImmutablePrivateModuleTopLevels(stableSources);
+      options.privateModuleSources=stableSources;
     }
     const partition=partitionScoSelectedAsyncExports(file,options);
     if(partition.clientFile.path!==name){
