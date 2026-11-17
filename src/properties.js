@@ -86,27 +86,21 @@ function isSimplePatternBinding(value) {
 function isPrimitiveConstantExpression(node) {
   if(node.type==='Literal')return node.value===null||
     ['string','number','boolean','bigint'].includes(typeof node.value);
-  if(node.type==='UnaryExpression')return
-    ['+','-','!','~','void','typeof'].includes(node.operator)&&
+  if(node.type==='UnaryExpression')return     ['+','-','!','~','void','typeof'].includes(node.operator)&&
     isPrimitiveConstantExpression(node.argument);
-  if(node.type==='BinaryExpression')return
-    ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
+  if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
       '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
     isPrimitiveConstantExpression(node.left)&&
     isPrimitiveConstantExpression(node.right);
-  if(node.type==='LogicalExpression')return
-    ['&&','||','??'].includes(node.operator)&&
+  if(node.type==='LogicalExpression')return     ['&&','||','??'].includes(node.operator)&&
     isPrimitiveConstantExpression(node.left)&&
     isPrimitiveConstantExpression(node.right);
-  if(node.type==='ConditionalExpression')return
-    isPrimitiveConstantExpression(node.test)&&
+  if(node.type==='ConditionalExpression')return     isPrimitiveConstantExpression(node.test)&&
     isPrimitiveConstantExpression(node.consequent)&&
     isPrimitiveConstantExpression(node.alternate);
-  if(node.type==='SequenceExpression')return
-    node.expressions.length>0&&
+  if(node.type==='SequenceExpression')return     node.expressions.length>0&&
     node.expressions.every(isPrimitiveConstantExpression);
-  if(node.type==='TemplateLiteral')return
-    node.expressions.every(isPrimitiveConstantExpression);
+  if(node.type==='TemplateLiteral')return     node.expressions.every(isPrimitiveConstantExpression);
   return false;
 }
 
