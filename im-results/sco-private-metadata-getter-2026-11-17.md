@@ -1,6 +1,6 @@
 # SCO direct-handler private metadata getter snapshot, 2026-11-17
 
-**Status:** Regression and patch committed; no exact-SHA cross-platform validation recorded at this checkpoint. This is an intermediate trusted-server publication-boundary safety improvement, not a demonstration of protection against a malicious server operator.
+**Status:** Three direct-handler metadata regressions and the initial snapshot patch passed exact-SHA Ubuntu/Windows Node 22 CI. A fourth mutable array-index regression and its follow-up patch await separate exact-SHA verification. This is trusted-server publication-boundary engineering, not protection against a malicious server operator.
 
 ## Scope
 
@@ -21,3 +21,22 @@ The source patch is commit `476232413fb29115959556505117e82d6f0c360a`. Two prope
 Run Node 22 on Ubuntu/Windows at an exact SHA with the direct-handler negative cases, the existing private-graph and source-publication suites, strict JSDoc, and the Chromium publication tests. A test-only red pin prior to the patch would distinguish a meaningful regression from a green-only guard. The repository's manual runners were queued when this report was written, so no CI result is presumed.
 
 The fix does not provide a cryptographic private-module attestation, eliminate the need to review `publicPaths`, detect every byte-modified original source, or protect a handler against its own malicious operator. The sealed graph helper retains its separate in-process partition identity and manifest snapshot. No new per-request CPU or network work was added; this is construction-time metadata handling.
+
+## First cross-platform green evidence
+
+[Manual SCO authorization run 44048517033](https://github.com/FlareZ123/obfs/actions/runs/44048517033)
+passed both Ubuntu and Windows Node 22 at exact SHA
+`837f5a277477887e83541be4a1fb419c9961a67d`: Ubuntu
+**175/175 passed**, Windows **174/175 passed, one skipped**, zero
+failures. The three original metadata test cases passed on both runners,
+alongside private source graph admission, static and dynamic loader
+challenges, strict JSDoc and Ubuntu Chromium integration. The follow-on
+digest array-element getter test and corrected snapshot-first validation
+were committed afterward. This green run cannot establish their behavior.
+
+The test-only original-metadata source branch
+`agent1-sco-private-metadata-red-20261117` at
+`46cb5d41fc45044301bd48b64a7aa35f2df2143e` is queued under
+[run 44048791393](https://github.com/FlareZ123/obfs/actions/runs/44048791393).
+A red execution of the known source limitation is still pending and must
+be reported separately when completed.
