@@ -75,7 +75,9 @@ async function main(){
     }
     privateHandler(req,res);
   });
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await ready;
   try{
     const address=server.address();
     if(!address||typeof address==='string')throw Error('Missing Chromium server port');
@@ -93,7 +95,9 @@ async function main(){
     assert.equal(rpcCalls,2);
     console.log('Chromium selected SCO graph: 2 modules, 2 authenticated private RPCs, native parity');
   }finally{
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    /** @type {Promise<void>} */
+  const ended=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await ended;
   }
 }
 if(require.main===module){
