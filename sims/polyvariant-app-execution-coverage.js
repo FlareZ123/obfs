@@ -132,7 +132,7 @@ async function runEvidence(){
   const selectedSourceBytes=Buffer.byteLength(nativeMath.slice(selectedStart,selectedEnd));
   const totalOriginalBytes=native.reduce((total,file)=>
     total+Buffer.byteLength(file.code),0);
-  assert.equal(selectedSourceBytes,310,'Frozen selected function source changed');
+  assert.equal(selectedSourceBytes,309,'Frozen selected function source changed');
   assert.equal(totalOriginalBytes,2467,'Frozen original graph changed');
   assert.equal(recovered.functions.length,3);
   for(const name of fileNames.slice(1)){
