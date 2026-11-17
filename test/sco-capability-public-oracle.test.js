@@ -40,7 +40,8 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     '  record.state=model.next[state][symbol];',
     '  return model.output[state][symbol];',
     ' });',
-    '}'
+    '}',
+    'export async function close(handle){return handles.revoke(handle);}'
   ].join('\n');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'sco-capability-oracle-'));
   const nativeFetch=globalThis.fetch;
@@ -50,9 +51,8 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     if(session==='verified-B')return 'account-B';
     return 'unauthorized';
   },{maxPendingTotal:128,maxPendingPerPrincipal:32});
-  const handles=createScoPrivateHandles(scope.currentPrincipal,{
-    maxHandles:4096,maxHandlesPerPrincipal:4096,ttlMs:600000
-  });
+  // Keep the production defaults: 256 active handles per principal, 5-minute TTL.
+  const handles=createScoPrivateHandles(scope.currentPrincipal);
   /** @type {http.Server|undefined} */let server;
   try{
     const originalPath=path.join(root,'private.mjs');
@@ -65,6 +65,7 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     },{seed:'capability-public-oracle-2026-11-17',serverOnlyInitialization:true});
     const beginMethod=partition.methodNames.begin;
     const stepMethod=partition.methodNames.step;
+    const closeMethod=partition.methodNames.close;
     server=http.createServer(createScoHandler([partition.clientFile],{
       remoteMethods:bindScoModuleExports(partition,privateModule),
       publicPaths:['public.mjs'],authorizeRead:()=>true,
@@ -75,7 +76,8 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
           request.headers['x-fixture-session']==='verified-B';
         return valid && (method===beginMethod && args.length===0 ||
           method===stepMethod && args.length===2 &&
-          typeof args[0]==='string' && (args[1]===0 || args[1]===1));
+          typeof args[0]==='string' && (args[1]===0 || args[1]===1) ||
+          method===closeMethod && args.length===1 && typeof args[0]==='string');
       },
       runRpcIsolated:scope.runRpcIsolated
     }));
@@ -104,7 +106,7 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
       headers.set('x-fixture-session',credential);
       return nativeFetch(new URL(String(input),origin),{...options,headers});
     });
-    /** @type {{begin:()=>Promise<string>,step:(token:string,symbol:number)=>Promise<number>}} */
+    /** @type {{begin:()=>Promise<string>,step:(token:string,symbol:number)=>Promise<number>,close:(token:string)=>Promise<boolean>}} */
     const publicApi=await import(pathToFileURL(servedPath).href);
     assert.equal(/** @type {{reset?:unknown}} */ (publicApi).reset,undefined);
     const firstHandle=await publicApi.begin();
@@ -116,9 +118,23 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     // Attacker can mint a fresh handle to reset the observed private state.
     // The learner never accesses machine, source, privateModule or handles.
     let activeHandle='';
+    let actualAttackerRpcCalls=0;
+    let revokedTrainingHandles=0;
     const learned=await learnMachine({
-      async reset(){activeHandle=await publicApi.begin();return true;},
-      async step(symbol){return publicApi.step(activeHandle,symbol);}
+      async reset(){
+        if(activeHandle){
+          assert.equal(await publicApi.close(activeHandle),true);
+          actualAttackerRpcCalls++;
+          revokedTrainingHandles++;
+        }
+        activeHandle=await publicApi.begin();
+        actualAttackerRpcCalls++;
+        return true;
+      },
+      async step(symbol){
+        actualAttackerRpcCalls++;
+        return publicApi.step(activeHandle,symbol);
+      }
     },4,2);
     assert.equal(learned.machine.access.length,4);
     const usedTrainingWords=new Set(learned.trainingWords);
@@ -140,10 +156,13 @@ test('fresh server-private handles expose a resettable four-state behavioral ora
     }
     assert.equal(checked,2046);
     assert.ok(unseen>0);
-    assert.ok(learned.requests<10000);
+    assert.ok(actualAttackerRpcCalls<10000);
+    assert.ok(revokedTrainingHandles>0);
     console.log(JSON.stringify({
       model:'four-state-binary-Mealy',publicSha256,
-      attackerRpcCalls:learned.requests+1,
+      attackerRpcCalls:actualAttackerRpcCalls,
+      abstractLearnerCalls:learned.requests,
+      revokedTrainingHandles,defaultPrincipalQuota:256,
       inferredStates:learned.machine.access.length,
       heldoutWords:checked,strictlyUnseenWords:unseen,
       unauthenticatedStatus:denied.status,
