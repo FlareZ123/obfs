@@ -38,6 +38,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/symbol-keys-browser.js
+      - name: Real Chromium own-key membership native renamed Symbol and external page API
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/property-in-browser.js
       - name: Strict external JSDoc typecheck for new membership tests
         if: ${{ always() }}
         run: npm run typecheck:external
