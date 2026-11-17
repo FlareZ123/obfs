@@ -152,13 +152,13 @@ SNO: Under the stated attacker model the adversary owns code, filesystem, and pr
 
 ## Independently reviewed opaque public assets
 
-The optional \`reviewedOpaqueAssets\` manifest provides a positive byte-identity
+The optional `reviewedOpaqueAssets` manifest provides a positive byte-identity
 publication boundary for COO, SNO and SCO. An integrator supplies an array of
-\`{path,sha256}\` records using exact, relative public asset paths and lowercase
+`{path,sha256}` records using exact, relative public asset paths and lowercase
 SHA-256 digests of **separately reviewed input bytes**. For example, pass
-\`{reviewedOpaqueAssets:[{path:'theme.css',sha256:'<reviewed 64-hex digest>'}]}\`
+`{reviewedOpaqueAssets:[{path:'theme.css',sha256:'<reviewed 64-hex digest>'}]}`
 as the compiler's mode options or as the second argument to
-\`createScoHandler\`. Every \`sourceType:'asset'\` file must match one entry,
+`createScoHandler`. Every `sourceType:'asset'` file must match one entry,
 and every entry must match one asset. Missing, extra, case-mismatched and
 byte-changed assets are refused before output files or SCO routes are generated.
 
@@ -172,14 +172,14 @@ about external dependencies or assets created by later deployment steps.
 Recheck all actual deployed output files after bundling, compression and
 delivery if claiming a complete publication boundary.
 
-The compiler snapshots each incoming \`Buffer\` and code getter once before
+The compiler snapshots each incoming `Buffer` and code getter once before
 preflight. A caller's later mutation of its original Buffer cannot rewrite
 the already validated output. SCO handler startup already snapshots its
 source buffers. The reviewed-asset option adds no emitted JavaScript runtime
 instructions; it adds compile or SCO handler setup hashing work.
 
-See \`test/reviewed-opaque-assets.test.js\` and
-\`workplace/asset-publication-trust-contract-2026-11-17.md\` for a
+See `test/reviewed-opaque-assets.test.js` and
+`workplace/asset-publication-trust-contract-2026-11-17.md` for a
 source-only encoded canary, manifest refusal, positive safe fixtures, and
 the explicit review assumption.
 
