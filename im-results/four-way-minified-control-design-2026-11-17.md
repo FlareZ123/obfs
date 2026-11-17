@@ -23,6 +23,12 @@ The different publication strategies are intentional: ordinary production minifi
 
 The existing specialized public-only [polyvariant affine source reconstruction](../sims/polyvariant-app-static-clone.js) independently recovers those three functions from the *obfuscated* public bytes. The attacker algorithms are different, so their elapsed times do not form an equal-complexity oracle and must never be interpreted as proof of a cryptographic gap. They are concrete recoveries at an explicit application interface.
 
+## Matched three-query attacker across all four variants
+
+A separate [independent black-box competitor](../sims/polyvariant-app-three-query-competitor.js) obtains only the running exported arithmetic functions of each distribution and queries each round export once at input zero. It commits to the same signed-Int32 translation hypothesis for native, esbuild-minified, published COO and previously reconstructed math. The [negative-control tests](../test/polyvariant-app-three-query-competitor.test.js) show the three observations cannot reconstruct nonlinear functions in general.
+
+After committing to the prediction, a separate verifier compares 4,096 held-out signed Int32 inputs per helper against the relevant public distribution and the unchanged native reference. These 12,288 additional comparison queries per distribution are **verification**, excluded from the three-query attack budget, and separately counted in the output. Identical query budgets and hypotheses remove the unequal static-decompiler algorithm confound for this restricted family. They do not establish a matched wall-clock human attack budget, arbitrary-function cloning ability, or a source-recovery result.
+
 ## Functional and runtime comparisons
 
 The Node four-way experiment [\`sims/polyvariant-app-four-way-control.js\`](../sims/polyvariant-app-four-way-control.js) imports each candidate in a unique temporary ESM directory for every trial to ensure a newly parsed/evaluated graph, then invokes the same application and verifies complete JSON responses, the full emitted external host callback values against the returned trace, and exact host callback parity across all four graphs. Workloads contain **1, 50, 1,000, and 10,000 events**. Each variant receives **twelve trials per workload**, with four order permutations and the same deterministic Unicode-bearing records. It retains every runtime sample and computes the repository's one-sided paired median confidence diagnostic for minified, published, and reconstructed versus native.
