@@ -201,6 +201,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         isFunctionValue(node.arguments[0])));
   }
   /**
+   * Recognize direct function-returning mapping callbacks. The result may
+   * stringify as exact function source even if input items are primitives.
+   * @param {AstNode|null|undefined} node
+   * @param {number} depth
+   * @returns {boolean}
+   */
+  function callbackReturnsFunction(node,depth) {
+    if(!node||depth>32||
+       !['ArrowFunctionExpression','FunctionExpression'].includes(node.type))
+      return false;
+    const body=node.body;
+    if(body.type==='BlockStatement') {
+      return body.body.some((/** @type {AstNode} */ statement)=>
+        statement.type==='ReturnStatement'&&
+        (isFunctionValue(statement.argument)||containsFunction(statement.argument,depth+1)));
+    }
+    return isFunctionValue(body)||containsFunction(body,depth+1);
+  }
+  /**
    * Nested arrays stringify recursively through Array#join. A function can
    * therefore leak through [ [fn] ].join() without any direct element
    * identifying as a function.
@@ -225,7 +244,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const owner=node.callee.object;
       const arrayStatic=owner.type==='Identifier'&&owner.name==='Array';
       if(arrayStatic&&member==='from')
-        return containsFunction(node.arguments[0],depth+1);
+        return containsFunction(node.arguments[0],depth+1) ||
+          callbackReturnsFunction(node.arguments[1],depth+1);
       if(arrayStatic&&member==='of') {
         return node.arguments.some((/** @type {AstNode} */ value)=>
           value.type==='SpreadElement'?
@@ -236,6 +256,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         'flatMap','toReversed','toSorted','toSpliced','with']);
       if(derivedMethods.has(member??'')) {
         if(containsFunction(owner,depth+1))return true;
+        if(['map','flatMap'].includes(member??'')&&
+           callbackReturnsFunction(node.arguments[0],depth+1))return true;
         // concat/splice-like methods can insert function values into a new
         // array even when the original receiver contains only primitives.
         const inserted=member==='concat'?node.arguments:
