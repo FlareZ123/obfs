@@ -85,6 +85,24 @@ for(const [name,body] of [
   });
 }
 
+
+for(const [name,body] of [
+  ['Set forEach collection argument',
+    'const set=new Set([protectedSum]);let output="";'+
+      'set.forEach((v,k,owner)=>{output=Array.from(owner).join(",");});'+
+      'module.exports=output;'],
+  ['Map forEach collection argument',
+    'const map=new Map([[0,protectedSum]]);let output="";'+
+      'map.forEach((v,k,owner)=>{output=Array.from(owner.values()).join(",");});'+
+      'module.exports=output;']
+]) {
+  test(name+' preserves exact protected function source',()=>{
+    const source=protectedSource()+body;
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
 test('primitive-only iterable copies allow unrelated protected work',()=>{
   const source=protectedSource()+
     'const bag=new Set([3,1,3]);const map=new Map([[1,7]]);'+
