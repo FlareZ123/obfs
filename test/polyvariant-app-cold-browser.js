@@ -106,9 +106,17 @@ async function main(){
     rows.push({events:count,outputSha256:await sha(reference.output),
       hostTraceSha256:await sha(reference.trace),emissions:reference.emissions,measurements});
   }
-  document.getElementById('out').textContent='pass:'+JSON.stringify({rows});
+  const probeStart=performance.now();
+  let clockChecksum=0;
+  for(let index=0;index<5000000;index++)
+    clockChecksum=(clockChecksum+Math.imul(index,33))|0;
+  const clockProbeMs=performance.now()-probeStart;
+  if(clockProbeMs<0.1)throw Error('Browser clock does not advance during synchronous CPU work');
+  document.getElementById('out').textContent='pass:'+JSON.stringify({
+    rows,clockProbeMs,clockChecksum
+  });
 }
-main().catch(error=>{document.getElementById('out').textContent='fail:'+error.stack;});
+await main().catch(error=>{document.getElementById('out').textContent='fail:'+error.stack;});
 </script></body></html>`;
 }
 
@@ -165,11 +173,14 @@ async function main(){
     const root='http://127.0.0.1:'+address.port;
     const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=45000','--dump-dom',root+'/index.html'
+      '--no-first-run','--timeout=45000','--dump-dom',root+'/index.html'
     ],{timeout:65000,maxBuffer:8*1024*1024,encoding:'utf8'});
     const data=stdout.match(/<pre id="out">pass:(\{[^<]*\})<\/pre>/u)?.[1];
     assert.ok(data,'Browser did not complete cold import experiment: '+stdout.slice(-1800));
-    const browser=/** @type {{rows:BrowserRow[]}} */(JSON.parse(data));
+    const browser=/** @type {{rows:BrowserRow[],clockProbeMs:number,clockChecksum:number}} */
+      (JSON.parse(data));
+    assert.ok(Number.isFinite(browser.clockProbeMs)&&browser.clockProbeMs>=0.1,
+      'Chromium monotonic clock did not advance with CPU work');
     assert.deepEqual(browser.rows.map(row=>row.events),workloads);
     assert.deepEqual(browser.rows.map(({events,outputSha256,hostTraceSha256,emissions})=>({
       events,outputSha256,hostTraceSha256,emissions
@@ -187,6 +198,10 @@ async function main(){
         }
       }
       assert.equal(row.emissions,row.events);
+      if(row.events===10000){
+        assert.ok(row.measurements.native.some(x=>x.runMs>0),
+          'Chromium failed to measure actual 10000-event synchronous application CPU');
+      }
       results.push({events:row.events,outputSha256:row.outputSha256,
         hostTraceSha256:row.hostTraceSha256,emissions:row.emissions,
         publishedVsNative:pairedBudgetBound(
@@ -220,7 +235,8 @@ async function main(){
       sourceHashes:{native:originalSha256,published:publishedSha256,
         reconstructed:reconstructedSha256},
       boundary:'same Chromium page, unique non-cached three-module URLs for each session; localhost HTTP fetch + ESM link/evaluate + full synchronous application and host callbacks; browser process/page startup, source build and source-only reconstruction excluded',
-      trials,loadsPerVariant:trials*workloads.length,
+      trials,clockProbeMs:browser.clockProbeMs,clockChecksum:browser.clockChecksum,
+      loadsPerVariant:trials*workloads.length,
       verifiedGraphRequests:workloads.length*trials*variants.length*3,
       publishedFamilywise,reconstructedFamilywise,rows:results
     })+'\n');
