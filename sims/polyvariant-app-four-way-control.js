@@ -114,7 +114,7 @@ async function runEvidence(){
     ['minified','native','reconstructed','published'],
     ['published','reconstructed','native','minified']
   ]);
-  /** @type {object[]} */
+  /** @type {Array<{timingMs:Record<Variant,number[]>,[key:string]:unknown}>} */
   const rows=[];
   try{
     const originalFolder=path.join(folder,'heldout-original');
