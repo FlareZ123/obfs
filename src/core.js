@@ -268,7 +268,9 @@ function mutatesDecoderIntrinsic(ast) {
     if(node.type==='Identifier')return objectPrototypes.has(node.name);
     return node.type==='MemberExpression' &&
       (isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
-       isArrayPrototype(node.object) && memberName(node)==='__proto__');
+       isArrayPrototype(node.object) &&
+         (memberName(node)==='__proto__' ||
+          node.computed && memberName(node)===null));
   }
   /**
    * The chunked decoder writes its own array indices 0 through 4095.
@@ -298,7 +300,28 @@ function mutatesDecoderIntrinsic(ast) {
       function add(set,name) {
         if(!set.has(name)){set.add(name);discovered=true;}
       }
+      /**
+       * A destructuring pattern can read Array.prototype's inherited
+       * __proto__ getter, including with a computed unknown key. Preserve
+       * a possible parent alias rather than allowing a later descriptor
+       * write to corrupt the chunked decoder's fresh array indices.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordArrayParentPattern(pattern,owner) {
+        if(pattern.type!=='ObjectPattern'||!isArrayPrototype(owner))return;
+        for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key!==null&&key!=='__proto__')continue;
+          const target=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(target.type==='Identifier')add(objectPrototypes,target.name);
+        }
+      }
       if(node.type==='VariableDeclarator' && node.init) {
+        recordArrayParentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
@@ -326,6 +349,9 @@ function mutatesDecoderIntrinsic(ast) {
             if(name==='Reflect'&&isGlobal(node.init))add(reflectNames,property.value.name);
           }
         }
+      } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
+                node.left.type==='ObjectPattern') {
+        recordArrayParentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
