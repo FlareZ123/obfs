@@ -18,7 +18,8 @@
     "sims/sco-step-only-live-rpc.js",
     "test/sco-sync-diversified-browser.js",
     "sims/sco-high-entropy-prf.js",
-    "sims/sco-key-search.js"
+    "sims/sco-key-search.js",
+    "test/sco-capability-public-oracle.test.js"
   ],
   "exclude": [
     "node_modules"
