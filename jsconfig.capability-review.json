@@ -1,0 +1,12 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "sims/sco-private-capability-session-profile.js",
+    "test/sco-capabilities.test.js",
+    "test/sco-capabilities-http.test.js",
+    "test/sco-capabilities-public-facade.test.js",
+    "test/sco-capabilities-browser.js"
+  ],
+  "exclude": ["node_modules"]
+}
