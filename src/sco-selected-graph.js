@@ -3,6 +3,7 @@
 const {createHash}=require('node:crypto');
 const {safePath}=require('./core');
 const {createScoHandler}=require('./sco');
+const {parse,walk}=require('./ast');
 const {bindScoModuleExports}=require('./sco-partition');
 const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
 
@@ -27,6 +28,63 @@ const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
  * @type {WeakMap<ScoSelectedGraph,string>}
  */
 const generatedSnapshots=new WeakMap();
+
+/** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
+
+/**
+ * Refuse private child modules with per-realm mutable top-level bindings or
+ * observable initialization effects. A shared server module instance is not
+ * equivalent to each browser independently instantiating a stateful module.
+ * This is a deliberately narrow syntactic admission, not a proof of all
+ * transitive or host-defined effects. The underlying static graph checker
+ * still reviews module resolution and dynamic loader capabilities.
+ *
+ * @param {ScoPrivateModuleSource[]} sources
+ * @returns {void}
+ */
+function assertImmutablePrivateModuleTopLevels(sources){
+  for(const source of sources){
+    const ast=parse(source.code,'module');
+    /** @type {Set<string>} */
+    const moduleFunctions=new Set();
+    for(const statement of ast.body){
+      if(statement.type==='ImportDeclaration'||statement.type==='EmptyStatement'){
+        continue;
+      }
+      const declaration=statement.type==='ExportNamedDeclaration'&&
+        statement.declaration&&!statement.source?statement.declaration:statement;
+      if(declaration.type==='FunctionDeclaration'&&
+         declaration.id?.type==='Identifier'&&!declaration.generator){
+        moduleFunctions.add(declaration.id.name);
+        continue;
+      }
+      if(declaration.type==='VariableDeclaration'&&declaration.kind==='const'&&
+         declaration.declarations.length>0&&declaration.declarations.every(
+           (/** @type {import('./ast').AstNode} */ item)=>
+             item.id.type==='Identifier'&&item.init?.type==='Literal'&&
+             (item.init.value===null||
+              ['string','number','boolean','bigint'].includes(typeof item.init.value)))){
+        continue;
+      }
+      throw new TypeError('Selected SCO private dependency has unproved module-level mutable state or effects: '+source.path);
+    }
+    // A function object is mutable even when its declaration binding is not.
+    // Keep purely direct local function calls; decline use as a container,
+    // first-class value or property receiver, which could persist per-client
+    // state in the single server instance.
+    walk(ast,(node,parent,key)=>{
+      if(node.type!=='Identifier'||!moduleFunctions.has(node.name))return;
+      if(parent?.type==='FunctionDeclaration'&&key==='id'||
+         parent?.type==='CallExpression'&&key==='callee'||
+         parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
+         parent?.type==='Property'&&key==='key'&&!parent.computed&&!parent.shorthand){
+        return;
+      }
+      throw new TypeError('Selected SCO private dependency escapes a shared function identity: '+source.path);
+    });
+  }
+}
+
 
 /**
  * Compose independent, selectively partitioned ESM modules into one SCO
