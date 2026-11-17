@@ -1,0 +1,53 @@
+# SCO capability dispatch granularity: predeclared CPU comparison (17 November 2026)
+
+**Status:** completed, bounded cross-platform Node 22 CPU sample; [manual SCO workflow 44149360637](https://github.com/FlareZ123/obfs/actions/runs/44149360637) fully passed both Ubuntu and Windows including strict SCO-oracle JSDoc at immutable source `e87c04997b7736d062bccf4cf8eeb498fe713e73`. The subsequent branch may change; do not attribute later commits to this immutable run. This is not a universal 2.5× performance guarantee. It supplements the independent public-interface behavioral recovery in sco-capability-public-oracle-2026-11-17.md.
+
+## Question and decision criterion
+
+The handle API can be used once per elementary private operation, or one time around an entire server-resident session. For the same seeded four-state Mealy machine, does moving the handle lookup and callback outside the arithmetic loop eliminate enough overhead to satisfy the project's strict 2.5× CPU comparison on the selected server-resident workload?
+
+A **candidate granularity** is rejected for this isolated workload if any of the recorded paired protected/native CPU ratios strictly exceeds 2.5. Passing all finite samples cannot prove a universal budget. The experiment does not include browser RPC traffic, network overhead, authorization lookups, handle creation, revocation, server cold startup or end-to-end sessions; these remain separate release requirements.
+
+## Reproduction
+
+Run on Node 22 or later:
+
+~~~powershell
+node sims/sco-capability-granularity.js
+npx tsc -p jsconfig.sco-oracles.json
+~~~
+
+The source uses the same fixed four-state hidden machine and a fixed pseudorandom input tape (seed 0x637aa125) for all variants. It warms each variant with 30,000 transitions, then profiles 200,000- and 1,000,000-element tapes with 100 and 20 sequential passes respectively (20 million executed transitions per trial), six trials per tape size. Three execution orders rotate, so each position is visited twice by each mode. The larger, fixed common pass count was added after a Windows run reported zero process CPU for a short warm-up, which had triggered an invalid positive-resolution assertion.
+
+- **native:** Direct step function using a mutable state record.
+- **per-step:** For every symbol, call the scoped handle lookup/use callback and then run the identical step function.
+- **per-session:** Call the same scoped handle lookup/use callback once and run the complete input tape inside that callback.
+
+All operations are executed inside the real isolated per-principal request scope. The stopwatch and process CPU counter start inside the settled scope; handle minting and revocation are excluded from the measured hot region in both handle cases. The direct baseline is measured in the same context. Data preparation, module loading, authentication, queuing and allocation of one new handle happen before the timed region. Both wall elapsed time (hrtime.bigint) and process CPU time (cpuUsage) are recorded independently, with ratio decisions based on measured process CPU milliseconds.
+
+Every trial asserts **exact output checksum parity** among all three modes. The raw JSONL output includes exact trial order, pass count and executed-step count, CPU milliseconds, wall milliseconds, both ratios, observed 2.5x exceedance counts, zero-resolution/unresolved pair counts and maximum ratios. Zero CPU duration remains a recorded measurement and results in a null ratio, which is inconclusive rather than a fabricated pass. This is one host-process descriptive sample rather than randomized independent samples; no statistical tail or median guarantee is made.
+
+## Interpretation constraints
+
+The per-step and per-session modes have different RPC semantics if surfaced directly to a client. Per-session dispatch is an architecture option only when the protected application can move a whole operation across the trusted-server boundary while preserving its public contract. This experiment isolates the cost of repeated server-local handle validation; a fully protected client/server comparison must measure each allowed operation, network marshalling and complete workflow.
+
+**Measurement red/green history:** Original source `f3780cb1f9372517bc930e94a4d0a745bbfa359a` in [run 44148761219](https://github.com/FlareZ123/obfs/actions/runs/44148761219) passed the Ubuntu benchmark and the public-oracle test on both systems, but Windows stopped in the benchmark's short warmup at an assertion that process CPU milliseconds must exceed zero. This is a measurement-resolution failure, not a semantic mismatch or observed 2.5x performance violation. The follow-up removes that incorrect assertion and uses larger common hot samples while retaining explicitly unresolved samples. Its performance outcome requires a new immutable run; do not infer a Windows budget verdict from the red predecessor.
+
+The attacker's fixed online source-learning and authorization results are separate from this CPU question. Improving server CPU by batching does not itself increase the difficulty of reconstructing a finite state machine through authorized resettable public observations. 
+
+## Pinned two-OS results
+
+The unrounded source records each trial in the workflow logs. Both operating systems ran six trials each for two 20,000,000-transition loop layouts, 12 paired samples per strategy and operating system. Native, per-step and per-session output checksums were exactly equal on every measured pair. Process CPU was positive for all measured hot paths, and no CPU pair was unresolved.
+
+| Operating system | Tape / repeated passes | Per-step >2.5× | Max per-step CPU ratio | Per-session >2.5× | Max per-session CPU ratio |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu Node 22 | 200,000 × 100 | 6/6 | 29.31769× | 0/6 | 1.27537× |
+| Ubuntu Node 22 | 1,000,000 × 20 | 6/6 | 29.36723× | 0/6 | 1.06224× |
+| Windows Node 22 | 200,000 × 100 | 6/6 | 33.91489× | 0/6 | 1.18280× |
+| Windows Node 22 | 1,000,000 × 20 | 6/6 | 40.47436× | 0/6 | 1.20513× |
+
+**Combined:** 24/24 observed per-step compute pairs strictly exceeded 2.5×, while 0/24 per-session pairs exceeded the threshold. The observed maximum was 40.47436× for Windows per-step and 1.27537× for Ubuntu per-session. These are individual-pair maxima, not confidence bounds or mean/median estimates.
+
+**Candidate choice:** The repeated per-step handle-lookup design is unsuitable for the tested CPU-bound inner loop. A single server-private capability callback enclosing the whole operation met the sampled CPU threshold and preserved outputs. That callback topology is feasible only when a legitimate external application contract allows the work to be moved into one trusted-server operation; a public facade issuing every step separately cannot simply become a local trusted callback by renaming it. Public online behavior remains observable and finite-state-clonable under the separate attack.
+
+The result excludes handle issue/revoke, authentication queue admission, HTTP/network, cold initialization and real browser work. The new real HTTP session experiment is documented separately in sco-capability-http-batch-2026-11-17.md, and it requires its own validation.

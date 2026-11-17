@@ -31,6 +31,16 @@ jobs:
         run: node --test test/sco-stateful-oracle.test.js
       - name: Print bounded stateful oracle reconstruction evidence
         run: node sims/sco-stateful-oracle.js
+      - name: Recover server-private capability behavior from actual public facade
+        run: node --test test/sco-capability-public-oracle.test.js
+      - name: Compare server-private capability per-step and per-session hot CPU
+        run: node sims/sco-capability-granularity.js
+      - name: Compare real compiled SCO private-handle serial and batch sessions
+        run: node sims/sco-capability-http-batch.js
+      - name: Falsify transparent SCO capability batching on partial-progress errors
+        run: node --test test/sco-capability-batch-error-contract.test.js
+      - name: Verify three-file private SCO capability graph and source digest seal
+        run: node --test test/sco-capability-private-graph.test.js
       - name: Learn step-only state machine through known synchronizing word
         run: node --test test/sco-synchronizing-oracle.test.js
       - name: Emit authenticated synchronizing-word attack results
@@ -98,6 +108,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-sync-diversified-browser.js
+      - name: Verify real Chromium principal-scoped server-private HMAC facade
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-capability-public-browser.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
