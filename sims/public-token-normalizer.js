@@ -41,6 +41,8 @@ function normalizePublicFields(files,options={}) {
     const propertyStringOffsets=new Set();
     /** @type {Set<number>} */
     const externalMemberOffsets=new Set();
+    /** @type {Set<number>} */
+    const externalPatternOffsets=new Set();
     /** @type {Set<string>} */
     const declared=new Set();
     /** @type {Set<string>} */
@@ -95,6 +97,22 @@ function normalizePublicFields(files,options={}) {
     /** @type {Set<number>} */
     const externalReceivers=new Set();
     walk.simple(ast,{
+      VariableDeclarator(node) {
+        if(!options.preserveFreeMemberReceivers||node.id.type!=='ObjectPattern'||
+            node.init?.type!=='Identifier')return;
+        if(declared.has(node.init.name)&&!externalAliases.has(node.init.name))return;
+        for(const property of node.id.properties) {
+          if(property.type==='Property')externalPatternOffsets.add(property.key.start);
+        }
+      },
+      AssignmentExpression(node) {
+        if(!options.preserveFreeMemberReceivers||node.left.type!=='ObjectPattern'||
+            node.right.type!=='Identifier')return;
+        if(declared.has(node.right.name)&&!externalAliases.has(node.right.name))return;
+        for(const property of node.left.properties) {
+          if(property.type==='Property')externalPatternOffsets.add(property.key.start);
+        }
+      },
       Property(node) {
         if(node.key.type==='Literal'&&typeof node.key.value==='string')
           propertyStringOffsets.add(node.key.start);
@@ -126,7 +144,8 @@ function normalizePublicFields(files,options={}) {
       if(typeof token.value!=='string'||
           !/^_p[0-9a-f]{10}(?:[0-9a-f]{2})?$/.test(token.value))continue;
       if(token.type.label==='string'&&!propertyStringOffsets.has(token.start))continue;
-      if(externalMemberOffsets.has(token.start))continue;
+      if(externalMemberOffsets.has(token.start)||
+          externalPatternOffsets.has(token.start))continue;
       let label=labels.get(token.value);
       if(label===undefined) {
         label='_publicField'+labels.size;
