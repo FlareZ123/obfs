@@ -54,8 +54,13 @@ would normally instantiate their own copies. The paired
 demonstrates the resulting observable counter difference: independent
 first calls produce 1 and 1, while one shared server namespace produces
 1 and 2. These new restrictions are syntactic and can over-reject safe
-programs. They do not prove purity of native API calls or higher-order
-cross-module behavior.
+programs. A further direct-reference guard refuses member/property access
+on all relative private-import bindings, including safe primitive members,
+because an imported function is a mutable object even when its exported
+binding is constant. This blocks a caller from retaining state in
+`importedFunction.counter` across browser sessions. Indirect identity
+transfers through higher-order calls, native API effects and other
+cross-module behavior still lack a general proof.
 
 This graph composer admits several independent selectively partitioned
 modules. A public function inside one module may call that module's selected
