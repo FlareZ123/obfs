@@ -133,3 +133,37 @@ test('SVG XML malformed input, UTF-16 content and invalid UTF-8 are refused',()=
     ]),/(?:Malformed SVG XML|SVG asset is not valid UTF-8|SVG asset contains NUL)/);
   }
 });
+
+test('XML stylesheet processing instruction cannot embed unaudited CSS source maps',()=>{
+  const original='const PRIVATE_XML_PI_STYLE_ORIGINAL=482910;';
+  const map=Buffer.from(JSON.stringify({
+    version:3,sources:['private-original.js'],sourcesContent:[original],
+    names:['PRIVATE_XML_PI_STYLE_ORIGINAL'],mappings:'AAAA'
+  })).toString('base64');
+  const nested='/*# sourceMappingURL=data:application/json;base64,'+map+' */';
+  const encoded=Buffer.from(nested).toString('base64');
+  const svg='<?xml-stylesheet type="text/css" href="data:text/css;base64,'+encoded+
+    '"?><svg xmlns="http://www.w3.org/2000/svg"><circle r="4"/></svg>';
+  const publicUrl=/data:text\/css;base64,([A-Za-z0-9+/=]+)/u.exec(svg);
+  assert.ok(publicUrl);
+  const recoveredNested=Buffer.from(publicUrl[1],'base64').toString();
+  const publicMap=/sourceMappingURL=data:application\/json;base64,([A-Za-z0-9+/=]+)/u.exec(recoveredNested);
+  assert.ok(publicMap);
+  assert.equal(JSON.parse(Buffer.from(publicMap[1],'base64').toString()).sourcesContent[0],original);
+  assert.equal(findInlineSvgSource(svg),'embedded XML stylesheet data URL');
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    assert.throws(()=>transform(svg,mode),/SVG asset contains embedded XML stylesheet data URL/,mode);
+  }
+  assert.throws(()=>createScoHandler([
+    {path:'assets/icon.svg',sourceType:'asset',code:svg}
+  ]),/SVG asset contains embedded XML stylesheet data URL/);
+
+  const safe='<?xml-stylesheet type="text/css" href="./theme.css"?>'+
+    '<svg xmlns="http://www.w3.org/2000/svg"><rect width="2" height="2"/></svg>';
+  assert.equal(findInlineSvgSource(safe),null);
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    const result=transform(Buffer.from(safe),mode).files.find(file=>file.path==='assets/icon.svg');
+    assert.ok(result);
+    assert.deepEqual(result.code,Buffer.from(safe));
+  }
+});
