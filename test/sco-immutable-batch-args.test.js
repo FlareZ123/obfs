@@ -161,7 +161,7 @@ test('SCO read-only contract handles 5000-deep JSON and parsed numeric/proto edg
 
 test('SCO read-only batch option is explicit and does not affect ordinary direct RPC',async()=>{
   assert.throws(()=>createScoHandler([],{immutableBatchArgs:true}),/authorizeOperation/);
-  assert.throws(()=>createScoHandler([],{immutableBatchArgs:'yes'}),/boolean/);
+  assert.throws(()=>createScoHandler([],{immutableBatchArgs:/** @type {any} */ ('yes')}),/boolean/);
   const handler=createScoHandler([],{
     immutableBatchArgs:true,
     remoteMethods:{
