@@ -254,7 +254,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(!node)return false;
     if(depth>32)return true;
     if(node.type==='Identifier')return arraysWithFunctions.has(node.name)||
-      importedFunctionArrays.has(node.name);
+      arrayLikeWithFunctions.has(node.name)||importedFunctionArrays.has(node.name);
     if(node.type==='ArrayExpression') {
       return node.elements.some((/** @type {AstNode|null} */ value)=>
         Boolean(value && (isFunctionValue(value)||
@@ -262,10 +262,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
             containsFunction(value,depth+1)))));
     }
+    // Set/Map preserve inserted function references across iteration.
+    if(node.type==='NewExpression' && node.callee.type==='Identifier' &&
+       ['Set','Map'].includes(node.callee.name))
+      return containsFunction(node.arguments[0],depth+1);
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression') {
       const member=memberName(node.callee);
       const owner=node.callee.object;
       const arrayStatic=owner.type==='Identifier'&&owner.name==='Array';
+      if(['values','keys','entries'].includes(member??'') &&
+         containsFunction(owner,depth+1))return true;
       if(arrayStatic&&member==='from')
         return containsFunction(node.arguments[0],depth+1) ||
           callbackReturnsFunction(node.arguments[1],depth+1);
@@ -730,7 +736,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          node.callee.object.type==='Identifier') {
         const method=memberName(node.callee);
         const inserted=method==='splice'?node.arguments.slice(2):
-          ['push','unshift','fill'].includes(method??'')?node.arguments:[];
+          method==='set'?node.arguments.slice(1):
+          ['push','unshift','fill','add'].includes(method??'')?node.arguments:[];
         if(inserted.some((/** @type {AstNode} */ argument)=>
           argument.type==='SpreadElement'?
             isFunctionValue(argument.argument)||containsFunction(argument.argument):
