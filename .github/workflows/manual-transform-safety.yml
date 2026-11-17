@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Probe rest and arguments ambient property integrity
+        run: node --test test/closed-record-host-formal-provenance.test.js
       - name: Pure primitive initializer property lowering and reflected-owner regressions
         run: node --test test/property-pure-value-expression.test.js test/property-pure-expression-hotpath.test.js test/array-property-values.test.js test/property-proof-safety.test.js
       - name: Profile private property rename through pure-expression ESM hot workers
