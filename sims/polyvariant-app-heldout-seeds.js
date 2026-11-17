@@ -73,7 +73,7 @@ async function loadGraph(folder,math,publicRest){
  */
 async function runEvidence(){
   const sourceFolder=path.join(__dirname,'../examples/polyvariant-app/native');
-  const nativeMath=await fs.readFile(path.join(sourceFolder,'math.mjs'),'utf8');
+  const nativeMath=(await fs.readFile(path.join(sourceFolder,'math.mjs'),'utf8')).replace(/\r\n/g,'\n');
   const publicRest=await Promise.all(['state.mjs','entry.mjs'].map(async file=>({
     path:file,code:(await fs.readFile(path.join(sourceFolder,file),'utf8')).replace(/\r\n/g,'\n')
   })));
