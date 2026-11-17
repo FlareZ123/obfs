@@ -4,6 +4,7 @@ const acorn = require('acorn');
 const {assertNoInlineHtmlSource}=require('./html-assets');
 const {assertNoInlineSvgSource}=require('./svg-assets');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
+const {hasUnauditedCssDataImport}=require('./css-data-imports');
 
 /**
  * Source-map artifacts can contain the unobfuscated program in sourcesContent,
@@ -171,6 +172,15 @@ function assertNoSourceMapDisclosure(file) {
       }
       if(hasMap) {
         throw new TypeError('CSS source-map directive would disclose original source: '+file.path);
+      }
+      let hasImport;
+      try {
+        hasImport=hasUnauditedCssDataImport(file.code);
+      } catch(error) {
+        throw new TypeError('CSS import could not be audited for source disclosure: '+file.path);
+      }
+      if(hasImport) {
+        throw new TypeError('CSS data import cannot be audited for source disclosure: '+file.path);
       }
     }
     assertNoInlineHtmlSource(file.path,file.code);
