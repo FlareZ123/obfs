@@ -875,7 +875,8 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
          directGlobalObjects.has(node.object.name)&&
          !(parent?.type==='AssignmentExpression'&&key==='left')&&
          !(parent?.type==='UpdateExpression'&&key==='argument')&&
-         !(parent?.type==='UnaryExpression'&&parent.operator==='delete'&&key==='argument')){
+         !(parent?.type==='UnaryExpression'&&parent.operator==='delete'&&key==='argument')&&
+         !((parent?.type==='CallExpression'||parent?.type==='NewExpression')&&key==='callee')){
         const member=node.computed?staticString(node.property):
           node.property.type==='Identifier'?node.property.name:null;
         if(member===null||!standardGlobalKeys.has(member)){
