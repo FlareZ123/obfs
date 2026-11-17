@@ -164,6 +164,23 @@ for(const [name,tail] of [
 // Existing primitive-only Set and Map exports below remain the positive
 // transformed-work control for this narrowed proof.
 
+
+for(const [name,tail] of [
+  ['Set returned from call',
+    'function carry(value){return new Set([value]);}'+
+      'export const values=carry(protectedSum);'],
+  ['Map returned from call',
+    'function carry(value){return new Map([[0,value]]);}'+
+      'export const values=carry(protectedSum);']
+]) {
+  test('ESM '+name+' preserves source under an imported observer',()=>{
+    const body=name.startsWith('Set')?
+      'console.log([...values].join(","));':
+      'console.log([...values.values()].join(","));';
+    assert.throws(()=>protect(graph(tail,body)),/(?:source observation|declined)/i);
+  });
+}
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
