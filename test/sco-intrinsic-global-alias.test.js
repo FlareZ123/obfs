@@ -64,3 +64,26 @@ test('SCO still admits read-only global aliases without cross-realm mutations',(
   assert.deepEqual(result.privateNames,['privateOp']);
   assert.deepEqual(result.publicNames,['publicRead']);
 });
+
+
+test('SCO refuses destructured Intl constructors with host-local defaults',()=>{
+  const bodies=[
+    "const {DateTimeFormat:F}=Intl;return F('en-US').resolvedOptions().timeZone;",
+    "const {DateTimeFormat:F}=globalThis.Intl;return new F('en-US').resolvedOptions().timeZone;",
+    "const Native=Intl;const {DateTimeFormat:F}=Native;return F('en-US').resolvedOptions().timeZone;",
+    "const {['Date'+'TimeFormat']:F}=Intl;return new F('en-US').resolvedOptions().timeZone;",
+    "const {NumberFormat:F}=Intl;return F().resolvedOptions().locale;",
+    "const {DateTimeFormat:F}=Intl;const G=F;return G('en-US').resolvedOptions().timeZone;"
+  ];
+  for(const body of bodies){
+    assert.throws(()=>partition(body,'return 1;'),
+      /realm-local configuration/i,body);
+  }
+});
+
+test('SCO still admits a locale-independent Intl canonical tag call',()=>{
+  const result=partition("return Intl.getCanonicalLocales('en-US')[0];",
+    'return 1;');
+  assert.deepEqual(result.privateNames,['privateOp']);
+  assert.deepEqual(result.publicNames,['publicRead']);
+});
