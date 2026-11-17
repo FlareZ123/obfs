@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * A data: URL in an @import rule is an additional stylesheet embedded within
+ * A data: URL in a CSS import rule is an additional stylesheet embedded within
  * otherwise audited CSS. Its source-map comments and contents are outside
  * the ordinary top-level CSS source-map scan. The preflight declines these
  * nested documents rather than approximating arbitrary recursive decoding.
