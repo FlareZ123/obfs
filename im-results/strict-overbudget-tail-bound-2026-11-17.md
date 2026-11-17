@@ -1,6 +1,6 @@
 # Exact zero-breach runtime tail diagnostic (17 November 2026)
 
-**Classification:** intermediate measurement methodology, not a new JS obfuscation or adversarial security result. **Status:** source implemented; end-to-end CI pending at document creation. These bounds cannot certify the project's universal 2.5× compute rule.
+**Classification:** intermediate measurement methodology, not a new JS obfuscation or adversarial security result. **Status:** full Linux/Windows/Chromium integration green at a source-pinned commit, dedicated release-evidence application check pending. These bounds cannot certify the project's universal 2.5× compute rule.
 
 ## Why the existing median decision was insufficient
 
@@ -36,3 +36,8 @@ The examples are numeric properties of the exact binomial model, **not measured 
 - The existing median `verdict` and observed failure count are intentionally unchanged.
 
 The diagnostic's probabilistic interpretation is invalid when samples are selected adversarially, correlated, repeatedly warmed in an unmodeled manner, or gathered under unrepresentative inputs/JIT tiers. There is no finite sampled confidence bound on the **worst-case** runtime of arbitrary JavaScript. The program still requires real client/Node/browser workload boundaries, cold/warm distinctions, and an unconditional veto for any actually observed strict >2.5× pair.
+
+
+## Pinned integration
+
+The [full Node 22 Linux/Windows and Ubuntu Chromium run 44201015222](https://github.com/FlareZ123/obfs/actions/runs/44201015222) completed **successfully at exact input source SHA `0debee4b86e0a999f30e089584827494d97fbd04`**. Each operating system ran 2,661 Node tests. Ubuntu passed 2,660, skipped one, failed zero; Windows passed 2,658, skipped three, failed zero. Both JSDoc configurations, baseline benchmark and real Chromium tests passed. The two new strict-tail tests executed at this pin; the generated client/server obfuscator code has not been changed by the new diagnostic. This integration does not exercise the full cross-mode release-evidence sample script, for which a separately pinned experiment is appropriate.
