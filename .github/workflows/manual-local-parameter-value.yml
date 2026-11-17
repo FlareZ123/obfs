@@ -1,0 +1,34 @@
+name: Manual local formal-value owner proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  formal-owner:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Paired local formal-value semantics and explicit refusals
+        run: node --test test/local-parameter-owned-value.test.js
+      - name: Startup-inclusive and repeated owner-value performance, public clone
+        run: node sims/local-parameter-value-profile.js
+      - name: Production JSDoc contract
+        run: npm run typecheck
+      - name: Real Chromium positive and negative integration
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
