@@ -1,6 +1,17 @@
 'use strict';
 
 /**
+ * Output files may supply binary-compatible ASCII Wasm as a string. They are
+ * written as UTF-8 bytes, so parse that exact emitted representation.
+ * @param {string|Buffer} code
+ * @returns {Buffer|null}
+ */
+function asWasmBytes(code) {
+  if(Buffer.isBuffer(code))return code;
+  return code.startsWith('\0asm')?Buffer.from(code,'utf8'):null;
+}
+
+/**
  * Decode the bounded unsigned 32-bit LEB128 size used by the Wasm binary
  * format. The supplied limit is the end of the current enclosing section.
  * @param {Buffer} bytes
@@ -35,20 +46,21 @@ function readU32(bytes,start,limit) {
  * @returns {boolean}
  */
 function hasWasmDebugMetadata(code) {
-  if(!Buffer.isBuffer(code)||code.length<8||
-      code[0]!==0||code[1]!==0x61||code[2]!==0x73||code[3]!==0x6d)return false;
+  const bytes=asWasmBytes(code);
+  if(!bytes||bytes.length<8||
+      bytes[0]!==0||bytes[1]!==0x61||bytes[2]!==0x73||bytes[3]!==0x6d)return false;
 
   const decoder=new TextDecoder('utf-8',{fatal:true});
-  for(let offset=8;offset<code.length;) {
-    const sectionId=code[offset++];
-    const length=readU32(code,offset,code.length);
+  for(let offset=8;offset<bytes.length;) {
+    const sectionId=bytes[offset++];
+    const length=readU32(bytes,offset,bytes.length);
     const end=length.next+length.value;
-    if(end>code.length)throw new TypeError('Truncated Wasm section');
+    if(end>bytes.length)throw new TypeError('Truncated Wasm section');
     if(sectionId===0) {
-      const lengthName=readU32(code,length.next,end);
+      const lengthName=readU32(bytes,length.next,end);
       const endName=lengthName.next+lengthName.value;
       if(endName>end)throw new TypeError('Truncated Wasm custom section name');
-      const name=decoder.decode(code.subarray(lengthName.next,endName));
+      const name=decoder.decode(bytes.subarray(lengthName.next,endName));
       if(name==='name'||name==='external_debug_info'||
           name.startsWith('.debug_')||name.startsWith('.zdebug_'))return true;
     }
@@ -57,4 +69,4 @@ function hasWasmDebugMetadata(code) {
   return false;
 }
 
-module.exports={hasWasmDebugMetadata};
+module.exports={asWasmBytes,hasWasmDebugMetadata};
