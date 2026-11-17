@@ -1,0 +1,26 @@
+name: Manual fixed-arity long-string decoder research
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  decoder:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Fixed-arity and neighboring string differential tests
+        run: node --test test/fixed-arity-strings.test.js test/chunked-strings.test.js test/static-string-recovery.test.js test/decoder-array-prototype-chain.test.js
+      - name: Strict production JSDoc
+        run: npm run typecheck
