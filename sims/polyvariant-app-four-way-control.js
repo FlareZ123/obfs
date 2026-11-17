@@ -12,6 +12,7 @@ const {atomicWrite}=require('../src/atomic');
 const {pairedBudgetBound}=require('./paired-budget-bound');
 const {reconstructPublicMath}=require('./polyvariant-app-static-clone');
 const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-attacker');
+const {threeQueryTranslationClone}=require('./polyvariant-app-three-query-competitor');
 const {build}=require('../examples/polyvariant-app/build.cjs');
 
 /** @typedef {'native'|'minified'|'published'|'reconstructed'} Variant */
@@ -129,6 +130,37 @@ async function runEvidence(){
         functionComparisons++;
       }
     }
+    // Matched-query black-box control: identical three f(0) observations
+    // against each distribution before any held-out native/output check.
+    /** @type {Record<string,{oracleCalls:number,attackMs:number,offsets:Record<string,number>,heldoutComparisons:number,verificationOracleCalls:number}>} */
+    const matchedThreeQueryAttacks={};
+    for(const variant of variants){
+      const probeFolder=path.join(folder,'three-query-'+variant);
+      await materialize(probeFolder,graphs[variant]);
+      const publicMath=await import(pathToFileURL(
+        path.join(probeFolder,'math.mjs')).href);
+      const committed=threeQueryTranslationClone(publicMath);
+      assert.equal(committed.oracleCalls,3);
+      let heldoutComparisons=0;
+      for(const name of ['round1','round2','round3']){
+        for(let index=0;index<4096;index++){
+          const input=index<7?
+            [-2147483648,-1,0,1,2147483647,-0,0x12345678|0][index]:
+            Math.imul(index^0x5ac31eed,0x9e3779b1)|0;
+          const predicted=committed.clone[name](input);
+          assert.ok(Object.is(predicted,publicMath[name](input)),
+            'Three-query candidate fails held-out public parity: '+variant+'/'+name);
+          assert.ok(Object.is(predicted,originalMath[name](input)),
+            'Three-query candidate fails held-out native parity: '+variant+'/'+name);
+          heldoutComparisons++;
+        }
+      }
+      matchedThreeQueryAttacks[variant]={
+        oracleCalls:committed.oracleCalls,attackMs:committed.attackMs,
+        offsets:committed.offsets,heldoutComparisons,
+        verificationOracleCalls:heldoutComparisons
+      };
+    }
     for(const count of [1,50,1000,10000]){
       const records=events(count);
       /** @type {Record<Variant,string[]>} */
@@ -189,7 +221,7 @@ async function runEvidence(){
         locals:minifiedAttack.functions.map(item=>({name:item.name,local:item.local}))},
       publishedStaticRecovery:{recovered:publishedAttack.functions.length,
         attackMs:publishedAttack.attackMs,paths:publishedAttack.functions},
-      heldoutNativeParity:true,rows};
+      matchedThreeQueryAttacks,heldoutNativeParity:true,rows};
   }finally{
     await fs.rm(folder,{recursive:true,force:true});
   }
