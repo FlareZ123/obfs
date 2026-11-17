@@ -10,7 +10,7 @@ const {pathToFileURL}=require('node:url');
 const {atomicWrite}=require('../src/atomic');
 const {
   partitionScoSelectedAsyncExports,verifyScoPrivateSourceDigests,
-  createScoSelectedHandler
+  createScoSelectedHandler,createScoHandler,bindScoModuleExports
 }=require('../src');
 
 const mixed=[
@@ -92,6 +92,96 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
     globalThis.fetch=nativeFetch;
     if(server){
       await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    }
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('sealed selective publication excludes private sources missed by the bounded dynamic-loader audit',{
+  timeout:30000
+},async()=>{
+  const dynamicEngine={
+    path:'private/engine.mjs',
+    code:[
+      'const k=["con","structor"].join("");const obj={};',
+      'const load=obj[k][k]("p","return import(p)");',
+      'export async function deriveProof(v){',
+      '  return (await load("./deep/secret.mjs")).secretValue+v;',
+      '}'
+    ].join('\n')
+  };
+  const dynamicLeaf={path:'private/deep/secret.mjs',
+    code:'export const secretValue=41;'};
+  const partition=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',sourceType:'module',code:mixed
+  },{
+    seed:'sealed-dynamic-source-false-negative-20261117',
+    privateNames:['protectedDigest'],
+    privateModuleImports:['./private/engine.mjs'],
+    privateModuleSources:[dynamicEngine]
+  });
+  assert.deepEqual(partition.clientFile.privateModulePaths,['private/engine.mjs'],
+    'This fixed negative-control fixture must escape only the bounded static closure');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-selected-dynamic-'));
+  /** @type {import('node:http').Server|undefined} */
+  let directServer;
+  /** @type {import('node:http').Server|undefined} */
+  let sealedServer;
+  try{
+    await atomicWrite(path.join(root,'mixed.mjs'),mixed);
+    await atomicWrite(path.join(root,dynamicEngine.path),dynamicEngine.code);
+    await atomicWrite(path.join(root,dynamicLeaf.path),dynamicLeaf.code);
+    // This opt-in preflight cannot cover a dynamic leaf missing from the
+    // supplied graph; it only checks the source hashes that were supplied.
+    await verifyScoPrivateSourceDigests(partition,root);
+    const native=await import(pathToFileURL(path.join(root,'mixed.mjs')).href);
+    assert.equal(await native.protectedDigest(1),42);
+    const policy={
+      authorizeRead:(/** @type {import('node:http').IncomingMessage} */ req)=>
+        req.headers['x-test-session']==='allow',
+      authorizeRpc:(/** @type {import('node:http').IncomingMessage} */ req)=>
+        req.headers['x-test-session']==='allow'
+    };
+    directServer=http.createServer(createScoHandler([
+      partition.clientFile,dynamicLeaf
+    ],{...policy,remoteMethods:bindScoModuleExports(partition,native)}));
+    sealedServer=http.createServer(createScoSelectedHandler(partition,native,policy));
+    await new Promise(resolve=>directServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    await new Promise(resolve=>sealedServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const directAddress=directServer.address();
+    const sealedAddress=sealedServer.address();
+    assert.ok(directAddress&&typeof directAddress!=='string');
+    assert.ok(sealedAddress&&typeof sealedAddress!=='string');
+    const directOrigin='http://127.0.0.1:'+directAddress.port;
+    const sealedOrigin='http://127.0.0.1:'+sealedAddress.port;
+    const requested='/obfs/'+dynamicLeaf.path;
+    const headers={'x-test-session':'allow'};
+    const exposed=await fetch(directOrigin+requested,{headers});
+    assert.equal(exposed.status,200,'Caller-assembled source list leaked the indirect leaf');
+    assert.match(await exposed.text(),/secretValue/u);
+    const withheld=await fetch(sealedOrigin+requested,{headers});
+    assert.equal(withheld.status,404,'Compiler-owned single-facade publication omits all private leaves');
+    for(const value of [1,5,-8,100]){
+      const request={
+        method:'POST',
+        headers:{...headers,'content-type':'application/json'},
+        body:JSON.stringify({method:partition.methodNames.protectedDigest,args:[value]})
+      };
+      const directResponse=await fetch(directOrigin+'/obfs/rpc',request);
+      const sealedResponse=await fetch(sealedOrigin+'/obfs/rpc',request);
+      assert.equal(directResponse.status,200);
+      assert.equal(sealedResponse.status,200);
+      assert.deepEqual(await directResponse.json(),await sealedResponse.json());
+      assert.equal(await native.protectedDigest(value),value+41);
+    }
+  }finally{
+    if(directServer){
+      await new Promise((resolve,reject)=>
+        directServer.close(error=>error?reject(error):resolve(undefined)));
+    }
+    if(sealedServer){
+      await new Promise((resolve,reject)=>
+        sealedServer.close(error=>error?reject(error):resolve(undefined)));
     }
     await fs.rm(root,{recursive:true,force:true});
   }
