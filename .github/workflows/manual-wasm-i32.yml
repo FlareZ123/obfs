@@ -35,6 +35,8 @@ jobs:
         run: node sims/wasm-i32-cold-counterexample.js
       - name: CommonJS deferred-compilation native/eager/lazy control
         run: node sims/wasm-i32-commonjs-lazy-profile.js
+      - name: SNO runtime-only first-use Wasm cost curve
+        run: node sims/wasm-i32-commonjs-runtime-budget.js
       - name: Whole-graph cold native versus Wasm versus offline-native control
         run: node sims/wasm-i32-esm-rebuild-profile.js
       - name: Strict JSDoc checks
