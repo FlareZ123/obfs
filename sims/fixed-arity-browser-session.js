@@ -66,7 +66,7 @@ async function main() {
   const server=http.createServer((request,response)=>{
     const [scenarioKey,variant,file]=(request.url??'').split('/').filter(Boolean);
     const selected=cases.find(item=>item.units+'-'+item.work===scenarioKey);
-    if(!selected || !['native','fixed'].includes(variant)) {
+    if(!selected || (variant!=='native'&&variant!=='fixed')) {
       response.writeHead(404);response.end();return;
     }
     response.setHeader('cache-control','no-store');
