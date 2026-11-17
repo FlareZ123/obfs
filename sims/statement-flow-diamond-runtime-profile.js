@@ -62,6 +62,7 @@ function run(){
   const callsPerTrial=30000;
   const compileCountPerTrial=100;
   for(const f of Object.values(functions))exercise(f,80000);
+  const expectedChecksum=exercise(functions.native,callsPerTrial);
   /** @type {Record<Variant,number[]>} */
   const hot={native:[],ordinary:[],compact:[]};
   /** @type {Record<Variant,number[]>} */
@@ -71,7 +72,7 @@ function run(){
       const start=performance.now();
       const checksum=exercise(functions[name],callsPerTrial);
       const ms=performance.now()-start;
-      assert.equal(checksum,exercise(functions.native,callsPerTrial));
+      assert.equal(checksum,expectedChecksum);
       assert.ok(ms>0);
       hot[name].push(ms);
     }
