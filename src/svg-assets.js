@@ -39,7 +39,9 @@ function findInlineSvgSource(xml) {
         return point>0&&point<=0x10ffff&&
           !(point>=0xd800&&point<=0xdfff)?String.fromCodePoint(point):'\uFFFD';
       });
-    if(/data:/iu.test(body))issue='embedded XML stylesheet data URL';
+    // URL parsing deletes ASCII tab/newline in the scheme, including
+    // character references inside XML pseudo-attributes.
+    if(/data:/iu.test(body.replace(/[\t\n\r]/gu,'')))issue='embedded XML stylesheet data URL';
   });
   parser.on('opentag',tag=>{
     const element=tag.local.toLowerCase();
