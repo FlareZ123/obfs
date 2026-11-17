@@ -8,9 +8,17 @@
 
 /** @typedef {{type:'parameter',index:number}|{type:'literal',value:number}|{type:'unary',argument:Expr}|{type:'binary',operator:string,left:Expr,right:Expr}|{type:'conditional',test:Expr,consequent:Expr,alternate:Expr}} Expr */
 
+/**
+ * Locate precisely the public compiler-generated Wasm constructors. A generic
+ * Uint8Array.from spelling in a comment or application string is not evidence
+ * of a distributed Wasm module.
+ */
+const GENERATED_WASM=/new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)\s*\)/gu;
+
 /** @param {string} source @returns {Uint8Array} */
 function extractPublicWasm(source) {
-  const found=/Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)/u.exec(source);
+  const emitted=[...source.matchAll(GENERATED_WASM)];
+  const found=emitted[0]??/Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)/u.exec(source);
   if(!found)throw new TypeError('No public embedded WebAssembly module');
   const values=JSON.parse(found[1]);
   if(!Array.isArray(values)||values.some(value=>!Number.isInteger(value)||value<0||value>255)) {
@@ -221,4 +229,31 @@ function recoverPublicWasmExpression(publicJavaScript,parameter='x') {
   return {expression:printExpression(expression,Array.isArray(parameter)?parameter:[parameter]),bytes:bytes.length};
 }
 
-module.exports={recoverPublicWasmExpression,extractPublicWasm};
+/**
+ * Recover every compiler-generated Wasm expression from the delivered text.
+ * The caller supplies the argument names for each binary in emitted order;
+ * these are arbitrary labels and do not require source-code knowledge.
+ *
+ * @param {string} publicJavaScript
+ * @param {readonly (readonly string[])[]} parameterSets
+ * @returns {Array<{expression:string,bytes:number,offset:number}>}
+ */
+function recoverAllPublicWasmExpressions(publicJavaScript,parameterSets) {
+  const emitted=[...publicJavaScript.matchAll(GENERATED_WASM)];
+  if(!emitted.length)throw new TypeError('No compiler-emitted WebAssembly modules');
+  if(!Array.isArray(parameterSets)||parameterSets.length!==emitted.length ||
+      parameterSets.some(names=>!Array.isArray(names)||names.length<1||names.length>4||
+        names.some(name=>typeof name!=='string'||!name))) {
+    throw new TypeError('Expected one nonempty parameter set per emitted Wasm module');
+  }
+  return emitted.map((found,index)=>{
+    const bytes=extractPublicWasm(found[0]);
+    return {
+      expression:printExpression(symbolicDecode(bytes),parameterSets[index]),
+      bytes:bytes.length,
+      offset:found.index??0
+    };
+  });
+}
+
+module.exports={recoverPublicWasmExpression,recoverAllPublicWasmExpressions,extractPublicWasm};
