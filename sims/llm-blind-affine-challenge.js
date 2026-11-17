@@ -66,7 +66,7 @@ function createBlindAffineChallenge(mode='coo'){
   }],{
     mode,seed:randomBytes(16).toString('hex'),closedWorld:false,
     identifiers:false,properties:false,strings:false,
-    experimentalPolyvariantAffine:{'blind-math.mjs':targets},
+    experimentalPolyvariantAffine:{'blind-math.mjs':[...targets]},
     experimentalPolyvariantCount:2
   });
   assert.equal(encoded.files.length,1);
@@ -90,9 +90,11 @@ function createBlindAffineChallenge(mode='coo'){
       submitted=true;
       const object=answer&&typeof answer==='object'&&!Array.isArray(answer)?
         /** @type {Record<string,unknown>} */(answer):{};
-      const allValid=targets.every(name=>Number.isInteger(object[name])&&
-        /** @type {number} */(object[name])>=-2147483648&&
-        /** @type {number} */(object[name])<=2147483647);
+      const allValid=targets.every(name=>{
+        const value=object[name];
+        return typeof value==='number'&&Number.isInteger(value)&&
+          value>=-2147483648&&value<=2147483647;
+      });
       if(!allValid){
         verdict={passed:false,comparisons:0,claim:'Malformed offset answer'};
         return verdict;
