@@ -164,15 +164,23 @@ async function handleRpc(request,response,options) {
       // The execution capability is limited to the callback's active scope.
       // A detached promise must never authorize additional private work.
       try{
-        await options.runRpcIsolated(request,async()=>{
-          ensureScopeOpen();
-          if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
-          invoked=true;
-          try{
-            await execute();
-          }finally{
-            executionSettled=true;
-          }
+        await options.runRpcIsolated(request,()=>{
+          const pending=(async()=>{
+            ensureScopeOpen();
+            if(invoked)throw new TypeError('RPC isolation callback invoked execute twice');
+            invoked=true;
+            try{
+              await execute();
+            }finally{
+              executionSettled=true;
+            }
+          })();
+          // A broken integrator can discard the callback's promise. Observe
+          // its eventual rejection to avoid crashing the trusted Node server
+          // under strict unhandled-rejection policy, while returning the
+          // original rejecting promise to correctly awaiting integrations.
+          void pending.catch(()=>{});
+          return pending;
         });
       }catch(error){
         // A capacity refusal happens before any protected operation starts.
