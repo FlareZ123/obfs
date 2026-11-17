@@ -152,6 +152,23 @@ test('selected SCO composition refuses ambiguous graph paths and source ownershi
   const valid=compile();
   assert.deepEqual(Object.keys(valid.partitions),['alpha.mjs','beta.mjs']);
   assert.throws(()=>partitionScoSelectedGraph([]),/at least one/u);
+  assert.throws(()=>partitionScoSelectedGraph([{
+    file:{path:'alpha.mjs',code:alpha},options:{
+      privateNames:['secret'],privateModuleImports:['./private/salt.mjs']
+    }
+  }]),/lacks an audited source digest/u);
+  const second='export async function secret(value){return value+1;}'+
+    'export function local(value){return value;}';
+  const first='import {secret as sibling} from "./beta.mjs";'+
+    'export async function secret(value){return sibling(value);}'+
+    'export function local(value){return value;}';
+  assert.throws(()=>partitionScoSelectedGraph([
+    {file:{path:'alpha.mjs',code:first},options:{
+      privateNames:['secret'],privateModuleImports:['./beta.mjs'],
+      privateModuleSources:[{path:'beta.mjs',code:second}]
+    }},
+    {file:{path:'beta.mjs',code:second},options:{privateNames:['secret']}}
+  ]),/overlaps a private dependency/u);
   const simple='export async function secret(value){return value+1;}'+
     'export function local(value){return value;}';
   assert.throws(()=>partitionScoSelectedGraph([
