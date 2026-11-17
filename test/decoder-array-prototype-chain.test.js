@@ -74,6 +74,15 @@ for(const [name,mutate] of [
   ['detached-object-get-prototype-parent',
     "const get=Object.getPrototypeOf;const parent=get(Array.prototype);"+
     "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['string-prototype-parent-member',
+    "const parent=String.prototype.__proto__;"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['string-prototype-parent-object',
+    "const parent=Object.getPrototypeOf(String.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
+  ['string-prototype-parent-reflect',
+    "const parent=Reflect.getPrototypeOf(String.prototype);"+
+    "Object.defineProperty(parent,'0',{get(){return 0;},set(v){},configurable:true});"],
   ['array-own-descriptor',
     "Object.defineProperty(Array.prototype,'0',{configurable:true,get(){return 0;},set(v){}});"],
   ['object-own-descriptor',
