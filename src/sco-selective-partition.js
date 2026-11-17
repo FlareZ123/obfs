@@ -6,12 +6,15 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
+const {createScoHandler}=require('./sco');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
 /** @typedef {{privateNames:string[],publicHelperNames?:string[],seed?:string,endpoint?:string,batch?:boolean,maxBatchCalls?:number,allowServerEnvConstants?:boolean,allowServerImports?:boolean,privateModuleImports?:string[],additionalPrivateModulePaths?:string[],privateModuleSources?:ScoPrivateModuleSource[]}} ScoSelectiveOptions */
 /** @typedef {{path:string,sha256:string}} ScoPrivateSourceDigest */
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
+/** @type {WeakMap<ScoSelectivePartition,string>} */
+const generatedSelectiveSnapshots=new WeakMap();
 
 /**
  * Uncomputed object and member keys are property labels, not variable reads.
@@ -1354,11 +1357,56 @@ function partitionScoSelectedAsyncExports(file,options) {
   const clientCode=(publicHelperChunks.length?publicHelperChunks.join('\n')+'\n':'')+
     publicChunks.join('\n')+'\n'+partition.clientFile.code;
   parse(clientCode,'module');
-  return {...partition,publicNames,publicHelperNames:[...publicHelperNames],
+  const result={...partition,publicNames,publicHelperNames:[...publicHelperNames],
     privateNames:[...options.privateNames],
     ...(privateSourceDigests?{privateSourceDigests}:{}),
     clientFile:{...partition.clientFile,code:clientCode,
       ...(privateModulePaths.length?{privateModulePaths}:{})}};
+  // Keep compiler-owned publication bytes and method identities separate
+  // from the caller-mutatable partition object and its graph metadata.
+  generatedSelectiveSnapshots.set(result,JSON.stringify(result));
+  return result;
 }
 
-module.exports={partitionScoSelectedAsyncExports,bindScoModuleExports};
+/**
+ * Expose exactly one compiler-generated selective SCO public ESM facade.
+ * The caller never supplies a sourceFiles array or a replacement RPC registry,
+ * preventing accidental publication of imported private implementation files.
+ * Only an in-process compiler result is accepted. A serialized/copyable
+ * partition is not trusted because it has lost its original source provenance.
+ *
+ * The trusted server must still verify audited private source digests before
+ * loading its original ESM graph, and enforce account/operation authorization.
+ * This helper adds no execution-time client overhead beyond createScoHandler.
+ *
+ * @param {ScoSelectivePartition} partition
+ * @param {Record<string,unknown>} serverExports Original server-side ESM namespace.
+ * @param {Omit<import('./sco').ScoOptions,'publicPaths'|'remoteMethods'>} options
+ * @returns {import('node:http').RequestListener}
+ */
+function createScoSelectedHandler(partition,serverExports,options) {
+  if(!partition||!options||typeof options!=='object'||
+     Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
+    throw new TypeError('SCO selective handler requires generated partition and separately authorized server options');
+  }
+  const snapshot=generatedSelectiveSnapshots.get(partition);
+  if(snapshot===undefined){
+    throw new TypeError('SCO selective handler requires a partition generated in this process');
+  }
+  if(JSON.stringify(partition)!==snapshot){
+    throw new TypeError('SCO selective manifest was modified after partitioning');
+  }
+  const trusted=/** @type {ScoSelectivePartition} */ (JSON.parse(snapshot));
+  const expectedEndpoint=(options.routePrefix??'/obfs/')+'rpc';
+  if(trusted.endpoint!==expectedEndpoint){
+    throw new TypeError('SCO selective RPC endpoint does not match routePrefix');
+  }
+  const remoteMethods=bindScoModuleExports(trusted,serverExports);
+  return createScoHandler([trusted.clientFile],{
+    ...options,
+    publicPaths:[trusted.clientFile.path],
+    remoteMethods
+  });
+}
+
+module.exports={partitionScoSelectedAsyncExports,bindScoModuleExports,createScoSelectedHandler};
