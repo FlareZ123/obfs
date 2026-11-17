@@ -63,3 +63,16 @@ The completed [manual full validation run 44027932848](https://github.com/FlareZ
 On Ubuntu, the known-family source-only AST recoverer's median per-distribution wall-clock samples were **1.661 ms COO** and **0.806 ms SNO**, each over twelve different private programs. On Windows, the corresponding medians were **3.348 ms COO** and **1.493 ms SNO**. Output size ranged **5,317–5,350** and **5,325–5,351** bytes (Ubuntu COO/SNO), and **5,318–5,341** and **5,316–5,345** bytes (Windows COO/SNO). These are program-specific exploratory samples and are not fair native/minified attack-time comparisons.
 
 **Observed outcome:** The pre-existing public-source affine grammar interpreter recovered every randomly generated published function in this small challenge family. No independent language-model reviewer or human adversary attempted the sealed questions. This is a reproducible *negative static-secrecy control* and a validated adversarial evaluation harness. It neither proves nor refutes resilience against future model attacks on a different grammar, and the hostile-runtime and 2.5x release gates remain independent.
+
+## Integrated mainline validation, 2026-11-17 08:43 UTC
+
+The exact integrated source at merge-parent commit `2f0e9662fed59633fe4ecdae8ab5998e6077790d` passed [manual-validation run 44047611302](https://github.com/FlareZ123/obfs/actions/runs/44047611302) on Node 22 Windows and Ubuntu, including the repository-wide behavioral and adversarial tests, strict JSDoc, performance sampler and actual Ubuntu Chromium suite. The completed work was merged as [PR 50](https://github.com/FlareZ123/obfs/pull/50) at `aa7dfc4fbfa9f395a90e7bdef852b9c6c400160e`.
+
+For **each operating system independently**, the full source-only control generated 12 fresh unknown-source examples per mode, 24 distinct original and 24 published variant hashes across COO/SNO, recovered 36 arithmetic exports per mode, and passed 36,864 held-out signed-Int32 checks per mode (73,728 total per OS). The source-only interpreter received only each publicly emitted challenge, with the original source and commitment salt disclosed only after its one-shot answer. The exact audit transcript JSON is attached to the CI run for both operating systems.
+
+| Platform | COO median measured AST-recovery time | SNO median measured AST-recovery time | Outputs recovered |
+| --- | ---: | ---: | --- |
+| Ubuntu Node 22 | 1.4813 ms | 0.7406 ms | 36/36 per mode |
+| Windows Node 22 | 3.8024 ms | 1.4635 ms | 36/36 per mode |
+
+All times describe this implementation and selected affine private program family under runner-dependent conditions. They exclude an independent human or model's reasoning effort and cannot rank arbitrary obfuscation techniques. **No independent LLM reviewer submitted a sealed blind answer.** This is a reproducible known-family AST negative control, with full provenance and real cross-platform execution. Any subsequent anti-LLM claim still requires a separate reviewer who receives only the sealed public question before ground truth is revealed.
