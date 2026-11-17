@@ -133,10 +133,21 @@ async function profile(key,delayMs){
     loader:'js',format:'esm',target:'es2022',minify:true,legalComments:'none'
   })).code;
   assert.notEqual(generated,minified);
-  for(const code of [generated,minified]){
+  const staticWireShapes=[generated,minified].map(code=>{
     assert.doesNotMatch(code,/createPrivateMachine|ratchet-step-v1|createHmac/u);
     assert.doesNotMatch(code,new RegExp(key.toString('hex'),'u'));
-  }
+    // This bounded static read needs only the delivered source bytes.
+    // Both facades expose the same endpoint, method, and HTTP verb.
+    return {
+      endpoint:code.includes('/obfs/rpc'),
+      method:/['"]batch['"]/u.test(code),
+      verb:/['"]POST['"]/u.test(code)
+    };
+  });
+  assert.deepEqual(staticWireShapes,[
+    {endpoint:true,method:true,verb:true},
+    {endpoint:true,method:true,verb:true}
+  ]);
   const candidate=makeServer(key,delayMs,generated);
   const control=makeServer(key,delayMs,minified);
   const a=await listen(candidate.handler);
@@ -237,6 +248,7 @@ async function profile(key,delayMs){
     return {
       delayMs,platform:process.platform,node:process.version,esbuild:esbuildVersion,
       generatedSha256:digest(generated),minifiedSha256:digest(minified),
+      staticWireShapes,
       generatedBytes:Buffer.byteLength(generated),minifiedBytes:Buffer.byteLength(minified),
       independentAOnlineClones:[independent[0].result.outputs.length,
         independent[1].result.outputs.length],
