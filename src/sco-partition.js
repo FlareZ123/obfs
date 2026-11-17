@@ -168,10 +168,14 @@ function bindScoModuleExports(partition,serverExports) {
   /** @type {Record<string,(...args:any[])=>unknown|Promise<unknown>>} */
   const methods=Object.create(null);
   for(const name of partition.names) {
-    if(!Object.hasOwn(serverExports,name) || typeof serverExports[name]!=='function') {
+    // Capture an accessor-backed namespace binding only once. Otherwise an
+    // integrator getter could supply a validated function on the first read
+    // and a different task when binding the authenticated RPC registry.
+    const provided=Object.hasOwn(serverExports,name)?serverExports[name]:undefined;
+    if(typeof provided!=='function') {
       throw new TypeError('Missing executable server export: '+name);
     }
-    const task=/** @type {(...args:any[])=>unknown|Promise<unknown>} */ (serverExports[name]);
+    const task=/** @type {(...args:any[])=>unknown|Promise<unknown>} */ (provided);
     const methodName=partition.methodNames[name];
     if(typeof methodName!=='string'||Object.hasOwn(methods,methodName)) {
       throw new TypeError('Invalid or colliding RPC method identity');
