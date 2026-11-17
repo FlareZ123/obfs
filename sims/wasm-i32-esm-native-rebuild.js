@@ -1,7 +1,8 @@
 'use strict';
 
 const acorn=require('acorn');
-const {recoverPublicWasmExpression}=require('./wasm-i32-static-recover');
+const {recoverPublicWasmExpression,isGeneratedWasmExportReference}=
+  require('./wasm-i32-static-recover');
 
 /** @typedef {{name:string,parameters:string[],expression:string,wasmBytes:number}} RecoveredExport */
 
@@ -63,9 +64,28 @@ function reconstructPublicWasmEsm(publicSource){
     const helperName=expression.callee.name;
     const helper=helpers.get(helperName);
     if(!helper)throw new TypeError('Missing compiler helper '+helperName);
-    const helperSource=publicSource.slice(helper.start,helper.end);
-    if(!helperSource.includes('new globalThis.WebAssembly.Instance('))
+    const statements=helper.body.body;
+    const initializer=statements[0]?.type==='ExpressionStatement'?
+      statements[0].expression:null;
+    const returning=statements[1];
+    if(statements.length!==2||initializer?.type!=='AssignmentExpression'||
+        initializer.operator!=='='||initializer.left.type!=='Identifier'||
+        initializer.left.name!==helperName||
+        !isGeneratedWasmExportReference(initializer.right,publicSource)||
+        returning?.type!=='ReturnStatement'||!returning.argument||
+        returning.argument.type!=='CallExpression'||
+        returning.argument.callee.type!=='Identifier'||
+        returning.argument.callee.name!==helperName||
+        helper.params.length!==parameters.length||
+        helper.params.some(param=>param.type!=='Identifier'))
       throw new TypeError('Unrecognized compiler helper '+helperName);
+    const helperParameters=helper.params.map(param=>
+      (/** @type {import('acorn').Identifier} */(param)).name);
+    if(returning.argument.arguments.length!==helperParameters.length||
+        returning.argument.arguments.some((arg,index)=>arg.type!=='Identifier'||
+          arg.name!==helperParameters[index]))
+      throw new TypeError('Unproved compiler helper forwarding '+helperName);
+    const helperSource=publicSource.slice(helper.start,helper.end);
     const recovered=recoverPublicWasmExpression(helperSource,parameters);
     functions.push({name:fn.id.name,parameters,expression:recovered.expression,wasmBytes:recovered.bytes});
     observedHelpers.add(helperName);

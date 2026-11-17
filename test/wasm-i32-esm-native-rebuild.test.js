@@ -7,6 +7,7 @@ const path=require('node:path');
 const fs=require('node:fs/promises');
 const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src/core');
+const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {atomicWrite}=require('../src/atomic');
 const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 
@@ -139,7 +140,6 @@ test('public ESM native replacement retains early cyclic import execution',{
     }
   }
   const original=await cycle(kernel);
-  const {lowerWasmI32Functions}=require('../src/wasm-i32');
   for(let index=0;index<4;index++){
     const compiled=lowerWasmI32Functions(kernel,'module',{
       seed:'native-cycle-'+index,names:['f']
@@ -151,6 +151,20 @@ test('public ESM native replacement retains early cyclic import execution',{
     assert.deepEqual(await cycle(compiled.code),original);
     assert.deepEqual(await cycle(cloned.code),original);
   }
+});
+
+test('ESM native rebuild refuses a stateful generated-helper lookalike',()=>{
+  const lowered=lowerWasmI32Functions(
+    'export function f(x){return (x^31);}','module',{
+      seed:'unproved-helper-side-effect',names:['f']
+    });
+  assert.equal(lowered.functions,1);
+  const polluted=lowered.code.replace(
+    /(function _wi_[0-9a-f]+\([^)]*\)\{)/u,
+    '$1globalThis.__unproved=1;');
+  assert.notEqual(polluted,lowered.code);
+  assert.throws(()=>reconstructPublicWasmEsm(polluted),
+    /Unrecognized compiler helper/u);
 });
 
 test('ESM native rebuild rejects extra module effects and unproved exports',()=>{

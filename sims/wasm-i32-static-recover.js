@@ -21,6 +21,29 @@ const walk=require('acorn-walk');
  */
 const GENERATED_WASM=/^new\s+globalThis\.WebAssembly\.Module\s*\(\s*globalThis\.Uint8Array\.from\s*\(\s*(\[[0-9,\s]+\])\s*\)\s*\)$/u;
 
+/**
+ * Match the exact compiler-generated eager Wasm export expression by AST
+ * structure. Merely containing a nested Wasm constructor would allow extra
+ * operations that an offline native replacement must not silently discard.
+ *
+ * @param {import('acorn').Expression} expression
+ * @param {string} source
+ * @returns {boolean}
+ */
+function isGeneratedWasmExportReference(expression,source){
+  if(expression.type!=='MemberExpression'||expression.computed||
+      expression.property.type!=='Identifier'||expression.property.name!=='f')return false;
+  const exported=expression.object;
+  if(exported.type!=='MemberExpression'||exported.computed||
+      exported.property.type!=='Identifier'||exported.property.name!=='exports')return false;
+  const instance=exported.object;
+  if(instance.type!=='NewExpression'||instance.arguments.length!==1||
+      source.slice(instance.callee.start,instance.callee.end)!==
+        'globalThis.WebAssembly.Instance')return false;
+  const module=instance.arguments[0];
+  return module.type==='NewExpression'&&GENERATED_WASM.test(source.slice(module.start,module.end));
+}
+
 /** @typedef {{source:string,array:string,offset:number}} PublicWasmModule */
 /** @param {string} source @returns {PublicWasmModule[]} */
 function compilerModules(source) {
@@ -285,4 +308,5 @@ function recoverAllPublicWasmExpressions(publicJavaScript,parameterSets) {
   });
 }
 
-module.exports={recoverPublicWasmExpression,recoverAllPublicWasmExpressions,extractPublicWasm};
+module.exports={recoverPublicWasmExpression,recoverAllPublicWasmExpressions,extractPublicWasm,
+  isGeneratedWasmExportReference};
