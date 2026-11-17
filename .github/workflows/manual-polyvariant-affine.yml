@@ -80,3 +80,8 @@ jobs:
         run: npx tsc --project jsconfig.coo-runtime-probe.json
       - name: Independently reconstruct COO math from only three public runtime probes
         run: node --test test/coo-runtime-one-query-reconstruct.test.js
+      - name: Browser-hosted one-output-per-export affine reconstruction
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-runtime-one-query-browser.js
