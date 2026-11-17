@@ -98,13 +98,45 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
   };
+  // Every requested resistance axis is reported independently. A legitimate
+  // online relay is evidence of reproducible authorized functionality, not
+  // evidence that service credentials or private server code were stolen.
+  const securityAxes={
+    staticReconstruction:{
+      coo:coo.functionRecovery===3?'recovered-selected-functions':'not-established',
+      sno:sno.staticRecovered===sno.selectedFunctions?
+        'recovered-selected-functions':'not-established',
+      sco:'not-measured-private-code-remains-server-side'
+    },
+    dynamicInstrumentation:{
+      coo:'not-measured',
+      sno:sno.runtimeHooked?'owner-loader-substitution':'not-established',
+      sco:'not-measured'
+    },
+    unauthorizedModification:{
+      coo:'not-measured',
+      sno:sno.manifestForged?'public-manifest-forged':'not-established',
+      sco:'not-measured'
+    },
+    environmentControl:{
+      coo:'reconstructed-public-code-runs-offline',
+      sno:sno.offlineClone&&sno.directEsmClone?
+        'owner-copied-public-code-runs-offline':'not-established',
+      sco:'unauthorized-token-bypass-not-measured'
+    },
+    authorizedServiceRelay:{
+      coo:'not-applicable',sno:'not-applicable',
+      sco:sco.semanticsPreserved?'legitimate-token-relay-reproduces-output':
+        'not-established'
+    }
+  };
   const failedSecurity=Object.entries(attackEvidence).filter(([,value])=>
     value.verdict==='demonstrated-functional-clone').map(([name])=>name);
   return {
     verdict:'RELEASE-BLOCKED',
     reason:'The tested delivery is reproducible from public files or legitimate service queries; the required general 2.5x and hostile-runtime guarantees remain unestablished',
     attackedModes:failedSecurity,
-    attackEvidence,performance,
+    attackEvidence,securityAxes,performance,
     note:'Finite sampled security and timing observations. Source secrecy, functional cloning, runtime control, compatibility, and performance are independent requirements. The test does not establish a universal 2.5x bound.'
   };
 }
