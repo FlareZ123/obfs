@@ -147,12 +147,16 @@ test('SCO batch snapshots deeply nested but valid JSON without a clone stack lim
 test('SCO batch JSON snapshot preserves negative zero, overflow number and own proto key',async()=>{
   const methods={
     /** @param {unknown[]} value */
-    check:value=>[
-      Object.is(value[0],-0),
-      value[1]===Infinity,
-      Object.hasOwn(value[2],'__proto__'),
-      Object.getPrototypeOf(value[2])===Object.prototype
-    ]
+    check:value=>{
+      // The HTTP fixture supplies a record at index 2 by construction.
+      const record=/** @type {object} */ (value[2]);
+      return [
+        Object.is(value[0],-0),
+        value[1]===Infinity,
+        Object.hasOwn(record,'__proto__'),
+        Object.getPrototypeOf(record)===Object.prototype
+      ];
+    }
   };
   const server=http.createServer(createScoHandler([],{
     remoteMethods:{batch:createScoBatchMethod(methods)},
