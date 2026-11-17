@@ -210,7 +210,7 @@ async function main(){
     assert.ok(address&&typeof address!=='string');
     const root='http://127.0.0.1:'+address.port;
     browserSession=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'google-chrome',
+      executablePath:process.env.CHROMIUM_BIN??'/usr/bin/google-chrome',
       headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
