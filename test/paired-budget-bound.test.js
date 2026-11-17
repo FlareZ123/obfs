@@ -61,8 +61,8 @@ test('exact zero-violation upper rate makes the strict budget finite-sample limi
 
 test('familywise strict-breach rates are separate from supported median decisions',()=>{
   const noViolations={native:Array(9).fill(1),candidate:Array(9).fill(1.01)};
-  const breach={native:Array(9).fill(1),
-    candidate:[1.01,1.01,1.01,1.01,1.01,1.01,1.01,1.01,3]};
+  const breach={native:Array(13).fill(1),
+    candidate:[...Array(12).fill(1.01),3]};
   const clean=familywiseBudgetBounds([noViolations,noViolations]);
   assert.equal(clean.observedSampleHasOverBudgetPair,false);
   assert.equal(clean.verdict,'sample-supported');
