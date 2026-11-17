@@ -45,8 +45,15 @@ test('source observer islands reject Reflect and Object constructor extraction',
     'const filename=make("return process.argv[1]")().replace(/entry\\.mjs$/,"independent.mjs");',
     'console.log((await read(filename,"utf8")).includes("privateB"));'
   ].join('\n');
+  const destructuredConstructor=[
+    'const {constructor:make}=()=>0;',
+    'const load=make("return import(\\"node:fs/promises\\")");',
+    'const {["re"+"adFile"]:read}=await load();',
+    'const filename=make("return process.argv[1]")().replace(/entry\\.mjs$/,"independent.mjs");',
+    'console.log((await read(filename,"utf8")).includes("privateB"));'
+  ].join('\n');
   for(const mode of /** @type {const} */ (['coo','sno'])){
-    for(const expression of [indirectConstructor,descriptorConstructor]){
+    for(const expression of [indirectConstructor,descriptorConstructor,destructuredConstructor]){
       assert.throws(()=>obfuscateFiles([watched,leaf,importer(expression)],{
         mode,closedWorld:true,strings:false,identifiers:false,
         experimentalSourceObserverIslands:['independent.mjs'],
