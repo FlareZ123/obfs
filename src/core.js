@@ -317,6 +317,14 @@ function mutatesDecoderIntrinsic(ast) {
       touchesString(node.object);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isArrayPrototypeChainWrite(node) {
+    // A fresh [] inherits numeric accessors installed through a new
+    // prototype parent. The chunked decoder's units[i]=... would invoke
+    // those setters rather than define the expected own array elements.
+    return node.type==='MemberExpression' && memberName(node)==='__proto__' &&
+      isArrayPrototype(node.object);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isArrayIteratorProperty(node) {
     if(node.type!=='MemberExpression'||!node.computed||
        !isArrayPrototype(node.object))return false;
@@ -374,11 +382,14 @@ function mutatesDecoderIntrinsic(ast) {
       return;
     }
     if(node.type==='AssignmentExpression' &&
-         (touchesString(node.left)||isArrayIteratorProperty(node.left)) ||
+         (touchesString(node.left)||isArrayIteratorProperty(node.left)||
+          isArrayPrototypeChainWrite(node.left)) ||
        node.type==='UpdateExpression' &&
-         (touchesString(node.argument)||isArrayIteratorProperty(node.argument)) ||
+         (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
+          isArrayPrototypeChainWrite(node.argument)) ||
        node.type==='UnaryExpression' && node.operator==='delete' &&
-         (touchesString(node.argument)||isArrayIteratorProperty(node.argument))) {
+         (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
+          isArrayPrototypeChainWrite(node.argument))) {
       mutated=true;
       return;
     }
