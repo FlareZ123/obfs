@@ -43,14 +43,14 @@ function graph(seed,random){
     'b=(b+'+k[5]+')|0;',
     'c=(c+a)|0;',
     '}',
-    'if((a&7)==='+k[6]%8+'){',
+    'if((a&7)==='+(k[6]%8)+'){',
     "hook('rare');",
     'a=(a^'+k[7]+')|0;',
     '}else{',
     'c=(c+'+k[8]+')|0;',
     '}',
     'for(var i=0;i<'+(k[9]%4+1)+';i++){c=(c+i)|0;}',
-    'if((a&15)==='+k[10]%16+'){throw Error("fault-'+seed+'");}',
+    'if((a&15)==='+(k[10]%16)+'){throw Error("fault-'+seed+'");}',
     'if(c>'+((seed%3)*101-50)+'){',
     "hook('high');",
     'return (Math.imul(c,3)^a)|0;',
@@ -98,7 +98,8 @@ test('seeded 96-program compact CFG differential, exceptions and seedless static
     const compact=flattenStatementFlow(source,'commonjs',{seed:'fuzz-'+seed,names:['f'],compactCases:true});
     assert.equal(plain.functions,1);
     assert.equal(compact.functions,1);
-    const caseCount=/** @param {string} src */ src=>(src.match(/case\s+\d+:/gu)||[]).length;
+    /** @param {string} src */
+    const caseCount=src=>(src.match(/case\s+\d+:/gu)||[]).length;
     assert.ok(caseCount(compact.code)<=caseCount(plain.code));
     if(caseCount(compact.code)<caseCount(plain.code))compressed++;
     const recovered=recoverStatementFlow(compact.code,'f');
