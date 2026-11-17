@@ -9,7 +9,7 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls}=require('../sims/application-challenge-observer-ablation');
+const {ablate,withOwnKeyCalls,withCapturedStringArgv}=require('../sims/application-challenge-observer-ablation');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 
@@ -35,7 +35,7 @@ test('independent public JSDoc attacker reconstructs both private field names an
       path:name,sourceType:'module',
       code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
     })));
-    const native=withOwnKeyCalls(ablate(original,'both'));
+    const native=withCapturedStringArgv(withOwnKeyCalls(ablate(original,'both')));
     const transformed=obfuscateFiles(native,{
       mode:'coo',closedWorld:true,seed:SEED,identifiers:true,
       properties:true,strings:false
