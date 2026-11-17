@@ -130,6 +130,9 @@ function proveSourceObserverIslands(files,selections) {
     // A sound allowlist requires an explicit capability proof, so decline both.
     'location','Deno','Bun','require','eval','Function','AsyncFunction',
     'Object','Reflect',
+    // Browser timers evaluate string callbacks as source text in the realm,
+    // which can fetch a selected leaf without an ESM ImportExpression edge.
+    'setTimeout','setInterval',
     'GeneratorFunction','AsyncGeneratorFunction','Worker','SharedWorker',
     'importScripts','fetch','XMLHttpRequest','FileReader','Request','Response',
     'URL','Blob','WebSocket','readFile','readFileSync','createRequire',
