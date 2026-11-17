@@ -4,6 +4,7 @@ const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -108,9 +109,11 @@ function collectVerifiedImportedStrings(files) {
 
 /**
  * Prove direct ESM imports whose originating module exports a unique,
- * immutable primitive literal. This carries only a boolean kind of proof:
- * unlike collectVerifiedImportedStrings, no value is propagated for key
- * folding. Reexports, computed initializers and mutable exports are opaque.
+ * immutable primitive literal, or a strictly verified immutable primitive
+ * field returned by a direct imported reader in an acyclic closed ESM graph.
+ * This carries only a boolean kind of proof: unlike
+ * collectVerifiedImportedStrings, no value is propagated for key folding.
+ * Reexports, opaque calls and mutable exports remain unproved.
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
@@ -122,10 +125,15 @@ function collectVerifiedImportedPrimitives(files) {
     const ast=parse(file.code,'module');
     modules.set(file.path,{ast,bindings:collectBindings(ast)});
   }
+  // Only the caller's closed-world ESM path reaches this proof. A mixed
+  // group cannot establish complete provenance for an imported value.
+  /** @type {Map<string,Set<string>>} */
+  const derived=modules.size===files.length ?
+    proveDirectReaderPrimitives(modules,resolveImport) : new Map();
   /** @type {Map<string,Set<string>>} */
   const exported=new Map();
   for(const [filename,module] of modules) {
-    const ownPrimitives=new Set();
+    const ownPrimitives=new Set(derived.get(filename)||[]);
     for(const statement of module.ast.body) {
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'&&!statement.source?
