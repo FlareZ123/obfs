@@ -105,7 +105,8 @@
     "test/polyvariant-app-four-way-browser.js",
     "test/polyvariant-affine-browser.js",
     "sims/four-way-cross-runtime-verdict.js",
-    "test/four-way-cross-runtime-verdict.test.js"
+    "test/four-way-cross-runtime-verdict.test.js",
+    "test/property-pure-value-expression.test.js"
   ],
   "exclude": [
     "node_modules"
