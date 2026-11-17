@@ -357,41 +357,29 @@ function createScoHandler(sourceFiles,options={}) {
   // any HTTP route, even if the private entry appears before its public facade.
   const forbidden=new Set();
   const privateOriginalDigests=new Set();
-  // Read each caller-managed manifest getter only once. Multiple reads can
-  // disagree, leaving a declared private source outside the forbidden sets.
-  // Keep owned array copies for every later check and publication pass.
-  /** @type {Array<{paths:string[]|undefined,digests:string[]|undefined}>} */
-  const privateMetadata=sourceFiles.map(file=>{
-    const providedDigests=file.privateOriginalDigests;
-    const providedPaths=file.privateModulePaths;
-    /** @type {string[]|undefined} */
-    let digests;
-    if(providedDigests!==undefined){
-      if(!Array.isArray(providedDigests)||
-          providedDigests.some(value=>typeof value!=='string'||
+  for(const file of sourceFiles){
+    if(file.privateOriginalDigests!==undefined){
+      if(!Array.isArray(file.privateOriginalDigests)||
+          file.privateOriginalDigests.some(value=>typeof value!=='string'||
             !/^[0-9a-f]{64}$/u.test(value))){
         throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
       }
-      digests=[...providedDigests];
-      for(const digest of digests)privateOriginalDigests.add(digest);
+      for(const digest of file.privateOriginalDigests)privateOriginalDigests.add(digest);
     }
-    /** @type {string[]|undefined} */
-    let paths;
-    if(providedPaths!==undefined){
-      if(!Array.isArray(providedPaths)){
-        throw new TypeError('SCO privateModulePaths must be an array');
-      }
-      paths=providedPaths.map(safePath);
-      for(const privatePath of paths)forbidden.add(privatePath.toLowerCase());
+    if(file.privateModulePaths===undefined)continue;
+    if(!Array.isArray(file.privateModulePaths)){
+      throw new TypeError('SCO privateModulePaths must be an array');
     }
-    return {paths,digests};
-  });
+    for(const privatePath of file.privateModulePaths){
+      forbidden.add(safePath(privatePath).toLowerCase());
+    }
+  }
   // Validate the public route namespace before creating the HTTP handler.
   // Exact duplicates silently overwrite Map values, and case-folded aliases
   // may collide when the source group is deployed on Windows.
   const seen=new Set();
   /** @type {import('./cross-properties').SourceFile[]} */
-  const normalized=sourceFiles.map((file,index)=>{
+  const normalized=sourceFiles.map(file=>{
     const filename=safePath(file.path);
     const collisionKey=filename.toLowerCase();
     if(publicAllowlist&&!publicAllowlist.has(filename)){
@@ -425,8 +413,8 @@ function createScoHandler(sourceFiles,options={}) {
     // Build only the documented SourceFile fields: spreading the caller's
     // object would invoke a code getter again even after taking the snapshot.
     const normalizedFile = {path:filename,code,sourceType,
-      privateModulePaths:privateMetadata[index].paths,
-      privateOriginalDigests:privateMetadata[index].digests};
+      privateModulePaths:file.privateModulePaths,
+      privateOriginalDigests:file.privateOriginalDigests};
     assertNoSourceMapDisclosure(normalizedFile);
     return normalizedFile;
   });
