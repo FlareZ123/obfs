@@ -1389,6 +1389,10 @@ function createScoSelectedHandler(partition,serverExports,options) {
      Object.hasOwn(options,'publicPaths')||Object.hasOwn(options,'remoteMethods')){
     throw new TypeError('SCO selective handler requires generated partition and separately authorized server options');
   }
+  // Capture caller option getters exactly once before comparing the RPC
+  // endpoint. The transport must not see a different routePrefix during
+  // handler construction from the value used for the endpoint check.
+  const stableOptions={...options};
   const snapshot=generatedSelectiveSnapshots.get(partition);
   if(snapshot===undefined){
     throw new TypeError('SCO selective handler requires a partition generated in this process');
@@ -1397,13 +1401,13 @@ function createScoSelectedHandler(partition,serverExports,options) {
     throw new TypeError('SCO selective manifest was modified after partitioning');
   }
   const trusted=/** @type {ScoSelectivePartition} */ (JSON.parse(snapshot));
-  const expectedEndpoint=(options.routePrefix??'/obfs/')+'rpc';
+  const expectedEndpoint=(stableOptions.routePrefix??'/obfs/')+'rpc';
   if(trusted.endpoint!==expectedEndpoint){
     throw new TypeError('SCO selective RPC endpoint does not match routePrefix');
   }
   const remoteMethods=bindScoModuleExports(trusted,serverExports);
   return createScoHandler([trusted.clientFile],{
-    ...options,
+    ...stableOptions,
     publicPaths:[trusted.clientFile.path],
     remoteMethods
   });
