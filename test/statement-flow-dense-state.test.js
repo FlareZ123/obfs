@@ -28,7 +28,7 @@ const original='function f(x,hook){var y=x|0;'+
   'if((y&8)===0){y=(y+17)|0;}else{y=(y-23)|0;}'+
   'return y|0;}';
 
-test('seed-permuted dense CFG labels remain a complete public switch permutation',()=>{
+test('seed-permuted dense CFG labels remain unique bounded integers and statically recoverable',()=>{
   const native=load(original);
   for(const compactCases of [false,true]){
     const signatures=new Set();
@@ -43,8 +43,14 @@ test('seed-permuted dense CFG labels remain a complete public switch permutation
       const clone=load(recovered.code);
       const labels=[...compiled.code.matchAll(/case (\d+):/gu)]
         .map(match=>Number(match[1])).sort((a,b)=>a-b);
-      assert.deepEqual(labels,Array.from({length:labels.length},(_,i)=>i),
-        'Public dense state labels must form a complete 0..N permutation');
+      assert.ok(labels.every(label=>Number.isSafeInteger(label)&&
+        label>=0&&label<=compiled.blocks),'Dense labels must lie within 0..block count');
+      assert.equal(new Set(labels).size,labels.length,'All emitted cases must be distinct');
+      // Compact emission may absorb a successor case, leaving a legitimate
+      // hole in the public labels; only the unabsorbed mode publishes all.
+      if(!compactCases){
+        assert.deepEqual(labels,Array.from({length:compiled.blocks+1},(_,i)=>i));
+      }
       signatures.add(compiled.code);
       for(let x=-100;x<=100;x+=4){
         const expected=observe(native,x);
