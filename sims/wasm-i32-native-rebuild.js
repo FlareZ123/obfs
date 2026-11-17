@@ -1,7 +1,6 @@
 'use strict';
 
 const acorn=require('acorn');
-const walk=require('acorn-walk');
 const {recoverPublicWasmExpression}=require('./wasm-i32-static-recover');
 
 /**
@@ -28,21 +27,31 @@ function reconstructPublicWasmCommonJs(publicSource){
   const helpers=new Map();
   /** @type {Map<string,{parameters:string[],helper:string}>} */
   const wrappers=new Map();
-  walk.simple(ast,{
-    VariableDeclarator(node){
-      if(node.id.type!=='Identifier'||!node.init)return;
-      const candidate=publicSource.slice(node.init.start,node.init.end);
-      if(candidate.includes('new globalThis.WebAssembly.Module('))
-        helpers.set(node.id.name,candidate);
-    },
-    FunctionDeclaration(node){
-      const statement=node.body.body[0];
-      if(!node.id||node.params.some(param=>param.type!=='Identifier')||
-          node.body.body.length!==1||statement.type!=='ReturnStatement')return;
-      const parameters=node.params.map(param=>
+  /** @type {Array<{name:string,localName:string}>} */
+  let exportsList=[];
+  let exportAssignments=0;
+  for(const item of ast.body){
+    if(item.type==='VariableDeclaration'){
+      if(item.kind!=='const')throw new TypeError('Unsupported mutable top-level binding');
+      for(const declaration of item.declarations){
+        if(declaration.id.type!=='Identifier'||!declaration.init)
+          throw new TypeError('Unsupported top-level binding');
+        const candidate=publicSource.slice(declaration.init.start,declaration.init.end);
+        if(!candidate.includes('new globalThis.WebAssembly.Instance(')||
+            helpers.has(declaration.id.name))
+          throw new TypeError('Unproved CommonJS initializer');
+        helpers.set(declaration.id.name,candidate);
+      }
+      continue;
+    }
+    if(item.type==='FunctionDeclaration'){
+      const statement=item.body.body[0];
+      if(!item.id||item.params.some(param=>param.type!=='Identifier')||
+          item.body.body.length!==1||statement.type!=='ReturnStatement'||!statement.argument)
+        throw new TypeError('Unsupported CommonJS function declaration');
+      const parameters=item.params.map(param=>
         (/** @type {import('acorn').Identifier} */ (param)).name);
       let expression=statement.argument;
-      if(!expression)return;
       if(expression.type==='BinaryExpression'&&expression.operator==='>>>'&&
           expression.right.type==='Literal'&&expression.right.value===0&&
           expression.left.type!=='PrivateIdentifier')
@@ -50,22 +59,21 @@ function reconstructPublicWasmCommonJs(publicSource){
       if(expression.type!=='CallExpression'||expression.callee.type!=='Identifier'||
           expression.arguments.length!==parameters.length||
           expression.arguments.some((arg,index)=>arg.type!=='Identifier'||
-            arg.name!==parameters[index]))return;
-      wrappers.set(node.id.name,{parameters,helper:expression.callee.name});
+            arg.name!==parameters[index])||wrappers.has(item.id.name))
+        throw new TypeError('Unsupported CommonJS Wasm forwarding');
+      wrappers.set(item.id.name,{parameters,helper:expression.callee.name});
+      continue;
     }
-  });
-  /** @type {Array<{name:string,localName:string}>} */
-  let exportsList=[];
-  let exportAssignments=0;
-  for(const statement of ast.body){
-    if(statement.type!=='ExpressionStatement')continue;
-    const assignment=statement.expression;
+    if(item.type!=='ExpressionStatement')throw new TypeError('Unproved CommonJS top-level effect');
+    if(item.directive)continue;
+    const assignment=item.expression;
     if(assignment.type!=='AssignmentExpression'||assignment.operator!=='='||
         assignment.left.type!=='MemberExpression'||assignment.left.computed||
         assignment.left.object.type!=='Identifier'||
         assignment.left.object.name!=='module'||
         assignment.left.property.type!=='Identifier'||
-        assignment.left.property.name!=='exports')continue;
+        assignment.left.property.name!=='exports')
+      throw new TypeError('Unproved CommonJS top-level side effect');
     exportAssignments++;
     if(assignment.right.type!=='ObjectExpression')
       throw new TypeError('Expected an exported object of direct function references');
@@ -95,6 +103,10 @@ function reconstructPublicWasmCommonJs(publicSource){
       parameters:wrapper.parameters,expression:recovered.expression,
       wasmBytes:recovered.bytes});
   }
+  const usedWrappers=new Set(exportsList.map(item=>item.localName));
+  const usedHelpers=new Set([...usedWrappers].map(name=>wrappers.get(name)?.helper));
+  if(usedWrappers.size!==wrappers.size||usedHelpers.size!==helpers.size)
+    throw new TypeError('Unreferenced CommonJS function or helper');
   const declarations=functions.map(item=>'function '+item.localName+
     '('+item.parameters.join(',')+'){return '+item.expression+';}');
   const exported=functions.map(item=>JSON.stringify(item.name)+':'+item.localName).join(',');

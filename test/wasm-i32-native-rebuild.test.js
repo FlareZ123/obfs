@@ -82,6 +82,18 @@ test('COO and SNO full compiler output can be replaced by a public native module
   }
 });
 
+test('native rebuild declines unrelated top-level effects even with valid emitted modules',()=>{
+  const lowered=lowerWasmI32Functions(source,'commonjs',{
+    seed:'no-discarded-effect',names:['first','second']
+  });
+  assert.equal(lowered.functions,2);
+  for(const extra of [
+    'console.log("unreviewed");\n',
+    'const unrelated=37;\n',
+    'function unrelated(){return 1;}\n'
+  ])assert.throws(()=>reconstructPublicWasmCommonJs(extra+lowered.code),TypeError);
+});
+
 test('native rebuild refuses an incomplete, noncompiler or ambiguous exported graph',()=>{
   for(const delivered of [
     'function first(a){return a;}module.exports={first};',
