@@ -112,4 +112,6 @@ test('COO/SNO CLI parses explicit compact-case selector with a selected source',
   assert.equal(parsed.experimentalStatementFlowCompact,true);
   assert.deepEqual(parsed.experimentalStatementFlow,{'app.cjs':['f']});
   assert.equal(readArgs(['--root','fixture','--entry','app.cjs']).experimentalStatementFlowCompact,undefined);
+  assert.throws(()=>readArgs(['--root','fixture','--entry','app.cjs','--statement-flow-compact']),
+    /requires --statement-flow/u);
 });
