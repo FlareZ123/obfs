@@ -27,6 +27,11 @@ jobs:
         run: node sims/source-island-indirect-loader-attack.js
       - name: Attempt constructor escape via native object destructuring
         run: node sims/source-island-indirect-loader-attack.js --destructure
+      - name: Real Chromium browser string-timer source reader adversary
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/source-island-browser-string-timer-attack.js
       - name: Validate repository JSDoc types
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
