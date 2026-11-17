@@ -74,3 +74,50 @@ test('invalid identity, invalid options and malformed handles fail closed',async
   assert.throws(()=>store.use('abc',value=>value),/Invalid private SCO capability/);
  });
 });
+
+
+test('concurrent principals retain separate asynchronous contexts and same-principal FIFO',async()=>{
+ const scope=createScoCapabilityScope(verifiedAccount);
+ /** @type {()=>void} */let release=()=>{};
+ /** @type {()=>void} */let entered=()=>{};
+ const hold=new Promise(resolve=>{release=()=>resolve(undefined);});
+ const started=new Promise(resolve=>{entered=()=>resolve(undefined);});
+ /** @type {string[]} */const trace=[];
+ const first=scope.runRpcIsolated(request('alice'),async()=>{
+  trace.push('alice-first:'+scope.currentPrincipal());
+  entered();
+  await hold;
+  trace.push('alice-after-await:'+scope.currentPrincipal());
+ });
+ await started;
+ const second=scope.runRpcIsolated(request('alice'),async()=>{
+  trace.push('alice-second:'+scope.currentPrincipal());
+ });
+ await scope.runRpcIsolated(request('bob'),async()=>{
+  trace.push('bob:'+scope.currentPrincipal());
+  await Promise.resolve();
+  trace.push('bob-after-await:'+scope.currentPrincipal());
+ });
+ assert.deepEqual(trace,['alice-first:alice','bob:bob','bob-after-await:bob']);
+ release();
+ await Promise.all([first,second]);
+ assert.deepEqual(trace,[
+  'alice-first:alice','bob:bob','bob-after-await:bob',
+  'alice-after-await:alice','alice-second:alice'
+ ]);
+ assert.throws(()=>scope.currentPrincipal(),/active authenticated RPC scope/);
+});
+
+test('rejected resolver cannot reuse an old scope on a repeated request object',async()=>{
+ let valid=true;
+ const req=request('alice');
+ const scope=createScoCapabilityScope(()=>valid?'alice':'');
+ await scope.runRpcIsolated(req,async()=>{
+  assert.equal(scope.currentPrincipal(),'alice');
+ });
+ valid=false;
+ await assert.rejects(scope.runRpcIsolated(req,async()=>{
+  throw Error('must not enter');
+ }),/Authenticated principal/);
+ assert.throws(()=>scope.currentPrincipal(),/active authenticated RPC scope/);
+});
