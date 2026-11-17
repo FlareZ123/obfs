@@ -75,7 +75,8 @@ test('SCO refuses Error.stack through local direct-return factories',()=>{
     "const make=()=>new Error('tag');return make().stack;",
     "function make(){const err=new Error('tag');return err;}const err=make();return err.stack;",
     "const make=()=>new Error('tag');const alias=make;return alias().stack;",
-    "function make(){return new TypeError('tag');}const {stack:trace}=make();return trace;"
+    "function make(){return new TypeError('tag');}const {stack:trace}=make();return trace;",
+    "function make(flag){if(flag)return new Error('tag');return {stack:'safe'};}return make(true).stack;"
   ];
   for(const body of bodies){
     const code='(()=>{'+body+'})()';
@@ -94,7 +95,8 @@ test('SCO still admits helpers returning plain stack fields or Error messages',(
     "function make(){return {stack:'safe'};}return make().stack;",
     "const make=()=>({stack:'safe'});return make().stack;",
     "const make=()=>new Error('tag');return make().message;",
-    "const make=()=>new TypeError('tag');const err=make();return err.name;"
+    "const make=()=>new TypeError('tag');const err=make();return err.name;",
+    "function make(){function nested(){return new Error('tag');}return {stack:'safe'};}return make().stack;"
   ];
   for(const body of bodies){
     const result=partition(body);
