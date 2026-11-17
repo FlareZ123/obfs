@@ -158,7 +158,7 @@ async function main(){
     for(const variant of ['minified','published']){
       const response=await fetch(root+'/'+variant+'/math.mjs');
       assert.equal(response.status,200);
-      assert.equal(await response.text(),graphs[variant].find(file=>file.path==='math.mjs')?.code);
+      assert.equal(await response.text(),graphs[/** @type {keyof typeof graphs} */(variant)].find(file=>file.path==='math.mjs')?.code);
     }
     const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
       '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -169,11 +169,11 @@ async function main(){
     const actual=JSON.parse(text);
     assert.deepEqual(actual.rows,expected);
     for(const name of ['native','minified','published','reconstructed']){
-      const samples=actual.samples[name];
+      const samples=/** @type {number[]} */ (actual.samples[name]);
       assert.equal(samples.length,9);
       assert.ok(samples.every(value=>Number.isFinite(value)&&value>0));
       for(const count of ['1','10000']){
-        const cold=actual.cold[count][name];
+        const cold=/** @type {number[]} */ (actual.cold[count][name]);
         assert.equal(cold.length,9);
         assert.ok(cold.every(value=>Number.isFinite(value)&&value>0));
       }
