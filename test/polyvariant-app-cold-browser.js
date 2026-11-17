@@ -58,11 +58,11 @@ const workloads=${JSON.stringify(workloads)};
 const trials=${trials};
 const orders=[
   ['native','published','reconstructed'],
-  ['reconstructed','published','native'],
-  ['published','native','reconstructed'],
-  ['native','reconstructed','published'],
   ['published','reconstructed','native'],
-  ['reconstructed','native','published']
+  ['reconstructed','native','published'],
+  ['native','reconstructed','published'],
+  ['reconstructed','published','native'],
+  ['published','native','reconstructed']
 ];
 function records(count){
   return Array.from({length:count},(_,index)=>({
