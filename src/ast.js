@@ -1509,7 +1509,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const nodeUtilNamespaces=new Set();
   /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
-  const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions']);
+  const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions',
+    'getCallSites','getCallSite']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeUtilRequire(node) {
     return Boolean(node?.type==='CallExpression' &&
@@ -1722,6 +1723,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='CallExpression') {
       const callee=node.callee;
       const utilMethod=nodeUtilMethod(callee);
+      // Node util.getCallSites returns the live caller's source columns.
+      if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
       if(utilMethod==='inspect' && node.arguments[0] &&
          !isDefinitelyPrimitive(node.arguments[0]) ||
          utilMethod==='format' && node.arguments.some(
