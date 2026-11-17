@@ -20,6 +20,7 @@
     "examples/sco-private/server.cjs",
     "test/sco-real-example.test.js",
     "test/sco-selected-handler.test.js",
+    "test/sco-selected-graph.test.js",
     "test/sco-real-browser.js",
     "sims/xml-data-url-browser.js",
     "sims/xml-data-url-attack.js",
