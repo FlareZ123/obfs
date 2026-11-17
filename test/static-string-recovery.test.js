@@ -39,8 +39,13 @@ test('public XOR key is sufficient to recover secret strings offline',()=>{
 });
 
 test('static recovery decodes repeated shared literals and multiple values',()=>{
-  recover(`'use strict';module.exports=['first-long-literal','second-long-literal',
-    'first-long-literal'].join('::');`,['first-long-literal','second-long-literal']);
+  // Store the array in a local binding. Rewriting a literal inside a
+  // CallExpression callee can alter the exact source spelling in a failed
+  // operand diagnostic, so that less-safe inline form is intentionally
+  // excluded by the encoder's source-preservation proof.
+  recover(`'use strict';const values=['first-long-literal','second-long-literal',
+    'first-long-literal'];module.exports=values.join('::');`,
+  ['first-long-literal','second-long-literal']);
 });
 
 test('static recovery preserves supplementary and unpaired surrogate code units',()=>{
@@ -67,4 +72,16 @@ test('computed table access outside the supported static proof is preserved',()=
   assert.equal(result.tables,0);
   assert.equal(result.literals,0);
   assert.equal(result.diagnostics.length,1);
+});
+
+test('inline call-callee array literal is conservatively excluded from encoding',()=>{
+  const source=`'use strict';module.exports=['first-long-literal','second-long-literal',
+    'first-long-literal'].join('::');`;
+  const emitted=obfuscateFiles([{path:'inline.cjs',sourceType:'commonjs',code:source}],{
+    mode:'sno',seed:'inline-operand-source-guard',properties:false
+  });
+  assert.equal(emitted.files[0].metrics.literals,0);
+  const recovered=recoverObfuscatedStrings(String(emitted.files[0].code),'commonjs');
+  assert.equal(recovered.tables,0);
+  assert.equal(execute(String(emitted.files[0].code)),execute(source));
 });
