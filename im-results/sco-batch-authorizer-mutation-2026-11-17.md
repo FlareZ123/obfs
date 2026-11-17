@@ -1,6 +1,6 @@
 # SCO recognized-batch policy mutation isolation, 2026-11-17
 
-**Status:** The two original real-HTTP mutation regressions are now confirmed red on Ubuntu and Windows at the exact pre-fix SHA. The current native-JSON-parser candidate has a queued green gate and remains provisional. This is an intermediate trusted-server correctness investigation, not an established obfuscation or security-resistance result.
+**Status:** Confirmed red before the patch and green afterward on Ubuntu and Windows Node 22. Current follow-on mutable digest-index changes have their own later validation requirement. This is an intermediate trusted-server correctness investigation, not an established obfuscation or security-resistance result.
 
 ## Problem and execution boundary
 
@@ -75,3 +75,31 @@ or cost claim should accompany this correctness fix.
 The trusted server and authenticated RPC interfaces remain a distinct
 threat model from arbitrary client-side static extraction; these samples do
 not evaluate obfuscation secrecy or instrumentation resistance.
+
+## Confirmed patched cross-platform gate
+
+[GitHub Actions run 44048517033](https://github.com/FlareZ123/obfs/actions/runs/44048517033)
+completed successfully for exact executable SHA
+`837f5a277477887e83541be4a1fb419c9961a67d`.
+The Ubuntu Node 22 job reported **175 tests / 175 pass / 0 fail / 0 skipped**.
+The Windows Node 22 job reported **175 tests / 174 pass / 0 fail /
+1 pre-existing platform skip**. All five new live-HTTP batch cases
+passed in both jobs: old-method mutation, old-argument mutation,
+5,000-level valid JSON, negative zero/overflow/prototype preservation,
+and per-inner authorization input mutation.
+
+Both jobs passed the complete listed SCO authorization/privacy integration
+steps and strict source/external JSDoc checks; Ubuntu also passed two
+Chromium browser integration steps. The paired existing authorization
+diagnostic produced Linux predictive-to-plain ratios **1.1344** (512
+iterations) and **0.9852** (8192 iterations), and Windows **1.1249**
+and **0.9729** for those *specific* 32-call batches. This is a selected,
+warm, loopback-authenticated profile; it does not isolate the precise
+incremental two-parse cost or imply universal budget eligibility. The
+parser-only data above more directly isolate that additional work.
+
+The green SHA includes the first three private metadata getter regressions
+and their one-read manifest snapshot patch. The subsequently added
+mutable-array-element check at `33bbfa4d` and source adjustment at
+`0ed51014` were **not** part of this green pin and require a distinct
+exact-SHA validation.
