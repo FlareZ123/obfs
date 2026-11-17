@@ -63,7 +63,7 @@ async function run(){
     {name:'constructor-key-own',wire:'[{"constructor":1},"own"]'},
     {name:'bad-index',wire:'[[999999]]'},
     {name:'short-buffer-type',wire:'[["Uint8Array",1,0,1000000000],["ArrayBuffer","AA=="]]'},
-    {name:'oversized-sparse-length',wire:'[[-2,4294967295,0,1],"first"]'},
+    {name:'oversized-sparse-length',wire:'[[-7,4294967295,0,1],"first"]'},
     {name:'nested-ref-depth-64',wire:nestedReferences(64)},
     {name:'nested-ref-depth-1024',wire:nestedReferences(1024)},
     {name:'nested-ref-depth-4096',wire:nestedReferences(4096)}
@@ -91,7 +91,7 @@ async function run(){
       }
       observations.push({
         name:scenario.name,bytes:Buffer.byteLength(scenario.wire,'utf8'),
-        ms:performance.now()-started,accepted,...error?{error}:{}
+        ms:performance.now()-started,accepted,...(error?{error}:{})
       });
       assert.equal(constructorInvocations,0,
         'Untrusted tag must not call ambient constructor');
