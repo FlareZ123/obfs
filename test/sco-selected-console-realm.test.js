@@ -70,3 +70,25 @@ test('SCO static private children reject unproved client-host reads',()=>{
 test('SCO static private children cannot move debugger breakpoints',()=>{
   assert.throws(()=>compile('debugger;return 42;'),/debugger host effects/u);
 });
+
+test('two composed SCO facades cannot share a relocated host-observable dependency',()=>{
+  const child={path:'private/child.mjs',
+    code:'export function compute(){console.info("CLIENT_VISIBLE_CANARY");return 7;}'};
+  const units=['alpha.mjs','beta.mjs'].map(name=>({
+    file:{path:name,code:entry,sourceType:'module'},
+    options:{
+      privateNames:['protectedOp'],privateModuleImports:['./private/child.mjs'],
+      privateModuleSources:[child]
+    }
+  }));
+  assert.throws(()=>partitionScoSelectedGraph(units),/console host effects/u);
+  const safeUnits=units.map(unit=>({
+    file:unit.file,
+    options:{...unit.options,privateModuleSources:[{
+      path:child.path,code:'export function compute(){return Math.imul(6,7);}'
+    }]}
+  }));
+  const graph=partitionScoSelectedGraph(safeUnits);
+  assert.deepEqual(graph.exposedPaths,['alpha.mjs','beta.mjs']);
+  assert.deepEqual(graph.privatePaths,['private/child.mjs']);
+});
