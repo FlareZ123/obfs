@@ -30,6 +30,8 @@ jobs:
         run: node --test test/inline-array-primitive-source.test.js
       - name: Compare SNO COO chunked decoding after inherited Array index setter
         run: node --test test/decoder-array-prototype-chain.test.js
+      - name: Fuzz primitive inline-array eligibility and independent decoder reconstruction
+        run: node --test test/inline-array-primitive-fuzz.test.js
       - name: JSDoc
         run: npm run typecheck
       - name: External research tool JSDoc
