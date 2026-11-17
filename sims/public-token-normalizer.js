@@ -8,7 +8,7 @@ const walk=require('acorn-walk');
 
 /**
  * Independent source-only renaming attack. The attacker receives emitted JS
- * files and uses just the published Acorn tokenizer API, not any obfuscator
+ * files and uses only published Acorn parser, walker and token APIs, not any obfuscator
  * AST analysis, seed, original files, private keys or runtime instrumentation.
  *
  * This normalizes public hash-looking property identifiers into readable
