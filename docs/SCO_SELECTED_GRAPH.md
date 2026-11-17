@@ -62,6 +62,16 @@ binding is constant. This blocks a caller from retaining state in
 transfers through higher-order calls, native API effects and other
 cross-module behavior still lack a general proof.
 
+Source-audited static child modules also decline observable console and
+debugger effects and unproved browser-owned host reads. A browser private
+dependency that logs to `console` or reads `window.__applicationMode`
+would move that observation to the trusted Node process, changing the
+original client behavior even if its RPC return value appears correct.
+The [source-pinned red/green cross-platform case](../im-results/sco-selected-graph-host-effects-2026-11-17.md)
+also includes a composed two-facade shared-child negative control and an
+accepted deterministic shared-child control. The admission is conservative;
+unknown indirect host capabilities remain outside a general proof.
+
 This graph composer admits several independent selectively partitioned
 modules. A public function inside one module may call that module's selected
 private async export through the generated RPC facade. A public module
