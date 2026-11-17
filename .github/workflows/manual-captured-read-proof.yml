@@ -1,0 +1,26 @@
+name: Manual captured reflective read proof
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  safe-reader:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Captured getter source-observation precision with negative controls
+        run: node --test test/decoder-safe-captured-read.test.js test/ambient-string-reflective-alias.test.js test/string-method-source-observation.test.js
+      - name: Strict production JSDoc types
+        run: npm run typecheck
