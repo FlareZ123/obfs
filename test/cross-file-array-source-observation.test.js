@@ -123,3 +123,40 @@ test('primitive-only arrays forwarded through ESM reexports retain protected wor
   const emitted=protect(files);
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
 });
+
+for(const [name,producerTail] of [
+  ['push after empty export',
+    'export const values=[];values.push(protectedSum);'],
+  ['splice after empty export',
+    'export const values=[];values.splice(0,0,protectedSum);'],
+  ['alias pushes to exported owner',
+    'const owner=[];const alias=owner;alias.unshift(protectedSum);export {owner as values};'],
+  ['function spread pushed into exported owner',
+    'const elements=[protectedSum];export const values=[];values.push(...elements);'],
+  ['indexed assignment to exported array',
+    'export const values=[];values[0]=protectedSum;'],
+  ['multi-module relay of mutated function array',
+    'export const values=[];values.push(protectedSum);']
+]) {
+  test('cross-file '+name+' preserves source when imported Array is joined',()=>{
+    const producer={path:'producer.mjs',sourceType:'module',
+      code:protectedSource()+producerTail};
+    const consumer={path:'entry.mjs',sourceType:'module',
+      code:'import {values} from "./producer.mjs";console.log(values.join(","));'};
+    if(name.includes('relay')) {
+      const relay={path:'relay.mjs',sourceType:'module',
+        code:'export {values} from "./producer.mjs";'};
+      consumer.code='import {values} from "./relay.mjs";console.log(values.join(","));';
+      assert.throws(()=>protect([producer,relay,consumer]),/(?:source observation|declined)/i);
+    } else {
+      assert.throws(()=>protect([producer,consumer]),/(?:source observation|declined)/i);
+    }
+  });
+}
+
+test('primitive-only array mutation in exported ESM producer retains protected work',()=>{
+  const files=graph('export const values=[];values.push(3);values.unshift(2);',
+    'console.log(values.join(","));');
+  const emitted=protect(files);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+});
