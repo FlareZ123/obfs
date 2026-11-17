@@ -3,6 +3,7 @@
   "include": [
     "src/wasm-i32.js",
     "sims/wasm-i32-static-recover.js",
+    "sims/wasm-i32-native-rebuild.js",
     "sims/wasm-i32-cold-counterexample.js",
     "sims/wasm-i32-runtime-extraction.js",
     "test/wasm-i32.test.js",
@@ -14,6 +15,7 @@
     "test/wasm-i32-conditional-fuzz.test.js",
     "test/wasm-i32-static-recovery.test.js",
     "test/wasm-i32-multi-static-decoys.test.js",
+    "test/wasm-i32-native-rebuild.test.js",
     "test/regexp-function-source-observer.test.js",
     "test/string-prototype-function-source-receiver.test.js",
     "test/function-source-coercion-matrix.test.js",
