@@ -36,6 +36,9 @@ jobs:
       - name: Paired own-key and null-prototype six-module startup-and-session profiles
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node sims/verified-record-session-profile.js
+      - name: Native/emitted local formal-value whole-process budget and public clone
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/local-parameter-value-profile.js
       - name: Real Chromium module and host-lock integration
         if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
