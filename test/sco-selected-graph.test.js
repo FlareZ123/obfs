@@ -344,3 +344,28 @@ test('two selected SCO modules retain separate bounded authenticated batch ident
     await close(server);
   }
 });
+
+
+test('composed selected SCO startup digest preflight rejects edited source and shared child',{
+  timeout:15000
+},async()=>{
+  const graph=compile();
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-selected-digests-'));
+  try{
+    await atomicWrite(path.join(root,'alpha.mjs'),alpha);
+    await atomicWrite(path.join(root,'beta.mjs'),beta);
+    await atomicWrite(path.join(root,leaf.path),leaf.code);
+    await verifyScoPrivateSourceDigests(graph,root);
+    await atomicWrite(path.join(root,'beta.mjs'),beta+'\n// changed after compilation');
+    await assert.rejects(verifyScoPrivateSourceDigests(graph,root),
+      /SCO private source bytes changed since partition/u);
+    await atomicWrite(path.join(root,'beta.mjs'),beta);
+    await atomicWrite(path.join(root,leaf.path),leaf.code+'\n// dependency changed');
+    await assert.rejects(verifyScoPrivateSourceDigests(graph,root),
+      /SCO private source bytes changed since partition/u);
+    await atomicWrite(path.join(root,leaf.path),leaf.code);
+    await verifyScoPrivateSourceDigests(graph,root);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
