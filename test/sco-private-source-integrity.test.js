@@ -126,13 +126,15 @@ test('private source input getters are read once for closure and deployment comm
       return mainCodeReads<=3?source:source+'\n// changed after AST parsing';
     }
   };
+  const sourceList=[getterBackedModule];
+  sourceList.map=()=>{throw new Error('compiler must not invoke a custom map method');};
   const options={
     seed:'sco-input-snapshot-20261117',
     privateNames:['protectedDigest'],
     privateModuleImports:['./private/engine.mjs'],
     get privateModuleSources(){
       sourceArrayReads++;
-      return [getterBackedModule];
+      return sourceList;
     }
   };
   const partition=partitionScoSelectedAsyncExports(getterBackedEntry,options);
