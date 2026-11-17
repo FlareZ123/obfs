@@ -32,6 +32,38 @@ const generatedSnapshots=new WeakMap();
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
 
 /**
+ * A copied module namespace would otherwise keep property writes on imported
+ * function objects across principals. Decline direct member access on any
+ * relative private-import binding, even for primitive imports: no general
+ * binding-provenance or singleton-state proof is available here.
+ *
+ * @param {string} filename
+ * @param {string} source
+ * @returns {void}
+ */
+function assertNoPrivateImportMemberState(filename,source){
+  const ast=parse(source,'module');
+  /** @type {Set<string>} */
+  const imports=new Set();
+  for(const statement of ast.body){
+    if(statement.type!=='ImportDeclaration'||
+       typeof statement.source?.value!=='string'||
+       !/^\\.\\.?\\//u.test(statement.source.value))continue;
+    for(const specifier of statement.specifiers){
+      if(specifier.local?.type==='Identifier')imports.add(specifier.local.name);
+    }
+  }
+  if(!imports.size)return;
+  walk(ast,node=>{
+    if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+       imports.has(node.object.name)){
+      throw new TypeError('Selected SCO private dependency exposes shared imported member state: '+filename);
+    }
+  });
+}
+
+
+/**
  * Refuse private child modules with per-realm mutable top-level bindings or
  * observable initialization effects. A shared server module instance is not
  * equivalent to each browser independently instantiating a stateful module.
