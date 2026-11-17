@@ -38,8 +38,8 @@ function examples(){
     manifestForged:true,runtimeDiskMutations:0
   };
   const snoProfile=[1,50,1000,10000].map(events=>{
-    const native=Array(7).fill(1);
-    const sno=Array(7).fill(events===1?3.5:1.2);
+    const native=Array(13).fill(1);
+    const sno=Array(13).fill(events===1?3.5:1.2);
     return {
       events,ratio:events===1?3.5:1.2,
       pairedBound:pairedBudgetBound(native,sno),
@@ -93,8 +93,8 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.deepEqual(summary.performance.sno.descriptiveOverBudgetEvents,[1]);
   assert.equal(summary.performance.sno.rows[0].oneSidedMedianDecision,'exceeded');
   assert.equal(summary.performance.sno.rows[1].oneSidedMedianDecision,'supported');
-  assert.equal(summary.performance.sno.rows[0].samplePairs,7);
-  assert.equal(summary.performance.sno.rows[0].rawTimingMs.native.length,7);
+  assert.equal(summary.performance.sno.rows[0].samplePairs,13);
+  assert.equal(summary.performance.sno.rows[0].rawTimingMs.native.length,13);
   assert.ok(summary.performance.sno.rows[1].upperMedianBound<2.5);
 });
 
