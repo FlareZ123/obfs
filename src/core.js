@@ -562,11 +562,16 @@ function obfuscateFiles(files, options = {}) {
     const collisionKey = filename.toLowerCase();
     if (seen.has(collisionKey)) throw new TypeError(`Duplicate file ${filename}`);
     seen.add(collisionKey);
-    if (typeof file.code !== 'string' && !Buffer.isBuffer(file.code)) throw new TypeError(`${filename} content must be a string or Buffer`);
+    // Snapshot caller-controlled data once. Re-reading a code getter or
+    // retaining a mutable Buffer after a reviewed digest check would let
+    // the caller publish different bytes from those actually approved.
+    const suppliedCode=file.code;
+    if (typeof suppliedCode !== 'string' && !Buffer.isBuffer(suppliedCode)) throw new TypeError(`${filename} content must be a string or Buffer`);
+    const code=Buffer.isBuffer(suppliedCode)?Buffer.from(suppliedCode):suppliedCode;
     const sourceType = file.sourceType ?? (filename.endsWith('.mjs') ? 'module' :
       filename.endsWith('.cjs') ? 'commonjs' : mode === 'sno' ? 'commonjs' : 'script');
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
-    return {path:filename,code:file.code,sourceType};
+    return {path:filename,code,sourceType};
   });
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
