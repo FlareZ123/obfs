@@ -197,6 +197,7 @@ test('selected SCO composition refuses ambiguous graph paths and source ownershi
 
 test('selected SCO handler seals all emitted bytes and requires independent authorization options',()=>{
   const source=compile();
+  /** @type {Record<string,Record<string,unknown>>} */
   const namespaces={};
   assert.throws(()=>createScoSelectedGraphHandler(
     /** @type {import('../src/sco-selected-graph').ScoSelectedGraph} */
