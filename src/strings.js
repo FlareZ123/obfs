@@ -65,7 +65,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[]}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
@@ -124,7 +124,15 @@ function encodeStrings(source, ast, options) {
   // shorter decoder path, preserving startup speed and the existing AST shape.
   const useChunks=encoded.some(value=>value.length>=1024);
   const chunkedDecoder = `for(let ${offsetName}=0;${offsetName}<${raw}.length;${offsetName}+=4096){const ${units}=[];for(let ${j}=${offsetName};${j}<${raw}.length&&${j}<${offsetName}+4096;${j}++)${units}[${j}-${offsetName}]=${raw}.charCodeAt(${j})^${key};${decoded}+=String.fromCharCode(...${units});}`;
-  const decoder=useChunks ? `if(${raw}.length<1024){${originalDecoder}}else{${chunkedDecoder}}` : originalDecoder;
+  // Fixed-arity calls avoid the decoder's temporary [] index writes and
+  // spread iterator. This experimental long-literal backend retains the
+  // original encoded table format, so a source-only XOR recovery remains
+  // possible; it adds no confidentiality or hostile-runtime integrity.
+  const fixedArityArgs=Array.from({length:64},(_,index)=>
+    `${raw}.charCodeAt(${offsetName}+${index})^${key}`).join(',');
+  const fixedArityDecoder=`let ${offsetName}=0;for(;${offsetName}+64<=${raw}.length;${offsetName}+=64)${decoded}+=String.fromCharCode(${fixedArityArgs});for(let ${j}=${offsetName};${j}<${raw}.length;${j}++)${decoded}+=String.fromCharCode(${raw}.charCodeAt(${j})^${key});`;
+  const longDecoder=options.fixedArity ? fixedArityDecoder : chunkedDecoder;
+  const decoder=useChunks ? `if(${raw}.length<1024){${originalDecoder}}else{${longDecoder}}` : originalDecoder;
   const init = `const ${helper}=${JSON.stringify(encoded)};for(let ${i}=0;${i}<${helper}.length;${i}++){const ${raw}=${helper}[${i}];let ${decoded}='';${decoder}${helper}[${i}]=${decoded};}\n`;
 
   // Keep hashbang and directive prologues intact; imports can follow declarations per ESM grammar.
