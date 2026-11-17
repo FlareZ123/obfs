@@ -29,3 +29,14 @@ jobs:
         run: node --test test/offline-reconstruction.test.js
       - name: Benchmark diversified SNO steady-state hot paths
         run: node sims/hotpath-mixed.js
+
+  typed-array-windows:
+    runs-on: windows-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Compare typed and ordinary decoder behavior and cold startup
+        run: node sims/typed-array-decoder-tradeoff.js
