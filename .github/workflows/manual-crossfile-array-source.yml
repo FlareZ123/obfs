@@ -1,0 +1,25 @@
+name: Manual cross-file Array source observer contract
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  crossfile-array:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Imported function-containing arrays and primitive controls
+        run: node --test test/cross-file-array-source-observation.test.js test/array-sort-function-source.test.js
+      - run: npm run typecheck
