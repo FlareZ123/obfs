@@ -19,7 +19,7 @@ const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
  * @type {WeakMap<object,string>}
  */
 const generatedGraphSnapshots=new WeakMap();
-/** @typedef {{seed?:string,endpoint?:string,exposedPaths:string[]}} ScoGraphOptions */
+/** @typedef {{seed?:string,endpoint?:string,exposedPaths:string[],batch?:boolean,maxBatchCalls?:number}} ScoGraphOptions */
 /**
  * @typedef {{
  *   clientFiles:ScoModulePartition['clientFile'][],
@@ -189,12 +189,19 @@ function partitionScoAsyncGraph(files,options) {
     const source=modules.get(filename);
     if(!source)throw new Error('Expected selected private source');
     const partition=partitionScoAsyncModule(source,{
-      seed,endpoint:options.endpoint,serverOnlyInitialization:true
+      seed,endpoint:options.endpoint,serverOnlyInitialization:true,
+      batch:options.batch,maxBatchCalls:options.maxBatchCalls
     });
     for(const name of partition.names){
       const id=partition.methodNames[name];
       if(methodIds.has(id))throw new TypeError('Cross-module SCO RPC method collision');
       methodIds.add(id);
+    }
+    if(partition.batchMethod){
+      if(methodIds.has(partition.batchMethod)){
+        throw new TypeError('Cross-module SCO batch method collision');
+      }
+      methodIds.add(partition.batchMethod);
     }
     partitions[filename]=partition;
     clientFiles.push(partition.clientFile);
