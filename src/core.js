@@ -266,11 +266,11 @@ function mutatesDecoderIntrinsic(ast) {
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isObjectPrototype(node) {
     if(node.type==='Identifier')return objectPrototypes.has(node.name);
-    if(node.type==='MemberExpression')return
+    if(node.type==='MemberExpression')return (
       isObjectIntrinsic(node.object) && memberName(node)==='prototype' ||
       isArrayPrototype(node.object) &&
         (memberName(node)==='__proto__' ||
-         node.computed && memberName(node)===null);
+         node.computed && memberName(node)===null));
     // Reading the parent of Array.prototype returns the inherited
     // Object.prototype in an ordinary realm. Unknown host patches can
     // change the result, but keeping this alias is conservative.
