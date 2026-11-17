@@ -62,3 +62,28 @@ test('quoted destructuring keys and computed member keys remain jointly normaliz
   assert.equal(execute(attacked.files[0].code),execute(source));
   assert.equal(attacked.files[0].code.includes(name),false);
 });
+
+test('source-only label normalization has a documented external API collision limit',()=>{
+  const field='_pabcdef123456';
+  const source='const hidden={'+field+':17};'+
+    'module.exports=[hidden.'+field+',HOST.'+field+'];';
+  const attacked=normalizePublicFields([
+    {path:'synthetic.cjs',sourceType:'commonjs',code:source}
+  ]);
+  assert.equal(attacked.properties,1);
+  /**
+   * The source-only attacker cannot infer that HOST is owned by a caller
+   * and that its public property spelling is fixed outside the input graph.
+   * This deliberate negative control measures attack overreach; it is not a
+   * claimed compiler native/emitted mismatch or obfuscation security gain.
+   * @param {string} code
+   * @returns {string}
+   */
+  function run(code){
+    const context={module:{exports:null},HOST:{[field]:31}};
+    vm.runInNewContext(code,context,{timeout:1000});
+    return JSON.stringify(context.module.exports);
+  }
+  assert.equal(run(source),'[17,31]');
+  assert.equal(run(attacked.files[0].code),'[17,null]');
+});
