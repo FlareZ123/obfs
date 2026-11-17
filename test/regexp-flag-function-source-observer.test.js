@@ -45,6 +45,18 @@ const cases=[
     invocation:'Reflect.construct(RegExp,["abc",protectedLabel])'},
   {name:'RegExp function flags via detached Reflect.construct',
     declarations:'const make=Reflect.construct;',
+    invocation:'make(RegExp,["abc",protectedLabel])'},
+  {name:'RegExp function flags via Reflect.construct.call',
+    declarations:'',
+    invocation:'Reflect.construct.call(Reflect,RegExp,["abc",protectedLabel])'},
+  {name:'RegExp function flags via Reflect.construct.apply',
+    declarations:'',
+    invocation:'Reflect.construct.apply(Reflect,[RegExp,["abc",protectedLabel]])'},
+  {name:'RegExp function flags via nested Reflect.apply construct',
+    declarations:'',
+    invocation:'Reflect.apply(Reflect.construct,Reflect,[RegExp,["abc",protectedLabel]])'},
+  {name:'RegExp function flags via bound Reflect.construct',
+    declarations:'const make=Reflect.construct.bind(Reflect);',
     invocation:'make(RegExp,["abc",protectedLabel])'}
 ];
 
