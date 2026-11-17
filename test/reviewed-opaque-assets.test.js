@@ -126,3 +126,33 @@ test('SCO public response preserves reviewed payload bytes with exact handler bi
     await new Promise(resolve=>server.close(resolve));
   }
 });
+
+
+test('reviewed digest binds the actual byte snapshot, not caller-mutated buffers or getters',()=>{
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const mutable=Buffer.from(safeCss);
+    const input={path:'theme.css',sourceType:/** @type {const} */('asset'),code:mutable};
+    const result=obfuscateFiles([entry,input],{
+      mode,reviewedOpaqueAssets:approved
+    });
+    mutable.fill(0x78);
+    const published=result.files.find(file=>file.path==='theme.css');
+    assert.ok(published);
+    assert.deepEqual(published.code,safeCss,
+      'Published asset must retain the approved snapshot after caller mutation');
+
+    let reads=0;
+    const getterInput={
+      path:'theme.css',sourceType:/** @type {const} */('asset'),
+      get code(){
+        reads++;
+        return reads===1?Buffer.from(safeCss):Buffer.from(disguised);
+      }
+    };
+    const getterResult=obfuscateFiles([entry,getterInput],{
+      mode,reviewedOpaqueAssets:approved
+    });
+    assert.equal(reads,1,'The code getter must be sampled once per input file');
+    assert.deepEqual(getterResult.files.find(file=>file.path==='theme.css')?.code,safeCss);
+  }
+});
