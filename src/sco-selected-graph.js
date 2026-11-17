@@ -48,7 +48,8 @@ function assertNoPrivateImportMemberState(filename,source){
   for(const statement of ast.body){
     if(statement.type!=='ImportDeclaration'||
        typeof statement.source?.value!=='string'||
-       !/^\\.\\.?\\//u.test(statement.source.value))continue;
+       !(statement.source.value.startsWith('./')||
+         statement.source.value.startsWith('../')))continue;
     for(const specifier of statement.specifiers){
       if(specifier.local?.type==='Identifier')imports.add(specifier.local.name);
     }
