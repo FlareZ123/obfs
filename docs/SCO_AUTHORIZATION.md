@@ -369,7 +369,13 @@ per-item batch policy check verifies that the scope remains active before
 running further policy or protected work. A detached operation's eventual
 return value is also blocked from being sent as a successful RPC response.
 A wrapper which awaits `execute()` but suppresses its exception cannot leave
-the HTTP connection pending without a response.
+the HTTP connection pending without a response. The handler also attaches a
+rejection observer to every returned `execute()` promise. If a faulty wrapper
+silently discards that promise, delayed scope rejection is observed rather
+than becoming a fatal unhandled rejection under Node's strict policy. A
+correct wrapper still receives the original promise and must await it.
+This guard addresses server availability after misuse of the integration
+contract, without suppressing errors for correctly awaiting wrappers.
 
 These guards **cannot cancel private methods already entered**, undo their
 effects, or restore a lock that an integrator prematurely released. A correct
