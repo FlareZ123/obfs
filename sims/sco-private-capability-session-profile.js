@@ -111,7 +111,7 @@ async function experiment() {
     const startedImport=process.hrtime.bigint();
     const facade=/** @type {{issue:()=>Promise<string>,
       step:(handle:string,input:string,bytes:number)=>Promise<string>}} */
-      (await import('data:text/javascript,'+encodeURIComponent(source)));
+      ((await import('data:text/javascript,'+encodeURIComponent(source))).default);
     const clientImportMs=Number(process.hrtime.bigint()-startedImport)/1e6;
     let nativeHandle='';
     await scope.runRpcIsolated(nativeRequest,async()=>{
