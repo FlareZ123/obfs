@@ -48,3 +48,36 @@ Each cell reports `legacy / fixed` runtime ratio to the same case's **native** m
 - [44003722456](https://github.com/FlareZ123/obfs/actions/runs/44003722456) passed both OS test, profile and JSDoc steps on exact `5ef66be...`.
 
 Next work should test real browser cold sessions, multiple competing block arities, source-visible String intrinsic mutations and independent static normalization. Any future relaxation of Array-prototype guards must be paired with a preserved negative semantic witness and unchanged positive protected-work measurement, coordinated with the current guard owner. This evidence belongs in `im-results/`, and does not yet meet `results/`' academically established obfuscation-security standard.
+
+
+## Follow-up 256-operand candidate and Chromium contract (02:39 UTC)
+
+The initial 64-operand sample above established a real Linux cold budget failure. A private local Node 22 cold-load sweep of block widths 16–512 suggested larger unrolled calls reduced the per-block call overhead and improved the 52,500-unit decode-only median, despite increasing emitted source size. Its environment and metrics were exploratory and distinct from the pinned CI evidence. The compiler's **opt-in** fixed-arity branch was revised to **256 operands**, with a conditional code-generation path that avoids constructing any 256-operand source when the feature is disabled or no long literal exists. The tests now exercise **all 256 tail lengths** for each of SNO and COO.
+
+At exact commit `fccd3261db5e4ddbd0469cba82f2c86fa2c1f467`, [run 44004508590](https://github.com/FlareZ123/obfs/actions/runs/44004508590) passed the fixed-arity and neighboring string tests, ran four native/generated/static-reconstruction work profiles on both OS, and passed a real Ubuntu **Chromium CSP ESM** parity and source-only static attack. It then **FAILED overall on both platforms** in the *separate* `decoder-array-prototype-chain.test.js` test step because two newer `destructured-parent-alias` guard cases corrupted native behavior (leading decoded char `0` versus native `65`). The new cases were introduced by another concurrently active agent and do not exercise the opt-in 256 backend. The failing run remains a genuine integration failure, referred to the responsible guard owner; no all-green claim is implied. Later strict type-check steps were skipped at this pinned source due the earlier failure.
+
+**Same paired profile, 256 operands:** each `legacy / fixed` entry below is a median ratio to the native source within one environment. These ratios replace the 64-operand numbers **only for the 256 candidate**; the two candidates are different git versions and CPU environments. Source was actually transformed (one literal each case), then statically recovered to an executable equivalent.
+
+| Platform | UTF-16 units | Iterations | Cold legacy | Cold fixed 256 | Precompiled legacy | Precompiled fixed 256 |
+|---|---:|---:|---:|---:|---:|---:|
+| Ubuntu Node 22 | 2,049 | 0 | 1.241× | **1.197×** | 1.355× | **1.244×** |
+| Ubuntu Node 22 | 2,049 | 100,000 | **1.036×** | 1.261× | **1.050×** | 1.255× |
+| Ubuntu Node 22 | 52,500 | 0 | 3.985× | **2.200×** | 4.121× | **2.328×** |
+| Ubuntu Node 22 | 52,500 | 100,000 | **1.228×** | 1.338× | **1.220×** | 1.342× |
+| Windows Node 22 | 2,049 | 0 | 1.101× | **1.019×** | 1.087× | **0.977×** |
+| Windows Node 22 | 2,049 | 100,000 | **1.040×** | 1.206× | **1.033×** | 1.206× |
+| Windows Node 22 | 52,500 | 0 | 3.314× | **2.081×** | 3.671× | **1.901×** |
+| Windows Node 22 | 52,500 | 100,000 | **1.127×** | 1.165× | **1.195×** | 1.360× |
+
+For the previously failing Linux 52,500-unit, zero-work **cold** case, 256 operands measured **2.200×**, below 2.5× at this exact SHA; Windows measured **2.081×**. This is scoped to a 22-measurement median in each one-process VM experiment. At 2,049 units the 256 backend enlarged emitted source to 16,942 characters versus 3,318 for legacy chunked; at 52,500 units it emitted 67,137 versus 53,513. The 100,000-work cases may show slower fixed-arity than the legacy decoder, though both stay far below 2.5× relative to native. No universal runtime guarantee follows from four selected synthetic workloads.
+
+**Real Chrome:** `test/fixed-arity-strings-browser.js` serves actual three-module ESM under `Content-Security-Policy: default-src 'none'; script-src 'self'`. A separate mutator module injects an inherited array-index setter before target evaluation. The target was compiled alone intentionally to test the generated decoder outside the compiler's conservative whole-graph admission boundary; compiling the **complete** mutator + entry + target group correctly refused encoding. The Chromium result for the 8,203-unit target was:
+
+| Environment | Native | Fixed 256 | Public static-reconstructed | Legacy spread |
+|---|---|---|---|---|
+| Clean | length 8,203; first 65; last 68; checksum 598201494 | identical | identical | identical |
+| Hostile Array index setter | length 8,203; first 65; last 68; checksum 598201494 | identical | identical | first **0**, checksum **−2039189481** |
+
+The attacker reconstructs the full literal and passes the hostile browser test as well. This verifies bounded runtime correctness under a particular ambient Array numeric setter, while simultaneously confirming no source-only secrecy benefit. It does not establish protection against arbitrary String intrinsic replacement, runtime extraction, browser DevTools instrumentation or host spoofing.
+
+**Actionable next checks:** rerun the whole targeted gate only after the independent `destructured-parent-alias` corruption is repaired or explicitly kept as a red isolated integration witness; complete strict JSDoc validation on the 256 revision; compare against Chrome cold network+parse+decode, and profile more workloads before selecting a release default.
