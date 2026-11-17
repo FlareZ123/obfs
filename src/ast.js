@@ -214,9 +214,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='ArrayExpression') {
       return node.elements.some((/** @type {AstNode|null} */ value)=>
         Boolean(value && (isFunctionValue(value)||
-          value.type==='SpreadElement'?
+          (value.type==='SpreadElement'?
             isFunctionValue(value.argument)||containsFunction(value.argument,depth+1):
-            containsFunction(value,depth+1))));
+            containsFunction(value,depth+1)))));
     }
     return false;
   }
