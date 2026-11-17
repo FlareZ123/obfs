@@ -58,7 +58,11 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
         method===partition.methodNames.protectedDigest &&
         args.length===1&&typeof args[0]==='number'
     }));
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const activeServer=server;
+    /** @type {Promise<void>} */
+    const listening=new Promise(resolve=>
+      activeServer.listen(0,'127.0.0.1',()=>resolve()));
+    await listening;
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
@@ -91,7 +95,11 @@ test('selective compiler-owned SCO handler serves only generated facade and matc
   }finally{
     globalThis.fetch=nativeFetch;
     if(server){
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      const activeServer=server;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        activeServer.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     await fs.rm(root,{recursive:true,force:true});
   }
@@ -146,8 +154,10 @@ test('sealed selective publication excludes private sources missed by the bounde
       partition.clientFile,dynamicLeaf
     ],{...policy,remoteMethods:bindScoModuleExports(partition,native)}));
     sealedServer=http.createServer(createScoSelectedHandler(partition,native,policy));
-    await new Promise(resolve=>directServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
-    await new Promise(resolve=>sealedServer.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    const direct=directServer;
+    const sealed=sealedServer;
+    await new Promise(resolve=>direct.listen(0,'127.0.0.1',()=>resolve(undefined)));
+    await new Promise(resolve=>sealed.listen(0,'127.0.0.1',()=>resolve(undefined)));
     const directAddress=directServer.address();
     const sealedAddress=sealedServer.address();
     assert.ok(directAddress&&typeof directAddress!=='string');
@@ -176,12 +186,18 @@ test('sealed selective publication excludes private sources missed by the bounde
     }
   }finally{
     if(directServer){
-      await new Promise((resolve,reject)=>
-        directServer.close(error=>error?reject(error):resolve(undefined)));
+      const direct=directServer;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        direct.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     if(sealedServer){
-      await new Promise((resolve,reject)=>
-        sealedServer.close(error=>error?reject(error):resolve(undefined)));
+      const sealed=sealedServer;
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>
+        sealed.close(error=>error?reject(error):resolve()));
+      await closed;
     }
     await fs.rm(root,{recursive:true,force:true});
   }
