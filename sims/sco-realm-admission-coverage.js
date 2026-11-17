@@ -47,6 +47,12 @@ const cases=[
     privateBody:'return Number.isFinite(7);'},
   {label:'Date UTC year',kind:'safe-control',
     privateBody:'return new Date(0).getUTCFullYear();'},
+  {label:'Date UTC static destructure',kind:'safe-control',
+    privateBody:'const {UTC:utc}=Date;return utc(2020,0,1);'},
+  {label:'Date.parse explicit UTC',kind:'safe-control',
+    privateBody:"return Date.parse('2020-01-01T00:00:00.000Z');"},
+  {label:'Intl canonical locale tag',kind:'safe-control',
+    privateBody:"return Intl.getCanonicalLocales('en-US')[0];"},
   {label:'local mutable counter',kind:'safe-control',
     privateBody:'const x={value:1};x.value++;return x.value;'},
   {label:'private prototype mutation',kind:'unsafe-witness',
@@ -68,7 +74,17 @@ const cases=[
     publicBody:'return ({}).__realm??0;'},
   {label:'aliased native prototype mutation',kind:'unsafe-witness',
     privateBody:'const Native=Object;Native["proto"+"type"].__realm=41;return 1;',
-    publicBody:'return ({}).__realm??0;'}
+    publicBody:'return ({}).__realm??0;'},
+  {label:'destructured Intl.DateTimeFormat host timezone',kind:'unsafe-witness',
+    privateBody:"const {DateTimeFormat:F}=Intl;return F('en-US').resolvedOptions().timeZone;"},
+  {label:'bound Intl.DateTimeFormat host timezone',kind:'unsafe-witness',
+    privateBody:"const F=Intl.DateTimeFormat;return F.bind(null)('en-US').resolvedOptions().timeZone;"},
+  {label:'destructured Date.now host clock',kind:'unsafe-witness',
+    privateBody:'const {now:tick}=Date;return tick();'},
+  {label:'aliased Date.parse host timezone',kind:'unsafe-witness',
+    privateBody:"const P=Date.parse;return P('2020-01-01T00:00');"},
+  {label:'nested Intl method extraction',kind:'unsafe-witness',
+    privateBody:"const {DateTimeFormat:{supportedLocalesOf:list}}=Intl;return list(['en-US']).length;"}
 ];
 
 /**
