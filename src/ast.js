@@ -105,10 +105,10 @@ function staticString(node,depth=0){
  * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
-  if(!importedStrings.size&&!importedCloneFunctions.size) {
+  if(!importedStrings.size&&!importedCloneFunctions.size&&!importedFunctionArrays.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -210,7 +210,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function containsFunction(node,depth=0) {
     if(!node)return false;
     if(depth>32)return true;
-    if(node.type==='Identifier')return arraysWithFunctions.has(node.name);
+    if(node.type==='Identifier')return arraysWithFunctions.has(node.name)||
+      importedFunctionArrays.has(node.name);
     if(node.type==='ArrayExpression') {
       return node.elements.some((/** @type {AstNode|null} */ value)=>
         Boolean(value && (isFunctionValue(value)||
