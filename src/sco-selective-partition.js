@@ -836,7 +836,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // realmStateObservation handles their mutable intrinsic hazards.
     const browserOnlyGlobals=new Set(['window','self','document','navigator','location']);
     const standardGlobalKeys=new Set([
-      'Infinity','NaN','undefined','eval','isFinite','isNaN',
+      'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
       'parseFloat','parseInt','decodeURI','decodeURIComponent',
       'encodeURI','encodeURIComponent','Array','Boolean','Date','Error',
       'Function','JSON','Math','Number','Object','RegExp','String','Symbol',
@@ -872,7 +872,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static dependency has unproved client host state: '+filename);
       }
       if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
-         directGlobalObjects.has(node.object.name)){
+         directGlobalObjects.has(node.object.name)&&
+         !(parent?.type==='AssignmentExpression'&&key==='left')&&
+         !(parent?.type==='UpdateExpression'&&key==='argument')&&
+         !(parent?.type==='UnaryExpression'&&parent.operator==='delete'&&key==='argument')){
         const member=node.computed?staticString(node.property):
           node.property.type==='Identifier'?node.property.name:null;
         if(member===null||!standardGlobalKeys.has(member)){
