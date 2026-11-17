@@ -47,11 +47,22 @@ test('three-query translation hypothesis preserves public ESM names and rejects 
     ';globalThis.result=[round1(4),round1(5),round1(-1),round2(5),round3(5),unrelated(5)];',
   parityContext,{timeout:1000});
   assert.deepEqual(Array.from(parityContext.result),[17,-9,3,25,329,10]);
-  assert.throws(()=>synthesizeParityAffineClone(published,{
-    round1:{atZero:5,atOne:-1,atTwo:10,atThree:-5},
+  const oddStep=synthesizeParityAffineClone(published,{
+    round1:{atZero:0,atOne:0,atTwo:1,atThree:3},
     round2:{atZero:10,atOne:13,atTwo:16,atThree:19},
     round3:{atZero:324,atOne:325,atTwo:326,atThree:327}
-  }),/No modular parity-affine model/u);
+  });
+  const oddStepContext=vm.createContext({});
+  vm.runInContext(oddStep.replaceAll('export function','function')+
+    ';globalThis.result=[round1(4),round1(5),round1(-1)];',
+  oddStepContext,{timeout:1000});
+  assert.deepEqual(Array.from(oddStepContext.result),[2,6,-3]);
+
+  assert.throws(()=>synthesizeParityAffineClone(published,{
+    round1:{atZero:5,atOne:-1,atTwo:10.5,atThree:-5},
+    round2:{atZero:10,atOne:13,atTwo:16,atThree:19},
+    round3:{atZero:324,atOne:325,atTwo:326,atThree:327}
+  }),/four signed Int32 parity oracle responses/u);
   assert.throws(()=>synthesizeAffineClone(published,{
     round1:{atZero:10,atOne:13},
     round2:{atZero:-3,atOne:-5},
