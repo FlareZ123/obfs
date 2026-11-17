@@ -33,6 +33,8 @@ jobs:
         run: node sims/wasm-i32-runtime-extraction.js
       - name: Whole-session initialization cost curve
         run: node sims/wasm-i32-cold-counterexample.js
+      - name: Whole-graph cold native versus Wasm versus offline-native control
+        run: node sims/wasm-i32-esm-rebuild-profile.js
       - name: Strict JSDoc checks
         run: npm run typecheck
       - name: Strict Wasm research and attacker JSDoc checks

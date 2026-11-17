@@ -5,6 +5,7 @@
     "sims/wasm-i32-static-recover.js",
     "sims/wasm-i32-native-rebuild.js",
     "sims/wasm-i32-esm-native-rebuild.js",
+    "sims/wasm-i32-esm-rebuild-profile.js",
     "sims/wasm-i32-cold-counterexample.js",
     "sims/wasm-i32-runtime-extraction.js",
     "test/wasm-i32.test.js",
