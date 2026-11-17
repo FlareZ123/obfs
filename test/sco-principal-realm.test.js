@@ -16,14 +16,18 @@ const privatePath=path.join(fixture,'private-counter.mjs');
 
 /** @param {http.Server} server @returns {Promise<string>} */
 async function listen(server){
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const started=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await started;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Expected TCP listener');
   return 'http://127.0.0.1:'+address.port;
 }
 /** @param {http.Server} server @returns {Promise<void>} */
 async function stop(server){
-  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  /** @type {Promise<void>} */
+  const stopped=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await stopped;
 }
 /** @param {string} root @param {string} principal @param {number} sequence
  *  @param {string} input @param {number} bytes @returns {string} */
@@ -48,6 +52,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
     createHash('sha256').update(code).digest('hex'));
   const tokenA=randomBytes(16).toString('hex');
   const tokenB=randomBytes(16).toString('hex');
+  /** @param {http.IncomingMessage} request @returns {string|null} */
   const identity=request=>{
     if(request.headers.cookie==='session='+tokenA)return 'A';
     if(request.headers.cookie==='session='+tokenB)return 'B';
@@ -55,8 +60,10 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
   };
   const context=new AsyncLocalStorage();
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2,maxPendingPerPrincipal:8});
+  /** @type {(...args:unknown[])=>Promise<unknown>} */
+  const tick=async(...args)=>pool.call(context.getStore(),'tick',args);
   const handler=createScoGraphHandler(graph,{
-    'private-api.mjs':{tick:async(...args)=>pool.call(context.getStore(),'tick',args)}
+    'private-api.mjs':{tick}
   },{
     authorizeRpc:request=>identity(request)!==null,
     runRpcIsolated:(request,execute)=>context.run(identity(request),execute)
@@ -73,6 +80,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
      *  @param {Record<string,string>} [extra]
      *  @returns {Promise<{status:number,payload:any}>} */
     const rpc=async(token,args,extra={})=>{
+      /** @type {Record<string,string>} */
       const headers={'content-type':'application/json',...extra};
       if(token!==null)headers.cookie='session='+token;
       const response=await nativeFetch(origin+'/obfs/rpc',{
@@ -91,7 +99,7 @@ test('real compiler-generated SCO facade preserves isolated private ESM state un
 
     // Execute the *served* public code; the patch supplies Node's test cookie,
     // in place of the browser's same-origin cookie jar.
-    global.fetch=(target,options)=>nativeFetch(new URL(target,origin),{
+    global.fetch=(target,options)=>nativeFetch(new URL(target instanceof Request?target.url:target,origin),{
       ...options,headers:{...options?.headers,cookie:'session='+tokenA}
     });
     const publicApi=await import('data:text/javascript,'+encodeURIComponent(delivered));
@@ -166,9 +174,9 @@ test('principal realm direct cache-negative and bounded worker dispatch',async()
   const pool=createScoPrincipalRealmPool(entry,['tick'],{maxPrincipals:2});
   try{
     const [a1,a2,b1]=[
-      await pool.call('A','tick',[1,'a',0]),
-      await pool.call('A','tick',[2,'b',0]),
-      await pool.call('B','tick',[1,'a',0])
+      /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[1,'a',0])),
+      /** @type {{sequence:number,tag:string}} */ (await pool.call('A','tick',[2,'b',0])),
+      /** @type {{sequence:number,tag:string}} */ (await pool.call('B','tick',[1,'a',0]))
     ];
     assert.deepEqual([a1.sequence,a2.sequence,b1.sequence],[1,2,1]);
     await assert.rejects(pool.call('C','tick',[1,'c',0]),/capacity/);
