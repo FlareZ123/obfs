@@ -51,8 +51,17 @@ Windows.
 - Exact targeted cross-platform run:
   [GitHub Actions 44049862335](https://github.com/FlareZ123/obfs/actions/runs/44049862335)
   at `bf1835783c29b3def9162a1bc4abab73749a69fc`.
-  **At report creation the run was queued.** Treat paired red/green and
-  JSDoc results as unverified until both jobs complete successfully.
+  Both Linux and Windows executed the new paired extraction successfully:
+  the prepatch emitted HTML disclosed the entire original source in each of
+  COO/SCO/SNO, and the candidate refused the same asset in each mode.
+  A real prepatch SCO HTTP response also leaked the source; candidate handler
+  construction refused it. The full targeted 17-test HTML/SVG/CSS suite
+  passed **17/17 on both OS**. **Overall workflow remains red** because
+  a separate pre-existing `src/ast.js` TypeScript TS7006 source-observer
+  callback regression failed strict JSDoc in both jobs at the pinned SHA.
+  The source-disclosure attack/test lanes passed; do not label the complete
+  workflow a green integration pin. The responsible source-observer
+  researcher received the exact diagnostics.
 - The new check runs during build or SCO handler creation and does not add
   code to successfully published JavaScript. Its overhead cannot change the
   hot runtime of an unchanged accepted application. No new complete-session
