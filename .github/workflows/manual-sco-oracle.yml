@@ -104,6 +104,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-sync-diversified-browser.js
+      - name: Verify real Chromium principal-scoped server-private HMAC facade
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-capability-public-browser.js
       - name: Strict JSDoc check for all SCO state-machine attack simulators
         run: npx tsc -p jsconfig.sco-oracles.json
       - name: Strict JSDoc type safety
