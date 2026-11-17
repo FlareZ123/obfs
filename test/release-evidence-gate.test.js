@@ -24,8 +24,10 @@ function examples(){
         ratioOfMedians:events===1?3.2:1.4,
         decision:events===1?'exceeded':'supported',
         upperMedianBound:events===1?4.1:1.6,
-        samplePairs:9
+        samplePairs:9,confidenceAttained:0.98
       },
+      sourceBytes:{native:2467,published:7518,reconstructed:2362},
+      rawSamples:{native:Array(9).fill(1),published:Array(9).fill(1.4),reconstructed:Array(9).fill(1.1)},
       ratioReconstructedToPublishedMedians:0.9
     }))
   };
@@ -39,8 +41,10 @@ function examples(){
   }));
   const sco={
     semanticsPreserved:true,
-    light:{count:1,ratio:4.2,pairedMedianBound:{decision:'exceeded'}},
-    heavy:{count:120000,ratio:2.1,pairedMedianBound:{decision:'supported'}},
+    light:{count:1,ratio:4.2,samples:{native:Array(9).fill(1),remote:Array(9).fill(4.2)},
+      pairedMedianBound:{decision:'exceeded',lowerMedianBound:3.8,upperMedianBound:5.1,confidenceAttained:0.98}},
+    heavy:{count:120000,ratio:2.1,samples:{native:Array(9).fill(10),remote:Array(9).fill(21)},
+      pairedMedianBound:{decision:'supported',lowerMedianBound:1.7,upperMedianBound:2.4,confidenceAttained:0.98}},
     measuredBoundary:'fresh process to result',caveat:'loopback only'
   };
   return [coo,sno,snoProfile,sco];
@@ -75,6 +79,11 @@ test('release evidence separates cloned functionality from source disclosure',()
   assert.equal(summary.performance.coo.rows.length,4);
   assert.equal(summary.performance.sno.rows.length,4);
   assert.equal(summary.performance.sco.rows.length,2);
+  assert.equal(summary.performance.coo.rows[0].rawTimingMs.native.length,9);
+  assert.equal(summary.performance.coo.rows[0].sourceBytes.native,2467);
+  assert.equal(summary.performance.sco.rows[0].rawTimingMs.remote.length,9);
+  assert.equal(summary.performance.sco.rows[0].upperMedianBound,5.1);
+  assert.deepEqual(summary.performance.sno.descriptiveOverBudgetEvents,[1]);
 });
 
 test('release evidence rejects vacuous or incomplete controls',()=>{
