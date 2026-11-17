@@ -103,6 +103,35 @@ for(const [name,body] of [
   });
 }
 
+
+for(const [name,body] of [
+  ['Set union retains function receiver',
+    'const source=new Set([protectedSum]);module.exports=[...source.union(new Set())].join(",");'],
+  ['Set union inserts function from argument',
+    'module.exports=[...new Set().union(new Set([protectedSum]))].join(",");'],
+  ['Set intersection retains function',
+    'const source=new Set([protectedSum]);module.exports=[...source.intersection(source)].join(",");'],
+  ['Set difference retains function',
+    'const source=new Set([protectedSum]);module.exports=[...source.difference(new Set())].join(",");'],
+  ['Set symmetricDifference retains function',
+    'const source=new Set([protectedSum]);module.exports=[...source.symmetricDifference(new Set())].join(",");']
+]) {
+  test(name+' preserves the source-coercion contract',()=>{
+    const source=protectedSource()+body;
+    assert.ok(String(execute(source)).includes('function protectedSum(input)'),name);
+    assert.throws(()=>obfuscate(source),/(?:source observation|declined)/i,name);
+  });
+}
+
+test('primitive-only Set compositions preserve unrelated protected work',()=>{
+  const source=protectedSource()+
+    'const a=new Set([1,2]);const b=new Set([2,3]);'+
+    'module.exports=[protectedSum(8),[...a.union(b)].join(",")];';
+  const emitted=obfuscate(source);
+  assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
+  assert.deepEqual(execute(String(emitted.files[0].code)),execute(source));
+});
+
 test('primitive-only iterable copies allow unrelated protected work',()=>{
   const source=protectedSource()+
     'const bag=new Set([3,1,3]);const map=new Map([[1,7]]);'+
