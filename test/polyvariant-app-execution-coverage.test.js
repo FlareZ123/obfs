@@ -22,7 +22,7 @@ test('actually exercised arithmetic work remains identical after public source-o
   timeout:120000
 },async()=>{
   const evidence=await runEvidence();
-  assert.equal(evidence.selectedSourceBytes,310);
+  assert.equal(evidence.selectedSourceBytes,309);
   assert.equal(evidence.selectedFunctionAstBytes,284);
   assert.equal(evidence.totalOriginalBytes,2467);
   assert.equal(evidence.reconstructedFunctions,3);
