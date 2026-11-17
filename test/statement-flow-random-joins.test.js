@@ -41,7 +41,7 @@ function statements(depth,count){
     }else if(variant===1){
       out+='return y+'+(1+pick(7))+';';
     }else if(variant===2){
-      out+='throw new TypeError("bad"+y);';
+      out+='throw (y|0);';
     }else{
       out+=updates[pick(updates.length)];
     }
@@ -58,8 +58,7 @@ function load(source){
 function outcome(fn,value){
   try{return ['return',fn(value)];}
   catch(error){
-    const item=/** @type {Error} */(error);
-    return ['throw',item.name,item.message];
+    return ['throw',typeof error,String(error)];
   }
 }
 
@@ -71,7 +70,7 @@ test('seeded nested CFG source-only reconstruction preserves returns and throws'
     const source='function f(x){var y=x|0;' +
       'if((y&1)!==0){y=(y+1)|0;}else{y=(y-2)|0;}' +
       statements(0,1+pick(12)) + 'return y|0;}';
-    if(source.includes('throw new TypeError'))earlyTerminals++;
+    if(source.includes('throw (y|0)'))earlyTerminals++;
     const original=load(source);
     for(const compactCases of [false,true]){
       const encoded=flattenStatementFlow(source,'commonjs',{
