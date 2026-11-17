@@ -83,8 +83,8 @@ for(const mode of /** @type {const} */ (['sno','coo'])) {
           mode,seed:'parameter-value/'+scenario.name,identifiers:false,strings:false,properties:true
         }).files[0];
         assert.equal(output.metrics.objects,0);
-        assert.throws(()=>execute(scenario.source),ReferenceError);
-        assert.throws(()=>execute(output.code),ReferenceError);
+        assert.throws(()=>execute(scenario.source),{name:'ReferenceError'});
+        assert.throws(()=>execute(output.code),{name:'ReferenceError'});
         return;
       }
       const reference=execute(scenario.source);
