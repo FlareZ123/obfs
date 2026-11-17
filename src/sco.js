@@ -282,6 +282,22 @@ function decodePublicName(encodedName) {
 }
 
 /**
+ * Copy private source-manifest entries by their indexed values once.
+ * User-owned array methods, iterators and species constructors are not
+ * publication-policy authorities; each listed element is copied as data.
+ * @template T
+ * @param {T[]} declared
+ * @returns {T[]}
+ */
+function snapshotMetadataEntries(declared) {
+  /** @type {T[]} */
+  const owned=[];
+  const length=declared.length;
+  for(let index=0;index<length;index++)owned.push(declared[index]);
+  return owned;
+}
+
+/**
  * Create a polymorphic SCO handler. The serving machine keeps the obfuscator
  * and optional remoteMethods implementations, mutating client code per GET.
  * RPC is disabled unless BOTH remoteMethods and an authorization callback exist.
@@ -348,7 +364,7 @@ function createScoHandler(sourceFiles,options={}) {
       }
       // Snapshot index accessors once, then validate exactly the bytes used
       // by the publication policy. Getter values may differ on later reads.
-      digests=[...providedDigests];
+      digests=snapshotMetadataEntries(providedDigests);
       if(digests.some(value=>typeof value!=='string'||
           !/^[0-9a-f]{64}$/u.test(value))){
         throw new TypeError('SCO privateOriginalDigests must be SHA-256 hex strings');
@@ -361,7 +377,7 @@ function createScoHandler(sourceFiles,options={}) {
       if(!Array.isArray(providedPaths)){
         throw new TypeError('SCO privateModulePaths must be an array');
       }
-      paths=providedPaths.map(safePath);
+      paths=snapshotMetadataEntries(providedPaths).map(safePath);
       for(const privatePath of paths)forbidden.add(privatePath.toLowerCase());
     }
     return {paths,digests};
