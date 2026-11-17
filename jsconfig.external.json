@@ -106,7 +106,9 @@
     "test/polyvariant-affine-browser.js",
     "sims/four-way-cross-runtime-verdict.js",
     "test/four-way-cross-runtime-verdict.test.js",
-    "test/property-pure-value-expression.test.js"
+    "test/property-pure-value-expression.test.js",
+    "test/property-pure-expression-hotpath.test.js",
+    "sims/property-hotpath-closedworld.js"
   ],
   "exclude": [
     "node_modules"
