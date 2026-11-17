@@ -25,6 +25,34 @@ This source-publishing boundary is an opt-in alternative to direct `createScoHan
 
 These are *test assertions* until a completed CI run confirms them. The helper neither rewrites the client facade nor changes its RPC path, so it introduces no additional remote calls. The 2.5× runtime budget still must be measured for each workload, including authorization overhead and network delay.
 
+## Matched negative control against a private-graph audit gap
+
+The same regression file now includes a deliberately admitted computed
+constructor-loader fixture based on an independent existing dynamic-source
+challenge. The original private engine builds a dynamic `import()` from a
+computed `constructor` key and loads a separate secret leaf. The static graph
+snapshot contains the engine but cannot discover that runtime-loaded leaf.
+The test writes all three real ESM modules to disk, verifies the *supplied*
+source digest commitments, imports the original runtime, and then builds two
+servers from the **same partition and original server namespace**:
+
+1. An ordinary `createScoHandler` constructed from the facade and
+   accidentally appended leaf. It is expected to return HTTP **200** for the
+   private leaf because the static manifest omitted that dynamic source.
+2. `createScoSelectedHandler` from the in-process partition. It is expected
+   to return HTTP **404** for that same file path because it never accepts an
+   arbitrary source list.
+
+Both configurations should return identical authenticated RPC output on four
+inputs, and both leave an authorized attacker able to use the remote
+operation. These are asserted negative and positive controls in
+`test/sco-selected-handler.test.js`, not yet promoted as observed evidence:
+the updated test needs a completed pinned run on both Node platforms.
+
+This comparison tests a concrete API-level publication safety improvement
+without asserting a new static loader proof or a generalized protection
+against client runtime instrumentation.
+
 ## Security limits
 
 The trusted Node operator must supply the true server namespace and authentication callbacks, perform any optional source-digest verification **before** module import, and keep private source out of all other HTTP routes and static roots. Runtime imports outside the explicit manifest can still affect server behavior. Client source can be debugged and authorized requests can be relayed indefinitely. The helper does not improve generic COO/SNO program resistance, provide a tamperproof host lock against full client control, or bind authorized computation to a particular customer device.
