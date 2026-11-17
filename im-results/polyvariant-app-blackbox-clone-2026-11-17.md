@@ -26,6 +26,14 @@ Actual observed coefficients were `round1:(a=1,b=324)`, `round2:(a=1,b=292)`, `r
 
 The 12,288-input corpus is deterministic; it is strong falsification coverage for these particular functions, not a proof of full equivalence for arbitrary JavaScript inputs. The underlying frozen native arithmetic admits a separate algebraic proof of the offset values, but that proof was not given to the attacker during coefficient inference.
 
+## Source-evaluated complete application and host trace replay
+
+A second independent V8 replay fetched all **six** checked-in public/native `math.mjs`, `state.mjs`, and `entry.mjs` files. Both attack families were synthesized from public math function responses before retrieving the native modules. The evaluator removed the two known static ESM import statements and concatenated the three modules' declarations into one V8 source realm, preserving their executed function bodies and stateful behavior. This is a **combined-source differential**, not an authentic browser or Node ESM-loader test.
+
+For each of the four variants (**native, published, translation-clone, affine-clone**), the evaluator ran 1, 50, 1,000 and 10,000 event records, including Unicode message payloads and an external `emit` host callback. Across **16 application invocations and 44,204 callback deliveries**, the complete serialized result and serialized emitted trace matched the native implementation exactly. All counters and results were computed from the real checked-in distributed files without the original source participating in coefficient inference. This extends the earlier 12,288 numeric and 30 digest V8 observations from individual leaves to the source-evaluated stateful application.
+
+The separately committed Node test still provides stronger **authentic ESM** validation: isolated files, native import/link/evaluate, and per-source loader boundaries. The combined-source replay cannot establish those properties and cannot replace its pending pinned workflow.
+
 ## Falsifying controls and limits
 
 A nonlinear XOR function matches the translation attack's response at zero but diverges on another input. A quadratic function matches the affine attack's first two responses yet differs at input two. These deliberately establish that neither method recovers general JavaScript or arbitrary hidden high-entropy functions. Function-source introspection, unknown external APIs, object escapes, exact exception behavior for exotic inputs, and general unproved module graphs remain beyond this attack's claimed scope.
