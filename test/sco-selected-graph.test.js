@@ -152,16 +152,15 @@ test('selected SCO composition refuses ambiguous graph paths and source ownershi
   const valid=compile();
   assert.deepEqual(Object.keys(valid.partitions),['alpha.mjs','beta.mjs']);
   assert.throws(()=>partitionScoSelectedGraph([]),/at least one/u);
+  const simple='export async function secret(value){return value+1;}'+
+    'export function local(value){return value;}';
   assert.throws(()=>partitionScoSelectedGraph([
-    {file:{path:'alpha.mjs',code:alpha},options:{privateNames:['secret']}},
-    {file:{path:'ALPHA.mjs',code:alpha},options:{privateNames:['secret']}}
+    {file:{path:'alpha.mjs',code:simple},options:{privateNames:['secret']}},
+    {file:{path:'ALPHA.mjs',code:simple},options:{privateNames:['secret']}}
   ]),/Case-colliding/u);
   assert.throws(()=>partitionScoSelectedGraph([
-    {file:{path:'alpha.mjs',code:alpha},options:{
-      privateNames:['secret'],privateModuleImports:['./private/salt.mjs'],
-      privateModuleSources:[leaf]
-    }},
-    {file:{path:'alpha.mjs',code:alpha},options:{privateNames:['secret']}}
+    {file:{path:'alpha.mjs',code:simple},options:{privateNames:['secret']}},
+    {file:{path:'alpha.mjs',code:simple},options:{privateNames:['secret']}}
   ]),/Duplicate/u);
   assert.throws(()=>partitionScoSelectedGraph([
     {file:{path:'alpha.mjs',code:alpha},options:{
