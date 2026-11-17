@@ -611,7 +611,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           const source=value.type==='Identifier' ?
             sourceSymbolKeyAliases.get(value.name)??new Set() :
-            new Set([memberName(value)]);
+            new Set([memberName(value)??'']);
           for(const key of source) {
             if(!keys.has(key)) {
               keys.add(key);
