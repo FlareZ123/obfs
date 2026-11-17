@@ -33,6 +33,17 @@ function isEmbeddedExecutableUrl(raw) {
 }
 
 /**
+ * Browser URL schemes ignore embedded ASCII control/space characters in the
+ * recognized URL contexts. Test the normalized scheme before accepting
+ * data URLs in script and stylesheet links.
+ * @param {string} raw
+ * @returns {boolean}
+ */
+function isDataUrl(raw) {
+  return raw.replace(/[\x00-\x20]/gu,'').toLowerCase().startsWith('data:');
+}
+
+/**
  * Detect a refresh redirect that embeds executable markup or a script URL.
  * The HTML parser has already decoded character references in the content
  * attribute. Ordinary refresh targets remain accepted.
@@ -72,7 +83,7 @@ function findInlineHtmlSource(html) {
       if(['src','href','action','formaction','xlink:href','data','poster'].includes(lower) &&
           isEmbeddedExecutableUrl(value)) {issue='embedded executable URL';return;}
       if(node.tagName==='script' && lower==='src' &&
-          /^\s*data:/iu.test(value)) {issue='embedded script data URL';return;}
+          isDataUrl(value)) {issue='embedded script data URL';return;}
     }
     // A data: stylesheet is itself an opaque CSS asset inside HTML. Without
     // recursively auditing those bytes, it can carry a sourceMappingURL map
@@ -81,7 +92,7 @@ function findInlineHtmlSource(html) {
       const rel=attrs.find(attr=>attr.name==='rel')?.value;
       const href=attrs.find(attr=>attr.name==='href')?.value;
       if(rel && /(?:^|\s)stylesheet(?:\s|$)/iu.test(rel) &&
-          href && href.replace(/[\x00-\x20]/gu,'').toLowerCase().startsWith('data:')) {
+          href && isDataUrl(href)) {
         issue='embedded stylesheet data URL';
         return;
       }
