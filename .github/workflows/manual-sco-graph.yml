@@ -29,6 +29,8 @@ jobs:
         run: node --test test/sco-principal-realm.test.js
       - name: Measure paired native versus worker private HMAC cost
         run: node sims/sco-principal-realm-profile.js
+      - name: Measure authenticated HTTP full-session cost at multiple workloads
+        run: node sims/sco-principal-realm-http-session.js
       - name: Strict JSDoc for experimental principal realms
         run: npx tsc -p jsconfig.sco-principal-realm.json
       - name: Strict JSDoc for SCO graph integration
