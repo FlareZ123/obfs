@@ -3,6 +3,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const {randomBytes}=require('node:crypto');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
@@ -30,6 +31,9 @@ const privateSource=[
  'export async function close(handle){return handles.revoke(handle);}'
 ].join('\n');
 
+const sessionA=randomBytes(32).toString('hex');
+const sessionB=randomBytes(32).toString('hex');
+
 /** @param {string} session @returns {import('node:http').IncomingMessage} */
 function fakeRequest(session){
  return /** @type {import('node:http').IncomingMessage} */ (
@@ -39,8 +43,8 @@ function fakeRequest(session){
 /** @param {import('node:http').IncomingMessage} request @returns {string|undefined} */
 function verifiedAccount(request){
  const credential=request.headers['x-test-session'];
- if(credential==='fixture-session-A')return 'account-A';
- if(credential==='fixture-session-B')return 'account-B';
+ if(credential===sessionA)return 'account-A';
+ if(credential===sessionB)return 'account-B';
  return undefined;
 }
 
@@ -109,7 +113,7 @@ test('actual SCO partition publishes only RPC facade and preserves private state
   assert.equal((await baseFetch(origin+'/obfs/remote-private.mjs')).status,404);
   const facadePath=path.join(root,'served.mjs');
   await atomicWrite(facadePath,compiled);
-  let activeCredential='fixture-session-A';
+  let activeCredential=sessionA;
   globalThis.fetch=/** @type {typeof fetch} */ (async(input,options)=>{
    const headers=new Headers(options?.headers);
    headers.set('x-test-session',activeCredential);
@@ -123,12 +127,12 @@ test('actual SCO partition publishes only RPC facade and preserves private state
   const remoteHandle=await facade.begin();
   assert.match(remoteHandle,/^[A-Za-z0-9_-]{43}$/u);
 
-  activeCredential='fixture-session-B';
+  activeCredential=sessionB;
   await assert.rejects(facade.step(remoteHandle,'probe'),/Remote operation failed/);
   await assert.rejects(scope.runRpcIsolated(fakeRequest(activeCredential),async()=>{
    await original.step(nativeHandle,'probe');
   }),/Invalid private SCO capability/);
-  activeCredential='fixture-session-A';
+  activeCredential=sessionA;
   for(const input of ['one','two','😺 three']){
    let expected='';
    await scope.runRpcIsolated(fakeRequest(activeCredential),async()=>{
