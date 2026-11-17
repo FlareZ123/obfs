@@ -32,6 +32,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/source-island-browser-string-timer-attack.js
+      - name: Real Chromium host iframe source observer counterexample
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/source-island-browser-host-iframe-attack.js
       - name: Validate repository JSDoc types
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
