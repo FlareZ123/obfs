@@ -1,6 +1,7 @@
 'use strict';
 
 const {obfuscateFiles} = require('./core');
+const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {createSnoLauncher} = require('./sno');
 const {virtualizeRegisterChains} = require('./register-vm');
@@ -20,4 +21,4 @@ const {verifyScoPrivateSourceDigests}=require('./sco-private-integrity');
 const {partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler} = require('./sco-graph');
 const {partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler} = require('./sco-selected-graph');
 
-module.exports = {lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoSelectedHandler,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,flattenStatementFlow,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler,partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler};
+module.exports = {assertReviewedOpaqueAssets,lowerPolyvariantAffine,verifyScoPrivateSourceDigests,partitionScoSelectedAsyncExports,createScoSelectedHandler,createScoKeyedIsolation,symbolizeLocalProperties,lowerWasmI32Functions,flattenBranchBlocks,flattenStatementFlow,virtualizeRegisterChains,virtualizeExpressionGraphs,obfuscateFiles,createSnoLauncher,createScoHandler,createScoRpcClientSource,createScoBatchMethod,preflightScoBatchState,partitionScoAsyncModule,bindScoModuleExports,partitionScoAsyncGraph,bindScoGraphExports,createScoGraphHandler,partitionScoSelectedGraph,bindScoSelectedGraphExports,createScoSelectedGraphHandler};
