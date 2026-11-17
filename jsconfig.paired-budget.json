@@ -1,0 +1,8 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/paired-budget-bound.js",
+    "test/paired-budget-bound.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
