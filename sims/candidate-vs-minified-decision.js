@@ -13,7 +13,14 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   oracleCalls:number,
  *   attempted:boolean,
  *   cloneSucceeded:boolean,
- *   verifiedHeldoutComparisons:number
+ *   verifiedHeldoutComparisons:number,
+ *   selectedFunctionSetDigest?:string,
+ *   verifierCaseDigest?:string,
+ *   methodCommitmentDigest?:string,
+ *   preparationBudgetMs?:number,
+ *   analysisBudgetMs?:number,
+ *   attackCompleted?:boolean,
+ *   failureCause?:'none'|'precommitted-budget-exhausted'|'model-mismatch'|'unmeasured'
  * }} MatchedAttack
  * @typedef {{
  *   frozenSameApplication:boolean,
@@ -45,13 +52,36 @@ function compareCandidateEvidence(evidence){
     control.attempted&&candidate.attempted&&
     control.protocol.length>0&&control.protocol===candidate.protocol&&
     control.oracleCalls===candidate.oracleCalls&&control.oracleCalls>0&&
-    control.verifiedHeldoutComparisons>0&&
-    candidate.verifiedHeldoutComparisons>0;
+    control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
+    control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
+  // A positive claim requires a completed, precommitted, equally resourced
+  // attack on the same functions and held-out inputs, with a recorded reason
+  // for failure. These fields are evidence declarations, not independently
+  // authenticated artifacts: the experimenter must verify the commitments.
+  const positiveEvidenceReady=measurementReady&&
+    control.attackCompleted===true&&candidate.attackCompleted===true&&
+    candidate.failureCause==='precommitted-budget-exhausted'&&
+    control.cloneSucceeded===true&&candidate.cloneSucceeded===false&&
+    typeof control.selectedFunctionSetDigest==='string'&&
+    control.selectedFunctionSetDigest.length===64&&
+    control.selectedFunctionSetDigest===candidate.selectedFunctionSetDigest&&
+    typeof control.verifierCaseDigest==='string'&&
+    control.verifierCaseDigest.length===64&&
+    control.verifierCaseDigest===candidate.verifierCaseDigest&&
+    typeof control.methodCommitmentDigest==='string'&&
+    control.methodCommitmentDigest.length===64&&
+    control.methodCommitmentDigest===candidate.methodCommitmentDigest&&
+    typeof control.preparationBudgetMs==='number'&&
+    Number.isFinite(control.preparationBudgetMs)&&control.preparationBudgetMs>0&&
+    control.preparationBudgetMs===candidate.preparationBudgetMs&&
+    typeof control.analysisBudgetMs==='number'&&
+    Number.isFinite(control.analysisBudgetMs)&&control.analysisBudgetMs>0&&
+    control.analysisBudgetMs===candidate.analysisBudgetMs;
   /** @type {Decision} */
   let attackAdvantage='inconclusive';
   if(measurementReady){
     if(candidate.cloneSucceeded)attackAdvantage='contradicted';
-    else if(control.cloneSucceeded)attackAdvantage='supported';
+    else if(positiveEvidenceReady)attackAdvantage='supported';
   }
   /** @type {Decision} */
   const measuredRuntimeBudget=pairedFamilywise.observedSampleHasOverBudgetPair||
@@ -68,7 +98,7 @@ function compareCandidateEvidence(evidence){
   return {
     verdict,attackAdvantage,measuredRuntimeBudget,measurementReady,
     pairedFamilywise,
-    caveat:'The judgment covers only the named equal-query attacker, one original application and the sampled workloads. Failure of a bounded attack is not proof of arbitrary-program secrecy. Sampled confidence is about median paired ratios, while a single observed >2.5x pair vetoes the tested strict-budget claim.'
+    caveat:'A positive attacker-cost judgment requires independently checked precommitted methods, verifier cases, selected functions and equivalent preparation/analysis budgets. Even a completed failed bounded attack is not proof of arbitrary-program secrecy. Runtime evidence covers sampled median paired ratios; a single observed >2.5x pair vetoes the strict sampled-budget claim.'
   };
 }
 
