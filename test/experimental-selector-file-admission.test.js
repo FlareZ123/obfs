@@ -72,3 +72,32 @@ test('a valid selected file still emits real function control-flow and preserves
     assert.equal(protectedFunction(input),native(input));
   }
 });
+
+test('selection getter is read only once before emitting the requested function',()=>{
+  let reads=0;
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'selection-getter',strings:false,identifiers:false,
+    properties:false,
+    get experimentalStatementFlow(){
+      reads++;
+      return reads===1?{'app.cjs':['f']}:{'missing.cjs':['f']};
+    }
+  });
+  assert.equal(reads,1);
+  assert.equal(output.files[0].metrics.statementFlowFunctions,1);
+});
+
+test('validated function names survive later caller-array mutation',()=>{
+  const functions=['f'];
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'selection-array-snapshot',strings:false,identifiers:false,
+    experimentalStatementFlow:{'app.cjs':functions},
+    get properties(){
+      functions.length=0;
+      return false;
+    }
+  });
+  assert.equal(functions.length,0,'The caller can mutate its own configuration');
+  assert.equal(output.files[0].metrics.statementFlowFunctions,1,
+    'The compiler must preserve its accepted protected-work selection');
+});
