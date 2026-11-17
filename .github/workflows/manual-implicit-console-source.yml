@@ -18,7 +18,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Run implicit source-coordinate differential
-        run: node --test test/implicit-console-stack-source.test.js test/node-util-format-source-observation.test.js
+        run: node --test test/implicit-console-stack-source.test.js test/node-util-format-source-observation.test.js test/implicit-source-mode-matrix.test.js
       - name: Validate strict project JSDoc
         run: npm run typecheck
       - name: Validate external JSDoc
