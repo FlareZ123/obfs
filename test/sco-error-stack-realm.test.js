@@ -38,7 +38,9 @@ test('SCO must refuse relocating native stack reads and V8 stack capture',()=>{
     "const {Error:E}=globalThis;return E('tag').stack;",
     "const {stack:trace}=new Error('tag');return trace;",
     "const record={};Error.captureStackTrace(record);return record.stack;",
-    "const capture=Error.captureStackTrace;const record={};capture(record);return record.stack;"
+    "const capture=Error.captureStackTrace;const record={};capture(record);return record.stack;",
+    "const err=new Error('tag');const key='stack';return err[key];",
+    "try{throw new Error('tag');}catch(err){return err.stack;}"
   ];
   for(const body of bodies){
     const code='(()=>{'+body+'})()';
