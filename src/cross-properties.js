@@ -984,18 +984,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
-    // Every expression supplied to an unresolved rest/arguments vector may
-    // evaluate to an ambient capability through comma expressions, arrays,
-    // inline records or container aliases. Only non-ambient vectors remain
-    // eligible for the existing private own-property proof.
+    // An arbitrary rest/arguments element can obtain an ambient capability
+    // from a call result, a getter or an unproved alias even when globalThis
+    // does not appear in the actual expression. Only directly source-proved
+    // inert primitive results are admitted through these unresolved vectors.
+    // The original body and argument expression remain unchanged.
     for(const actuals of unresolvedArgumentVectors) {
       for(const actual of actuals) {
-        if(!actual)continue;
-        walk(actual,node=>{
-          if(node.type==='Identifier'&&
-             (hostRoots.has(node.name)||hostContainers.has(node.name)))
-            changedIntrinsic=true;
-        });
+        if(!actual || !isLiteralValue(actual) ||
+           actual.type==='ArrayExpression' || actual.type==='ObjectExpression' ||
+           actual.type==='Literal' && actual.value!==null &&
+           !['number','string','boolean','bigint'].includes(typeof actual.value)) {
+          changedIntrinsic=true;
+        }
       }
     }
     /**
