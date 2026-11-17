@@ -103,6 +103,7 @@ function staticString(node,depth=0){
  * @param {AstNode} ast
  * @param {Map<string,string>} [importedStrings] Proven direct ESM string imports.
  * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
+ * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @returns {boolean}
  */
 function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set()) {
