@@ -31,6 +31,18 @@ The Node 22 documentation says an `Error` records its creation location and
 [Node Error stack](https://nodejs.org/download/release/v22.15.1/docs/api/errors.html),
 [Node console](https://nodejs.org/download/release/v22.18.0/docs/api/console.html).
 
+## Additional implicit function-name inspection
+
+An independently executed native Node 22 probe printed
+`[Function: meaningfulOriginalFunction]` for a direct function-valued
+console argument, changing to `[Function: x]` after a simple lexical
+rename. That observation does not require a `.name` read or explicit
+`Function#toString` call in the user program. The guard now treats
+direct function values, recognized function-containing arrays and nested
+literal objects passed to native console methods as source observers.
+This is a **bounded behavioral compatibility** extension, with no
+protection claim for generic object aliases or opaque loggers.
+
 ## Guard and positive control
 
 `src/ast.js` now recognizes direct `console.trace()`, including computed
@@ -40,7 +52,7 @@ when their visible argument graph carries an `Error`, `TypeError`, or other
 recognized built-in error instance. The limited may-flow proof follows local
 identifier assignments, transitive aliases and nested array/object literals.
 
-`test/implicit-console-stack-source.test.js` contains eight automated
+`test/implicit-console-stack-source.test.js` contains ten automated
 checks against the **actual compiler-emitted SNO output**, using a fixed VM
 filename and Node `Console` capture. It verifies direct/aliased loggers,
 constructed Error objects, nested values, `console.trace()`, an exact
