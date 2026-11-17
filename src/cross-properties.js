@@ -2,7 +2,7 @@
 
 const path = require('node:path');
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
+const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
 const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -130,6 +130,7 @@ function collectImportedFunctionArrays(files) {
   /** @type {Map<string,Set<string>>} */
   const exportsByFile=new Map();
   for(const [filename,module] of modules) {
+    const directCarrierFactories=collectDirectCarrierFactories(module.ast);
     const functions=new Set();
     /** @type {Map<string,AstNode>} */
     const candidates=new Map();
@@ -184,6 +185,14 @@ function collectImportedFunctionArrays(files) {
       if(node.type==='NewExpression'&&node.callee.type==='Identifier'&&
          ['Set','Map'].includes(node.callee.name))
         return hasFunction(node.arguments[0],depth+1);
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier') {
+        const indices=directCarrierFactories.get(node.callee.name);
+        if(indices?.some(index=>{
+          const argument=node.arguments[index];
+          return argument && hasFunction(argument.type==='SpreadElement'?
+            argument.argument:argument,depth+1);
+        }))return true;
+      }
       if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
         const owner=node.callee.object;
         const method=node.callee.computed?staticString(node.callee.property):
