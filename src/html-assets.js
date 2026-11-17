@@ -74,6 +74,18 @@ function findInlineHtmlSource(html) {
       if(node.tagName==='script' && lower==='src' &&
           /^\s*data:/iu.test(value)) {issue='embedded script data URL';return;}
     }
+    // A data: stylesheet is itself an opaque CSS asset inside HTML. Without
+    // recursively auditing those bytes, it can carry a sourceMappingURL map
+    // and untransformed sourcesContent past the ordinary .css preflight.
+    if(node.tagName==='link') {
+      const rel=attrs.find(attr=>attr.name==='rel')?.value;
+      const href=attrs.find(attr=>attr.name==='href')?.value;
+      if(rel && /(?:^|\s)stylesheet(?:\s|$)/iu.test(rel) &&
+          href && /^\s*data:/iu.test(href)) {
+        issue='embedded stylesheet data URL';
+        return;
+      }
+    }
     if(node.tagName==='style' &&
         hasCssSourceMapDirective((node.childNodes??[]).map(child=>child.value??'').join(''))) {
       issue='inline CSS source-map directive';
