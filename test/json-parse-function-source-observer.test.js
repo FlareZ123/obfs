@@ -72,7 +72,13 @@ const cases=[
     invocation:'Reflect.apply(JSON.parse,JSON,[protectedLabel])'},
   {name:'JSON.rawJSON through Reflect.apply',
     declaration:'',
-    invocation:'Reflect.apply(JSON.rawJSON,JSON,[protectedLabel])'}
+    invocation:'Reflect.apply(JSON.rawJSON,JSON,[protectedLabel])'},
+  {name:'JSON.parse through detached Reflect.apply',
+    declaration:'const invoke=Reflect.apply;',
+    invocation:'invoke(JSON.parse,JSON,[protectedLabel])'},
+  {name:'JSON.rawJSON through destructured Reflect.apply',
+    declaration:'const {apply:invoke}=Reflect;',
+    invocation:'invoke(JSON.rawJSON,JSON,[protectedLabel])'}
 ];
 
 /** @param {string} declaration @param {string} invocation @returns {string} */
