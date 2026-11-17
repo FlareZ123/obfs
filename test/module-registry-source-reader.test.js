@@ -363,3 +363,26 @@ test('benign process module environment alias keeps own-key transform yield',()=
   });
   assert.equal(output.files[0].metrics.properties,1);
 });
+
+test('cross-file ESM process loader preserves the original owner module bytes',async()=>{
+  /** @type {Source[]} */
+  const files=[
+    {path:'owner.mjs',sourceType:'module',
+      code:'export const state={secretField:51};\n'},
+    {path:'entry.mjs',sourceType:'module',
+      code:"import {state} from './owner.mjs';\n"+
+        "import {getBuiltinModule as load} from 'node:process';\n"+
+        "const bytes=load('node:fs').readFileSync(new URL('./owner.mjs',import.meta.url),'utf8');\n"+
+        "console.log(state.secretField,bytes.includes('secret'+'Field'));\n"}
+  ];
+  const native=await execute(files,'entry.mjs');
+  assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'51 true\n');
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'process-builtin-crossfile',
+    strings:true,properties:true,identifiers:true
+  });
+  assert.equal(output.crossFile.properties,0);
+  assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+  assert.deepEqual(await execute(output.files,'entry.mjs'),native);
+});
