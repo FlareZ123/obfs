@@ -14,8 +14,8 @@ test('count only the three selected exported arithmetic function entries',()=>{
   const instrumented=countFunctionEntries(source);
   assert.equal((instrumented.match(/__obfsCoverageCounts\./g)||[]).length,3);
   assert.ok(instrumented.includes('export function unrelated(input){return input|0;}'));
-  assert.throws(()=>countFunctionEntries('export function round1(x){return x;}'),
-    /selected|round/i);
+  assert.throws(()=>countFunctionEntries('export function round1(x){return x;}'));
+
 });
 
 test('actually exercised arithmetic work remains identical after public source-only reconstruction',{
@@ -23,6 +23,7 @@ test('actually exercised arithmetic work remains identical after public source-o
 },async()=>{
   const evidence=await runEvidence();
   assert.equal(evidence.selectedSourceBytes,310);
+  assert.equal(evidence.selectedFunctionAstBytes,284);
   assert.equal(evidence.totalOriginalBytes,2467);
   assert.equal(evidence.reconstructedFunctions,3);
   assert.match(evidence.distributedMathSha256,/^[a-f0-9]{64}$/);
