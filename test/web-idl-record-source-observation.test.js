@@ -27,6 +27,7 @@ const sourceCases=[
   ['record property direct','(()=>{const box={Constructor:Response};return new box.Constructor(inspect).text();})()'],
   ['record property alias','(()=>{const box={Constructor:Response};const other=box;return new other.Constructor(inspect).text();})()'],
   ['record property reassignment','(()=>{const box={};box.Constructor=Response;return new box.Constructor(inspect).text();})()'],
+  ['record alias mutation','(()=>{const box={};const alias=box;alias.Constructor=Response;return new box.Constructor(inspect).text();})()'],
   ['record destructuring','(()=>{const box={Constructor:Response};const {Constructor:Reply}=box;return new Reply(inspect).text();})()'],
   ['record property detached','(()=>{const box={Constructor:Response};const Reply=box.Constructor;return new Reply(inspect).text();})()'],
   ['record indirect constructor','(()=>{const box={Constructor:Response};const wrapped={Another:box.Constructor};return new wrapped.Another(inspect).text();})()'],
