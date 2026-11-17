@@ -261,6 +261,10 @@ function collectImportedFunctionArrays(files) {
                 changed=true;
               }
             }
+            if(callback.params[2]?.type==='Identifier') {
+              // The third parameter is the original Set, Map or Array.
+              markArray(callback.params[2].name);
+            }
           }
         }
         if(node.type==='CallExpression' &&
