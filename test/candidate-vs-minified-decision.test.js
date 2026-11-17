@@ -83,10 +83,11 @@ test('one held-out comparison versus 12,288 cannot support positive superiority'
 });
 
 test('positive gap requires equal case and function witnesses, method and budgets',()=>{
-  for(const field of [
+  const fields=/** @type {const} */ ([
     'selectedFunctionSetDigest','verifierCaseDigest','methodCommitmentDigest',
     'preparationBudgetMs','analysisBudgetMs'
-  ]){
+  ]);
+  for(const field of fields){
     const input=example();
     recordMatchedCompletedAttack(input);
     if(field==='preparationBudgetMs'||field==='analysisBudgetMs'){
