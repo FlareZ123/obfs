@@ -219,6 +219,37 @@ The opt-in `workplace/coo-native-shards.js` splits explicitly selected typed bit
 
 Two output layouts were compared on Node 22 Linux and Windows. The two-file **paired** layout stayed below 2.5x in six sampled end-to-end fresh-module lifetimes on both systems, while the three-file **split** layout exceeded the target in five Windows workloads. These timing ratios are workload-specific and include Node ESM loading; the experiment is outside the default pipeline. A Chromium functional gate passed, but a separate browser HTTP-loading profile suffered 10ms/20ms virtual-clock quantization and cannot establish the browser runtime budget. See [the pinned report](../im-results/coo-native-shards-2026-11-15.md) and [CI validation](https://github.com/FlareZ123/obfs/actions/runs/43748684953).
 
+## Native host functions that implicitly expose source
+
+Source-dependent behavior can arise without a syntactic `.stack`,
+`.toString`, or `.name` read. In Node.js, `console.trace()` prints caller
+frames, native Console formatting can print Error stacks and function
+names, `util.getCallSites()` directly returns source locations, and
+`process.emitWarning('literal')` exposes call sites under
+`--trace-warnings`. Length-changing renaming ahead of such calls can alter
+output even when values and exceptions are otherwise preserved.
+
+The AST source-observation gate now conservatively refuses source
+rewrites for directly recognized native console, Node util formatting,
+caller-location and warning methods, including selected local detached
+and bound aliases. For a recognized graph it can preserve *all* original
+source bytes, leaving zero protected-work yield in that graph. This is a
+compatibility safeguard, not evidence of resistance to debugging, source
+reconstruction or tampering. Unmodeled opaque external observers and
+indirect native method acquisition remain a risk; users requiring exact
+host-observable source should independently test the actual deployment.
+
+The [native red-control and mode-matrix report](../im-results/implicit-source-three-mode-matrix-2026-11-17.md)
+records deterministic 504 observer-refusal cases, 36 transformed
+primitive-logging controls, and real native-versus-emitted multi-file ESM
+execution. The [warning report](../im-results/node-process-warning-source-observation-2026-11-17.md)
+records `--trace-warnings` behavior and the pinned regressions. The
+[equal-width proposal](../im-results/fixed-width-source-coordinate-proposal-2026-11-17.md)
+explores a future way to retain some protected work under *coordinate-only*
+observations, and demonstrates why source-text readers still invalidate
+that approach. No general coordinate-preserving compiler path has been
+implemented or evaluated against an attacker.
+
 ## Performance
 
 The CLI emits executable JavaScript using normal JS operations. String decoding incurs startup cost (especially in COO). Hot-loop string sites are excluded, but the 2.5x runtime requirement is empirical and workload-specific. `test/benchmark.js` samples arithmetic, property read/write, and string comparisons; it fails if any observed median exceeds 2.5x. This does not exhaust possible programs or timing distributions.
