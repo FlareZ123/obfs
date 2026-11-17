@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "test/sco-capabilities.test.js",
+    "test/sco-capabilities-http.test.js",
+    "test/sco-capabilities-public-facade.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
