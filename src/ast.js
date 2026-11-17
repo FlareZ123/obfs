@@ -1073,6 +1073,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         (isWebInstance(node.init,webRecordInstances,webRecords,webRecordNames) ||
+          isWebInstance(node.init,webScalarInstances,webScalars,webScalarNames))) {
+        const fromHeaders=isWebInstance(node.init,webRecordInstances,webRecords,webRecordNames);
+        const fromSearch=isWebInstance(node.init,webScalarInstances,webScalars,webScalarNames);
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(fromHeaders&&(name==='headers'||name===null&&property.computed) ||
+             fromSearch&&(name==='searchParams'||name===null&&property.computed))
+            changed=add(webStringInstances,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          isWebConstructor(node.init,responseConstructors,responseNames)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
