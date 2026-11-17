@@ -9,6 +9,7 @@ const {pathToFileURL}=require('node:url');
 const path=require('node:path');
 const {prepare}=require('../sims/polyvariant-app-three-way-budget');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 
 /** @typedef {'native'|'published'|'reconstructed'} Variant */
 /** @typedef {{totalMs:number,importMs:number,runMs:number}} Timings */
@@ -206,6 +207,14 @@ async function main(){
         }
       }
     }
+    const publishedFamilywise=familywiseBudgetBounds(browser.rows.map(row=>({
+      native:row.measurements.native.map(x=>x.totalMs),
+      candidate:row.measurements.published.map(x=>x.totalMs)
+    })));
+    const reconstructedFamilywise=familywiseBudgetBounds(browser.rows.map(row=>({
+      native:row.measurements.native.map(x=>x.totalMs),
+      candidate:row.measurements.reconstructed.map(x=>x.totalMs)
+    })));
     process.stdout.write('POLYVARIANT_COLD_CHROMIUM '+JSON.stringify({
       node:process.version,platform:process.platform,chromiumBin:process.env.CHROMIUM_BIN??'google-chrome',
       sourceHashes:{native:originalSha256,published:publishedSha256,
@@ -213,7 +222,7 @@ async function main(){
       boundary:'same Chromium page, unique non-cached three-module URLs for each session; localhost HTTP fetch + ESM link/evaluate + full synchronous application and host callbacks; browser process/page startup, source build and source-only reconstruction excluded',
       trials,loadsPerVariant:trials*workloads.length,
       verifiedGraphRequests:workloads.length*trials*variants.length*3,
-      rows:results
+      publishedFamilywise,reconstructedFamilywise,rows:results
     })+'\n');
   }finally{
     await new Promise((resolve,reject)=>
