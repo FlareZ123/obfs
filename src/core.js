@@ -6,6 +6,7 @@ const {parse,walk,observesFunctionSource,observesDistributedSource,staticString}
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
+const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
@@ -120,6 +121,7 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
  * @returns {boolean}
  */
 function mutatesDecoderIntrinsic(ast) {
+  const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // Find immutable-looking and reassigned aliases before checking writes.
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
@@ -430,7 +432,8 @@ function mutatesDecoderIntrinsic(ast) {
            (method===null||mutatorsObject.has(method)||sensitiveReadsObject.has(method)) ||
           isReflectIntrinsic(receiver) &&
            (method===null||mutatorsReflect.has(method)||sensitiveReadsReflect.has(method))) &&
-         !(parent?.type==='CallExpression'&&parent.callee===node)) {
+         !(parent?.type==='CallExpression'&&parent.callee===node) &&
+         !safeCapturedReflectGet.has(node)) {
         mutated=true;
         return;
       }
