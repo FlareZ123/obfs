@@ -53,16 +53,21 @@ function analyzeSource(source,sourceType,label) {
   const candidates=[];
   walk.fullAncestor(ast,(node,/** @type {unknown} */ _state,ancestors)=>{
     if(node.type!=='ObjectExpression')return;
-    const parent=ancestors[ancestors.length-2];
-    const outer=ancestors[ancestors.length-3];
-    const directConst=parent?.type==='VariableDeclarator'&&parent.init===node&&
+    const owner=/** @type {import('acorn').ObjectExpression} */(node);
+    const parent=/** @type {import('acorn').VariableDeclarator|undefined} */
+      (ancestors[ancestors.length-2]);
+    const outer=/** @type {import('acorn').VariableDeclaration|undefined} */
+      (ancestors[ancestors.length-3]);
+    const directConst=parent?.type==='VariableDeclarator'&&parent.init===owner&&
       parent.id.type==='Identifier'&&outer?.type==='VariableDeclaration'&&
       outer.kind==='const';
-    const fn=[...ancestors].reverse().find(item=>
-      item.type==='FunctionDeclaration'||item.type==='FunctionExpression'||
-      item.type==='ArrowFunctionExpression');
+    const fn=/** @type {import('acorn').FunctionDeclaration|
+      import('acorn').FunctionExpression|import('acorn').ArrowFunctionExpression|undefined} */
+      ([...ancestors].reverse().find(item=>
+        item.type==='FunctionDeclaration'||item.type==='FunctionExpression'||
+        item.type==='ArrowFunctionExpression'));
     if(!fn)return;
-    for(const property of node.properties){
+    for(const property of owner.properties){
       if(property.type!=='Property'||property.kind!=='init'||property.computed||
          property.shorthand||property.value.type!=='Identifier')continue;
       if(!fn.params.some(param=>param.type==='Identifier'&&
