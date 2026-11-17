@@ -574,6 +574,32 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code,sourceType};
   });
+  // A requested backend is an explicit protection requirement. Silently
+  // ignoring a misspelled filename would publish untransformed code even
+  // though the caller selected a protected function in that file.
+  const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
+    .map(file=>file.path));
+  /** @type {Array<[string,Record<string,string[]>|undefined]>} */
+  const selectedFunctionBackends=[
+    ['Register VM',options.experimentalRegisterVm],
+    ['Expression VM',options.experimentalExpressionVm],
+    ['Native graph',options.experimentalNativeGraph],
+    ['Branch blocks',options.experimentalBranchBlocks],
+    ['Statement flow',options.experimentalStatementFlow],
+    ['Wasm i32',options.experimentalWasmI32],
+    ['Polyvariant affine',options.experimentalPolyvariantAffine]
+  ];
+  for(const [backend,selections] of selectedFunctionBackends){
+    if(!selections)continue;
+    for(const [selectedPath,names] of Object.entries(selections)){
+      if(!Array.isArray(names)){
+        throw new TypeError(backend+' selected function names must be an array in '+selectedPath);
+      }
+      if(names.length && !knownJavaScript.has(selectedPath)){
+        throw new TypeError(backend+' selects missing or non-JavaScript input '+selectedPath);
+      }
+    }
+  }
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
