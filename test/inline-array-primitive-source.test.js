@@ -70,3 +70,28 @@ test('source-spelled failed inline element call retains V8 diagnostics',()=>{
     'A native failed call can quote its original inline callee source');
   assert.equal(execute(String(generated.code)),execute(source));
 });
+
+test('fresh ArrayLiteral length is a primitive even with poisoned inherited properties',()=>{
+  const safe=[
+    "'use strict';module.exports=['first-long-literal','second-long-literal'].length+'!';",
+    "'use strict';module.exports=['first-long-literal','second-long-literal']['length']+'!';",
+    "'use strict';module.exports=[,'first-long-literal','second-long-literal'].length+'!';",
+    "'use strict';Array.prototype.length=17;module.exports=['first-long-literal','second-long-literal'].length+'!';"
+  ];
+  for(const [index,source] of safe.entries()) {
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,
+      'Fresh literal own length must be primitive, case '+index);
+    const generated=obfuscateFiles([{path:'length.cjs',sourceType:'commonjs',code:source}],{
+      mode:'sno',seed:'fresh-array-length/'+index,properties:false
+    }).files[0];
+    assert.ok(generated.metrics.literals>=2,'Fresh array must retain encoded work, case '+index);
+    assert.equal(execute(String(generated.code)),execute(source));
+  }
+});
+
+test('array-like length read through custom getter still exposes function source',()=>{
+  const opaque="'use strict';module.exports=({get length(){return function secretSource(){return 1;}}}).length+'!';";
+  assert.equal(observesFunctionSource(parse(opaque,'commonjs')),true);
+  const withSpread="'use strict';const f=function secretSource(){return 1;};module.exports=[...f].length+'!';";
+  assert.equal(observesFunctionSource(parse(withSpread,'commonjs')),true);
+});
