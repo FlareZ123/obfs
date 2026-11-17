@@ -35,7 +35,9 @@ function median(values){
 
 /** @param {import('node:http').Server} server @returns {Promise<string>} */
 async function listen(server){
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const ready=new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await ready;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Unexpected listener address');
   return 'http://127.0.0.1:'+address.port;
@@ -43,7 +45,9 @@ async function listen(server){
 
 /** @param {import('node:http').Server} server @returns {Promise<void>} */
 async function close(server){
-  await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  /** @type {Promise<void>} */
+  const ended=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  await ended;
 }
 
 /**
