@@ -150,6 +150,23 @@ function collectImportedFunctionArrays(files) {
     }
     const arrays=new Set();
     /**
+     * Direct inline mappers can return a function even when the mapped input
+     * array is known to contain only primitives.
+     * @param {AstNode|null|undefined} node
+     * @param {number} depth
+     * @returns {boolean}
+     */
+    function mapperReturnsFunction(node,depth) {
+      if(!node||depth>32||
+         !['ArrowFunctionExpression','FunctionExpression'].includes(node.type))
+        return false;
+      if(node.body.type==='BlockStatement') {
+        return node.body.body.some((/** @type {AstNode} */ stmt)=>
+          stmt.type==='ReturnStatement'&&hasFunction(stmt.argument,depth+1));
+      }
+      return hasFunction(node.body,depth+1);
+    }
+    /**
      * @param {AstNode|null|undefined} node
      * @param {number} [depth]
      * @returns {boolean}
@@ -169,13 +186,16 @@ function collectImportedFunctionArrays(files) {
         const method=node.callee.computed?staticString(node.callee.property):
           node.callee.property.type==='Identifier'?node.callee.property.name:null;
         if(owner.type==='Identifier'&&owner.name==='Array') {
-          if(method==='from')return hasFunction(node.arguments[0],depth+1);
+          if(method==='from')return hasFunction(node.arguments[0],depth+1)||
+            mapperReturnsFunction(node.arguments[1],depth+1);
           if(method==='of')return node.arguments.some((/** @type {AstNode} */ arg)=>
             hasFunction(arg.type==='SpreadElement'?arg.argument:arg,depth+1));
         }
         if(['slice','concat','filter','map','flat','flatMap','toReversed',
             'toSorted','toSpliced','with'].includes(method??'')) {
           if(hasFunction(owner,depth+1))return true;
+          if(['map','flatMap'].includes(method??'')&&
+             mapperReturnsFunction(node.arguments[0],depth+1))return true;
           const inserted=method==='concat'?node.arguments:
             method==='with'?node.arguments.slice(1):
             method==='toSpliced'?node.arguments.slice(2):[];
