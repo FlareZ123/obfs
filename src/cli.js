@@ -204,7 +204,7 @@ async function assertOutputOutsideInput(root,destination) {
  */
 async function assertNoOutputJunctions(outputRoot,relativeFile) {
   let parent=outputRoot;
-  const directory=path.dirname(relativeFile);
+  const directory=path.dirname(path.normalize(relativeFile));
   if(directory==='.')return;
   for(const part of directory.split(path.sep)) {
     parent=path.join(parent,part);
