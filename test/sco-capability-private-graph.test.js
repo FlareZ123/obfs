@@ -165,10 +165,54 @@ test('SCO closed three-file graph preserves principal-scoped private handle beha
     assert.equal(await facade.close(token),true);
     await assert.rejects(facade.batch(token,inputs.slice(0,1)),
       /Remote operation failed/);
+
+    // Exercise the actual HTTP principal resolver with concurrent requests
+    // through distinct, server-private graph handles. Each principal should
+    // have an independent state counter, even while promises interleave.
+    /** @param {'verified-A'|'verified-B'} principal
+     *  @param {string} method
+     *  @param {unknown[]} args
+     *  @returns {Promise<any>}
+     */
+    async function invoke(principal,method,args){
+      const result=await nativeFetch(origin+'/obfs/rpc',{
+        method:'POST',
+        headers:{'content-type':'application/json',
+          'x-verified-account':principal},
+        body:JSON.stringify({method,args})
+      });
+      assert.equal(result.status,200);
+      const envelope=/** @type {{ok:boolean,value:any}} */(await result.json());
+      assert.equal(envelope.ok,true);
+      return envelope.value;
+    }
+    const [tokenA,tokenB]=await Promise.all([
+      invoke('verified-A',ids.begin,[]),
+      invoke('verified-B',ids.begin,[])
+    ]);
+    assert.match(tokenA,/^[A-Za-z0-9_-]{43}$/u);
+    assert.match(tokenB,/^[A-Za-z0-9_-]{43}$/u);
+    assert.notEqual(tokenA,tokenB);
+    const sameInputA='a'.repeat(32),sameInputB='b'.repeat(32);
+    const invoked=await Promise.all([
+      ...Array.from({length:8},()=>invoke('verified-A',ids.batch,[tokenA,[sameInputA]])),
+      ...Array.from({length:8},()=>invoke('verified-B',ids.batch,[tokenB,[sameInputB]]))
+    ]);
+    const expectedA=Array.from({length:8},(_,counter)=>
+      createHmac('sha256',key).update(String(counter)).update(':')
+        .update(sameInputA).digest('hex')).sort();
+    const expectedB=Array.from({length:8},(_,counter)=>
+      createHmac('sha256',key).update(String(counter)).update(':')
+        .update(sameInputB).digest('hex')).sort();
+    assert.deepEqual(invoked.slice(0,8).map(value=>value[0]).sort(),expectedA);
+    assert.deepEqual(invoked.slice(8).map(value=>value[0]).sort(),expectedB);
+    assert.equal(await invoke('verified-A',ids.close,[tokenA]),true);
+    assert.equal(await invoke('verified-B',ids.close,[tokenB]),true);
     console.log(JSON.stringify({privateModules:3,publicFiles:1,
       privateDependencyPathsDenied:2,unauthenticatedRpcStatus:403,
       crossAccountReplayDenied:true,revokedTokenDenied:true,
-      outputsMatched:inputs.length,verifiedSecretDigestSeal:true,
+      outputsMatched:inputs.length,concurrentPrincipals:2,
+      concurrentOutputsMatched:16,verifiedSecretDigestSeal:true,
       generatedPublicSha256:publicSha256}));
   }finally{
     globalThis.fetch=nativeFetch;
