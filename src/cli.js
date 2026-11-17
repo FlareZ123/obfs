@@ -103,6 +103,9 @@ function readArgs(argv) {
     else throw new TypeError(`Unknown option ${option}`);
   }
   if (!opts.root || !opts.entry) throw new TypeError('Required: --root directory --entry relative-file');
+  if (opts.experimentalStatementFlowCompact && !opts.experimentalStatementFlow) {
+    throw new TypeError('--statement-flow-compact requires --statement-flow relative-file:functionName');
+  }
   if (!Number.isInteger(opts.port) || opts.port<1 || opts.port>65535) throw new TypeError('Invalid port');
   return opts;
 }
