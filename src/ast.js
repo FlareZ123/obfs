@@ -2059,7 +2059,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
            specifier.imported.name:String(specifier.imported.value))))observed=true;
     if(node.type==='ImportExpression') {
       const source=staticString(node.source);
-      if(source===null || fileModules.has(source) || loaderModules.has(source))observed=true;
+      if(source===null || fileModules.has(source) || loaderModules.has(source) ||
+         ['process','node:process'].includes(source))observed=true;
     }
     if(node.type==='CallExpression' && node.callee.type==='Identifier' &&
        node.callee.name==='require' && node.arguments[0]) {

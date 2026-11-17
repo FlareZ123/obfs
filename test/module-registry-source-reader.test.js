@@ -432,3 +432,36 @@ test('benign named process env reexport retains private-field rewrite yield',()=
     properties:true});
   assert.equal(emitted.files[0].metrics.properties,1);
 });
+
+for(const source of ['process','node:process']) {
+  test('dynamic import of '+source+' exposes native process filesystem capability',async()=>{
+    const code="(async()=>{\n"+
+      "const {getBuiltinModule:load}=await import("+JSON.stringify(source)+");\n"+
+      "const fs=load('node:fs');\n"+
+      'const privateObject={secretField:31};\n'+
+      "const bytes=fs.readFileSync(__filename,'utf8');\n"+
+      "console.log(privateObject.secretField,bytes.includes('secret'+'Field'));\n"+
+      "})().catch(error=>{console.error(error);process.exitCode=1;});\n";
+    /** @type {Source[]} */
+    const files=[{path:'dynamic.cjs',sourceType:'commonjs',code}];
+    const native=await execute(files,'dynamic.cjs');
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'31 true\n');
+    assert.equal(observesDistributedSource(parse(code,'commonjs')),true);
+    const output=obfuscateFiles(files,{mode:'sno',strings:true,
+      identifiers:true,properties:true,seed:'dynamic-node-process/'+source});
+    assert.equal(output.files[0].code,code);
+    assert.deepEqual(await execute(output.files,'dynamic.cjs'),native);
+  });
+}
+
+test('benign dynamic import of node:os keeps transformable private record',()=>{
+  const code="async function f(){const os=await import('node:os');return os.platform()}\n"+
+    'const state={secretField:31};console.log(state.secretField);\n';
+  assert.equal(observesDistributedSource(parse(code,'commonjs')),false);
+  const transformed=obfuscateFiles([
+    {path:'safe.cjs',sourceType:'commonjs',code}
+  ],{mode:'sno',seed:'benign-dynamic-os',strings:false,identifiers:false,
+    properties:true});
+  assert.equal(transformed.files[0].metrics.properties,1);
+});
