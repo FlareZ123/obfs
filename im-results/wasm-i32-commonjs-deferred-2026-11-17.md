@@ -35,7 +35,7 @@ The three-way cost result has a specific interpretation: deferred compiling unus
 
 ## Follow-up
 
-- Preserve the earlier pinned green reference for the temporary SNO integration switch, and obtain a fresh pinned green gate showing that the switch has been withdrawn while the default eager behavior and CSP checks remain correct.
+- Preserve the completed exact-SHA Linux/Windows/Chromium green gate after withdrawal. Consider prospective budget-aware backend design only if it improves measured protection with a defensible runtime guarantee.
 - Add direct first-use and repeated-call tests for multi-parameter, unsigned-shift and transformed exported function references; compare preserved results.
 - Test deployment-shaped SNO whole-session cost, with explicit separation of eligible server initialization from charged runtime.
 - Do not claim this improves static reconstruction, runtime extraction, tamper resistance, or lock integrity; all those axes require separate attacker evidence.
@@ -56,7 +56,7 @@ The earlier 'cold session' benchmark included module parsing/evaluation, which S
 
 Every one of the **21 paired ratios** in each 1-call and 16-call configuration exceeded 2.5×; for 256 calls, **19–21** pairs exceeded. All 65,536-call paired ratios were below 2.5× in these selected samples. At 4,096 calls, some configurations and samples exceeded, so a simple call-count crossover cannot be globally declared. Short process-clock samples have measurement noise and JIT/host variability, but the repeated large violation across independent runner platforms is a strong falsifier for this selected configuration, within the stated benchmark boundaries.
 
-**Candidate decision: reject deferred CommonJS compilation for unbounded SNO deployments under the hard 2.5× runtime ceiling.** This experiment provides **no security benefit** compared to eager compilation, while delaying work into charged runtime. The previously exposed public CLI/group API opt-in was **removed**. Default eager compilation remains the deployment baseline, and callers cannot accidentally select the failed variant using normal SNO entry points. Retain the alternative implementation and sample evidence in `im-results/` for engineering research; do not present cold-start savings as an SNO runtime-budget pass. Independent whole-application and long-run evidence would be needed before any context-specific positive choice.
+**Candidate decision: reject deferred CommonJS compilation for unbounded SNO deployments under the hard 2.5× runtime ceiling.** This experiment provides **no security benefit** compared to eager compilation, while delaying work into charged runtime. The previously exposed public CLI/group API opt-in was **removed**. Its withdrawal and unchanged SNO eager default are validated in [fully green Windows/Ubuntu/Chromium focused run 44104667608](https://github.com/FlareZ123/obfs/actions/runs/44104667608), exact SHA `24028af016421ad63c055496900de3481faffe8b`. The source-only clone regression, both strict JSDoc gates, and actual CSP-denial browser test also passed. Default eager compilation remains the deployment baseline, and callers cannot accidentally select the failed variant using normal SNO entry points. Retain the alternative implementation and sample evidence in `im-results/` for engineering research; do not present cold-start savings as an SNO runtime-budget pass. Independent whole-application and long-run evidence would be needed before any context-specific positive choice.
 
 ## Additional static-adversary control
 
