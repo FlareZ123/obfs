@@ -19,26 +19,6 @@ function makeSource(count) {
 }
 
 /**
- * Reconstruct the compiler's prior CommonJS eager helper form from the exact
- * same public Wasm bytes and source. The regex is deliberately constrained
- * to generated helper declarations; refuse any incomplete substitution.
- * @param {string} code
- * @param {number} count
- * @returns {string}
- */
-function eagerControl(code,count) {
-  let matches=0;
-  const eager=code.replace(
-    /function (_wi_[0-9a-f]+)\(([^)]*)\)\{\1=([^;]+);return \1\(\2\);\}/gu,
-    (_text,name,_parameters,initializer)=>{
-      matches++;
-      return 'const '+name+'='+initializer+';';
-    });
-  assert.equal(matches,count,'Control must replace every generated lazy helper');
-  return eager;
-}
-
-/**
  * Compile, evaluate, and invoke a fresh CommonJS session.
  * @param {string} source
  * @returns {{ms:number,fn:(x:number)=>number,answer:number}}
@@ -62,14 +42,18 @@ function warmWork(fn,count) {
 for(const count of [1,8,24]) {
   const native=makeSource(count);
   const names=Array.from({length:count},(_,i)=>'f'+i);
-  const built=lowerWasmI32Functions(native,'commonjs',{
-    seed:'commonjs-lazy-cost-'+count,names
+  const baseOptions={seed:'commonjs-lazy-cost-'+count,names};
+  const eager=lowerWasmI32Functions(native,'commonjs',baseOptions);
+  const lazy=lowerWasmI32Functions(native,'commonjs',{
+    ...baseOptions,deferCommonJsInitialization:true
   });
-  assert.equal(built.functions,count);
+  assert.equal(eager.functions,count);
+  assert.equal(lazy.functions,count);
+  assert.equal(eager.wasmBytes,lazy.wasmBytes);
   const variants={
     native,
-    lazy:built.code,
-    eager:eagerControl(built.code,count)
+    lazy:lazy.code,
+    eager:eager.code
   };
   const results={
     native:/** @type {number[]} */([]),
@@ -100,7 +84,7 @@ for(const count of [1,8,24]) {
   console.log(JSON.stringify({
     compiler:'wasm-i32-commonjs-deferred',
     count,sourceBytes:Buffer.byteLength(native),
-    lazyBytes:Buffer.byteLength(built.code),eagerBytes:Buffer.byteLength(variants.eager),
+    lazyBytes:Buffer.byteLength(lazy.code),eagerBytes:Buffer.byteLength(variants.eager),
     coldMedianMs:{
       native:median(results.native),
       eager:median(results.eager),
