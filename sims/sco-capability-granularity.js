@@ -43,9 +43,11 @@ function inputs(count){
  *
  * @param {Mode} mode
  * @param {Uint8Array} symbols
+ * @param {number} [passes]
  * @returns {Promise<Sample>}
  */
-async function sample(mode,symbols){
+async function sample(mode,symbols,passes=1){
+  assert.ok(Number.isSafeInteger(passes)&&passes>=1);
   let elapsedMs=0;
   let cpuMs=0;
   let checksum=0;
@@ -55,9 +57,11 @@ async function sample(mode,symbols){
     const start=hrtime.bigint();
     const cpuStart=cpuUsage();
     if(mode==='native'){
-      for(const symbol of symbols)checksum+=step(state,symbol);
+      for(let pass=0;pass<passes;pass++)for(const symbol of symbols){
+        checksum+=step(state,symbol);
+      }
     }else if(mode==='per-step'){
-      for(const symbol of symbols){
+      for(let pass=0;pass<passes;pass++)for(const symbol of symbols){
         checksum+=handles.use(token,record=>
           step(/** @type {StateRecord} */ (record),symbol));
       }
@@ -65,7 +69,9 @@ async function sample(mode,symbols){
       checksum=handles.use(token,record=>{
         let sum=0;
         const state=/** @type {StateRecord} */ (record);
-        for(const symbol of symbols)sum+=step(state,symbol);
+        for(let pass=0;pass<passes;pass++)for(const symbol of symbols){
+          sum+=step(state,symbol);
+        }
         return sum;
       });
     }
@@ -74,7 +80,9 @@ async function sample(mode,symbols){
     elapsedMs=Number(hrtime.bigint()-start)/1e6;
     if(token)assert.equal(handles.revoke(token),true);
   });
-  assert.ok(elapsedMs>0&&cpuMs>0);
+  assert.ok(elapsedMs>0);
+  // Windows can report zero CPU ticks for short warm-up intervals. Keep
+  // the measurement, and classify any unresolved timed pair explicitly.
   return {mode,elapsedMs,cpuMs,checksum};
 }
 
@@ -96,24 +104,34 @@ async function run(repeats=6){
   for(const count of [200000,1000000]){
     const symbols=inputs(count);
     let stepOverBudget=0,sessionOverBudget=0;
+    let stepUnresolved=0,sessionUnresolved=0;
     let stepMax=0,sessionMax=0;
+    const passes=count===200000?100:20;
     for(let trial=0;trial<repeats;trial++){
       const order=/** @type {Mode[]} */ (
         [modes[trial%3],modes[(trial+1)%3],modes[(trial+2)%3]]);
       /** @type {Partial<Record<Mode,Sample>>} */const outcomes={};
-      for(const mode of order)outcomes[mode]=await sample(mode,symbols);
+      for(const mode of order)outcomes[mode]=await sample(mode,symbols,passes);
       const native=/** @type {Sample} */ (outcomes.native);
       const perStep=/** @type {Sample} */ (outcomes['per-step']);
       const perSession=/** @type {Sample} */ (outcomes['per-session']);
       assert.equal(native.checksum,perStep.checksum);
       assert.equal(native.checksum,perSession.checksum);
-      const perStepRatio=perStep.cpuMs/native.cpuMs;
-      const perSessionRatio=perSession.cpuMs/native.cpuMs;
-      if(perStepRatio>2.5)stepOverBudget++;
-      if(perSessionRatio>2.5)sessionOverBudget++;
-      stepMax=Math.max(stepMax,perStepRatio);
-      sessionMax=Math.max(sessionMax,perSessionRatio);
-      const record={count,trial,order,
+      const perStepRatio=native.cpuMs>0&&perStep.cpuMs>0 ?
+        perStep.cpuMs/native.cpuMs : null;
+      const perSessionRatio=native.cpuMs>0&&perSession.cpuMs>0 ?
+        perSession.cpuMs/native.cpuMs : null;
+      if(perStepRatio===null)stepUnresolved++;
+      else{
+        if(perStepRatio>2.5)stepOverBudget++;
+        stepMax=Math.max(stepMax,perStepRatio);
+      }
+      if(perSessionRatio===null)sessionUnresolved++;
+      else{
+        if(perSessionRatio>2.5)sessionOverBudget++;
+        sessionMax=Math.max(sessionMax,perSessionRatio);
+      }
+      const record={count,passes,executedSteps:count*passes,trial,order,
         nativeMs:native.elapsedMs,
         perStepMs:perStep.elapsedMs,
         perSessionMs:perSession.elapsedMs,
@@ -123,8 +141,10 @@ async function run(repeats=6){
       records.push(record);
       console.log(JSON.stringify(record));
     }
-    const result={count,repeats,stepOverBudget,sessionOverBudget,
-      stepMaxRatio:stepMax,sessionMaxRatio:sessionMax};
+    const result={count,passes,executedSteps:count*passes,repeats,
+      stepOverBudget,sessionOverBudget,stepUnresolved,sessionUnresolved,
+      stepMaxRatio:stepUnresolved===repeats?null:stepMax,
+      sessionMaxRatio:sessionUnresolved===repeats?null:sessionMax};
     summary.push(result);
     console.log(JSON.stringify({summary:result}));
   }
