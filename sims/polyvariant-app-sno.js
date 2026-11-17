@@ -234,7 +234,7 @@ function median(values){
  * @param {number} [rounds]
  * @returns {Promise<SnoSessionProfile[]>}
  */
-async function profile(rounds=7){
+async function profile(rounds=13){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
     throw new RangeError('SNO profile requires 5 through 100 paired trials');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-polyvariant-sno-profile-'));
