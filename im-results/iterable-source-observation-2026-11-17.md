@@ -54,6 +54,46 @@ Exact source and reproduction:
 - `.github/workflows/manual-array-source-coercion.yml` runs the tests on
   Ubuntu and Windows Node 22 with `npm run typecheck`.
 
+## Callback and iterator-binding extensions
+
+The collection iterator proof now follows functions through local
+`for (const value of iterable)` bindings and direct
+`collection.forEach(value => ...)` parameters, including exported
+collections. This matters because a function may enter a new
+array/Set/Map via a callback after the container construction.
+
+- [Pinned red run 44005688880](https://github.com/FlareZ123/obfs/actions/runs/44005688880)
+  at `e0753a6f`: 5 negative source-observer tests failed out of 116
+  tests on **each** OS, while 111 passed.
+- [Pinned follow-up 44005831271](https://github.com/FlareZ123/obfs/actions/runs/44005831271)
+  at `81326e8c`: **116/116 functional tests passed** per OS; overall
+  workflow still red due unrelated `src/decoder-safe-reads.js(35,31)`
+  TS2532 JSDoc error, which was addressed separately at `0c8d94ce`.
+- [Pinned full targeted run 44006145477](https://github.com/FlareZ123/obfs/actions/runs/44006145477)
+  at `0c8d94ce`: entire 116-case Ubuntu/Windows behavior and JSDoc
+  gate **green**.
+- [Pinned red run 44006283421](https://github.com/FlareZ123/obfs/actions/runs/44006283421)
+  at `6e9e5da0`: 4 misses when `Map.forEach` passes a function-valued
+  **key** as its second callback argument and `Set.forEach` repeats
+  the function value in its second argument. 117/121 tests passed
+  per OS.
+- [Pinned green run 44006412478](https://github.com/FlareZ123/obfs/actions/runs/44006412478)
+  at `ad7f75e6`: entire expanded Ubuntu/Windows suite green,
+  including strict JSDoc.
+- The next regression expands to the **third callback argument**,
+  which can reference the source collection itself; its separately
+  pinned result must not be inferred from the above.
+
+Sources: [MDN Map iteration semantics](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map)
+documents that keys and values can be arbitrary objects/functions and
+that `Map` iteration produces pairs; `Map#forEach` exposes value,
+key and map arguments. [MDN Map values](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Map/values)
+defines its values iterator. The compiler's tracking is conservative:
+`forEach` second arguments of all known function-bearing collections
+are treated as potentially functions, which can refuse extra safe
+rewrites of ordinary array-index callbacks. This precision limitation
+has not been independently measured.
+
 ## Limits and project implications
 
 The guard favors **preserving native semantics** over transformation yield
