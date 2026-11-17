@@ -36,6 +36,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/statement-flow-browser.js
+      - name: Cross-mode UTF-8 path alias and Unicode namespace safety
+        run: node --test test/utf8-path-alias.test.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Cross-file exported clone-alias ESM differential
