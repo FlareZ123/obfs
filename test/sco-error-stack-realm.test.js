@@ -67,3 +67,37 @@ test('SCO retains stable error messages and unrelated local stack fields',()=>{
     assert.deepEqual(result.privateNames,['privateOp'],body);
   }
 });
+
+
+test('SCO refuses Error.stack through local direct-return factories',()=>{
+  const bodies=[
+    "function make(){return new Error('tag');}return make().stack;",
+    "const make=()=>new Error('tag');return make().stack;",
+    "function make(){const err=new Error('tag');return err;}const err=make();return err.stack;",
+    "const make=()=>new Error('tag');const alias=make;return alias().stack;",
+    "function make(){return new TypeError('tag');}const {stack:trace}=make();return trace;"
+  ];
+  for(const body of bodies){
+    const code='(()=>{'+body+'})()';
+    const client=vm.runInNewContext(code,{}, {filename:'browser-client.mjs'});
+    const server=vm.runInNewContext(code,{}, {filename:'server-private.mjs'});
+    assert.equal(typeof client,'string',body);
+    assert.match(client,/browser-client\.mjs/,body);
+    assert.match(server,/server-private\.mjs/,body);
+    assert.notEqual(client,server,body);
+    assert.throws(()=>partition(body),/realm-local.*stack/i,body);
+  }
+});
+
+test('SCO still admits helpers returning plain stack fields or Error messages',()=>{
+  const bodies=[
+    "function make(){return {stack:'safe'};}return make().stack;",
+    "const make=()=>({stack:'safe'});return make().stack;",
+    "const make=()=>new Error('tag');return make().message;",
+    "const make=()=>new TypeError('tag');const err=make();return err.name;"
+  ];
+  for(const body of bodies){
+    const result=partition(body);
+    assert.deepEqual(result.privateNames,['privateOp'],body);
+  }
+});
