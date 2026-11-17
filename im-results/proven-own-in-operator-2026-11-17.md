@@ -95,6 +95,32 @@ prototype and source-observation controls, strict JSDoc checks, the
 existing Symbol backend tests, the published-only attack, and Ubuntu
 real Chromium. It is the final behavioral pin for this report.
 
+## Actual Chromium ESM and external host surface
+
+The additional `test/property-in-browser.js` runs native, string-key
+renamed and Symbol-key variants of the **same two-file browser ESM
+application** under headless Chromium. A separate page-owned method
+`window.externalBridge.accept` is present before the ESM entry loads.
+All variants compute exactly `[true,7,true,11]`, and the external
+bridge spelling remains verbatim in the generated entry module.
+The string-key variant demonstrably rewrites one private own key,
+including its membership literal, and the Symbol variant creates one
+private symbol. No external host API field is renamed. This is
+browser semantic parity under the supplied page; it is not resistance
+to an instrumented browser that can import every file.
+
+The first Chromium-containing pinned run
+[44128236626](https://github.com/FlareZ123/obfs/actions/runs/44128236626)
+at `0a6598281c7406f1c688406ec68bdfcaf2ac4172`
+**executed Chromium successfully** and printed that result, then
+failed the new browser fixture's JSDoc address narrowing. We fixed
+that type issue without modifying the runtime proof. The subsequent
+[44128613641](https://github.com/FlareZ123/obfs/actions/runs/44128613641)
+at exact `671a287a65c94ec7414d31af98437c4b729aaeb1`
+passed **all steps on Windows and Ubuntu**, including the Chromium
+ESM proof and strict external/base JSDoc. This is the current
+full focused source pin.
+
 ## Runtime and static attacker measurements
 
 `sims/property-in-operator-profile.js` measures the identical
