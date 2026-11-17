@@ -22,6 +22,23 @@ const CASES=[
   {name:'external-numeric-positive',kind:23,renamed:2}
 ];
 
+/**
+ * A real browser has a read-only window self-alias. The Node-native host
+ * fixture replaces globalThis.window, so adapt its dedicated test shim to
+ * install the same API on the existing Window object instead. Apply this
+ * identically to original, emitted and attacker-normalized files.
+ * @param {string} filename
+ * @param {string} source
+ * @returns {string}
+ */
+function browserCode(filename,source) {
+  if(filename!=='host.mjs')return source;
+  const adapted=source.replace(
+    /^globalThis\.window=\{api:(\{.*\})\};$/u,'globalThis.window.api=$1;');
+  assert.notEqual(adapted,source,'Expected the known Node host shim');
+  return adapted;
+}
+
 /** @returns {string} */
 function page() {
   return [
@@ -68,13 +85,13 @@ async function main() {
     assert.equal(attacked.properties,item.renamed,
       item.name+' should normalize every privately renamed public field');
     normalizedPublicFields+=attacked.properties;
-    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,source.code);
+    for(const source of attacked.files)files.set('/'+item.name+'/normalized/'+source.path,browserCode(source.path,source.code));
     for(const source of fixture.files)
-      files.set('/'+item.name+'/original/'+source.path,source.code);
+      files.set('/'+item.name+'/original/'+source.path,browserCode(source.path,source.code));
     for(const source of protectedFiles.files) {
       assert.equal(typeof source.code,'string');
       files.set('/'+item.name+'/emitted/'+source.path,
-        /** @type {string} */(source.code));
+        browserCode(source.path,/** @type {string} */(source.code)));
     }
   }
   const html=page();
