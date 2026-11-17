@@ -128,6 +128,20 @@ test('ESM primitive-only Map.forEach second argument preserves protected work',(
   assert.equal(emitted.files[0].metrics.polyvariantFunctions,1);
 });
 
+
+for(const [name,tail,body] of [
+  ['Set forEach collection argument',
+    'export const values=new Set([protectedSum]);',
+    'values.forEach((v,k,owner)=>console.log(Array.from(owner).join(",")));'],
+  ['Map forEach collection argument',
+    'export const values=new Map([[0,protectedSum]]);',
+    'values.forEach((v,k,owner)=>console.log(Array.from(owner.values()).join(",")));']
+]) {
+  test('ESM '+name+' cannot change protected function text',()=>{
+    assert.throws(()=>protect(graph(tail,body)),/(?:source observation|declined)/i);
+  });
+}
+
 test('ESM imported primitive-only Set and Map permit unrelated protected work',()=>{
   const files=graph(
     'export const values=new Set([1,2,3]);',
