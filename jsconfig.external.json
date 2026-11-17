@@ -59,7 +59,11 @@
     "test/inline-array-primitive-source.test.js",
     "test/inline-array-primitive-fuzz.test.js",
     "test/decoder-array-prototype-chain.test.js",
-    "test/decoder-array-prototype-browser.js"
+    "test/decoder-array-prototype-browser.js",
+    "sims/llm-blind-affine-challenge.js",
+    "sims/blind-affine-public-recovery-matrix.js",
+    "test/llm-blind-affine-challenge.test.js",
+    "test/blind-affine-public-recovery-matrix.test.js"
   ],
   "exclude": [
     "node_modules"
