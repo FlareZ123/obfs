@@ -46,3 +46,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/verified-record-browser.js
+      - name: Real Chromium cross-module owner-field observation differential
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-observation-browser.js
