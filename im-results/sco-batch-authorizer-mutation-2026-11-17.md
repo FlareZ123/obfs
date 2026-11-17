@@ -42,3 +42,36 @@ A local Node 22.16.0 direct check of the superseded iterative algorithm preserve
 ## Reproduction
 
 On a checkout of the test-only commit, run the existing manually dispatched `manual-sco-authorization.yml` workflow or the single Node 22 test file, then repeat on the patched commit. The workflow includes full SCO integration checks, strict JSDoc, and sampled authenticated batch cost. Record exact source SHA, per-OS test counts and any failures before declaring red/green.
+
+## Isolated JSON parsing cost control (provisional, local Node 22.16.0)
+
+The independent-views candidate uses three parses of one validated bounded
+HTTP request, compared with one parse in the original. A reproducible
+parser-only paired workload is committed as
+[`sims/sco-batch-json-parse-cost.js`](../sims/sco-batch-json-parse-cost.js)
+at `1e808f653cb20ee8952b095cf5972a99abadcf54`. An equivalent Node 22.16.0
+local in-process run used 13 alternating-order sample pairs at 300 parsed
+requests per trial, with four untimed warmup pairs for each selected payload.
+It checked the consumed call count and retained exact timing rows in the
+execution output; this report presents rounded summaries.
+
+| Calls per request | JSON bytes | 1-parse median / 300 requests (ms) | 3-parse median (ms) | Median paired slowdown | 95% one-sided upper rank-10 ratio |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | 139 | 0.267 | 0.873 | 3.156 | 3.430 |
+| 16 | 1,795 | 2.382 | 7.474 | 3.172 | 3.331 |
+| 64 | 7,123 | 9.064 | 27.142 | 3.000 | 3.124 |
+
+The upper rank-10 bound assumes independent identically distributed
+continuous paired ratios, an assumption the hot single-process run does not
+establish because of shared CPU drift and garbage collection. All three
+selected parser-only medians exceed 2.5x, as expected from additional parsing.
+**This is not a full SCO slowdown measurement**: it excludes HTTP transport,
+authorization policy work, protected operations and response serialization.
+The absolute added parse cost is small in these selected 300-request batches,
+but high-frequency trivial operations already violate the project's full
+2.5x budget in prior independent SCO release tests. No unconditional latency
+or cost claim should accompany this correctness fix.
+
+The trusted server and authenticated RPC interfaces remain a distinct
+threat model from arbitrary client-side static extraction; these samples do
+not evaluate obfuscation secrecy or instrumentation resistance.
