@@ -2218,6 +2218,55 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(literal!==null)return literal;
     return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
   }
+  // Resolve imported or local immutable computed document keys only after
+  // verifying their lexical bindings. This does not assume that an external
+  // Window or Document method is unmodified.
+  let documentChanged;
+  do {
+    documentChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator' && node.id.type==='Identifier' ?
+        node.id : node.type==='AssignmentExpression' && node.operator==='=' &&
+          node.left.type==='Identifier' ? node.left : null;
+      const initial=node.type==='VariableDeclarator' ? node.init :
+        node.type==='AssignmentExpression' ? node.right : null;
+      if(binding?.type==='Identifier' && initial?.type==='MemberExpression' &&
+         initial.object.type==='Identifier' && globals.has(initial.object.name) &&
+         (initial.computed ? knownKey(initial.property) :
+           initial.property.type==='Identifier' ? initial.property.name : null)==='document' &&
+         !documentRoots.has(binding.name)) {
+        documentRoots.add(binding.name);
+        documentChanged=true;
+      }
+      if(binding?.type==='Identifier' && initial?.type==='Identifier' &&
+         documentRoots.has(initial.name) && !documentRoots.has(binding.name)) {
+        documentRoots.add(binding.name);
+        documentChanged=true;
+      }
+      const pattern=node.type==='VariableDeclarator' ? node.id :
+        node.type==='AssignmentExpression' && node.operator==='=' ? node.left : null;
+      if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
+         globals.has(initial.name)) {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const field=property.computed ? knownKey(property.key) :
+            property.key.type==='Identifier' ? property.key.name : staticString(property.key);
+          if(field==='document' && !documentRoots.has(property.value.name)) {
+            documentRoots.add(property.value.name);
+            documentChanged=true;
+          }
+        }
+      }
+    });
+  }while(documentChanged);
+  /** @param {AstNode} receiver @returns {boolean} */
+  function isDocumentRoot(receiver) {
+    if(receiver.type==='Identifier')return documentRoots.has(receiver.name);
+    if(receiver.type!=='MemberExpression'||receiver.object.type!=='Identifier'||
+       !globals.has(receiver.object.name))return false;
+    return (receiver.computed ? knownKey(receiver.property) :
+      receiver.property.type==='Identifier' ? receiver.property.name : null)==='document';
+  }
   /** @param {string} receiver @param {string|null} key @returns {boolean} */
   function canReachLoader(receiver,key) {
     return requireRoots.has(receiver) &&
