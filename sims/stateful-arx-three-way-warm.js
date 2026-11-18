@@ -41,7 +41,7 @@ async function runThreeWayWarmBudget(trials=9){
   };
   /** @type {unknown[]} */
   const scenarios=[];
-  for(const [count,repetitions] of [[1,1000],[50,150],[1000,20],[10000,3]]){
+  for(const [count,repetitions] of [[1,50000],[50,600],[1000,30],[10000,3]]){
     const records=recordsFor(count);
     /** @param {App} app @returns {{cpuMs:number,bytes:number,callbacks:number}} */
     function measure(app){
@@ -71,6 +71,8 @@ async function runThreeWayWarmBudget(trials=9){
       assert.ok(sample.native&&sample.minified&&sample.wasm);
       assert.equal(sample.minified.bytes,sample.native.bytes);
       assert.equal(sample.wasm.bytes,sample.native.bytes);
+      for(const measured of [sample.native,sample.minified,sample.wasm])
+        assert.ok(measured.cpuMs>0,'CPU sample beneath Windows timer resolution');
       rows.push({native:sample.native.cpuMs,
         minified:sample.minified.cpuMs,wasm:sample.wasm.cpuMs});
     }
