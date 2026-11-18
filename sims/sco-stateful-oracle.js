@@ -9,6 +9,7 @@ const {performance} = require('node:perf_hooks');
 const {pathToFileURL} = require('node:url');
 const {createScoHandler, partitionScoAsyncModule, bindScoModuleExports} = require('../src');
 const {atomicWrite} = require('../src/atomic');
+const {learnAdaptiveMealy} = require('./sco-adaptive-mealy');
 
 /** @typedef {{reset:()=>Promise<boolean>,step:(symbol:number)=>Promise<number>}} StateOracle */
 /** @typedef {{next:number[][],output:number[][]}} PrivateMachine */
@@ -193,11 +194,12 @@ function learnedTrace(machine, word) {
  * Attack through the actual emitted SCO proxy and authenticated HTTP handler.
  * The server's private module is never passed to learnMachine.
  * @param {number} index
+ * @param {boolean} [adaptive] Use bounded adaptive active learning.
  * @returns {Promise<{index:number,learnedStates:number,requests:number,experiments:number,
  *   heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
  *   sourceDisclosed:boolean,unauthorizedStatus:number,elapsedMs:number}>}
  */
-async function scenario(index) {
+async function scenario(index,adaptive=false) {
   const secret = makeMachine((0x5f7a2b31 + Math.imul(index, 7919)) >>> 0);
   const canary = 'private-fsm-canary-' + index;
   const source = [
@@ -256,7 +258,14 @@ async function scenario(index) {
       ...options,headers:{...options?.headers,cookie:'session=legitimate'}
     });
     const api = /** @type {StateOracle} */ (await import(pathToFileURL(publicFile).href));
-    const learned = await learnMachine(api);
+    const sampled = adaptive ? await learnAdaptiveMealy(api,
+      {maxStates:4,alphabetSize:2,conformanceDepth:6,randomProbes:256}) : null;
+    if(sampled)assert.equal(sampled.conformancePassed,true);
+    const learned=sampled===null ? await learnMachine(api) : {
+      machine:sampled.machine,requests:sampled.requests+sampled.steps,
+      experiments:sampled.experiments,trainingWords:sampled.trainingWords,
+      elapsedMs:sampled.elapsedMs
+    };
     assert.equal(learned.machine.access.length,4);
     let heldout = 0;
     let strictlyUnseen=0;
