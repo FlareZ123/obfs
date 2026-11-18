@@ -1,39 +1,57 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {workerData,parentPort}=require('node:worker_threads');
+const fs=require('node:fs');
 
 /** @typedef {{phase:'ready'|'result'|'error',
- *  submittedNs?:string,elapsedMs?:number,status?:number,
- *  outputs?:string[],error?:string}} WorkerReply */
+ * submittedNs?:string,elapsedMs?:number,status?:number,
+ * outputs?:string[],error?:string}} ChildReply */
 
-/** @returns {Promise<void>} */
-async function main(){
-  assert.ok(parentPort);
-  const data=/** @type {{base:string,token:string,inputs:string[],barrier:SharedArrayBuffer}} */(workerData);
-  const state=new Int32Array(data.barrier);
-  parentPort.postMessage(/** @type {WorkerReply} */({phase:'ready'}));
-  // On another thread, this is independent of the main HTTP server event
-  // loop. The parent signals immediately before A's synchronous private work.
-  const wait=Atomics.wait(state,0,0,120000);
-  assert.equal(wait,'ok','Hostile load never entered its private batch');
-  const began=process.hrtime.bigint();
-  const response=await fetch(data.base+'/obfs/rpc',{
-    method:'POST',
-    headers:{'content-type':'application/json',cookie:'session='+data.token},
-    body:JSON.stringify({method:'batch',args:[0,data.inputs]})
-  });
-  const payload=/** @type {{ok?:boolean,value?:string[]}} */(await response.json());
-  const elapsedMs=Number(process.hrtime.bigint()-began)/1e6;
-  parentPort.postMessage(/** @type {WorkerReply} */({
-    phase:'result',submittedNs:began.toString(),elapsedMs,
-    status:response.status,outputs:payload.value
-  }));
+/** @param {ChildReply} message @returns {void} */
+function send(message){
+  assert.equal(typeof process.send,'function');
+  process.send(message,()=>{if(message.phase!=='ready')process.disconnect?.();});
 }
 
-main().catch(error=>{
-  parentPort?.postMessage(/** @type {WorkerReply} */({
-    phase:'error',error:error instanceof Error?error.stack:String(error)
-  }));
+/** @returns {Promise<void>} */
+async function submit(){
+  const base=process.argv[2],token=process.argv[3],
+    signalPath=process.argv[4],raw=process.argv[5];
+  assert.ok(base&&token&&signalPath&&raw);
+  const inputs=/** @type {string[]} */(JSON.parse(raw));
+  assert.equal(inputs.length,16);
+  send({phase:'ready'});
+  // Independent Node child can submit a B HTTP request while the trusted
+  // main server event loop executes A's synchronous HMAC on another process.
+  // The single parent synchronously renames a tiny signal file only when
+  // its private A batch has entered, before performing any HMAC work.
+  await new Promise((resolve,reject)=>{
+    const started=Date.now();
+    const poll=setInterval(()=>{
+      if(fs.existsSync(signalPath)){
+        clearInterval(poll);
+        resolve(undefined);
+      }else if(Date.now()-started>30000){
+        clearInterval(poll);
+        reject(new Error('Attacker A did not enter its private batch'));
+      }
+    },1);
+  });
+  const began=process.hrtime.bigint();
+  const response=await fetch(base+'/obfs/rpc',{
+    method:'POST',
+    headers:{'content-type':'application/json',cookie:'session='+token},
+    body:JSON.stringify({method:'batch',args:[0,inputs]})
+  });
+  const payload=/** @type {{ok?:boolean,value?:string[]}} */(await response.json());
+  send({
+    phase:'result',submittedNs:began.toString(),
+    elapsedMs:Number(process.hrtime.bigint()-began)/1e6,
+    status:response.status,outputs:payload.value
+  });
+}
+
+submit().catch(error=>{
+  send({phase:'error',error:error instanceof Error?error.stack:String(error)});
   process.exitCode=1;
 });
