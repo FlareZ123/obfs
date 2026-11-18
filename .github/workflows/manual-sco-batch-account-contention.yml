@@ -35,6 +35,14 @@ jobs:
         env:
           OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative-${{ runner.os }}.json
         run: node sims/sco-batch-cross-account-contention.js --cooperative
+      - name: Sweep 8-item cooperative server yields under identical account load
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative8-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --yield-every=8
+      - name: Sweep 1-item cooperative server yields under identical account load
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative1-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --yield-every=1
       - name: Retain exact two-account control and cooperative timing evidence
         uses: actions/upload-artifact@v4
         with:
@@ -42,4 +50,6 @@ jobs:
           path: |
             sco-batch-contention-${{ runner.os }}.json
             sco-batch-cooperative-${{ runner.os }}.json
+            sco-batch-cooperative8-${{ runner.os }}.json
+            sco-batch-cooperative1-${{ runner.os }}.json
           if-no-files-found: error
