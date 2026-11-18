@@ -166,7 +166,9 @@
     "sims/private-in-immediate-cold.js",
     "sims/private-in-onefile-cold.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "sims/stateful-arx-minifier-control.js",
+    "test/stateful-arx-minifier-control.test.js"
   ],
   "exclude": [
     "node_modules"
