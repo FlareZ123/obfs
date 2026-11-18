@@ -47,7 +47,7 @@ function liftStatefulArxApp(publishedKernelPath){
       const message=String(record.kind)+':'+String(record.payload);
       const units=Uint16Array.from({length:message.length},
         (_,index)=>message.charCodeAt(index));
-      const next=lifted.run(words,units,codeUnits);
+      const next=lifted.run(Array.from(words),units,codeUnits);
       for(let index=0;index<4;index++)words[index]=next[index]>>>0;
       codeUnits+=message.length;
       serial++;
