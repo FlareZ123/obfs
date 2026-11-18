@@ -35,7 +35,10 @@ function hasCssDataImport(code) {
     }
     // WHATWG URL parsing drops tab/newline anywhere in a URL. CSS-tree has
     // already decoded escapes in the URL and quoted-string token values.
-    const normalized=first.value.replace(/[\t\r\n]/gu,'').trimStart().toLowerCase();
+    // WHATWG also strips leading ASCII C0 controls and spaces (U+0000..U+0020).
+    // CSS hex escapes can produce these bytes inside otherwise valid URLs.
+    const normalized=first.value.replace(/[\t\r\n]/gu,'')
+      .replace(/^[\x00-\x20]+/u,'').trimStart().toLowerCase();
     if(normalized.startsWith('data:'))unaudited=true;
   });
   return unaudited;
