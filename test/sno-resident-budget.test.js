@@ -44,11 +44,18 @@ test('resident SNO profile executes real protected work and verifies every outpu
     assert.equal(row.allOutputsEquivalent,true);
     assert.equal(row.nativeMs.length,5);
     assert.equal(row.snoMs.length,5);
+    assert.equal(row.nativeCpuMs.length,5);
+    assert.equal(row.snoCpuMs.length,5);
     assert.equal(row.budget.samplePairs,5);
+    assert.equal(row.cpuBudget.samplePairs,5);
     assert.equal(row.strictOverBudgetPairs,
       row.nativeMs.filter((ms,index)=>row.snoMs[index]>2.5*ms).length);
+    assert.equal(row.strictCpuOverBudgetPairs,
+      row.nativeCpuMs.filter((ms,index)=>row.snoCpuMs[index]>2.5*ms).length);
     assert.ok(row.budget.observedPairsWithinBudget<=5);
     assert.ok(row.nativeMs.every(ms=>ms>0));
     assert.ok(row.snoMs.every(ms=>ms>0));
+    assert.ok(row.nativeCpuMs.every(ms=>ms>0));
+    assert.ok(row.snoCpuMs.every(ms=>ms>0));
   }
 });
