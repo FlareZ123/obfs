@@ -1671,7 +1671,13 @@ function createScoSelectedHandler(partition,serverExports,options) {
   // Capture caller option getters exactly once before comparing the RPC
   // endpoint. The transport must not see a different routePrefix during
   // handler construction from the value used for the endpoint check.
+  // Object spread discards inherited and non-enumerable routePrefix values.
+  // It already reads an own enumerable getter exactly once; recover only
+  // the omitted route without invoking that getter a second time.
   const stableOptions={...options};
+  if(!Object.hasOwn(stableOptions,'routePrefix')){
+    stableOptions.routePrefix=options.routePrefix;
+  }
   const snapshot=generatedSelectiveSnapshots.get(partition);
   if(snapshot===undefined){
     throw new TypeError('SCO selective handler requires a partition generated in this process');
