@@ -9,7 +9,7 @@ const {obfuscateFiles}=require('../src');
 const exec=promisify(execFile);
 
 /** @typedef {'coo'|'sco'|'sno'} Mode */
-/** @typedef {'pure'|'captured'} Fixture */
+/** @typedef {'pure'|'captured'|'generic'} Fixture */
 
 /** @type {Record<Fixture,string>} */
 const originals={
@@ -23,7 +23,11 @@ const originals={
     "function observed(){return 'browser-source-observation';}"+
     "const get=Reflect.get;"+
     "with(globalThis.opaqueScope){"+
-    "globalThis.captured=get({known:2},'known');}"
+    "globalThis.captured=get({known:2},'known');}",
+  generic:
+    "function observed(){return 'generic-source-observation';}"+
+    "globalThis.outside='generic-outside-encoded';"+
+    "with(globalThis.opaqueScope){globalThis.captured=inspected;}"
 };
 
 /**
@@ -56,6 +60,7 @@ function browserDocument(scriptUrl) {
     'get(_target,key){',
     'if(key===Symbol.unscopables)return undefined;',
     'if(key==="get")return ()=>globalThis.observed.toString();',
+    'if(key==="inspected")return globalThis.observed.toString();',
     'return ["intercepted-generated-helper"];',
     '}',
     '});',
@@ -78,7 +83,7 @@ async function main() {
   /** @type {{mode:Mode,fixture:Fixture,encoded:number}[]} */
   const cases=[];
   for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
-    for(const fixture of /** @type {const} */ (['pure','captured'])) {
+    for(const fixture of /** @type {const} */ (['pure','captured','generic'])) {
       const source=originals[fixture];
       const output=obfuscateFiles([{
         path:'dynamic.js',sourceType:'script',code:source
@@ -86,8 +91,12 @@ async function main() {
         mode,seed:'browser-with-scope/'+mode+'/'+fixture,
         strings:true,properties:false,identifiers:false
       }).files[0];
-      assert.equal(output.metrics.literals,fixture==='pure'?1:0,
+      assert.equal(output.metrics.literals,fixture==='captured'?0:1,
         'Unexpected string coverage for '+mode+'/'+fixture);
+      if(fixture==='generic') {
+        assert.ok(!String(output.code).includes('generic-outside-encoded'));
+        assert.ok(String(output.code).includes('generic-source-observation'));
+      }
       if(fixture==='pure') {
         assert.ok(!String(output.code).includes('outside-chromium-encoded'),
           'Positive outside-with string remains encoded');
@@ -133,7 +142,9 @@ async function main() {
         });
       } else {
         assert.equal(native.captured,
-          "function observed(){return 'browser-source-observation';}");
+          item.fixture==='generic'?
+            "function observed(){return 'generic-source-observation';}":
+            "function observed(){return 'browser-source-observation';}");
       }
       assert.deepEqual(compiled,native,
         'Real Chromium host scope semantic mismatch in '+item.mode+'/'+item.fixture);
