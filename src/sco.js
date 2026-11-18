@@ -565,7 +565,7 @@ function createScoHandler(sourceFiles,options={}) {
   // caller's options, host array or operation registry cannot silently change
   // which requests and server-resident functions the handler authorizes.
   // Callbacks themselves remain live functions for normal credential rotation.
-  /** @type {ScoOptions} */
+  /** @type {Omit<ScoOptions,'batchPreflightRoutes'> & {batchPreflightRoutes?:ReadonlySet<string>}} */
   const policy={
     // Copy only the request-time policy fields. Spreading the original
     // options would re-read unrelated publication getters such as publicPaths
