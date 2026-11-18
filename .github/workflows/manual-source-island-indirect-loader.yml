@@ -32,11 +32,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/default-browser-frame-source-observer.js --expect-guarded
-      - name: Real Chromium in-module DOM iframe source reader red control
+      - name: Real Chromium in-module DOM iframe source preservation
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/default-browser-frame-source-observer.js --declared-frame --expect-red
+        run: node sims/default-browser-frame-source-observer.js --declared-frame --expect-guarded
       - name: Real Chromium browser string-timer source reader adversary
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
