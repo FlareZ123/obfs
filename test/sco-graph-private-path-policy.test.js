@@ -600,3 +600,39 @@ test('real Node ESM dynamic code evaluators can reach imports omitted from a sta
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('SCO graph refuses inspector protocol evaluation that loads undeclared server modules',async()=>{
+  const inspectorSource=[
+    "import inspector from \"node:inspector\";",
+    "export async function inspect(){",
+    "  const session=new inspector.Session();",
+    "  session.connect();",
+    "  const expression='process.getBuiltinModule(\"module\").createRequire('+JSON.stringify(import.meta.url)+')(\"./hidden.cjs\").secret';",
+    "  return await new Promise((resolve,reject)=>{",
+    "    session.post(\"Runtime.evaluate\",{expression,returnByValue:true},(error,result)=>{",
+    "      session.disconnect();",
+    "      if(error||result.exceptionDetails){reject(error??new Error(\"Inspector evaluation failed\"));return;}",
+    "      resolve(result.result.value);",
+    "    });",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-inspector-loader-'));
+  try{
+    await atomicWrite(path.join(root,'inspector.mjs'),inspectorSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),'module.exports={secret:137};');
+    const original=await import(pathToFileURL(path.join(root,'inspector.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native Inspector can execute hidden CommonJS loader code');
+    for(const specifier of ['node:inspector','node:inspector/promises']){
+      const candidate=inspectorSource.replace('node:inspector',specifier);
+      assert.throws(()=>partitionScoAsyncGraph([{
+        path:'inspector.mjs',code:candidate
+      }],{seed:'sco-inspector-dynamic-loader-20261118',
+        exposedPaths:['inspector.mjs']}),
+      /Private SCO graph cannot certify imports from runtime loader builtin/u);
+    }
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
