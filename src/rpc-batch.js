@@ -50,7 +50,8 @@ function createScoBatchMethod(methods,options={}) {
   /** @param {unknown} calls @returns {boolean} */
   const validCalls=calls=>Array.isArray(calls) && calls.length>0 &&
     calls.length<=maxCalls && !calls.some(call=>!call ||
-      typeof call!=='object' || typeof call.method!=='string' ||
+      typeof call!=='object' || !Object.hasOwn(call,'method') ||
+      !Object.hasOwn(call,'args') || typeof call.method!=='string' ||
       !registry.has(call.method) || !Array.isArray(call.args));
   /** @type {(calls:RpcBatchCall[])=>Promise<RpcBatchResult[]>} */
   const execute=async calls=>{
