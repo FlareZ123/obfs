@@ -2,7 +2,9 @@
 
 **Evidence type:** reproducible intermediate measurement, not a security result or universal performance certification.
 
-**Exact frozen code:** `00752173f6fe90ab53486753ab9b7d337db55573`. **CI:** [Linux and Windows complete run 44206254480](https://github.com/FlareZ123/obfs/actions/runs/44206254480), both jobs passed. Both used Node.js **22.23.4**. The preceding run 44206070870 failed at its new JSDoc preflight and has no valid runtime evidence; do not combine those source revisions.
+**Latest strengthened CPU-time validation:** exact source `08eee5f05c24be503d561f4c8979a67e8092d598`, [two-platform complete run 44207391012](https://github.com/FlareZ123/obfs/actions/runs/44207391012), Node 22.23.4, **both jobs passed**, 13 pairs in each of eight workload/platform groups, zero observed strict >2.5x **CPU** or wall pairs. Extended samples and CPU-specific limitations are documented in the follow-up below.
+
+**Historical wall-only validation:** Exact frozen code:** `00752173f6fe90ab53486753ab9b7d337db55573`. **CI:** [Linux and Windows complete run 44206254480](https://github.com/FlareZ123/obfs/actions/runs/44206254480), both jobs passed. Both used Node.js **22.23.4**. The preceding run 44206070870 failed at its new JSDoc preflight and has no valid runtime evidence; do not combine those source revisions.
 
 ## Motivation and boundary
 
@@ -45,3 +47,20 @@ node sims/sno-resident-budget.js 13
 ```
 
 The output marker `SNO_RESIDENT_BUDGET` includes native and protected millisecond arrays, paired-median bounds, per-workload strict-pair counts, Node version, and platform. The immutable workflow logs contain the full raw output for both OSes. A separate manual workflow `.github/workflows/manual-sno-resident-budget.yml` is available for replay.
+
+## Follow-up: amplified process CPU time, 18 November 2026 00:24 UTC
+
+The first added `process.cpuUsage()` diagnostic was deliberately not promoted to a result. At source `a3675445f7ed2765318bffee34cd2f93efdfe7a3`, [run 44207194506](https://github.com/FlareZ123/obfs/actions/runs/44207194506) showed two strict Ubuntu CPU-only outliers for short 1-event samples (native process CPU near 1.5 ms), while Windows returned a zero CPU duration and correctly failed the positive-duration test before releasing data. These are timer-resolution and microbatch-stability problems, not validated evidence of a 2.5x repeated-compute violation.
+
+The corrected `sims/sno-resident-budget.js` prolongs actual `runScenario` calls per sample, preserves the same three transformed functions and runtime environment, and measures both monotonic wall time and the process CPU usage around identical synchronous work. The [exact-source Ubuntu and Windows run 44207391012](https://github.com/FlareZ123/obfs/actions/runs/44207391012) at `08eee5f05c24be503d561f4c8979a67e8092d598` passed strict JSDoc, the genuine digest-negative and five-pair real-work tests, and all four 13-pair workloads. The CPU time has millisecond resolution on Windows, so sample durations were deliberately increased into tens of milliseconds or longer.
+
+| Events × calls per sample | Ubuntu CPU median ratio | Ubuntu maximum CPU pair | Windows CPU median ratio | Windows maximum CPU pair |
+| --- | ---: | ---: | ---: | ---: |
+| 1 × 50,000 | 1.2174x | 1.2611x | 1.1596x | 1.4103x |
+| 50 × 2,500 | 1.4603x | 2.2305x | 1.2844x | 1.2936x |
+| 1,000 × 80 | 1.4755x | 1.5134x | 1.3974x | 1.6154x |
+| 10,000 × 5 | 1.5775x | 1.6042x | 1.6596x | 2.2708x |
+
+**Observed CPU result:** **0/104** strict >2.5x paired CPU observations across eight OS/workload groups; every one-sided paired-median CPU diagnostic returned `supported`. The corresponding internal worker elapsed-wall result also had zero strict breaches, with Ubuntu wall median ratios 1.2162/1.4614/1.4821/1.6046 and Windows 1.1371/1.2621/1.3372/1.4098. This is a materially more suitable *compute*-time sample than the earlier millisecond-scale CPU attempt, with persistent limitations from shared-process JIT history, GC, measurement granularity, correlated repeated inputs, finite trial count and lack of adversarial authorization.
+
+**Decision:** retain the two exact-source runs separately. The old wall-only run is reproducible historical context, the failed short CPU run is negative methodological evidence, and the latest amplified CPU+wall run is the strongest current SNO post-init performance evidence. None cancels the demonstrated full-control SNO clone or upgrades the overall release from blocked.
