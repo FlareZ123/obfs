@@ -241,6 +241,24 @@ the evidence. An [exact pre-fix adversarial replay](../im-results/reviewed-opaqu
 reproduced three historical bypasses and their refusal by the changed
 checker on Ubuntu and Windows, with strict JSDoc and 17 regression tests.
 
+The three CLI entrypoints accept `--reviewed-assets <manifest.json>` with an
+independently prepared JSON array of the same records. The file must resolve
+**outside** `--root`, preventing the COO/SNO recursive file scan from
+inadvertently republishing the review manifest itself. COO and SNO validate
+every copied asset; SCO validates the specifically selected public `--asset`
+entries. The CLI reads the approval once at startup and passes it to the same
+programmatic validator. This option is deliberately opt-in, and a publisher
+must independently maintain its review and final deployment byte identity.
+See `test/cli-reviewed-opaque-assets.test.js` for real COO/SNO subprocesses,
+an actual SCO HTTP asset response, stale-hash refusals and bad manifest
+preflight. A targeted Ubuntu/Windows test at
+[commit `035a2db`](https://github.com/FlareZ123/obfs/commit/035a2dbf00e677d27c54864ffb036a29b913bc75)
+passed all CLI and manifest tests and compiler typechecking
+([run 44286470985](https://github.com/FlareZ123/obfs/actions/runs/44286470985));
+its full external JSDoc gate was red from unrelated concurrently modified
+`test/sco-selected-graph.test.js` and `test/sco-selected-handler.test.js`.
+Do not call that run a complete green release gate.
+
 See `test/reviewed-opaque-assets.test.js` and
 `workplace/asset-publication-trust-contract-2026-11-17.md` for a
 source-only encoded canary, manifest refusal, positive safe fixtures, and
