@@ -8,6 +8,7 @@ const http=require('node:http');
 const {fork}=require('node:child_process');
 const {randomBytes,createHash}=require('node:crypto');
 const {Worker}=require('node:worker_threads');
+const {isUtf8}=require('node:buffer');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {createScoHandler,createScoKeyedIsolation,createScoRpcClientSource}=require('../src');
 const {createPrivateMachine}=require('./sco-ratchet-boundary');
@@ -160,11 +161,12 @@ function doResidentWork(worker,start,inputs,signal){
  * is published from inside the A worker at actual private entry.
  * @param {Buffer} root
  * @param {()=>Trial|null} activeTrial
+ * @param {boolean} [conventional] Serve a normal authenticated JSON HTTP endpoint without a generated facade.
  * @returns {{handler:http.RequestListener,grant:(token:string,principal:string)=>void,
  *  ready:()=>Promise<void>,release:(principals:string[])=>Promise<void>,
  *  shutdown:()=>Promise<void>,calls:()=>number}}
  */
-function makeWorkerServer(root,activeTrial){
+function makeWorkerServer(root,activeTrial,conventional=false){
   /** @type {Map<string,string>} */
   const sessions=new Map();
   /** @type {Map<string,PrivateWorkerSession>} */
@@ -182,7 +184,104 @@ function makeWorkerServer(root,activeTrial){
   const isolation=createScoKeyedIsolation(request=>principalOf(request)??'unverified',{
     maxPendingPerPrincipal:16,maxPendingTotal:32
   });
-  const handler=createScoHandler([{
+
+  /**
+   * Shared trusted original worker operation for generated and conventional
+   * transports. This ensures the control compares HTTP admission overhead,
+   * rather than accidentally comparing different private computation.
+   * @param {number} start
+   * @param {string[]} inputs
+   * @returns {Promise<string[]>}
+   */
+  async function workerBatch(start,inputs){
+        const principal=context.getStore();
+        if(typeof principal!=='string')throw new TypeError('Missing session principal');
+        const session=residents.get(principal);
+        if(!session)throw new Error('Trusted resident worker not initialized');
+        const selected=activeTrial();
+        const signal=selected&&principal===selected.aPrincipal&&start===0?
+          selected.signalPath:undefined;
+        const reply=await doResidentWork(session.worker,start,inputs,signal);
+        if(selected&&principal===selected.aPrincipal&&start===0){
+          selected.aStartNs=BigInt(reply.startNs);
+          selected.aEndNs=BigInt(reply.endNs);
+        }
+        next.set(principal,start+inputs.length);
+        executed+=inputs.length;
+        return reply.values;
+  }
+
+  /**
+   * Ordinary authenticated JSON HTTP baseline. It uses exactly the same
+   * trusted resident workers, session registry, per-principal FIFO queue,
+   * original HMAC and input count as the generated transport. It never calls
+   * createScoHandler and does not publish an obfuscated facade.
+   * @type {(request:http.IncomingMessage,response:http.ServerResponse)=>Promise<void>}
+   */
+  const ordinaryHandler=async(request,response)=>{
+    /** @param {number} status @param {object} payload @returns {void} */
+    function reply(status,payload){
+      response.writeHead(status,{'content-type':'application/json; charset=utf-8',
+        'cache-control':'no-store','x-content-type-options':'nosniff'});
+      response.end(JSON.stringify(payload));
+    }
+    if(request.method!=='POST'||request.url!=='/obfs/rpc'){
+      reply(404,{ok:false});return;
+    }
+    const mediaType=String(request.headers['content-type']||'').split(';',1)[0].trim().toLowerCase();
+    if(mediaType!=='application/json'){reply(415,{ok:false});return;}
+    /** @type {Buffer[]} */
+    const chunks=[];
+    let bytes=0;
+    try{
+      for await(const chunk of request){
+        bytes+=chunk.length;
+        if(bytes>65536){reply(413,{ok:false});return;}
+        chunks.push(chunk);
+      }
+    }catch{
+      // A disconnected or malformed request stream must not create an
+      // unobserved rejection from an async Node RequestListener.
+      if(!response.headersSent&&!response.destroyed)reply(400,{ok:false});
+      return;
+    }
+    /** @type {{method?:unknown,args?:unknown}|null} */
+    let body=null;
+    try{
+      const raw=Buffer.concat(chunks);
+      if(!isUtf8(raw))throw new SyntaxError('Invalid UTF-8');
+      body=JSON.parse(raw.toString('utf8'));
+    }catch{
+      reply(400,{ok:false});return;
+    }
+    if(!body||typeof body!=='object'||!Object.hasOwn(body,'method')||
+       !Object.hasOwn(body,'args')||body.method!=='batch'||
+       !Array.isArray(body.args)||body.args.length!==2){
+      reply(400,{ok:false});return;
+    }
+    const start=body.args[0];
+    const inputs=body.args[1];
+    try{
+      await isolation(request,async()=>{
+        const principal=principalOf(request);
+        if(principal===null||!Number.isSafeInteger(start)||
+           start!==(next.get(principal)??0)||!Array.isArray(inputs)||
+           inputs.length<1||inputs.length>64||
+           !inputs.every(value=>typeof value==='string'&&/^[a-f0-9]{64}$/u.test(value))){
+          reply(403,{ok:false});return;
+        }
+        const value=await context.run(principal,()=>workerBatch(
+          /** @type {number} */ (start),
+          /** @type {string[]} */ (inputs)));
+        reply(200,{ok:true,value});
+      });
+    }catch{
+      if(!response.headersSent&&!response.destroyed)reply(500,{ok:false});
+      else response.destroy();
+    }
+  };
+
+  const handler=conventional?ordinaryHandler:createScoHandler([{
     path:'batch.mjs',sourceType:'module',code:createScoRpcClientSource(['batch'])
   }],{
     publicPaths:['batch.mjs'],
@@ -205,23 +304,7 @@ function makeWorkerServer(root,activeTrial){
        * @param {string[]} inputs
        * @returns {Promise<string[]>}
        */
-      batch:async(start,inputs)=>{
-        const principal=context.getStore();
-        if(typeof principal!=='string')throw new TypeError('Missing session principal');
-        const session=residents.get(principal);
-        if(!session)throw new Error('Trusted resident worker not initialized');
-        const selected=activeTrial();
-        const signal=selected&&principal===selected.aPrincipal&&start===0?
-          selected.signalPath:undefined;
-        const reply=await doResidentWork(session.worker,start,inputs,signal);
-        if(selected&&principal===selected.aPrincipal&&start===0){
-          selected.aStartNs=BigInt(reply.startNs);
-          selected.aEndNs=BigInt(reply.endNs);
-        }
-        next.set(principal,start+inputs.length);
-        executed+=inputs.length;
-        return reply.values;
-      }
+      batch:workerBatch
     }
   });
   /** @param {string[]} principals @returns {Promise<void>} */
@@ -250,7 +333,7 @@ function makeWorkerServer(root,activeTrial){
  * per-principal isolation in a single Node event loop. Source A and B keys
  * and principals remain distinct. The child process starts B while trusted
  * Node is synchronously processing A's private HMAC batch.
- * @param {'generated'|'worker'} mode
+ * @param {'generated'|'worker'|'ordinary-worker'} mode
  * @param {number} [trials]
  * @param {number} [firstTrial]
  * @param {Buffer} [root]
@@ -258,7 +341,8 @@ function makeWorkerServer(root,activeTrial){
 async function experiment(mode,trials=7,firstTrial=0,root=randomBytes(32)){
   /** @type {Trial|null} */
   let current=null;
-  const workerBackend=mode==='worker'?makeWorkerServer(root,()=>current):null;
+  const workerBackend=mode==='worker'||mode==='ordinary-worker'?
+    makeWorkerServer(root,()=>current,mode==='ordinary-worker'):null;
   const backend=workerBackend??makeServer(root,0,undefined,
     (principal,start)=>{
       if(!current||principal!==current.aPrincipal||start!==0)return;
@@ -414,7 +498,7 @@ async function experiment(mode,trials=7,firstTrial=0,root=randomBytes(32)){
  * Aggregate independent fresh-server trials into one arm with matched
  * source-original and independent-child B output/timing controls.
  * @param {Array<Awaited<ReturnType<typeof experiment>>>} runs
- * @param {'generated'|'worker'} mode
+ * @param {'generated'|'worker'|'ordinary-worker'} mode
  */
 function aggregate(runs,mode){
   const samples=runs.flatMap(run=>run.samples);
