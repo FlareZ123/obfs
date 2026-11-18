@@ -198,7 +198,9 @@ async function run(rounds=13,compact=false){
     // surrounding stateful session and JSON work in the main application.
     /** @type {ResidentRow[]} */
     const leafRows=[];
-    for(const repeat of [40000000,80000000]){
+    // The compact encoding is fast enough that Windows CPU quantization
+    // needs longer individual samples than the full affine encoding.
+    for(const repeat of compact?[200000000,400000000]:[40000000,80000000]){
       const base=/** @type {Request} */ ({
         id:0,seed:0x4137109d,records:[],mode:'leaves',repeat
       });
