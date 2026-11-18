@@ -21,5 +21,5 @@ jobs:
         run: npx tsc -p jsconfig.sno-resident.json
       - name: Real Chromium CPU clock, multi-module HTTP, exact arithmetic, source reconstruction
         env:
-          CHROMIUM_BIN: google-chrome
+          CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/polyvariant-compact-browser.js
