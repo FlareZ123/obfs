@@ -10,7 +10,7 @@ const {pathToFileURL}=require('node:url');
 const {performance}=require('node:perf_hooks');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
-const {ROOT,EXPOSED}=require('../examples/application-challenge/sco-build.cjs');
+const {ROOT,EXPOSED,build}=require('../examples/application-challenge/sco-build.cjs');
 const {externalValue}=require('../examples/application-challenge/sco-server.cjs');
 const {pairedBudgetBound}=require('./paired-budget-bound');
 
@@ -63,6 +63,9 @@ async function run(rounds=13,stability=false){
   try{
     globalThis.window=/** @type {Window & typeof globalThis} */ (
       /** @type {unknown} */ ({externalValue}));
+    // Verify the same six-file closed private graph before constructing the
+    // batch-enabled public stub. Publication rejects originals by SHA-256.
+    const graph=await build();
     const originalSource=await fs.readFile(path.join(ROOT,EXPOSED),'utf8');
     const partition=partitionScoAsyncModule({
       path:EXPOSED,sourceType:'module',code:originalSource
@@ -85,10 +88,9 @@ async function run(rounds=13,stability=false){
       const received=Buffer.from(String(request.headers['x-batch-token']??''));
       return received.length===expected.length&&timingSafeEqual(received,expected);
     };
-    partition.clientFile.privateModulePaths=[
-      'before/private.mjs','before/reflect.mjs','before/host.mjs',
-      'before/engine.mjs','before/app.mjs'
-    ];
+    partition.clientFile.privateModulePaths=[...graph.privatePaths];
+    partition.clientFile.privateOriginalDigests=graph.privateSourceDigests.map(
+      entry=>entry.sha256);
     const handler=createScoHandler([partition.clientFile],{
       publicPaths:[EXPOSED],
       remoteMethods:registry,
