@@ -2307,29 +2307,133 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(changedWorkerInstances);
+  // Browser global error delivery exposes generated line/column coordinates.
+  // Track straightforward aliases so the source-observer guard cannot be
+  // bypassed merely by rebinding the global target or listener method.
+  const browserErrorTargets=new Set(['globalThis','window','self']);
+  const browserErrorListenerMethods=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBrowserErrorTarget(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      browserErrorTargets.has(node.name) ||
+      node.type==='MemberExpression'&&isGlobal(node.object)&&
+      ['window','self'].includes(memberName(node)??'')));
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isBrowserErrorListenerMethod(node,depth=0) {
+    if(!node||depth>16)return false;
+    if(node.type==='Identifier')return browserErrorListenerMethods.has(node.name);
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(name==='addEventListener'&&isBrowserErrorTarget(node.object))return true;
+      if(['call','apply'].includes(name??''))
+        return isBrowserErrorListenerMethod(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isBrowserErrorListenerMethod(node.callee.object,depth+1);
+    return false;
+  }
+  /** @param {AstNode} property @returns {boolean} */
+  function browserObjectPropertyMayInstallOnerror(property) {
+    if(property.type!=='Property')return true;
+    const name=property.computed?staticString(property.key):
+      property.key.type==='Identifier'?property.key.name:staticString(property.key);
+    return name==='onerror'||name===null;
+  }
+  /** @param {AstNode|null|undefined} source @returns {boolean} */
+  function browserObjectSourceMayInstallOnerror(source) {
+    return Boolean(source && (source.type!=='ObjectExpression' ||
+      /** @type {AstNode[]} */ (source.properties)
+        .some(browserObjectPropertyMayInstallOnerror)));
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function browserErrorListenerCall(node) {
+    if(node.type!=='CallExpression')return false;
+    const callee=node.callee;
+    if(isBrowserErrorListenerMethod(callee)) {
+      if(callee.type==='MemberExpression'&&memberName(callee)==='call')
+        return staticString(node.arguments[1])==='error';
+      if(callee.type==='MemberExpression'&&memberName(callee)==='apply') {
+        const list=node.arguments[1];
+        return Boolean(list?.type==='ArrayExpression'&&
+          staticString(list.elements[0])==='error');
+      }
+      return staticString(node.arguments[0])==='error';
+    }
+    if(isReflectApplyMethod(callee)&&isBrowserErrorListenerMethod(node.arguments[0])) {
+      const list=node.arguments[2];
+      return Boolean(list?.type==='ArrayExpression'&&
+        staticString(list.elements[0])==='error');
+    }
+    return false;
+  }
+  let changedBrowserErrorAliases;
+  do {
+    changedBrowserErrorAliases=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!id||!value)return;
+      if(id.type==='Identifier') {
+        if(isBrowserErrorTarget(value)&&!browserErrorTargets.has(id.name)) {
+          browserErrorTargets.add(id.name);
+          changedBrowserErrorAliases=true;
+        }
+        if(isBrowserErrorListenerMethod(value)&&
+           !browserErrorListenerMethods.has(id.name)) {
+          browserErrorListenerMethods.add(id.name);
+          changedBrowserErrorAliases=true;
+        }
+        return;
+      }
+      if(id.type!=='ObjectPattern'||!isBrowserErrorTarget(value))return;
+      for(const property of id.properties) {
+        if(property.type!=='Property')continue;
+        const binding=property.value.type==='AssignmentPattern'?
+          property.value.left:property.value;
+        if(binding.type!=='Identifier')continue;
+        const name=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(name==='addEventListener'&&
+           !browserErrorListenerMethods.has(binding.name)) {
+          browserErrorListenerMethods.add(binding.name);
+          changedBrowserErrorAliases=true;
+        }
+      }
+    });
+  }while(changedBrowserErrorAliases);
   walk(ast,(node,parent,key)=>{
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
     // callback receives line/column arguments directly; ErrorEvent listeners
     // can read lineno/colno. A later source prefix such as the host-lock guard
     // therefore has to fail closed around these registrations/reads too.
-    if(node.type==='AssignmentExpression' && node.operator==='=' &&
+    if(node.type==='AssignmentExpression' &&
        (node.left.type==='MemberExpression' &&
-          (isGlobal(node.left.object) &&
-             globalErrorHandlerNames.has(memberName(node.left)??'') ||
-           isWorkerInstance(node.left.object) && memberName(node.left)==='onerror') ||
-        node.left.type==='Identifier' && globalErrorHandlerNames.has(node.left.name) &&
-          !bindingCounts.has(node.left.name))) observed=true;
-    if(node.type==='CallExpression' && node.arguments[0] &&
-       (node.callee.type==='MemberExpression' &&
-          memberName(node.callee)==='addEventListener' &&
-          (isGlobal(node.callee.object) &&
-             globalErrorEventNames.has(staticString(node.arguments[0])??'') ||
-           isWorkerInstance(node.callee.object) &&
-             staticString(node.arguments[0])==='error') ||
-        node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
-          !bindingCounts.has('addEventListener') &&
-          globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+          isBrowserErrorTarget(node.left.object) && memberName(node.left)==='onerror' ||
+        node.left.type==='Identifier' && node.left.name==='onerror' &&
+          !bindingCounts.has('onerror'))) observed=true;
+    if(node.type==='CallExpression'&&
+       (browserErrorListenerCall(node) ||
+        node.arguments[0]&&staticString(node.arguments[0])==='error'&&
+        node.callee.type==='Identifier'&&node.callee.name==='addEventListener'&&
+        !bindingCounts.has('addEventListener'))) observed=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const browserMutation=memberName(node.callee);
+      if(isReflectiveReceiver(node.callee.object)&&browserMutation==='set'&&
+         isBrowserErrorTarget(node.arguments[0])&&
+         staticString(node.arguments[1])==='onerror')observed=true;
+      if(isReflectiveReceiver(node.callee.object)&&browserMutation==='defineProperty'&&
+         isBrowserErrorTarget(node.arguments[0])&&
+         staticString(node.arguments[1])==='onerror')observed=true;
+      if(isReflectiveReceiver(node.callee.object)&&browserMutation==='assign'&&
+         isBrowserErrorTarget(node.arguments[0])&&
+         /** @type {AstNode[]} */ (node.arguments.slice(1))
+           .some(browserObjectSourceMayInstallOnerror))observed=true;
+    }
     // Programmatic diagnostic-report triggers can emit a later JavaScript
     // stack without any explicit getReport()/writeReport() call. Conservatively
     // preserve the source whenever code writes one of the enabling switches.
