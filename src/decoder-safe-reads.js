@@ -48,6 +48,10 @@ function provenLocalReflectGetCaptures(ast) {
     candidate=>candidate.capture.object));
   let ambiguousReflect=false;
   walk(ast,node=>{
+    // Non-strict `with` introduces an opaque environment record. Its own
+    // `get` property can shadow an otherwise immutable lexical capture at
+    // the call site, invalidating the native-Reflect.get proof.
+    if(node.type==='WithStatement')ambiguousReflect=true;
     if(node.type==='Identifier'&&node.name==='Reflect'&&!trustedReceivers.has(node)) {
       ambiguousReflect=true;
     }
