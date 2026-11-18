@@ -32,6 +32,8 @@ jobs:
         run: node --test test/decoder-array-prototype-chain.test.js
       - name: Fuzz primitive inline-array eligibility and independent decoder reconstruction
         run: node --test test/inline-array-primitive-fuzz.test.js
+      - name: Strip lexical anti-LLM cues and prove corpus semantics
+        run: node --test test/anti-llm-lexical-sanitizer.test.js && node sims/anti-llm-lexical-sanitizer.js
       - name: Recover post-freeze author-style Int32 permutation and profile CPU
         run: node sims/mba-author-int32-heldout.js
       - name: JSDoc
