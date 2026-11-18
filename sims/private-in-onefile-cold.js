@@ -50,11 +50,16 @@ function sample(source,trial){
 /** @param {number} objects @returns {void} */
 function profile(objects){
   const native=original(objects);
+  const compilationStart=performance.now();
+  const buildCpuStart=process.cpuUsage();
   const generated=obfuscateFiles([{
     path:'onefile.cjs',code:native,sourceType:'commonjs'
   }],{
     mode:'coo',seed:'own-in-onefile-'+objects,strings:false,identifiers:false
   });
+  const compilerBuildWallMs=performance.now()-compilationStart;
+  const compilerCpu=process.cpuUsage(buildCpuStart);
+  const compilerBuildCpuUs=compilerCpu.user+compilerCpu.system;
   const emitted=/** @type {string} */ (generated.files[0].code);
   assert.equal(generated.files[0].metrics.properties,objects,
     'One-file compiler did not transform every proved field');
@@ -81,6 +86,7 @@ function profile(objects){
   console.log('PRIVATE_IN_ONEFILE_COLD '+JSON.stringify({
     node:process.version,platform:process.platform,objects,
     actualPropertyRenames:generated.files[0].metrics.properties,
+    compilerBuildWallMs,compilerBuildCpuUs,
     nativeBytes:Buffer.byteLength(native),generatedBytes:Buffer.byteLength(emitted),
     trials:13,compilationsPerArm:12,
     cpuMedianNativeUs:median(nc),cpuMedianGeneratedUs:median(gc),
