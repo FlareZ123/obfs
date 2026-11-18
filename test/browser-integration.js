@@ -227,18 +227,18 @@ async function main(){
     strings:false,identifiers:false,properties:true
   }).files[0];
   assert.ok(errorCoordinateOutput.metrics.properties>0,errorCoordinateOutput.code);
-  const inFileOnerrorSource='window.onerror=function(message,source,line,column){'+
+  const inFileOnerrorSource='const errorScope=window;errorScope.onerror=function(message,source,line,column){'+
     'document.getElementById("answer").textContent=String(line)+":"+String(column);return true;};'+
     'const owner={distinctivelyLongPrivateField:73};'+
     'const value=owner.distinctivelyLongPrivateField;throw new Error(String(value));';
   const inFileOnerrorOutput=obfuscateFiles([{
     path:'in-file-onerror.js',sourceType:'script',code:inFileOnerrorSource
   }],{
-    mode:'coo',seed:'chrome-in-file-onerror-negative',
+    mode:'coo',seed:'chrome-aliased-onerror-negative',
     strings:false,identifiers:false,properties:true
   }).files[0];
   assert.ok(inFileOnerrorOutput.metrics.properties>0,inFileOnerrorOutput.code);
-  const inFileListenerSource='window.addEventListener("error",function(event){'+
+  const inFileListenerSource='const listen=window.addEventListener.bind(window);listen("error",function(event){'+
     'document.getElementById("answer").textContent='+
     'String(event.lineno)+":"+String(event.colno);event.preventDefault();});'+
     'const owner={distinctivelyLongPrivateField:73};'+
@@ -246,7 +246,7 @@ async function main(){
   const inFileListenerOutput=obfuscateFiles([{
     path:'in-file-error-listener.js',sourceType:'script',code:inFileListenerSource
   }],{
-    mode:'coo',seed:'chrome-in-file-error-listener-negative',
+    mode:'coo',seed:'chrome-aliased-error-listener-negative',
     strings:false,identifiers:false,properties:true
   }).files[0];
   assert.ok(inFileListenerOutput.metrics.properties>0,inFileListenerOutput.code);
