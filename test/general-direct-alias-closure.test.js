@@ -70,3 +70,23 @@ test('reflection keeps escaped shape while another rich-graph owner rewrites',()
     module.exports=[observed,second.secret+unrelated()];
   `,1);
 });
+
+test('96 deterministic callable-rich private-owner graphs preserve original outputs',()=>{
+  for(let i=0;i<96;i++){
+    const owner=i%4;
+    const hops=1+(i%13);
+    let source="'use strict';function unrelated(){return "+(i%17)+";}"+
+      'const privateOwner={secret:'+(i%31)+'};';
+    switch(owner){
+      case 0:source+='const alias0=privateOwner;';break;
+      case 1:source+='const holder=[0,privateOwner,3];const alias0=holder[1];';break;
+      case 2:source+='const holder={tag:0,owned:privateOwner};const alias0=holder.owned;';break;
+      default:source+='const identity=(value)=>value;const alias0=identity(privateOwner);';
+    }
+    for(let j=1;j<=hops;j++)source+='const alias'+j+'=alias'+(j-1)+';';
+    source+='const exported={secret:'+(i%19)+'};const view=exported;'+
+      'const key=Object.keys(view)[0];'+
+      'module.exports=[alias'+hops+'.secret,key,unrelated()];';
+    equivalent(source,1);
+  }
+});
