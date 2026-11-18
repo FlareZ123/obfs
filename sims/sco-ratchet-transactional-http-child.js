@@ -31,6 +31,8 @@ async function main(){
     !control||!/^[a-f0-9]{64}$/u.test(control)){
     throw new TypeError('Trusted test server configuration missing');
   }
+  const trustedPath=databasePath;
+  const trustedRoot=Buffer.from(rootHex,'hex');
   /** @type {Map<string,TransactionalRatchet>} */
   const stores=new Map();
   /**
@@ -45,9 +47,9 @@ async function main(){
     const key=accountShards?principal:'shared';
     let store=stores.get(key);
     if(store===undefined){
-      const file=accountShards?path.join(databasePath,'principal-'+
-        createHash('sha256').update(principal).digest('hex')+'.sqlite'):databasePath;
-      store=new TransactionalRatchet(file,Buffer.from(rootHex,'hex'),
+      const file=accountShards?path.join(trustedPath,'principal-'+
+        createHash('sha256').update(principal).digest('hex')+'.sqlite'):trustedPath;
+      store=new TransactionalRatchet(file,trustedRoot,
         {journalModeRetries});
       stores.set(key,store);
     }
