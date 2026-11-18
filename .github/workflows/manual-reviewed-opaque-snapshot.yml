@@ -24,6 +24,8 @@ jobs:
         run: node --test test/reviewed-opaque-manifest-snapshot.test.js test/reviewed-opaque-assets.test.js
       - name: Source-pinned historical manifest bypass against current guard
         run: node sims/reviewed-opaque-manifest-attack.js
+      - name: CLI manifest parity across COO SNO SCO
+        run: node --test test/cli-reviewed-opaque-assets.test.js
       - name: Strict compiler type checking
         run: npm run typecheck
       - name: Strict external test JSDoc
