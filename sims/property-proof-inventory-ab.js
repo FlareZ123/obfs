@@ -9,7 +9,10 @@ const {performance}=require('node:perf_hooks');
 
 const REPO=join(__dirname,'..');
 const PROPERTY_FILE=join(REPO,'src','properties.js');
-const CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
+const DEFAULT_CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
+const CONTROL_SHA=process.env.OBFS_PROOF_CONTROL_SHA||DEFAULT_CONTROL_SHA;
+assert.match(CONTROL_SHA,/^[a-f0-9]{40}$/,
+  'A/B control ref must be a fully specified immutable commit SHA');
 /** @type {string} */
 let control;
 /** @type {string} */
@@ -163,10 +166,14 @@ if(process.argv[2]==='sample'){
   const lockFd=openSync(lock,'wx');
   /** @type {ReturnType<typeof run>[]} */
   const records=[];
+  /** @type {('control'|'candidate')[]} */
+  const largeArms=process.env.OBFS_PROOF_REPEAT_LARGE==='true'?
+    ['candidate','control','control','candidate','candidate','control','control','candidate']:
+    ['candidate','control'];
   try{
     for(const [objects,arms] of [
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
-      /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
+      /** @type {[number,('control'|'candidate')[]]} */ ([2048,largeArms]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
       /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
     ]) {

@@ -11,6 +11,14 @@ on:
         description: 'Run only the paired compiler A/B and JSDoc, skipping standalone runtime profiles'
         type: boolean
         default: false
+      control_sha:
+        description: 'Immutable full baseline commit SHA, blank selects historical control'
+        type: string
+        default: ''
+      repeat_large:
+        description: 'Four alternating control/candidate pairs at 2048 private owners'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,6 +42,9 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Same-run controlled compiler inventory A/B with exact output-byte match
         if: ${{ inputs.compiler_ab || inputs.ab_only }}
+        env:
+          OBFS_PROOF_CONTROL_SHA: ${{ inputs.control_sha }}
+          OBFS_PROOF_REPEAT_LARGE: ${{ inputs.repeat_large }}
         run: node sims/property-proof-inventory-ab.js
       - name: Exact standalone generated CommonJS cold profile
         if: ${{ !inputs.ab_only }}

@@ -164,7 +164,7 @@ const proofInventoryCache=new WeakMap();
 /**
  * @param {AstNode} ast
  * @returns {{
- *   calls:Map<string,AstNode[]>, declarations:AstNode[],
+ *   calls:Map<string,AstNode[]>, declarations:AstNode[], declarationSet:Set<AstNode>,
  *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
@@ -240,7 +240,7 @@ function collectProofInventory(ast) {
       target.set(name,list);
     }
   }
-  const inventory={calls,declarations,identifiers,identifierUses,parents,dynamicScope,
+  const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
     functionDeclarations,callableDeclarators,aliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
@@ -348,7 +348,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
-  const {calls,declarations,identifiers,identifierUses,parents,dynamicScope,
+  const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
     functionDeclarations,callableDeclarators,aliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
@@ -465,7 +465,6 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Every holder use must read that same slot into a local binding. Unknown
   // indexes, mutation, reflection and all holder escapes retain original keys.
   const holderIdentifierUses=identifierUses;
-  const declarationSet=new Set(declarations);
   /** @type {Map<string,{index:number}>} */
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
