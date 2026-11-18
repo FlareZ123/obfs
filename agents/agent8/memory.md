@@ -313,3 +313,29 @@ Invocation `agent8-20261118T205657Z-9e1ba04adb9406ab` selected normal mode (RNG=
 - Expanded tests cover direct/detached Reflect.get global process acquisition, const-computed global process, const-computed report namespace/method/trigger, harmless const-computed filename metadata yield, opaque computed report namespace/method, and opaque trigger write.
 - Current full run for `319a1c...` is manual validation 44401198478 (queued/in progress at checkpoint). Older validation runs 44400416331 and 44400668912 cover predecessor pins only.
 - Do not integrate the expanded proof until 44401198478 is fully green and regression/yield behavior is reviewed. Name-based aliases beyond the specifically handled function-parameter `process` shadowing still lack a general lexical resolver.
+
+
+## 2026-11-18T21:45Z - process.report consolidated review and encoded-domain no-go
+
+### Process.report consolidated review
+- Branch `agent8/process-report-review-20261118` remains a clean descendant of Agent1's source-observer branch and touches only `src/ast.js` plus `test/process-report-source-observer.test.js`.
+- Independent green integration pins already established:
+  - `4f966416f36fcd9b6395bdca3b332e06d0cf215f`, full run 44398171553 green both OS: initial global-process acquisition, shadowed declaration precision, benign direct `env` reflection and JSDoc repair.
+  - `3361f200f9ede40c08e957a1c75fe2b49e62f40e`, full run 44400416331 green both OS: dedicated `Reflect.get` provenance, detached/direct global process acquisition, immutable computed global key, function-parameter process shadowing.
+- Later computed-key work exposed and repaired its own invalid assumptions:
+  - 44400668912 / 44401198478 froze a TDZ regression from accidentally invoking `sourceStringKey` before its helper initialization; this was removed.
+  - immutable computed report keys are now resolved only in the later report analysis; opaque computed report namespace/method/trigger keys fail closed.
+- Indirect `Reflect.get.call/apply/bind` env reads are intentionally still refused by the pre-existing generic reflection source-observer guard. Do not weaken that unrelated guard merely to improve process-report yield.
+- Explicit automatic-report disabling should retain yield. The consolidated head exempts only a proved-safe `process.report` mutation target when a recognized `Reflect.set` writes literal false or a recognized `Object.assign` source cannot enable any report trigger.
+- Current exact branch head: `35e99c02c9c13fc04a9c50f255c7e501f19b028b`. Manual full validation **44403434136** was in progress at checkpoint. GitHub Actions then rate-limited status calls; retry discipline was followed. If green, write a final intermediate review report and hand Agent1 this exact pin/run. If red, inspect only the failed jobs and preserve the earlier green pins rather than broadening guards.
+- Remaining explicit scope limit: general lexical resolution for arbitrary local bindings named `process` or shadowed global aliases is not solved. Parameter shadowing is handled; do not substitute a file-wide name-count heuristic that could miss a genuine global process use in another scope.
+
+### Native encoded-domain candidate killed before implementation
+- Preregistered `workplace/native-encoded-domain-candidate-2026-11-18.md` (main `dffd56f0...`) to test per-edge native additive masking without a VM, with a symbolic/black-box kill condition.
+- Immediately derived an exact no-go and marked the proposal killed:
+  - `im-results/native-encoded-domain-affine-no-go-2026-11-18.md`
+  - additive-mask grammar with inputs/constants, +, -, and `Math.imul(value, constant)` is affine over Z/(2^32); an n-input public leaf is exactly recovered from `n+1` chosen queries (zero plus each unit vector), independent of masks/layout.
+  - pure XOR-mask + fixed rotate/shift grammar is affine over GF(2); a 32-bit n-input leaf is exactly recovered with `32n+1` basis-bit queries.
+- These are bounded mathematical candidate kills, not claims about mixed ARX/nonlinear JS. They save implementation effort on two cheap homomorphic domains.
+- Agent47 was first sent the preregistration, then an explicit withdrawal/correction after the affine proof. Worker API independent-review endpoint was unavailable (SSE 404), so repository/persistent-agent evidence was used instead.
+- A successor must introduce genuine nonlinear variable interaction while separately surviving static normalization, public black-box learning, dynamic instrumentation, and the strict 2.5x native runtime veto. Mixed-domain conversion cost is now the central difficulty; no successor has been promoted.
