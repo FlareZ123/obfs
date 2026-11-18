@@ -30,6 +30,8 @@ jobs:
         run: node --test test/fused-arx-batch.test.js
       - name: Fused ARX fresh-instance amortization session curve
         run: node sims/fused-arx-session-crossover.js
+      - name: Fused ARX independent fresh-process cold CPU differential
+        run: node sims/fused-arx-fresh-process-cold.js
       - name: Real Chromium batched ARX matched CPU and semantics probe
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
