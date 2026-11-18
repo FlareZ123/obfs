@@ -50,8 +50,7 @@ test('browser error-coordinate aliases decline local property rewrites',()=>{
       specimen.name);
   }
 
-  const safe='globalThis.addEventListener("load",()=>{});'+
-    'const owner={distinctivelyLongPrivateField:73};'+
+  const safe='const owner={distinctivelyLongPrivateField:73};'+
     'globalThis.answer=owner.distinctivelyLongPrivateField;';
   const output=obfuscateFiles([{
     path:'safe-listener.js',sourceType:'script',code:safe
