@@ -8,6 +8,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {installWasmCapture}=require('../sims/wasm-runtime-capture');
+const {cloneObservedWasm}=require('../sims/wasm-captured-clone');
 
 const raw=Uint8Array.from([0,97,115,109,1,0,0,0,1,5,1,96,0,1,127,
   3,2,1,0,7,7,1,3,114,117,110,0,0,10,6,1,4,0,65,42,11]);
@@ -61,4 +62,39 @@ test('exported/imported memories remain observable, restoration is idempotent',(
     assert.notEqual(entries[0].sha256,createHash('sha256').update(Buffer.alloc(65536)).digest('hex'));
   } finally {capture.restore();capture.restore();}
   assert.equal(WebAssembly,original);
+});
+
+test('attacker independently clones captured WebAssembly and its exact exported ABI',()=>{
+  const captured=installWasmCapture();
+  try {
+    const original=new WebAssembly.Instance(new WebAssembly.Module(raw));
+    const replay=cloneObservedWasm(captured,digest);
+    assert.equal(/** @type {Function} */(original.exports.run)(),42);
+    assert.equal(/** @type {Function} */(replay.instance.exports.run)(),42);
+    assert.deepEqual(replay.exports,[{name:'run',kind:'function'}]);
+    assert.deepEqual(replay.imports,[]);
+    assert.deepEqual(Buffer.from(replay.bytes),Buffer.from(raw));
+    assert.throws(()=>cloneObservedWasm(captured,'0'.repeat(64)),
+      /Unknown or not yet captured Wasm digest/u);
+  } finally {captured.restore();}
+});
+
+test('attacker snapshots exported Wasm memory and clones state into another instance',()=>{
+  const publicBytes=Uint8Array.from([0,97,115,109,1,0,0,0,5,3,1,0,1,
+    7,10,1,6,109,101,109,111,114,121,2,0]);
+  const hash=createHash('sha256').update(publicBytes).digest('hex');
+  const captured=installWasmCapture();
+  try {
+    const original=new WebAssembly.Instance(new WebAssembly.Module(publicBytes));
+    const first=/** @type {WebAssembly.Memory} */(original.exports.memory);
+    new Uint8Array(first.buffer).set([12,25,48,90],64);
+    captured.snapshot();
+    const copy=cloneObservedWasm(captured,hash);
+    const second=/** @type {WebAssembly.Memory} */(copy.instance.exports.memory);
+    assert.notEqual(first,second);
+    assert.equal(captured.memoryDumps.length,1);
+    new Uint8Array(second.buffer).set(captured.memoryDumps[0]);
+    assert.deepEqual(new Uint8Array(second.buffer,64,4),new Uint8Array(first.buffer,64,4));
+    assert.equal(captured.instances[0].memories,1);
+  } finally {captured.restore();}
 });
