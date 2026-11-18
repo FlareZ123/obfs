@@ -1,0 +1,29 @@
+# Bounded SCO source-private batching against a real private ESM application (18 November 2026)
+
+**Status:** intermediate positive performance candidate with a strict sampled failure; deliberately not an unconditional 2.5x or hostile-runtime security claim.
+
+## Actual compiler/server experiment
+
+The research driver `sims/sco-batch-resident-cpu.js` parses the real `examples/application-challenge/sco-before/api.mjs`, compiles its exported async function with the project's `partitionScoAsyncModule({batch:true,maxBatchCalls:1024,serverOnlyInitialization:true})`, binds the original five private ESM modules on a trusted Node HTTP host, and publishes **only the compiler-generated batch-enabled facade** through `createScoHandler`. The genuine emitted facade is retrieved over HTTP under a caller token and imported from an isolated temporary file, so neither the benchmark's tested public source nor its private implementation is a manually mocked batch.
+
+The selected server-side operation is `evaluateRemote(seed,count)`, and each batch uses the provided `createScoBatchMethod`, executing its 1,024 individual operations sequentially. The transport is JSON, and the server authorizes requests before native private execution. For both direct native and served-batch measurements, the original ESM graph, client import, and Node process have been initialized before the measured interval. Each paired observation performs exactly **12,288 original async function calls**: the native control invokes the original function directly in sequence, and the candidate invokes 12 authenticated HTTP batches of 1,024 operations. There are three warmups and 13 alternating-order pairs per workload. Each candidate result list has the same ordered JSON-wire outputs as the native baseline. Process CPU includes both trusted HTTP service and its local client, with no initializer or boot cost. Wall time includes serialized loopback HTTP wait.
+
+The first validated implementation at exact source `82eb5c8ff170383a8bb6ac96e298e021f5349eb8` **passed** strict external JSDoc and all paired behavioral comparisons on Ubuntu and Windows Node `v22.23.4`, [manual workflow 44221434771](https://github.com/FlareZ123/obfs/actions/runs/44221434771). Raw timing arrays and exact toolchain versions are in that workflow's logs, with `npm ls --all` provenance.
+
+| Private engine iterations per original call | Ubuntu batch/native CPU median ratio | Ubuntu observed strict CPU >2.5x | Windows batch/native CPU median ratio | Windows observed strict CPU >2.5x | Ubuntu/Windows wall ratio of medians |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| 1 | **3.982x** | **13/13** | **8.813x** | **12/13** | **5.393x / 5.672x** |
+| 1,000 | **1.561x** | **0/13** | **2.006x** | **1/13** | **1.547x / 1.670x** |
+
+All pairs' native and protected CPU observations were positive, including on Windows. Both 1,000-iteration populations received one-sided median verdict `supported` under the project's paired median diagnostic; both one-iteration populations were `exceeded`. Yet **one Windows 1,000-iteration pair exceeded the hard 2.5x CPU ceiling** (454ms versus 156ms), despite a median under 2.5x and zero wall violations. Thus strict sampled performance admission is still blocked. Both one-iteration populations remain decisively over budget, even when authenticated RPC overhead is amortized across 1,024 calls per request.
+
+A separate real SCO single-call facade experiment, pinned in `im-results/sco-resident-process-cpu-2026-11-18.md`, measured 12,288 individual authenticated 1,000-iteration calls with approximately **30.95x Ubuntu / 20.36x Windows CPU overhead** in 13/13 strict violating pairs on each OS. These paired comparisons were made on separate source-pinned runs, so the ratio differences suggest a large batching improvement for this workload but are **not a same-run randomized factorial causal estimate**. The batch experiment independently and directly compares genuine batched execution against the original native path.
+
+## Threat and semantic boundaries
+
+- The original five private modules, state, and engine do not appear in the served stub. The trusted server remains uncompromised under SCO's threat model. This says nothing new about the difficulty of legitimate same-account online relaying, which remains available to an attacker with valid credentials.
+- The emitted public batch API is **explicit opt-in**. It is not a semantics-preserving proof that arbitrary, externally observable, stateful or concurrent JavaScript calls can be regrouped. The fixed workload's source is deterministic and its corresponding calls are independent; order is still preserved sequentially within each batch.
+- Both native and HTTP observations are compared after JSON serialization. The existing application's original `{value:undefined}` property is silently omitted by the JSON wire protocol. The raw object-shape negative witness is separately pinned in `test/sco-json-shape-contract.test.js`; this experiment makes no claim of full JavaScript graph/identity parity.
+- The local same-process CPU total and loopback wall duration exclude cross-machine RTT, TLS, server-client CPU attribution, session contention and arbitrary input mixes. The experiment supports a bounded choice for this application, not a worst-case guarantee. The batch's 1,024-call ceiling and request size allowance are explicit resource and policy choices, with the server still checking each nested operation separately.
+
+**Next decision:** Test a longer selected-work batch population with more Windows CPU samples to determine whether the observed strict Windows breach persists. Every positive security-performance selection must still withstand independent source and runtime attacks plus full application semantic and availability checks before release.
