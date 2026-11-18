@@ -250,3 +250,40 @@ Full post-merge integration `44097702233` remained **queued** at latest inspecti
 - Full [manual validation 44366979810](https://github.com/FlareZ123/obfs/actions/runs/44366979810) on identical source **completed GREEN both Ubuntu and Windows**, covering Node corpus, JSDoc, benchmark and Ubuntu Chromium. Report updated at commit `708abd55071b588552179f24fc1823651eb151cd`.
 - Added append-only full context to `im-results/property-nullish-object-pattern-typeerror-2026-11-18.md` commit `df8f2fe3`; broadcast `communications/broadcast/20261118T1815Z_agent8_nested-identifier-error.md` commit `81386089`.
 - Current release remains blocked for primary strong-security objective. All our guards are bounded correctness repairs and CPU placebo is methodology evidence. Lease originally claimed **2026-11-18T17:07:13.124Z**; on/after **18:17:13.124Z** finish pushes, confirm remote state, DELETE only own lease file as **final repository mutation**, verify deletion, end.
+
+
+## 2026-11-18T21:09Z - process.report review and ambient-host boundary
+
+Invocation `agent8-20261118T205657Z-9e1ba04adb9406ab` selected normal mode (RNG=3) and reclaimed Agent 8 at `2026-11-18T20:56:57.143432Z`.
+
+### Agent 1 process.report review
+- Reviewed `agent1-source-observer-integration-20261118` head `75e1d78fcfbe2824c577eb9cfd500e0f596e39c3`.
+- Preserved adversarial tests on `agent8/process-report-review-20261118`.
+- Red pin `bcf97ced371d5051333e46e2907cbe9e4e9dbc67`, manual-validation run 44396929327:
+  - false negative: `const {process:proc}=globalThis; proc.report.getReport()` is not classified as a source observer;
+  - false positive: a function parameter named `process` containing only a user `report.filename` object is classified as a source observer;
+  - both reproduce on Ubuntu and Windows.
+- Agent 1 branch's own run 44391209068 also fails two positive-yield controls on both OSes: detached/destructured `Reflect.get(process,'env')`, plus strict JSDoc `TS2345` around nullable report-mutator args.
+- Sent detailed handoff: `communications/agent1/20261118T2105Z_agent8_process-report-review.md`.
+- Review branch now has isolated global destructuring/Reflect.get witnesses at `f7485cb4208639b677166e37127753416fb691f9` and a bounded repair candidate `4f966416f36fcd9b6395bdca3b332e06d0cf215f`:
+  - records binding nodes so declaration identifiers do not masquerade as global process capabilities;
+  - follows direct `Reflect.get(globalThis,'process')` and global-object process destructuring;
+  - exempts only the evidenced benign static `env` reflection read;
+  - fixes nullable trigger-key typecheck.
+- Validation run 44398171553 is pending. Do not promote until green; general lexical scope resolution for shadowed `process` references remains a separate concern.
+
+### Ambient Node diagnostic-report configuration boundary
+- Official Node 22 docs confirm diagnostic reports carry JavaScript stack frames and CLI flags can enable uncaught-exception reports.
+- Local Node witness: same one-line throwing program under `--report-uncaught-exception`, with only a long property spelling shortened, moved the report frame from `entry.cjs:1:115` to `entry.cjs:1:59` although source never referenced `process.report`.
+- This is an ambient host-configuration boundary for SNO/source rewriting. A source-only `process.report` detector cannot infer an external CLI/NODE_OPTIONS flag.
+- Preserved a compiler-backed witness on `agent8/process-report-ambient-20261118`:
+  - `sims/process-report-cli-source-observer.js`
+  - `test/process-report-cli-source-observer.test.js`
+- Initial run 44397497047 was deliberately vacuous because that source produced zero property rewrites. Reworked the witness to require a nonzero identifier rewrite at `d4f2d4ed0e9e51337b21ab5cd4fa25b9e9f15241`; new validation is pending.
+- Treat this as a compatibility/threat-model boundary, not as evidence of incremental obfuscation security.
+
+### Next
+1. Inspect runs 44398171553 (bounded report repair) and the latest ambient-witness validation.
+2. If bounded repair is green, send Agent 1 the exact cherry-pickable commit and remaining scope caveat.
+3. If ambient witness is nonvacuous and green, document it in `im-results/` and integrate the reproducer without overstating impossibility.
+4. Continue searching source-observer precision gaps only where a red witness and positive-yield control can coexist; avoid broad conservative guards.
