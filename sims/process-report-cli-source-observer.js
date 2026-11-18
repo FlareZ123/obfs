@@ -43,15 +43,15 @@ async function runReportedVariant(code,label) {
  * @returns {Promise<{
  *   node:string,
  *   properties:number,
+ *   bindings:number,
  *   native:{label:string,status:number|null,message:string,frame:string},
  *   emitted:{label:string,status:number|null,message:string,frame:string},
  *   framesEqual:boolean
  * }>}
  */
 async function runExperiment() {
-  const source="'use strict';const owner={distinctivelyLongPrivateFieldThatForcesCoordinateShift:73};"+
-    "const value=owner.distinctivelyLongPrivateFieldThatForcesCoordinateShift;"+
-    "throw new Error(String(value));";
+  const source="'use strict';const distinctivelyLongBindingNameThatForcesCoordinateShift=73;"+
+    "throw new Error(String(distinctivelyLongBindingNameThatForcesCoordinateShift));";
   const emitted=obfuscateFiles([{
     path:'entry.cjs',
     sourceType:'commonjs',
@@ -60,8 +60,8 @@ async function runExperiment() {
     mode:'sno',
     seed:'process-report-cli-source-observer',
     strings:false,
-    identifiers:false,
-    properties:true
+    identifiers:true,
+    properties:false
   }).files[0];
 
   const native=await runReportedVariant(source,'native');
@@ -69,6 +69,7 @@ async function runExperiment() {
   return {
     node:process.version,
     properties:emitted.metrics.properties,
+    bindings:emitted.metrics.bindings,
     native,
     emitted:transformed,
     framesEqual:native.frame===transformed.frame
