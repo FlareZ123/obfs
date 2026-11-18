@@ -307,7 +307,7 @@ function main() {
   }
   console.log(JSON.stringify({
     model: 'source-blind chosen-query recovery of one polynomial, one xor-shift, and one nonzero rotation in any order',
-    result: 'all decompositions, held-out functions, and published-target inversions recovered',
+    result: 'a functionally sufficient decomposition survived every case; all held-out functions and published-target inversions matched',
     cases: totalCases,
     heldOutChecks: totalHeldOut,
     inversionChecks: totalInversions,
