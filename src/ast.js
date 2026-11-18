@@ -1750,6 +1750,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           reflectGetMethods.add(name);
           reflectiveChanged=true;
         }
+        if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+           memberName(value.callee)==='bind'&&
+           isReflectGetMethod(value.callee.object)&&value.arguments.length<=1&&
+           !reflectGetMethods.has(name)) {
+          reflectGetMethods.add(name);
+          reflectiveChanged=true;
+        }
         if(value.type==='Identifier' && reflectiveApplyMethods.has(value.name) &&
            !reflectiveApplyMethods.has(name)) {
           reflectiveApplyMethods.add(name);
@@ -1808,7 +1815,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       } else if(pattern.type==='ObjectPattern' && isReflectiveReceiver(value)) {
         for(const property of pattern.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const method=property.computed?staticString(property.key):
+          const method=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if((method===null || method==='apply') &&
              !reflectiveApplyMethods.has(property.value.name)) {
@@ -1853,6 +1860,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       reflectiveApplyMethods.has(node.name) ||
       node.type==='MemberExpression' &&
       isReflectiveReceiver(node.object) && memberName(node)==='apply'));
+  }
+  /**
+   * Resolve bounded invocation wrappers around Reflect.get.
+   * @param {AstNode|null|undefined} node
+   * @returns {(AstNode|null)[]|null}
+   */
+  function reflectGetInvocation(node) {
+    if(node?.type!=='CallExpression')return null;
+    if(isReflectApplyMethod(node.callee)&&isReflectGetMethod(node.arguments[0])) {
+      const list=node.arguments[2];
+      return list?.type==='ArrayExpression'?list.elements:[null];
+    }
+    if(isReflectGetMethod(node.callee))return node.arguments;
+    if(node.callee.type!=='MemberExpression')return null;
+    const method=memberName(node.callee);
+    if(!['call','apply'].includes(method??'')||
+       !isReflectGetMethod(node.callee.object))return null;
+    if(method==='call')return node.arguments.slice(1);
+    const list=node.arguments[1];
+    return list?.type==='ArrayExpression'?list.elements:[null];
   }
   /**
    * An indirect native constructor can stringify its first argument, and
@@ -1963,12 +1990,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const processReportTriggers=new Set([
     'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
   ]);
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isLiteralFalse(value) {
+    return Boolean(value?.type==='Literal'&&value.value===false);
+  }
+  /** @param {AstNode} member @returns {string|null} */
+  function processReportMemberName(member) {
+    return member.computed?sourceStringKey(member.property):memberName(member);
+  }
   /** @param {AstNode} property @returns {boolean} */
   function processReportPropertyMayEnable(property) {
     if(property.type!=='Property')return true;
-    const name=property.computed?staticString(property.key):
+    const name=property.computed?sourceStringKey(property.key):
       property.key.type==='Identifier'?property.key.name:staticString(property.key);
-    return processReportTriggers.has(name??'');
+    if(isLiteralFalse(property.value))return false;
+    return name===null?property.computed:processReportTriggers.has(name);
   }
   /** @param {AstNode|null|undefined} source @returns {boolean} */
   function processReportAssignmentSourceMayEnable(source) {
@@ -1999,28 +2035,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReceiver(node) {
+    const reflected=reflectGetInvocation(node);
     return Boolean(node && (
       node.type==='Identifier'&&
         (node.name==='process'&&!shadowedProcessIdentifiers.has(node) ||
          processModuleNamespaces.has(node.name)) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
         (node.computed?sourceStringKey(node.property):memberName(node))==='process' ||
-      node.type==='CallExpression'&&isReflectGetMethod(node.callee)&&
-        isGlobal(node.arguments[0])&&sourceStringKey(node.arguments[1])==='process' ||
+      reflected&&isGlobal(reflected[0])&&sourceStringKey(reflected[1])==='process' ||
       isProcessModuleRequire(node)
     ));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReportNamespace(node) {
+    const reflected=reflectGetInvocation(node);
     return Boolean(node && (node.type==='Identifier'&&
       processReportNamespaces.has(node.name) ||
-      node.type==='MemberExpression'&&memberName(node)==='report'&&
-        isProcessReceiver(node.object) ||
-      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-        isReflectiveReceiver(node.callee.object)&&
-        memberName(node.callee)==='get'&&node.arguments.length>1&&
-        isProcessReceiver(node.arguments[0])&&
-        staticString(node.arguments[1])==='report'));
+      node.type==='MemberExpression'&&isProcessReceiver(node.object)&&
+        (processReportMemberName(node)==='report' ||
+         node.computed&&processReportMemberName(node)===null) ||
+      reflected&&isProcessReceiver(reflected[0])&&
+        (sourceStringKey(reflected[1])==='report' ||
+         sourceStringKey(reflected[1])===null)));
   }
   /** @param {AstNode} node @returns {AstNode} */
   function unwrapAssignmentPattern(node) {
@@ -2031,19 +2067,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(!node||depth>16)return false;
     if(node.type==='Identifier')return processReportMethods.has(node.name);
     if(node.type==='MemberExpression') {
-      const name=memberName(node);
-      if(['getReport','writeReport'].includes(name??'')&&
-         isProcessReportNamespace(node.object))return true;
+      const name=processReportMemberName(node);
+      if(isProcessReportNamespace(node.object)&&
+         (['getReport','writeReport'].includes(name??'') ||
+          node.computed&&name===null))return true;
       if(['call','apply'].includes(name??''))
         return isProcessReportMethod(node.object,depth+1);
     }
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
-      if(memberName(node.callee)==='bind')
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind')
         return isProcessReportMethod(node.callee.object,depth+1);
-      if(isReflectiveReceiver(node.callee.object)&&
-         memberName(node.callee)==='get'&&node.arguments.length>1&&
-         isProcessReportNamespace(node.arguments[0])&&
-         ['getReport','writeReport'].includes(staticString(node.arguments[1])??''))
+      const reflected=reflectGetInvocation(node);
+      if(reflected&&isProcessReportNamespace(reflected[0])&&
+         (['getReport','writeReport'].includes(sourceStringKey(reflected[1])??'') ||
+          sourceStringKey(reflected[1])===null))
         return true;
     }
     return false;
@@ -2105,7 +2142,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(id.type==='ObjectPattern'&&isGlobal(value)) {
         for(const property of id.properties) {
           if(property.type!=='Property')continue;
-          const name=property.computed?staticString(property.key):
+          const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name!=='process')continue;
           const processBinding=unwrapAssignmentPattern(property.value);
@@ -2121,7 +2158,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
         for(const property of id.properties) {
           if(property.type!=='Property')continue;
-          const name=property.computed?staticString(property.key):
+          const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name!=='report')continue;
           const reportBinding=unwrapAssignmentPattern(property.value);
@@ -2137,7 +2174,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
               if(methodProperty.type!=='Property')continue;
               const methodBinding=unwrapAssignmentPattern(methodProperty.value);
               if(methodBinding.type!=='Identifier')continue;
-              const method=methodProperty.computed?staticString(methodProperty.key):
+              const method=methodProperty.computed?sourceStringKey(methodProperty.key):
                 methodProperty.key.type==='Identifier'?methodProperty.key.name:
                   staticString(methodProperty.key);
               if(['getReport','writeReport'].includes(method??'') &&
@@ -2155,7 +2192,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(property.type!=='Property')continue;
           const methodBinding=unwrapAssignmentPattern(property.value);
           if(methodBinding.type!=='Identifier')continue;
-          const name=property.computed?staticString(property.key):
+          const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(['getReport','writeReport'].includes(name??'')&&
              !processReportMethods.has(methodBinding.name)) {
@@ -2170,7 +2207,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(property.type!=='Property')continue;
           const binding=unwrapAssignmentPattern(property.value);
           if(binding.type!=='Identifier')continue;
-          const name=property.computed?staticString(property.key):
+          const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(['set','assign'].includes(name??'')&&
              processReportMutators.get(binding.name)!==name) {
@@ -2291,7 +2328,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(id.type==='ObjectPattern'&&isNodeUtilNamespace(value)) {
         for(const property of id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?staticString(property.key):
+          const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name!==null&&inspectedUtilMethods.has(name)&&
              !nodeUtilMethods.has(property.value.name)) {
@@ -2479,18 +2516,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['Identifier','ObjectPattern'].includes(parent.id.type);
     const assignedAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
       ['Identifier','ObjectPattern'].includes(parent.left.type);
-    const benignProcessEnvironmentRead=parent?.type==='CallExpression'&&
-      parent.arguments[0]===node&&parent.arguments[1]&&
-      staticString(parent.arguments[1])==='env'&&
-      (parent.callee.type==='Identifier'&&reflectiveReaders.has(parent.callee.name) ||
-       parent.callee.type==='MemberExpression'&&
-         isReflectiveReceiver(parent.callee.object)&&
-         ['get','getOwnPropertyDescriptor'].includes(memberName(parent.callee)??''));
+    const reflectedProcessRead=parent?.type==='CallExpression'?
+      reflectGetInvocation(parent):null;
+    const benignProcessEnvironmentRead=reflectedProcessRead?.[0]===node&&
+      sourceStringKey(reflectedProcessRead[1])==='env';
+    const reportMutation=parent?.type==='CallExpression'?
+      processReportMutatorInvocation(parent):null;
+    const benignProcessReportMutationTarget=reportMutation?.args[0]===node&&(
+      reportMutation.method==='set'&&isLiteralFalse(reportMutation.args[2]) ||
+      reportMutation.method==='assign'&&
+        reportMutation.args.slice(1).every(source=>
+          !processReportAssignmentSourceMayEnable(source))
+    );
     if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
        !bindingNodes.has(node)&&!benignProcessEnvironmentRead&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     if(isProcessReportNamespace(node)&&parent&&
-       !processReportBindingNodes.has(node)&&
+       !processReportBindingNodes.has(node)&&!benignProcessReportMutationTarget&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
@@ -2515,9 +2557,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
     if(node.type==='MemberExpression'&&isProcessReceiver(node.object)&&
-       memberName(node)===null)observed=true;
+       processReportMemberName(node)===null)observed=true;
     if(node.type==='MemberExpression'&&
-       isProcessReportNamespace(node.object)&&memberName(node)===null)
+       isProcessReportNamespace(node.object)&&processReportMemberName(node)===null)
       observed=true;
     // Acquiring a live reporting method can move it through arbitrary user
     // containers before invocation. Preserve source at capability acquisition.
@@ -2548,13 +2590,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // preserve the source whenever code writes one of the enabling switches.
     if(node.type==='AssignmentExpression'&&
        node.left.type==='MemberExpression'&&
-       isProcessReportNamespace(node.left.object)&&
-       processReportTriggers.has(memberName(node.left)??''))observed=true;
+       isProcessReportNamespace(node.left.object)&&!isLiteralFalse(node.right)&&
+       (processReportTriggers.has(processReportMemberName(node.left)??'') ||
+        node.left.computed&&processReportMemberName(node.left)===null))observed=true;
     if(node.type==='CallExpression') {
       const mutation=processReportMutatorInvocation(node);
-      if(mutation?.method==='set'&&mutation.args[1]&&
+      if(mutation?.method==='set'&&mutation.args[1]&&!isLiteralFalse(mutation.args[2])&&
          isProcessReportNamespace(mutation.args[0])&&
-         processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
+         (processReportTriggers.has(sourceStringKey(mutation.args[1])??'') ||
+          sourceStringKey(mutation.args[1])===null))observed=true;
       if(mutation?.method==='assign'&&
          mutation.args.slice(1).some(
            (/** @type {AstNode|null} */ source)=>isProcessReportNamespace(source)))
@@ -2587,7 +2631,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isProcessReportMethod(node.arguments[0]))observed=true;
       const reportDescriptorRead=node.arguments.length>1&&
         isProcessReportNamespace(node.arguments[0])&&
-        processReportTriggers.has(staticString(node.arguments[1])??'')&&
+        (processReportTriggers.has(sourceStringKey(node.arguments[1])??'') ||
+         sourceStringKey(node.arguments[1])===null)&&
         (callee.type==='MemberExpression'&&
           isReflectiveReceiver(callee.object)&&
           memberName(callee)==='getOwnPropertyDescriptor' ||
@@ -2599,10 +2644,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          memberName(callee.object)==='__lookupSetter__'&&
          isProcessReportNamespace(node.arguments[0])) {
         const trigger=memberName(callee)==='call'?
-          staticString(node.arguments[1]):
+          sourceStringKey(node.arguments[1]):
           node.arguments[1]?.type==='ArrayExpression'?
-            staticString(node.arguments[1].elements[0]):null;
-        if(processReportTriggers.has(trigger??''))observed=true;
+            sourceStringKey(node.arguments[1].elements[0]):null;
+        if(trigger===null||processReportTriggers.has(trigger))observed=true;
       }
       if(isReflectApplyMethod(callee)&&
          node.arguments[0]?.type==='MemberExpression'&&
@@ -2610,7 +2655,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isProcessReportNamespace(node.arguments[1])) {
         const list=node.arguments[2];
         if(list?.type==='ArrayExpression'&&
-           processReportTriggers.has(staticString(list.elements[0])??''))observed=true;
+           (sourceStringKey(list.elements[0])===null ||
+            processReportTriggers.has(sourceStringKey(list.elements[0])??'')))observed=true;
       }
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
