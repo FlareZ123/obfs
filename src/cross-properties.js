@@ -1206,13 +1206,136 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
      * @returns {boolean}
      */
     function invokesFactoryResult(factory) {
+      // A helper in one ESM module may return the result of a host-bearing
+      // factory imported from another. Collect these forwarding wrappers to
+      // a fixed point before examining the final call-result consumers.
+      // This is intentionally conservative when two modules reuse a name.
+      const propagatedFactories=new Set([factory]);
+      let propagatedChanged;
+      do {
+        propagatedChanged=false;
+        for(const wrapper of modules.values()) {
+          // Named ESM export and re-export specifiers preserve a function's
+          // value while changing its public spelling. Carry return-capability
+          // provenance through each source-visible alias in the graph.
+          for(const statement of wrapper.ast.body) {
+            if(statement.type!=='ExportNamedDeclaration')continue;
+            for(const specifier of statement.specifiers) {
+              if(specifier.type!=='ExportSpecifier')continue;
+              const local=specifier.local.name??specifier.local.value;
+              const exposed=specifier.exported.name??specifier.exported.value;
+              if(typeof local==='string' && propagatedFactories.has(local) &&
+                 typeof exposed==='string' && !propagatedFactories.has(exposed)) {
+                propagatedFactories.add(exposed);
+                propagatedChanged=true;
+              }
+            }
+          }
+          const producers=new Set(propagatedFactories);
+          const namespaces=new Set();
+          walk(wrapper.ast,node=>{
+            if(node.type==='ImportSpecifier' &&
+               node.imported.type==='Identifier' &&
+               propagatedFactories.has(node.imported.name) &&
+               node.local.type==='Identifier')producers.add(node.local.name);
+            if(node.type==='ImportNamespaceSpecifier' &&
+               node.local.type==='Identifier')namespaces.add(node.local.name);
+          });
+          let aliasesChanged;
+          do {
+            aliasesChanged=false;
+            walk(wrapper.ast,node=>{
+              const binding=node.type==='VariableDeclarator'?node.id:
+                node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+              const value=node.type==='VariableDeclarator'?node.init:
+                node.type==='AssignmentExpression'?node.right:null;
+              if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+                 producers.has(value.name) && !producers.has(binding.name)) {
+                producers.add(binding.name);
+                aliasesChanged=true;
+              }
+            });
+          }while(aliasesChanged);
+          /**
+           * Return-value flow only. A nested host call inside a returned
+           * function body, method, or arithmetic expression is an effect,
+           * not a returned capability. Treating every nested call as a
+           * returned callable would erase genuine six-module private work.
+           * @param {AstNode} expression
+           * @returns {boolean}
+           */
+          function forwardsFactory(expression) {
+            if(expression.type==='AwaitExpression')
+              return forwardsFactory(expression.argument);
+            if(expression.type==='ChainExpression')
+              return forwardsFactory(expression.expression);
+            if(expression.type==='CallExpression') {
+              const callee=expression.callee;
+              if(callee.type==='Identifier')return producers.has(callee.name);
+              if(callee.type!=='MemberExpression' ||
+                 callee.object.type!=='Identifier' ||
+                 !namespaces.has(callee.object.name))return false;
+              const selected=callee.computed?staticString(callee.property):
+                staticName(callee.property);
+              return propagatedFactories.has(selected??'');
+            }
+            if(expression.type==='MemberExpression')
+              return forwardsFactory(expression.object);
+            if(expression.type==='SequenceExpression')
+              return expression.expressions.length>0 &&
+                forwardsFactory(expression.expressions.at(-1));
+            if(expression.type==='ConditionalExpression')
+              return forwardsFactory(expression.consequent) ||
+                forwardsFactory(expression.alternate);
+            if(expression.type==='LogicalExpression')
+              return forwardsFactory(expression.left) ||
+                forwardsFactory(expression.right);
+            if(expression.type==='ObjectExpression')
+              return expression.properties.some((/** @type {AstNode} */ property)=>
+                property.type==='Property' && !property.method &&
+                forwardsFactory(property.value));
+            if(expression.type==='ArrayExpression')
+              return expression.elements.some((/** @type {AstNode|null} */ element)=>
+                element!==null && forwardsFactory(element));
+            return false;
+          }
+          walk(wrapper.ast,node=>{
+            /** @type {string|null} */
+            let name=null;
+            /** @type {AstNode|null} */
+            let body=null;
+            if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier') {
+              name=node.id.name;
+              body=node.body;
+            }
+            if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+               (node.init?.type==='FunctionExpression' ||
+                node.init?.type==='ArrowFunctionExpression')) {
+              name=node.id.name;
+              body=node.init.body;
+            }
+            if(name===null||body===null||propagatedFactories.has(name))return;
+            let returnsFactory=false;
+            if(body.type==='BlockStatement') {
+              walk(body,inner=>{
+                if(inner.type==='ReturnStatement' && inner.argument &&
+                   forwardsFactory(inner.argument))returnsFactory=true;
+              });
+            }else returnsFactory=forwardsFactory(body);
+            if(returnsFactory) {
+              propagatedFactories.add(name);
+              propagatedChanged=true;
+            }
+          });
+        }
+      }while(propagatedChanged);
       for(const caller of modules.values()) {
-        const callableNames=new Set([factory]);
+        const callableNames=new Set(propagatedFactories);
         /** @type {Set<string>} */
         const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
-             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.imported.type==='Identifier' && propagatedFactories.has(node.imported.name) &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
@@ -1244,7 +1367,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
              !namespaceNames.has(callee.object.name))return false;
           const selected=callee.computed?staticString(callee.property):
             staticName(callee.property);
-          return selected===factory;
+          return propagatedFactories.has(selected??'');
         }
         /** @type {Set<string>} */
         const returnedNames=new Set();

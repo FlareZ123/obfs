@@ -340,3 +340,86 @@ for(const [label,setup,factorySource] of [
     assert.equal(compiled.crossFile.properties,0,label);
   });
 }
+
+for(const [label,factory,forwarder,route] of [
+  ['two-hop named imports',
+    'export function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    "import {getFactory} from './factory.mjs';export function forward(){return getFactory();}",
+    "import {forward} from './wrapper.mjs';const ctor=forward();"],
+  ['two-hop renamed imports and arrow wrappers',
+    'export function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    "import {getFactory as capture} from './factory.mjs';export const forward=()=>capture();",
+    "import {forward as route} from './wrapper.mjs';const ctor=route();"],
+  ['three-hop declared wrappers',
+    'export function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    "import {getFactory} from './factory.mjs';export function forward(){return getFactory();}",
+    "import {route} from './router.mjs';const ctor=route();"]
+]) {
+  test('cross-module host-return hop: '+label,async()=>{
+    const files=graph([
+      route,
+      "const remote=await ctor(\"return import('./state.mjs')\")();",
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    files.push({path:'factory.mjs',sourceType:'module',code:factory});
+    files.push({path:'wrapper.mjs',sourceType:'module',code:forwarder});
+    if(label==='three-hop declared wrappers')files.push({
+      path:'router.mjs',sourceType:'module',
+      code:"import {forward} from './wrapper.mjs';export function route(){return forward();}"
+    });
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'cross-module-return-hop/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
+
+test('cross-module primitive forwarding preserves genuinely rewritten own record',async()=>{
+  const files=graph([
+    "import {forward} from './wrapper.mjs';",
+    "const result=[inspectRecord('externalFormat'),inspectRecord('auditCount'),forward()];"
+  ].join('\n'));
+  files.push({path:'factory.mjs',sourceType:'module',
+    code:'export function getFactory(){return 7;}'});
+  files.push({path:'wrapper.mjs',sourceType:'module',
+    code:"import {getFactory} from './factory.mjs';export function forward(){return getFactory();}"});
+  const original=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'cross-module-primitive-forward',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1);
+  assert.equal(await execute(compiled.files),original);
+});
+
+for(const [label,bridge,wrapper] of [
+  ['direct renamed ESM re-export',null,
+    "export {getFactory as forward} from './factory.mjs';"],
+  ['transitive renamed ESM re-exports',
+    "export {getFactory as middle} from './factory.mjs';",
+    "export {middle as forward} from './bridge.mjs';"]
+]) {
+  test('re-exported host-return capability: '+label,async()=>{
+    const files=graph([
+      "import {forward} from './wrapper.mjs';const ctor=forward();",
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    files.push({path:'factory.mjs',sourceType:'module',
+      code:'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'});
+    if(bridge)files.push({path:'bridge.mjs',sourceType:'module',code:bridge});
+    files.push({path:'wrapper.mjs',sourceType:'module',code:wrapper});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'return-reexport/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
