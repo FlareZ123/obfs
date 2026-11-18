@@ -145,9 +145,32 @@ async function httpSample(layout,root){
     const restarted=await launch(dbPath,root,tokenA,tokenB,control,
       false,4,accountShards,'',bucketCount);
     workers.push(restarted);
-    assert.equal((await call(restarted.base,tokenA,2,alternatives[winner])).status,200);
+    const recent=await call(restarted.base,tokenA,2,alternatives[winner]);
+    const bRecent=await call(restarted.base,tokenB,0,inputs);
+    assert.equal(recent.status,200);
+    assert.deepEqual(recent.value,expectedNext);
     assert.equal((await call(restarted.base,tokenA,0,aFirst)).status,403);
-    assert.equal((await call(restarted.base,tokenB,0,inputs)).status,200);
+    assert.equal(bRecent.status,200);
+    assert.deepEqual(bRecent.value,expected);
+    /**
+     * Read persisted states through a fresh independent SQLite connection,
+     * rather than assuming that successful HTTP 200 implies a committed row.
+     * @param {string} principal
+     * @returns {{seq:number,committed:number}}
+     */
+    function snapshot(principal){
+      const file=isBucket?path.join(dbPath,'bucket-'+
+        bucketOf(root,principal,8)+'.sqlite'):
+        accountShards?path.join(dbPath,'principal-'+
+          createHash('sha256').update(principal).digest('hex')+'.sqlite'):
+          dbPath;
+      const verifier=new TransactionalRatchet(file,root);
+      try{return verifier.snapshot(principal);}finally{verifier.close();}
+    }
+    const actualA=snapshot('verified-A');
+    const actualB=snapshot('verified-B');
+    assert.deepEqual(actualA,{seq:4,committed:4});
+    assert.deepEqual(actualB,{seq:2,committed:2});
     const fileBase=isBucket||accountShards?dbPath:dir;
     const dbFiles=fs.readdirSync(fileBase).filter(name=>name.endsWith('.sqlite'));
     assert.equal(dbFiles.length,bucketCount|| (accountShards?2:1));
@@ -161,7 +184,8 @@ async function httpSample(layout,root){
       exactReplayStatuses:same.map(x=>x.status),
       conflictingReplayStatuses:conflict.map(x=>x.status),
       lastCrossProcessRetry:lastRetry.status,restartCached:true,
-      unauthorizedRpcStatus:403,committedA:4,committedB:2,
+      unauthorizedRpcStatus:403,committedA:actualA.committed,
+      committedB:actualB.committed,
       allOriginalOutputsMatch:true,dbFiles:dbFiles.length,dbBytes
     };
   }finally{
