@@ -121,7 +121,12 @@
     "sims/sco-ratchet-online-relay.js",
     "sims/sco-ratchet-retry-candidate.js",
     "test/sco-ratchet-browser-attacker.js",
-    "test/sco-ratchet-browser-equal-trust.js"
+    "test/sco-ratchet-browser-equal-trust.js",
+    "test/property-in-operator.test.js",
+    "test/property-in-adversarial.test.js",
+    "test/property-in-browser.js",
+    "sims/property-in-operator-profile.js",
+    "sims/property-in-operator-static-recover.js"
   ],
   "exclude": [
     "node_modules"
