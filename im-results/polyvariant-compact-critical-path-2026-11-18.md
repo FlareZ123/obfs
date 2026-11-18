@@ -27,6 +27,21 @@ The substantially faster compact selected-leaf profile improves the measured run
 
 ## Next measurement
 
-A longer-duration compact-only selected-function profile at source `d80c678271ee2c1467ffacb6d9da69a82cec4de0` has been dispatched to reduce Windows CPU quantum sensitivity. It uses 200 million and 400 million selected-function loop iterations per pair, leaving the previously validated full affine 40/80 million control unchanged. The latest result should be added only after the exact GitHub Actions run completes; the earlier 2.51613x strict sample must remain visible, regardless of later improvements.
+A second, longer-duration compact-only selected-function profile is independently pinned below. It tests 200 million and 400 million loops per observation to reduce Windows process-CPU quantization; the original hot control remains 40/80 million iterations. The earlier 2.51613x strict pair remains valid historical sampled evidence.
 
 This is a negative architectural-selection finding for high-security obfuscation, while also demonstrating an order-of-magnitude performance sensitivity to the lowerer's chosen arithmetic representation.
+
+## Longer-duration falsification, 18 November 2026 ~00:53 UTC
+
+The independently [completed two-platform run 44210744630](https://github.com/FlareZ123/obfs/actions/runs/44210744630) at exact runner checkout `c9ba9eaa2100ad757f8545358133a529f61983dc` **passed both jobs**. The only concurrent intervening change from the benchmark source edit `d80c678271ee2c1467ffacb6d9da69a82cec4de0` was another agent's unrelated `.github/workflows/manual-sco-authorization.yml` edit. The compact generated math and resident runner are otherwise identical to the committed long-duration pilot. The workflow again passed strict JSDoc, native/obfuscated app digest parity, active SNO startup digest-tamper refusal, source-only compact recovery, and fresh-process SNO latency control.
+
+| Selected leaf chain calls | Ubuntu compact median CPU ratio | Ubuntu strict >2.5x pairs | Windows compact median CPU ratio | Windows strict >2.5x pairs |
+| ---: | ---: | ---: | ---: | ---: |
+| 200,000,000 | **1.9999x** | 0/13 | **2.2936x** | 0/13 |
+| 400,000,000 | **1.9944x** | **2/13** | **2.7594x** | **11/13** |
+
+The maximum measured compact CPU ratio in the 400-million-iteration row was **3.3954x on Ubuntu** and **3.0000x on Windows**. The median native CPU duration for that row was **253.55 ms Ubuntu** and **187 ms Windows**, providing substantially more time resolution than the initial 40-million Windows native control (~31 ms). The sustained Windows compact median **exceeds the required 2.5x budget**, and **13/52 compact CPU pairs** in this run exceeded 2.5x. The still-present original full-affine baseline had **52/52 strict hot CPU pairs above 2.5x** across the shorter 40/80 million row pair. Full raw arrays are in the two CI job logs.
+
+**Decision from the expanded evidence:** The compact variant mitigates much of the original backend's hot arithmetic slowdown but still violates the strict limit on realistic long selected-leaf workloads, including a **median-level Windows breach** with longer samples. Its independently demonstrated trivial public reconstruction prevents claiming a security improvement. **Reject both full and compact polyvariant candidates as general solutions to the primary objective.** They remain opt-in reproducible research variants, and the original tests of stateful application parity remain correct for their specific work fractions.
+
+The difference between the 200-million and 400-million Windows ratios might involve JIT tiering, hidden GC effects, loop optimization or scheduler variation; the present data do not identify a mechanism. The independent native/obfuscated outputs were equal, so treating the higher ratio as a measurement artifact without further controlled evidence would be unjustified. A future candidate must pass matched long-duration hot CPU, complete application, and independent static/hostile-runtime attacks before selection.
