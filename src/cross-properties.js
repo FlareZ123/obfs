@@ -22,8 +22,9 @@ function resolveImport(from,specifier) {
 }
 
 /**
- * Resolve direct, unique named ESM imports whose source module exports a
- * statically known, immutable const string. The value is sufficient to
+ * Resolve unique named ESM imports whose source module exports, or explicitly
+ * named-reexports, a statically known immutable const string. The value is
+ * sufficient to
  * distinguish a computed key from Function#toString observation; ownership
  * and initialization order are separately proved before renaming any key.
  * @param {SourceFile[]} files
@@ -81,6 +82,38 @@ function collectVerifiedImportedStrings(files) {
     }
     exported.set(filename,names);
   }
+  // Relay only already-proved immutable string values through explicit named
+  // source reexports. This is provenance metadata only. A computed property
+  // rewrite that consumes an imported key from another module remains gated
+  // by the separate acyclic-ESM proof below, so a cyclic TDZ read is retained.
+  let stringForwarded;
+  do {
+    stringForwarded=false;
+    for(const [relayName,relay] of modules) {
+      const exposed=exported.get(relayName);
+      if(!exposed)continue;
+      for(const statement of relay.ast.body) {
+        if(statement.type!=='ExportNamedDeclaration'||!statement.source||
+           statement.source.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/.test(statement.source.value))continue;
+        const origin=resolveImport(relayName,statement.source.value);
+        const available=origin?exported.get(origin):null;
+        if(!available)continue;
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier')continue;
+          const sourceName=spec.local.name??spec.local.value;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof sourceName!=='string'||typeof publicName!=='string')continue;
+          const value=available.get(sourceName);
+          if(value!==undefined&&!exposed.has(publicName)) {
+            exposed.set(publicName,value);
+            stringForwarded=true;
+          }
+        }
+      }
+    }
+  } while(stringForwarded);
   /** @type {Map<string,Map<string,string>>} */
   const imported=new Map();
   for(const [filename,module] of modules) {
