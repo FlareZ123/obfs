@@ -94,6 +94,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/css-rule-context-browser.js
+      - name: Real Chromium CSS import scheme C0 normalization negative
+        if: runner.os == 'Linux'
+        working-directory: protected
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/css-c0-url-browser.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck
