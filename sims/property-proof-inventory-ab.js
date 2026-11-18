@@ -10,6 +10,10 @@ const {performance}=require('node:perf_hooks');
 const REPO=join(__dirname,'..');
 const PROPERTY_FILE=join(REPO,'src','properties.js');
 const CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
+/** @type {string} */
+let control;
+/** @type {string} */
+let originalCompiler;
 
 /** @param {number} objects @returns {string} */
 function original(objects){
@@ -90,8 +94,8 @@ if(process.argv[2]==='sample'){
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
   assert.equal(process.env.CI,'true','Paired source swap requires an isolated CI job');
-  const originalCompiler=readFileSync(PROPERTY_FILE,'utf8');
-  const control=execFileSync('git',['show',CONTROL_SHA+':src/properties.js'],{
+  originalCompiler=readFileSync(PROPERTY_FILE,'utf8');
+  control=execFileSync('git',['show',CONTROL_SHA+':src/properties.js'],{
     cwd:REPO,encoding:'utf8',maxBuffer:1024*1024
   });
   assert.notEqual(sha256(originalCompiler),sha256(control));
