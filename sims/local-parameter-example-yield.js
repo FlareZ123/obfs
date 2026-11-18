@@ -72,8 +72,9 @@ function analyzeSource(source,sourceType,label) {
     for(const property of owner.properties){
       if(property.type!=='Property'||property.kind!=='init'||property.computed||
          property.value.type!=='Identifier')continue;
+      const valueName=property.value.name;
       if(!fn.params.some(param=>param.type==='Identifier'&&
-          param.name===property.value.name))continue;
+          param.name===valueName))continue;
       syntax++;
       if(property.shorthand)shorthandSyntax++;
       if(!directConst)continue;
