@@ -71,6 +71,17 @@ test('aliased process.report namespace preserves source coordinates',()=>{
   );
 });
 
+test('escaped process.report namespaces preserve source coordinates',()=>{
+  const expressions=[
+    '(()=>{function take(report){return report.getReport();}return take(process.report);})()',
+    '(()=>{const box={report:process.report};return box.report.getReport();})()',
+    '(()=>{const box=[process.report];return box[0].getReport();})()',
+    '(()=>{function take(){return process.report;}return take().getReport();})()'
+  ];
+  for(const [index,expression] of expressions.entries())
+    mustPreserveProcessReport(expression,'agent1-process-report-escape-'+index);
+});
+
 test('copied process.report methods preserve source coordinates',()=>{
   const expressions=[
     '(()=>{const {...copy}=process.report;return copy.getReport();})()',
