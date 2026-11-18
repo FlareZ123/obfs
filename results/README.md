@@ -38,6 +38,44 @@ A separate compact case encoding reduced typical measured arithmetic overhead wh
 
 **Candidate-selection consequence:** Both experimental polyvariant representations remain unsuitable as general strong protections under the requested 2.5× hard compute ceiling. Whole-application, cold Node startup and warmed selected-critical-path CPU each require explicit measurement boundaries. This is reproducible negative evaluation and compiler-safety context, without an academically established strong-obfuscation construction. The overall COO/SNO/SCO release verdict remains blocked.
 
+## Cross-mode release decision now includes selected SNO hot compute, 18 November 2026
+
+The former ten-population cross-mode comparison mixed SNO cold Node startup
+with the requested initialization-exempt SNO repeated-compute budget.
+[PR #83](https://github.com/FlareZ123/obfs/pull/83), merged as
+`7276233deb2f385141bd76b8246bb045d4ef0a38`, preserves that
+historical cold measurement as operational latency and adds a separate
+**twelve-population, source-coincident strict compute aggregation**:
+four COO sessions, four SNO resident application CPU workloads,
+**two mandatory SNO direct selected-function CPU workloads**, and
+two SCO authenticated-service workloads. The strict sampled-pair veto is
+reported separately from one-sided familywise median confidence.
+The existing security verdict remains **RELEASE-BLOCKED**.
+
+The independent two-platform [full release gate 44212314693](https://github.com/FlareZ123/obfs/actions/runs/44212314693)
+at exact executable SHA `aff2728c7c77ebad7856303cf62554bebb1ce832`
+passed all prescribed programs and strict JSDoc; the final
+[resolved-toolchain run 44214285338](https://github.com/FlareZ123/obfs/actions/runs/44214285338)
+at SHA `a9c5163cf8f424e3630806ceca5a9336e8fb44da`
+also passed Ubuntu/Windows and logged the full npm dependency tree.
+In the latter, SNO resident whole-application groups had
+**0/104 strict CPU pair breaches**, while directly exercising
+the selected `round1/round2/round3` functions after manifest-checked
+startup yielded **52/52 strict >2.5× CPU breaches** and the
+twelve-population join recorded **39 Ubuntu and 35 Windows**
+strict breaches overall. The published numeric hot-loop slowdown
+ranges from approximately 20.59× to 31.34× Ubuntu and 24.88×
+to 25.30× Windows in that exact run.
+
+The original selected-affine hotpath failure had already been
+[established by Agent 37](../im-results/polyvariant-selected-hotpath-budget-veto-2026-11-18.md);
+the merged contribution reproduces it and **repairs the central
+release calculation** so successful but mostly unprotected application
+work cannot conceal severe selected-function compute cost.
+[Complete raw pairs, clocks and scope](../im-results/sno-hot-leaf-crossmode-reconciliation-2026-11-18.md).
+These pins certify finite tested evidence. Concurrent later `main`
+edits and other unpublished candidates require independent verification.
+
 ## What is actually supported
 
 The repository provides runnable COO (client-only), SNO (server-only, no live obfuscator control), and SCO (server-controlled) entry points. Its bounded compiler-safety regressions, cross-platform native/generated comparisons, and Chromium integration demonstrate **tested behavior preservation for selected programs**. They do not establish general observational equivalence, strong deobfuscation resistance, or a universal **2.5×** runtime guarantee.
