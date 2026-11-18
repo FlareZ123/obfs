@@ -37,6 +37,8 @@ jobs:
         run: node sims/sco-ratchet-retry-candidate.js
       - name: Authorized A CPU flood cross-account B 2.5x contention witness
         run: node sims/sco-ratchet-cross-account-contention.js
+      - name: Per-principal resident worker isolation performance pilot
+        run: node sims/sco-ratchet-worker-isolation-pilot.js
       - name: Certificate-validated reused vs fresh TLS 1.3 budget
         run: node sims/sco-ratchet-tls-cost.js
       - name: Real Chromium HttpOnly session CSP and native output parity
