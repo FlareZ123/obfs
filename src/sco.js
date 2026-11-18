@@ -463,12 +463,21 @@ function createScoHandler(sourceFiles,options={}) {
   // which requests and server-resident functions the handler authorizes.
   // Callbacks themselves remain live functions for normal credential rotation.
   /** @type {ScoOptions} */
-  const policy={...options,
+  const policy={
+    // Copy only the request-time policy fields. Spreading the original
+    // options would re-read unrelated publication getters such as publicPaths
+    // after their authoritative startup snapshots had been validated.
     allowedHosts:options.allowedHosts?[...options.allowedHosts]:undefined,
     // Preserve exact method identity. Batch policy preflight uses a private
     // WeakMap on original function objects; binding/wrapping a method loses
     // its verified transitive operation metadata and is unsafe.
-    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined};
+    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined,
+    authorizeRpc:options.authorizeRpc,
+    authorizeOperation:options.authorizeOperation,
+    runRpcIsolated:options.runRpcIsolated,
+    maxRpcBytes:options.maxRpcBytes,
+    authorizeRead:options.authorizeRead
+  };
   return (request,response) => {
     // Node's HTTP parser accepts some malformed absolute-form request targets.
     // WHATWG URL parsing may throw; treat the target as a bad request instead
