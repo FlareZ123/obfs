@@ -1254,6 +1254,33 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         return readsHostCallable(argument) ||
           argument.type==='Identifier' && hostCallAliases.has(argument.name);
       }
+      /**
+       * A function may return an opaque host capability to a caller in this
+       * module or another imported module. The exported caller can then use
+       * that capability to import a distributed module outside the static
+       * graph, observing its original property spellings. Returning a holder
+       * or an expression containing a host capability is equally unsafe.
+       * This is a deliberate conservative escape veto, not a whole-program
+       * return-value or module-linkage proof.
+       *
+       * @param {AstNode} expression
+       * @returns {boolean}
+       */
+      function returnsHostCapability(expression) {
+        let exposed=false;
+        walk(expression,child=>{
+          if(passesHostCallable(child) ||
+             child.type==='Identifier' && hostContainers.has(child.name)) {
+            exposed=true;
+          }
+        });
+        return exposed;
+      }
+      if(node.type==='ReturnStatement' && node.argument &&
+         returnsHostCapability(node.argument))changedIntrinsic=true;
+      if(node.type==='ArrowFunctionExpression' &&
+         node.body.type!=='BlockStatement' &&
+         returnsHostCapability(node.body))changedIntrinsic=true;
       // A host callable used as an argument may be invoked or retained by
       // any otherwise unproved call/constructor. This includes Reflect.apply,
       // microtask and Promise callbacks, not only direct host callees.
