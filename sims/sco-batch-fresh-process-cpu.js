@@ -13,14 +13,16 @@ const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('.
 const {ROOT,EXPOSED,build}=require('../examples/application-challenge/sco-build.cjs');
 const {externalValue}=require('../examples/application-challenge/sco-server.cjs');
 const {pairedBudgetBound}=require('./paired-budget-bound');
+const {ordinaryMinifiedClient}=require('./sco-batch-equal-trust-attacker');
 const {atomicWrite}=require('../src/atomic');
 
 const executeFile=promisify(execFile);
 const CHILD=path.join(__dirname,'sco-batch-process-client.cjs');
-/** @typedef {'native'|'remote'} Kind */
+const ORDINARY_PATH='ordinary-minified.mjs';
+/** @typedef {'native'|'remote'|'ordinary'} Kind */
 /** @typedef {{mode:Kind,calls:number,cpuMs:number,outputSha256:string,publicSourceSha256:string|null}} ChildResult */
 /** @typedef {{cpuMs:number,wallMs:number,parentCpuMs:number,clientCpuMs:number,outputSha256:string}} Sample */
-/** @typedef {{iterationsPerCall:number,totalCalls:number,nativeCpuMs:number[],remoteCpuMs:number[],nativeWallMs:number[],remoteWallMs:number[],nativeParentCpuMs:number[],remoteParentCpuMs:number[],nativeClientCpuMs:number[],remoteClientCpuMs:number[],strictCpuBreaches:number,strictWallBreaches:number,cpuBound:ReturnType<typeof pairedBudgetBound>,wallBound:ReturnType<typeof pairedBudgetBound>}} Row */
+/** @typedef {{iterationsPerCall:number,totalCalls:number,nativeCpuMs:number[],remoteCpuMs:number[],ordinaryCpuMs:number[],nativeWallMs:number[],remoteWallMs:number[],ordinaryWallMs:number[],nativeParentCpuMs:number[],remoteParentCpuMs:number[],ordinaryParentCpuMs:number[],nativeClientCpuMs:number[],remoteClientCpuMs:number[],ordinaryClientCpuMs:number[],strictCpuBreaches:number,strictWallBreaches:number,ordinaryStrictCpuBreaches:number,ordinaryStrictWallBreaches:number,cpuBound:ReturnType<typeof pairedBudgetBound>,wallBound:ReturnType<typeof pairedBudgetBound>,ordinaryCpuBound:ReturnType<typeof pairedBudgetBound>,ordinaryWallBound:ReturnType<typeof pairedBudgetBound>,incrementalCpuBound:ReturnType<typeof pairedBudgetBound>,incrementalWallBound:ReturnType<typeof pairedBudgetBound>,incrementalStrictCpuBreaches:number,incrementalStrictWallBreaches:number}} Row */
 
 /**
  * Fresh Node child from process creation through output digest. Parent CPU
@@ -41,7 +43,7 @@ async function observeChild(mode,iterationsPerCall,totalCalls,origin,bearer,publ
   const wallStart=performance.now();
   const {stdout}=await executeFile(process.execPath,[
     CHILD,mode,origin,bearer,String(iterationsPerCall),String(totalCalls),
-    path.join(ROOT,EXPOSED),EXPOSED
+    path.join(ROOT,EXPOSED),mode==='ordinary'?ORDINARY_PATH:EXPOSED
   ],{encoding:'utf8',timeout:60000,maxBuffer:1024*1024});
   const wallMs=performance.now()-wallStart;
   const parent=process.cpuUsage(parentStart);
@@ -51,7 +53,7 @@ async function observeChild(mode,iterationsPerCall,totalCalls,origin,bearer,publ
   assert.equal(child.calls,totalCalls);
   assert.match(child.outputSha256,/^[0-9a-f]{64}$/u);
   assert.ok(Number.isFinite(child.cpuMs)&&child.cpuMs>0);
-  if(mode==='remote')assert.equal(child.publicSourceSha256,publicSha256,
+  if(mode!=='native')assert.equal(child.publicSourceSha256,publicSha256,
     'Actual remote client received unexpected source bytes');
   else assert.equal(child.publicSourceSha256,null);
   assert.ok(parentCpuMs>=0&&wallMs>0);
@@ -70,7 +72,7 @@ async function observeChild(mode,iterationsPerCall,totalCalls,origin,bearer,publ
  * stays initialized; total CPU counts both processes for each observation.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,sourceSha256:string,totalCalls:number,serverInitializationExcluded:boolean,freshClientProcessIncluded:boolean,cpuScope:string,rows:Row[]}>}
+ * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,sourceSha256:string,ordinarySourceSha256:string,totalCalls:number,serverInitializationExcluded:boolean,freshClientProcessIncluded:boolean,cpuScope:string,rows:Row[]}>}
  */
 async function run(rounds=9){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>30)
@@ -107,8 +109,12 @@ async function run(rounds=9){
     }
     const directMethod=partition.methodNames.evaluateRemote;
     const batchMethod=partition.batchMethod;
-    const handler=createScoHandler([partition.clientFile],{
-      publicPaths:[EXPOSED],remoteMethods:registry,maxRpcBytes:262144,
+    const ordinarySource=ordinaryMinifiedClient(directMethod,batchMethod);
+    const ordinarySha256=createHash('sha256').update(ordinarySource).digest('hex');
+    const handler=createScoHandler([
+      partition.clientFile,{path:ORDINARY_PATH,code:ordinarySource,sourceType:'module'}
+    ],{
+      publicPaths:[EXPOSED,ORDINARY_PATH],remoteMethods:registry,maxRpcBytes:262144,
       authorizeRead:authorized,authorizeRpc:authorized,
       authorizeOperation:(request,method,args)=>{
         if(!authorized(request))return false;
@@ -149,6 +155,14 @@ async function run(rounds=9){
     assert.ok(!publicSource.includes('createEngine'),
       'Actual public ESM must withhold private engine source');
     const sourceSha256=createHash('sha256').update(publicSource).digest('hex');
+    assert.equal((await fetch(origin+'/obfs/'+ORDINARY_PATH)).status,403,
+      'Ordinary equal-trust ESM must use the same authorization');
+    const ordinaryResponse=await fetch(origin+'/obfs/'+ORDINARY_PATH,{
+      headers:{'x-batch-token':bearer}
+    });
+    assert.equal(ordinaryResponse.status,200);
+    assert.equal(createHash('sha256').update(await ordinaryResponse.text()).digest('hex'),
+      ordinarySha256,'Actual ordinary source bytes must match frozen minified ESM');
     /** @type {Row[]} */
     const rows=[];
     const totalCalls=12*1024;
@@ -157,46 +171,71 @@ async function run(rounds=9){
       const originalSamples=[];
       /** @type {Sample[]} */
       const remoteSamples=[];
+      /** @type {Sample[]} */
+      const ordinarySamples=[];
+      /** @type {Array<Array<Kind>>} */
+      const orders=[
+        ['native','remote','ordinary'],
+        ['remote','ordinary','native'],
+        ['ordinary','native','remote'],
+        ['native','ordinary','remote'],
+        ['ordinary','remote','native'],
+        ['remote','native','ordinary']
+      ];
       for(let pair=0;pair<rounds;pair++){
-        let originalSample,remoteSample;
-        if(pair%2===0){
-          originalSample=await observeChild('native',iterationsPerCall,totalCalls,
-            origin,bearer,sourceSha256);
-          remoteSample=await observeChild('remote',iterationsPerCall,totalCalls,
-            origin,bearer,sourceSha256);
-        }else{
-          remoteSample=await observeChild('remote',iterationsPerCall,totalCalls,
-            origin,bearer,sourceSha256);
-          originalSample=await observeChild('native',iterationsPerCall,totalCalls,
-            origin,bearer,sourceSha256);
+        /** @type {Sample|undefined} */ let originalSample;
+        /** @type {Sample|undefined} */ let remoteSample;
+        /** @type {Sample|undefined} */ let ordinarySample;
+        for(const mode of orders[pair%orders.length]){
+          const value=await observeChild(mode,iterationsPerCall,totalCalls,
+            origin,bearer,mode==='ordinary'?ordinarySha256:sourceSha256);
+          if(mode==='native')originalSample=value;
+          else if(mode==='remote')remoteSample=value;
+          else ordinarySample=value;
         }
+        assert.ok(originalSample&&remoteSample&&ordinarySample);
         assert.equal(remoteSample.outputSha256,originalSample.outputSha256,
-          'Fresh original and real HTTP batched client changed ordered JSON values');
+          'Fresh original and real HTTP generated client changed ordered JSON values');
+        assert.equal(ordinarySample.outputSha256,originalSample.outputSha256,
+          'Fresh original and equal-trust minified client changed ordered JSON values');
         originalSamples.push(originalSample);
         remoteSamples.push(remoteSample);
+        ordinarySamples.push(ordinarySample);
       }
       const nativeCpuMs=originalSamples.map(x=>x.cpuMs);
       const remoteCpuMs=remoteSamples.map(x=>x.cpuMs);
+      const ordinaryCpuMs=ordinarySamples.map(x=>x.cpuMs);
       const nativeWallMs=originalSamples.map(x=>x.wallMs);
       const remoteWallMs=remoteSamples.map(x=>x.wallMs);
+      const ordinaryWallMs=ordinarySamples.map(x=>x.wallMs);
       rows.push({
-        iterationsPerCall,totalCalls,nativeCpuMs,remoteCpuMs,
-        nativeWallMs,remoteWallMs,
+        iterationsPerCall,totalCalls,nativeCpuMs,remoteCpuMs,ordinaryCpuMs,
+        nativeWallMs,remoteWallMs,ordinaryWallMs,
         nativeParentCpuMs:originalSamples.map(x=>x.parentCpuMs),
         remoteParentCpuMs:remoteSamples.map(x=>x.parentCpuMs),
+        ordinaryParentCpuMs:ordinarySamples.map(x=>x.parentCpuMs),
         nativeClientCpuMs:originalSamples.map(x=>x.clientCpuMs),
         remoteClientCpuMs:remoteSamples.map(x=>x.clientCpuMs),
+        ordinaryClientCpuMs:ordinarySamples.map(x=>x.clientCpuMs),
         cpuBound:pairedBudgetBound(nativeCpuMs,remoteCpuMs),
         wallBound:pairedBudgetBound(nativeWallMs,remoteWallMs),
+        ordinaryCpuBound:pairedBudgetBound(nativeCpuMs,ordinaryCpuMs),
+        ordinaryWallBound:pairedBudgetBound(nativeWallMs,ordinaryWallMs),
+        incrementalCpuBound:pairedBudgetBound(ordinaryCpuMs,remoteCpuMs),
+        incrementalWallBound:pairedBudgetBound(ordinaryWallMs,remoteWallMs),
         strictCpuBreaches:nativeCpuMs.filter((ms,i)=>remoteCpuMs[i]>2.5*ms).length,
-        strictWallBreaches:nativeWallMs.filter((ms,i)=>remoteWallMs[i]>2.5*ms).length
+        strictWallBreaches:nativeWallMs.filter((ms,i)=>remoteWallMs[i]>2.5*ms).length,
+        ordinaryStrictCpuBreaches:nativeCpuMs.filter((ms,i)=>ordinaryCpuMs[i]>2.5*ms).length,
+        ordinaryStrictWallBreaches:nativeWallMs.filter((ms,i)=>ordinaryWallMs[i]>2.5*ms).length,
+        incrementalStrictCpuBreaches:ordinaryCpuMs.filter((ms,i)=>remoteCpuMs[i]>2.5*ms).length,
+        incrementalStrictWallBreaches:ordinaryWallMs.filter((ms,i)=>remoteWallMs[i]>2.5*ms).length
       });
     }
     return {
       source:'sims/sco-batch-fresh-process-cpu.js',platform:process.platform,
-      node:process.version,sourceSha256,totalCalls,
+      node:process.version,sourceSha256,ordinarySourceSha256:ordinarySha256,totalCalls,
       serverInitializationExcluded:true,freshClientProcessIncluded:true,
-      cpuScope:'Parent trusted-server CPU plus whole fresh child-process CPU from launch. Original ESM and generated HTTP ESM compile in their corresponding child; original trusted server private graph was pre-initialized. Loopback network; no browser, cross-network RTT, TLS, equal-trust minified control or raw non-JSON value equivalence.',
+      cpuScope:'Parent trusted-server CPU plus whole fresh child-process CPU from launch. Original ESM, generated HTTP ESM and ordinary esbuild-minified HTTP ESM each compile in a fresh child against the same trusted server original. Loopback only; no browser, cross-network RTT, TLS or raw non-JSON value equivalence.',
       rows
     };
   }finally{
