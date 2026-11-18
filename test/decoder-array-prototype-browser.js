@@ -123,6 +123,12 @@ async function main() {
       expectEncoded:false},
     {name:'harmless-object-field',
       mutation:"Object.defineProperty(Object.prototype,'unrelatedAppField',{value:7,configurable:true});",
+      expectEncoded:true},
+    {name:'document-defaultview-String-mutation',
+      mutation:'document.defaultView.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'document-defaultview-unrelated-Number',
+      mutation:'document.defaultView.Number=()=>7;',
       expectEncoded:true}
   ];
   const observations=[];
