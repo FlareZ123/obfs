@@ -1750,6 +1750,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           reflectGetMethods.add(name);
           reflectiveChanged=true;
         }
+        if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+           memberName(value.callee)==='bind'&&
+           isReflectGetMethod(value.callee.object)&&value.arguments.length<=1&&
+           !reflectGetMethods.has(name)) {
+          reflectGetMethods.add(name);
+          reflectiveChanged=true;
+        }
         if(value.type==='Identifier' && reflectiveApplyMethods.has(value.name) &&
            !reflectiveApplyMethods.has(name)) {
           reflectiveApplyMethods.add(name);
@@ -1853,6 +1860,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       reflectiveApplyMethods.has(node.name) ||
       node.type==='MemberExpression' &&
       isReflectiveReceiver(node.object) && memberName(node)==='apply'));
+  }
+  /**
+   * Resolve bounded invocation wrappers around Reflect.get.
+   * @param {AstNode|null|undefined} node
+   * @returns {(AstNode|null)[]|null}
+   */
+  function reflectGetInvocation(node) {
+    if(node?.type!=='CallExpression')return null;
+    if(isReflectApplyMethod(node.callee)&&isReflectGetMethod(node.arguments[0])) {
+      const list=node.arguments[2];
+      return list?.type==='ArrayExpression'?list.elements:[null];
+    }
+    if(isReflectGetMethod(node.callee))return node.arguments;
+    if(node.callee.type!=='MemberExpression')return null;
+    const method=memberName(node.callee);
+    if(!['call','apply'].includes(method??'')||
+       !isReflectGetMethod(node.callee.object))return null;
+    if(method==='call')return node.arguments.slice(1);
+    const list=node.arguments[1];
+    return list?.type==='ArrayExpression'?list.elements:[null];
   }
   /**
    * An indirect native constructor can stringify its first argument, and
@@ -2008,28 +2035,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReceiver(node) {
+    const reflected=reflectGetInvocation(node);
     return Boolean(node && (
       node.type==='Identifier'&&
         (node.name==='process'&&!shadowedProcessIdentifiers.has(node) ||
          processModuleNamespaces.has(node.name)) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
         (node.computed?sourceStringKey(node.property):memberName(node))==='process' ||
-      node.type==='CallExpression'&&isReflectGetMethod(node.callee)&&
-        isGlobal(node.arguments[0])&&sourceStringKey(node.arguments[1])==='process' ||
+      reflected&&isGlobal(reflected[0])&&sourceStringKey(reflected[1])==='process' ||
       isProcessModuleRequire(node)
     ));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReportNamespace(node) {
+    const reflected=reflectGetInvocation(node);
     return Boolean(node && (node.type==='Identifier'&&
       processReportNamespaces.has(node.name) ||
       node.type==='MemberExpression'&&isProcessReceiver(node.object)&&
         (processReportMemberName(node)==='report' ||
          node.computed&&processReportMemberName(node)===null) ||
-      node.type==='CallExpression'&&isReflectGetMethod(node.callee)&&
-        node.arguments.length>1&&isProcessReceiver(node.arguments[0])&&
-        (sourceStringKey(node.arguments[1])==='report' ||
-         sourceStringKey(node.arguments[1])===null)));
+      reflected&&isProcessReceiver(reflected[0])&&
+        (sourceStringKey(reflected[1])==='report' ||
+         sourceStringKey(reflected[1])===null)));
   }
   /** @param {AstNode} node @returns {AstNode} */
   function unwrapAssignmentPattern(node) {
@@ -2047,13 +2074,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(['call','apply'].includes(name??''))
         return isProcessReportMethod(node.object,depth+1);
     }
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
-      if(memberName(node.callee)==='bind')
+    if(node.type==='CallExpression') {
+      if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='bind')
         return isProcessReportMethod(node.callee.object,depth+1);
-      if(isReflectGetMethod(node.callee)&&node.arguments.length>1&&
-         isProcessReportNamespace(node.arguments[0])&&
-         (['getReport','writeReport'].includes(sourceStringKey(node.arguments[1])??'') ||
-          sourceStringKey(node.arguments[1])===null))
+      const reflected=reflectGetInvocation(node);
+      if(reflected&&isProcessReportNamespace(reflected[0])&&
+         (['getReport','writeReport'].includes(sourceStringKey(reflected[1])??'') ||
+          sourceStringKey(reflected[1])===null))
         return true;
     }
     return false;
@@ -2489,13 +2516,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['Identifier','ObjectPattern'].includes(parent.id.type);
     const assignedAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
       ['Identifier','ObjectPattern'].includes(parent.left.type);
-    const benignProcessEnvironmentRead=parent?.type==='CallExpression'&&
-      parent.arguments[0]===node&&parent.arguments[1]&&
-      sourceStringKey(parent.arguments[1])==='env'&&
-      (parent.callee.type==='Identifier'&&reflectiveReaders.has(parent.callee.name) ||
-       parent.callee.type==='MemberExpression'&&
-         isReflectiveReceiver(parent.callee.object)&&
-         ['get','getOwnPropertyDescriptor'].includes(memberName(parent.callee)??''));
+    const reflectedProcessRead=parent?.type==='CallExpression'?
+      reflectGetInvocation(parent):null;
+    const benignProcessEnvironmentRead=reflectedProcessRead?.[0]===node&&
+      sourceStringKey(reflectedProcessRead[1])==='env';
     if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
        !bindingNodes.has(node)&&!benignProcessEnvironmentRead&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
