@@ -24,7 +24,7 @@ const {proveSourceObserverIslands}=require('./source-observer-islands');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -818,7 +818,8 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const transformed=lowerPolyvariantAffine(code,sourceType,{
-        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??(mode==='coo'?2:4)
+        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??(mode==='coo'?2:4),
+        compact:options.experimentalPolyvariantCompact===true
       });
       if(transformed.declined) {
         throw new TypeError('Polyvariant affine declined '+transformed.declined+
