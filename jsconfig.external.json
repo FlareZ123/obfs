@@ -166,7 +166,10 @@
     "sims/private-in-immediate-cold.js",
     "sims/private-in-onefile-cold.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "test/sco-immutable-batch-args.test.js",
+    "sims/sco-immutable-batch-profile.js",
+    "sims/sco-immutable-shape-cpu.js"
   ],
   "exclude": [
     "node_modules"

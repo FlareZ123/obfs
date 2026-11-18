@@ -35,6 +35,12 @@ jobs:
         run: node sims/sco-batch-state-cost.js
       - name: Paired SCO authentication lookup deadline cost
         run: node sims/sco-principal-resolution-cost.js
+      - name: Read-only SCO immutable batch real HTTP behavior
+        run: node --test test/sco-immutable-batch-args.test.js
+      - name: Read-only SCO one-parse versus default paired HTTP profile
+        run: node sims/sco-immutable-batch-profile.js
+      - name: Read-only SCO deep and wide JSON matched client+server CPU profile
+        run: node sims/sco-immutable-shape-cpu.js
       - name: Parser-only SCO batch isolation snapshot cost
         run: node sims/sco-batch-json-parse-cost.js
       - name: Paired host allowlist lookup CPU versus prepatch source behavior

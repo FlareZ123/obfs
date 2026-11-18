@@ -613,6 +613,38 @@ and late principal lookups. This is an SCO
 server authorization control, not client-side anti-debugging or a proof
 of the project's universal 2.5× compute target.
 
+## Experimental read-only SCO batch arguments
+
+`createScoHandler` accepts the opt-in `immutableBatchArgs:true` setting only
+when an `authorizeOperation` callback is supplied. For a registered
+`createScoBatchMethod` route, the handler parses its bounded JSON payload
+once, freezes the parsed argument array and reachable JSON objects before
+authorization, then passes that same read-only graph to the outer policy,
+inner policies and private batch executor. This avoids the two additional
+policy JSON parses performed by the default route. Normal direct RPCs and
+non-registered batches continue using the default independent authorization
+view. `immutableBatchArgs:false` is the default.
+
+This is a deliberate API contract change. An authorizer or private method
+that assigns to arguments, depends on descriptors being writable, attempts
+to append to an array, or compares policy and executor argument identity
+can change its observable behavior. Strict-mode mutations throw and follow
+the existing generic HTTP error route; a registered batch may report
+per-item failures. Enable this mode only after verifying that every
+registered private operation and relevant authorizer treats argument
+graphs as immutable. Do not infer that arbitrary JavaScript input values
+are preserved: the RPC protocol admits JSON values and has its own
+serialization semantics.
+
+The bounded fresh-process two-platform regression and real-HTTP paired
+performance profile are `test/sco-immutable-batch-args.test.js` and
+`sims/sco-immutable-batch-profile.js`, run by the manual SCO authorization
+workflow. The historical pilot is recorded in
+`im-results/sco-immutable-batch-args-2026-11-17.md`.
+Measured improvements are workload-specific and do not establish a
+universal 2.5× compute bound. This option does not add resistance to
+authenticated relaying or client-side inspection.
+
 ## Limits
 
 The client still receives executable JavaScript and may retain, trace, debug, modify, replay, or redistribute it. Source delivery authorization only controls which requests the trusted SCO server fulfills. Do not put server secrets inside delivered JavaScript, and do not use the `Host` header as an identity proof. Keep sensitive algorithms or secret-dependent operations on the server through `remoteMethods`; account for network cost under the 2.5x runtime budget.
