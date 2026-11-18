@@ -171,7 +171,9 @@
     "sims/compatible-permutation-linear-wrapper-exhaustive-small.js",
     "sims/compatible-permutation-linear-sandwich-blackbox.js",
     "sims/compatible-permutation-linear-sandwich-sparse-counterexample.js",
-    "test/compatible-permutation-linear-sandwich-counterexample.test.js"
+    "test/compatible-permutation-linear-sandwich-counterexample.test.js",
+    "sims/mba-permutation-component-inverse.js",
+    "sims/mba-permutation-heldout-inverse.js"
   ],
   "exclude": [
     "node_modules"
