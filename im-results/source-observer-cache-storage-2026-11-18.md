@@ -37,6 +37,16 @@ The [guarded focused Ubuntu/Windows workflow 44205044248](https://github.com/Fla
 
 The first two post-patch runs failed due to test-only mistakes in an apostrophe-quoted test title and a missing `another.mjs` positive-control import. Both mistakes were corrected before the green pinned run. They were harness errors, not evidence of a failed CacheStorage guard.
 
+## Separate default-compiler source-byte disclosure counterexample
+
+The original opt-in counterexample also motivated checking the ordinary compiler independently. An initial default variant still contained a source observer and was fully refused, so its zero-rewrite result was **not a conclusive test of CacheStorage recognition**. We removed the watched function entirely and made a minimal two-module ESM graph: the selected leaf retains a primitive own-data property; its importer calls `CacheStorage.add('./independent.mjs')`, reads the response text, and exports only a primitive observation object. The browser-only HTML harness, excluded from the compiler input, reads that exported object. This removes direct function-source observers from the declared code.
+
+The [separate, immutable real-Chromium red run 44205880657](https://github.com/FlareZ123/obfs/actions/runs/44205880657) at SHA **`f2b3545c1d19b04f9f5aedeb6a6f3fe027b07ed8`** completed successfully as a *counterexample test*. Chrome 157.0.8103.50 recorded `SOURCE_CACHE_DEFAULT` with `status:"source-observation-changed"`: **one** property rewrite, original text `visible:true`, emitted text `visible:false`, and value 23 in both. This confirms a **second, ordinary-compiler distributed-source scanner gap** on a deliberately declared two-file browser application.
+
+The compiler change adds the known `caches` and `CacheStorage` roots to the conservative `browserReaders` set in [`src/ast.js::observesDistributedSource`](../src/ast.js). [`test/cross-file-source-byte-reader.test.js`](../test/cross-file-source-byte-reader.test.js) now exercises direct `caches`, computed `globalThis["caches"]`, and global-object destructuring, in SCO/COO/SNO, while the pre-existing no-source-reader positive proves one cross-file property is still transformed. The same real browser script has a `--default-minimal` control to verify exact native/emitted byte observations; the guarded CI evidence is recorded with the related branch validation.
+
+This is a narrower source-admission correctness property, with no runtime code emitted for the extra check. A rewrite refusal has zero protected-work yield for that particular application. The preflight neither proves that arbitrary unknown host globals cannot indirectly expose source nor prevents a malicious recipient from requesting public JavaScript.
+
 ## Interpretation and next actions
 
 The opt-in proof remains conditional on a fully reviewed browser hosting and module-loading environment. The earlier [same-origin iframe counterexample](source-observer-island-host-iframe-boundary-2026-11-17.md) demonstrates that blacklisting individual ambient names cannot provide open-world source-byte non-observability. Do not characterize this new admission veto as an authenticated runtime trust boundary, an anti-DevTools feature, a full-control anti-tamper guarantee, or a general 2.5× result.
