@@ -12,6 +12,8 @@ const {atomicWrite}=require('../src/atomic');
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
 /**
+ * This Node preload models an already existing browser top WindowProxy:
+ * it is deliberately outside the compiler's closed-world source group.
  * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
  * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
  */
@@ -80,6 +82,8 @@ test('reflected Function constructor through top must not hide a runtime ESM con
   const generated=await execute(compiled.files);
   assert.equal(native.status,0,native.stderr);
   assert.equal(native.stdout,'{"direct":13,"keys":["secretField"]}');
+  assert.equal(compiled.crossFile.properties,0,
+    'Reflected Function can hide a second ESM source consumer');
   assert.deepEqual(generated,native,
     'Runtime Function/ESM clone can inspect original exported object keys');
 });
