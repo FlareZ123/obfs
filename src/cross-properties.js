@@ -616,6 +616,19 @@ function collectVerifiedImportedUrlStaticAliases(files) {
       }
     }
     const urls=new Set(['URL']);
+    const urlModules=new Set();
+    // Node's named URL import and namespace/default exports refer to the
+    // same intrinsic class as globalThis.URL, per the Node URL API contract.
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         !['node:url','url'].includes(String(statement.source.value)))continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type==='ImportSpecifier' &&
+           (spec.imported.name??spec.imported.value)==='URL')urls.add(spec.local.name);
+        if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+          urlModules.add(spec.local.name);
+      }
+    }
     const methods=new Set();
     /** @param {AstNode|null|undefined} node @returns {string|null} */
     function property(node) {
@@ -627,8 +640,8 @@ function collectVerifiedImportedUrlStaticAliases(files) {
     function isUrl(node) {
       return Boolean(node&&(node.type==='Identifier'&&urls.has(node.name) ||
         node.type==='MemberExpression'&&node.object.type==='Identifier'&&
-        ['globalThis','window','self','global'].includes(node.object.name)&&
-        property(node)==='URL'));
+        (['globalThis','window','self','global'].includes(node.object.name)||
+         urlModules.has(node.object.name))&&property(node)==='URL'));
     }
     /** @param {AstNode|null|undefined} node @returns {boolean} */
     function isNativeParser(node) {
