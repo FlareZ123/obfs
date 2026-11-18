@@ -473,7 +473,7 @@ prevent unlimited legitimate oracle queries.
 
 ### Reusable per-principal isolation helper
 
-`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?,maxPrincipalResolutionMs?})`
+`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?,maxPrincipalResolutionMs?,abortPrincipalLookup?})`
 provides a small in-process FIFO queue compatible with
 `createScoHandler`'s `runRpcIsolated` hook. Each verified principal's
 authorization checks and method execution are serialized, while different
@@ -495,8 +495,14 @@ and frees its global reservation. A late resolver result cannot authorize or
 execute the expired operation. Default `Infinity` preserves the original
 behavior. The deadline does **not** cancel the resolver's underlying network
 request or interrupt synchronous/blocking JavaScript, and timer delivery may
-be delayed while the Node event loop is busy. Integrators must still configure
-upstream identity-provider timeouts, resource limits and cancellation.
+be delayed while the Node event loop is busy. An optional
+`abortPrincipalLookup:true` (requiring a finite deadline) passes an
+`AbortSignal` as the resolver's second argument and calls `abort()` when the
+lookup expires. A cooperating identity provider can use this signal for its
+own cancellable I/O; the helper cannot forcibly cancel a noncooperating
+Promise or synchronous computation. The additional controller is created
+only when cancellation is explicitly enabled. Integrators must still configure
+upstream identity-provider timeouts and resource limits.
 Request parsing still occurs before either cap and consumes memory and CPU;
 deploy front-door request limits, timeouts and suitable body-size caps.
 
@@ -529,6 +535,11 @@ operation cap, but is **not** a fair scheduler: a burst from one account may
 consume all slots and temporarily reject requests for other accounts.
 Neither limit stops unlimited *serial* authorized requests.
 Use front-door limits and verified authentication in addition to this helper.
+
+To request best-effort cancellation of provider-side I/O, use a resolver
+that accepts `(request,signal)` and passes the signal to its identity-provider
+client, then configure `abortPrincipalLookup:true`. Existing one-argument
+resolvers remain supported, and cancellation is disabled by default.
 
 This helper protects only calls through the same in-process instance. It
 cannot synchronize Node workers, cluster processes, other services, database
