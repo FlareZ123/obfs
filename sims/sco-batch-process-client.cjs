@@ -29,7 +29,9 @@ function externalValue(value){
  */
 async function main(args){
   const [mode,origin,token,countText,totalText,nativePath,publicPath]=args;
-  assert.ok(mode==='native'||mode==='remote');
+  // Both remote variants download and execute their own published ESM file.
+  // The ordinary variant is the equal-trust esbuild-minified RPC baseline.
+  assert.ok(mode==='native'||mode==='remote'||mode==='ordinary');
   const iterations=Number(countText),total=Number(totalText);
   assert.ok(Number.isSafeInteger(iterations)&&iterations>=0&&iterations<=1000);
   assert.ok(Number.isSafeInteger(total)&&total>0&&total%1024===0);
