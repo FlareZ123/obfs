@@ -38,7 +38,7 @@ function sample(source,trial){
     const module={exports:null};
     new Function('module',source+'/*'+String(trial*64+i).padStart(9,'0')+'*/')(module);
     assert.equal(typeof module.exports,'number');
-    checksum^=/** @type {number} */ (module.exports);
+    checksum=(checksum+/** @type {number} */ (module.exports)*(i+1))|0;
   }
   const elapsed=process.cpuUsage(start);
   return {
