@@ -668,3 +668,36 @@ test('SCO graph refuses default REPL evaluation that loads undeclared server mod
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('SCO graph refuses cluster workers that launch undeclared Node entry modules',{
+  timeout:15000
+},async()=>{
+  const clusterSource=[
+    "import cluster from \"node:cluster\";",
+    "import {fileURLToPath} from \"node:url\";",
+    "export async function inspect(){",
+    "  cluster.setupPrimary({exec:fileURLToPath(new URL(\"./hidden.cjs\",import.meta.url)),silent:true});",
+    "  return await new Promise((resolve,reject)=>{",
+    "    const worker=cluster.fork();",
+    "    worker.once(\"message\",value=>resolve(value));",
+    "    worker.once(\"error\",reject);",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-cluster-loader-'));
+  try{
+    await atomicWrite(path.join(root,'cluster.mjs'),clusterSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),
+      'if(process.send){process.send(137);process.disconnect();}');
+    const original=await import(pathToFileURL(path.join(root,'cluster.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native cluster loaded an undeclared worker entry');
+    assert.throws(()=>partitionScoAsyncGraph([{
+      path:'cluster.mjs',code:clusterSource
+    }],{seed:'sco-cluster-dynamic-loader-20261118',
+      exposedPaths:['cluster.mjs']}),
+    /Private SCO graph cannot certify imports from runtime loader builtin/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
