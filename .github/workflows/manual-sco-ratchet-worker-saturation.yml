@@ -27,3 +27,5 @@ jobs:
           npm run typecheck:external
       - name: Measure original-equivalent independent B under 1 4 8 authorized attacker principals
         run: node sims/sco-ratchet-worker-multi-principal.js
+      - name: Compare generated and ordinary equal-trust workers under the same A-principal saturation
+        run: node sims/sco-worker-equal-trust-saturation.js
