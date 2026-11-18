@@ -9,6 +9,7 @@ const {createHash}=require('node:crypto');
  * application calls only. Each invocation creates fresh session state.
  */
 (async()=>{
+  // @ts-expect-error The verified ESM graph is materialized beside this bridge at runtime.
   const {runScenario}=await import('./entry.mjs');
   process.stdout.write('READY\n');
   const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
