@@ -30,11 +30,12 @@ const generatedGraphSnapshots=new WeakMap();
  * }} ScoGraphPartition
  */
 
-// Node Inspector can issue Runtime.evaluate, including CommonJS loaders in
-// evaluated strings that the static graph scanner cannot enumerate.
+// Inspector Runtime.evaluate and REPL's default evaluator both execute
+// hidden JavaScript strings, including CommonJS imports that the static
+// graph scanner cannot enumerate.
 const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
   'node:worker_threads','node:child_process',
-  'node:inspector','node:inspector/promises']);
+  'node:inspector','node:inspector/promises','node:repl']);
 /**
  * Reject ambiguous module specifiers before promising that the supplied graph
  * is closed over its relative imports. Native Node resolution must still load
