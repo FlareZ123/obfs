@@ -473,7 +473,7 @@ prevent unlimited legitimate oracle queries.
 
 ### Reusable per-principal isolation helper
 
-`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?})`
+`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?,maxPrincipalResolutionMs?})`
 provides a small in-process FIFO queue compatible with
 `createScoHandler`'s `runRpcIsolated` hook. Each verified principal's
 authorization checks and method execution are serialized, while different
@@ -488,6 +488,15 @@ Both limits are unlimited by default for existing integrations. A finite
 asynchronous identity resolver. This bounds unresolved identity lookups as
 well as running and queued operations. In contrast,
 `maxPendingPerPrincipal` cannot apply until the principal is resolved.
+An optional positive integer `maxPrincipalResolutionMs` (1 through
+2,147,483,647 milliseconds) bounds how long the helper awaits an asynchronous
+principal resolver. On expiry it returns the same pre-execution HTTP **429**
+and frees its global reservation. A late resolver result cannot authorize or
+execute the expired operation. Default `Infinity` preserves the original
+behavior. The deadline does **not** cancel the resolver's underlying network
+request or interrupt synchronous/blocking JavaScript, and timer delivery may
+be delayed while the Node event loop is busy. Integrators must still configure
+upstream identity-provider timeouts, resource limits and cancellation.
 Request parsing still occurs before either cap and consumes memory and CPU;
 deploy front-door request limits, timeouts and suitable body-size caps.
 
@@ -496,7 +505,7 @@ const {createScoHandler,createScoKeyedIsolation}=require('./src');
 const runRpcIsolated=createScoKeyedIsolation(async request=>{
   const session=await authenticateRequest(request);
   return session.accountId;
-},{maxPendingPerPrincipal:8,maxPendingTotal:512});
+},{maxPendingPerPrincipal:8,maxPendingTotal:512,maxPrincipalResolutionMs:5000});
 const handler=createScoHandler(publicFiles,{
   remoteMethods,
   authorizeRpc:authenticateRequest,
@@ -526,8 +535,9 @@ cannot synchronize Node workers, cluster processes, other services, database
 writers or permission changes outside this handler. For those deployments
 use a shared transactional database or distributed lock with the required
 isolation semantics. Long-running operations retain their principal's queue
-until settlement; the helper has no timeout and must not be used recursively
-for the same principal. FIFO order is the order of completed identity
+until settlement; the optional deadline applies only to **principal lookup**,
+not queued or running protected work. Do not use the helper recursively for
+the same principal. FIFO order is the order of completed identity
 resolution and queue registration, not a network arrival guarantee.
 
 An isolator does not make a batch transactionally safe. Continue using
@@ -535,7 +545,8 @@ An isolator does not make a batch transactionally safe. Continue using
 See `test/sco-keyed-isolation.test.js` for parallel HTTP revocation and
 independent-principal FIFO/failure regressions, and
 `test/sco-keyed-capacity.test.js` for bounded-queue and 429/500 classification
-regressions. This is an SCO
+regressions, and `test/sco-principal-resolution-deadline.test.js` for expired
+and late principal lookups. This is an SCO
 server authorization control, not client-side anti-debugging or a proof
 of the project's universal 2.5× compute target.
 
