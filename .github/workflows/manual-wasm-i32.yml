@@ -32,6 +32,8 @@ jobs:
         run: node sims/fused-arx-session-crossover.js
       - name: Fused ARX independent fresh-process cold CPU differential
         run: node sims/fused-arx-fresh-process-cold.js
+      - name: Stateful three-arm sustained-session matched CPU
+        run: node sims/stateful-arx-three-way-warm.js
       - name: Stateful three-arm real-process CPU and strict pair budget veto
         run: node sims/stateful-arx-three-way-cold.js
       - name: Real Chromium batched ARX matched CPU and semantics probe
