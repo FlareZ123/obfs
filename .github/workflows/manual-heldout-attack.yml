@@ -7,7 +7,7 @@ permissions:
   contents: read
 
 jobs:
-  heldout:
+  mba-int32-heldout:
     strategy:
       fail-fast: false
       matrix:
@@ -21,22 +21,9 @@ jobs:
           node-version: '22'
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Held-out semantic differential and static attacker
-        run: node --test test/heldout-object-flow-attack.test.js test/attacker-token-normalize.test.js
-      - name: Emit attack and protection surface metrics
-        run: node sims/heldout-object-flow-attack.js
-      - name: Compare checker compiler on same held-out ESM graphs
-        run: node sims/heldout-compiler-compare.js
-      - name: Hot cross-file property-flow regression
-        run: node --test test/property-hotpath-closedworld.test.js
-      - name: Report measured protected hot loops and module cold startup
-        run: node sims/property-hotpath-closedworld.js
-      - name: Fixed private tuple differential, reconstruction, and cold-session checks
-        run: node --test test/private-tuple-proof.test.js test/private-tuple-grid.test.js test/private-tuple-session.test.js test/private-record-proof.test.js test/private-record-grid.test.js
-
-      - name: Report private tuple cold-through-hot end-to-end ratios
-        run: node sims/private-tuple-session.js
-      - name: Paired batched end-to-end COO cold-session budget
-        run: node sims/private-container-session-profile.js
-      - name: Check JSDoc types
-        run: npm run typecheck
+      - name: Verify frozen attacker and post-freeze held-out corpus
+        run: node --test test/mba-author-int32-minified-recover.test.js test/mba-author-int32-minified-heldout.test.js test/mba-author-int32-heldout.test.js
+      - name: Emit post-freeze recovery records
+        run: node sims/mba-author-int32-minified-heldout.js
+      - name: Typecheck Int32 MBA research lane
+        run: npx tsc --allowJs --checkJs --noEmit --strict --target ES2022 --module commonjs --moduleResolution node --types node --skipLibCheck sims/mba-author-int32-component-inverse.js sims/mba-author-int32-heldout.js sims/mba-author-int32-minified-recover.js sims/mba-author-int32-minified-heldout.js test/mba-author-int32-heldout.test.js test/mba-author-int32-minified-recover.test.js test/mba-author-int32-minified-heldout.test.js
