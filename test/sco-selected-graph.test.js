@@ -452,3 +452,47 @@ test('selected SCO graph handler preserves inherited custom RPC route',{
     }
   }
 });
+
+test('selected SCO graph honors inherited nonenumerable read and operation deny gates',{
+  timeout:15000
+},async()=>{
+  const graph=partitionScoSelectedGraph([{
+    file:{path:'restricted.mjs',sourceType:'module',
+      code:'export async function secret(x){return x+5;}export function local(){return 2;}'},
+    options:{seed:'selected-graph-prototype-auth-20261118',privateNames:['secret']}
+  }]);
+  let readGetterCalls=0,operationGetterCalls=0,effects=0;
+  const inherited=Object.create(null);
+  Object.defineProperty(inherited,'authorizeRead',{
+    enumerable:false,get(){readGetterCalls++;return ()=>false;}
+  });
+  Object.defineProperty(inherited,'authorizeOperation',{
+    enumerable:false,get(){operationGetterCalls++;return ()=>false;}
+  });
+  const options={authorizeRpc:()=>true};
+  Object.setPrototypeOf(options,inherited);
+  const handler=createScoSelectedGraphHandler(graph,{
+    'restricted.mjs':{
+      secret:async(/** @type {number} */ x)=>{effects++;return x+5;}
+    }
+  },options);
+  assert.equal(readGetterCalls,1);
+  assert.equal(operationGetterCalls,1);
+  const server=http.createServer(handler);
+  try{
+    const origin=await listen(server);
+    assert.equal((await fetch(origin+'/obfs/restricted.mjs')).status,403);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:graph.partitions['restricted.mjs'].methodNames.secret,args:[7]
+      })
+    });
+    assert.equal(response.status,403);
+    assert.equal(effects,0);
+    assert.equal(readGetterCalls,1);
+    assert.equal(operationGetterCalls,1);
+  }finally{
+    await close(server);
+  }
+});
