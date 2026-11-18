@@ -26,10 +26,11 @@ function median(times){
 /**
  * @param {Buffer} key
  * @param {number} delayMs
+ * @param {string} [publicFacadeSource] Optional equal-trust public-facade control.
  * @returns {{handler:http.RequestListener,grant:(token:string,principal:string)=>void,
  *    calls:()=>number}}
  */
-function makeServer(key,delayMs){
+function makeServer(key,delayMs,publicFacadeSource){
   const sessions=new Map();
   const machine=createPrivateMachine(key);
   const context=new AsyncLocalStorage();
@@ -45,7 +46,7 @@ function makeServer(key,delayMs){
   });
   const handler=createScoHandler([{
     path:'batch.mjs',sourceType:'module',
-    code:createScoRpcClientSource(['batch'])
+    code:publicFacadeSource??createScoRpcClientSource(['batch'])
   }],{
     publicPaths:['batch.mjs'],
     authorizeRead:request=>principalOf(request)!==null,
