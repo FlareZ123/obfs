@@ -84,11 +84,22 @@ function encodeStrings(source, ast, options) {
   const hasEagerDependencies = ast.sourceType === 'module' && (/** @type {AstNode[]} */ (ast.body)).some((/** @type {AstNode} */ statement) =>
     statement.type === 'ImportDeclaration' || statement.type === 'ExportAllDeclaration' ||
     statement.type === 'ExportNamedDeclaration' && statement.source);
+  // A non-strict with host may expose arbitrary function/class source text
+  // through an opaque property getter, even if the source has no direct
+  // Function#toString or other recognized observer call. Preserve every
+  // such source range; unrelated top-level literal values may still encode.
+  let opaqueWithScope=false;
+  walk(ast,node=>{if(node.type==='WithStatement')opaqueWithScope=true;});
+  const sourceBodies=new Set([
+    'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+    'ClassDeclaration','ClassExpression'
+  ]);
   walk(ast, (node, parent, key, ancestors) => {
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
         node.value.length < minimumLength || !parent) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
+    if (opaqueWithScope && ancestors.some(ancestor => sourceBodies.has(ancestor.type))) return;
     // A non-strict with environment may supply the newly generated helper
     // binding dynamically. Even an otherwise inert string read inside its
     // body can resolve to a hostile property instead of our decoder table.
