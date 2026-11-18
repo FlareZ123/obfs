@@ -36,7 +36,9 @@ function allTwoStateModels(){
   const models=[];
   for(let mask=0;mask<256;mask++){
     /** @type {number[][]} */
-    const next=[[],[]],output=[[],[]];
+    const next=[[],[]];
+    /** @type {number[][]} */
+    const output=[[],[]];
     let bits=mask;
     for(let state=0;state<2;state++)for(let symbol=0;symbol<2;symbol++){
       next[state][symbol]=bits&1;bits>>=1;
