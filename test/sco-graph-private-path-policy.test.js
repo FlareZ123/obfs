@@ -266,6 +266,45 @@ test('SCO graph helper accepts matching custom RPC route and denies default rout
 });
 
 
+test('composed SCO graph snapshots an accessor-backed route prefix for HTTP routing',async()=>{
+  const graph=partitionScoAsyncGraph([{
+    path:'remote.mjs',code:'export async function evaluate(x){return x+5;}'
+  }],{
+    seed:'sco-graph-routeprefix-options-20261118',
+    exposedPaths:['remote.mjs']
+  });
+  let reads=0;
+  const options={
+    authorizeRpc:()=>true,
+    get routePrefix(){
+      reads++;
+      return reads===1?'/obfs/':'/moved/';
+    }
+  };
+  const server=http.createServer(createScoGraphHandler(graph,{
+    'remote.mjs':{evaluate:async (/** @type {number} */ x)=>x+5}
+  },options));
+  try{
+    assert.equal(reads,1,'Endpoint admission and handler routing must share one option snapshot');
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/remote.mjs')).status,200);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:graph.partitions['remote.mjs'].methodNames.evaluate,args:[7]
+      })
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:12});
+    assert.equal(reads,1,'Runtime requests must not re-read untrusted options');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
 test('composed SCO graph seals facades and method metadata against post-partition mutation',async()=>{
   const make=()=>partitionScoAsyncGraph(originals,{
     seed:'sco-graph-postpartition-seal-20261116',
