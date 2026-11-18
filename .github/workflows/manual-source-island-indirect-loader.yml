@@ -26,7 +26,7 @@ jobs:
       - name: Native interprocedural helper ownership and ESM differential
         run: node --test test/function-declaration-reader-proof.test.js
       - name: Independent ESM host invokes exported immutable reader with foreign record
-        run: node sims/exported-reader-host-argument-attack.js
+        run: node sims/exported-reader-host-argument-attack.js --expect-guarded
       - name: Post-initialization strict paired hot CPU for newly admitted helper
         run: node sims/straightline-reader-profile.js
       - name: COO fresh-process CPU inclusive of module startup
