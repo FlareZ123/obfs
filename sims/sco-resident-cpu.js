@@ -7,6 +7,7 @@ const {performance}=require('node:perf_hooks');
 const {startServer}=require('../examples/application-challenge/sco-server.cjs');
 const {ROOT,EXPOSED}=require('../examples/application-challenge/sco-build.cjs');
 const {pairedBudgetBound}=require('./paired-budget-bound');
+const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {(seed:number,count:number)=>Promise<unknown>} Evaluate */
 /** @typedef {{cpuMs:number,wallMs:number,values:unknown[]}} Observation */
@@ -143,9 +144,14 @@ async function run(rounds=13,resolutionAmplified=false){
     else globalThis.window=oldWindow;
   }
 }
-if(require.main===module)run(13,process.argv.includes('--amplify-short')).then(result=>
-  process.stdout.write('SCO_RESIDENT_CPU '+JSON.stringify(result)+'\n')
-).catch(error=>{
+if(require.main===module)run(13,process.argv.includes('--amplify-short')).then(async result=>{
+  const serialized=JSON.stringify(result);
+  if(process.env.OBFS_SCO_RESIDENT_AUDIT_FILE){
+    await atomicWrite(process.env.OBFS_SCO_RESIDENT_AUDIT_FILE,
+      JSON.stringify(result,null,2)+'\n');
+  }
+  process.stdout.write('SCO_RESIDENT_CPU '+serialized+'\n');
+}).catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
   process.exitCode=1;
 });
