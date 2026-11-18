@@ -19,15 +19,18 @@ const files=[
   ].join('\n')}
 ];
 
-/** @returns {string} */
-function html(){
+/** @param {boolean} declaredFrame @returns {string} */
+function html(declaredFrame){
+  const preload=declaredFrame?'':[
+    'const iframe=document.createElement("iframe");',
+    'iframe.name="sourceView";',
+    'const ready=new Promise(resolve=>iframe.addEventListener("load",resolve,{once:true}));',
+    'iframe.src="./independent.mjs?plain=1";',
+    'document.body.appendChild(iframe);',
+    'await ready;'
+  ].join('');
   return '<!doctype html><html><meta charset="utf-8"><body><script type="module">'+
-    'const iframe=document.createElement("iframe");'+
-    'iframe.name="sourceView";'+
-    'const ready=new Promise(resolve=>iframe.addEventListener("load",resolve,{once:true}));'+
-    'iframe.src="./independent.mjs?plain=1";'+
-    'document.body.appendChild(iframe);'+
-    'await ready;'+
+    preload+
     'const {observation}=await import("./entry.mjs");'+
     'document.body.dataset.observation=JSON.stringify(observation);'+
     '</script></body></html>';
@@ -43,7 +46,22 @@ function html(){
  */
 async function main(){
   const expectRed=process.argv.includes('--expect-red');
-  const output=obfuscateFiles(files,{
+  const declaredFrame=process.argv.includes('--declared-frame');
+  /** @type {SourceFile[]} */
+  const graph=declaredFrame?[
+    files[0],
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {unrelated} from "./independent.mjs";',
+      'const frame=document.createElement("iframe");',
+      'const ready=new Promise(resolve=>frame.addEventListener("load",resolve,{once:true}));',
+      'frame.src="./independent.mjs?plain=1";',
+      'document.body.appendChild(frame);',
+      'await ready;',
+      'const raw=frame.contentDocument.body.textContent;',
+      'export const observation={visible:raw.includes("privateB"),value:unrelated()};'
+    ].join('\n')}
+  ]:files;
+  const output=obfuscateFiles(graph,{
     mode:'coo',closedWorld:true,seed:'default-iframe-source-20261118',
     strings:false,properties:true,identifiers:false
   });
@@ -54,9 +72,9 @@ async function main(){
   /** @type {Map<string,string>} */
   const resources=new Map();
   for(const [variant,graph] of /** @type {Array<[string,SourceFile[]]>} */
-      ([['native',files],['emitted',output.files]])){
+      ([['native',graph],['emitted',output.files]])){
     for(const file of graph)resources.set('/'+variant+'/'+file.path,String(file.code));
-    resources.set('/'+variant+'/index.html',html());
+    resources.set('/'+variant+'/index.html',html(declaredFrame));
   }
   const server=http.createServer((request,response)=>{
     const url=new URL(request.url??'/','http://127.0.0.1');
@@ -111,7 +129,7 @@ async function main(){
     console.log('DEFAULT_FRAME_SOURCE '+JSON.stringify({
       status:renamed>0?'source-observation-changed':'source-preserved',
       observations,renamed,chromium:await browser.version(),
-      phase:expectRed?'red':'guarded'
+      phase:expectRed?'red':'guarded',sourceView:declaredFrame?'module-dom':'host-frame'
     }));
   }finally{
     await browser?.close();
