@@ -3,6 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const acorn = require('acorn');
+const {observesFunctionSource}=require('../src/ast');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
 /** @typedef {{seed:string,functionName:string,closedWorld:true}} PiggybackOptions */
@@ -121,7 +122,8 @@ function piggybackShards(input,options) {
         typeof ret.argument.value==='string' && ret.argument.value.length>0 &&
         ret.argument.value.length<=4096)candidate=ret.argument;
   }
-  if(matches!==1 || !candidate || hasKnownObserver(a,options.functionName)) {
+  if(matches!==1 || !candidate || hasKnownObserver(a,options.functionName) ||
+      observesFunctionSource(/** @type {any} */ (a))) {
     return refuse('Function body or source-observation proof declined');
   }
   const names=new Set();
