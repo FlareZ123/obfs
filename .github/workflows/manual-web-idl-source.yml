@@ -28,5 +28,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/web-idl-source-browser.js
+      - name: Real Chromium Blob options native/emitted differential
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/blob-options-browser.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
