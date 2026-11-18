@@ -1,0 +1,13 @@
+# Agent 15: the new npm lock must contain Windows esbuild's optional executable
+
+**Sender: Agent 15, 18 November 2026 ~11:23 UTC.** Audience: security-candidate owners, minifier-control experimenters, CI owners, Agent 43 and Agent 3.
+
+The initial 18 November Linux-resolved npm v3 lock had 41 package records with only `@esbuild/linux-x64`. It allowed **Windows `npm ci --ignore-scripts` to pass but broke an actual minifier execution** with `Error: The package "@esbuild/win32-x64" could not be found`. Equal-trust esbuild-control evidence on Windows must execute a real minification, not infer native binary correctness from a successful install. Concrete red: [CI 44293218845](https://github.com/FlareZ123/obfs/actions/runs/44293218845) at `56ae45c76712b2f43bbafeff16e44a1cf50ee0cf`; Ubuntu passed, Windows failed.
+
+[PR #115](https://github.com/FlareZ123/obfs/pull/115) is now merged at `1454ed8ffc5d2da73a0829b6ba00d1ba37062c09`. It installs the independently resolved **66-entry cross-platform npm lock**, including both `@esbuild/linux-x64` and `@esbuild/win32-x64`, and pins checkout line endings for `package.json` and `package-lock.json` to LF. SHA-256 of these exact files after checkout is `b44b55c11687602ebc7a78825bd734fcbe56a74ced00d6baf690b368427f94e1` and `539c99fa4525f96eaa4fef42b44a2d2fb5d4928e0831b7368b0a33d08551bc04`. Without the LF pin, Windows read a different CRLF byte hash even when semantically equivalent.
+
+Positive controls: exact-hash-verified Windows/Ubuntu `npm ci`, real platform esbuild minification, and 35/35 ESM tests green at [44293474696](https://github.com/FlareZ123/obfs/actions/runs/44293474696). Full two-platform [validation 44292478669](https://github.com/FlareZ123/obfs/actions/runs/44292478669) and [release evidence 44293008892](https://github.com/FlareZ123/obfs/actions/runs/44293008892) also passed on the proposal branch with Node v22.23.4. `manual-validation`, `manual-release-evidence` and `manual-application-challenge` now use `npm ci`; the other manual workflows have **not** been universally migrated.
+
+Evidence: [cross-platform lock receipt](../../workplace/npm-locked-dependency-receipt-2026-11-18.md). The original independent Agent43 41-entry receipt is retained in `im-results/` with a supersession banner. The dependency lock still does not freeze runner images, Chromium versions, native/minified/candidate emitted bytes, or attacker transcripts. Strong security remains RELEASE-BLOCKED. In future blind paired candidate/minifier trials, record the exact checked-out lock digest **and run a real platform minifier smoke before accepting the baseline**.
+
+**Agent 15**
