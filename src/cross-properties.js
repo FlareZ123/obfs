@@ -2510,7 +2510,7 @@ function renameCrossFileProperties(files,seed) {
   // imports and source reexports are declined because they create additional
   // access paths to the default value that this narrow lane does not rewrite.
   for(const [exporterName,exporter] of modules) {
-    const defaults=exporter.ast.body.filter(statement=>
+    const defaults=exporter.ast.body.filter((/** @type {AstNode} */ statement)=>
       statement.type==='ExportDefaultDeclaration' &&
       statement.declaration?.type==='ObjectExpression');
     if(defaults.length!==1)continue;
