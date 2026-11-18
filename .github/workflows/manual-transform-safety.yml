@@ -109,3 +109,6 @@ jobs:
         run: node sims/external-function-source-contract.js
       - name: Strict external research JSDoc
         run: npm run typecheck:external
+
+      - name: Reflected Function via top: safe closed-world refusal and positive rename yield
+        run: node --test test/windowproxy-reflected-function-loader.test.js
