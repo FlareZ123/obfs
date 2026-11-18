@@ -81,3 +81,33 @@ Any obfs pilot based on this work should freeze:
 
 Only a result that survives those controls should influence the strong
 protection decision.
+
+
+## Independently source-verified polynomial-permutation baseline
+
+Ronald Rivest's 2001 paper, *Permutation Polynomials Modulo 2^w*
+(doi:10.1006/ffta.2000.0282), gives an exact characterization for an integer
+polynomial `P(x)=a0+a1*x+...+ad*x^d` to permute modulo `2^w` for
+`w>=2`:
+
+- `a1` is odd;
+- the sum of the even-degree coefficients `a2+a4+...` is even;
+- the sum of the odd-degree coefficients above degree one
+  `a3+a5+...` is even.
+
+Publisher abstract:
+https://www.sciencedirect.com/science/article/pii/S107157970090282X
+
+Therefore a minimal polynomial such as
+
+```text
+P(x) = x + 2*x^2 mod 2^32
+```
+
+is independently justified as a 32-bit bijection: `a1=1` is odd,
+the even-degree sum is `2`, and the remaining odd-degree sum is zero.
+
+This can be used as a **local negative/performance baseline** for the
+JavaScript pilot without claiming it reproduces Wang et al.'s 2026 composite
+scheme. A single low-degree polynomial is expected to be far easier to
+normalize than the paper's reported composed nonlinear MBA expressions.
