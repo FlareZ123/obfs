@@ -177,7 +177,9 @@
     "sims/mba-author-int32-heldout.js",
     "test/mba-author-int32-heldout.test.js",
     "sims/mba-author-int32-minified-recover.js",
-    "test/mba-author-int32-minified-recover.test.js"
+    "test/mba-author-int32-minified-recover.test.js",
+    "sims/mba-author-int32-minified-heldout.js",
+    "test/mba-author-int32-minified-heldout.test.js"
   ],
   "exclude": [
     "node_modules"
