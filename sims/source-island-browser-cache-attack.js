@@ -25,10 +25,13 @@ const sources=[
   ].join('\n')}
 ];
 
-/** @returns {string} */
-function page(){
-  return '<!doctype html><html><meta charset="utf-8"><body>'+
-    '<script type="module" src="./entry.mjs"></script></body></html>';
+/** @param {boolean} minimal @returns {string} */
+function page(minimal){
+  const body=minimal?
+    '<script type="module">import {observation} from "./entry.mjs";'+
+      'document.body.dataset.observation=JSON.stringify(observation);</script>':
+    '<script type="module" src="./entry.mjs"></script>';
+  return '<!doctype html><html><meta charset="utf-8"><body>'+body+'</body></html>';
 }
 
 /**
@@ -42,8 +45,20 @@ function page(){
 async function main(){
   // --default removes the unrelated function observer and tests the ordinary
   // distributed-source scanner, independently of the opt-in island exception.
-  const defaultOnly=process.argv.includes('--default');
-  const examined=defaultOnly?sources.map(file=>file.path==='entry.mjs'?
+  const minimal=process.argv.includes('--default-minimal');
+  const defaultOnly=process.argv.includes('--default')||minimal;
+  /** @type {SourceFile[]} */
+  const examined=minimal?[
+    sources[1],
+    {path:'entry.mjs',sourceType:'module',code:[
+      'import {unrelated} from "./independent.mjs";',
+      'const box=await caches.open("obfs-minimal-source-reader");',
+      'await box.add("./independent.mjs");',
+      'const response=await box.match("./independent.mjs");',
+      'const source=await response.text();',
+      'export const observation={visible:source.includes("privateB"),value:unrelated()};'
+    ].join('\n')}
+  ]:defaultOnly?sources.map(file=>file.path==='entry.mjs'?
     {...file,code:String(file.code).split('\n').filter(line=>!line.includes('watched')).join('\n')}:
     file):sources;
   const options={
@@ -62,7 +77,8 @@ async function main(){
       ...options,experimentalSourceObserverIslands:['independent.mjs']
     });
   }catch(error){
-    console.log((defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
+    console.log((minimal?'SOURCE_CACHE_MINIMAL ':
+      defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
       status:'rejected',reason:String(error)
     }));
     return;
@@ -78,7 +94,7 @@ async function main(){
   for(const [variant,files] of /** @type {Array<[string,SourceFile[]]>} */
       ([['native',examined],['emitted',protectedGraph.files]])){
     for(const file of files)assets.set('/'+variant+'/'+file.path,String(file.code));
-    assets.set('/'+variant+'/index.html',page());
+    assets.set('/'+variant+'/index.html',page(minimal));
   }
   const server=http.createServer((request,response)=>{
     const pathname=new URL(request.url??'/','http://127.0.0.1').pathname;
@@ -110,25 +126,37 @@ async function main(){
     const observations={};
     for(const variant of ['native','emitted']){
       const tab=await browser.newPage();
-      const reported=new Promise((resolve,reject)=>{
-        const timeout=setTimeout(()=>reject(new Error('Cache source observation timed out')),20000);
-        tab.on('console',message=>{
-          const line=message.text();
-          if(line.startsWith('ISLAND_CACHE_SOURCE:')){
+      /** @type {Promise<unknown>|undefined} */
+      let reported;
+      if(!minimal){
+        reported=new Promise((resolve,reject)=>{
+          const timeout=setTimeout(()=>reject(new Error('Cache source observation timed out')),20000);
+          tab.on('console',message=>{
+            const line=message.text();
+            if(line.startsWith('ISLAND_CACHE_SOURCE:')){
+              clearTimeout(timeout);
+              resolve(line.slice('ISLAND_CACHE_SOURCE:'.length));
+            }
+          });
+          tab.on('pageerror',error=>{
             clearTimeout(timeout);
-            resolve(line.slice('ISLAND_CACHE_SOURCE:'.length));
-          }
+            reject(error);
+          });
         });
-        tab.on('pageerror',error=>{
-          clearTimeout(timeout);
-          reject(error);
-        });
-      });
+      }
       try{
         await tab.goto('http://127.0.0.1:'+address.port+'/'+variant+'/index.html',{
           waitUntil:'domcontentloaded',timeout:45000
         });
-        observations[variant]=JSON.parse(/** @type {string} */ (await reported));
+        if(minimal){
+          await tab.waitForFunction(()=>Boolean(document.body.dataset.observation),{
+            timeout:30000
+          });
+          const encoded=await tab.$eval('body',element=>element.dataset.observation);
+          observations[variant]=JSON.parse(encoded??'null');
+        }else{
+          observations[variant]=JSON.parse(/** @type {string} */ (await reported));
+        }
       }finally{
         await tab.close();
       }
