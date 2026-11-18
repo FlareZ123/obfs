@@ -976,4 +976,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};

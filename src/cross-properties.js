@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -142,9 +142,14 @@ function collectVerifiedImportedPrimitives(files) {
       for(const entry of declaration.declarations) {
         const init=entry.init;
         if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||
-           init?.type!=='Literal'||init.regex!==undefined)continue;
-        if(init.value===null||['string','number','boolean','bigint'].includes(typeof init.value))
-          ownPrimitives.add(entry.id.name);
+           !init)continue;
+        // The existing pure-expression grammar excludes function references,
+        // ambient reads and arbitrary user code. Its output is primitive.
+        // Preserve direct BigInt literals, but decline composed BigInt ops.
+        if((init.type==='Literal' && init.regex===undefined &&
+            (init.value===null||
+             ['string','number','boolean','bigint'].includes(typeof init.value))) ||
+           isPrimitiveConstantExpression(init))ownPrimitives.add(entry.id.name);
       }
     }
     const names=new Set();
