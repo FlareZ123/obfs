@@ -201,7 +201,7 @@ The full results decision index remains release-blocked.
 | Dynamic analysis, instrumentation and runtime extraction | The reviewed manifest creates no new emitted runtime mechanism | **Unchanged**. A full-control client/server owner can still instrument locally under the published threat model |
 | Unauthorized modification and integrity bypass | Four historical checker acceptance errors now reliably refuse; exact indexed content and SHA-256 are checked on a trusted build, with cross-OS approved CSS bytes controlled | Build-time file admission only; downstream publication mutation and malicious reviewer approval are outside the contract |
 | Execution outside an authorized environment | Neither domain checking nor server identity is changed | **Unchanged**. Authorization should rely on an appropriate trusted SCO server-side access control, not this asset manifest |
-| Performance and compatibility | 19 handcrafted approval regressions, 384 seeded corpora, eight CLI tests, four historical pinned attacker controls, actual cross-platform example; 36 paired COO/SNO/SCO emitted files and metrics identical | Extra validation cost is at compile/SCO setup time; no universal 2.5× runtime claim or independent full-application parity follows |
+| Performance and compatibility | 20 handcrafted approval regressions, 384 seeded corpora, eight CLI tests, four historical pinned attacker controls, actual cross-platform example; 36 paired COO/SNO/SCO emitted files and metrics identical | Extra validation cost is at compile/SCO setup time; no universal 2.5× runtime claim or independent full-application parity follows |
 
 The overall objective-axis decision is therefore a verified improvement
 in publisher-side consistency and developer access to that check.
