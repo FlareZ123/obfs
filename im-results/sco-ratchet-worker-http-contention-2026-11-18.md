@@ -1,5 +1,11 @@
 # Server-resident private per-principal workers mitigate measured authenticated SCO B starvation
 
+## Targeted worker state and authorization negative controls
+
+[Ubuntu/Windows gate 44245550041](https://github.com/FlareZ123/obfs/actions/runs/44245550041) passed at exact `703c0727f6ffd19e29b20fd3853e5b28048fb8bf` with strict JSDoc, the same 7+7-worker fairness trial, and the new `sims/sco-ratchet-worker-policy.js` real HTTP negative-control script on both operating systems. Under fresh randomized 256-bit server root and two independently verified principals, unauthenticated HTTP, an unknown random bearer, an invalid future sequence, a malformed input and stale replay were each HTTP **403**. Concurrent duplicate requests with the same B sequence produced exactly **[200,403]**; the separate valid A principal remained operational, with every accepted worker return matching an independent original machine and exactly **four** permitted private events. An authenticated client could fetch the generated facade but did not receive worker machine source, private root hex or original HMAC implementation through that route.
+
+This is a bounded absence of observed authorization/state-regression for the test's supported JSON batch shape. It does not model stolen credentials, arbitrary policy malice, worker crash recovery, generic JavaScript semantic equality, or an adaptive attacker inspecting the trusted server.
+
 ## Preferred follow-up: source-matched alternating same-key crossover
 
 The stronger [Ubuntu/Windows Node 22 and JSDoc gate 44245055569](https://github.com/FlareZ123/obfs/actions/runs/44245055569) **passed** at immutable `d545019c005ae0a4345aa928864e280769d7156a` (Ubuntu job `134601890077`, Windows `134601889756`). Unlike the first fixed-order run below, it performs **seven independent synchronous/resident-worker pairs in alternating order**, sharing a freshly randomized **same private HMAC root** within each pair, with separately initialized authenticated servers, worker startup before B timing, distinct valid A/B principals, and original parity checks. Each arm still processes **784 actual private HMAC events** per platform and proves B's independent HTTP submission occurred inside A private work 7/7.
