@@ -44,7 +44,7 @@ function mustPreserveProcessReport(reportExpression,seed) {
   const native=execute(source);
   const transformed=execute(output.code);
   assert.equal(typeof native,'string');
-  assert.match(native,/process-report-observer\\.cjs:1:\\d+/);
+  assert.match(native,/process-report-observer\.cjs:1:\d+/);
   assert.equal(transformed,native,output.code);
   assert.equal(output.code,source);
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
@@ -168,7 +168,7 @@ test('unsafe private-property rewrite changes process.report stack coordinates',
   const native=execute(source);
   const renamed=execute(unsafe);
   assert.notEqual(renamed,native);
-  assert.match(String(renamed),/process-report-observer\\.cjs:1:\\d+/);
+  assert.match(String(renamed),/process-report-observer\.cjs:1:\d+/);
 });
 
 test('ordinary process metadata remains eligible for property renaming',()=>{
