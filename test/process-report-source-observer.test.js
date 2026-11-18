@@ -486,3 +486,31 @@ test('shadowed process parameter does not suppress safe property renaming',()=>{
   assert.equal(execute(output.code),73);
   assert.ok(output.metrics.properties>0,output.code);
 });
+
+
+test('detached Reflect.get globalThis process preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const {get}=Reflect;const proc=get(globalThis,'process');return proc.report.getReport();})()",
+    'agent8-process-global-detached-reflect'
+  );
+});
+
+test('shadowed process value escape does not suppress safe property renaming',()=>{
+  const source="'use strict';function inspect(value){return value.report.filename.length;}"+
+    "function run(process){const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;return value+inspect(process);}"+
+    "module.exports=run({report:{filename:''}});";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'shadowed-process-escape.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed:'agent8-shadowed-process-escape-yield',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),73);
+  assert.ok(output.metrics.properties>0,output.code);
+});
