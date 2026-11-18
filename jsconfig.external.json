@@ -125,7 +125,8 @@
     "sims/semantic-sketch-esm.js",
     "test/semantic-sketch-browser.js",
     "sims/semantic-sketch-static-control.js",
-    "sims/semantic-sketch-crossmode.js"
+    "sims/semantic-sketch-crossmode.js",
+    "sims/sco-ratchet-worker-isolation-pilot.js"
   ],
   "exclude": [
     "node_modules"
