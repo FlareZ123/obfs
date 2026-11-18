@@ -96,6 +96,7 @@ function sampleArm(code,calls,trial){
 /**
  * @param {number} count
  * @param {number} calls
+ * @param {{native:string,emitted:string,properties:number}} bundle
  * @returns {void}
  */
 function profile(count,calls,bundle){
