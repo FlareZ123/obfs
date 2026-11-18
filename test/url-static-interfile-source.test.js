@@ -111,7 +111,10 @@ const selectedObservers=[
   ['direct forwarded export','export {parseUrl} from "./base.mjs";','export const parseUrl=URL.parse;'],
   ['renamed forwarded export','export {nativeParse as parseUrl} from "./base.mjs";',
     'export const nativeParse=globalThis.URL.parse;'],
-  ['star forwarded export','export * from "./base.mjs";','export const parseUrl=URL.parse;']
+  ['star forwarded export','export * from "./base.mjs";','export const parseUrl=URL.parse;'],
+  ['node:url named constructor','import {URL as NativeURL} from "node:url";export const parseUrl=NativeURL.parse;',null],
+  ['node:url namespace constructor','import * as urlNs from "node:url";export const parseUrl=urlNs.URL.parse;',null],
+  ['node:url default constructor','import nodeUrl from "node:url";export const parseUrl=nodeUrl.URL.parse;',null]
 ];
 
 for(const [name,parser,base] of selectedObservers) {
