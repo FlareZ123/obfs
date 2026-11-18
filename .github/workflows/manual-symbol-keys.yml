@@ -22,7 +22,7 @@ jobs:
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Own-key proof and independent adverse COO SNO ESM tests
-        run: node --test test/property-in-operator.test.js test/property-in-adversarial.test.js
+        run: node --test test/property-in-operator.test.js test/property-in-adversarial.test.js test/property-in-metamorphic.test.js
       - name: Native owned-key runtime profile
         run: node sims/property-in-operator-profile.js
       - name: Public-only key reconstruction against published output

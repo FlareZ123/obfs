@@ -201,12 +201,54 @@ The full results decision index remains release-blocked.
 | Dynamic analysis, instrumentation and runtime extraction | The reviewed manifest creates no new emitted runtime mechanism | **Unchanged**. A full-control client/server owner can still instrument locally under the published threat model |
 | Unauthorized modification and integrity bypass | Four historical checker acceptance errors now reliably refuse; exact indexed content and SHA-256 are checked on a trusted build, with cross-OS approved CSS bytes controlled | Build-time file admission only; downstream publication mutation and malicious reviewer approval are outside the contract |
 | Execution outside an authorized environment | Neither domain checking nor server identity is changed | **Unchanged**. Authorization should rely on an appropriate trusted SCO server-side access control, not this asset manifest |
-| Performance and compatibility | 19 handcrafted approval regressions, 384 seeded corpora, eight CLI tests, four historical pinned attacker controls, actual cross-platform example; 36 paired COO/SNO/SCO emitted files and metrics identical | Extra validation cost is at compile/SCO setup time; no universal 2.5× runtime claim or independent full-application parity follows |
+| Performance and compatibility | 20 handcrafted approval regressions, 384 seeded corpora, eight CLI tests, four historical pinned attacker controls, actual cross-platform example; 36 paired COO/SNO/SCO emitted files and metrics identical | Extra validation cost is at compile/SCO setup time; no universal 2.5× runtime claim or independent full-application parity follows |
 
 The overall objective-axis decision is therefore a verified improvement
 in publisher-side consistency and developer access to that check.
 It cannot be promoted to strong obfuscation or whole-runtime integrity
 under the COO/SNO/SCO full-control threat assumptions.
+
+## Final trusted-build boundary control at exact source
+
+The last narrowed
+[Ubuntu/Windows gate 44291670683](https://github.com/FlareZ123/obfs/actions/runs/44291670683)
+at `bb52438a76f8b60c35892335e5deb97158e2bef4`
+passed **all steps** on both platforms, including all prior approved
+manifest, CLI, seeded-fuzz, historical negative-control, reproducible
+example, emitted-code equivalence and strict compiler/external
+JSDoc checks.
+
+The additional explicit `approval is not an override` test signs off
+two important refusal precedences: even with a correct independently
+approved SHA-256 for the whole published bytes, a `.map` asset
+containing source-map `sourcesContent` and an HTML asset carrying
+inline JavaScript still fail in COO, SNO, SCO compiler mode, and
+direct SCO serving. A reviewed manifest can admit otherwise opaque
+assets only within the already existing source-disclosure preflight.
+This avoids interpreting the new CLI feature as a bypass switch for
+specific prohibited source-bearing formats.
+
+## Full integration source-coincidence check without a new CI storm
+
+A separately dispatched
+[full Linux/Windows and Ubuntu Chromium validation 44289657106](https://github.com/FlareZ123/obfs/actions/runs/44289657106)
+completed successfully at `a74f34a14e790b91cfde4cf042953f9594515b3f`,
+including its complete Node behavioral/adversarial test inventory,
+blind recovery control, both strict JSDoc gates, benchmark/profile
+steps, and Ubuntu's three real Chromium modules/host tests. Its
+exact Git blobs for the two production files modified in this
+investigation are **identical to the current implementation**:
+
+- `src/cli.js`: `12a33544fedfa56aa4bfacc401394912fec9907a`.
+- `src/reviewed-assets.js`: `508f7c5582c490ee2ff6fa69fed09ae17f5dd459`.
+
+Thus that existing full test run exercised the actual updated
+production code without dispatching an extra broad matrix. The
+subsequent narrower [44291670683](https://github.com/FlareZ123/obfs/actions/runs/44291670683)
+also passed the newer tests at exact `bb52438a` on both systems.
+A full run at `a74f34a` does not attest to later test/doc-only
+commits or freeze Node/dependency/browser binary versions. It proves
+only the reported full suite and source-blob coincidence.
 
 ## Interpretation and limits
 
