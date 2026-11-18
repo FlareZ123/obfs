@@ -80,7 +80,11 @@ const unsafe=[
   ['opaque destructured constructor alias',
     "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const {constructor:C}=P;C.fromCharCode=()=>'?';"],
   ['opaque constructor descriptor value',
-    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Object.getOwnPropertyDescriptor(P,'constructor').value;C.fromCharCode=()=>'?';"]
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Object.getOwnPropertyDescriptor(P,'constructor').value;C.fromCharCode=()=>'?';"],
+  ['overridden Object descriptor getter invalidates numeric proof',
+    "Object.defineProperty(Object,'getOwnPropertyDescriptor',{value:(x,k)=>k==='constructor'?{value:String}:Reflect.getOwnPropertyDescriptor(x,k),configurable:true});const P=Object.getPrototypeOf(7);const C=Object.getOwnPropertyDescriptor(P,'constructor').value;C.fromCharCode=()=>'?';"],
+  ['overridden Reflect.get invalidates numeric proof',
+    "Reflect.set(Reflect,'get',(x,k)=>k==='constructor'?String:x[k]);const P=Object.getPrototypeOf(7);const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';"]
 ];
 
 for(const [name,mutator] of unsafe) {
