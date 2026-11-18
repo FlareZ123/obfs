@@ -200,10 +200,13 @@ function piggybackShards(input,options) {
   let consumerCode=consumer.code;
   for(const edit of edits)consumerCode=consumerCode.slice(0,edit.start)+
     edit.text+consumerCode.slice(edit.end);
-  consumerCode+='\nfunction '+decodeName+'(){const units=[];for(let i=0;i<'+n+';i++){'+
-    'const at=(i*'+stride+'+'+shift+')%'+n+';units[i]=('+payloadName+'[at]^'+
-    maskName+'[at]^((i*'+odd+'+'+salt+')&65535))&65535;}'+
-    'return String.fromCharCode(...units);}\n';
+  // A caller may replace Array.prototype[Symbol.iterator] without affecting
+  // the source literal. Accumulate primitive code units directly: spreading a
+  // temporary array would delegate the result to that mutable iterator.
+  consumerCode+='\nfunction '+decodeName+'(){let decoded="";for(let i=0;i<'+n+';i++){'+
+    'const at=(i*'+stride+'+'+shift+')%'+n+';decoded+=String.fromCharCode(('+payloadName+'[at]^'+
+    maskName+'[at]^((i*'+odd+'+'+salt+')&65535))&65535);}'+
+    'return decoded;}\n';
   const donorCode=donor.code+'\nexport const '+maskName+'='+JSON.stringify(mask)+';\n';
   parse(consumerCode);
   parse(donorCode);
