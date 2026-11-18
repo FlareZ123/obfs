@@ -285,3 +285,32 @@ for(const [label,observer] of [
     }
   });
 }
+
+
+for(const [label,observer] of [
+  ['declared DOM iframe contentDocument',
+    'const child=document.createElement("iframe");'+
+    'const text=child.contentDocument?.body?.textContent;'+
+    'console.log(state.secretField,text);'],
+  ['declared DOM iframe contentWindow',
+    'const child=document.createElement("iframe");'+
+    'const view=child["contentWindow"];'+
+    'console.log(state.secretField,view?.document?.body?.textContent);'],
+  ['computed literal contentDocument',
+    'const child=document.createElement("iframe");'+
+    'const text=child["content"+"Document"]?.body?.textContent;'+
+    'console.log(state.secretField,text);']
+]) {
+  test('declared DOM iframe source reader refuses '+label,()=>{
+    const files=graph(observer);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const output=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'dom-frame-source-reader/'+mode+'/'+label,
+        strings:false,properties:true,identifiers:true
+      });
+      assert.equal(output.crossFile.properties,0,
+        'DOM frame reader may obtain distributed source text in '+mode);
+      assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  });
+}
