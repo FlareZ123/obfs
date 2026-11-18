@@ -257,3 +257,30 @@ test('read-only local String instance prototype alias preserves decoder coverage
   });
   assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
 });
+
+test('CJS imported Document alias cannot mutate decoder intrinsic before target',async()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'entry.cjs',sourceType:'commonjs',code:
+      'globalThis.document={defaultView:globalThis};'+
+      "require('./side.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'owner.cjs',sourceType:'commonjs',code:'module.exports=globalThis.document;'},
+    {path:'side.cjs',sourceType:'commonjs',code:
+      "const Doc=require('./owner.cjs');Doc.defaultView.String.fromCharCode=()=>'?';"},
+    {path:'target.cjs',sourceType:'commonjs',code:
+      "module.exports='protected-literal-value';"}
+  ];
+  const expected=await execute(input);
+  assert.equal(expected.status,0,expected.stderr);
+  assert.equal(expected.stdout,'protected-literal-value');
+  for(const mode of /** @type {const} */(['sno','coo'])){
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'ambient-string-alias/imported-document-'+mode
+    });
+    const observed=await execute(output.files);
+    assert.equal(observed.status,0,observed.stderr);
+    assert.equal(observed.stdout,expected.stdout);
+    assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+  }
+});
