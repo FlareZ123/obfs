@@ -29,3 +29,5 @@ jobs:
         run: node sims/sco-ratchet-account-shards.js
       - name: Same-process authenticated A CPU blocking B despite storage shards
         run: node sims/sco-ratchet-shards-eventloop.js
+      - name: Account-shard first-use resource and computation cost
+        run: node sims/sco-ratchet-shard-cold-admission.js
