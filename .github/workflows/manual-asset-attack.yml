@@ -35,6 +35,11 @@ jobs:
         with:
           ref: 2f980e8103d4b69181e89924d9c4c790f75699ff
           path: data-style-previous
+      - name: Checkout CSS rule-context false-refusal prepatch
+        uses: actions/checkout@v4
+        with:
+          ref: 6980e63c9b607c4673e4cbf19d4254f7003cd78f
+          path: css-rule-previous
       - name: Checkout current protected candidate
         uses: actions/checkout@v4
         with:
@@ -55,6 +60,9 @@ jobs:
       - name: Install data-stylesheet prepatch dependencies
         working-directory: data-style-previous
         run: npm install --no-package-lock --ignore-scripts
+      - name: Install rule-context prepatch dependencies
+        working-directory: css-rule-previous
+        run: npm install --no-package-lock --ignore-scripts
       - name: Install protected dependencies
         working-directory: protected
         run: npm install --no-package-lock --ignore-scripts
@@ -66,6 +74,8 @@ jobs:
         run: node protected/sims/inline-style-map-attack.js style-previous protected
       - name: Paired nested data-URL stylesheet source-map extraction
         run: node protected/sims/html-data-stylesheet-attack.js data-style-previous protected
+      - name: Paired CSS import grammar negative and original-source protection controls
+        run: node protected/sims/css-rule-context-compatibility.js css-rule-previous protected
       - name: Paired nested CSS data-import source-map extraction
         run: node protected/sims/css-nested-data-import-attack.js data-style-previous protected
       - name: Paired Wasm debug names attacker and SCO publication refusal
@@ -78,6 +88,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node protected/test/sco-asset-mime-browser.js
+      - name: Chromium CSS custom-property import-rule context
+        if: runner.os == 'Linux'
+        working-directory: protected
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/css-rule-context-browser.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck

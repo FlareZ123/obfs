@@ -100,3 +100,29 @@ test('embedded data stylesheet checker rejects malformed UTF-8 and NUL bytes',()
   assert.throws(()=>hasCssDataImport(Buffer.from([0xc0,0xaf])));
   assert.throws(()=>hasCssDataImport(Buffer.from('a\0b')));
 });
+
+test('parsed CSS distinguishes inert declaration data from executable stylesheet imports',()=>{
+  const inert=[
+    '.widget{--payload: @import url(data:text/css,canary);color:var(--payload)}',
+    '.widget{--payload: @import "data:text/css,canary";}',
+    '.widget{--a: @\\69mport url(data:text/css,canary);}'
+  ];
+  for(const css of inert){
+    assert.equal(hasCssDataImport(css),false,css);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+      const files=obfuscateFiles([
+        entry,{path:'custom.css',sourceType:'asset',code:Buffer.from(css)}
+      ],{mode}).files;
+      assert.deepEqual(files.find(file=>file.path==='custom.css')?.code,Buffer.from(css));
+    }
+    assert.equal(typeof createScoHandler([
+      {path:'custom.css',sourceType:'asset',code:Buffer.from(css)}
+    ]),'function');
+  }
+  const real=[
+    '@import url("data:text/css,canary");',
+    '@import "data:text/css,canary";',
+    '@\\69mport url(data:text/css,canary);'
+  ];
+  for(const css of real)assert.equal(hasCssDataImport(css),true,css);
+});
