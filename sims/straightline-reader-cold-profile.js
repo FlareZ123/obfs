@@ -61,7 +61,9 @@ async function run(){
     /** @type {Array<{calls:number,pairs:number,nativeCpuMs:number[],compiledCpuMs:number[],
      * ratioOfMedians:number,maxPairedRatio:number,strictOverBudgetPairs:number}>} */
     const rows=[];
-    for(const count of [1,10000,8000000]){
+    // The 128M row amplifies protected work well beyond coarse Windows
+    // process-CPU ticks; retain tiny cold rows as separate strict witnesses.
+    for(const count of [1,10000,8000000,128000000]){
       /** @type {number[]} */
       const nativeCpuMs=[];
       /** @type {number[]} */
