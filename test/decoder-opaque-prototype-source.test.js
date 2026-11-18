@@ -84,7 +84,9 @@ const unsafe=[
   ['overridden Object descriptor getter invalidates numeric proof',
     "Object.defineProperty(Object,'getOwnPropertyDescriptor',{value:(x,k)=>k==='constructor'?{value:String}:Reflect.getOwnPropertyDescriptor(x,k),configurable:true});const P=Object.getPrototypeOf(7);const C=Object.getOwnPropertyDescriptor(P,'constructor').value;C.fromCharCode=()=>'?';"],
   ['overridden Reflect.get invalidates numeric proof',
-    "Reflect.set(Reflect,'get',(x,k)=>k==='constructor'?String:x[k]);const P=Object.getPrototypeOf(7);const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';"]
+    "Reflect.set(Reflect,'get',(x,k)=>k==='constructor'?String:x[k]);const P=Object.getPrototypeOf(7);const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';"],
+  ['opaque Object.getOwnPropertyDescriptors constructor value',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const D=Object.getOwnPropertyDescriptors(P);const C=D.constructor.value;C.fromCharCode=()=>'?';"]
 ];
 
 for(const [name,mutator] of unsafe) {
