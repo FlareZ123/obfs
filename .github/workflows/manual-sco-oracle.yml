@@ -29,6 +29,8 @@ jobs:
         run: node sims/sco-piecewise-oracle.js
       - name: Recover stateful private Mealy machine through authenticated proxy
         run: node --test test/sco-stateful-oracle.test.js
+      - name: Check W-method certificate, finite cap and long-delay falsification
+        run: node --test test/sco-w-method.test.js
       - name: Test adaptive public Mealy reconstruction and matched exhaustive control
         run: node --test test/sco-adaptive-mealy.test.js
       - name: Print bounded stateful oracle reconstruction evidence
