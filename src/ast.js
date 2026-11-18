@@ -1889,6 +1889,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // coordinates even without a syntactic .stack access.
   const processReportNamespaces=new Set();
   const processReportMethods=new Set();
+  const processReportTriggers=new Set([
+    'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
+  ]);
   walk(ast,node=>{
     if(node.type!=='ImportDeclaration' ||
        !['process','node:process'].includes(String(node.source?.value??'')))return;
@@ -2248,6 +2251,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedStackAliases);
   walk(ast,(node,parent,key)=>{
+    // Programmatic diagnostic-report triggers can emit a later JavaScript
+    // stack without any explicit getReport()/writeReport() call. Conservatively
+    // preserve the source whenever code writes one of the enabling switches.
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='MemberExpression'&&
+       isProcessReportNamespace(node.left.object)&&
+       processReportTriggers.has(memberName(node.left)??''))observed=true;
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
     // pathname/search/hash/credentials observable after assignment.
