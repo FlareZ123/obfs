@@ -175,7 +175,9 @@
     "test/compatible-permutation-linear-sandwich-counterexample.test.js",
     "sims/mba-author-int32-component-inverse.js",
     "sims/mba-author-int32-heldout.js",
-    "test/mba-author-int32-heldout.test.js"
+    "test/mba-author-int32-heldout.test.js",
+    "sims/mba-author-int32-minified-recover.js",
+    "test/mba-author-int32-minified-recover.test.js"
   ],
   "exclude": [
     "node_modules"
