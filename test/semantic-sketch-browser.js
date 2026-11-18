@@ -72,7 +72,7 @@ async function runBrowserSketches(){
     response.end(source);
   });
   try{
-    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve(undefined)));
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const browser=process.env.CHROMIUM_BIN??'chromium';
@@ -86,7 +86,7 @@ async function runBrowserSketches(){
     return {cases:cases.length,positiveRewrites};
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>
-      error?reject(error):resolve()));
+      error?reject(error):resolve(undefined)));
   }
 }
 
