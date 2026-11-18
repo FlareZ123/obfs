@@ -388,3 +388,60 @@ test('unrelated rest helper with static primitive expressions retains a real key
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+/**
+ * Proven immutable zero-argument local functions returning inert primitive
+ * expressions are safe rest-vector inputs. This positive tests that the
+ * conservative ambient refusal does not sacrifice all such owned work.
+ */
+for(const [name,source] of [
+  ['zero-argument const arrow',
+    'const scalar=()=>7;function count(...items){return items.length;}'+
+      'void count(scalar());'],
+  ['arithmetic const arrow',
+    'const scalar=()=>(21-14);function count(...items){return items.length;}'+
+      'void count(scalar());'],
+  ['zero-argument const function expression',
+    'const scalar=function(){return 7;};function count(...items){return items.length;}'+
+      'void count(scalar());']
+]){
+  test('safe local pure-result rest factory: '+name,async()=>{
+    const original=graph(source);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-pure-factory/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(compiled.crossFile.properties,1,
+      'A proven pure scalar factory should retain one real private key rewrite');
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',null]);
+    assert.deepEqual(await execute(compiled.files),expected);
+  });
+}
+
+for(const [name,source] of [
+  ['mutable local factory',
+    'let scalar=()=>7;scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());'],
+  ['const factory returns ambient global',
+    'const scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());'],
+  ['shadowed pure factory',
+    'const scalar=()=>7;{const scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());}']
+]){
+  test('unsafe local factory must still decline: '+name,async()=>{
+    const original=graph(source);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-pure-factory-negative/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(compiled.crossFile.properties,0);
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+  });
+}
