@@ -7,6 +7,7 @@ const path = require('node:path');
 const {spawnSync} = require('node:child_process');
 const {atomicWrite} = require('../src/atomic');
 const {original} = require('./straightline-reader-profile');
+const {summarizeCpuPairs} = require('./cpu-pair-summary');
 
 // Keep the child workload identical to straightline-reader-cold-profile.js.
 // Both independently loaded modules contain the exact same original bytes.
@@ -19,12 +20,6 @@ const runner = [
   'const elapsed=process.cpuUsage();',
   'process.stdout.write(JSON.stringify({digest,cpuMs:(elapsed.user+elapsed.system)/1000}));'
 ].join('\n');
-
-/** @param {number[]} samples @returns {number} */
-function median(samples) {
-  const sorted = [...samples].sort((a, b) => a - b);
-  return sorted[Math.floor(sorted.length / 2)];
-}
 
 /**
  * Run one module in an independent Node 22 process. The CPU number measures
@@ -85,21 +80,9 @@ async function run(samePath = false) {
         firstCpuMs.push(actualFirst.cpuMs);
         secondCpuMs.push(second.cpuMs);
       }
-      // An independent short Windows process can report zero CPU ticks.
-      // Do not retry, replace, or silently divide such a pair: preserve the
-      // raw zeros and mark their ratios unresolved rather than inventing data.
-      const pairedRatios = firstCpuMs.map((ms, i) =>
-        ms > 0 && secondCpuMs[i] > 0 ? secondCpuMs[i] / ms : null);
-      const resolvedRatios = pairedRatios.filter(ratio => ratio !== null);
-      const firstMedian = median(firstCpuMs);
-      const secondMedian = median(secondCpuMs);
       rows.push({
-        calls, pairs: 9, firstCpuMs, secondCpuMs, pairedRatios,
-        ratioOfMedians: firstMedian > 0 && secondMedian > 0
-          ? secondMedian / firstMedian : null,
-        maxPairedRatio: resolvedRatios.length ? Math.max(...resolvedRatios) : null,
-        strictOverBudgetPairs: resolvedRatios.filter(ratio => ratio > 2.5).length,
-        unresolvedZeroPairs: pairedRatios.length - resolvedRatios.length
+        calls, pairs: 9, firstCpuMs, secondCpuMs,
+        ...summarizeCpuPairs(firstCpuMs,secondCpuMs)
       });
     }
     const result = {
