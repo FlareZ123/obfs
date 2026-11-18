@@ -6,6 +6,7 @@ const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const oldCheck=require('./fixtures/reviewed-opaque-legacy.cjs').assertReviewedOpaqueAssets;
 const newCheck=require('../src/reviewed-assets').assertReviewedOpaqueAssets;
+const beforeDuplicateCheck=require('./fixtures/reviewed-opaque-pre-duplicate.cjs').assertReviewedOpaqueAssets;
 
 /**
  * @typedef {{path:string,sha256:string}} ReviewedAsset
@@ -77,3 +78,12 @@ for(const [name,make] of cases){
   console.log(JSON.stringify({case:name,oldAccepted:true,newAccepted:false}));
 }
 console.log('3/3 historical manifest bypasses refused by indexed snapshot');
+
+/** @returns {Scenario} */
+function duplicatesInsteadOfRequiredDistinctPaths(){
+  return {files:[safeFile,safeFile],reviewed:[safeReview,unsafeReview]};
+}
+assert.equal(accepts(oldCheck,duplicatesInsteadOfRequiredDistinctPaths),true);
+assert.equal(accepts(beforeDuplicateCheck,duplicatesInsteadOfRequiredDistinctPaths),true);
+assert.equal(accepts(newCheck,duplicatesInsteadOfRequiredDistinctPaths),false);
+console.log('1/1 duplicate-publication old/current-prepatch accept, fixed checker refuses');

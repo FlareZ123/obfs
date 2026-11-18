@@ -56,7 +56,8 @@ function assertReviewedOpaqueAssets(files,approved) {
   // A final-distribution recheck must inspect the caller's indexed output,
   // even when its Array iterator has been replaced. File metadata and bytes
   // are sampled once per entry; the publisher must emit those same bytes.
-  let matched=0;
+  /** @type {Set<string>} */
+  const matched=new Set();
   const fileCount=files.length;
   for(let index=0;index<fileCount;index++){
     const file=files[index];
@@ -67,7 +68,11 @@ function assertReviewedOpaqueAssets(files,approved) {
     if(sourceType!=='asset')continue;
     const path=file.path;
     const code=file.code;
-    const entry=expected.get(path.toLowerCase());
+    const identity=path.toLowerCase();
+    if(matched.has(identity)){
+      throw new TypeError('Duplicate published opaque asset path: '+path);
+    }
+    const entry=expected.get(identity);
     if(!entry||entry.path!==path){
       throw new TypeError('Opaque asset not in reviewedOpaqueAssets: '+path);
     }
@@ -75,9 +80,9 @@ function assertReviewedOpaqueAssets(files,approved) {
     if(observed!==entry.sha256){
       throw new TypeError('Opaque asset differs from reviewed bytes: '+path);
     }
-    matched++;
+    matched.add(identity);
   }
-  if(matched!==expected.size){
+  if(matched.size!==expected.size){
     throw new TypeError('reviewedOpaqueAssets contains unused or missing published asset paths');
   }
 }

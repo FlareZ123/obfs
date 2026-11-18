@@ -140,3 +140,13 @@ test('final-distribution recheck rejects sparse published file inventories',()=>
     {path:'theme.css',sha256:digest(safe)}
   ]),/Published files must contain indexed file records/);
 });
+
+test('duplicate approved asset copies cannot hide a missing reviewed path',()=>{
+  const reviewed=[
+    {path:'theme.css',sha256:digest(safe)},
+    {path:'preferences.txt',sha256:digest(other)}
+  ];
+  assert.throws(()=>assertReviewedOpaqueAssets([safeFile,safeFile],reviewed),
+    /Duplicate published opaque asset path/);
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets([safeFile,otherFile],reviewed));
+});
