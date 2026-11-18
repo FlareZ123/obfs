@@ -228,6 +228,28 @@ assets only within the already existing source-disclosure preflight.
 This avoids interpreting the new CLI feature as a bypass switch for
 specific prohibited source-bearing formats.
 
+## Full integration source-coincidence check without a new CI storm
+
+A separately dispatched
+[full Linux/Windows and Ubuntu Chromium validation 44289657106](https://github.com/FlareZ123/obfs/actions/runs/44289657106)
+completed successfully at `a74f34a14e790b91cfde4cf042953f9594515b3f`,
+including its complete Node behavioral/adversarial test inventory,
+blind recovery control, both strict JSDoc gates, benchmark/profile
+steps, and Ubuntu's three real Chromium modules/host tests. Its
+exact Git blobs for the two production files modified in this
+investigation are **identical to the current implementation**:
+
+- `src/cli.js`: `12a33544fedfa56aa4bfacc401394912fec9907a`.
+- `src/reviewed-assets.js`: `508f7c5582c490ee2ff6fa69fed09ae17f5dd459`.
+
+Thus that existing full test run exercised the actual updated
+production code without dispatching an extra broad matrix. The
+subsequent narrower [44291670683](https://github.com/FlareZ123/obfs/actions/runs/44291670683)
+also passed the newer tests at exact `bb52438a` on both systems.
+A full run at `a74f34a` does not attest to later test/doc-only
+commits or freeze Node/dependency/browser binary versions. It proves
+only the reported full suite and source-blob coincidence.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
