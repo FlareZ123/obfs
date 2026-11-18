@@ -196,3 +196,33 @@ for(const [title,side] of [
     }
   });
 }
+
+test('local Number value alias does not disable unrelated String decoding',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const value=7;const alias=value;const P=Object.getPrototypeOf(alias);P.toString=()=>"unrelated";'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/aliased-unrelated-number'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+});
+
+test('read-only local String instance prototype alias preserves decoder coverage',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const value=new String("");const P=Reflect.getPrototypeOf(value);const safe=P.charCodeAt;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/readonly-aliased-string-instance'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+});
