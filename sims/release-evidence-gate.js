@@ -133,13 +133,11 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
       'SNO resident comparison must preserve four application workloads');
     assert.equal(snoResident.leafRows.length,2,
       'SNO resident comparison must retain two selected-function stress controls');
-    /**
-     * Preserve both application and direct-leaf stress rows with the same
-     * explicit shape and compiler-checkable source type.
-     * @param {Awaited<ReturnType<typeof runSnoResidentEvidence>>['rows'][number]} row
-     * @param {typeof snoPostInitRows} destination
-     */
-    function captureResidentRow(row,destination){
+    // Both series contain ResidentRow values. Concatenating them before
+    // mapping avoids mixing resident inputs with summarized output types.
+    for(const [index,row] of snoResident.rows.concat(snoResident.leafRows).entries()){
+      const destination=index<snoResident.rows.length?
+        snoPostInitRows:snoPostInitLeafRows;
       assert.equal(row.allOutputsEquivalent,true,
         'SNO post-initialization work must retain original output parity');
       assert.equal(row.cpuBudget.samplePairs,row.nativeCpuMs.length);
@@ -159,8 +157,6 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
         rawWallTimeMs:{native:row.nativeMs,sno:row.snoMs}
       });
     }
-    for(const row of snoResident.rows)captureResidentRow(row,snoPostInitRows);
-    for(const row of snoResident.leafRows)captureResidentRow(row,snoPostInitLeafRows);
   }
   // The strict compute interpretation uses post-init SNO process CPU,
   // whereas the historical ten-workload join above retains cold SNO startup
