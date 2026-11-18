@@ -289,10 +289,12 @@ function createScoGraphHandler(graph,namespaces,options){
   // again after validation: a getter could return benign code during a check
   // and private source to the eventual HTTP handler.
   const trusted=/** @type {ScoGraphPartition} */ (JSON.parse(snapshot));
-  // Capture caller-owned accessors once so endpoint validation and HTTP routing
-  // consume the same route. Otherwise a changing getter can redirect the handler.
-  const stableOptions={...options};
-  const expectedEndpoint=(stableOptions.routePrefix??'/obfs/')+'rpc';
+  // Capture routePrefix exactly once, including inherited and non-enumerable
+  // getters that an ordinary spread would discard. Endpoint validation and
+  // the HTTP handler must receive the same authoritative route.
+  const {routePrefix,...remainingOptions}=options;
+  const stableOptions={...remainingOptions,routePrefix};
+  const expectedEndpoint=(routePrefix??'/obfs/')+'rpc';
   for(const filename of trusted.exposedPaths){
     if(trusted.partitions[filename]?.endpoint!==expectedEndpoint){
       throw new TypeError('SCO graph RPC endpoint does not match routePrefix: '+filename);
