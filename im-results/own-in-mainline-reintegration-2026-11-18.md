@@ -62,3 +62,23 @@ immutable-head cross-platform and real-browser suite, and confirm that
 unrelated positive private-property rewrite controls still actually transform.
 Do not conflate this tested coverage increase with the existing cross-mode
 `RELEASE-BLOCKED` security verdict.
+
+## Complete mainline-origin regression gate (00:45 UTC follow-up)
+
+The first **complete** manually dispatched `manual-validation.yml`
+[run 44210184426](https://github.com/FlareZ123/obfs/actions/runs/44210184426)
+**passed both Windows and Ubuntu Node.js 22 jobs** at exact branch source
+`1c9e389aad48373b6ca8ed46601b282a7caa7655`. This differs from
+`feb430d24` only by this report's introduction. Both full-suite jobs
+passed the JSDoc checks, sampled baseline benchmark, and their Node
+behavioral suites. The Ubuntu job also passed the real Chromium main
+module/host-lock, null-prototype private-key positive, and
+cross-module owned-field observer checks. Windows Chromium steps were
+intentionally skipped by the workflow. The separate focused own-key
+Chromium test had already passed at the compiler-identical prior pin.
+
+This is **source-pinned finite integration evidence on a branch created from
+18 November mainline**, not a claim that moving `main` contains the
+unmerged feature. The security release verdict and historical strict
+>2.5x candidate samples remain unchanged. Independent review and
+conflict-safe reconciliation with moving main are still appropriate.
