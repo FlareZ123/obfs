@@ -67,6 +67,19 @@ function mixedSource(){
   return code+'module.exports=total;\n';
 }
 
+/**
+ * Stress cases with almost no private owners among numerous ordinary bindings.
+ * A global AST index can lose to a smaller local scan on sparse inputs.
+ * @returns {string}
+ */
+function sparseSource(){
+  let code="'use strict';let total=0;\n";
+  for(let i=0;i<4096;i++)
+    code+='const ordinary'+i+'='+i+';total=(total+ordinary'+i+')|0;\n';
+  return code+'const tiny0={secret:17};const tiny1={secret:23};'+
+    'total=(total+tiny0.secret+tiny1.secret)|0;module.exports=total;\n';
+}
+
 /** @param {string} source @returns {string} */
 function sha256(source){
   return createHash('sha256').update(source).digest('hex');
@@ -75,12 +88,13 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'} objects
+ * @param {number|'mixed'|'sparse'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
-  const input=objects==='mixed'?mixedSource():original(objects);
+  const input=objects==='mixed'?mixedSource():
+    objects==='sparse'?sparseSource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -89,6 +103,7 @@ function sample(objects){
   const wallMs=performance.now()-wallStart;
   const cpu=process.cpuUsage(cpuStart);
   assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
+    objects==='sparse'?emitted.files[0].metrics.properties===2:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -116,8 +131,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'} objects
- * @returns {{arm:string,objects:number|'mixed',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -133,7 +148,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(process.argv[3]==='mixed'?'mixed':Number(process.argv[3]));
+  sample(['mixed','sparse'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -151,7 +167,8 @@ if(process.argv[2]==='sample'){
     for(const [objects,arms] of [
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
       /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
-      /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']])
+      /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
+      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -159,7 +176,7 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed']){
+    for(const objects of [512,2048,'mixed','sparse']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
