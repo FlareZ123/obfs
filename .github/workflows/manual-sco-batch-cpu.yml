@@ -26,6 +26,18 @@ jobs:
       - name: Strict JSDoc on separate native vs published batch profiler
         run: npm run typecheck:external
       - name: Profile authenticated SCO private-graph 1024-call batches
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-${{ runner.os }}.json
         run: node sims/sco-batch-resident-cpu.js
       - name: Falsify strict CPU overhead under 51 longer selected-work pairs
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-stability-${{ runner.os }}.json
         run: node sims/sco-batch-resident-cpu.js --stability
+      - name: Retain full authenticated SCO batch and stability timing arrays
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-batch-${{ runner.os }}
+          path: |
+            sco-batch-${{ runner.os }}.json
+            sco-batch-stability-${{ runner.os }}.json
+          if-no-files-found: error
