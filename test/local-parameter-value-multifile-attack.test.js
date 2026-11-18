@@ -51,7 +51,7 @@ test('actual three-file ESM retains host callback and is source-only relabelable
     for(const mode of /** @type {const} */ (['coo','sno'])) {
       for(let seed=0;seed<4;seed++) {
         const output=obfuscateFiles(native,{
-          mode,closedWorld:true,
+          mode,closedWorld:false,
           seed:'parameter-multifile-source-only-'+seed,
           identifiers:false,strings:false,properties:true
         });
