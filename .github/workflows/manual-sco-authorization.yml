@@ -35,6 +35,8 @@ jobs:
         run: node sims/sco-batch-state-cost.js
       - name: Paired SCO authentication lookup deadline cost
         run: node sims/sco-principal-resolution-cost.js
+      - name: SCO batch wrapper inner-authorization negative control
+        run: node sims/sco-batch-wrapper-preflight-attack.js
       - name: Parser-only SCO batch isolation snapshot cost
         run: node sims/sco-batch-json-parse-cost.js
       - name: Paired host allowlist lookup CPU versus prepatch source behavior
