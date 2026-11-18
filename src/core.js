@@ -117,15 +117,52 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
 }
 
 /**
+ * Find supplied CommonJS modules reached by a static relative require. Only
+ * those export surfaces can carry a decoder-sensitive reference into another
+ * supplied file through this bounded cross-file proof.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {Set<string>}
+ */
+function staticallyRequiredCommonJsTargets(files) {
+  const known=new Set(files.filter(file=>file.sourceType==='commonjs').map(file=>file.path));
+  const required=new Set();
+  for(const file of files) {
+    if(file.sourceType!=='commonjs'||typeof file.code!=='string')continue;
+    const ast=parse(file.code,'commonjs');
+    walk(ast,node=>{
+      if(node.type!=='CallExpression'||node.callee.type!=='Identifier'||
+         node.callee.name!=='require')return;
+      const argument=node.arguments[0];
+      if(!argument)return;
+      const specifier=staticString(argument);
+      if(specifier===null||
+         (!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\\\]/u.test(specifier))return;
+      const base=path.posix.normalize(
+        path.posix.join(path.posix.dirname(file.path),specifier));
+      const candidates=path.posix.extname(base)?[base]:
+        [base,base+'.js',base+'.cjs',base+'/index.js',base+'/index.cjs'];
+      for(const candidate of candidates) {
+        if(!known.has(candidate))continue;
+        required.add(candidate);
+        break;
+      }
+    });
+  }
+  return required;
+}
+
+/**
  * Detect direct writes that can replace String decoder methods or the Array
  * iterator consumed by chunked string spread. An imported ESM dependency executes before this file's
  * decoder, so a write anywhere in the supplied file group must disable that
  * decoder throughout the group. Indirect aliases and external modules remain
  * outside this deliberately conservative syntactic check.
  * @param {import('./ast').AstNode} ast
+ * @param {boolean} [rejectCommonJsExportEscape]
  * @returns {boolean}
  */
-function mutatesDecoderIntrinsic(ast) {
+function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // A supplied binding named Object, Reflect or Array may replace the
   // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
@@ -806,6 +843,17 @@ function mutatesDecoderIntrinsic(ast) {
       });
     return false;
   }
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isCommonJsExportTarget(node) {
+    if(node.type!=='MemberExpression')return false;
+    if(node.object.type==='Identifier'&&node.object.name==='exports')return true;
+    if(node.object.type==='Identifier'&&node.object.name==='module'&&
+       memberName(node)==='exports')return true;
+    return node.object.type==='MemberExpression'&&isCommonJsExportTarget(node.object);
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
     if(isStringValue(node)||isStringPrototype(node))return true;
@@ -888,6 +936,12 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(node.type==='Identifier' && dynamicCompilers.has(node.name) ||
        node.type==='MemberExpression' && dynamicCompilers.has(memberName(node)??'')) {
+      mutated=true;
+      return;
+    }
+    if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
+       node.operator==='='&&isCommonJsExportTarget(node.left)&&
+       containsDecoderIntrinsic(node.right)) {
       mutated=true;
       return;
     }
@@ -1146,6 +1200,8 @@ function obfuscateFiles(files, options = {}) {
   const reservedNames=new Set();
   /** @type {string[]} */
   const reservedSources=[];
+  const requiredCommonJsTargets=shouldEncodeStrings?
+    staticallyRequiredCommonJsTargets(cross.files):new Set();
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
@@ -1158,7 +1214,7 @@ function obfuscateFiles(files, options = {}) {
         if (node.type==='Identifier') reservedNames.add(node.name);
       });
       reservedSources.push(input.code);
-      if (mutatesDecoderIntrinsic(inputAst) ||
+      if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path)) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
