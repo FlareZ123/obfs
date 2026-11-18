@@ -145,7 +145,8 @@
     "sims/sco-batch-equal-trust-attacker.js",
     "sims/sco-batch-contention-worker.cjs",
     "sims/sco-batch-cross-account-contention.js",
-    "sims/sco-policy-args-paired.js"
+    "sims/sco-policy-args-paired.js",
+    "sims/semantic-sketch-esbuild-mangle-control.js"
   ],
   "exclude": [
     "node_modules"
