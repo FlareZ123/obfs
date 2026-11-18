@@ -354,9 +354,15 @@ function mutatesDecoderIntrinsic(ast) {
    * @returns {boolean}
    */
   function isReturnedSensitiveField(node) {
-    if(node.type!=='MemberExpression'||node.object.type!=='CallExpression'||
-       node.object.callee.type!=='Identifier')return false;
-    const fields=returnedSensitiveFields.get(node.object.callee.name);
+    if(node.type!=='MemberExpression')return false;
+    let ownerName=null;
+    if(node.object.type==='CallExpression'&&node.object.callee.type==='Identifier') {
+      ownerName=node.object.callee.name;
+    } else if(node.object.type==='Identifier') {
+      ownerName=node.object.name;
+    }
+    if(ownerName===null)return false;
+    const fields=returnedSensitiveFields.get(ownerName);
     const key=memberName(node);
     return Boolean(fields && (key===null||fields.has(key)));
   }
@@ -491,6 +497,31 @@ function mutatesDecoderIntrinsic(ast) {
         if(!fields.has(key)){fields.add(key);discovered=true;}
       }
       /**
+       * Finite object/array literals can preserve a decoder-sensitive reference
+       * behind a local field. Record only statically named slots so unrelated
+       * fields and Number-only containers retain positive decoder yield.
+       * @param {string} name
+       * @param {import('./ast').AstNode} value
+       */
+      function recordLiteralSensitiveFields(name,value) {
+        if(value.type==='ObjectExpression') {
+          for(const property of value.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key!==null&&sensitiveReturnValue(property.value))addReturnedField(name,key);
+          }
+          return;
+        }
+        if(value.type!=='ArrayExpression')return;
+        for(let index=0;index<value.elements.length;index++) {
+          const element=value.elements[index];
+          if(element&&element.type!=='SpreadElement'&&sensitiveReturnValue(element)) {
+            addReturnedField(name,String(index));
+          }
+        }
+      }
+      /**
        * @param {string} name
        * @param {import('./ast').AstNode} fn
        */
@@ -597,6 +628,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordPossibleConstructorPattern(node.id,node.init);
         recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
+          recordLiteralSensitiveFields(node.id.name,node.init);
           if(node.init.type==='Identifier') {
             if(returnedSensitiveFunctions.has(node.init.name)) {
               add(returnedSensitiveFunctions,node.id.name);
@@ -649,6 +681,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
+        recordLiteralSensitiveFields(node.left.name,node.right);
         if(node.right.type==='Identifier') {
           if(returnedSensitiveFunctions.has(node.right.name)) {
             add(returnedSensitiveFunctions,node.left.name);
