@@ -2,6 +2,15 @@ name: Manual private in cold-session budget
 
 on:
   workflow_dispatch:
+    inputs:
+      compiler_ab:
+        description: 'Compare current private proof against frozen pre-index compiler on the same runners'
+        type: boolean
+        default: false
+      ab_only:
+        description: 'Run only the paired compiler A/B and JSDoc, skipping standalone runtime profiles'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,16 +25,24 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ (inputs.compiler_ab || inputs.ab_only) && '0' || '1' }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Same-run controlled compiler inventory A/B with exact output-byte match
+        if: ${{ inputs.compiler_ab || inputs.ab_only }}
+        run: node sims/property-proof-inventory-ab.js
       - name: Exact standalone generated CommonJS cold profile
+        if: ${{ !inputs.ab_only }}
         run: node sims/private-in-onefile-cold.js
       - name: Immediate top-level generated-source cold profile
+        if: ${{ !inputs.ab_only }}
         run: node sims/private-in-immediate-cold.js
       - name: Short-session bundled-source cold profile
+        if: ${{ !inputs.ab_only }}
         run: node sims/private-in-cold-budget.js
       - name: Check external JSDoc
         if: ${{ always() }}
