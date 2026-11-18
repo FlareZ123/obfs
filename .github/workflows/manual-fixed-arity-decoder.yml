@@ -43,3 +43,6 @@ jobs:
 
       - name: Interprocedural alias red proof
         run: node --test test/decoder-interprocedural-alias.test.js
+
+      - name: Shadowed intrinsic red and positive differential
+        run: node --test test/decoder-shadowed-intrinsic.test.js
