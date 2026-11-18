@@ -34,3 +34,18 @@ At 512 operations (~64.9 KB payload), opt-in ratio of medians is **0.816× Ubunt
 The `Object.freeze` contract changes visible descriptors and strict-mode write behavior and may produce generic RPC failures when authorizers/private operations mutate their arguments. Sharing the parsed graph also changes argument reference identity between policy and executor. Opt-in tests include nested arrays/objects, own `__proto__` JSON fields, numeric `-0`/overflow, 5,000 levels of nesting, policy mutation refusal, private mutation failure and direct nonbatch invariance. There is no protection against the authorized online relay, no demonstrated new static or runtime anti-analysis advantage, and no unqualified JavaScript 1:1 equivalence across arbitrary RPC clients. The source-only COO/SNO hostile-runtime boundary and existing cross-mode release-blocking 2.5× observations are unchanged.
 
 **Reproduction:** `node --test test/sco-immutable-batch-args.test.js`, `node sims/sco-immutable-batch-profile.js`, and the manually dispatched `.github/workflows/manual-sco-authorization.yml`. Full mainline corpus, slow-network cost, database-backed operations, multi-process concurrency and type/exact source-pin tests are separate checks.
+
+
+## Reintegrated latest-main shape and process CPU samples (17:13 UTC)
+
+The previous feature branch was brought forward **without changing its executable `src/sco.js` bytes** onto main source `a6ab0b8337bc9ce71611fdcaa2b86f48f4727d35`. The resulting exact executable source pin `5103be25f275fdcac63c88baa93f98b1ef5f8768`, [draft PR #134](https://github.com/FlareZ123/obfs/pull/134), passed the [manually dispatched two-platform SCO authorization workflow 44356156580](https://github.com/FlareZ123/obfs/actions/runs/44356156580), including strict JSDoc and real Ubuntu Chromium. The full integration workflow `44356146409` was still running when these values were extracted. The shape simulator emitted five JSON records per platform; the ratios below are frozen/default **ratios of nine arm medians**, each arm based on 30 authenticated sequential loopback requests/trial and ten warmup requests, all responses checked for the original constant task result. Request bodies fit the default 65,536-byte cap.
+
+| Payload shape | Bytes | Ubuntu wall | Ubuntu process CPU | Windows wall | Windows process CPU |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Scalar | 59 | 0.985× | 0.962× | 1.069× | 1.000× |
+| 2,048-level nested array | 4,155 | 0.960× | 1.052× | 1.002× | 1.022× |
+| 5,000-level nested array | 10,059 | 0.926× | 0.866× | 0.975× | 0.984× |
+| 2,048-field object | 32,654 | 0.846× | 0.848× | 0.841× | 0.984× |
+| 3,500-field object | 57,338 | 0.787× | 0.806× | 0.809× | 0.855× |
+
+These finite median ratios support reduced duplicate parsing on the **large shallow record** in the tested local server/client process. They do **not** establish strict per-pair 2.5× compliance, an original-versus-obfuscated runtime comparison, any anti-analysis improvement, or cross-process, TLS, WAN, concurrency and target-application representativeness. CPU is process-wide user+system CPU for the same Node process hosting both HTTP clients and servers, not CPU of the protected private function alone. The private sample method returns a constant after parsing; it does not prove a read-only contract for arbitrary application code.
