@@ -6,6 +6,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
 const {specimens}=require('./property-nullish-destructure-error-attack');
+const {specimens:stringSpecimens}=require('./string-object-pattern-error-attack');
 
 const exec=promisify(execFile);
 
@@ -21,6 +22,16 @@ async function run() {
     cases.push({name:specimen.name,native:specimen.source,
       generated:/** @type {string} */ (result.code)});
   }
+  for(const specimen of stringSpecimens) {
+    const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:specimen.source}],{
+      mode:'coo',strings:true,properties:false,identifiers:false,
+      seed:'string-nullish-pattern-browser'
+    }).files[0];
+    assert.equal(result.metrics.literals,0,
+      'Browser source-spelled string operand should remain literal');
+    cases.push({name:'string-'+specimen.name,native:specimen.source,
+      generated:/** @type {string} */ (result.code)});
+  }
   const good='const root={secretAlpha:23};module.exports=root.secretAlpha;';
   const transformed=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:good}],{
     mode:'coo',strings:false,identifiers:false,seed:'nullish-browser-positive'
@@ -29,6 +40,17 @@ async function run() {
     'A separate safe own-field read must still be renamed in the browser control');
   cases.push({name:'safe-private-positive',native:good,
     generated:/** @type {string} */ (transformed.code)});
+  const safeString="const root={secretAlpha:23};module.exports=root['secretAlpha'];";
+  const transformedString=obfuscateFiles([{
+    path:'entry.cjs',sourceType:'commonjs',code:safeString
+  }],{
+    mode:'coo',strings:true,properties:false,identifiers:false,
+    seed:'string-nullish-browser-positive'
+  }).files[0];
+  assert.equal(transformedString.metrics.literals,1,
+    'A separate safe computed string must still be encoded in the browser control');
+  cases.push({name:'safe-string-positive',native:safeString,
+    generated:/** @type {string} */(transformedString.code)});
   const client=[
     'const cases='+JSON.stringify(cases)+';',
     'const exec=(code)=>{const module={exports:null};',
@@ -65,12 +87,15 @@ async function run() {
     assert.equal(results.length,cases.length);
     for(const item of results) {
       assert.equal(item.generated,item.native,'Real Chromium source-parity '+item.name);
-      if(item.name!=='safe-private-positive')assert.match(item.native,/root\.secretAlpha/);
+      if(!item.name.startsWith('safe-'))assert.match(item.native,/root\.secretAlpha/);
     }
-    assert.equal(results[results.length-1].generated,'23');
+    assert.equal(results.find(item=>item.name==='safe-private-positive')?.generated,'23');
+    assert.equal(results.find(item=>item.name==='safe-string-positive')?.generated,'23');
     process.stdout.write('NULLISH_PATTERN_CHROMIUM '+JSON.stringify({
-      cases:results.length,unsafePreserved:specimens.length,safeOwnKeyRenamed:1,
-      allOutputsMatch:true,chromium:process.env.CHROMIUM_BIN??'google-chrome'
+      cases:results.length,unsafePropertiesPreserved:specimens.length,
+      unsafeStringsPreserved:stringSpecimens.length,safeOwnKeyRenamed:1,
+      safeStringEncoded:1,allOutputsMatch:true,
+      chromium:process.env.CHROMIUM_BIN??'google-chrome'
     })+'\n');
   } finally {
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
