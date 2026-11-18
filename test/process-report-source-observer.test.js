@@ -452,13 +452,18 @@ test('ordinary process metadata remains eligible for property renaming',()=>{
 });
 
 
-test('globalThis process extraction preserves diagnostic report coordinates',()=>{
-  const expressions=[
+test('destructured globalThis process preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
     "(()=>{const {process:proc}=globalThis;return proc.report.getReport();})()",
-    "(()=>{const proc=Reflect.get(globalThis,'process');return proc.report.getReport();})()"
-  ];
-  for(const [index,expression] of expressions.entries())
-    mustPreserveProcessReport(expression,'agent8-process-global-extract-'+index);
+    'agent8-process-global-destructure'
+  );
+});
+
+test('Reflect.get globalThis process preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const proc=Reflect.get(globalThis,'process');return proc.report.getReport();})()",
+    'agent8-process-global-reflect'
+  );
 });
 
 test('shadowed process parameter does not suppress safe property renaming',()=>{
