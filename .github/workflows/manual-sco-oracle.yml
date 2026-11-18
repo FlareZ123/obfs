@@ -29,6 +29,8 @@ jobs:
         run: node sims/sco-piecewise-oracle.js
       - name: Recover stateful private Mealy machine through authenticated proxy
         run: node --test test/sco-stateful-oracle.test.js
+      - name: Test adaptive public Mealy reconstruction and matched exhaustive control
+        run: node --test test/sco-adaptive-mealy.test.js
       - name: Print bounded stateful oracle reconstruction evidence
         run: node sims/sco-stateful-oracle.js
       - name: Learn step-only state machine through known synchronizing word
