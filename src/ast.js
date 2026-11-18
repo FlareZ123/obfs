@@ -527,6 +527,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Blob's second constructor argument is a Web IDL options dictionary.
   const blobNames=new Set(['Blob']);
   const blobConstructors=new Set(blobNames);
+  const boundBlobConstructors=new Set();
   const webRecords=new Set(webRecordNames);
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
@@ -547,6 +548,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const responseObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const webStringObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const blobObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
@@ -679,10 +682,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys :
-      aliases===webStringConstructors ? webStringObjectKeys : null;
+      aliases===webStringConstructors ? webStringObjectKeys :
+      aliases===blobConstructors ? blobObjectKeys : null;
     const keys=properties?.get(node.object.name);
     // A runtime-computed key could select any recorded native method.
     return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBlobConstructor(node) {
+    if(node?.type==='SequenceExpression') {
+      return isBlobConstructor(node.expressions[node.expressions.length-1]);
+    }
+    return isWebConstructor(node,blobConstructors,blobNames);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundBlobConstructor(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      boundBlobConstructors.has(node.name) ||
+      node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
+      memberName(node.callee)==='bind' && isBlobConstructor(node.callee.object)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isResponseRedirect(node) {
@@ -791,6 +809,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(responseObjectKeys,receiver,key);
     if(isWebConstructor(expression,webStringConstructors,webStringNames))
       addWebObjectKey(webStringObjectKeys,receiver,key);
+    if(isBlobConstructor(expression))
+      addWebObjectKey(blobObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
   }
@@ -880,8 +900,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
-        if(isWebConstructor(value,blobConstructors,blobNames)) {
+        if(isBlobConstructor(value)) {
           changed=add(blobConstructors,name)||changed;
+        }
+        if(isBoundBlobConstructor(value)) {
+          changed=add(boundBlobConstructors,name)||changed;
         }
         if(isWebConstructor(value,webRecords,webRecordNames)) {
           changed=add(webRecords,name)||changed;
@@ -976,7 +999,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const key of objectFunctionKeys.get(value.name)??[]) {
             addObjectFunctionKey(name,key);
           }
-          for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,redirectObjectKeys]) {
+          for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
+            blobObjectKeys,redirectObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1072,6 +1096,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(responseConstructors,property.value.name)||changed;
           if(webStringObjectKeys.get(node.init.name)?.has(key))
             changed=add(webStringConstructors,property.value.name)||changed;
+          if(blobObjectKeys.get(node.init.name)?.has(key))
+            changed=add(blobConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
         }
@@ -1598,16 +1624,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const nativeStringCoercer=isCoercer(target);
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
-    const blobOptions=isWebConstructor(target,blobConstructors,blobNames);
+    const blobOptions=isBlobConstructor(target);
+    const boundBlob=isBoundBlobConstructor(target);
     const webRecord=isWebConstructor(target,webRecords,webRecordNames);
-    if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord)return false;
+    if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord&&
+       !blobOptions&&!boundBlob)return false;
     if(passed?.type==='ArrayExpression') {
       const values=nativeStringCoercer ?
         (isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
           passed.elements.slice(0,2):passed.elements.slice(0,1)) :
-        webDictionary?passed.elements.slice(0,blobOptions?2:1):passed.elements;
+        boundBlob?passed.elements:
+        webDictionary||blobOptions?passed.elements.slice(0,blobOptions?2:1):passed.elements;
       return values.some((/** @type {AstNode|null} */ value)=>
-        Boolean(value && (webDictionary||webRecord ?
+        Boolean(value && (webDictionary||webRecord||blobOptions||boundBlob ?
           mayCoerceSourceWithinWebRecord(value):!isDefinitelyPrimitive(value))));
     }
     return Boolean(passed);
@@ -2238,11 +2267,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isWebConstructor(callee,webDictionaries,webDictionaryNames) &&
           node.arguments[0] &&
           mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
-      // Blob options.type and options.endings convert values with ToString.
-      // The second argument can retain a function's exact native source.
-      if(isWebConstructor(callee,blobConstructors,blobNames) &&
-          node.arguments[1] &&
-          mayCoerceSourceWithinWebRecord(node.arguments[1]))observed=true;
+      // Blob's first argument and its second options dictionary may both
+      // coerce function values. Bound constructors can shift those offsets.
+      if(isBlobConstructor(callee) &&
+          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(isBoundBlobConstructor(callee) &&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
+      // Bound Blob arguments are captured now and may be converted at a
+      // later invocation, including through an exported constructor wrapper.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          memberName(callee)==='bind' && isBlobConstructor(callee.object) &&
+          node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
       // Request/Response/File expose function source through BodyInit, URL,
       // BlobPart sequences, filenames, headers and string-valued init fields.
       // Preserve constant primitive records and sequences as positive controls.
