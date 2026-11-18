@@ -443,12 +443,21 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
 
   const scopes=collectBindingScopes(ast);
-  const constantKeys=collectOwnedConstantKeys(ast,rootName,bindings,scopes);
-  // Cross-file key facts are supplied only by the owner/ESM import proof,
-  // which checks the immutable export, sequential initialization and local
-  // imported binding. Reject ambiguous shadowed names here as well.
-  for(const [name,value] of importedConstantKeys) {
-    if(bindings.get(name)===1)constantKeys.set(name,value);
+  // Most owners use direct known member names and need no constant-key scan.
+  // Build the same per-owner key facts only when a computed identifier read
+  // actually requests them, retaining all original lexical/order gates.
+  /** @type {Map<string,string>|null} */
+  let constantKeys=null;
+  /** @param {string} name @returns {string|null} */
+  function getConstantKey(name) {
+    if(constantKeys===null){
+      constantKeys=collectOwnedConstantKeys(ast,rootName,bindings,scopes);
+      // Imported keys have the same verified export and unique-binding gates.
+      for(const [key,value] of importedConstantKeys) {
+        if(bindings.get(key)===1)constantKeys.set(key,value);
+      }
+    }
+    return constantKeys.get(name)??null;
   }
   // An unescaped, fixed-size private tuple can carry the owner through a
   // known slot. Other slots must contain inert primitive literals, so
@@ -697,7 +706,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (parent.type === 'MemberExpression' && key === 'object') {
       const property = parent.computed ?
         staticString(parent.property) ??
-          (parent.property.type==='Identifier' ? constantKeys.get(parent.property.name)??null : null) :
+          (parent.property.type==='Identifier' ? getConstantKey(parent.property.name) : null) :
         staticName(parent.property);
       if (property === null) return null;
       memberNames.set(parent,property);
@@ -793,7 +802,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const property = callParent.computed ?
         staticString(callParent.property) ??
           (callParent.property.type === 'Identifier' ?
-            constantKeys.get(callParent.property.name) ?? null : null) :
+            getConstantKey(callParent.property.name) : null) :
         staticName(callParent.property);
       if (property === null) return null;
       memberNames.set(callParent,property);
@@ -873,9 +882,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // Expose already-proven direct identity-return expressions to the
   // cross-file reader verifier. The receiving call is separately checked
   // against an imported read-only function and its parameter ownership.
-  walk(ast,node=>{
-    if(node.type==='CallExpression' && resolves(node))forwardedCalls.add(node);
-  });
+  // resolves() only accepts direct named calls. Use the immutable
+  // call-site inventory rather than walking the full AST for every owner.
+  for(const [name] of functions) {
+    for(const call of calls.get(name)??[]) {
+      if(resolves(call))forwardedCalls.add(call);
+    }
+  }
   return {aliases,members,memberNames,patterns,inChecks,forwardedCalls};
 }
 
