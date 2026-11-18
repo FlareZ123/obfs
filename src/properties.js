@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse, walk, applyEdits, observesFunctionSource, staticString} = require('./ast');
+const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -875,23 +875,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     let expression=member;
     let ancestor=consumer;
     while(ancestor) {
-      if(ancestor.type==='CallExpression' && ancestor.callee===expression ||
-         ancestor.type==='NewExpression' && ancestor.callee===expression ||
-         ancestor.type==='TaggedTemplateExpression' && ancestor.tag===expression ||
-         ancestor.type==='ForOfStatement' && ancestor.right===expression ||
-         ancestor.type==='SpreadElement' && ancestor.argument===expression ||
-         // Nested default patterns can also fail during destructuring
-         // and print their default-value expression into TypeError.message.
-         ancestor.type==='AssignmentPattern' && ancestor.right===expression &&
-           ['ArrayPattern','ObjectPattern'].includes(ancestor.left.type) ||
-         // Nullish object destructuring can also print the RHS member
-         // spelling into the caught TypeError, like array destructuring.
-         ancestor.type==='VariableDeclarator' && ancestor.init===expression &&
-           ['ArrayPattern','ObjectPattern'].includes(ancestor.id.type) ||
-         ancestor.type==='AssignmentExpression' && ancestor.right===expression &&
-           ['ArrayPattern','ObjectPattern'].includes(ancestor.left.type) ||
-         ancestor.type==='YieldExpression' && ancestor.delegate &&
-           ancestor.argument===expression) return null;
+      if(sourceSpelledErrorOperand(ancestor)===expression)return null;
       if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))break;
       expression=ancestor;
       ancestor=parents.get(expression);
