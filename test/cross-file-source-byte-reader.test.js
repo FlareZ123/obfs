@@ -227,3 +227,34 @@ test('a verified imported constant global key retains closed-world mangling',asy
   assert.equal(output.crossFile.properties,1);
   assert.deepEqual(await execute(output.files),baseline);
 });
+
+
+for(const [label,observer] of [
+  ['implicit CacheStorage.add request',
+    'const box=await caches.open("source-reader");'+
+    'await box.add("./state.mjs");'+
+    'const text=await (await box.match("./state.mjs")).text();'+
+    'console.log(state.secretField,text.includes("secretField"));'],
+  ['CacheStorage via globalThis',
+    'const box=await globalThis["caches"].open("source-reader");'+
+    'await box.add("./state.mjs");'+
+    'console.log(state.secretField);'],
+  ['CacheStorage global alias',
+    'const {caches:storage}=globalThis;'+
+    'const box=await storage.open("source-reader");'+
+    'await box.add("./state.mjs");'+
+    'console.log(state.secretField);']
+]) {
+  test('browser CacheStorage source-reader veto preserves distributed ESM spelling: '+label,()=>{
+    const files=graph(observer);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const emitted=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'cache-source-reader/'+mode+'/'+label,
+        strings:false,properties:true,identifiers:true
+      });
+      assert.equal(emitted.crossFile.properties,0,
+        'A same-origin implicit Cache request can observe source text in '+mode);
+      assert.deepEqual(emitted.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  });
+}

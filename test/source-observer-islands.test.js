@@ -219,3 +219,35 @@ test('ambient Symbol overwrite breaks naive island Symbol lowering but stays ref
     experimentalSourceObserverIslands:['independent.mjs']
   }),/Source observer islands support literal property renaming only/);
 });
+
+test('CacheStorage implicit requests and response-body readers cannot bypass source islands',()=>{
+  const cacheExpressions=[
+    'const box=await caches.open("source-cache");await box.add("./independent.mjs");'+
+      'const response=await box.match("./independent.mjs");console.log((await response.text()).includes("privateB"));',
+    'const storage=caches;const box=await storage.open("source-cache");'+
+      'console.log((await box.keys()).length);',
+    'console.log(CacheStorage);'
+  ];
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+    for(const expression of cacheExpressions) {
+      const source='import {watched} from "./watched.mjs";'+
+        'import {unrelated} from "./independent.mjs";'+
+        'console.log(watched.toString());'+expression+
+        'console.log(unrelated());';
+      assert.throws(()=>obfuscateFiles([watched,independent,entry(source)],{
+        mode,closedWorld:true,strings:false,identifiers:false,
+        experimentalSourceObserverIslands:['independent.mjs']
+      }),/Source observer island/,
+      'Must refuse the undeclared implicit browser source reader in '+mode);
+    }
+    const simpleEntry='import {watched} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(watched.toString(),unrelated());';
+    const control=obfuscateFiles([watched,independent,entry(simpleEntry)],{
+      mode,closedWorld:true,strings:false,identifiers:false,
+      experimentalSourceObserverIslands:['independent.mjs']
+    });
+    assert.ok((control.files.find(file=>file.path==='independent.mjs')?.metrics.properties??0)>=1,
+      'The cache veto must preserve actual independent safe-field rewriting in '+mode);
+  }
+});
