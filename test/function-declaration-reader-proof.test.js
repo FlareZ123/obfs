@@ -9,6 +9,9 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src/core');
 const {atomicWrite}=require('../src/atomic');
+const {transformSync}=require('esbuild');
+const {normalizePublicIsland}=require('../sims/source-island-public-normalizer');
+const {original:hotReaderFixture}=require('../sims/straightline-reader-profile');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
 
@@ -133,6 +136,38 @@ test('readers must decline when one helper also consumes an unproved external ow
     assert.equal(result.metrics.objects,0);
     assert.equal(JSON.stringify(runCommonJs(result.code)),JSON.stringify(runCommonJs(source)));
   }
+});
+
+test('public-only source normalization retains a functional clone beside an ordinary minifier',()=>{
+  const published=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',
+    code:hotReaderFixture}],{
+    mode:'coo',seed:'public-helper-normalization',strings:false,identifiers:false
+  }).files[0];
+  assert.equal(published.metrics.properties,1);
+  const normalized=normalizePublicIsland(String(published.code));
+  assert.equal(normalized.properties,1,'Seedless attacker must find the selected public field');
+  assert.notEqual(normalized.code,published.code);
+  const minified=transformSync(hotReaderFixture,{
+    loader:'js',format:'cjs',target:'node22',minify:true
+  }).code;
+  const variants=[
+    runCommonJs(hotReaderFixture),runCommonJs(minified),
+    runCommonJs(String(published.code)),runCommonJs(normalized.code)
+  ];
+  for(const variant of variants)assert.equal(typeof variant,'function');
+  const functions=/** @type {Array<(value:number)=>number>} */(variants);
+  for(let input=-256;input<=256;input++){
+    const expected=functions[0](input);
+    for(const fn of functions.slice(1))assert.equal(fn(input),expected);
+  }
+  console.log('IMMUTABLE_READER_PUBLIC_NORMALIZER '+JSON.stringify({
+    observedInputCount:513,privateFieldsFound:normalized.properties,
+    nativeBytes:Buffer.byteLength(hotReaderFixture),
+    minifiedBytes:Buffer.byteLength(minified),
+    generatedBytes:Buffer.byteLength(String(published.code)),
+    sourceOnlyNormalizedBytes:Buffer.byteLength(normalized.code),
+    matchedFunctionalClones:3
+  }));
 });
 
 test('source-observed and escaped declaration readers preserve their original source',()=>{
