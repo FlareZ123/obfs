@@ -357,7 +357,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set()) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
-  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
+  /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number,readerIndex?:number,readerMember?:AstNode}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
     functionDeclarations,callableDeclarators,aliasDeclarations,directAliasDeclarations,
@@ -367,15 +367,30 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
       let returnsRoot = false;
-      if (!node.async && !node.generator && node.body.body.length === 1 && node.body.body[0].type === 'ReturnStatement' &&
-          node.body.body[0].argument?.type === 'Identifier') {
+      let readerIndex = -1;
+      /** @type {AstNode|undefined} */
+      let readerMember;
+      if (!node.async && !node.generator && node.body.body.length === 1 &&
+          node.body.body[0].type === 'ReturnStatement') {
         /** @type {AstNode[]} */
         const params = node.params;
-        const returned=node.body.body[0].argument.name;
-        forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned);
-        returnsRoot = !params.length && returned === rootName;
+        const returned=node.body.body[0].argument;
+        if(returned?.type==='Identifier'){
+          forwardIndex = params.findIndex(p => p.type === 'Identifier' && p.name === returned.name);
+          returnsRoot = !params.length && returned.name === rootName;
+        } else if(returned?.type==='MemberExpression' &&
+                  returned.object.type==='Identifier' &&
+                  (returned.computed?staticString(returned.property):
+                    staticName(returned.property))!==null){
+          readerIndex=params.findIndex(p=>
+            p.type==='Identifier'&&p.name===returned.object.name);
+          if(readerIndex>=0)readerMember=returned;
+        }
       }
-      functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
+      functions.set(node.id.name,{
+        node,params:node.params,forwardIndex,returnsRoot,
+        readerIndex,readerMember
+      });
     }
   }
   for(const node of callableDeclarators){
@@ -429,8 +444,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           // the field value, never an alias to the owner. The existing proof
           // requires every call to receive that same owner, checks the field
           // against its own keys, and rejects escaping function references.
+          const readerIndex=value.params.findIndex((/** @type {AstNode} */ p)=>
+            p.name===body.object.name);
           functions.set(node.id.name,{
-            node:value,params:value.params,forwardIndex:-1,returnsRoot:false
+            node:value,params:value.params,forwardIndex:-1,returnsRoot:false,
+            readerIndex,readerMember:body
           });
         }
       }
@@ -681,6 +699,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   } while (changed);
   }
 
+  // Exact local readers can bind one parameter by its function node rather
+  // than by a file-wide identifier spelling. This admits independent
+  // functions that reuse a formal name while keeping ordinary aliases on the
+  // existing unique-name proof.
+  /** @type {Set<string>} */
+  const verifiedReaderFunctions=new Set();
+  for(const [name,fn] of functions){
+    if(fn.readerIndex===undefined||fn.readerIndex<0||!fn.readerMember)continue;
+    const sites=calls.get(name)??[];
+    if(sites.length&&sites.every(call=>resolves(call.arguments[fn.readerIndex])))
+      verifiedReaderFunctions.add(name);
+  }
+
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
   // Only the original root binding may be intentionally exported by the
@@ -699,6 +730,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const members = [];
   /** @type {Map<AstNode,string>} */
   const memberNames=new Map();
+  for(const name of verifiedReaderFunctions){
+    const fn=functions.get(name);
+    if(!fn?.readerMember||fn.readerIndex===undefined)continue;
+    const param=fn.params[fn.readerIndex];
+    // Unique formal spellings continue through the ordinary alias path below.
+    // Seed only the same-spelled scoped case to avoid duplicate edits.
+    if(param?.type!=='Identifier'||aliases.has(param.name))continue;
+    const property=fn.readerMember.computed?
+      staticString(fn.readerMember.property):staticName(fn.readerMember.property);
+    if(property===null)return null;
+    memberNames.set(fn.readerMember,property);
+    members.push(fn.readerMember);
+  }
   /** @type {AstNode[]} */
   const patterns = [];
   /** @type {AstNode[]} */
@@ -772,7 +816,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const fn = functions.get(parent.callee.name);
       const index = parent.arguments.indexOf(node);
       if (fn?.external && (index===fn.forwardIndex || index===fn.consumerIndex)) continue;
-      if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' && aliases.has(fn.params[index].name)) continue;
+      if (fn && index >= 0 && fn.params[index]?.type === 'Identifier' &&
+          (aliases.has(fn.params[index].name) ||
+           fn.readerIndex===index && verifiedReaderFunctions.has(parent.callee.name))) continue;
       return null;
     }
     if (parent.type === 'ReturnStatement' && key === 'argument') {
