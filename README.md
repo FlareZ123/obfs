@@ -2,11 +2,27 @@
 
 This repository is an experimental, conservative JavaScript obfuscator targeting Node.js 22+ and modern browsers. It offers three operational modes. The current version is a reproducible starting implementation; its security and performance guarantees are limited to the conditions described here.
 
+**Current release decision (18 November 2026): RELEASE-BLOCKED for
+the primary strong-protection objective.** The repository offers functional,
+tested COO/SNO/SCO modes, but source reconstruction, runtime extraction,
+authorized SCO relaying and strict 2.5× compute-limit counterexamples prevent
+a strong confidentiality/integrity or universal environment-locking claim.
+Read the [current evidence and three-mode decision index](results/README.md)
+before interpreting an experimental transform as a security guarantee.
+The source-pinned [18 November full correctness integration 44278347784](https://github.com/FlareZ123/obfs/actions/runs/44278347784)
+passed its documented Node 22 Linux/Windows and Ubuntu Chromium checks
+at `03e155c0a5e01878acc3a98ff8faa1d44f337d5a`; source-pinned
+regressions validate only their tested code and workload, with the exact
+test/attacker and performance boundaries recorded in the decision index.
+The historical pins below remain useful but are not the latest full-suite
+evidence. Dependencies and runner environments are not yet a frozen
+byte-reproducible security-candidate receipt.
+
 ## Install and verify
 
 Install dependencies with `npm install`, then run `npm test`, `npm run typecheck`, and `npm run benchmark` from the repository root. All code is CommonJS with JSDoc annotations. Optional `npm run test:browser` runs a real Chromium headless integration test when Chromium is installed (`CHROMIUM_BIN` overrides the binary location). The parser dependency is Acorn 8.x, and the JSDoc static checker uses TypeScript with Node.js declarations as development dependencies. The default compiler avoids source-code `eval`. Experimental, explicitly opted-in register VMs execute bounded custom binary-operator tapes; those interpreters are publicly recoverable and require workload-specific performance assessment.
 
-**Latest pinned full integration (2026-11-16, 21:37 UTC):** The
+**Historical pinned full integration (2026-11-16, 21:37 UTC):** The
 [manual Node 22 Linux/Windows and Ubuntu Chromium run 43961051109](https://github.com/FlareZ123/obfs/actions/runs/43961051109)
 completed successfully at exact source `87c8126e2185c01204c63f32f74ca69d50dae50d`.
 Of **1,798 Node tests** per operating system, Ubuntu passed 1,797 with one skip and zero failures, while Windows passed 1,796 with two skips and zero failures. Both jobs passed strict JSDoc and external checker steps, sampled performance and paired application checks, and the Ubuntu job passed real Chromium browser checks. This pin includes strict UTF-8 SCO JSON body validation and its byte-level HTTP negatives, alongside the earlier authorization fixes. For the 96–65,568-byte valid JSON CPU admission benchmark, the added UTF-8 validity scan measured **1.04–1.10×** parser-only ratios on these runners; see the [scoped performance and red/green report](im-results/sco-rpc-invalid-utf8-2026-11-16.md). No universal full-application 2.5× guarantee follows.
@@ -55,6 +71,19 @@ node bin/coo.js --root .\examples\browser --entry index.mjs --out .\dist-browser
 node bin/sno.js --root .\examples\server --entry index.cjs --out .\dist-server
 node .\dist-server\sno-entry.cjs
 ```
+
+**Optional independently reviewed opaque assets (COO, SNO and SCO):**
+pass `--reviewed-assets <manifest.json>` pointing to a JSON array
+of exact `{path,sha256}` records kept outside the source tree. The
+compiler refuses unpublished, duplicate and byte-changed opaque files.
+SCO additionally requires explicit `--asset relative-file` publication
+selection; the reviewed manifest must match that selected asset set.
+For cross-platform SHA-256 consistency, pin text-asset checkout bytes
+(for example with `.gitattributes`) before approving the manifest.
+See the [runnable reviewed-asset example](examples/reviewed-assets-cli/README.md)
+and the [trust and deployment limitations](docs/SECURITY.md).
+This preflight does not establish confidentiality against a publisher
+who approves source-bearing content or changes deployment files later.
 
 **Experimental multi-statement native CFG:** The opt-in
 [`flattenStatementFlow`](src/statement-flow.js) backend accepts restricted
