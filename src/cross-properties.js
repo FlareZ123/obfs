@@ -1123,6 +1123,118 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
       return false;
     }
+    /**
+     * Source-visible function returns are a capability transfer edge. Only
+     * decline the private-record proof when a returned host capability is
+     * subsequently invoked or forwarded to a call in the declared graph.
+     * This keeps benign primitive-return helpers transformable. The name
+     * analysis is deliberately conservative, and is not complete module
+     * scope resolution or a proof about unlisted dynamic imports.
+     *
+     * @param {AstNode} expression
+     * @returns {boolean}
+     */
+    function containsHostCapability(expression) {
+      let exposed=false;
+      walk(expression,child=>{
+        if(readsHostCallable(child) ||
+           child.type==='Identifier' &&
+           (hostCallAliases.has(child.name)||hostContainers.has(child.name))) {
+          exposed=true;
+        }
+      });
+      return exposed;
+    }
+    /** @type {Set<string>} */
+    const returnedHostFactories=new Set();
+    walk(source.ast,node=>{
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|null} */
+      let body=null;
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier'){
+        name=node.id.name;
+        body=node.body;
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression')) {
+        name=node.id.name;
+        body=node.init.body;
+      }
+      if(name===null||body===null)return;
+      let exposed=false;
+      if(body.type==='BlockStatement') {
+        walk(body,inner=>{
+          if(inner.type==='ReturnStatement' && inner.argument &&
+             containsHostCapability(inner.argument))exposed=true;
+        });
+      }else exposed=containsHostCapability(body);
+      if(exposed)returnedHostFactories.add(name);
+    });
+    /**
+     * A call-result alias can be used directly as a constructor or callable,
+     * via its member, or as an opaque callback argument. A named import of
+     * the factory is recognized across declared ESM module boundaries.
+     * @param {string} factory
+     * @returns {boolean}
+     */
+    function invokesFactoryResult(factory) {
+      for(const caller of modules.values()) {
+        const callableNames=new Set([factory]);
+        walk(caller.ast,node=>{
+          if(node.type==='ImportSpecifier' &&
+             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.local.type==='Identifier')callableNames.add(node.local.name);
+        });
+        /** @param {AstNode|null|undefined} expression @returns {boolean} */
+        function isFactoryCall(expression) {
+          return Boolean(expression?.type==='CallExpression' &&
+            expression.callee.type==='Identifier' &&
+            callableNames.has(expression.callee.name));
+        }
+        /** @type {Set<string>} */
+        const returnedNames=new Set();
+        let advanced;
+        do {
+          advanced=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(binding?.type!=='Identifier'||!value)return;
+            const fromFactory=isFactoryCall(value) ||
+              value.type==='MemberExpression' && isFactoryCall(value.object);
+            const fromReturn=value.type==='Identifier' && returnedNames.has(value.name);
+            if((fromFactory||fromReturn) && !returnedNames.has(binding.name)) {
+              returnedNames.add(binding.name);
+              advanced=true;
+            }
+          });
+        }while(advanced);
+        let invoked=false;
+        walk(caller.ast,node=>{
+          if(node.type!=='CallExpression'&&node.type!=='NewExpression')return;
+          if(node.callee.type==='Identifier' &&
+             returnedNames.has(node.callee.name) ||
+             node.callee.type==='MemberExpression' &&
+             (node.callee.object.type==='Identifier' &&
+              returnedNames.has(node.callee.object.name) ||
+              isFactoryCall(node.callee.object)) ||
+             isFactoryCall(node.callee) ||
+             node.arguments.some(argument=>
+               argument?.type==='Identifier' && returnedNames.has(argument.name))) {
+            invoked=true;
+          }
+        });
+        if(invoked)return true;
+      }
+      return false;
+    }
+    for(const factory of returnedHostFactories) {
+      if(invokesFactoryResult(factory))changedIntrinsic=true;
+    }
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
       // a Reflect mutation or distributed module import in the declared ESM.
@@ -1254,33 +1366,6 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         return readsHostCallable(argument) ||
           argument.type==='Identifier' && hostCallAliases.has(argument.name);
       }
-      /**
-       * A function may return an opaque host capability to a caller in this
-       * module or another imported module. The exported caller can then use
-       * that capability to import a distributed module outside the static
-       * graph, observing its original property spellings. Returning a holder
-       * or an expression containing a host capability is equally unsafe.
-       * This is a deliberate conservative escape veto, not a whole-program
-       * return-value or module-linkage proof.
-       *
-       * @param {AstNode} expression
-       * @returns {boolean}
-       */
-      function returnsHostCapability(expression) {
-        let exposed=false;
-        walk(expression,child=>{
-          if(passesHostCallable(child) ||
-             child.type==='Identifier' && hostContainers.has(child.name)) {
-            exposed=true;
-          }
-        });
-        return exposed;
-      }
-      if(node.type==='ReturnStatement' && node.argument &&
-         returnsHostCapability(node.argument))changedIntrinsic=true;
-      if(node.type==='ArrowFunctionExpression' &&
-         node.body.type!=='BlockStatement' &&
-         returnsHostCapability(node.body))changedIntrinsic=true;
       // A host callable used as an argument may be invoked or retained by
       // any otherwise unproved call/constructor. This includes Reflect.apply,
       // microtask and Promise callbacks, not only direct host callees.
