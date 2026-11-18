@@ -6,10 +6,13 @@ const {runExperiment}=require('../sims/process-report-cli-source-observer');
 
 test('external uncaught-report configuration observes transformed source coordinates',async()=>{
   const result=await runExperiment();
-  assert.ok(result.properties+result.bindings>0,JSON.stringify(result));
-  assert.equal(result.native.status,1);
-  assert.equal(result.emitted.status,1);
-  assert.equal(result.native.message,'Error: 73');
-  assert.equal(result.emitted.message,'Error: 73');
-  assert.equal(result.framesEqual,false,JSON.stringify(result));
+  const detail=JSON.stringify(result);
+  assert.equal(result.native.status,1,detail);
+  assert.equal(result.shortened.status,1,detail);
+  assert.equal(result.native.message,'Error: 73',detail);
+  assert.equal(result.shortened.message,'Error: 73',detail);
+  assert.equal(result.native.line,1,detail);
+  assert.equal(result.shortened.line,1,detail);
+  assert.notEqual(result.native.column,result.shortened.column,detail);
+  assert.equal(result.coordinatesEqual,false,detail);
 });
