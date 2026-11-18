@@ -109,3 +109,54 @@ test('declared direct batch keeps inner authorization fail-closed over HTTP',asy
   assert.deepEqual(observed,['batch','forbidden']);
   assert.deepEqual(result.body,{ok:false,error:'Forbidden'});
 });
+
+test('requireBatchPreflight snapshots route names and registered task identity once',async()=>{
+  let effects=0;
+  let methodReads=0;
+  let routeReads=0;
+  const batch=createScoBatchMethod({
+    forbidden:()=>{effects++;return 99;}
+  });
+  const wrapped=batch.bind(null);
+  const suppliedMethods={};
+  Object.defineProperty(suppliedMethods,'batch',{
+    enumerable:true,
+    get(){
+      methodReads++;
+      return methodReads===1?batch:wrapped;
+    }
+  });
+  /** @type {string[]} */
+  const required=[];
+  Object.defineProperty(required,0,{
+    enumerable:true,
+    get(){
+      routeReads++;
+      return routeReads===1?'batch':'other';
+    }
+  });
+  required.length=1;
+  /** @type {string[]} */
+  const observed=[];
+  const handler=createScoHandler([],{
+    remoteMethods:suppliedMethods,
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method)=>{
+      observed.push(method);
+      return method==='batch';
+    },
+    requireBatchPreflight:required
+  });
+  assert.equal(methodReads,1);
+  assert.equal(routeReads,1);
+
+  const result=await post(handler,{
+    method:'batch',
+    args:[[{method:'forbidden',args:[]}]]
+  });
+  assert.equal(result.status,403);
+  assert.equal(effects,0);
+  assert.deepEqual(observed,['batch','forbidden']);
+  assert.equal(methodReads,1,'request handling must use the construction snapshot');
+  assert.equal(routeReads,1,'required route metadata must not be re-read');
+});
