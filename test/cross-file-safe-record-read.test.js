@@ -340,3 +340,70 @@ for(const [label,setup,factorySource] of [
     assert.equal(compiled.crossFile.properties,0,label);
   });
 }
+
+
+/**
+ * Native invocation adapters can call a host-bearing factory while its
+ * returned Function escapes through the call result. A static direct-callee
+ * proof must reject such unknown runtime loader paths. The ordinary
+ * direct-call positive in this file remains the non-vacuity control.
+ */
+for(const [label,setup] of /** @type {[string,string][]} */ ([
+  ['function call adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.call(null);'],
+  ['function apply adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.apply(null,[]);'],
+  ['Reflect apply adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=Reflect.apply(getFactory,null,[]);'],
+  ['bound function adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const bound=getFactory.bind(null);const ctor=bound();'],
+  ['aliased call adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const factory=getFactory;const ctor=factory.call(null);'],
+  ['direct bound invocation',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.bind(null)();'],
+  ['new factory invocation',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=new getFactory();'],
+  ['Reflect construct factory',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=Reflect.construct(getFactory,[]);']
+])) {
+  test('host factory '+label+' preserves native published owner keys',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-factory-adapter-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    const delivered=await execute(compiled.files,true);
+    assert.equal(delivered,native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
+
+test('non-host primitive adapter preserves proven private-field rewrite',async()=>{
+  const files=graph([
+    'function primitive(){return 7;}',
+    'const value=primitive.call(null);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'primitive-adapter-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Benign primitive return must not globally disable private-property renaming');
+  assert.equal(await execute(compiled.files),native);
+});
