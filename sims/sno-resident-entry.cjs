@@ -11,17 +11,29 @@ const {createHash}=require('node:crypto');
 (async()=>{
   // @ts-expect-error The verified ESM graph is materialized beside this bridge at runtime.
   const {runScenario}=await import('./entry.mjs');
+  // @ts-expect-error The verified ESM graph is materialized beside this bridge at runtime.
+  const {round1,round2,round3}=await import('./math.mjs');
   process.stdout.write('READY\n');
   const lines=readline.createInterface({input:process.stdin,crlfDelay:Infinity});
   for await (const line of lines){
-    const request=/** @type {{id:number,seed:number,records:{kind:string,payload:string}[],repeat:number}} */(
+    const request=/** @type {{id:number,seed:number,records:{kind:string,payload:string}[],repeat:number,mode?:'application'|'leaves'}} */(
       JSON.parse(line));
     let emitted=0;
     let value='';
     const cpuBefore=process.cpuUsage();
     const begin=process.hrtime.bigint();
-    for(let i=0;i<request.repeat;i++){
-      value=runScenario(request.seed,request.records,{emit(){emitted++;}});
+    if(request.mode==='leaves'){
+      let state=request.seed|0;
+      for(let i=0;i<request.repeat;i++){
+        state=round1((state^i)|0);
+        state=round2(state);
+        state=round3(state);
+      }
+      value=String(state);
+    }else{
+      for(let i=0;i<request.repeat;i++){
+        value=runScenario(request.seed,request.records,{emit(){emitted++;}});
+      }
     }
     const ms=Number(process.hrtime.bigint()-begin)/1e6;
     const used=process.cpuUsage(cpuBefore);
