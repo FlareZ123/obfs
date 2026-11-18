@@ -2381,11 +2381,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(isProcessReportNamespace(node)&&parent&&
        !processReportBindingNodes.has(node)) {
       const directMember=parent.type==='MemberExpression'&&key==='object';
+      const staticKey=node.type==='Identifier'&&
+        (parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
+         parent.type==='Property'&&key==='key'&&!parent.computed);
       const localAlias=parent.type==='VariableDeclarator'&&key==='init'&&
         ['Identifier','ObjectPattern'].includes(parent.id.type);
       const assignedAlias=parent.type==='AssignmentExpression'&&key==='right'&&
         ['Identifier','ObjectPattern'].includes(parent.left.type);
-      if(!directMember&&!localAlias&&!assignedAlias)observed=true;
+      if(!directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     }
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
@@ -2446,7 +2449,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isProcessReportNamespace(mutation.args[0])&&
          processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
       if(mutation?.method==='assign'&&
-         mutation.args.slice(1).some(isProcessReportNamespace))observed=true;
+         mutation.args.slice(1).some(
+           (/** @type {AstNode|null} */ source)=>isProcessReportNamespace(source)))
+        observed=true;
       if(mutation?.method==='assign'&&
          isProcessReportNamespace(mutation.args[0])&&
          mutation.args.slice(1).some(processReportAssignmentSourceMayEnable))
