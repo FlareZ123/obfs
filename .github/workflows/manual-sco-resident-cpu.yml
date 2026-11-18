@@ -1,0 +1,27 @@
+name: Manual SCO initialized process CPU comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  measured-process:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict external JSDoc including SCO resident CPU
+        run: npm run typecheck:external
+      - name: Compare initialized SCO native compute and authenticated facade CPU
+        run: node sims/sco-resident-cpu.js
