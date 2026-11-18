@@ -62,7 +62,7 @@ async function main(){
   /** @param {http.Server} server @returns {Promise<void>} */
   async function close(server){
     if(!server.listening)return;
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
