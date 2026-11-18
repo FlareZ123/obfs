@@ -33,3 +33,5 @@ jobs:
         run: node sims/sco-ratchet-shard-cold-admission.js
       - name: Root-keyed fixed-bucket collision and WAL-footprint differential
         run: node sims/sco-ratchet-bucket-shards.js
+      - name: Per-verified-principal capacity versus colliding-bucket queue negative
+        run: node sims/sco-ratchet-bucket-quota-identity.js
