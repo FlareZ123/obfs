@@ -71,6 +71,16 @@ test('aliased process.report namespace preserves source coordinates',()=>{
   );
 });
 
+test('copied process.report methods preserve source coordinates',()=>{
+  const expressions=[
+    '(()=>{const {...copy}=process.report;return copy.getReport();})()',
+    '(()=>{const copy={...process.report};return copy.getReport();})()',
+    '(()=>{const copy=Object.assign({},process.report);return copy.getReport();})()'
+  ];
+  for(const [index,expression] of expressions.entries())
+    mustPreserveProcessReport(expression,'agent1-process-report-copy-'+index);
+});
+
 test('destructured process.report method preserves source coordinates',()=>{
   mustPreserveProcessReport(
     '(()=>{const {getReport}=process.report;return getReport();})()',
