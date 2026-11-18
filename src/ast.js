@@ -2412,6 +2412,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+    if(node.type==='MemberExpression'&&
+       isProcessReportNamespace(node.object)&&memberName(node)===null)
+      observed=true;
     // Acquiring a live reporting method can move it through arbitrary user
     // containers before invocation. Preserve source at capability acquisition.
     if(isProcessReportMethod(node))observed=true;
