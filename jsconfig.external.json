@@ -160,7 +160,10 @@
     "test/property-in-adversarial.test.js",
     "test/property-in-browser.js",
     "sims/property-in-operator-profile.js",
-    "sims/property-in-operator-static-recover.js"
+    "sims/property-in-operator-static-recover.js",
+    "test/sco-immutable-batch-args.test.js",
+    "sims/sco-immutable-batch-profile.js",
+    "sims/sco-immutable-shape-cpu.js"
   ],
   "exclude": [
     "node_modules"
