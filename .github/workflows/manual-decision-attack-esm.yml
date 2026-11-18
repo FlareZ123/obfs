@@ -20,9 +20,19 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run shared multi-file ESM workload with held-out static attacks
         run: node sims/decision-attack-grid.js
+      - name: Freeze real three-arm ESM files and run matched public-only attacker
+        env:
+          OBFS_FROZEN_OUTPUT_DIR: frozen-polyvariant-${{ runner.os }}
+        run: node --test test/frozen-polyvariant-receipt.test.js
+      - name: Archive exact executed and attacked ESM bytes with machine receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: frozen-polyvariant-${{ runner.os }}
+          path: frozen-polyvariant-${{ runner.os }}/
+          if-no-files-found: error
       - name: Preserve raw evidence
         if: always()
         uses: actions/upload-artifact@v4
