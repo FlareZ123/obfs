@@ -418,3 +418,30 @@ for(const [name,code] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+test('named formal default initializer can retrieve ambient Reflect',async()=>{
+  const original=graph(
+    "function rewire({['Ref'+'lect']:cap=globalThis.Reflect}){"+
+      "cap.ownKeys=globalThis.HOST_REFLECT;}rewire({});");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-formal-default/reflect',
+    identifiers:false,strings:false,properties:true
+  });
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+  assert.deepEqual(await execute(compiled.files),expected);
+  assert.equal(compiled.crossFile.properties,0);
+});
+
+test('unrelated literal named formal preserves actual exported owner rewrite',async()=>{
+  const original=graph(
+    "function read({unrelated}){return unrelated;}void read({unrelated:7});");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-formal-literal/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1);
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
