@@ -352,7 +352,9 @@ test('selected SCO handler preserves inherited and non-enumerable route prefix',
     assert.equal(routeReads,1);
     const server=http.createServer(handler);
     try{
-      await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+      /** @type {Promise<void>} */
+      const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+      await listening;
       const address=server.address();
       assert.ok(address&&typeof address!=='string');
       const origin='http://127.0.0.1:'+address.port;
@@ -366,7 +368,9 @@ test('selected SCO handler preserves inherited and non-enumerable route prefix',
       assert.deepEqual(await response.json(),{ok:true,value:42});
       assert.equal(routeReads,1);
     }finally{
-      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      /** @type {Promise<void>} */
+      const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+      await closed;
     }
   }
 });
