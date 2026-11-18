@@ -11,6 +11,10 @@ on:
         description: 'Number of direct-alias owners for opt-in paired A/B'
         type: number
         default: 384
+      repeat_aliases:
+        description: 'Use four alternating control/candidate pairs for aliases'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -40,6 +44,7 @@ jobs:
         env:
           OBFS_PROOF_CONTROL_SHA: 841807ff1e37c237da347d2b70053d059bf6271f
           OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
+          OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:
