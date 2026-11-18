@@ -22,6 +22,51 @@ const specimens=[
       'globalThis.addEventListener("error",globalThis.hostErrorEvent);',
       'null.value;'
     ].join('\n')
+  },
+  {
+    name:'aliased-global-onerror',
+    source:[
+      'const errorScope=globalThis;',
+      'errorScope.onerror=globalThis.hostOnError;',
+      'null.value;'
+    ].join('\n')
+  },
+  {
+    name:'bound-global-error-event',
+    source:[
+      'const listen=globalThis.addEventListener.bind(globalThis);',
+      'listen("error",globalThis.hostErrorEvent);',
+      'null.value;'
+    ].join('\n')
+  },
+  {
+    name:'called-global-error-event',
+    source:[
+      'const listen=globalThis.addEventListener;',
+      'listen.call(globalThis,"error",globalThis.hostErrorEvent);',
+      'null.value;'
+    ].join('\n')
+  },
+  {
+    name:'reflect-applied-global-error-event',
+    source:[
+      'Reflect.apply(globalThis.addEventListener,globalThis,["error",globalThis.hostErrorEvent]);',
+      'null.value;'
+    ].join('\n')
+  },
+  {
+    name:'reflect-set-global-onerror',
+    source:[
+      'Reflect.set(globalThis,"onerror",globalThis.hostOnError);',
+      'null.value;'
+    ].join('\n')
+  },
+  {
+    name:'object-assign-global-onerror',
+    source:[
+      'Object.assign(globalThis,{onerror:globalThis.hostOnError});',
+      'null.value;'
+    ].join('\n')
   }
 ];
 
