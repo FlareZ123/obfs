@@ -134,7 +134,7 @@ function mutatesDecoderIntrinsic(ast) {
   // Find immutable-looking and reassigned aliases before checking writes.
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
-  const globalNames=new Set(['globalThis','window','self','global']);
+  const globalNames=new Set(['globalThis','window','self','global','top','parent','frames','opener']);
   // Imports and CommonJS require results have unknown value provenance.
   // Any such binding may be a Document, so a later .defaultView.String
   // mutation must disable the ambient decoder even across file boundaries.
@@ -192,7 +192,7 @@ function mutatesDecoderIntrinsic(ast) {
     if(field==='defaultView') {
       return isDocumentValue(node.object);
     }
-    return ['window','self','globalThis'].includes(field??'') &&
+    return ['window','self','globalThis','top','parent','frames','opener'].includes(field??'') &&
       isGlobal(node.object);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
