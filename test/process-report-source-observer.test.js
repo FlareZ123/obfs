@@ -203,6 +203,51 @@ test('automatic uncaught-exception reports preserve source coordinates',async()=
   assert.notEqual(unsafeFrame,nativeFrame);
 });
 
+test('automatic report configuration aliases conservatively preserve source',()=>{
+  const mutations=[
+    'process.report.reportOnUncaughtException ||= true;',
+    "Reflect.set(process.report,'reportOnUncaughtException',true);",
+    'Object.assign(process.report,{reportOnFatalError:true});',
+    "Object.assign(process.report,{['reportOnSignal']:true});"
+  ];
+  for(const [index,mutation] of mutations.entries()) {
+    const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;"+mutation+
+      "module.exports=value;";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+    const output=obfuscateFiles([{
+      path:'automatic-report-config.cjs',
+      sourceType:'commonjs',
+      code:source
+    }],{
+      mode:'sno',
+      seed:'agent1-process-report-config-'+index,
+      strings:false,
+      identifiers:false
+    }).files[0];
+    assert.equal(output.code,source);
+    assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+  }
+});
+
+test('harmless process.report metadata writes retain property-renaming yield',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report.filename='';module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'process-report-metadata.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed:'agent1-process-report-metadata-positive',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.ok(output.metrics.properties>0,output.code);
+});
+
 test('process.report.writeReport is admitted as a source observer without executing it',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;"+
