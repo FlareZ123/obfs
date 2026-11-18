@@ -1,0 +1,27 @@
+name: Caught object-pattern TypeError source preservation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  differential:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Native and generated caught nullish object-pattern TypeErrors
+        run: node sims/property-nullish-destructure-error-attack.js
+      - name: Validate compiler JSDoc types
+        run: npm run typecheck
