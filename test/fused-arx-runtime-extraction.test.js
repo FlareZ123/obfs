@@ -45,6 +45,7 @@ test('independent runtime byte capture and seeded ARX Wasm clone match native',(
       random=next(random);
       const seed=[random,next(random),next(next(random)),next(next(next(random)))];
       const native=nativeMix(seed,units);
+      /** @type {number[]} */
       const observed=original.mix(seed,units);
       const replay=attack.run(seed,units);
       assert.deepEqual(observed,native,'Original/native size='+count+'/trial='+trial);
