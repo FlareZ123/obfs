@@ -91,7 +91,7 @@ async function run(guarded){
     if(code===undefined){res.writeHead(404).end();return;}
     const hostPrelude='<script>globalThis.hostOnError=(message,source,line,column)=>{'+
       'globalThis.captured=line+":"+column;return true;};'+
-      'globalThis.hostErrorEvent=event=>{globalThis.captured=event.lineno+":"+event.colno;};<\\/script>';
+      'globalThis.hostErrorEvent=event=>{globalThis.captured=event.lineno+":"+event.colno;};</script>';
     const html='<!doctype html><html><body>'+hostPrelude+'<script>\n'+code+
       '\n</script><script>setTimeout(()=>{const pre=document.createElement("pre");'+
       'pre.id="result";pre.textContent=btoa(String(globalThis.captured));'+
