@@ -369,7 +369,13 @@ function createScoSelectedGraphHandler(graph,namespaces,options){
      Object.hasOwn(options,'remoteMethods')){
     throw new TypeError('Selected SCO graph handler requires authorized server options');
   }
+  // Object spread discards inherited and non-enumerable routePrefix values.
+  // It already reads an own enumerable getter exactly once; recover only
+  // the omitted route without invoking that getter a second time.
   const stableOptions={...options};
+  if(!Object.hasOwn(stableOptions,'routePrefix')){
+    stableOptions.routePrefix=options.routePrefix;
+  }
   const snapshot=generatedSnapshots.get(graph);
   if(snapshot===undefined){
     throw new TypeError('Selected SCO graph handler requires an in-process compiler graph');
