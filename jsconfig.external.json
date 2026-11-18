@@ -116,6 +116,7 @@
     "sims/sco-ratchet-minifier-control.js",
     "sims/sco-ratchet-cross-account-worker.js",
     "sims/sco-ratchet-cross-account-contention.js",
+    "sims/sco-ratchet-equal-trust-contention.js",
     "sims/sco-ratchet-tls-cost.js",
     "test/sco-ratchet-batch-browser.js",
     "sims/sco-ratchet-online-relay.js",
