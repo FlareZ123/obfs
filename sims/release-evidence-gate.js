@@ -144,6 +144,12 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
       assert.equal(row.nativeCpuMs.length,row.snoCpuMs.length);
       assert.equal(row.nativeMs.length,row.snoMs.length);
       assert.equal(row.nativeMs.length,row.nativeCpuMs.length);
+      assert.equal(row.strictCpuOverBudgetPairs,
+        row.nativeCpuMs.filter((native,i)=>row.snoCpuMs[i]>2.5*native).length,
+        'Resident CPU strict-overbudget count contradicts the raw paired measurements');
+      assert.equal(row.strictOverBudgetPairs,
+        row.nativeMs.filter((native,i)=>row.snoMs[i]>2.5*native).length,
+        'Resident wall strict-overbudget count contradicts the raw paired measurements');
       destination.push({
         events:row.events,repetitions:row.repetitions,
         ratioOfMedians:row.cpuBudget.ratioOfMedians,
@@ -165,6 +171,10 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
     ...cooBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.published})),
     ...snoPostInitRows.map(row=>({native:row.rawCpuTimeMs.native,
+      candidate:row.rawCpuTimeMs.sno})),
+    // The selected arithmetic functions are directly invoked at high volume;
+    // omitting them would conceal genuine 18x–36x tested hot-path overhead.
+    ...snoPostInitLeafRows.map(row=>({native:row.rawCpuTimeMs.native,
       candidate:row.rawCpuTimeMs.sno})),
     ...scoBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.remote}))
@@ -198,6 +208,8 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
   const performance={
     crossModeFamilywise:{
       verdict:familywise.verdict,
+      strictObservedVerdict:familywise.observedOverBudgetPairs>0?
+        'sample-exceeded':'no-observed-exceedances',
       confidenceRequested:familywise.confidenceRequested,
       confidenceAttainedAtLeast:familywise.familywiseCoverageAtLeast,
       perTailConfidenceRequested:familywise.perTailConfidenceRequested,
@@ -223,6 +235,8 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
     },
     computeBoundaryFamilywise:computeFamilywise?{
       verdict:computeFamilywise.verdict,
+      strictObservedVerdict:computeFamilywise.observedOverBudgetPairs>0?
+        'sample-exceeded':'no-observed-exceedances',
       comparisons:computeFamilywise.comparisons,
       confidenceRequested:computeFamilywise.confidenceRequested,
       confidenceAttainedAtLeast:computeFamilywise.familywiseCoverageAtLeast,
@@ -234,6 +248,8 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
         ...cooBudget.map(row=>({mode:'coo',events:row.events})),
         ...snoPostInitRows.map(row=>({mode:'sno-postinit-cpu',events:row.events,
           repetitions:row.repetitions})),
+        ...snoPostInitLeafRows.map(row=>({mode:'sno-postinit-leaf-cpu',
+          events:row.events,repetitions:row.repetitions})),
         ...scoBudget.map(row=>({mode:'sco',events:row.events}))
       ],
       bounds:computeFamilywise.rows.map(row=>({
@@ -241,15 +257,22 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
         upperMedianBound:row.upperMedianBound,
         marginalOneSidedCoverage:row.confidenceAttained
       })),
-      boundary:'Ten current-source COO/SNO/SCO populations. COO samples native-vs-published Node duration; SNO uses repeated-work process CPU from prestarted manifest-verified workers; SCO measures fresh localhost service latency. Distinct runtime boundaries are compared, not an equal-application security theorem.'
+      boundary:'Twelve current-source COO/SNO/SCO populations, including two direct selected-function SNO hot paths. COO samples native-vs-published Node duration; SNO uses repeated-work process CPU from prestarted manifest-verified workers; SCO measures fresh localhost service latency. Distinct runtime boundaries are compared, not an equal-application security theorem.'
     }:null,
     snoPostInit:snoResident?{
-      verdict:sampleVerdict(snoPostInitRows.map(row=>({
+      verdict:sampleVerdict([...snoPostInitRows,...snoPostInitLeafRows].map(row=>({
+        decision:row.oneSidedMedianDecision}))),
+      strictObservedVerdict:[...snoPostInitRows,...snoPostInitLeafRows].some(row=>
+        row.strictObservedCpuOverBudgetPairs>0)?
+        'sample-exceeded':'no-observed-exceedances',
+      applicationVerdict:sampleVerdict(snoPostInitRows.map(row=>({
+        decision:row.oneSidedMedianDecision}))),
+      selectedLeafVerdict:sampleVerdict(snoPostInitLeafRows.map(row=>({
         decision:row.oneSidedMedianDecision}))),
       rows:snoPostInitRows,leafRows:snoPostInitLeafRows,
       boundary:'Repeated in-worker business compute after startup, checksum and import. CPU includes only executed application work; symmetric native comparison; original artifact behavior and selected transforms verified.',
       coldSource:'performance.sno',
-      note:'Leaf stress rows remain separate from the four application populations. Individual sampled >2.5x observations must be examined even when a median diagnostic supports the population.'
+      note:'The two selected-leaf stress populations are included in the strict compute verdict and the twelve-workload familywise comparison. Application-level dilution of hot-leaf overhead cannot satisfy a universal 2.5x requirement; individual sampled breaches remain separately visible.'
     }:{verdict:'unmeasured',rows:[],leafRows:[],
       boundary:'SNO post-initialization process CPU not supplied to this summary'},
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
