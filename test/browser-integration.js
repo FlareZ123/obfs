@@ -44,11 +44,12 @@ async function main(){
   // contracts while a bound formal supplies a shorthand private own field.
   const parameterShorthandSet=obfuscateFiles([
     {path:'parameter-shorthand-helper.mjs',sourceType:'module',
-      code:'export function compute(payload){const owner={payload,bias:3};'+
-        'return owner.payload+owner.bias;}'},
+      code:'function compute(payload){const owner={payload,bias:3};'+
+        'return owner.payload+owner.bias;}'+
+         'export function publicCompute(input){return compute(input);}'},
     {path:'parameter-shorthand-entry.mjs',sourceType:'module',
-      code:'import {compute} from "./parameter-shorthand-helper.mjs";'+
-        'document.getElementById("answer").textContent=compute(39);'}
+      code:'import {publicCompute} from "./parameter-shorthand-helper.mjs";'+
+        'document.getElementById("answer").textContent=publicCompute(39);'}
   ],{mode:'coo',closedWorld:false,seed:'chrome-local-formal-shorthand',
     identifiers:false,strings:false,properties:true});
   assert.equal(parameterShorthandSet.files.reduce((sum,file)=>sum+file.metrics.objects,0),1);
