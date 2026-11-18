@@ -18,10 +18,11 @@ const {launch,stop}=require('./sco-ratchet-transactional-http');
  *
  * @param {boolean} preinitialized
  * @param {number} trial
+ * @param {number} [journalModeRetries]
  * @returns {Promise<{cohort:string,trial:number,elapsedMs:number,
  *   ready:number,failed:number,workerResults:Array<{kind:string,detail?:string}>}>}
  */
-async function attempt(preinitialized,trial){
+async function attempt(preinitialized,trial,journalModeRetries=4){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-ratchet-start-'));
   const databasePath=path.join(dir,'ratchet.sqlite');
   const root=randomBytes(32);
@@ -37,8 +38,8 @@ async function attempt(preinitialized,trial){
       seed.close();
     }
     const requests=[
-      launch(databasePath,root,tokenA,tokenB,control),
-      launch(databasePath,root,tokenA,tokenB,control)
+      launch(databasePath,root,tokenA,tokenB,control,false,journalModeRetries),
+      launch(databasePath,root,tokenA,tokenB,control,false,journalModeRetries)
     ];
     const outcomes=await Promise.allSettled(requests);
     /** @type {{kind:string,detail?:string}[]} */
@@ -61,7 +62,8 @@ async function attempt(preinitialized,trial){
       }
     }
     const ready=workerResults.filter(x=>x.kind==='ready').length;
-    return {cohort:preinitialized?'preinitialized':'cold',
+    return {cohort:preinitialized?'preinitialized-bounded-retry':
+      journalModeRetries===0?'cold-no-retry':'cold-bounded-retry',
       trial,elapsedMs:Number((performance.now()-start).toFixed(3)),
       ready,failed:workerResults.length-ready,workerResults};
   }finally{
@@ -75,13 +77,18 @@ async function attempt(preinitialized,trial){
 async function experiment(){
   /** @type {Awaited<ReturnType<typeof attempt>>[]} */
   const rows=[];
-  for(const preinitialized of [false,true]){
+  const cohorts=[
+    {name:'cold-no-retry',preinitialized:false,retries:0},
+    {name:'cold-bounded-retry',preinitialized:false,retries:4},
+    {name:'preinitialized-bounded-retry',preinitialized:true,retries:4}
+  ];
+  for(const config of cohorts){
     for(let trial=0;trial<8;trial++){
-      rows.push(await attempt(preinitialized,trial));
+      rows.push(await attempt(config.preinitialized,trial,config.retries));
     }
   }
-  const summaries=[false,true].map(preinitialized=>{
-    const cohort=preinitialized?'preinitialized':'cold';
+  const summaries=cohorts.map(config=>{
+    const cohort=config.name;
     const runs=rows.filter(row=>row.cohort===cohort);
     return {cohort,trials:runs.length,workersAttempted:runs.length*2,
       ready:runs.reduce((sum,row)=>sum+row.ready,0),
@@ -90,9 +97,9 @@ async function experiment(){
   });
   const report={
     node:process.version,platform:process.platform,
-    comparison:'Simultaneous two-process SCO HTTP startup against cold versus previously initialized local SQLite WAL database',
+    comparison:'Same-source concurrent cold SCO HTTP worker startup: no retry, bounded WAL retry, and trusted schema preinitialization',
     summaries,attempts:rows,
-    boundary:'16 independent temp database trials, eight per cohort. A sample with zero startup failures does not prove safety; no remote DB, OS power loss, security advantage or 2.5x runtime evidence.'
+    boundary:'24 independent temp database trials, eight per cohort. A sample with zero failures does not prove a universal startup guarantee; no remote DB, power loss, obfuscation advantage or 2.5x runtime evidence.'
   };
   process.stdout.write('SCO_RATCHET_TRANSACTIONAL_COLD_START '+JSON.stringify(report)+'\n');
   return report;
