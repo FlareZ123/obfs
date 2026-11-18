@@ -42,9 +42,11 @@ jobs:
         run: node sims/mba-author-coreutils-static-recovery.js
       - name: Recover MBA parameters from minified JavaScript
         run: node sims/mba-permutation-minified-static-recovery.js
+      - name: Recover held-out MBA parameters from minified JavaScript
+        run: node sims/mba-permutation-minified-heldout-recovery.js
       - name: Measure direct 48-round MBA JavaScript budget
         run: node sims/mba-permutation-js-budget.js
       - name: Typecheck MBA permutation research tools in isolation
-        run: npx tsc --allowJs --checkJs --noEmit --strict --target ES2022 --module commonjs --moduleResolution node --types node --skipLibCheck sims/mba-permutation-component-inverse.js sims/mba-permutation-heldout-inverse.js sims/mba-author-smt-rotate-collision.js sims/mba-author-coreutils-static-recovery.js sims/mba-permutation-minified-static-recovery.js sims/mba-permutation-js-budget.js
+        run: npx tsc --allowJs --checkJs --noEmit --strict --target ES2022 --module commonjs --moduleResolution node --types node --skipLibCheck sims/mba-permutation-component-inverse.js sims/mba-permutation-heldout-inverse.js sims/mba-author-smt-rotate-collision.js sims/mba-author-coreutils-static-recovery.js sims/mba-permutation-minified-static-recovery.js sims/mba-permutation-minified-heldout-recovery.js sims/mba-permutation-js-budget.js
       - name: External research tool JSDoc
         run: npm run typecheck:external
