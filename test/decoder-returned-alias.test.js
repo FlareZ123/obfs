@@ -1,0 +1,140 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {obfuscateFiles}=require('../src');
+const {atomicWrite}=require('../src/atomic');
+
+/** @typedef {import('../src/core').SourceFile} SourceFile */
+
+/**
+ * @param {string} directory
+ * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<{status:number|null,stdout:string,stderr:string}>}
+ */
+async function execute(directory,files) {
+  await fs.mkdir(directory,{recursive:true});
+  for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
+  const child=spawnSync(process.execPath,[path.join(directory,'entry.cjs')],{
+    encoding:'utf8',windowsHide:true,timeout:15000,maxBuffer:1024*1024
+  });
+  if(child.error)throw child.error;
+  return {status:child.status,stdout:child.stdout,stderr:child.stderr};
+}
+
+/**
+ * @param {string} source
+ * @returns {SourceFile[]}
+ */
+function graph(source) {
+  return [
+    {path:'entry.cjs',sourceType:'commonjs',
+      code:"require('./mutator.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'mutator.cjs',sourceType:'commonjs',code:source},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:'module.exports='+JSON.stringify('M'.repeat(2048)+'Q')+';'}
+  ];
+}
+
+/** @param {string} value @returns {string} */
+function digest(value) {
+  return createHash('sha256').update(value).digest('hex');
+}
+
+const unsafe=[
+  ['function returns String prototype directly',
+    "function source(){return String.prototype}const P=source();P.charCodeAt=()=>0;"],
+  ['arrow returns String prototype',
+    "const source=()=>String.prototype;source().charCodeAt=()=>0;"],
+  ['function returns local String prototype alias',
+    "function source(){const P=String.prototype;return P}const P=source();P.charCodeAt=()=>0;"],
+  ['function returns String constructor',
+    "function source(){return String}const C=source();C.fromCharCode=()=>'?';"],
+  ['function returns object containing String prototype',
+    "function source(){return {slot:String.prototype}}const P=source().slot;P.charCodeAt=()=>0;"]
+];
+for(const [name,mutator] of unsafe) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('returned intrinsic alias must preserve decoder output: '+name+'/'+mode,async()=>{
+      const input=graph(mutator);
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'decoder-wrapped-escape/'+name+'/'+mode
+      });
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-wrapped-decoder-'));
+      try{
+        const native=await execute(path.join(root,'native'),input);
+        const emitted=await execute(path.join(root,'emitted'),output.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.equal(native.stdout,'M'.repeat(2048)+'Q');
+        assert.equal(emitted.status,native.status,emitted.stderr);
+        assert.equal(digest(emitted.stdout),digest(native.stdout),
+          'Unproved call or tag leaked mutable decoder intrinsic');
+        assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
+
+const harmless=[
+  ['function returns Number prototype directly',
+    "function source(){return Number.prototype}const P=source();P.unrelated=1;"],
+  ['arrow returns Number prototype',
+    "const source=()=>Number.prototype;source().unrelated=1;"],
+  ['function returns local Number prototype alias',
+    "function source(){const P=Number.prototype;return P}const P=source();P.unrelated=1;"],
+  ['function returns Number constructor',
+    "function source(){return Number}const C=source();C.unrelated=1;"],
+  ['function returns object containing Number prototype',
+    "function source(){return {slot:Number.prototype}}const P=source().slot;P.unrelated=1;"]
+];
+for(const [name,mutator] of harmless) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('safe Number return alias keeps decoder yield: '+name+'/'+mode,async()=>{
+      const input=graph(mutator);
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'decoder-wrapped-escape/positive/'+name+'/'+mode
+      });
+      assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-wrapped-decoder-safe-'));
+      try {
+        assert.deepEqual(await execute(path.join(root,'native'),input),
+          await execute(path.join(root,'emitted'),output.files));
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
+
+
+for(const [name,source] of [
+  ['read-only returned String prototype',
+    "function factory(){return String.prototype}const P=factory();const f=P.charCodeAt;"],
+  ['read-only returned String constructor',
+    "const factory=()=>String;const C=factory();const f=C.fromCharCode;"],
+  ['read-only named field on returned object',
+    "function factory(){return {slot:String.prototype}}const P=factory().slot;const f=P.charCodeAt;"],
+  ['read-only aliased local function',
+    "function factory(){return String.prototype}const alias=factory;const P=alias();const f=P.charCodeAt;"]
+]) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('read-only String return alias retains encoded target: '+name+'/'+mode,async()=>{
+      const input=graph(source);
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'decoder-returned-alias/read-only/'+name+'/'+mode
+      });
+      assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-returned-readonly-'));
+      try{
+        assert.deepEqual(await execute(path.join(root,'native'),input),
+          await execute(path.join(root,'emitted'),output.files));
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
