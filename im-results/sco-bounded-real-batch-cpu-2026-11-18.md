@@ -27,3 +27,19 @@ A separate real SCO single-call facade experiment, pinned in `im-results/sco-res
 - The local same-process CPU total and loopback wall duration exclude cross-machine RTT, TLS, server-client CPU attribution, session contention and arbitrary input mixes. The experiment supports a bounded choice for this application, not a worst-case guarantee. The batch's 1,024-call ceiling and request size allowance are explicit resource and policy choices, with the server still checking each nested operation separately.
 
 **Next decision:** Test a longer selected-work batch population with more Windows CPU samples to determine whether the observed strict Windows breach persists. Every positive security-performance selection must still withstand independent source and runtime attacks plus full application semantic and availability checks before release.
+
+
+## Extended 51-pair stability challenge and authorization denials (02:18 UTC)
+
+The two-platform [workflow 44222020060](https://github.com/FlareZ123/obfs/actions/runs/44222020060) passed at source `67a314244f1cc523688baaa04801c95e71a06229`. In addition to its original 13-pair/12,288-call populations, the separate `--stability` challenge ran **51 alternating native/batched pairs per operating system** at exactly 1,000 engine iterations per call and **24,576 calls per observation**, using 24 authenticated 1,024-call batches after startup and three warmups. This is an entirely new repeated-work population; it does not erase the prior 454ms/156ms Windows CPU outlier or claim that outlier was wrong.
+
+| OS, Node v22.23.4 | 51-pair CPU ratio of medians | Median of paired CPU ratios | One-sided upper median bound (nominal 95%) | Strict observed CPU >2.5x | CPU pairs unresolved | Wall ratio of medians | Strict observed wall >2.5x |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Ubuntu | **1.5817x** | 1.5897x | 1.6077x | **0/51** | **0/51** | 1.5955x | **0/51** |
+| Windows | **1.6240x** | 1.6240x | 1.6659x | **0/51** | **0/51** | 1.5901x | **0/51** |
+
+The corresponding short 13-pair populations in the same workflow still had **13/13 strict Ubuntu CPU breaches** at just one engine iteration per call and **10 resolved Windows CPU breaches with one unresolved pair**. Thus the measured success depends on substantial protected work and batching; it cannot be generalized to arbitrary small operations.
+
+The authenticated batch benchmark also now performs three explicit **real HTTP security controls before timing**: an unauthenticated source read must return 403, an unauthenticated batch RPC must return 403, and an authenticated outer batch with an invalid inner count (150001, beyond the declared maximum) must return 403 before private work. Both CI platforms passed these controls. This validates the tested policy enforcement path, without proving that arbitrary identity replay, source reconstruction or compromised client attacks are prevented.
+
+The 51-pair evidence provides a stronger *sampled resident CPU feasibility signal* for this concrete large-batch workload. It **does not prove a universal worst-case 2.5x cap**: the distribution-free one-sided statistic concerns the population median and its assumption of independent representative trial pairs. Zero strict observed breaches leaves a nonzero statistical upper bound on future violation frequency; fixed-input, fixed-runner evidence cannot bound every browser, Node runtime, hardware or hostile deployment. The normal 13-pair/12,288-call Windows failure must remain visible as a separate workload observation. No new resistance to authorized functional relaying follows from the performance improvement.
