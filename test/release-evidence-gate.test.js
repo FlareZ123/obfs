@@ -305,3 +305,38 @@ test('SNO resident raw strict counts must match the same paired CPU and wall sam
     ...source,rows:malformed
   }),/CPU strict-overbudget count/u);
 });
+
+test('SNO release population admission rejects silently diluted protected work',()=>{
+  const source=residentExample();
+  const inputs=examples();
+  const changedAppEvents=source.rows.map((row,i)=>i===0?{
+    ...row,events:0
+  }:row);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...source,rows:changedAppEvents
+  }),/SNO resident application workloads changed/u);
+  const changedAppRepeat=source.rows.map((row,i)=>i===2?{
+    ...row,repetitions:1
+  }:row);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...source,rows:changedAppRepeat
+  }),/SNO resident application workloads changed/u);
+  const swappedApp=[source.rows[1],source.rows[0],...source.rows.slice(2)];
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...source,rows:swappedApp
+  }),/SNO resident application workloads changed/u);
+  const changedLeafCount=source.leafRows.map((row,i)=>i===0?{
+    ...row,events:1
+  }:row);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...source,leafRows:changedLeafCount
+  }),/SNO selected-function stress workloads changed/u);
+  const changedLeafRepeat=source.leafRows.map((row,i)=>i===1?{
+    ...row,repetitions:8000000
+  }:row);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...source,leafRows:changedLeafRepeat
+  }),/SNO selected-function stress workloads changed/u);
+  const unchanged=summarizeEvidence(...inputs,source);
+  assert.equal(unchanged.performance.computeBoundaryFamilywise?.comparisons,12);
+});
