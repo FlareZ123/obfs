@@ -153,6 +153,15 @@ async function main() {
       expectEncoded:false},
     {name:'document-binding-unrelated-Number',
       mutation:'const Doc=document;Doc.defaultView.Number=()=>7;',
+      expectEncoded:true},
+    {name:'destructuring-assignment-defaultview-String',
+      mutation:'let View;({defaultView:View}=document);View.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'destructuring-assignment-document-String',
+      mutation:'let Doc;({document:Doc}=globalThis);Doc.defaultView.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'destructuring-assignment-unrelated-Number',
+      mutation:'let View;({defaultView:View}=document);View.Number=()=>7;',
       expectEncoded:true}
   ];
   const observations=[];
