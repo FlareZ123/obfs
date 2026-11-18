@@ -98,3 +98,45 @@ test('sparse indexed reviewed manifests are refused rather than skipped',()=>{
   assert.throws(()=>assertReviewedOpaqueAssets([safeFile],sparse),
     /reviewedOpaqueAssets entries need an exact path/);
 });
+
+test('final-distribution recheck ignores an array iterator that hides unapproved files',()=>{
+  const reviewed=[{path:'theme.css',sha256:digest(safe)}];
+  const files=[otherFile];
+  Object.defineProperty(files,Symbol.iterator,{
+    value:function*(){yield safeFile;}
+  });
+  assert.throws(()=>assertReviewedOpaqueAssets(files,reviewed),
+    /Opaque asset not in reviewedOpaqueAssets/);
+});
+
+test('final-distribution recheck accepts valid indexed output without invoking its iterator',()=>{
+  const files=[safeFile];
+  Object.defineProperty(files,Symbol.iterator,{
+    value:()=>{throw new Error('caller-controlled output iterator executed');}
+  });
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets(files,[
+    {path:'theme.css',sha256:digest(safe)}
+  ]));
+});
+
+test('published asset metadata getters are sampled once per recheck',()=>{
+  const reads={path:0,code:0,sourceType:0};
+  const observable={
+    get path(){return ++reads.path===1?'theme.css':'preferences.txt';},
+    get sourceType(){reads.sourceType++;return 'asset';},
+    get code(){reads.code++;return safe;}
+  };
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets([observable],[
+    {path:'theme.css',sha256:digest(safe)}
+  ]));
+  assert.deepEqual(reads,{path:1,code:1,sourceType:1});
+});
+
+test('final-distribution recheck rejects sparse published file inventories',()=>{
+  /** @type {{path:string,code:string|Buffer,sourceType:string}[]} */
+  const sparse=new Array(2);
+  sparse[1]=safeFile;
+  assert.throws(()=>assertReviewedOpaqueAssets(sparse,[
+    {path:'theme.css',sha256:digest(safe)}
+  ]),/Published files must contain indexed file records/);
+});

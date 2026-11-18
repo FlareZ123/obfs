@@ -50,16 +50,30 @@ function assertReviewedOpaqueAssets(files,approved) {
     expected.set(identity,{path,sha256});
   }
 
+  if(!Array.isArray(files)){
+    throw new TypeError('Published files must be an array');
+  }
+  // A final-distribution recheck must inspect the caller's indexed output,
+  // even when its Array iterator has been replaced. File metadata and bytes
+  // are sampled once per entry; the publisher must emit those same bytes.
   let matched=0;
-  for(const file of files){
-    if(file.sourceType!=='asset')continue;
-    const entry=expected.get(file.path.toLowerCase());
-    if(!entry||entry.path!==file.path){
-      throw new TypeError('Opaque asset not in reviewedOpaqueAssets: '+file.path);
+  const fileCount=files.length;
+  for(let index=0;index<fileCount;index++){
+    const file=files[index];
+    if(!file||typeof file!=='object'){
+      throw new TypeError('Published files must contain indexed file records');
     }
-    const observed=createHash('sha256').update(file.code).digest('hex');
+    const sourceType=file.sourceType;
+    if(sourceType!=='asset')continue;
+    const path=file.path;
+    const code=file.code;
+    const entry=expected.get(path.toLowerCase());
+    if(!entry||entry.path!==path){
+      throw new TypeError('Opaque asset not in reviewedOpaqueAssets: '+path);
+    }
+    const observed=createHash('sha256').update(code).digest('hex');
     if(observed!==entry.sha256){
-      throw new TypeError('Opaque asset differs from reviewed bytes: '+file.path);
+      throw new TypeError('Opaque asset differs from reviewed bytes: '+path);
     }
     matched++;
   }
