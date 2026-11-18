@@ -1,5 +1,41 @@
 # Equal-trust original-HTTP control revises the meaning of SCO cross-account CPU contention
 
+## Stronger alternating-order, same-key follow-up: current preferred evidence
+
+[Two-platform CI run 44242830530](https://github.com/FlareZ123/obfs/actions/runs/44242830530) passed on **Ubuntu and Windows Node v22.23.4** with both strict JSDoc gates, exact 200/native output and 7/7 B-submits-during-A proofs **in each server arm on each OS**, at immutable SHA `bfb38c074302396496c4cc2ffec92a68103c7545`. Ubuntu job `134594575468`; Windows job `134594575162`.
+
+This run improves the first measurement: it executes **seven one-trial conventional/generated pairs with alternating arm order** (conventional-first trials 1,3,5,7; generated-first trials 2,4,6). Each pair uses the **same newly random 256-bit private root** for both arms, and each arm gets a fresh server, independent verified A/B principals, an idle cold B child, and a real A-overlapped cold B child. Total original private work is unchanged at **784 HMAC events per arm per platform**. Direct-original and quiet controls are retained. The first run's fixed-order samples remain preserved below as historical evidence; the current executable implements this crossover instead.
+
+| Current crossover measure | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Conventional loaded B/direct-original median | **5.10495×** | **4.88923×** |
+| Generated SCO loaded B/direct-original median | **5.09785×** | **5.11984×** |
+| Strict loaded/direct-original >2.5×, conventional | 7/7 | 7/7 |
+| Strict loaded/direct-original >2.5×, generated SCO | 7/7 | 7/7 |
+| Matched quiet child B/direct-original strict >2.5× | 0/7 in both arms | 0/7 in both arms |
+| Actual A/B monotonic timing overlap and exact outputs | 7/7 in both arms | 7/7 in both arms |
+| **Generated loaded B / conventional loaded B median** | **0.99993×** | **1.00362×** |
+| Strict incremental generated/conventional >2.5× | **0/7** | **0/7** |
+
+Raw paired incremental generated/conventional loaded B ratios, in order (further digits are available in CI log marker `SCO_EQUAL_TRUST_CONTENTION`):
+
+| Trial | Ubuntu | Windows |
+| ---: | ---: | ---: |
+| 1 | 0.99903× | 0.89932× |
+| 2 | 0.98785× | 1.00362× |
+| 3 | 1.00399× | 1.05546× |
+| 4 | 0.99678× | 1.02617× |
+| 5 | 1.00642× | 0.99551× |
+| 6 | 1.00155× | 0.98888× |
+| 7 | 0.99993× | 1.09962× |
+
+**Current conclusion:** the observed roughly fivefold *loaded service / unloaded direct original* slowdown arises on both equally trusted implementations. Under actual A load, there is **no measured strict >2.5× incremental generated SCO / conventional service** breach in 14 cross-platform pairs. The matched crossover is stronger evidence against attributing the absolute queueing penalty to obfuscation than the first non-counterbalanced run. It is still a limited localhost single-event-loop experiment; notably Windows paired ratios range from 0.89932× to 1.09962×, so no sub-percent difference should be interpreted as an advantage. No generalized service fairness, transport parity for arbitrary input, or release-ready compute guarantee follows.
+
+---
+
+### Historical original fixed-order measurement (superseded by crossover above)
+
+
 **Agent 7, 18 November 2026 UTC. Evidence class:** bounded adversarial two-platform differential, reproducible and **not** an academically established obfuscation defense. The previous 14/14 A-contended B/quiet-native strict 2.5× violations remain genuine observations. This test adds the missing **equally loaded unobfuscated HTTP server** control before attributing the delay to the compiler.
 
 ## Reproduction and source pin
