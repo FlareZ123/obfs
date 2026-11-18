@@ -121,6 +121,33 @@ This confirms the narrowly declared no-input public-state reconstruction
 also executes correctly as real browser modules, without acquiring
 original private key names. It is not an arbitrary-program attack.
 
+## Held-out three-mode source-compiler differential
+
+A separate [source-pinned Ubuntu/Windows transformation gate
+44215694186](https://github.com/FlareZ123/obfs/actions/runs/44215694186)
+passed every step and strict JSDoc at exact source
+`7d73b494b474b7ca7644206be950e878f0397016`.
+The [cross-mode script](../sims/semantic-sketch-crossmode.js)
+created **64 held-out three-file ESM sketches** from seeds 40 to 43,
+then ran their original outputs and independently generated outputs
+from each of the three compiler settings:
+
+| Compiler setting | Native/emitted pairs matched | Verified private-field rewrites in direct positives | Cases with zero private-field rewrites |
+| --- | ---: | ---: | ---: |
+| COO | 64/64 | 8 | 48/64 |
+| SNO | 64/64 | 8 | 48/64 |
+| SCO | 64/64 | 8 | 48/64 |
+
+Both operating systems printed identical counts, totaling **192
+native/emitted result and side-effect trace comparisons**, with
+no detected mismatch in this bounded sample. The chosen values and
+property names differ from the first six-seed study. These three
+modes are **compiler outputs run through Node's ESM loader**.
+The experiment does not exercise a deployed SCO HTTP service,
+server-only private operation registry, external host APIs or
+a real compromised SNO filesystem, and is not a security
+assessment of those full deployment modes.
+
 ## Security and cost boundaries
 
 This suite tests **behavioral parity on a finite, designed corpus**.
