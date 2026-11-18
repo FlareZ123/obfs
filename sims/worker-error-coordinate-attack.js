@@ -28,16 +28,33 @@ async function executeChromium(htmlUrl){
   return Buffer.from(encoded,'base64').toString('utf8');
 }
 
-/** @returns {Promise<void>} */
-async function run(){
-  const emitted=obfuscateFiles([
-    {path:'parent.js',sourceType:'script',code:parentSource},
-    {path:'worker.js',sourceType:'script',code:workerSource}
-  ],{
+/** @param {boolean} guarded @returns {Promise<void>} */
+async function run(guarded=false){
+  const options={
     mode:'coo',seed:'worker-error-coordinate',
     strings:false,properties:false,identifiers:false,
     allowedHosts:['127.0.0.1']
-  }).files;
+  };
+  if(guarded){
+    assert.throws(
+      ()=>obfuscateFiles([
+        {path:'parent.js',sourceType:'script',code:parentSource},
+        {path:'worker.js',sourceType:'script',code:workerSource}
+      ],options),
+      /Host locking cannot preserve observable source/u
+    );
+    const safe=obfuscateFiles([
+      {path:'a.js',sourceType:'script',code:'globalThis.a=1;'},
+      {path:'b.js',sourceType:'script',code:'globalThis.b=2;'}
+    ],{...options,seed:'worker-error-coordinate-safe'});
+    for(const file of safe.files)
+      assert.match(/** @type {string} */(file.code),/Unauthorized execution host/u);
+    return;
+  }
+  const emitted=obfuscateFiles([
+    {path:'parent.js',sourceType:'script',code:parentSource},
+    {path:'worker.js',sourceType:'script',code:workerSource}
+  ],options).files;
   const generatedParent=/** @type {string} */(
     emitted.find(file=>file.path==='parent.js')?.code
   );
@@ -97,6 +114,6 @@ async function run(){
   }
 }
 
-if(require.main===module)run()
+if(require.main===module)run(process.argv.includes('--expect-guarded'))
   .catch(error=>{console.error(error);process.exitCode=1;});
 module.exports={run,parentSource,workerSource};
