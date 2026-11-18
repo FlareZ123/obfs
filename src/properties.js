@@ -169,7 +169,8 @@ const proofInventoryCache=new WeakMap();
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
  *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
- *   aliasDeclarations:AstNode[], tupleDeclarations:Map<string,AstNode[]>,
+ *   aliasDeclarations:AstNode[], directAliasDeclarations:Map<string,AstNode[]>,
+ *   tupleDeclarations:Map<string,AstNode[]>,
  *   recordDeclarations:Map<string,AstNode[]>
  * }}
  */
@@ -219,6 +220,16 @@ function collectProofInventory(ast) {
   });
   const aliasDeclarations=declarations.filter(node=>node.init&&
     ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
+  // An immutable reverse index lets ordinary direct aliases use a queue per
+  // candidate owner, avoiding a full scan of all declarations on each pass.
+  /** @type {Map<string,AstNode[]>} */
+  const directAliasDeclarations=new Map();
+  for(const decl of aliasDeclarations){
+    if(decl.id.type!=='Identifier'||decl.init?.type!=='Identifier')continue;
+    const receivers=directAliasDeclarations.get(decl.init.name)??[];
+    receivers.push(decl);
+    directAliasDeclarations.set(decl.init.name,receivers);
+  }
   /** @type {Map<string,AstNode[]>} */
   const tupleDeclarations=new Map();
   /** @type {Map<string,AstNode[]>} */
@@ -241,7 +252,7 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,aliasDeclarations,tupleDeclarations,recordDeclarations};
+    functionDeclarations,callableDeclarators,aliasDeclarations,directAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
 }
@@ -349,7 +360,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,aliasDeclarations,
+    functionDeclarations,callableDeclarators,aliasDeclarations,directAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
@@ -629,6 +640,21 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return false;
   }
+  // No callable or private-carrier forwarding means resolves() is precisely
+  // ordinary identifier membership. Reverse edges then reach the identical
+  // least fixed point while visiting only declarations of discovered aliases.
+  if(functions.size===0 && privateOwnerTuples.size===0 && privateOwnerRecords.size===0){
+    const pending=[rootName];
+    while(pending.length){
+      const name=/** @type {string} */ (pending.pop());
+      for(const decl of directAliasDeclarations.get(name)??[]){
+        if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1||
+           aliases.has(decl.id.name))continue;
+        aliases.add(decl.id.name);
+        pending.push(decl.id.name);
+      }
+    }
+  } else {
   // Monotone fixed point: aliases are only added, never removed.
   let changed;
   do {
@@ -653,6 +679,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
     }
   } while (changed);
+  }
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
