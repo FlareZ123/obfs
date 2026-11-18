@@ -17,7 +17,7 @@ test('public minified Rivest-family polynomial equality is structurally invertib
     const sample=makeSample(seed);
     const recovered=recoverSecretFromSource(sample.source);
     assert.equal(recovered.secret,sample.secret);
-    assert.ok(recovered.evaluations<=64,recovered);
+    assert.ok(recovered.evaluations<=64,JSON.stringify(recovered));
   }
 });
 
@@ -25,5 +25,5 @@ test('held-out randomized polynomial source recovery remains complete',()=>{
   const result=runRecoveryMatrix(16);
   assert.equal(result.samples,16);
   assert.equal(result.recovered,16);
-  assert.ok(result.maxEvaluations<=64,result);
+  assert.ok(result.maxEvaluations<=64,JSON.stringify(result));
 });
