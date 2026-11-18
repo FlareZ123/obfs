@@ -2129,6 +2129,36 @@ function renameCrossFileProperties(files,seed) {
     }
     identities.set(filename,exported);
   }
+  // Carry only already-proved pure identity summaries through explicit named
+  // ESM source reexports. This preserves the same stable function contract
+  // while avoiding namespace/export-star ambiguity and import-then-export
+  // bindings whose local uses would need a separate escape proof.
+  let identityForwarded;
+  do {
+    identityForwarded=false;
+    for(const [relayName,relay] of modules) {
+      const exposed=identities.get(relayName);
+      if(!exposed)continue;
+      for(const statement of relay.ast.body) {
+        if(statement.type!=='ExportNamedDeclaration'||!statement.source||
+           statement.source.type!=='Literal'||
+           typeof statement.source.value!=='string')continue;
+        const origin=resolveImport(relayName,statement.source.value);
+        const available=origin?identities.get(origin):null;
+        if(!available)continue;
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier')continue;
+          const sourceName=spec.local.name??spec.local.value;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof sourceName!=='string'||typeof publicName!=='string')continue;
+          if(available.has(sourceName)&&!exposed.has(publicName)) {
+            exposed.add(publicName);
+            identityForwarded=true;
+          }
+        }
+      }
+    }
+  } while(identityForwarded);
   /** @type {Map<string,Map<string,number>>} */
   const importedIdentities=new Map();
   for(const [filename,module] of modules) {

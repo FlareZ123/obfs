@@ -368,3 +368,54 @@ test('relayed reader value escape refuses cross-file property rewrite',async()=>
       'const escaped=inspect;console.log(escaped(state));'}
   ],0);
 });
+
+
+test('named identity re-export preserves owner forwarding into imported reader',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {identity as pass} from "./identity.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";import {pass} from "./relay.mjs";'+
+      'console.log(peek(pass(state)));'}
+  ],1);
+});
+
+test('named identity re-export chain preserves owner forwarding into imported reader',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'relay-a.mjs',sourceType:'module',code:
+      'export {identity as pass} from "./identity.mjs";'},
+    {path:'relay-b.mjs',sourceType:'module',code:
+      'export {pass as carry} from "./relay-a.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";import {carry} from "./relay-b.mjs";'+
+      'console.log(peek(carry(state)));'}
+  ],1);
+});
+
+test('relayed identity function source observation refuses owner rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {identity as pass} from "./identity.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./state.mjs";import {pass} from "./relay.mjs";'+
+      'console.log(pass.toString(),peek(pass(state)));'}
+  ],0);
+});
+
+test('relayed identity owner result reflected by opaque consumer refuses rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=value=>value;'},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {identity as pass} from "./identity.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {pass} from "./relay.mjs";'+
+      'console.log(Object.keys(pass(state)));'}
+  ],0);
+});
