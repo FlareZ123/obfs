@@ -19,7 +19,10 @@
         "round1",
         "round2",
         "round3"
-      ]
+      ],
+      "closedWorld": false,
+      "strings": false,
+      "experimentalPolyvariantCount": 2
     },
     "minifier": {
       "name": "esbuild",
@@ -27,7 +30,9 @@
       "bundled": false,
       "format": "esm",
       "target": "es2022",
-      "minify": true
+      "minify": true,
+      "legalComments": "none",
+      "sourcefilePerModule": true
     }
   },
   "graphs": {
