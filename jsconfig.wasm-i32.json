@@ -53,7 +53,10 @@
     "test/fused-arx-batch.test.js",
     "test/fused-arx-batch-browser.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "sims/stateful-arx-graph-fuse.js",
+    "test/stateful-arx-graph-fuse.test.js",
+    "examples/stateful-arx-app/candidate/kernel.mjs"
   ],
   "exclude": [
     "node_modules"
