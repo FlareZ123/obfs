@@ -56,3 +56,18 @@ test('C0-prefixed data stylesheet source map is refused in all three modes and S
     }
   }
 });
+
+test('all 31 nonzero ASCII C0 URL escapes preserve scheme normalization distinctions',()=>{
+  const strippedInside=new Set([9,10,13]);
+  for(let point=1;point<=31;point++){
+    const hex=point.toString(16).padStart(6,'0');
+    const escaped='\\'+hex;
+    const quoted='@import "'+escaped+data+'";';
+    const wrapped='@import url("'+escaped+data+'");';
+    assert.equal(new URL(String.fromCharCode(point)+data).protocol,'data:','U+'+hex);
+    assert.equal(hasCssDataImport(quoted),true,quoted.slice(0,65));
+    assert.equal(hasCssDataImport(wrapped),true,wrapped.slice(0,65));
+    const interior='@import "da'+escaped+'ta:text/css,canary";';
+    assert.equal(hasCssDataImport(interior),strippedInside.has(point),interior);
+  }
+});
