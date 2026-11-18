@@ -58,15 +58,17 @@ for(const [name,expression] of observers) {
 
 test('primitive Blob options retain selected Wasm i32 conversion',()=>{
   const original=functionSource+
-    'const type=new Blob([],{type:"text/plain",endings:"transparent"}).type;'+
-    'module.exports=f(37)+":"+type;';
+    'const result=f(37);'+
+    'const type=new Blob([],{type:"text/plain",endings:"transparent"}).type;';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   const output=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:original
   }],{mode:'sno',seed:'blob-wasm-primitive',
     strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'entry.cjs':['f']}});
-  assert.equal(evaluate(String(output.files[0].code)),evaluate(original));
+  const verify='module.exports=result+":"+type;';
+  assert.equal(evaluate(String(output.files[0].code)+verify),
+    evaluate(original+verify));
   assert.match(String(output.files[0].code),/WebAssembly/u,
     'The positive control must emit a genuine Wasm runtime');
 });
