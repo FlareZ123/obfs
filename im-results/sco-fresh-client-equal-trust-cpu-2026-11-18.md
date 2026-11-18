@@ -47,6 +47,21 @@ The 12,288-call original-CPU median on Ubuntu was **102.320 ms** at 1 iteration,
 
 Wall metrics include scheduling, process startup and localhost server response and are informative operationally, while the prompt's explicit **compute-time** threshold should be evaluated from the user+system CPU totals above. The one 1000-iteration Windows generated/native CPU strict breach is a genuine sampled veto even with a good 1.94340× median, zero wall breaches and a nominal statistically \`supported\` bound.
 
+## Source-matched CPU decomposition and optimization implication
+
+Because the full process-CPU result retains **separate** trusted parent server and fresh child client CPU, we also computed each independently observed nine-trial median directly from the immutable CI marker. Values are CPU milliseconds (user+system), not elapsed wall seconds. The per-arm component medians may differ slightly from the median of per-trial parent+child totals.
+
+| OS | Iterations/call | Native parent / child CPU medians (ms) | Generated parent / child CPU medians (ms) | Ordinary parent / child CPU medians (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 1 | 2.420 / **99.965** | 75.061 / **272.598** | 76.614 / **273.761** |
+| Ubuntu | 1,000 | 2.386 / **255.824** | 236.691 / **271.572** | 228.081 / **266.425** |
+| Windows | 1 | 0 / **155** | 93 / **343** | 78 / **343** |
+| Windows | 1,000 | 0 / **265** | 219 / **312** | 219 / **296** |
+
+On the one-iteration workload, both actual RPC clients require much greater **fresh child CPU** than the direct-original child, alongside parent process CPU spent executing trusted original HMAC over the network boundary. This is consistent with the overhead of Node fresh-client module startup, network machinery, parsing and JSON transport; the measurement does not apportion those runtime components further. Their independent component medians are remarkably similar between the generated and ordinary-minified clients, so optimizing only generated literal spellings would have an unmotivated expected gain in this workload.
+
+At 1,000 iterations per call, original native child CPU rises substantially, while the compiled remote clients' fresh child CPU is of comparable magnitude to their one-iteration measurements; the trusted parent now performs more original private work. This helps explain why original-normalized CPU ratios fall as useful private work grows. The data argue for investigating *amortized client bootstrap and transport work under a precisely declared semantics contract* before more lexical wrapper variation. **The prompt does not allow deducting client-side initialization from SCO runtime**, and even repeated sessions with zero sampled startup burden would need their own verified security and strict total compute claim. This decomposition is an observed diagnostic, not causal identification of a particular Node internal function.
+
 ## What this does and does not establish
 
 **Observed:** the generated SCO ESM facade and an ordinary esbuild-minified ESM wrapper have closely matched *incremental* total CPU at identical trust boundary and original server work for these two 12,288-call populations, 0/9 strict generated/ordinary incremental CPU failures across every population/OS. Both variants breach the native-compute limit on short calls. The high-cost factor in this experiment is the fresh-process/network/RPC service contract available to an ordinary authorized minified client as well; the experiment does not attribute that entire cost to generated obfuscation syntax. At larger per-call work, performance improves materially, but the Windows generated-native 1/9 strict CPU breach prevents a clean universal budget claim.
