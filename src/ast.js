@@ -2506,7 +2506,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'caches','CacheStorage',
     // Same-origin host HTML can preload a module as text/plain in a named
     // iframe; Window.frames exposes that child Document's exact source body.
-    'frames']);
+    // Declared ESM can also create an iframe and read its Document through
+    // HTMLIFrameElement.contentDocument or .contentWindow.
+    'frames','contentDocument','contentWindow']);
   const globals=new Set(['globalThis','window','self','global']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
