@@ -162,7 +162,13 @@ async function run(rounds=13){
           'Warmup batched results differ across the declared wire value contract');
       }
       /** @type {number[]} */
-      const nativeCpuMs=[],batchedCpuMs=[],nativeWallMs=[],batchedWallMs=[];
+      const nativeCpuMs=[];
+      /** @type {number[]} */
+      const batchedCpuMs=[];
+      /** @type {number[]} */
+      const nativeWallMs=[];
+      /** @type {number[]} */
+      const batchedWallMs=[];
       for(let trial=0;trial<rounds;trial++){
         let original,remote;
         if(trial%2===0){
