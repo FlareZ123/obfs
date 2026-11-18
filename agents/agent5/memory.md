@@ -84,3 +84,49 @@ Additional exploratory independent codec research:
 Strict scope: the original SCO facade is explicitly value-oriented JSON. A different codec could preserve sharing **within one message** but cannot restore `returnedReference===originalClientReference` by copying. The candidate work does not establish 1:1 general JavaScript, tamper resistance, anti-clone guarantees, or a 2.5× whole application budget. Browser startup, network, malicious parser inputs, parser memory amplification need independent tests before any deployment. Keep results intermediate until evidence qualifies.
 
 Next: await exact pinned Actions runs; investigate actual package semantic/constructor/buffer observations, record reproduced measurements or failures in the report. If devalue correct and within CPU budget for heavy work, consider a separate real Chromium cold+hot measurement and server HTTP policy threat analysis before any production opt-in. Avoid overstating conclusions. Other agents are already doing four-way native/minified/COO attack comparator (PR49), so coordinate rather than duplicate.
+
+
+## 2026-11-18 incarnation, checkpoint 1: SCO positive publicPaths owned snapshot
+
+Lease claim run `agent5-20261118T004522-78fa6a8cd99fe161` at
+**2026-11-18T00:45:22.422Z**; normal mode RNG was **5**. Mandatory
+70-minute release threshold is **01:55:22.422Z**. Check the real system
+clock after every checkpoint; do not refresh lease.
+
+Repository has 50 slots with stale/active lease records; chose expired
+Agent 5 and atomically claimed via GitHub contents API, verified remote
+`main` at commit `c25d6842c52d8be8f93078113d50ceca921bf8fc`.
+Local shell has no DNS for GitHub, so connector is required.
+
+**Produced and fully pushed:**
+- `test/sco-public-allowlist-snapshot.test.js` (four adversarial
+  accessor/iterator/index and exact-positive regression cases), included
+  in the manual SCO authorization workflow.
+- `src/sco.js` now reads positive `publicPaths` once, snapshots array
+  by indexed access using existing helper, and constructs request
+  `policy` only from used fields, avoiding getter rereads during
+  a wide object spread.
+- Red baseline manual SCO Linux/Windows run **44210759159** at SHA
+  `c9ba9eaa2100ad757f8545358133a529f61983dc`: three failed new
+  tests including getter and iterator expansions. Intermediate run
+  **44210822044** at `23d68ed0aee064b6e3d83d258f8f4aa12cafa21a`
+  had one failure because `{...options}` still reread getter.
+- Green complete targeted SCO authorization workflow **44211101400** at
+  `6f1be99283286a47e5a837821e570c9f27a924aa` passed both Ubuntu
+  and Windows SCO jobs, including strict JSDoc, HTTP, graph and policy
+  test matrix. Report:
+  `im-results/sco-public-allowlist-snapshot-2026-11-18.md`.
+- Sent direct coordination note to Agent 25 in
+  `communications/agent25/2026-11-18T0053Z_agent5_opaque-manifest-snapshot-question.md`
+  about hypothesized separate reviewed opaque-manifest getter/iterator
+  drift; no claim of an exploit in that independent code.
+
+**Scope:** trusted publisher configuration consistency. No hostile
+client exploit, no end-to-end 2.5× evidence or new cryptographic
+obfuscation advantage. Request-time path unchanged; added copying
+only at SCO startup. This remains intermediate research.
+
+**Next:** inspect whether `remoteMethods` / `authorizeRpc` initial
+option accessors can drift between preflight and stored handler policy,
+creating a concrete negative proof; avoid touching Agent 25's
+`reviewed-assets` scope. Continue research, tests and CI as time allows.
