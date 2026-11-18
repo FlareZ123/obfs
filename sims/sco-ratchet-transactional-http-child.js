@@ -32,6 +32,10 @@ async function main(){
     bucketCount>256||(bucketCount&(bucketCount-1))!==0))
     throw new TypeError('Trusted bucket count must be a power of two');
   const privateAMarker=process.env.SCO_TEST_A_WORK_MARKER;
+  const nestedAccountQuota=process.env.SCO_TEST_NESTED_ACCOUNT_QUOTA==='1';
+  const firstAGateMs=Number(process.env.SCO_TEST_FIRST_A_GATE_MS??'0');
+  if(!Number.isSafeInteger(firstAGateMs)||firstAGateMs<0||firstAGateMs>5000)
+    throw new TypeError('Trusted test delay must be an integer from 0 to 5000');
   const journalModeRetries=process.env.SCO_TEST_NO_JOURNAL_RETRY==='1'?0:4;
   if(!databasePath||!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)||
     !tokenA||!/^[a-f0-9]{64}$/u.test(tokenA)||
@@ -94,15 +98,33 @@ async function main(){
     if(cookie==='session='+tokenB)return 'verified-B';
     return null;
   }
-  // Each SQLite connection has a serial isolation key. Separate verified
-  // principal shards may acquire independent SQL writer locks.
-  const isolate=createScoKeyedIsolation(req=>{
+  let recordedAAdmissions=0;
+  let firstAGateApplied=false;
+  /**
+   * The original branch charges capacity to a SQLite writer's bucket key.
+   * When two authenticated principals share a bucket, the quota is shared.
+   * The corrected branch charges the quota to the actual verified principal
+   * and separately serializes the corresponding SQLite writer.
+   */
+  const bucketKey=/** @param {IncomingMessage} req */(req)=>{
     const principal=principalOf(req);
     return principal===null?'one-sqlite-writer':
       accountShards||bucketCount>0?storageKey(principal):'one-sqlite-writer';
+  };
+  const isolate=createScoKeyedIsolation(req=>{
+    if(principalOf(req)==='verified-A')recordedAAdmissions++;
+    return bucketKey(req);
   },{
     maxPendingPerPrincipal:16,maxPendingTotal:32
   });
+  const perPrincipalIsolate=createScoKeyedIsolation(req=>{
+    const principal=principalOf(req);
+    if(principal==='verified-A')recordedAAdmissions++;
+    return principal??'unauthenticated';
+  },{
+    maxPendingPerPrincipal:16,maxPendingTotal:32
+  });
+  const perWriterIsolate=createScoKeyedIsolation(bucketKey);
   const generated=createScoRpcClientSource(['batch']);
   const handler=createScoHandler([{
     path:'batch.mjs',sourceType:'module',code:generated
@@ -124,8 +146,12 @@ async function main(){
       // transaction merely to receive its expected 403 denial. The legacy
       // mode reproduces the old global-lock path for a matched experiment.
       if(!legacyAnonymousLock&&principalOf(req)===null)return execute();
-      return isolate(req,async()=>{
+      const worker=async()=>{
         const principal=principalOf(req);
+        if(principal==='verified-A'&&firstAGateMs>0&&!firstAGateApplied){
+          firstAGateApplied=true;
+          await new Promise(resolve=>setTimeout(resolve,firstAGateMs));
+        }
         const store=storeOf(principal??'verified-A');
         store.begin();
         try{
@@ -133,7 +159,10 @@ async function main(){
         }finally{
           store.rollback();
         }
-      });
+      };
+      return nestedAccountQuota?
+        perPrincipalIsolate(req,()=>perWriterIsolate(req,worker)):
+        isolate(req,worker);
     },
     remoteMethods:{
       /**
@@ -159,6 +188,12 @@ async function main(){
   });
 
   const server=http.createServer((req,res)=>{
+    if(req.url==='/__test__/admissions'&&req.method==='GET'&&
+       req.headers['x-test-control']===control){
+      res.writeHead(200,{'content-type':'application/json'})
+        .end(JSON.stringify({recordedAAdmissions}));
+      return;
+    }
     if(req.url==='/__test__/hold'&&req.method==='POST'&&
        req.headers['x-test-control']===control){
       // Trusted test-only lock-control route, never part of public SCO API.
