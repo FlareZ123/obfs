@@ -1920,7 +1920,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     return Boolean(node && (node.type==='Identifier'&&
       processReportNamespaces.has(node.name) ||
       node.type==='MemberExpression'&&memberName(node)==='report'&&
-        isProcessReceiver(node.object)));
+        isProcessReceiver(node.object) ||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+        isReflectiveReceiver(node.callee.object)&&
+        memberName(node.callee)==='get'&&node.arguments.length>1&&
+        isProcessReceiver(node.arguments[0])&&
+        staticString(node.arguments[1])==='report'));
   }
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function isProcessReportMethod(node,depth=0) {
@@ -1933,9 +1938,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(['call','apply'].includes(name??''))
         return isProcessReportMethod(node.object,depth+1);
     }
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       memberName(node.callee)==='bind')
-      return isProcessReportMethod(node.callee.object,depth+1);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      if(memberName(node.callee)==='bind')
+        return isProcessReportMethod(node.callee.object,depth+1);
+      if(isReflectiveReceiver(node.callee.object)&&
+         memberName(node.callee)==='get'&&node.arguments.length>1&&
+         isProcessReportNamespace(node.arguments[0])&&
+         ['getReport','writeReport'].includes(staticString(node.arguments[1])??''))
+        return true;
+    }
     return false;
   }
   let changedProcessReportAliases;
