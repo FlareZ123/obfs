@@ -627,3 +627,38 @@ test('explicit automatic-report disabling retains property yield',()=>{
     assert.ok(output.metrics.properties>0,output.code);
   }
 });
+
+
+test('Reflect.get invocation wrappers preserve global process report coordinates',()=>{
+  const expressions=[
+    "(()=>{const proc=Reflect.get.call(Reflect,globalThis,'process');return proc.report.getReport();})()",
+    "(()=>{const proc=Reflect.get.apply(Reflect,[globalThis,'process']);return proc.report.getReport();})()",
+    "(()=>{const proc=Reflect.apply(Reflect.get,Reflect,[globalThis,'process']);return proc.report.getReport();})()",
+    "(()=>{const get=Reflect.get.bind(Reflect);const proc=get(globalThis,'process');return proc.report.getReport();})()"
+  ];
+  for(const [index,expression] of expressions.entries())
+    mustPreserveProcessReport(expression,'agent8-process-global-reflect-wrapper-'+index);
+});
+
+test('Reflect.get invocation wrappers keep static process env reads analyzable',()=>{
+  const expressions=[
+    "Reflect.get.call(Reflect,process,'env').PATH",
+    "Reflect.get.apply(Reflect,[process,'env']).PATH",
+    "Reflect.apply(Reflect.get,Reflect,[process,'env']).PATH",
+    "(()=>{const get=Reflect.get.bind(Reflect);return get(process,'env').PATH;})()"
+  ];
+  for(const [index,expression] of expressions.entries()){
+    const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;void ("+expression+");"+
+      "module.exports=value;";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+    const output=obfuscateFiles([{
+      path:'reflect-env-wrapper-'+index+'.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode:'sno',seed:'agent8-reflect-env-wrapper-'+index,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(execute(output.code),73);
+    assert.ok(output.metrics.properties>0,output.code);
+  }
+});
