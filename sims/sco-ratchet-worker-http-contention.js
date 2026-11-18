@@ -251,13 +251,13 @@ function makeWorkerServer(root,activeTrial){
  * and principals remain distinct. The child process starts B while trusted
  * Node is synchronously processing A's private HMAC batch.
  * @param {'generated'|'worker'} mode
- * @returns {Promise<object>}
  */
 async function experiment(mode){
   const root=randomBytes(32);
   /** @type {Trial|null} */
   let current=null;
-  const backend=mode==='worker'?makeWorkerServer(root,()=>current):makeServer(root,0,undefined,
+  const workerBackend=mode==='worker'?makeWorkerServer(root,()=>current):null;
+  const backend=workerBackend??makeServer(root,0,undefined,
     (principal,start)=>{
       if(!current||principal!==current.aPrincipal||start!==0)return;
       current.aStartNs=process.hrtime.bigint();
@@ -296,7 +296,7 @@ async function experiment(mode){
       backend.grant(matchedQuietToken,matchedQuietPrincipal);
       backend.grant(bToken,bPrincipal);
       backend.grant(aToken,aPrincipal);
-      if('ready' in backend)await backend.ready();
+      await workerBackend?.ready();
       const bInputs=Array.from({length:16},(_,i)=>challenge(i));
       const aInputs=Array.from({length:64},(_,i)=>challenge(i+1000));
       const native=createPrivateMachine(root);
@@ -361,7 +361,7 @@ async function experiment(mode){
         child.child.kill();
         current=null;
       }
-      if('release' in backend)await backend.release([
+      if(workerBackend)await workerBackend.release([
         quietPrincipal,matchedQuietPrincipal,bPrincipal,aPrincipal
       ]);
     }
@@ -398,7 +398,7 @@ async function experiment(mode){
       scope:'Localhost single Node server main-thread synchronous HMAC load; not an isolated worker pool, measured WAN, or generic denial-of-service proof.'
     };
   }finally{
-    if('shutdown' in backend)await backend.shutdown();
+    await workerBackend?.shutdown();
     fs.rmSync(folder,{recursive:true,force:true});
     /** @type {Promise<void>} */
     const closed=new Promise((resolve,reject)=>
