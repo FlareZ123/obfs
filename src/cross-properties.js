@@ -875,14 +875,14 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
        */
       function inert(node,depth) {
         if(depth>16)return false;
-        if(node.type==='ObjectExpression')return node.properties.every(property=>{
+        if(node.type==='ObjectExpression')return node.properties.every((/** @type {AstNode} */ property)=>{
           if(property.type!=='Property'||property.kind!=='init'||
              property.method||property.shorthand)return false;
           const name=ownPropertyName(property);
           return name!==null&&name!=='__proto__'&&
             inert(property.value,depth+1);
         });
-        if(node.type==='ArrayExpression')return node.elements.every(element=>
+        if(node.type==='ArrayExpression')return node.elements.every((/** @type {AstNode|null} */ element)=>
           element!==null&&element.type!=='SpreadElement'&&
           inert(element,depth+1));
         return isLiteralValue(node)&&
