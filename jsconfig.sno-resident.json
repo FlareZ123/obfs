@@ -6,6 +6,7 @@
     "test/sno-resident-budget.test.js",
     "sims/polyvariant-compact-static-recover.js",
     "test/polyvariant-compact-research.test.js",
-    "sims/polyvariant-compact-fuzz.js"
+    "sims/polyvariant-compact-fuzz.js",
+    "test/polyvariant-compact-browser.js"
   ]
 }
