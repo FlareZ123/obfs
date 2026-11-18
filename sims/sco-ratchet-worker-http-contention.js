@@ -216,7 +216,7 @@ function makeWorkerServer(root,activeTrial,conventional=false){
    * trusted resident workers, session registry, per-principal FIFO queue,
    * original HMAC and input count as the generated transport. It never calls
    * createScoHandler and does not publish an obfuscated facade.
-   * @type {http.RequestListener}
+   * @type {(request:http.IncomingMessage,response:http.ServerResponse)=>Promise<void>}
    */
   const ordinaryHandler=async(request,response)=>{
     /** @param {number} status @param {object} payload @returns {void} */
