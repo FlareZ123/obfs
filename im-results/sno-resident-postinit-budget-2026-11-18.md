@@ -4,7 +4,7 @@
 
 **Latest strengthened CPU-time validation:** exact source `08eee5f05c24be503d561f4c8979a67e8092d598`, [two-platform complete run 44207391012](https://github.com/FlareZ123/obfs/actions/runs/44207391012), Node 22.23.4, **both jobs passed**, 13 pairs in each of eight workload/platform groups, zero observed strict >2.5x **CPU** or wall pairs. Extended samples and CPU-specific limitations are documented in the follow-up below.
 
-**Historical wall-only validation:** Exact frozen code:** `00752173f6fe90ab53486753ab9b7d337db55573`. **CI:** [Linux and Windows complete run 44206254480](https://github.com/FlareZ123/obfs/actions/runs/44206254480), both jobs passed. Both used Node.js **22.23.4**. The preceding run 44206070870 failed at its new JSDoc preflight and has no valid runtime evidence; do not combine those source revisions.
+**Historical wall-only validation:** source `00752173f6fe90ab53486753ab9b7d337db55573`. **CI:** [Linux and Windows complete run 44206254480](https://github.com/FlareZ123/obfs/actions/runs/44206254480), both jobs passed. Both used Node.js **22.23.4**. The preceding run 44206070870 failed at its new JSDoc preflight and has no valid runtime evidence; do not combine those source revisions.
 
 ## Motivation and boundary
 
