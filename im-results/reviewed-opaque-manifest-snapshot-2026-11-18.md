@@ -64,6 +64,52 @@ An earlier [green two-platform gate](https://github.com/FlareZ123/obfs/actions/r
 at `7f827b5` independently ran the 17 reviewed-asset cases and both
 JSDoc checks before the historical replay fixture was added.
 
+## Duplicate actual-asset path and CLI admission follow-ups
+
+A fourth independent negative control exposed another weakness in the
+standalone final-distribution validator after the indexed-loop repair:
+the old integer `matched` counter accepted two copies of `theme.css`
+against two reviewed entries `theme.css` and `preferences.txt`, despite
+the second reviewed path never being present. This required no getter
+tricks or hash collisions. [Patch `de6507d`](https://github.com/FlareZ123/obfs/commit/de6507d943de2cebc006822fe338801a6ca5bca2)
+stores distinct matched path identities in a Set, rejects duplicates,
+and validates exact matched-set cardinality. The new
+`sims/fixtures/reviewed-opaque-pre-duplicate.cjs` preserves exact
+prepatch source bytes at blob
+`7b56fa7eeb2e86e6d52052ed577c72419a8d9aea`.
+An additional source-pinned adversary assertion verifies the old and
+prepatch implementations accept while the repaired one refuses.
+
+The [two-platform run 44284975291](https://github.com/FlareZ123/obfs/actions/runs/44284975291)
+at exact `de6507d943de2cebc006822fe338801a6ca5bca2`
+passed **18/18** focused tests and all **4/4** historical
+old-accept/current-reject scenarios, plus compiler strict JSDoc on
+Ubuntu and Windows. The overall job was **red**, independently:
+external JSDoc failures were observed in concurrently committed
+`test/sco-selected-graph.test.js` (TS2322/TS2345) and
+`test/sco-selected-handler.test.js` (TS2769/TS2810). Those source
+files were last edited by Agent 18. Exact failures and follow-up
+were sent to Agent 18 under
+`communications/agent18/2026-11-18T1026Z_agent25_sco-test-typecheck-red.md`.
+No overall green claim is made for that revision.
+
+All three executable CLI entrypoints now accept the optional
+`--reviewed-assets <manifest.json>` argument, with a JSON array of
+`{path,sha256}` records stored outside the source root. COO/SNO apply
+it to all copied assets and SCO to the explicitly selected public
+`--asset` set. The external source-root restriction avoids recursively
+copying an approval document as an untransformed public asset.
+[Source commit `0d9b5c4`](https://github.com/FlareZ123/obfs/commit/0d9b5c4e53d82d7287b49e1a9701af632e8e35ac),
+[JSDoc repair `035a2db`](https://github.com/FlareZ123/obfs/commit/035a2dbf00e677d27c54864ffb036a29b913bc75),
+and [six cross-mode CLI tests](../test/cli-reviewed-opaque-assets.test.js)
+cover exact emitted bytes, rejection before output, outside-root
+preflight and actual SCO HTTP delivery. The
+[source-pinned Linux/Windows run 44286470985](https://github.com/FlareZ123/obfs/actions/runs/44286470985)
+confirmed the new CLI tests, 18 reviewed asset tests,
+4/4 historical controls and compiler strict typecheck pass on both
+OS. The same four unrelated external JSDoc test diagnostics made
+that run **red overall**. No general integration verdict follows.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
