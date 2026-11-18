@@ -113,6 +113,44 @@ test('SCO aborts a cooperating identity provider on lookup deadline',async()=>{
   assert.equal(privateEffects,0,'Aborted resolver cannot enter protected method');
 });
 
+test('SCO deadline can abort real upstream identity HTTP fetch',{
+  timeout:15000
+},async()=>{
+  const started=gate();
+  const closed=gate();
+  let requests=0;
+  let privateEffects=0;
+  const upstream=http.createServer((_request,response)=>{
+    requests++;
+    if(requests===1){
+      started.resolve();
+      response.on('close',()=>closed.resolve());
+      return; // Simulated identity provider that never sends its headers.
+    }
+    response.end('verified');
+  });
+  await new Promise(resolve=>upstream.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=upstream.address();
+    if(!address||typeof address==='string')throw Error('Expected identity provider');
+    const endpoint='http://127.0.0.1:'+address.port+'/identity';
+    const isolate=createScoKeyedIsolation(async(_request,signal)=>{
+      const reply=await fetch(endpoint,{signal});
+      return reply.text();
+    },{maxPendingTotal:1,maxPrincipalResolutionMs:250,abortPrincipalLookup:true});
+    const first=isolate(requestFor(),async()=>{privateEffects++;});
+    await started.promise;
+    await assert.rejects(first,ScoIsolationBusyError);
+    await closed.promise;
+    await isolate(requestFor(),async()=>{privateEffects++;});
+    assert.equal(requests,2);
+    assert.equal(privateEffects,1,'Timed-out identity fetch never enters private code');
+  }finally{
+    upstream.closeAllConnections();
+    await new Promise((resolve,reject)=>upstream.close(error=>error?reject(error):resolve()));
+  }
+});
+
 test('SCO abort flag never cancels a successfully resolved async session',async()=>{
   /** @type {AbortSignal|undefined} */
   let signal;
