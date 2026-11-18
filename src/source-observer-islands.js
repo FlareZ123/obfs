@@ -146,7 +146,10 @@ function proveSourceObserverIslands(files,selections) {
   ]);
   const forbiddenMembers=new Set([
     'constructor','__proto__','require','createRequire','getBuiltinModule',
-    'readFile','readFileSync','fetch','importScripts'
+    'readFile','readFileSync','fetch','importScripts',
+    // An externally supplied HTMLIFrameElement can expose hosted source even
+    // when this ESM graph never spells a Window or Document global.
+    'contentDocument','contentWindow'
   ]);
   for(const [filename,module] of modules) {
     for(const statement of module.ast.body) {
