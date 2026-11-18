@@ -33,6 +33,7 @@ async function main(){
     throw new TypeError('Trusted bucket count must be a power of two');
   const privateAMarker=process.env.SCO_TEST_A_WORK_MARKER;
   const nestedAccountQuota=process.env.SCO_TEST_NESTED_ACCOUNT_QUOTA==='1';
+  const earlyAGate=process.env.SCO_TEST_EARLY_A_GATE==='1';
   const firstAGateMs=Number(process.env.SCO_TEST_FIRST_A_GATE_MS??'0');
   if(!Number.isSafeInteger(firstAGateMs)||firstAGateMs<0||firstAGateMs>5000)
     throw new TypeError('Trusted test delay must be an integer from 0 to 5000');
@@ -146,12 +147,21 @@ async function main(){
       // transaction merely to receive its expected 403 denial. The legacy
       // mode reproduces the old global-lock path for a matched experiment.
       if(!legacyAnonymousLock&&principalOf(req)===null)return execute();
-      const worker=async()=>{
-        const principal=principalOf(req);
-        if(principal==='verified-A'&&firstAGateMs>0&&!firstAGateApplied){
+      /**
+       * Trust-only preparation is explicitly state-independent. Regardless
+       * of placement, the actual authorization checks, state admission and
+       * private work remain within the writer transaction scope.
+       * @returns {Promise<void>}
+       */
+      const gate=async()=>{
+        if(principalOf(req)==='verified-A'&&firstAGateMs>0&&!firstAGateApplied){
           firstAGateApplied=true;
           await new Promise(resolve=>setTimeout(resolve,firstAGateMs));
         }
+      };
+      const worker=async()=>{
+        const principal=principalOf(req);
+        if(!earlyAGate)await gate();
         const store=storeOf(principal??'verified-A');
         store.begin();
         try{
@@ -161,7 +171,10 @@ async function main(){
         }
       };
       return nestedAccountQuota?
-        perPrincipalIsolate(req,()=>perWriterIsolate(req,worker)):
+        perPrincipalIsolate(req,async()=>{
+          if(earlyAGate)await gate();
+          return perWriterIsolate(req,worker);
+        }):
         isolate(req,worker);
     },
     remoteMethods:{
