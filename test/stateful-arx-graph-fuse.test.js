@@ -95,6 +95,9 @@ test('frozen real three-file app preserves 12,288 record callbacks, state and Un
     const payload='🎸'.repeat(40000)+'\ud800';
     assert.deepEqual(observed(candidate.runScenario,1,[{kind:'long',payload}]),
       observed(native.runScenario,1,[{kind:'long',payload}]));
+    const veryLong='🎸'.repeat(4300000);
+    assert.deepEqual(observed(candidate.runScenario,-1,[{kind:'over16MiB',payload:veryLong}]),
+      observed(native.runScenario,-1,[{kind:'over16MiB',payload:veryLong}]));
   } finally {await native.dispose();await candidate.dispose();}
 });
 

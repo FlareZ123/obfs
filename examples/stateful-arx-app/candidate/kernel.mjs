@@ -17,6 +17,7 @@ let view;
  * @returns {void}
  */
 export function advanceBatch(words,message,serial){
+  if(!message.length)return;
   if(!mix){
     const instance=new WebAssembly.Instance(new WebAssembly.Module(bytes));
     mix=/** @type {NonNullable<typeof mix>} */ (
@@ -25,20 +26,17 @@ export function advanceBatch(words,message,serial){
       /** @type {unknown} */(instance.exports.memory));
     view=new DataView(memory.buffer);
   }
-  const currentMemory=/** @type {WebAssembly.Memory} */(memory);
-  let currentView=/** @type {DataView} */(view);
+  const currentView=/** @type {DataView} */(view);
   const inputPointer=0x4000;
-  const needed=inputPointer+message.length*2;
-  if(needed>currentMemory.buffer.byteLength){
-    currentMemory.grow(Math.ceil((needed-currentMemory.buffer.byteLength)/65536));
-    currentView=new DataView(currentMemory.buffer);
-    view=currentView;
-  }
-  for(let index=0;index<message.length;index++){
-    currentView.setUint16(inputPointer+2*index,message.charCodeAt(index),true);
-  }
-  mix(words[0],words[1],words[2],words[3],inputPointer,message.length,serial);
-  for(let index=0;index<4;index++){
-    words[index]=currentView.getUint32(0x400+4*index,true);
+  const batchUnits=16384;
+  for(let start=0;start<message.length;start+=batchUnits){
+    const count=Math.min(batchUnits,message.length-start);
+    for(let index=0;index<count;index++){
+      currentView.setUint16(inputPointer+2*index,message.charCodeAt(start+index),true);
+    }
+    mix(words[0],words[1],words[2],words[3],inputPointer,count,serial+start);
+    for(let index=0;index<4;index++){
+      words[index]=currentView.getUint32(0x400+4*index,true);
+    }
   }
 }
