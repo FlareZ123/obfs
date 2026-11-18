@@ -58,6 +58,32 @@ test('SCO deadline releases reservation and never runs a late principal result',
   }
 });
 
+test('SCO cached asynchronous principals settle without deadline expiration',async()=>{
+  let effects=0;
+  const verified=createScoKeyedIsolation(async()=> 'cached',{
+    maxPendingTotal:1,maxPrincipalResolutionMs:1
+  });
+  await verified(requestFor(),async()=>{effects++;});
+  assert.equal(effects,1);
+  const rejected=createScoKeyedIsolation(()=>Promise.reject(
+    Error('identity-provider-rejection')),{maxPendingTotal:1,maxPrincipalResolutionMs:1});
+  await assert.rejects(rejected(requestFor(),async()=>{effects++;}),
+    /identity-provider-rejection/);
+  assert.equal(effects,1);
+  // Late failure after a timed-out lookup must have an attached rejection
+  // handler and must not execute an operation or strand global capacity.
+  const delayed=gate();
+  const expired=createScoKeyedIsolation(async()=>{
+    await delayed.promise;
+    throw Error('late-identity-provider-rejection');
+  },{maxPendingTotal:1,maxPrincipalResolutionMs:10});
+  await assert.rejects(expired(requestFor(),async()=>{effects++;}),
+    ScoIsolationBusyError);
+  delayed.resolve();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(effects,1);
+});
+
 test('SCO deadline covers principal resolution only, not protected execution',{
   timeout:10000
 },async()=>{
