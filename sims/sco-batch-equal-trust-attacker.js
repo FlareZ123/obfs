@@ -6,6 +6,8 @@ const http=require('node:http');
 const path=require('node:path');
 const {createHash,randomBytes,timingSafeEqual}=require('node:crypto');
 const {pathToFileURL}=require('node:url');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
 const {transformSync}=require('esbuild');
 const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('../src');
 const {ROOT,EXPOSED,build}=require('../examples/application-challenge/sco-build.cjs');
@@ -139,6 +141,56 @@ async function traceAndRelay(source,origin,token,variant){
 }
 
 /**
+ * Create the exact browser attack script for the two same-origin public
+ * clients. Browser-held session credentials are HttpOnly cookies, which
+ * same-origin fetch sends without exposing their values to the script.
+ * The hostile page instruments fetch once for each public module, extracts
+ * the actual wire method IDs, and invokes the same privileged RPC directly.
+ * @param {Array<readonly [number,number]>} inputs
+ * @returns {string}
+ */
+function browserAttackerSource(inputs){
+  return [
+    'const inputs='+JSON.stringify(inputs)+';',
+    'const output=document.getElementById("out");',
+    'async function trace(url){',
+    'let wire;',
+    'const realFetch=globalThis.fetch.bind(globalThis);',
+    'globalThis.fetch=(input,init)=>{',
+    'if(new URL(String(input),location.href).pathname==="/obfs/rpc"){',
+    'if(wire)throw Error("More than one discovery request");',
+    'wire=JSON.parse(String(init.body));',
+    '}return realFetch(input,init);};',
+    'try{const client=await import(url);',
+    'const reply=await client.batch([{name:"evaluateRemote",args:[0x12345678,1]}]);',
+    'if(reply.length!==1||reply[0].ok!==true)throw Error("Discovery failed");',
+    '}finally{globalThis.fetch=realFetch;}',
+    'if(!wire||wire.args.length!==1||wire.args[0].length!==1)',
+    'throw Error("Missing one actual batch wire envelope");',
+    'const inner=wire.args[0][0].method;',
+    'const response=await realFetch("/obfs/rpc",{method:"POST",',
+    'credentials:"same-origin",headers:{"content-type":"application/json"},',
+    'body:JSON.stringify({method:wire.method,args:[',
+    'inputs.map(([seed,count])=>({method:inner,args:[seed,count]}))]})});',
+    'if(response.status!==200)throw Error("Direct replay refused "+response.status);',
+    'const payload=await response.json();',
+    'if(!payload.ok||payload.value.length!==inputs.length||',
+    'payload.value.some(item=>!item.ok))throw Error("Unexpected replay output");',
+    'return payload.value.map(item=>item.value);}',
+    'try{',
+    'const generated=await trace("/obfs/sco-before/api.mjs");',
+    'const ordinary=await trace("/obfs/minified.mjs");',
+    'if(JSON.stringify(generated)!==JSON.stringify(ordinary))',
+    'throw Error("Different direct replay outputs");',
+    'const data=new TextEncoder().encode(JSON.stringify(generated));',
+    'const hash=await crypto.subtle.digest("SHA-256",data);',
+    'const digest=[...new Uint8Array(hash)].map(b=>b.toString(16).padStart(2,"0")).join("");',
+    'output.textContent=digest+"|"+generated.length+"|"+ordinary.length;',
+    '}catch(error){output.textContent="FAIL:"+String(error);}'
+  ].join('\n');
+}
+
+/**
  * Compare the actual compiler-generated facade and an equal-trust ordinary
  * esbuild-minified ESM RPC client. Both share exactly the same original
  * server-only ESM implementation, credential and authorization handler.
@@ -148,10 +200,12 @@ async function traceAndRelay(source,origin,token,variant){
  *  generated:{sourceSha256:string,sourceBytes:number,cloned:number},
  *  ordinaryMinified:{sourceSha256:string,sourceBytes:number,cloned:number},
  *  heldoutOutputsMatched:boolean,oneObservedWireBatchPerVariant:boolean,
+ *  chromium:{executed:boolean,heldoutCount:number,cookieHttpOnly:boolean}|null,
  *  limitation:string
  * }>}
+ * @param {boolean} [browser] Run an additional actual Chromium client attack.
  */
-async function run(){
+async function run(browser=false){
   const beforeWindow=globalThis.window;
   /** @type {http.Server|undefined} */
   let server;
@@ -181,10 +235,17 @@ async function run(){
     const expectedToken=Buffer.from(bearer,'utf8');
     /** @param {http.IncomingMessage} req @returns {boolean} */
     function authorized(req){
+      if(browser&&req.headers.cookie==='session='+bearer)return true;
       const actual=Buffer.from(String(req.headers['x-batch-token']??''),'utf8');
       return actual.length===expectedToken.length&&
         timingSafeEqual(actual,expectedToken);
     }
+    const browserInputs=Array.from({length:32},(_,index)=>
+      /** @type {readonly [number,number]} */ ([heldoutSeed(index),1000]));
+    const browserScript=browserAttackerSource(browserInputs);
+    const browserPage='<!doctype html><html><head><meta charset="utf-8"></head>'+
+      '<body><pre id="out">pending</pre>'+
+      '<script type="module" src="/browser-app.mjs"></script></body></html>';
     const originalHandler=createScoHandler([partition.clientFile],{
       publicPaths:[EXPOSED],remoteMethods:registry,maxRpcBytes:262144,
       authorizeRead:authorized,authorizeRpc:authorized,
@@ -214,6 +275,23 @@ async function run(){
       }
     });
     server=http.createServer((request,response)=>{
+      if(browser&&request.method==='GET'&&request.url==='/'){
+        response.writeHead(200,{
+          'content-type':'text/html; charset=utf-8',
+          'cache-control':'no-store',
+          'set-cookie':'session='+bearer+'; Path=/; HttpOnly; SameSite=Strict',
+          'content-security-policy':"default-src 'none'; script-src 'self'; connect-src 'self'",
+          'x-content-type-options':'nosniff'
+        });
+        response.end(browserPage);return;
+      }
+      if(browser&&request.method==='GET'&&request.url==='/browser-app.mjs'){
+        response.writeHead(200,{
+          'content-type':'text/javascript; charset=utf-8',
+          'cache-control':'no-store','x-content-type-options':'nosniff'
+        });
+        response.end(browserScript);return;
+      }
       if(request.method==='GET'&&request.url==='/obfs/minified.mjs'){
         if(!authorized(request)){
           response.writeHead(403);response.end();return;
@@ -257,6 +335,20 @@ async function run(){
     const expectedJson=JSON.stringify(baseline);
     assert.equal(JSON.stringify(generatedAttack.outputs),expectedJson);
     assert.equal(JSON.stringify(minifierAttack.outputs),expectedJson);
+    /** @type {{executed:boolean,heldoutCount:number,cookieHttpOnly:boolean}|null} */
+    let chromium=null;
+    if(browser){
+      const nativeDigest=createHash('sha256').update(expectedJson).digest('hex');
+      const {stdout}=await promisify(execFile)(process.env.CHROMIUM_BIN??'google-chrome',[
+        '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
+        '--no-first-run','--virtual-time-budget=12000','--dump-dom',origin+'/'
+      ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
+      const result=stdout.match(/<pre id="out">([^<]+)<\/pre>/u)?.[1];
+      assert.equal(result,nativeDigest+'|32|32',
+        'Live Chromium same-origin cookie/online relay differs: '+
+        stdout.slice(-2000));
+      chromium={executed:true,heldoutCount:32,cookieHttpOnly:true};
+    }
     return {
       source:'sims/sco-batch-equal-trust-attacker.js',
       platform:process.platform,node:process.version,
@@ -268,7 +360,7 @@ async function run(){
         sourceSha256:minifierAttack.sourceSha256,
         sourceBytes:minifierAttack.sourceBytes,cloned:minifierAttack.cloned
       },
-      heldoutOutputsMatched:true,oneObservedWireBatchPerVariant:true,
+      heldoutOutputsMatched:true,oneObservedWireBatchPerVariant:true,chromium,
       limitation:'Attacker controls a credentialed client and observes one real outgoing batch before direct replay. This establishes bounded online-relay equivalence for two matched-trust frontends, not private source extraction or full JavaScript semantic equivalence.'
     };
   }finally{
@@ -281,10 +373,10 @@ async function run(){
     else globalThis.window=beforeWindow;
   }
 }
-if(require.main===module)run().then(value=>{
+if(require.main===module)run(process.argv.includes('--browser')).then(value=>{
   process.stdout.write('SCO_BATCH_EQUAL_TRUST '+JSON.stringify(value)+'\n');
 }).catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
   process.exitCode=1;
 });
-module.exports={run,traceAndRelay,ordinaryMinifiedClient};
+module.exports={run,traceAndRelay,ordinaryMinifiedClient,browserAttackerSource};
