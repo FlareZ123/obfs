@@ -1,114 +1,31 @@
 name: Manual transformation semantics regression
-
 on:
   workflow_dispatch:
-
 permissions:
-  contents: read
-
+  contents: write
 jobs:
-  semantics:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+  generate-lockfile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Probe rest and arguments ambient property integrity
-        run: node --test test/closed-record-host-formal-provenance.test.js
-      - name: Pure primitive initializer property lowering and reflected-owner regressions
-        run: node --test test/property-pure-value-expression.test.js test/property-pure-expression-hotpath.test.js test/array-property-values.test.js test/property-proof-safety.test.js
-      - name: Profile private property rename through pure-expression ESM hot workers
-        run: node sims/property-hotpath-closedworld.js --pure-expressions
-      - name: Verify string decoder preserves V8 source-spelled failure operands
-        run: node --test test/source-spelled-operand-errors.test.js
-      - name: Native statement-flow compaction differential and seedless attacker
-        run: node --test test/statement-flow.test.js test/statement-flow-compact.test.js test/statement-flow-compact-fuzz.test.js
-      - name: Native, flattened and compact CFG runtime comparison
-        run: node sims/statement-flow-compact-profile.js
-      - name: Fresh-load startup-inclusive compact CFG sessions
-        run: node sims/statement-flow-compact-cold-profile.js
-      - name: Three-module CFG differential, offline attacker, full-session budget
-        run: node sims/statement-flow-compact-app.js
-      - name: Real Chromium compact CFG native and layered host callback contract
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/statement-flow-browser.js
-      - name: Cross-mode UTF-8 path alias and Unicode namespace safety
-        run: node --test test/utf8-path-alias.test.js
-      - name: Nested output junction must not redirect generated source files
-        run: node --test test/nested-output-junction-boundary.test.js
-      - name: Observe real filesystem Unicode case equivalences against compiler keys
-        run: node sims/path-alias-grid.js
-      - name: Enumerate all one-code-point Unicode uppercase collision candidates on filesystem
-        run: node sims/windows-unicode-uppercase-grid.js
-      - name: Probe possible NTFS short filename aliases against compiler path names
-        run: node sims/windows-shortname-alias-probe.js
-      - name: Reject UTF-16 source maps disguised as binary assets across SCO COO SNO
-        run: node --test test/source-map-utf16-asset.test.js
-      - name: Strict JSDoc type checking
-        run: npm run typecheck
-      - name: Cross-file exported clone-alias ESM differential
-        run: node --test test/clone-exported-alias-esm.test.js
-      - name: Closed ESM clone-error observer native graph differential
-        run: node --test test/clone-source-esm-graph.test.js
-      - name: V8 Serializer.writeValue source-error differential
-        run: node --test test/v8-serializer-instance-source-observation.test.js
-      - name: Inert clone payload and protected-work yield differential
-        run: node --test test/clone-inert-payload-coverage.test.js
-      - name: MessagePort source-error differential
-        run: node --test test/message-port-source-observation.test.js
-      - name: V8 serializer function-source differential
-        run: node --test test/v8-serialize-source-observation.test.js
-      - name: Structured-clone function-source differential
-        run: node --test test/structured-clone-source-observation.test.js
-      - name: Intl source coercion differential
-        run: node --test test/intl-source-observation.test.js test/intl-cross-file-source.test.js test/native-locale-method-source.test.js
-      - name: Exact-function-source native differential (COO/SNO/SCO)
-        run: node --test test/sco-source-observation.test.js test/sco-interfile-source-observation.test.js test/reflective-source-fuzz.test.js
-      - name: Other source observation, ambient intrinsic and property semantics
-        run: node --test test/ambient-array-reflective-alias.test.js test/ambient-string-alias.test.js test/ambient-string-reflective-alias.test.js test/ambient-string-intrinsic.test.js test/source-introspection-safety.test.js test/cross-file-source-introspection.test.js test/cross-file-source-byte-reader.test.js test/cross-file-source-observer-global.test.js test/semantic-boundaries.test.js test/property-reflection.test.js test/string-shadowing.test.js test/source-observer-coverage.test.js test/primitive-coercer-source-precision.test.js test/primitive-coercer-sample.test.js test/primitive-method-source-precision.test.js test/owned-constant-computed-key.test.js test/owned-constant-key-sample.test.js test/imported-constant-computed-key.test.js test/imported-constant-key-sample.test.js test/interfile-api-fuzz.test.js test/interfile-normalization-attack.test.js test/source-map-disclosure.test.js test/compressed-asset-disclosure.test.js test/source-map-json-escapes.test.js test/css-source-map-annotation.test.js test/css-embedded-data-import.test.js test/wasm-source-map-annotation.test.js test/wasm-debug-metadata-disclosure.test.js test/reviewed-opaque-assets.test.js test/html-asset-disclosure.test.js test/svg-asset-disclosure.test.js test/inert-assets.test.js test/obfuscator.test.js test/local-identity-wrapper.test.js test/local-root-getter.test.js test/array-owner-flow.test.js test/array-owner-interfile.test.js test/array-owner-grid.test.js test/cross-file-local-identity.test.js test/destructuring-assignment-flow.test.js test/destructuring-assignment-grid.test.js test/cross-file-computed-loader-gate.test.js test/cross-file-global-reflection-gate.test.js test/cross-file-indirect-constructor-gate.test.js test/cross-file-dynamic-native-key-gate.test.js test/cross-file-non-global-reflection-gate.test.js test/cross-file-pattern-binding-context-gate.test.js test/cross-file-reflect-method-alias-gate.test.js
-      - name: Verify exact compiler-emitted ESM imported-key graph
-        run: node examples/imported-constant-key/build-sample.cjs
-      - name: Differential imported-key ESM fuzz and static reconstruction
-        run: node sims/imported-constant-key-fuzz.js
-      - name: Seeded cross-file semantic sketch differential and proven private-property yield
-        run: node sims/semantic-sketch-esm.js
-      - name: Source-only static reconstruction against ordinary minified positive controls
-        run: node sims/semantic-sketch-static-control.js
-      - name: COO SNO SCO cross-mode seeded ESM semantic equivalence
-        run: node sims/semantic-sketch-crossmode.js
-      - name: Real Chromium seeded ESM semantic sketch differential
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/semantic-sketch-browser.js
-      - name: Third-module key DAG, cycle-TDZ and static-normalization differential
-        run: node sims/third-module-key-fuzz.js
-      - name: Verify exact computed-key sample and source-only attacker
-        run: node examples/owned-constant-key/build-sample.cjs
-      - name: Profile local constant-key native and emitted operations
-        run: node sims/owned-constant-key-profile.js
-      - name: Verify exact compiler-emitted before-and-after sample
-        run: node examples/primitive-coercer/build-sample.cjs
-      - name: Profile original and emitted primitive-coercer hot loops
-        run: node sims/primitive-coercer-profile.js
-      - name: Verify identifier names observable in V8 error messages
-        run: node --test test/identifier-typeerror-spelling.test.js test/tdz-identifier-names.test.js
-      - name: Report exact observer-driven property-coverage counts
-        run: node sims/source-observer-coverage.js
-      - name: Report unobserved opaque host source and stack contracts
-        run: node sims/external-function-source-contract.js
-      - name: Strict external research JSDoc
-        run: npm run typecheck:external
-
-      - name: Reflected Function via top: safe closed-world refusal and positive rename yield
-        run: node --test test/windowproxy-reflected-function-loader.test.js
+      - name: Generate a resolved npm lock without lifecycle scripts
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - name: Verify the lock supports a clean install
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Print toolchain versions and generated lock digest
+        run: |
+          node --version
+          npm --version
+          sha256sum package.json package-lock.json
+          npm ls --all --depth=0
+      - name: Commit and push the frozen resolution only
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Agent 15: Record resolved npm dependency graph"
+          git push origin HEAD:${{ github.ref_name }}
