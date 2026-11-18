@@ -29,11 +29,11 @@ async function firstUseCurve(pairs=48){
   const observations=[];
   try{
     for(const codeUnits of [52,512,4096]){
-      const value='A\\u0000\\ud800\\u2603Z0123456789'.repeat(Math.ceil(codeUnits/15)).slice(0,codeUnits);
+      const value='A\u0000\ud800\u2603Z0123456789'.repeat(Math.ceil(codeUnits/15)).slice(0,codeUnits);
       assert.equal(value.length,codeUnits);
-      const consumer='import {factor} from "./constants.mjs";\\n'+
-        'export function message(){return '+JSON.stringify(value)+';}\\n';
-      const donor='export const factor=7;\\n';
+      const consumer='import {factor} from "./constants.mjs";\n'+
+        'export function message(){return '+JSON.stringify(value)+';}\n';
+      const donor='export const factor=7;\n';
       const generated=piggybackShards({
         consumer:{path:'app.mjs',code:consumer,sourceType:'module'},
         donor:{path:'constants.mjs',code:donor,sourceType:'module'}
