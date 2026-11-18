@@ -27,3 +27,5 @@ jobs:
           npm run typecheck:external
       - name: Real server-resident private worker vs main-thread SCO A/B challenge
         run: node sims/sco-ratchet-worker-http-contention.js
+      - name: Deny stale/replayed/unauthorized private worker requests and preserve independent principal
+        run: node sims/sco-ratchet-worker-policy.js
