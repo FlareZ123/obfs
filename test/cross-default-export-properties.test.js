@@ -193,3 +193,41 @@ test('later same-producer key initialization is outside cyclic-safe default proo
   ];
   await compileAndCompare(files,0);
 });
+
+
+test('anonymous default IIFE object factory retains cross-file field proof',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export default (()=>({secretField:53}))();'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state from "./state.mjs";console.log(state.secretField);'}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('single-use named default object factory retains cross-file field proof',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'function make(){return {secretField:59};}',
+      'export default make();'
+    ].join('\n')},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state from "./state.mjs";console.log(state.secretField);'}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('effectful default object factory remains outside the proof',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:[
+      'function make(){console.log("build");return {secretField:61};}',
+      'export default make();'
+    ].join('\n')},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state from "./state.mjs";console.log(state.secretField);'}
+  ];
+  await compileAndCompare(files,0);
+});
