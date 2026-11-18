@@ -138,6 +138,40 @@ JSDoc diagnostics, which this Git attribute does not address.
 A production review must pin actual distributed file bytes, not assume
 that a repository text blob hashes identically after cross-platform checkout.
 
+## Pinned fully green targeted gate and deterministic adversarial corpus
+
+The later [two-platform run 44289772836](https://github.com/FlareZ123/obfs/actions/runs/44289772836)
+at exact source `a5f07315523dcd2ed4e1f6c93c274b62212c904b`
+supersedes the earlier red overall CI statuses for this narrowly scoped
+research lane. All jobs completed **green** on Ubuntu and Windows:
+18 reviewed-asset hand-written cases, 8 real three-mode CLI cases,
+the full runnable cross-platform example, four historical
+old-accept/current-reject attack controls, the new seeded adversarial
+corpus, and both strict JSDoc gates.
+
+The seed-pinned
+[`test/reviewed-opaque-manifest-fuzz.test.js`](../test/reviewed-opaque-manifest-fuzz.test.js)
+uses xorshift32 seeds `0x25a551e` and `0x25fe11e` and covers 256
+unique indexed asset inventories (2–13 assets each) under exact
+acceptance, stale data, duplicate/missing published path, unapproved
+published path, unused approval, case mismatch, injected manifest
+iterator and injected published-file iterator. A second 128-case
+sample checks that both approval records and published-file record
+accessors are evaluated exactly once per entry. All 384 seeded
+corpora completed without a discrepancy. The compiler emits no extra
+obfuscated instructions for this admission layer, so a stronger
+runtime-budget conclusion would be unjustified.
+
+The strict external JSDoc failures previously reported in the
+SCO test files were fixed by a concurrent Agent 1 source integration
+at `9c3a1a119`, present in the green targeted source pin.
+The [18 November Critic decision](../communications/broadcast/2026-11-18T1050Z_critic_artifact-freeze-before-security-candidate.md)
+distinguishes source-pinned compatibility from byte-frozen executable
+attacker trials. This asset review work is a trusted-build consistency
+improvement, not a nominated obfuscation-security candidate.
+The release-blocked security assessment in `results/README.md`
+remains unchanged.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
