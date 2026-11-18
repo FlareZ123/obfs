@@ -2503,6 +2503,129 @@ function renameCrossFileProperties(files,seed) {
       }
     }
   }
+
+  // An anonymous default object export has no local owner binding to escape
+  // inside its producer. Closed-world direct default imports can therefore use
+  // the same consumer ownership proof as named exported objects. Namespace
+  // imports and source reexports are declined because they create additional
+  // access paths to the default value that this narrow lane does not rewrite.
+  for(const [exporterName,exporter] of modules) {
+    const defaults=exporter.ast.body.filter(statement=>
+      statement.type==='ExportDefaultDeclaration' &&
+      statement.declaration?.type==='ObjectExpression');
+    if(defaults.length!==1)continue;
+    const declaration=defaults[0];
+    const literal=declaration.declaration;
+    /** @type {AstNode[]} */
+    const props=literal.properties;
+    if(!props.length || props.some(prop=>
+      prop.type!=='Property' || prop.method || prop.shorthand ||
+      prop.kind!=='init' || !isLiteralValue(prop.value) ||
+      !ownPropertyName(prop) ||
+      ['__proto__','constructor','prototype'].includes(String(ownPropertyName(prop)))))continue;
+    const names=props.map(ownPropertyName);
+    if(new Set(names).size!==names.length)continue;
+
+    /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
+    const users=[];
+    let failed=false;
+    for(const [importerName,importer] of modules) {
+      /** @type {string[]} */
+      const aliases=[];
+      for(const statement of importer.ast.body) {
+        const source=statement.source;
+        if(!source || source.type!=='Literal' ||
+           typeof source.value!=='string' ||
+           resolveImport(importerName,source.value)!==exporterName)continue;
+        if(statement.type==='ExportAllDeclaration' ||
+           statement.type==='ExportNamedDeclaration') {
+          failed=true;
+          break;
+        }
+        if(statement.type!=='ImportDeclaration')continue;
+        for(const spec of statement.specifiers) {
+          if(spec.type==='ImportNamespaceSpecifier') {
+            failed=true;
+            break;
+          }
+          const defaultImport=spec.type==='ImportDefaultSpecifier' ||
+            spec.type==='ImportSpecifier' &&
+            (spec.imported.name??spec.imported.value)==='default';
+          if(!defaultImport)continue;
+          if(importer.bindings.get(spec.local.name)!==1) {
+            failed=true;
+            break;
+          }
+          aliases.push(spec.local.name);
+        }
+        if(failed)break;
+      }
+      if(failed)break;
+      for(const alias of aliases) {
+        const proof=proveLocalObject(importer.ast,alias,importer.bindings,
+          importedIdentities.get(importerName),undefined,undefined,
+          verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
+        if(!proof) {
+          failed=true;
+          break;
+        }
+        users.push({
+          file:importerName,
+          source:/** @type {string} */ (importer.file.code),
+          proof
+        });
+      }
+      if(failed)break;
+    }
+    if(failed || !users.length)continue;
+
+    const ownNames=new Set(names);
+    if(users.some(user=>
+      user.proof.members.some(member=>{
+        const field=user.proof.memberNames.get(member);
+        return typeof field!=='string'||!ownNames.has(field);
+      }) ||
+      user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+      user.proof.inChecks.some(check=>!ownNames.has(check.left.value))))continue;
+
+    const mapping=new Map();
+    for(const prop of props) {
+      const old=ownPropertyName(prop);
+      const token=createHash('sha256').update(
+        seed+'/'+exporterName+'/default/'+old).digest('hex').slice(0,12);
+      mapping.set(old,'_p'+token);
+    }
+    if(new Set(mapping.values()).size!==mapping.size)continue;
+
+    for(const prop of props) {
+      add(exporterName,{
+        start:prop.key.start,
+        end:prop.key.end,
+        text:JSON.stringify(mapping.get(ownPropertyName(prop)))
+      });
+    }
+    for(const user of users) {
+      for(const member of user.proof.members) {
+        const old=user.proof.memberNames.get(member);
+        if(old!==undefined && mapping.has(old)) {
+          add(user.file,{
+            start:member.property.start,
+            end:member.property.end,
+            text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)
+          });
+        }
+      }
+      for(const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+        add(user.file,edit);
+      }
+      for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
+        add(user.file,edit);
+      }
+    }
+    objects++;
+    properties+=mapping.size;
+  }
+
   return {files:files.map(f => {
     const edits=allEdits.get(f.path);
     if(!edits) return f;
