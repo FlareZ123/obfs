@@ -75,7 +75,10 @@ test('copied process.report methods preserve source coordinates',()=>{
   const expressions=[
     '(()=>{const {...copy}=process.report;return copy.getReport();})()',
     '(()=>{const copy={...process.report};return copy.getReport();})()',
-    '(()=>{const copy=Object.assign({},process.report);return copy.getReport();})()'
+    '(()=>{const copy=Object.assign({},process.report);return copy.getReport();})()',
+    '(()=>{const box={fn:process.report.getReport};return box.fn();})()',
+    '(()=>{const [fn]=[process.report.getReport];return fn();})()',
+    "(()=>{const fn=Reflect.get(process.report,'getReport');return fn();})()"
   ];
   for(const [index,expression] of expressions.entries())
     mustPreserveProcessReport(expression,'agent1-process-report-copy-'+index);
