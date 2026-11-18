@@ -74,6 +74,25 @@ The generator source explains the duplication: it creates the random permutation
 
 The committed corpus does not contain ten independently randomized solver instances per configuration. Any analysis that treats those ten paths as independent samples would overstate sample size. The relation between this committed corpus and the paper's final reported runs remains to be established.
 
+## Finding 4: the shipped coreutils predicate loses Windows backslash semantics
+
+The author repository's `real-world/filename.h` includes the original Windows-family macro in a comment:
+
+`ISSLASH(C) ((C) == '/' || (C) == '\\')`
+
+Its replacement applies one fixed 48-round unsigned MBA chain and returns equality with one target constant, `14887200154472500695ULL`.
+
+The executable witness `sims/mba-author-coreutils-static-recovery.js` applies the frozen inverse to that public target and recovers decimal 47, the character `'/'`. Forward evaluation confirms:
+
+- `'/'` reaches the public target and is accepted.
+- `'\\'` (decimal 92) reaches `0x3877d6f4bd813901` and is rejected.
+
+The public target therefore reveals the protected separator immediately under the structural inverse, and the replacement does not preserve the original Windows/Cygwin/OS2/DOS predicate's two accepted characters.
+
+### Interpretation
+
+This is a concrete 1:1 behavior-preservation failure in the public real-world artifact, independent of solver difficulty. It also demonstrates that the component inverse applies directly to a shipped application example rather than only to synthetic held-out chains.
+
 ## Current decision for obfs
 
 Do not adopt the construction as a security primitive on the strength of symbolic-execution timeout claims alone.
