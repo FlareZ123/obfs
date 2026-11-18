@@ -21,13 +21,15 @@ async function main(){
   const tokenB=process.env.SCO_TEST_TOKEN_B;
   const control=process.env.SCO_TEST_CONTROL;
   const legacyAnonymousLock=process.env.SCO_TEST_LEGACY_UNAUTH_LOCK==='1';
+  const journalModeRetries=process.env.SCO_TEST_NO_JOURNAL_RETRY==='1'?0:4;
   if(!databasePath||!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)||
     !tokenA||!/^[a-f0-9]{64}$/u.test(tokenA)||
     !tokenB||!/^[a-f0-9]{64}$/u.test(tokenB)||
     !control||!/^[a-f0-9]{64}$/u.test(control)){
     throw new TypeError('Trusted test server configuration missing');
   }
-  const store=new TransactionalRatchet(databasePath,Buffer.from(rootHex,'hex'));
+  const store=new TransactionalRatchet(databasePath,Buffer.from(rootHex,'hex'),
+    {journalModeRetries});
   const contexts=new AsyncLocalStorage();
   /** @param {IncomingMessage} req @returns {string|null} */
   function principalOf(req){
