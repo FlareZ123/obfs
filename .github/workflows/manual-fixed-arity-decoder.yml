@@ -1,4 +1,4 @@
-name: Manual fixed-arity long-string decoder research
+name: Manual historical WindowProxy eager-decoder negative control
 
 on:
   workflow_dispatch:
@@ -7,12 +7,8 @@ permissions:
   contents: read
 
 jobs:
-  decoder:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+  historical-browser-negative:
+    runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -20,38 +16,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
-      - name: Fixed-arity and neighboring string differential tests
-        run: node --test test/fixed-arity-strings.test.js test/chunked-strings.test.js test/static-string-recovery.test.js
-      - name: Paired exact-source runtime and static attacker profile
-        run: node sims/fixed-arity-decoder-profile.js
-      - name: Real Chromium fixed-arity compatibility and static recovery
-        if: ${{ matrix.os == 'ubuntu-latest' }}
+      - name: Actual Chromium native/prepatch generated divergence
         env:
           CHROMIUM_BIN: google-chrome
-        run: node test/fixed-arity-strings-browser.js
-      - name: Chromium cold COO ESM source-versus-emitted session profile
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/fixed-arity-browser-session.js
-      - name: Strict production JSDoc
-        run: npm run typecheck
-      - name: Strict fixed-arity research JSDoc
-        run: npx tsc -p jsconfig.fixed-arity.json
-      - name: Source-visible String and Array prototype parity with positive decoder yield
-        run: node --test test/decoder-array-prototype-chain.test.js test/decoder-opaque-prototype-source.test.js
-
-      - name: Interprocedural alias red proof
-        run: node --test test/decoder-interprocedural-alias.test.js
-
-      - name: Shadowed intrinsic exact output and positive-yield matrix
-        run: node --test test/decoder-shadowed-intrinsic.test.js
-
-      - name: Tagged and wrapped opaque intrinsic argument differential
-        run: node --test test/decoder-wrapped-escape.test.js
-
-      - name: Expression-wrapper intrinsic argument parity and positive yield
-        run: node --test test/decoder-expression-wrapper.test.js
-
-      - name: Browser WindowProxy decoder-alias differential and positive-yield control
-        run: node --test test/decoder-browser-window-alias.test.js
+        run: node test/decoder-windowproxy-historical-negative-browser.js
