@@ -2504,18 +2504,21 @@ function renameCrossFileProperties(files,seed) {
     }
   }
 
-  // An anonymous default object export has no local owner binding to escape
+  // An anonymous default object export, including an already-proved pure
+  // single-use factory result, has no local owner binding to escape in its producer.
   // inside its producer. Closed-world direct default imports can therefore use
   // the same consumer ownership proof as named exported objects. Namespace
   // imports and source reexports are declined because they create additional
   // access paths to the default value that this narrow lane does not rewrite.
   for(const [exporterName,exporter] of modules) {
     const defaults=exporter.ast.body.filter((/** @type {AstNode} */ statement)=>
-      statement.type==='ExportDefaultDeclaration' &&
-      statement.declaration?.type==='ObjectExpression');
+      statement.type==='ExportDefaultDeclaration');
     if(defaults.length!==1)continue;
     const declaration=defaults[0];
-    const literal=declaration.declaration;
+    const expression=declaration.declaration;
+    const literal=expression.type==='ObjectExpression' ? expression :
+      singleUseFactoryObject(exporter.ast,exporter.bindings,expression);
+    if(!literal)continue;
     /** @type {AstNode[]} */
     const props=literal.properties;
     if(!props.length || props.some(prop=>
