@@ -153,6 +153,36 @@ function staticallyRequiredCommonJsTargets(files) {
 }
 
 /**
+ * Find supplied ESM modules reached by static relative imports or reexports.
+ * Exact module specifiers are used because ESM path resolution does not imply
+ * CommonJS-style extension probing.
+ * @param {(SourceFile & {sourceType:SourceType})[]} files
+ * @returns {Set<string>}
+ */
+function staticallyImportedEsmTargets(files) {
+  const known=new Set(files.filter(file=>file.sourceType==='module').map(file=>file.path));
+  const imported=new Set();
+  for(const file of files) {
+    if(file.sourceType!=='module'||typeof file.code!=='string')continue;
+    const ast=parse(file.code,'module');
+    for(const statement of ast.body??[]) {
+      if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)) {
+        continue;
+      }
+      const source=statement.source;
+      if(!source||source.type!=='Literal'||typeof source.value!=='string')continue;
+      const specifier=source.value;
+      if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+         /[?#%\\\\]/u.test(specifier))continue;
+      const target=path.posix.normalize(
+        path.posix.join(path.posix.dirname(file.path),specifier));
+      if(known.has(target))imported.add(target);
+    }
+  }
+  return imported;
+}
+
+/**
  * Detect direct writes that can replace String decoder methods or the Array
  * iterator consumed by chunked string spread. An imported ESM dependency executes before this file's
  * decoder, so a write anywhere in the supplied file group must disable that
@@ -160,9 +190,10 @@ function staticallyRequiredCommonJsTargets(files) {
  * outside this deliberately conservative syntactic check.
  * @param {import('./ast').AstNode} ast
  * @param {boolean} [rejectCommonJsExportEscape]
+ * @param {boolean} [rejectEsmExportEscape]
  * @returns {boolean}
  */
-function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
+function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // A supplied binding named Object, Reflect or Array may replace the
   // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
@@ -966,6 +997,29 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
        memberName(node)==='exports')return true;
     return node.object.type==='MemberExpression'&&isCommonJsExportTarget(node.object);
   }
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isSensitiveEsmExport(node) {
+    if(node.type==='ExportDefaultDeclaration') {
+      const declaration=node.declaration;
+      if(declaration.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier') {
+        return returnedSensitiveFunctions.has(declaration.id.name);
+      }
+      return containsDecoderIntrinsic(declaration);
+    }
+    if(node.type!=='ExportNamedDeclaration'||node.source)return false;
+    const declaration=node.declaration;
+    if(declaration?.type==='VariableDeclaration'&&declaration.declarations.some(
+      (/** @type {import('./ast').AstNode} */ item)=>
+        Boolean(item.init&&containsDecoderIntrinsic(item.init))))return true;
+    if(declaration?.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier'&&
+       returnedSensitiveFunctions.has(declaration.id.name))return true;
+    return (node.specifiers??[]).some(
+      (/** @type {import('./ast').AstNode} */ specifier)=>
+        specifier.local?.type==='Identifier'&&containsDecoderIntrinsic(specifier.local));
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
     if(isStringValue(node)||isStringPrototype(node))return true;
@@ -1054,6 +1108,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
        node.operator==='='&&isCommonJsExportTarget(node.left)&&
        containsDecoderIntrinsic(node.right)) {
+      mutated=true;
+      return;
+    }
+    if(rejectEsmExportEscape&&isSensitiveEsmExport(node)) {
       mutated=true;
       return;
     }
@@ -1314,6 +1372,8 @@ function obfuscateFiles(files, options = {}) {
   const reservedSources=[];
   const requiredCommonJsTargets=shouldEncodeStrings?
     staticallyRequiredCommonJsTargets(cross.files):new Set();
+  const importedEsmTargets=shouldEncodeStrings?
+    staticallyImportedEsmTargets(cross.files):new Set();
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
@@ -1326,7 +1386,8 @@ function obfuscateFiles(files, options = {}) {
         if (node.type==='Identifier') reservedNames.add(node.name);
       });
       reservedSources.push(input.code);
-      if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path)) ||
+      if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
+            importedEsmTargets.has(input.path)) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
