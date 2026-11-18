@@ -20,12 +20,20 @@ function send(message){
  * @returns {Promise<void>}
  */
 async function main(){
-  const [origin,token,signalPath,batchMethod,directMethod,seedText,countText]=
-    process.argv.slice(2);
-  assert.ok(origin&&token&&signalPath&&batchMethod&&directMethod);
+  const [origin,token,signalPath,batchMethod,directMethod,seedText,countText,
+    publicPath]=process.argv.slice(2);
+  assert.ok(origin&&token&&signalPath&&batchMethod&&directMethod&&publicPath);
   const seed=Number(seedText),count=Number(countText);
   assert.ok(Number.isInteger(seed)&&seed>=0&&seed<=0xffffffff);
   assert.ok(Number.isInteger(count)&&count>=0&&count<=1000);
+  // Both quiet and contended victim processes prewarm the real authenticated
+  // HTTP connection and Node fetch startup. The timed request then measures
+  // queue contention rather than a different proportion of client bootstrap.
+  const probe=await fetch(origin+'/obfs/'+publicPath,{
+    headers:{'x-batch-token':token}
+  });
+  assert.equal(probe.status,200);
+  await probe.arrayBuffer();
   send({phase:'ready'});
   await new Promise((resolve,reject)=>{
     const start=Date.now();
