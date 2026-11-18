@@ -22,7 +22,7 @@ The MIME mapping assumes the public file list contains the declared file types; 
 - Pinned **passed** [first HTTP test, 44246287135](https://github.com/FlareZ123/obfs/actions/runs/44246287135) on `1e0b09129c7ecb688532157dc2616ac96ae7a91b`.
 - Pinned **passed** [Chromium CSS/SVG/ESM browser test, 44246669474](https://github.com/FlareZ123/obfs/actions/runs/44246669474) on `0308b4b52ba6e0d978b220dd84838112b1a1d934`.
 - Pinned **passed** [Wasm streaming and asset browser test, 44247213568](https://github.com/FlareZ123/obfs/actions/runs/44247213568) on `2f6b1d5a2eeff757090e1c107959730b7118dca0`, including Ubuntu, Windows and actual Chromium.
-- The historical-wrong-MIME negative-control assertion added at `bb171aa7ce34d633cd4cb8c4f8a0b666fbdf5817` is awaiting its own pinned validation and should not be represented as part of the preceding green source.
+- The historical-wrong-MIME negative control committed at `bb171aa7ce34d633cd4cb8c4f8a0b666fbdf5817` passed the later two-OS [source-pinned asset gate 44248491213](https://github.com/FlareZ123/obfs/actions/runs/44248491213) at `2cf02ac9ac30330277b6dc8383aaad86e275b022`. That run also repeated the Chromium Wasm streaming parity test on Linux.
 
 ## Security and 2.5× interpretation
 
