@@ -28,20 +28,31 @@ class ScoIsolationBusyError extends Error {
  * running and waiting calls. Both limits default to unlimited.
  * A rejected request never enters a principal queue or executes private work.
  * FIFO applies after the asynchronous principal resolver has settled.
+ * An optional principal-resolution deadline rejects stalled asynchronous
+ * lookups and releases their global reservations. This cannot interrupt a
+ * synchronous blocked event loop or cancel the resolver's own I/O; a late
+ * resolver result is ignored and cannot execute protected work.
  *
  * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
- * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number}} [options]
+ * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number,maxPrincipalResolutionMs?:number}} [options]
  * @returns {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>}
  */
 function createScoKeyedIsolation(principalOf,options={}) {
   if(typeof principalOf!=='function')throw new TypeError('principalOf must be a function');
   const limit=options.maxPendingPerPrincipal??Infinity;
   const totalLimit=options.maxPendingTotal??Infinity;
+  const resolutionDeadline=options.maxPrincipalResolutionMs??Infinity;
   if(limit!==Infinity&&(!Number.isSafeInteger(limit)||limit<1)) {
     throw new TypeError('maxPendingPerPrincipal must be a positive safe integer');
   }
   if(totalLimit!==Infinity&&(!Number.isSafeInteger(totalLimit)||totalLimit<1)) {
     throw new TypeError('maxPendingTotal must be a positive safe integer');
+  }
+  // Node clamps longer setTimeout delays to 1ms. Refuse that surprising
+  // configuration rather than silently timing out immediately.
+  if(resolutionDeadline!==Infinity&&(!Number.isSafeInteger(resolutionDeadline)||
+     resolutionDeadline<1||resolutionDeadline>2147483647)) {
+    throw new TypeError('maxPrincipalResolutionMs must be 1..2147483647 milliseconds');
   }
   let totalPending=0;
   /** @type {Map<string,Promise<void>>} */
@@ -54,7 +65,24 @@ function createScoKeyedIsolation(principalOf,options={}) {
     if(totalPending>=totalLimit)throw new ScoIsolationBusyError();
     totalPending++;
     try{
-      const principal=await principalOf(request);
+      const resolving=principalOf(request);
+      let principal;
+      if(resolutionDeadline===Infinity){
+        principal=await resolving;
+      }else{
+        /** @type {NodeJS.Timeout|undefined} */
+        let timer;
+        try{
+          principal=await Promise.race([
+            Promise.resolve(resolving),
+            new Promise((_,reject)=>{
+              timer=setTimeout(()=>reject(new ScoIsolationBusyError()),resolutionDeadline);
+            })
+          ]);
+        }finally{
+          if(timer!==undefined)clearTimeout(timer);
+        }
+      }
       if(typeof principal!=='string'||principal.length<1||principal.length>256) {
         throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
       }
