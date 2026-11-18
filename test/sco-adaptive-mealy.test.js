@@ -50,7 +50,9 @@ function independentHeldout(initial,count){
 
 test('active public-query learner reproduces held-out stateful behavior for 4, 6, 8 and 12 hidden states',async()=>{
   let models=0,unseen=0,total=0;
-  for(const states of [4,6,8,12])for(let index=0;index<64;index++){
+  for(const states of [4,6,8,12]){
+    let stateCalls=0;
+    for(let index=0;index<64;index++){
     const hidden=makeVariableMachine((0x13579bdf+Math.imul(index,4567))>>>0,states);
     const {api,counts}=oracle(hidden);
     const found=await learnAdaptiveMealy(api,{maxStates:states,conformanceDepth:6,randomProbes:256});
@@ -66,7 +68,11 @@ test('active public-query learner reproduces held-out stateful behavior for 4, 6
       if(!training.has(JSON.stringify(word)))unseen++;
     }
     models++;
+    stateCalls+=found.requests+found.steps;
+    }
+    console.log('ADAPTIVE_STATE_SWEEP '+JSON.stringify({states,models:64,totalCalls:stateCalls}));
   }
+  console.log('ADAPTIVE_HELDOUT '+JSON.stringify({models,heldout:total,strictlyUnseen:unseen}));
   assert.equal(models,256);
   assert.ok(unseen>total/2,'Independent held-out words must not be mostly training repeats');
 });
@@ -89,6 +95,7 @@ test('matched exhaustive learner has higher public-call cost on sample six-state
     oldCalls+=old.requests;
     newCalls+=adaptive.requests+adaptive.steps;
   }
+  console.log('ADAPTIVE_MATCHED '+JSON.stringify({models:12,oldCalls,newCalls,ratio:newCalls/oldCalls}));
   assert.ok(newCalls<oldCalls,'adaptive='+newCalls+',exhaustive='+oldCalls);
 });
 
@@ -104,6 +111,7 @@ test('finite conformance probes remain explicitly unverified against a long-dela
   const withheld=Array.from({length:size-1},()=>0);
   const matches=JSON.stringify(privateTrace(found.machine,withheld))===
     JSON.stringify(privateTrace(delayed,withheld));
+  console.log('ADAPTIVE_DELAYED_WITNESS '+JSON.stringify({maxStates:size,learnedStates:found.machine.next.length,conformancePassed:found.conformancePassed,heldoutExact:matches}));
   assert.equal(typeof matches,'boolean');
   assert.equal(Object.hasOwn(found,'verifiedExact'),false);
   assert.equal(typeof found.conformancePassed,'boolean');
