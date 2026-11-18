@@ -103,7 +103,7 @@ if(require.main===module){
       for(const bytes of [0,8192]){
         results.push(await experiment(resolverKind,bytes,bytes?25000:250000));
         if(resolverKind==='async')results.push(
-          await experiment(resolverKind,bytes,bytes?25000:250000,7,true));
+          await experiment(resolverKind,bytes,bytes?25000:250000,21,true));
       }
     }
     process.stdout.write('OBFS_SCO_PRINCIPAL_DEADLINE_COST '+JSON.stringify({
