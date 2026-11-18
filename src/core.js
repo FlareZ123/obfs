@@ -464,6 +464,70 @@ function mutatesDecoderIntrinsic(ast) {
         if(!set.has(name)){set.add(name);discovered=true;}
       }
       /**
+       * Local synchronous functions may return an intrinsic through a direct
+       * return value or a named field of an object literal. Summaries are
+       * monotonic over aliases and declaration order; unresolved calls remain
+       * outside this deliberately limited interprocedural proof.
+       * @param {import('./ast').AstNode} value
+       * @returns {boolean}
+       */
+      function sensitiveReturnValue(value) {
+        return isStringPrototype(value)||isStringValue(value)||
+          isArrayPrototype(value)||isArrayValue(value)||
+          isObjectPrototype(value)||isObjectIntrinsic(value)||
+          isReflectIntrinsic(value)||isPossiblePrototype(value)||
+          isPossibleConstructor(value);
+      }
+      /**
+       * @param {string} name
+       * @param {string} key
+       */
+      function addReturnedField(name,key) {
+        let fields=returnedSensitiveFields.get(name);
+        if(!fields) {
+          fields=new Set();
+          returnedSensitiveFields.set(name,fields);
+        }
+        if(!fields.has(key)){fields.add(key);discovered=true;}
+      }
+      /**
+       * @param {string} name
+       * @param {import('./ast').AstNode} fn
+       */
+      function recordLocalReturns(name,fn) {
+        if(fn.async||fn.generator)return;
+        /** @type {import('./ast').AstNode[]} */
+        const returned=[];
+        if(fn.body.type==='BlockStatement') {
+          for(const stmt of fn.body.body) {
+            if(stmt.type==='ReturnStatement'&&stmt.argument)returned.push(stmt.argument);
+          }
+        } else returned.push(fn.body);
+        for(const value of returned) {
+          if(sensitiveReturnValue(value))add(returnedSensitiveFunctions,name);
+          if(value.type!=='ObjectExpression')continue;
+          for(const property of value.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key!==null&&sensitiveReturnValue(property.value))addReturnedField(name,key);
+          }
+        }
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+        recordLocalReturns(node.id.name,node);
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init&&(node.init.type==='FunctionExpression'||
+           node.init.type==='ArrowFunctionExpression')) {
+        recordLocalReturns(node.id.name,node.init);
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='Identifier'&&
+         (node.right.type==='FunctionExpression'||node.right.type==='ArrowFunctionExpression')) {
+        recordLocalReturns(node.left.name,node.right);
+      }
+      /**
        * A destructuring pattern can read Array.prototype's inherited
        * __proto__ getter, including with a computed unknown key. Preserve
        * a possible parent alias rather than allowing a later descriptor
@@ -526,6 +590,14 @@ function mutatesDecoderIntrinsic(ast) {
         recordPossibleConstructorPattern(node.id,node.init);
         recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
+          if(node.init.type==='Identifier') {
+            if(returnedSensitiveFunctions.has(node.init.name)) {
+              add(returnedSensitiveFunctions,node.id.name);
+            }
+            for(const key of returnedSensitiveFields.get(node.init.name)??[]) {
+              addReturnedField(node.id.name,key);
+            }
+          }
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isDocumentValue(node.init) ||
               node.init.type==='CallExpression' &&
@@ -570,6 +642,14 @@ function mutatesDecoderIntrinsic(ast) {
         recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
+        if(node.right.type==='Identifier') {
+          if(returnedSensitiveFunctions.has(node.right.name)) {
+            add(returnedSensitiveFunctions,node.left.name);
+          }
+          for(const key of returnedSensitiveFields.get(node.right.name)??[]) {
+            addReturnedField(node.left.name,key);
+          }
+        }
         if(isGlobal(node.right))add(globalNames,node.left.name);
         if(isDocumentValue(node.right) ||
             node.right.type==='CallExpression' &&
