@@ -56,9 +56,9 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * @property {number} [maxRpcBytes]
  * @property {boolean} [immutableBatchArgs] Opt-in read-only JSON argument contract
  *   for recognized batches with authorizeOperation: recursively freeze the
- *   parsed arguments shared by outer policy, inner policy, and private batch.
- *   This saves two JSON.parse calls. Private operations must not mutate args
- *   or rely on mutable/described property attributes. Off by default.
+ *   parsed arguments shared by inner policy and private batch. Keep the outer
+ *   policy on an independent parsed graph, preventing cross-policy identity
+ *   cache collisions. Saves one JSON.parse; off by default.
  * @property {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>} [runRpcIsolated]
  */
 
@@ -185,21 +185,21 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // The policy receives its own parsed JSON argument graph. A trusted
-    // authorizer may accidentally mutate its inputs; the private method
-    // must still execute the values admitted from the wire. Recognized
-    // batches additionally require a separate inner-policy graph so an
-    // outer-policy mutation cannot redirect their checked operations.
+    // The outer policy always receives its own parsed JSON argument graph.
+    // A read-only authorization callback may also cache input identities;
+    // sharing one object with inner policy callbacks can make an independent
+    // inner denial incorrectly inherit an outer authorization decision.
+    // Keep those phase identities disjoint even in the opt-in frozen mode.
     // Native JSON.parse preserves deep values, -0 and own "__proto__" keys.
     // Without an argument-aware policy, no additional parsing is required.
     const needsBatchViews=options.authorizeOperation &&
       getScoBatchCalls(task,args)!==null;
-    // Read-only contracts share the one parsed graph across the outer policy,
-    // inner policy and executor. Default policies retain independent views.
+    // Opt-in frozen inputs share only the inner-policy and executor graph.
+    // Outer authorization remains a distinct mutable policy-only view.
     const immutableBatch=needsBatchViews && options.immutableBatchArgs===true;
     if(immutableBatch)freezeJsonArguments(args);
     const policyArgs=options.authorizeOperation ?
-      (immutableBatch ? args : /** @type {unknown[]} */ (JSON.parse(jsonText).args)):null;
+      /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     const innerPolicyArgs=needsBatchViews ?
       (immutableBatch ? args : /** @type {unknown[]} */ (JSON.parse(jsonText).args)):null;
     // Route-aware, argument-aware authorization is an independent gate after
