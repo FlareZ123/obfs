@@ -2503,7 +2503,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // CacheStorage.add performs an implicit fetch; Cache.match().text()
   // exposes distributed JavaScript bytes to the caller.
   const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync',
-    'caches','CacheStorage']);
+    'caches','CacheStorage',
+    // Same-origin host HTML can preload a module as text/plain in a named
+    // iframe; Window.frames exposes that child Document's exact source body.
+    'frames']);
   const globals=new Set(['globalThis','window','self','global']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
