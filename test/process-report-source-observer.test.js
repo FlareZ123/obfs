@@ -302,7 +302,10 @@ test('automatic report configuration aliases conservatively preserve source',()=
     "(()=>{const mutate=Reflect.set;return mutate(process.report,'reportOnUncaughtException',true);})()",
     "(()=>{const mutate=Object.assign;return mutate(process.report,{reportOnFatalError:true});})()",
     "Reflect.apply(Reflect.set,Reflect,[process.report,'reportOnSignal',true])",
-    "Object.assign.call(Object,process.report,{reportOnUncaughtException:true})"
+    "Object.assign.call(Object,process.report,{reportOnUncaughtException:true})",
+    "(()=>{const {set}=Reflect;return set(process.report,'reportOnSignal',true);})()",
+    "(()=>{const {assign}=Object;return assign(process.report,{reportOnFatalError:true});})()",
+    "(()=>{const {assign=()=>null}=Object;return assign(process.report,{reportOnSignal:true});})()"
   ];
   for(const [index,mutation] of mutations.entries()) {
     const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
