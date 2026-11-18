@@ -2368,6 +2368,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   walk(ast,(node,parent,key)=>{
+    // Keep precise local aliases and direct member access analyzable, while
+    // refusing opaque capability escapes that could invoke getReport later.
+    if(isProcessReportNamespace(node)&&parent) {
+      const directMember=parent.type==='MemberExpression'&&key==='object';
+      const localAlias=parent.type==='VariableDeclarator'&&key==='init'&&
+        ['Identifier','ObjectPattern'].includes(parent.id.type);
+      const assignedAlias=parent.type==='AssignmentExpression'&&key==='right'&&
+        ['Identifier','ObjectPattern'].includes(parent.left.type);
+      if(!directMember&&!localAlias&&!assignedAlias)observed=true;
+    }
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
     // callback receives line/column arguments directly; ErrorEvent listeners
