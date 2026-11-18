@@ -120,8 +120,10 @@ async function closeResident(worker){
  * Alternating request order mitigates short scheduling drift. The measured
  * interval starts immediately before runScenario and ends after its final
  * return, excluding process startup, digest verification, ESM import, IPC,
- * JSON input parsing and result hashing for BOTH variants. This is a
- * measurement of the SNO *post-init repeated-compute* exemption boundary.
+ * JSON input parsing and result hashing for BOTH variants. Both elapsed
+ * monotonic wall time and process CPU usage are measured inside each worker;
+ * the latter more closely matches the specified *compute* budget. These
+ * are scoped SNO *post-init repeated-compute* measurements.
  *
  * @param {number} [rounds]
  * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>}>}
