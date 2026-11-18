@@ -118,6 +118,7 @@ test('requireBatchPreflight snapshots route names and registered task identity o
     forbidden:()=>{effects++;return 99;}
   });
   const wrapped=batch.bind(null);
+  /** @type {Record<string,(...args:any[])=>unknown>} */
   const suppliedMethods={};
   Object.defineProperty(suppliedMethods,'batch',{
     enumerable:true,
