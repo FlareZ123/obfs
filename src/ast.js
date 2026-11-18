@@ -2390,6 +2390,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+    // Object rest/spread can copy Node's enumerable getReport/writeReport
+    // methods into an ordinary object, preserving their reporting capability.
+    const reportCopyPattern=node.type==='VariableDeclarator'?
+      {pattern:node.id,value:node.init}:
+      node.type==='AssignmentExpression'?
+        {pattern:node.left,value:node.right}:null;
+    if(reportCopyPattern?.pattern.type==='ObjectPattern'&&
+       isProcessReportNamespace(reportCopyPattern.value)&&
+       reportCopyPattern.pattern.properties.some(
+         (/** @type {AstNode} */ property)=>property.type==='RestElement'))
+      observed=true;
+    if(node.type==='ObjectExpression'&&
+       node.properties.some((/** @type {AstNode} */ property)=>
+         property.type==='SpreadElement'&&
+         isProcessReportNamespace(property.argument)))observed=true;
     // Legacy accessor reflection can recover Node's native automatic-report
     // setter. Merely exposing that capability is enough to make later source
     // coordinates observable through a generated report.
@@ -2408,6 +2423,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(mutation?.method==='set'&&
          isProcessReportNamespace(mutation.args[0])&&
          processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
+      if(mutation?.method==='assign'&&
+         mutation.args.slice(1).some(isProcessReportNamespace))observed=true;
       if(mutation?.method==='assign'&&
          isProcessReportNamespace(mutation.args[0])&&
          mutation.args.slice(1).some(processReportAssignmentSourceMayEnable))
