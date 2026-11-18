@@ -64,6 +64,9 @@ jobs:
       - name: Container destructuring intrinsic provenance red and positive-yield gate
         run: node --test test/decoder-container-destructure.test.js
 
+      - name: Cross-file CommonJS decoder intrinsic provenance red and positive-yield gate
+        run: node --test test/decoder-crossfile-container.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
