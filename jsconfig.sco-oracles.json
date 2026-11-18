@@ -3,6 +3,8 @@
   "include": [
     "sims/sco-stateful-oracle.js",
     "sims/sco-adaptive-mealy.js",
+    "sims/sco-w-method.js",
+    "test/sco-w-method.test.js",
     "test/sco-adaptive-mealy.test.js",
     "sims/sco-synchronizing-oracle.js",
     "sims/sco-sync-search.js",
