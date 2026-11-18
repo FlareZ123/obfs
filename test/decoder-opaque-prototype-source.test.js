@@ -60,7 +60,15 @@ const unsafe=[
   ['opaque String prototype legacy setter',
     "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());P.__defineGetter__('charCodeAt',()=>()=>0);"],
   ['opaque Array iterator through Reflect.set',
-    "function owner(){return []}const P=Object.getPrototypeOf(owner());Reflect.set(P,Symbol.iterator,function*(){yield 0;});"]
+    "function owner(){return []}const P=Object.getPrototypeOf(owner());Reflect.set(P,Symbol.iterator,function*(){yield 0;});"],
+  ['overwritten Object.getPrototypeOf bypasses numeric proof',
+    "const old=Object.getPrototypeOf;Object.getPrototypeOf=(x)=>x===7?String.prototype:old(x);const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['overwritten Reflect.getPrototypeOf bypasses numeric proof',
+    "const old=Reflect.getPrototypeOf;Reflect.getPrototypeOf=(x)=>x===7?String.prototype:old(x);const P=Reflect.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['aliased Object.getPrototypeOf overwrite',
+    "const O=Object;const old=O.getPrototypeOf;O.getPrototypeOf=(x)=>x===7?String.prototype:old(x);const P=O.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['Object.defineProperty changes getPrototypeOf',
+    "const old=Object.getPrototypeOf;Object.defineProperty(Object,'getPrototypeOf',{value:(x)=>x===7?String.prototype:old(x),configurable:true});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
 ];
 
 for(const [name,mutator] of unsafe) {
