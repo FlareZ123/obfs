@@ -1455,6 +1455,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // shadowed declarations or dynamic scope must remain unproved.
   /** @type {Map<string,number>} */
   const bindingCounts=new Map();
+  const bindingNodes=new Set();
   /** @type {Map<string,AstNode>} */
   const primitiveCandidates=new Map();
   /** @type {Map<string,number>} */
@@ -1463,6 +1464,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function recordPattern(pattern) {
     if(!pattern)return;
     if(pattern.type==='Identifier') {
+      bindingNodes.add(pattern);
       bindingCounts.set(pattern.name,(bindingCounts.get(pattern.name)??0)+1);
     } else if(pattern.type==='RestElement'||pattern.type==='AssignmentPattern') {
       recordPattern(pattern.argument??pattern.left);
@@ -1936,6 +1938,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       (node.name==='process'||processModuleNamespaces.has(node.name)) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
         memberName(node)==='process' ||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+        isReflectiveReceiver(node.callee.object)&&memberName(node.callee)==='get'&&
+        isGlobal(node.arguments[0])&&staticString(node.arguments[1])==='process' ||
       isProcessModuleRequire(node)));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -2028,6 +2033,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(!processModuleNamespaces.has(id.name)) {
           processModuleNamespaces.add(id.name);
           changedProcessReportAliases=true;
+        }
+      }
+      if(id.type==='ObjectPattern'&&isGlobal(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name!=='process')continue;
+          const processBinding=unwrapAssignmentPattern(property.value);
+          if(processBinding.type==='Identifier') {
+            processBindingNodes.add(processBinding);
+            if(!processModuleNamespaces.has(processBinding.name)) {
+              processModuleNamespaces.add(processBinding.name);
+              changedProcessReportAliases=true;
+            }
+          }
         }
       }
       if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
@@ -2391,7 +2412,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['Identifier','ObjectPattern'].includes(parent.id.type);
     const assignedAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
       ['Identifier','ObjectPattern'].includes(parent.left.type);
+    const benignProcessEnvironmentRead=parent?.type==='CallExpression'&&
+      parent.arguments[0]===node&&parent.arguments[1]&&
+      staticString(parent.arguments[1])==='env'&&
+      (parent.callee.type==='Identifier'&&reflectiveReaders.has(parent.callee.name) ||
+       parent.callee.type==='MemberExpression'&&
+         isReflectiveReceiver(parent.callee.object)&&
+         ['get','getOwnPropertyDescriptor'].includes(memberName(parent.callee)??''));
     if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
+       !bindingNodes.has(node)&&!benignProcessEnvironmentRead&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     if(isProcessReportNamespace(node)&&parent&&
        !processReportBindingNodes.has(node)&&
@@ -2456,7 +2485,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        processReportTriggers.has(memberName(node.left)??''))observed=true;
     if(node.type==='CallExpression') {
       const mutation=processReportMutatorInvocation(node);
-      if(mutation?.method==='set'&&
+      if(mutation?.method==='set'&&mutation.args[1]&&
          isProcessReportNamespace(mutation.args[0])&&
          processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
       if(mutation?.method==='assign'&&
