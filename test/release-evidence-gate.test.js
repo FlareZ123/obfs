@@ -186,3 +186,122 @@ test('familywise bounds reject too few samples to meet joint confidence',()=>{
     native:Array(9).fill(1),candidate:Array(9).fill(1.25)
   }],{confidence:1}),/Familywise confidence/u);
 });
+
+
+/**
+ * @returns {NonNullable<Parameters<typeof summarizeEvidence>[4]>}
+ */
+function residentExample(){
+  /** @param {number} events @param {number} repetitions */
+  const row=(events,repetitions)=>{
+    const native=Array(13).fill(10);
+    const sno=Array(13).fill(12.5);
+    const measured=pairedBudgetBound(native,sno);
+    return {
+      events,repetitions,
+      nativeMs:native,snoMs:sno,nativeCpuMs:native,snoCpuMs:sno,
+      budget:measured,cpuBudget:measured,
+      strictOverBudgetPairs:0,strictCpuOverBudgetPairs:0,
+      allOutputsEquivalent:true
+    };
+  };
+  return {
+    source:'sims/sno-resident-budget.js',
+    node:process.version,platform:process.platform,
+    compact:false,initializationExcluded:true,
+    rows:[[1,50000],[50,2500],[1000,80],[10000,5]].map(([a,b])=>row(a,b)),
+    leafRows:[40000000,80000000].map(repeat=>row(0,repeat))
+  };
+}
+
+test('SNO cold end-to-end time cannot substitute for resident post-init CPU in strict budget',()=>{
+  const old=summarizeEvidence(...examples());
+  assert.equal(old.performance.computeBoundaryFamilywise,null);
+  assert.equal(old.performance.snoPostInit.verdict,'unmeasured');
+  const evidence=summarizeEvidence(...examples(),residentExample());
+  assert.equal(evidence.verdict,'RELEASE-BLOCKED');
+  assert.equal(evidence.performance.sno.verdict,'sample-exceeded');
+  assert.match(evidence.performance.sno.boundary,/COLD end-to-end/u);
+  assert.equal(evidence.performance.snoPostInit.verdict,'sample-supported');
+  assert.equal(evidence.performance.snoPostInit.applicationVerdict,'sample-supported');
+  assert.equal(evidence.performance.snoPostInit.selectedLeafVerdict,'sample-supported');
+  assert.equal(evidence.performance.snoPostInit.strictObservedVerdict,'no-observed-exceedances');
+  assert.equal(evidence.performance.snoPostInit.rows.length,4);
+  assert.equal(evidence.performance.snoPostInit.leafRows.length,2);
+  assert.equal(evidence.performance.snoPostInit.rows[0].samplePairs,13);
+  assert.equal(evidence.performance.snoPostInit.rows[0].ratioOfMedians,1.25);
+  assert.equal(evidence.performance.snoPostInit.rows[0].strictObservedCpuOverBudgetPairs,0);
+  assert.deepEqual(evidence.performance.snoPostInit.rows[0].rawCpuTimeMs.native,
+    Array(13).fill(10));
+  const budget=evidence.performance.computeBoundaryFamilywise;
+  assert.ok(budget);
+  assert.equal(budget.comparisons,12);
+  assert.equal(budget.observedOverBudgetPairs,18);
+  assert.equal(budget.observedMaxPairedRatio,4.2);
+  assert.equal(budget.workloads.filter(row=>row.mode==='sno-postinit-cpu').length,4);
+  assert.equal(budget.workloads.filter(row=>row.mode==='sno-postinit-leaf-cpu').length,2);
+  assert.equal(budget.bounds[4].decision,'supported');
+  assert.equal(budget.bounds[8].decision,'supported');
+  assert.equal(evidence.performance.crossModeFamilywise.observedOverBudgetPairs,31,
+    'Historical cold evidence remains intact');
+});
+
+test('SNO post-init admission rejects source and workload mismatch before a release claim',()=>{
+  const original=residentExample();
+  const inputs=examples();
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...original,initializationExcluded:false
+  }),/exclude initialization/u);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...original,compact:true
+  }),/noncompact/u);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...original,rows:original.rows.slice(1)
+  }),/four application workloads/u);
+  assert.throws(()=>summarizeEvidence(...inputs,{
+    ...original,rows:original.rows.map((row,i)=>i===0?{
+      ...row,allOutputsEquivalent:false
+    }:row)
+  }),/output parity/u);
+});
+
+
+test('Selected-function hot-path overhead vetoes SNO compute despite green application averages',()=>{
+  const inputs=examples();
+  const original=residentExample();
+  const slow=Array(13).fill(200);
+  const native=Array(13).fill(10);
+  const leaf={
+    ...original.leafRows[0],
+    snoMs:slow,snoCpuMs:slow,
+    cpuBudget:pairedBudgetBound(native,slow),
+    budget:pairedBudgetBound(native,slow),
+    strictOverBudgetPairs:13,
+    strictCpuOverBudgetPairs:13
+  };
+  const result=summarizeEvidence(...inputs,{
+    ...original,leafRows:[leaf,original.leafRows[1]]
+  });
+  const p=result.performance;
+  assert.ok(p.computeBoundaryFamilywise);
+  assert.equal(p.snoPostInit.applicationVerdict,'sample-supported');
+  assert.equal(p.snoPostInit.selectedLeafVerdict,'sample-exceeded');
+  assert.equal(p.snoPostInit.verdict,'sample-exceeded');
+  assert.equal(p.snoPostInit.strictObservedVerdict,'sample-exceeded');
+  assert.equal(p.computeBoundaryFamilywise.comparisons,12);
+  assert.equal(p.computeBoundaryFamilywise.bounds[8].decision,'exceeded');
+  assert.equal(p.computeBoundaryFamilywise.observedMaxPairedRatio,20);
+  assert.equal(p.computeBoundaryFamilywise.observedOverBudgetPairs,31);
+  assert.equal(p.computeBoundaryFamilywise.strictObservedVerdict,'sample-exceeded');
+  assert.equal(result.verdict,'RELEASE-BLOCKED');
+});
+
+test('SNO resident raw strict counts must match the same paired CPU and wall samples',()=>{
+  const source=residentExample();
+  const malformed=source.rows.map((row,i)=>i===0?{
+    ...row,strictCpuOverBudgetPairs:2
+  }:row);
+  assert.throws(()=>summarizeEvidence(...examples(),{
+    ...source,rows:malformed
+  }),/CPU strict-overbudget count/u);
+});
