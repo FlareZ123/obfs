@@ -23,6 +23,23 @@ Every Windows cold-start failure was explicitly reported by the terminating work
 
 The evidence now identifies a **concurrent WAL-mode initialization conflict on the Windows runner** as the direct failing operation in these trials. It does not establish all reasons for that SQLite error, a general Windows SQLite defect, or a portable universal failure rate. The preregistered preinitialization control avoided all observed failures at this pinned source/runner. It is not yet a production multi-host startup solution.
 
+## Same-source bounded retry follow-up
+
+Before implementation, [the startup retry contract](../workplace/sco-ratchet-wal-startup-retry-preregister-2026-11-18.md) specified a **four-retry** `PRAGMA journal_mode=WAL` response only to the exact `database is locked` startup error, with initialization waits **25, 50, 100 and 200 ms**. Ordinary SQL errors still propagate, and failed constructor handles close. This changes no runtime HMAC or HTTP protocol. [Focused manual workflow 44266340561](https://github.com/FlareZ123/obfs/actions/runs/44266340561) passed **both** Node 22 Ubuntu and Windows strict JSDoc, baseline replay, real HTTP, killed-worker, cold-start and anonymous lock steps at exact SHA **`3a757bc2b55c3f11e670d52c8e4fcb4136af53d3`**.
+
+The updated [cold-start script](../sims/sco-ratchet-transactional-cold-start.js) now runs **three** independently predeclared eight-trial cohorts per platform against fresh database paths. Both no-retry and retry modes are available in the same trusted worker constructor; the preinitialized control is separate:
+
+| OS | Cohort | Two-worker successful trials | Successful workers | Workers failed |
+| --- | --- | ---: | ---: | ---: |
+| Ubuntu | Cold, **no** journal retry | 6/8 | 14/16 | 2/16, `database is locked` |
+| Ubuntu | Cold, **four bounded retries** | **8/8** | 16/16 | **0/16** |
+| Ubuntu | Preinitialized, four retries | **8/8** | 16/16 | **0/16** |
+| Windows | Cold, **no** journal retry | 7/8 | 15/16 | 1/16, `database is locked` |
+| Windows | Cold, **four bounded retries** | **8/8** | 16/16 | **0/16** |
+| Windows | Preinitialized, four retries | **8/8** | 16/16 | **0/16** |
+
+The zero-retry control reproduces a genuine SQLite busy failure on **both** operating systems in the follow-up; the original Windows-only observation was a finite sampling distinction, not evidence that Linux cannot fail. Four bounded retries and explicit preinitialization both survived all 16 concurrent trial pairs in this run, which supports a narrow *startup reliability improvement*. This does not establish a zero-failure population rate, prove resilience to prolonged lock storms or replace distributed schema migration coordination. Preinitialize/close a trusted SQLite WAL schema before simultaneously launching production workers when possible; SQLite's official [WAL documentation](https://www.sqlite.org/wal.html) confirms the journal mode persists across opened connections, and Node's [DatabaseSync documentation](https://nodejs.org/download/release/v22.23.0/docs/api/sqlite.html) documents the separate busy timeout option. The tested retry is bounded supplemental startup handling, not a replacement for a supervised bootstrapping phase.
+
 ## Causal interpretation and suggested admission policy
 
 The failure occurs while several trusted server processes independently attempt to switch/create the same SQLite database's journal mode. This is prior to any authenticated HTTP request or protected HMAC work. Therefore no source secrecy, crypto or normal A/B state-transition claim changes. However, a load balancer that assumes all concurrently starting SCO instances become healthy may deliver requests to unavailable replicas, so **the experimental concurrent cold-start deployment contract fails on Windows**. A sequential application startup or an explicit trusted schema/WAL initialization phase is supported by the observed positive controls. An alternative bounded, narrowly targeted retry of startup `SQLITE_BUSY` may be evaluated separately before promotion, with original failures retained.
