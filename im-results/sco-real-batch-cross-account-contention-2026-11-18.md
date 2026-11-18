@@ -30,8 +30,8 @@ Nine complete matched quiet/contended B trials per platform passed strict overla
 
 | OS | Quiet B median HTTP latency | Under-A B median HTTP latency | Median paired loaded/quiet ratio | Minimum observed paired ratio | Maximum observed paired ratio | Strict loaded/quiet >2.5× |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| Ubuntu Linux | ~3.99 ms | ~96.81 ms | **22.3021×** | **11.1036×** | **32.4442×** | **9/9** |
-| Windows | ~4.39 ms | ~101.95 ms | **23.2011×** | **16.2406×** | **26.0495×** | **9/9** |
+| Ubuntu Linux | **4.2093 ms** | **96.8104 ms** | **22.3021×** | **11.1036×** | **32.4442×** | **9/9** |
+| Windows | **4.3940 ms** | **101.9457 ms** | **23.2011×** | **16.2406×** | **26.0495×** | **9/9** |
 
 The quiet and loaded columns are approximate marginal medians, whereas the **reported 22.3021×/23.2011× are medians of individually paired ratios**, derived from exact saved raw measurements. Each of 18 trials also asserts `submittedDuringAttacker:true`, with measured trusted A-first to A-last private-work duration included in its raw audit record.
 
