@@ -74,7 +74,13 @@ const unsafe=[
   ['Object.assign changes getPrototypeOf',
     "Object.assign(Object,{getPrototypeOf:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x)});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"],
   ['Object.defineProperties changes getPrototypeOf',
-    "Object.defineProperties(Object,{getPrototypeOf:{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true}});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
+    "Object.defineProperties(Object,{getPrototypeOf:{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true}});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['opaque Reflect.get constructor alias',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';"],
+  ['opaque destructured constructor alias',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const {constructor:C}=P;C.fromCharCode=()=>'?';"],
+  ['opaque constructor descriptor value',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Object.getOwnPropertyDescriptor(P,'constructor').value;C.fromCharCode=()=>'?';"]
 ];
 
 for(const [name,mutator] of unsafe) {
