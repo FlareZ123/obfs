@@ -131,6 +131,7 @@ function mutatesDecoderIntrinsic(ast) {
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
   const globalNames=new Set(['globalThis','window','self','global']);
+  const documentNames=new Set(['document']);
   const stringNames=new Set(['String']);
   /** @type {Set<string>} */
   const stringInstances=new Set();
@@ -155,6 +156,12 @@ function mutatesDecoderIntrinsic(ast) {
       node.property.type==='Identifier' ? node.property.name : null;
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isDocumentValue(node) {
+    return node.type==='Identifier' && documentNames.has(node.name) ||
+      node.type==='MemberExpression' && memberName(node)==='document' &&
+        isGlobal(node.object);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isGlobal(node) {
     if(node.type==='Identifier')return globalNames.has(node.name);
     if(node.type!=='MemberExpression')return false;
@@ -164,11 +171,7 @@ function mutatesDecoderIntrinsic(ast) {
     // path, corrupting a later module's otherwise inert literal decoder.
     // A shadowed/detached document may over-refuse, which is conservative.
     if(field==='defaultView') {
-      const documentRoot=node.object;
-      return documentRoot.type==='Identifier' && documentRoot.name==='document' ||
-        documentRoot.type==='MemberExpression' &&
-          memberName(documentRoot)==='document' &&
-          isGlobal(documentRoot.object);
+      return isDocumentValue(node.object);
     }
     return ['window','self','globalThis'].includes(field??'') &&
       isGlobal(node.object);
@@ -418,6 +421,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordArrayParentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
+          if(isDocumentValue(node.init))add(documentNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
           if(isStringInstance(node.init))add(stringInstances,node.id.name);
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
@@ -429,13 +433,16 @@ function mutatesDecoderIntrinsic(ast) {
           if(isPossibleConstructor(node.init))add(possibleConstructors,node.id.name);
           if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
-                  (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init)||
+                  (isGlobal(node.init)||isDocumentValue(node.init)||
+                   isStringValue(node.init)||isArrayValue(node.init)||
                    isArrayPrototype(node.init)||isObjectIntrinsic(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
             const name=property.key.type==='Identifier' ? property.key.name :
               property.key.type==='Literal' ? property.key.value : null;
+            if(name==='document'&&isGlobal(node.init))add(documentNames,property.value.name);
+            if(name==='defaultView'&&isDocumentValue(node.init))add(globalNames,property.value.name);
             if(name==='String'&&isGlobal(node.init))add(stringNames,property.value.name);
             if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
             if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
@@ -452,6 +459,7 @@ function mutatesDecoderIntrinsic(ast) {
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
+        if(isDocumentValue(node.right))add(documentNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
         if(isStringInstance(node.right))add(stringInstances,node.left.name);
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
