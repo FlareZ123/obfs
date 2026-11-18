@@ -13,7 +13,7 @@ const specimens=[
     name:'global-onerror',
     source:[
       'globalThis.onerror=(message,source,line,column)=>{',
-      '  globalThis.captured=String(line)+":"+String(column);return true;',
+      '  globalThis.captured=line+":"+column;return true;',
       '};',
       'null.value;'
     ].join('\n')
@@ -22,7 +22,7 @@ const specimens=[
     name:'global-error-event',
     source:[
       'globalThis.addEventListener("error",event=>{',
-      '  globalThis.captured=String(event.lineno)+":"+String(event.colno);',
+      '  globalThis.captured=event.lineno+":"+event.colno;',
       '});',
       'null.value;'
     ].join('\n')
