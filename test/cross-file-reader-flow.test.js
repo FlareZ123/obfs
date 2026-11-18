@@ -288,3 +288,15 @@ test('arrow reader called with an unrelated shape disables the proof',async()=>{
   await check(exposed+'export const peek=x=>x.secretField;',
     'import {state,peek} from "./state.mjs";console.log(peek(state),peek({secretField:77}));',0);
 });
+
+
+test('named reader re-export preserves cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay.mjs";'+
+      'console.log(inspect(state));'}
+  ],1);
+});
