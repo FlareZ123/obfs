@@ -73,9 +73,10 @@ async function admissions(base,control){
  *
  * @param {Buffer} root
  * @param {boolean} nestedQuota
+ * @param {boolean} [earlyGate]
  * @returns {Promise<object>}
  */
-async function sample(root,nestedQuota){
+async function sample(root,nestedQuota,earlyGate=false){
   const dir=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-bucket-quota-'));
   const db=path.join(dir,'buckets');
   fs.mkdirSync(db);
@@ -88,7 +89,7 @@ async function sample(root,nestedQuota){
   let worker;
   try{
     worker=await launch(db,root,tokenA,tokenB,control,false,4,false,'',8,
-      nestedQuota,1200);
+      nestedQuota,1200,earlyGate);
     const sourceResponse=await fetch(worker.base+'/obfs/batch.mjs',{
       headers:{cookie:'session='+tokenA}
     });
@@ -125,6 +126,8 @@ async function sample(root,nestedQuota){
     assert.equal(b.status,nestedQuota?200:429,
       'B must be independent of A capacity in nested principal-quota case');
     if(nestedQuota)assert.deepEqual(b.value,expectedB);
+    if(earlyGate)assert.ok(bWallMs<500,
+      'Independent B should bypass state-independent A preparation');
     const completed=await Promise.all(firstSixteen);
     assert.deepEqual(completed.map(item=>item.status),
       Array.from({length:16},()=>200));
@@ -140,7 +143,8 @@ async function sample(root,nestedQuota){
     }finally{read.close();}
     return {
       platform:process.platform,node:process.version,
-      isolation:nestedQuota?'per-verified-principal-quota-plus-bucket-writer':
+      isolation:earlyGate?'verified-principal-quota-and-early-preparation':
+        nestedQuota?'per-verified-principal-quota-plus-bucket-writer':
         'combined-bucket-writer-and-principal-quota',
       bucket,sourceSha256,publicBytes:Buffer.byteLength(source),
       firstAAsyncAdmissionGateMs:1200,firstSixteenAStatuses:completed.map(x=>x.status),
@@ -163,14 +167,17 @@ async function experiment(){
   const selected=chooseRoot(randomBytes(32),true);
   const old=await sample(selected.root,false);
   const repaired=await sample(selected.root,true);
+  const early=await sample(selected.root,true,true);
   assert.equal(old.sourceSha256,repaired.sourceSha256);
+  assert.equal(old.sourceSha256,early.sourceSha256);
   assert.equal(old.bucket,repaired.bucket);
+  assert.equal(old.bucket,early.bucket);
   const report={
     platform:process.platform,node:process.version,
     chosenCollidingRootTries:selected.tries,
     samePrivateRoot:true,samePublicFacadeSha:old.sourceSha256,
-    old,repaired,
-    conclusion:'Bucket-level maxPendingPerPrincipal confounds distinct authenticated identities on a collision. Separating principal-capacity from writer-serialization admits B while still rejecting a true 17th pending A. This does not remove writer lock or CPU contention.'
+    old,repaired,early,
+    conclusion:'Bucket-level capacity conflates authenticated principals. A nested principal quota changes B429 to B200 but can still wait behind A-held asynchronous writer preparation. Moving a strictly state-independent preparation outside writer scope allows B200 without that extra A wait. Actual authorization and private work stay transactional.'
   };
   process.stdout.write('SCO_RATCHET_BUCKET_QUOTA_IDENTITY '+JSON.stringify(report)+'\n');
   return report;
