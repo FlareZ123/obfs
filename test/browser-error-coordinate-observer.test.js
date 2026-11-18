@@ -30,3 +30,34 @@ test('browser runtime error-coordinate observers decline host-lock prefixes',()=
   }).files[0];
   assert.match(/** @type {string} */(emitted.code),/Unauthorized execution host/u);
 });
+
+
+test('browser error-coordinate aliases decline local property rewrites',()=>{
+  for(const specimen of specimens){
+    const source=specimen.source.replace(
+      'null.value;',
+      'const owner={distinctivelyLongPrivateField:73};'+
+        'const value=owner.distinctivelyLongPrivateField;null.value;'
+    );
+    const output=obfuscateFiles([{
+      path:'entry.js',sourceType:'script',code:source
+    }],{
+      mode:'coo',seed:'browser-error-coordinate-local-'+specimen.name,
+      strings:false,identifiers:false,properties:true
+    }).files[0];
+    assert.equal(output.code,source,specimen.name);
+    assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0},
+      specimen.name);
+  }
+
+  const safe='globalThis.addEventListener("load",()=>{});'+
+    'const owner={distinctivelyLongPrivateField:73};'+
+    'globalThis.answer=owner.distinctivelyLongPrivateField;';
+  const output=obfuscateFiles([{
+    path:'safe-listener.js',sourceType:'script',code:safe
+  }],{
+    mode:'coo',seed:'browser-error-coordinate-safe-listener',
+    strings:false,identifiers:false,properties:true
+  }).files[0];
+  assert.ok(output.metrics.properties>0,output.code);
+});
