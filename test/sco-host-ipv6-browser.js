@@ -41,11 +41,11 @@ async function readDom(url) {
 
 /** @returns {Promise<void>} */
 async function main() {
+  // HTML is an active opaque asset in the distributed-source observation
+  // proof. Serve that public shell separately, while the only SCO-published
+  // executable remains protected by the same host policy under test.
   /** @type {import('../src/core').SourceFile[]} */
-  const files=[
-    {path:'index.html',sourceType:'asset',code:html},
-    {path:'client.js',sourceType:'script',code:original}
-  ];
+  const files=[{path:'client.js',sourceType:'script',code:original}];
   const native=await withServer((request,response)=>{
     if(request.url==='/obfs/index.html') {
       response.writeHead(200,{'content-type':'text/html; charset=utf-8'}).end(html);
@@ -53,9 +53,14 @@ async function main() {
       response.writeHead(200,{'content-type':'text/javascript; charset=utf-8'}).end(original);
     } else response.writeHead(404).end();
   },readDom);
-  const generated=await withServer(createScoHandler(files,{
-    allowedHosts:['[::1]'],publicPaths:files.map(file=>file.path)
-  }),readDom);
+  const sco=createScoHandler(files,{
+    allowedHosts:['[::1]'],publicPaths:['client.js']
+  });
+  const generated=await withServer((request,response)=>{
+    if(request.url==='/obfs/index.html') {
+      response.writeHead(200,{'content-type':'text/html; charset=utf-8'}).end(html);
+    } else sco(request,response);
+  },readDom);
   assert.equal(native,'[::1]|42');
   assert.equal(generated,native);
   process.stdout.write('Real IPv6 Chromium native and SCO host-locked script parity: '+generated+'\n');
