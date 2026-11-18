@@ -7,6 +7,7 @@ const {createHash}=require('node:crypto');
 const {AsyncLocalStorage}=require('node:async_hooks');
 const {createScoHandler,createScoRpcClientSource,createScoKeyedIsolation}=require('../src');
 const {TransactionalRatchet}=require('./sco-ratchet-transactional-store');
+const {bucketOf}=require('./sco-ratchet-bucket-keys');
 
 /** @typedef {import('node:http').IncomingMessage} IncomingMessage */
 
@@ -25,6 +26,11 @@ async function main(){
   const control=process.env.SCO_TEST_CONTROL;
   const legacyAnonymousLock=process.env.SCO_TEST_LEGACY_UNAUTH_LOCK==='1';
   const accountShards=process.env.SCO_TEST_ACCOUNT_SHARDS==='1';
+  const bucketCount=Number(process.env.SCO_TEST_ACCOUNT_BUCKETS??'0');
+  if(accountShards&&bucketCount!==0)throw new TypeError('Choose one trusted shard topology');
+  if(bucketCount!==0&&(!Number.isSafeInteger(bucketCount)||bucketCount<1||
+    bucketCount>256||(bucketCount&(bucketCount-1))!==0))
+    throw new TypeError('Trusted bucket count must be a power of two');
   const privateAMarker=process.env.SCO_TEST_A_WORK_MARKER;
   const journalModeRetries=process.env.SCO_TEST_NO_JOURNAL_RETRY==='1'?0:4;
   if(!databasePath||!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)||
@@ -38,27 +44,43 @@ async function main(){
   /** @type {Map<string,TransactionalRatchet>} */
   const stores=new Map();
   /**
-   * A trusted, verified principal selects the local SQLite file. The public
-   * RPC cannot supply a storage pathname or choose another account's shard.
+   * A trusted, verified principal selects a stable local storage key. Public
+   * RPC arguments cannot supply a pathname or impersonate another account.
    * @param {string} principal
+   * @returns {string}
+   */
+  function storageKey(principal){
+    if(principal!=='verified-A'&&principal!=='verified-B')
+      throw new TypeError('Unverified storage principal');
+    if(bucketCount>0)return 'bucket-'+bucketOf(trustedRoot,principal,bucketCount);
+    return accountShards?principal:'shared';
+  }
+  /**
+   * @param {string} key
    * @returns {TransactionalRatchet}
    */
-  function storeOf(principal){
-    if(accountShards&&principal!=='verified-A'&&principal!=='verified-B')
-      throw new TypeError('Unverified storage principal');
-    const key=accountShards?principal:'shared';
+  function openKey(key){
     let store=stores.get(key);
     if(store===undefined){
-      const file=accountShards?path.join(trustedPath,'principal-'+
-        createHash('sha256').update(principal).digest('hex')+'.sqlite'):trustedPath;
-      store=new TransactionalRatchet(file,trustedRoot,
-        {journalModeRetries});
+      const file=bucketCount>0?path.join(trustedPath,key+'.sqlite'):
+        accountShards?path.join(trustedPath,'principal-'+
+          createHash('sha256').update(key).digest('hex')+'.sqlite'):trustedPath;
+      store=new TransactionalRatchet(file,trustedRoot,{journalModeRetries});
       stores.set(key,store);
     }
     return store;
   }
-  storeOf('verified-A');
-  if(accountShards)storeOf('verified-B');
+  /** @param {string} principal @returns {TransactionalRatchet} */
+  function storeOf(principal){
+    return openKey(storageKey(principal));
+  }
+  if(bucketCount>0){
+    // Fixed-capacity topology initializes its full DB set before admission.
+    for(let index=0;index<bucketCount;index++)openKey('bucket-'+index);
+  }else{
+    storeOf('verified-A');
+    if(accountShards)storeOf('verified-B');
+  }
   /** @returns {void} */
   function closeStores(){
     for(const store of stores.values())store.close();
@@ -76,7 +98,8 @@ async function main(){
   // principal shards may acquire independent SQL writer locks.
   const isolate=createScoKeyedIsolation(req=>{
     const principal=principalOf(req);
-    return accountShards&&principal!==null?principal:'one-sqlite-writer';
+    return principal===null?'one-sqlite-writer':
+      accountShards||bucketCount>0?storageKey(principal):'one-sqlite-writer';
   },{
     maxPendingPerPrincipal:16,maxPendingTotal:32
   });
