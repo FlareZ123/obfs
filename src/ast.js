@@ -2255,6 +2255,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // process.report.getReport() returns the current JavaScript stack and
       // writeReport() persists it. Either operation observes source locations.
       if(isProcessReportMethod(callee))observed=true;
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object)&&memberName(callee)==='apply' &&
+         isProcessReportMethod(node.arguments[0]))observed=true;
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
       if(isWarningMethod(callee))observed=true;
