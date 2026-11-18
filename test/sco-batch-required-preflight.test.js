@@ -160,3 +160,36 @@ test('requireBatchPreflight snapshots route names and registered task identity o
   assert.equal(methodReads,1,'request handling must use the construction snapshot');
   assert.equal(routeReads,1,'required route metadata must not be re-read');
 });
+
+
+test('requireBatchPreflight remains single-level when a registered leaf wraps another batch',async()=>{
+  let effects=0;
+  const inner=createScoBatchMethod({
+    forbidden:()=>{effects++;return 99;}
+  });
+  /** @param {any[]} calls */
+  const nested=calls=>inner(calls);
+  const outer=createScoBatchMethod({nested});
+  /** @type {string[]} */
+  const observed=[];
+  const handler=createScoHandler([],{
+    remoteMethods:{batch:outer},
+    authorizeRpc:()=>true,
+    authorizeOperation:(request,method)=>{
+      observed.push(method);
+      return method==='batch'||method==='nested';
+    },
+    requireBatchPreflight:['batch']
+  });
+  const result=await post(handler,{
+    method:'batch',
+    args:[[{method:'nested',args:[[{method:'forbidden',args:[]}]]}]]
+  });
+  assert.equal(result.status,200);
+  assert.equal(effects,1);
+  assert.deepEqual(observed,['batch','nested']);
+  assert.deepEqual(result.body,{
+    ok:true,
+    value:[{ok:true,value:[{ok:true,value:99}]}]
+  });
+});
