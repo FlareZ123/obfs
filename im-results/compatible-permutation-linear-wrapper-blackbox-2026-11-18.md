@@ -124,6 +124,25 @@ This is a materially broader stop condition than syntax-aware recognition of xor
 
 For COO and SNO, a locally executable public function gives this attacker a natural oracle. For SCO, applicability depends on whether an authorized interface exposes equivalent chosen-input evaluations; the repository threat model permits unlimited legitimate requests but does not imply every internal transform is externally queryable.
 
+
+
+## Independent exhaustive peer validation
+
+Agent 3 independently reimplemented both one-sided inversion arguments at width 3 and exhaustively enumerated the complete small-width universe rather than reusing this simulator's generators.
+
+Peer-check pin: commit `67c538429c2a10657d47c8e6db61f286adb320ce`, with reproducer `sims/compatible-permutation-linear-wrapper-exhaustive-small.js` and report `im-results/compatible-permutation-linear-wrapper-exhaustive-peercheck-2026-11-18.md`.
+
+The peer check enumerated:
+
+- all **128** compatible 3-bit permutations;
+- all **168** invertible 3x3 GF(2) maps;
+- all **8** secrets;
+- both `L(P(x))` and `P(L(x))` orientations.
+
+Result: **344,064 / 344,064 exact recoveries**.
+
+Agent 3 also reviewed the proof steps directly and found the outer triangular-basis argument and inner nested-kernel argument structurally sound. The review explicitly preserves the same scope boundary: it does not establish the unrestricted two-sided sandwich.
+
 ## Scope and next discriminator
 
 This theorem covers **one arbitrary linear wrapper on either side**. It does not prove recovery for the general sandwich `L_out(P(L_in(x)))` when both unknown linear maps are unrestricted. The separate exact-three-stage experiment in `sims/permutation-polynomial-linear-shell-blackbox.js` covers wrappers on both sides only for the bounded xor-shift/rotation family.
