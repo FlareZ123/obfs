@@ -213,6 +213,21 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     return node.computed ? staticString(node.property) :
       node.property.type==='Identifier' ? node.property.name : null;
   }
+  /**
+   * Exact container paths may use numeric computed indices even where the
+   * general mutation model intentionally treats computed members as opaque.
+   * @param {import('./ast').AstNode} node
+   * @returns {string|null}
+   */
+  function pathMemberName(node) {
+    if(node.type!=='MemberExpression')return null;
+    if(!node.computed)return node.property.type==='Identifier'?node.property.name:null;
+    if(node.property.type==='Literal'&&node.property.regex===undefined&&
+       ['string','number','bigint','boolean'].includes(typeof node.property.value)) {
+      return String(node.property.value);
+    }
+    return staticString(node.property);
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isDocumentValue(node) {
     return node.type==='Identifier' && documentNames.has(node.name) ||
@@ -406,7 +421,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     const parts=[];
     let cursor=node;
     while(cursor.type==='MemberExpression') {
-      parts.unshift(memberName(cursor));
+      parts.unshift(pathMemberName(cursor));
       cursor=cursor.object;
     }
     let ownerName=null;
@@ -546,10 +561,6 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
       }
       /**
        * @param {string} name
-       * @param {string} key
-       */
-      /**
-       * @param {string} name
        * @param {string} pathKey
        */
       function addReturnedPathKey(name,pathKey) {
@@ -629,6 +640,27 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
        */
       function recordLiteralSensitiveFields(name,value) {
         recordLiteralSensitivePaths(name,value);
+      }
+      /**
+       * Add a sensitive value written after construction to the same exact
+       * local member-path summary used for literal initialization.
+       * @param {import('./ast').AstNode} target
+       * @param {import('./ast').AstNode} value
+       */
+      function recordSensitiveMemberWrite(target,value) {
+        if(target.type!=='MemberExpression'||!sensitiveReturnValue(value))return;
+        /** @type {string[]} */
+        const parts=[];
+        let cursor=target;
+        while(cursor.type==='MemberExpression') {
+          const key=pathMemberName(cursor);
+          if(key===null)return;
+          parts.unshift(key);
+          cursor=cursor.object;
+        }
+        if(cursor.type!=='Identifier'||parts.length===0)return;
+        addReturnedPath(cursor.name,parts);
+        if(parts.length===1)addReturnedField(cursor.name,parts[0]);
       }
       /**
        * @param {import('./ast').AstNode} owner
@@ -717,6 +749,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
             recordLiteralSensitiveFields(name,value);
           }
         }
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='=') {
+        recordSensitiveMemberWrite(node.left,node.right);
       }
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
         recordLocalReturns(node.id.name,node);
