@@ -57,3 +57,6 @@ jobs:
         run: node --test test/decoder-returned-alias.test.js
       - name: Nested if try switch return and scoped alias proof
         run: node --test test/decoder-returned-branches.test.js
+
+      - name: Local object and array intrinsic container red and positive gate
+        run: node --test test/decoder-local-container-escape.test.js
