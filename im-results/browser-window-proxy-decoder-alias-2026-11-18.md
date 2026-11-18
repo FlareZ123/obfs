@@ -85,10 +85,9 @@ string encoding for additional uncertain programs.
 
 The compile-time guard strengthens behavioral preservation only in
 the tested scope. The emitted XOR string table remains statically
-recoverable by an attacker with public output. The true browser
-prepatch case was not run in Chromium in this record: the first red
-comparison uses explicit Node WindowProxy shims, while Chromium verifies
-the *postpatch* browser semantics. The security objective, independent
+recoverable by an attacker with public output. The first red comparison uses explicit Node WindowProxy shims.
+A subsequent **actual prepatch Chromium negative control** is described
+below and confirms the same behavioral failure in the browser. The security objective, independent
 tamper resistance, and universal strict 2.5x runtime bound remain
 unproved. A workload-specific performance comparison is still required
 before enabling the decoder in production.
@@ -117,3 +116,33 @@ short-string suite. It adds evidence for a separate decoder mechanism,
 without implying that the large-string workload satisfies the universal
 2.5x budget or that the long-string mutation was independently reproduced
 in Chromium. The compiler itself was unchanged after the first fix.
+
+## Historical original-compiler Chromium expected-negative, 10:43 UTC
+
+A follow-up executable historical branch
+`agent20/windowproxy-chromium-negative-20261118` starts from the
+initial red commit `2f3eb66d53f1c7fae047eedb21854191246fd0e1`.
+It adds only an independent browser negative-case driver and a
+one-off manual workflow configuration. The original compiler
+`src/core.js` blob SHA `bfd1ddff988216dedce89e16bf9e0dbda33ade9a`
+was verified **identical** at both the initial red commit and the
+historical experiment's source commit
+`8cc450d5ee46649329b38431f2305a0b852ad52e`.
+
+[GitHub Actions run 44288048562](https://github.com/FlareZ123/obfs/actions/runs/44288048562)
+**passed the expected-negative condition on actual Chromium**:
+the *original* ESM app displayed `browser-window-alias-canary` in each
+case; the prepatch emitted app encoded the literal and displayed exactly
+27 question marks in each of the `top`, `parent`, and `window.top`
+WindowProxy mutations. The entry's DOM update deliberately contains no
+ordinary string operand to avoid confusing an error in a separate
+entry-module decoder with the target literal's corruption.
+The standalone historical driver remains on its exact branch at
+`test/decoder-windowproxy-historical-negative-browser.js`.
+The workflow is dispatched manually and was never merged into main;
+the default branch's focused green workflow remains unchanged.
+
+This closes the previous *browser prepatch unmeasured* caveat
+for these three exact hostile mutations. The evidence remains a
+finite source-equivalence counterexample; it provides no static secrecy,
+anti-tamper, domain-lock or universal runtime guarantee.
