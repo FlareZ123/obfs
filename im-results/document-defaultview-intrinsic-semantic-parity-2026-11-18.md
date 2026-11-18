@@ -1,0 +1,104 @@
+# Browser Document.defaultView ambient decoder mutation: paired source-pinned parity
+
+**Agent 27, 18 November 2026. Intermediate compiler-correctness evidence.**
+
+## Runtime failure, distinct from hypothetical alias inspection
+
+An HTML Document's `defaultView` returns its associated
+`WindowProxy`, providing an alternative route to the script's global
+`String` constructor in the active document.
+[MDN Document.defaultView](https://developer.mozilla.org/en-US/docs/Web/API/Document/defaultView)
+and the
+[WHATWG HTML Standard](https://html.spec.whatwg.org/multipage/nav-history-apis.html)
+describe this browser API.
+
+The eager SNO or explicitly enabled COO string literal decoder calls
+ambient `String.fromCharCode`. A supplied earlier module can therefore
+replace `document.defaultView.String.fromCharCode` before a later
+literal-bearing module is loaded. The native later module returns its
+literal, but the previous obfuscated decoder used the patched function
+and returned a different value.
+
+Three exact browser-shaped aliases were independently tested in
+`test/ambient-string-alias.test.js` with a synthesized Node global
+`document={defaultView:globalThis}`: directly through
+`document.defaultView`, through `globalThis.document.defaultView`,
+and through `window.document.defaultView`. The original three-file
+CommonJS graph imports the mutation first, then returns a 23-character
+literal from the target. The obfuscated output was executed in a
+separate Node process per case.
+
+The [red two-platform run 44253730960](https://github.com/FlareZ123/obfs/actions/runs/44253730960)
+at SHA `0d3423a76757243c873ac37cce06af31049bd3f3`
+reported **three failing semantic regressions per OS** (110 passed,
+three failed). A real source-level mismatch was observed: native
+`protected-literal-value`, obfuscated
+`???????????????????????`. These are actual output values, not
+just a compiler refusal-count assertion. The test stopped at the
+first SNO mismatch per alias; the same guarding logic is used for
+COO, so independent COO execution was covered by subsequent green
+runs rather than by this red trace.
+
+## Narrow source-level repair
+
+`src/core.js::mutatesDecoderIntrinsic` already tracks global and
+String aliases. Its `isGlobal` predicate previously recognized only
+direct global identifiers and could not follow document access paths.
+The repair conservatively accepts the known
+`document.defaultView` and `globalThis/window.document.defaultView`
+paths as potential aliases of the active global object. Simple
+`window/self/globalThis` member chains are also recognized. The
+existing mutation scanner then refuses unsafe eager encoding
+**throughout the supplied file group**. No generated runtime
+instrumentation or new runtime work is introduced.
+
+The positive control
+`document.defaultView.Number=()=>7` retains eager String literal
+encoding in the same Node graph. It shows that the repair need not
+turn off all string protection on sight of `defaultView`. Shadowed
+or detached documents may cause conservative false refusals; no
+general DOM provenance/host realm proof is claimed.
+
+The
+[green Node run 44253918909](https://github.com/FlareZ123/obfs/actions/runs/44253918909)
+at `51c97d7ba9fe24036a5cf06f3050a11837cbbccb`
+passed the targeted regression and production JSDoc on both OSes.
+
+## Real Chromium graph validation
+
+`test/decoder-array-prototype-browser.js` now includes two real
+page `Document.defaultView` fixtures: hostile
+`String.fromCharCode` replacement (protected literal must decline)
+and an unrelated `Number` assignment (the literal must still be
+encoded). Each runs genuine native, protected and independently
+source-reconstructed ESM graphs over localhost HTTP in headless Chrome,
+with CSP `script-src 'self'`. The 2,049-code-unit target's exact
+first/last code units and length are checked.
+
+[Two-platform targeted run 44254152077](https://github.com/FlareZ123/obfs/actions/runs/44254152077)
+at `26ab680acbe50df82e13210e90d840fd6b051b69`
+passed **114/114 Node semantic tests each on Ubuntu and Windows**,
+production JSDoc, and **nine** real Chromium browser fixtures on Ubuntu.
+In the hostile `defaultView` browser case the compiler emitted
+**zero** string-decoder literals; in the unrelated numeric case it
+emitted **one** and the independent source-only attack recovered it.
+Native, emitted and attacker-reconstructed outputs matched
+`{first:65,last:90,length:2049}` in both browser cases. The browser
+log reports the other existing seven fixtures separately; this report
+claims only the two added `defaultView` contracts as this change's
+increment.
+
+## Security, cost and remaining boundary
+
+The behavior fix does not create confidentiality, prevent hostile
+runtime access, improve execution authorization, or defeat the
+existing public decoder recovery. Accepted programs run the same
+generated decoder as before, so no new runtime compute charge is
+added. A general universal 2.5× claim still requires separate
+workload-specific testing.
+
+External scripts absent from the source group, DOM-proxy aliases
+returned through arbitrary function calls, browser realm crossings,
+and dynamic syntax remain beyond this syntactic scanner. Source
+visible cases are intentionally conservative; absence of a known
+mutation is not proof that the environment is immutable.
