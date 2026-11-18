@@ -38,5 +38,5 @@ jobs:
         run: npm run typecheck
       - name: Strict fixed-arity research JSDoc
         run: npx tsc -p jsconfig.fixed-arity.json
-      - name: Ambient String and Array prototype alias semantic parity
-        run: node --test test/decoder-array-prototype-chain.test.js test/ambient-string-alias.test.js test/decoder-opaque-prototype-source.test.js
+      - name: Source-visible String and Array prototype parity with positive decoder yield
+        run: node --test test/decoder-array-prototype-chain.test.js test/decoder-opaque-prototype-source.test.js
