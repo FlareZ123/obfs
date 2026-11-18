@@ -132,6 +132,8 @@ function mutatesDecoderIntrinsic(ast) {
   // file's eager decoder initializes; the whole group must then opt out.
   const globalNames=new Set(['globalThis','window','self','global']);
   const stringNames=new Set(['String']);
+  /** @type {Set<string>} */
+  const stringInstances=new Set();
   const prototypeNames=new Set();
   const arrayNames=new Set(['Array']);
   const arrayPrototypes=new Set();
@@ -166,7 +168,8 @@ function mutatesDecoderIntrinsic(ast) {
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isStringInstance(node) {
-    return node.type==='Literal' && typeof node.value==='string' ||
+    return node.type==='Identifier' && stringInstances.has(node.name) ||
+      node.type==='Literal' && typeof node.value==='string' ||
       node.type==='TemplateLiteral' && node.expressions.length===0 ||
       node.type==='NewExpression' && isStringValue(node.callee);
   }
@@ -341,6 +344,7 @@ function mutatesDecoderIntrinsic(ast) {
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
+          if(isStringInstance(node.init))add(stringInstances,node.id.name);
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
           if(isArrayValue(node.init))add(arrayNames,node.id.name);
           if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
@@ -372,6 +376,7 @@ function mutatesDecoderIntrinsic(ast) {
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
+        if(isStringInstance(node.right))add(stringInstances,node.left.name);
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
         if(isArrayValue(node.right))add(arrayNames,node.left.name);
         if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
