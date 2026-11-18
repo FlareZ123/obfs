@@ -71,3 +71,39 @@ This result does not say that every encoded-domain design is useless. It says th
 A successor must introduce behavior outside this affine family, such as variable-variable multiplication, data-dependent nonlinear bitwise structure, or table/state dependence. Those extensions immediately create a new cost problem: preserving a masked representation through nonlinear operations generally requires extra products/conversions or reveals an unmasked boundary. Any successor should first derive its algebraic closure and cheapest black-box learner before implementation, then retain the same strict 2.5x native runtime veto and equal-trust minified control.
 
 No production compiler changes follow from this result.
+
+
+## GF(2) corollary: XOR/rotation-only masking is also exactly learnable
+
+A second cheap domain would encode a word with XOR masks, optionally combined
+with fixed bit permutations such as rotation, then admit only XOR, fixed
+rotations, and fixed logical shifts. That family also fails before
+implementation.
+
+Treat every 32-bit input as a vector over `GF(2)^32`. XOR is vector
+addition. Fixed rotations and fixed shifts are linear maps on those vectors.
+An XOR mask contributes only an affine constant. Therefore any `n`-word
+function in this grammar has the form
+
+```text
+F(x_1,...,x_n) = b XOR A_1 x_1 XOR ... XOR A_n x_n
+```
+
+for binary `32 x 32` matrices `A_i`.
+
+A black-box attacker queries the zero vector to obtain `b`, then flips one
+input bit at a time. For every basis bit `e_{i,j}`,
+
+```text
+F(e_{i,j}) XOR b
+```
+
+is exactly the corresponding matrix column. Thus **`32n + 1` chosen
+queries** recover the complete 32-bit function, independent of the number of
+per-edge XOR masks, rotations, identifier choices, or source layout. For one
+32-bit input the exact learner needs 33 observations.
+
+This corollary does not cover mixed ARX code containing modular addition,
+variable-variable multiplication, table lookups, or other nonlinear
+operations over `GF(2)`. It does mean a successor should not spend an
+implementation cycle on a pure XOR/rotate/shift encoded domain.
