@@ -30,6 +30,52 @@ The two completed **experimental**, not full-repository, Ubuntu/Windows-plus-rea
 
 **Decision and next evidence:** Do not promote this configuration as a protection improvement over ordinary minification on this application. Preserve its compiler/compatibility evidence. A replacement security candidate must predeclare an attacker-cost hypothesis and compare native, conventionally minified, actually emitted, and attacker-recovered behavior on the **same frozen application**. Record the protected *executed* work, independent static and hostile-runtime adversaries with matched budgets, full external-observation parity, exact source hashes, and separate short-session and sustained 2.5× measurements. An additional source-observation refusal or successful CI job alone does not change the security verdict. SCO private server-side operations require their own authenticated online-relay and network-cost assessment.
 
+## Selected arithmetic hot-work budget counterexample, 18 November 2026
+
+An explicitly isolated SNO repeated-compute experiment showed that application-level medians can conceal a severe cost in the selected source functions. The [exact-source Node22 Linux/Windows resident hot-path gate 44208868147](https://github.com/FlareZ123/obfs/actions/runs/44208868147), with the real manifest-checked startup and identical native/protected output digests, measured **52/52 strict CPU pairs over 2.5×** for the original full affine/polyvariant lowerer. Selected-leaf CPU median ratios ranged from **17.6× to 31.2×**; the same runner's full stateful application groups showed substantially lower overhead. The source-only attack already reconstructs all selected arithmetic functions. [Reproducible intermediate evidence](../im-results/polyvariant-selected-hotpath-budget-veto-2026-11-18.md).
+
+A separate compact case encoding reduced typical measured arithmetic overhead while retaining trivial public recovery. The [longer Ubuntu/Windows gate 44210744630](https://github.com/FlareZ123/obfs/actions/runs/44210744630) observed **11/13 strict Windows CPU breaches and a 2.759× median** at 400 million selected-chain iterations, with two additional strict Ubuntu breaches. A [second exact-source Linux/Windows run 44212698981](https://github.com/FlareZ123/obfs/actions/runs/44212698981) measured **1.857× Windows median** on the corresponding hot path and **1/52 Ubuntu selected-hot strict breaches**, plus **2 Windows complete-application strict breaches**. This variability prevents claiming a stable Windows median violation, while the strict observed budget and static-recovery stoplines remain. The original full-affine 52/52 selected-hot overbudget observation replicated on both platforms. The compiler then passed a [384-source, 49,920-observation deterministic cross-platform semantic fuzz](https://github.com/FlareZ123/obfs/actions/runs/44211601578), confirming bounded arithmetic correctness while leaving the strict budget and static-security failures intact. [Scoped compact evidence](../im-results/polyvariant-compact-critical-path-2026-11-18.md).
+
+**Candidate-selection consequence:** Both experimental polyvariant representations remain unsuitable as general strong protections under the requested 2.5× hard compute ceiling. Whole-application, cold Node startup and warmed selected-critical-path CPU each require explicit measurement boundaries. This is reproducible negative evaluation and compiler-safety context, without an academically established strong-obfuscation construction. The overall COO/SNO/SCO release verdict remains blocked.
+
+## Cross-mode release decision now includes selected SNO hot compute, 18 November 2026
+
+The former ten-population cross-mode comparison mixed SNO cold Node startup
+with the requested initialization-exempt SNO repeated-compute budget.
+[PR #83](https://github.com/FlareZ123/obfs/pull/83), merged as
+`7276233deb2f385141bd76b8246bb045d4ef0a38`, preserves that
+historical cold measurement as operational latency and adds a separate
+**twelve-population, source-coincident strict compute aggregation**:
+four COO sessions, four SNO resident application CPU workloads,
+**two mandatory SNO direct selected-function CPU workloads**, and
+two SCO authenticated-service workloads. The strict sampled-pair veto is
+reported separately from one-sided familywise median confidence.
+The existing security verdict remains **RELEASE-BLOCKED**.
+
+The independent two-platform [full release gate 44212314693](https://github.com/FlareZ123/obfs/actions/runs/44212314693)
+at exact executable SHA `aff2728c7c77ebad7856303cf62554bebb1ce832`
+passed all prescribed programs and strict JSDoc; the final
+[resolved-toolchain run 44214285338](https://github.com/FlareZ123/obfs/actions/runs/44214285338)
+at SHA `a9c5163cf8f424e3630806ceca5a9336e8fb44da`
+also passed Ubuntu/Windows and logged the full npm dependency tree.
+In the latter, SNO resident whole-application groups had
+**0/104 strict CPU pair breaches**, while directly exercising
+the selected `round1/round2/round3` functions after manifest-checked
+startup yielded **52/52 strict >2.5× CPU breaches** and the
+twelve-population join recorded **39 Ubuntu and 35 Windows**
+strict breaches overall. The published numeric hot-loop slowdown
+ranges from approximately 20.59× to 31.34× Ubuntu and 24.88×
+to 25.30× Windows in that exact run.
+
+The original selected-affine hotpath failure had already been
+[established by Agent 37](../im-results/polyvariant-selected-hotpath-budget-veto-2026-11-18.md);
+the merged contribution reproduces it and **repairs the central
+release calculation** so successful but mostly unprotected application
+work cannot conceal severe selected-function compute cost.
+[Complete raw pairs, clocks and scope](../im-results/sno-hot-leaf-crossmode-reconciliation-2026-11-18.md).
+These pins certify finite tested evidence. Concurrent later `main`
+edits and other unpublished candidates require independent verification.
+
 ## What is actually supported
 
 The repository provides runnable COO (client-only), SNO (server-only, no live obfuscator control), and SCO (server-controlled) entry points. Its bounded compiler-safety regressions, cross-platform native/generated comparisons, and Chromium integration demonstrate **tested behavior preservation for selected programs**. They do not establish general observational equivalence, strong deobfuscation resistance, or a universal **2.5×** runtime guarantee.

@@ -137,7 +137,16 @@ even when the application's AST has no explicit `fetch` call. The bounded
 ordinary source-byte preflight now recognizes the named `caches` and
 `CacheStorage` roots, and the opt-in ESM source-island proof separately
 refuses them. Both checks are conservative and admit finite evidence only;
-a host can provide unmodeled source-reading capabilities.
+a host can provide unmodeled source-reading capabilities. In a same-origin
+browser document, `Window.frames` can expose an iframe that loads a JavaScript
+file as text, allowing declared ESM to inspect `frame.document.body.textContent`
+without a direct network reader call. Declared ESM can also create its own
+iframe and inspect `HTMLIFrameElement.contentDocument` or `contentWindow`.
+The scanner conservatively vetoes these named frame roots and members while
+retaining the eligible no-reader property-renaming positive control. This is
+only a recognized capability family, since arbitrary same-origin host markup
+or runtime-injected objects cannot be fully inferred from the declared file
+list.
 
 The bounded `observesDistributedSource` AST preflight now declines ordinary
 identifier, property and string transformations across a supplied group when

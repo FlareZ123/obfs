@@ -41,7 +41,16 @@ test('resident SNO profile executes real protected work and verifies every outpu
   assert.equal(result.rows.length,4);
   assert.deepEqual(result.rows.map(row=>row.events),[1,50,1000,10000]);
   assert.deepEqual(result.leafRows.map(row=>row.repetitions),[40000000,80000000]);
-  for(const row of [...result.rows,...result.leafRows]){
+  const populations=[...result.rows,...result.leafRows];
+  assert.equal(result.strictCpuBreaches,
+    populations.reduce((n,row)=>n+row.strictCpuOverBudgetPairs,0));
+  assert.equal(result.strictWallBreaches,
+    populations.reduce((n,row)=>n+row.strictOverBudgetPairs,0));
+  assert.equal(result.cpuSampleVerdict,
+    result.strictCpuBreaches?'sample-breached':'sample-unbreached');
+  assert.equal(result.medianCpuPopulationsSupported,
+    populations.every(row=>row.cpuBudget.decision==='supported'));
+  for(const row of populations){
     assert.equal(row.allOutputsEquivalent,true);
     if(row.events===0)assert.ok(row.repetitions>=40000000);
     assert.equal(row.nativeMs.length,5);

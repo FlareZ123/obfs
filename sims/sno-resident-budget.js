@@ -36,10 +36,11 @@ function records(count){
  *
  * @param {string} root
  * @param {boolean} protectedGraph
+ * @param {boolean} [compact]
  * @returns {Promise<string>}
  */
-async function buildResident(root,protectedGraph){
-  const built=await emitSno(root,!protectedGraph);
+async function buildResident(root,protectedGraph,compact=false){
+  const built=await emitSno(root,!protectedGraph,compact);
   assert.equal(built.selectedFunctions,3);
   assert.equal(built.changedFiles,protectedGraph?1:0);
   const bridge=await fs.readFile(path.join(__dirname,'sno-resident-entry.cjs'),'utf8');
@@ -127,9 +128,10 @@ async function closeResident(worker){
  * are scoped SNO *post-init repeated-compute* measurements.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:ResidentRow[],leafRows:ResidentRow[]}>}
+ * @param {boolean} [compact]
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,compact:boolean,initializationExcluded:boolean,rows:ResidentRow[],leafRows:ResidentRow[],strictCpuBreaches:number,strictWallBreaches:number,cpuSampleVerdict:'sample-breached'|'sample-unbreached',medianCpuPopulationsSupported:boolean}>}
  */
-async function run(rounds=13){
+async function run(rounds=13,compact=false){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
     throw new RangeError('Resident SNO profile requires 5 through 100 trials');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sno-resident-'));
@@ -137,7 +139,7 @@ async function run(rounds=13){
   const workers=[];
   try{
     const nativeEntry=await buildResident(path.join(root,'native'),false);
-    const snoEntry=await buildResident(path.join(root,'protected'),true);
+    const snoEntry=await buildResident(path.join(root,'protected'),true,compact);
     const native=await startResident(nativeEntry);
     workers.push(native);
     const sno=await startResident(snoEntry);
@@ -196,7 +198,9 @@ async function run(rounds=13){
     // surrounding stateful session and JSON work in the main application.
     /** @type {ResidentRow[]} */
     const leafRows=[];
-    for(const repeat of [40000000,80000000]){
+    // The compact encoding is fast enough that Windows CPU quantization
+    // needs longer individual samples than the full affine encoding.
+    for(const repeat of compact?[200000000,400000000]:[40000000,80000000]){
       const base=/** @type {Request} */ ({
         id:0,seed:0x4137109d,records:[],mode:'leaves',repeat
       });
@@ -240,8 +244,18 @@ async function run(rounds=13){
         allOutputsEquivalent:true
       });
     }
+    const populations=[...rows,...leafRows];
+    const strictCpuBreaches=populations.reduce(
+      (count,row)=>count+row.strictCpuOverBudgetPairs,0);
+    const strictWallBreaches=populations.reduce(
+      (count,row)=>count+row.strictOverBudgetPairs,0);
+    const medianCpuPopulationsSupported=populations.every(
+      row=>row.cpuBudget.decision==='supported');
     return {source:'sims/sno-resident-budget.js',node:process.version,
-      platform:process.platform,initializationExcluded:true,rows,leafRows};
+      platform:process.platform,compact,initializationExcluded:true,rows,leafRows,
+      strictCpuBreaches,strictWallBreaches,
+      cpuSampleVerdict:strictCpuBreaches?'sample-breached':'sample-unbreached',
+      medianCpuPopulationsSupported};
   }finally{
     await Promise.allSettled(workers.map(closeResident));
     await fs.rm(root,{recursive:true,force:true});
@@ -250,8 +264,10 @@ async function run(rounds=13){
 
 if(require.main===module){
   const rounds=process.argv[2]===undefined?13:Number(process.argv[2]);
-  run(rounds).then(result=>{
-    process.stdout.write('SNO_RESIDENT_BUDGET '+JSON.stringify(result)+'\n');
+  const compact=process.argv.includes('--compact');
+  run(rounds,compact).then(result=>{
+    process.stdout.write((compact?'SNO_COMPACT_RESIDENT_BUDGET ':'SNO_RESIDENT_BUDGET ')+
+      JSON.stringify(result)+'\n');
   }).catch(error=>{console.error(error);process.exitCode=1;});
 }
 

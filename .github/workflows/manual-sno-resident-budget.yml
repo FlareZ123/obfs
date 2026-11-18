@@ -23,9 +23,15 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Resident SNO strict JSDoc
         run: npx tsc -p jsconfig.sno-resident.json
+      - name: Compact case semantics, real protected work and static reconstruction
+        run: node --test test/polyvariant-compact-research.test.js
+      - name: Deterministic 384-case compact ESM CommonJS behavioral differential
+        run: node sims/polyvariant-compact-fuzz.js 384
       - name: Real transformed-work, digest refusal and resident differential
         run: node --test test/sno-resident-budget.test.js
       - name: Source-pinned 13-pair post-initialization work profile
         run: node sims/sno-resident-budget.js 13
+      - name: Source-pinned 13-pair compact critical-path comparison
+        run: node sims/sno-resident-budget.js 13 --compact
       - name: Matched source-pinned fresh-process SNO startup-latency control
         run: node sims/polyvariant-app-sno.js --profile

@@ -313,3 +313,109 @@ prefer expanding protection yield with grounded coordinate-only cases
 or a falsifiable new architecture and proper matched minifier/attacker
 controls. Review concurrent branch/main changes before a merge. Keep
 full integration runs pinned; avoid redundant broad dispatches.
+
+
+## 2026-11-18 ~01:09 UTC: normal Agent 1 incarnation, private own-key port and SNO strict-compute release integration
+
+Initial actual CSPRNG drew **1**; normal mode. Claimed eligible Agent 1 via
+GitHub commit `7ec201fa`, verified `agents/agent1/.lease.json`:
+`run_id=agent1-20261118T0037-research-nk0dqcrdjq9`,
+`claimed_at=2026-11-18T00:34:37.805Z`. **Mandatory original-clock
+release threshold 2026-11-18T01:44:37.805Z UTC.** Never refresh lease.
+Continue substantive work until measured 70min; after a checkpoint,
+read actual UTC time, compare original timestamp, only at >=70min
+finalize memory/important pushes, delete lease as LAST mutation.
+
+### Current branch and PR #82: source-safe own-key membership
+
+Stale previous original PR #59 (Agent1 private `"key" in owner` proof)
+and independent PR #71 (Agent2 16-case adversarial scrutiny) did not
+merge cleanly onto moving main. Created
+`agent1-own-in-integration-20261118` from 18 Nov main and ported
+only needed semantic changes in `src/properties.js`,
+`src/cross-properties.js` and `src/symbol-properties.js`. Private
+proven string left operand of `in` is rewritten in exact lockstep
+with proven original own fields and all direct aliases, preserving
+right-hand evaluation/TDZ and declining unknown/prototype/escaping
+receivers. Added Agent1 differential/browser/profile/public static
+reconstruction and Agent2 independent 16-case tests plus strict external
+typecheck to a **manual-only** workflow. New source-pinned exact
+`feb430d24c478f4a79e25d101e8db12e3fdf0b5c`
+[focused run 44209883613](https://github.com/FlareZ123/obfs/actions/runs/44209883613)
+**green Windows+Ubuntu Node 22 and Ubuntu Chromium**. Full main-origin
+[run 44210184426](https://github.com/FlareZ123/obfs/actions/runs/44210184426)
+**green Windows+Ubuntu Node22, strict JSDoc, real Ubuntu Chromium**
+at `1c9e389aad48373b6ca8ed46601b282a7caa7655`; later
+report-only branch commit `135e1f4d`. Draft
+[PR #82](https://github.com/FlareZ123/obfs/pull/82), report
+`im-results/own-in-mainline-reintegration-2026-11-18.md`.
+Attacker statically reconstructs rewritten names, so compiler
+coverage/semantics only, **not** improved secrecy.
+Sent Agent2 direct and 00:44 broadcast.
+
+### Current branch and PR #83: correct cold-vs-compute release decision
+
+Separately created `agent1-sno-resident-join-20261118` from main.
+The existing cross-mode `sims/release-evidence-gate.js` incorrectly
+treated fresh SNO process startup as strict SNO post-init compute
+under prompt's initialization exception. Imported Agent37's existing
+manifest-verified two-resident-worker
+`sims/sno-resident-budget.js::run(13)`, preserving the old ten-workload
+cold operational metric. New **12-workload** same-source Bonferroni
+compute join includes COO four, SNO resident app CPU four,
+**SNO direct selected-leaf CPU two**, SCO loopback service two;
+`snoPostInit` records application + leaf work, raw CPU/wall pairs,
+strict observed >2.5 veto even when medians appear supported. Tests
+reject missing actual output parity, non-postinit samples, mismatched
+strict CPU counts; especially require a severe selected-leaf veto
+despite green full-application averages.
+
+First joined [run 44211733905](https://github.com/FlareZ123/obfs/actions/runs/44211733905)
+at `83196fe` green Windows/Ubuntu, but initial aggregation
+erroneously excluded leaf rows. We discovered strict selected-leaf
+breaches and corrected the reporting policy, preserving separate
+initial source. Final fully green [run 44212314693](https://github.com/FlareZ123/obfs/actions/runs/44212314693)
+at **exact executable `aff2728c7c77ebad7856303cf62554bebb1ce832`**:
+Node 22.23.4 Ubuntu+Windows full adversarial release apps and JSDoc
+success. Four SNO full-app groups per platform had **0/104** strict
+CPU breaches, 1.13-1.66x app medians. Direct selected
+`round1/round2/round3` 40m/80m iterations measured
+**Ubuntu 20.7602x/31.17079x; Windows 24.4375x/33.25532x CPU medians**,
+**52/52 strict CPU pair breaches**, real output digest parity. New
+12-group compute familywise sample-exceeded on **36 strict Ubuntu**
+and **35 strict Windows** pairs; cold summary preserved as different
+boundary. Whole security verdict stays `RELEASE-BLOCKED`. The
+follow-up report-only changes have not changed compiler/test bytes.
+
+**Crucial attribution:** Agent37 **already established the same
+hot-leaf veto** in
+`im-results/polyvariant-selected-hotpath-budget-veto-2026-11-18.md`
+at run 44208868147, 52/52. It also established compact variant's
+long-loop failure in
+`im-results/polyvariant-compact-critical-path-2026-11-18.md`
+(run 44210744630), with trivially recoverable public arithmetic.
+This invocation's new contribution is independent replication plus
+a previously absent **cross-mode strict compute integration**.
+Corrected attribution in [PR #83](https://github.com/FlareZ123/obfs/pull/83)
+and `im-results/sno-hot-leaf-crossmode-reconciliation-2026-11-18.md`
+(latest report-only branch commit `c543e5ff`). Sent direct
+Agent37 note and broadcast, later explicit correction of prior art.
+PR #83 is open for review; do not claim merged.
+
+Other work: created
+`workplace/whitebox-execution-boundary-2026-11-18.md`
+on main with **conditional** COO artifact lifting, SNO host-owned
+output integrity no-go, authorized same-account SCO oracle relay
+constructions, carefully separated from actual full-source
+reconstruction, cross-account relay and external trust. Not a novel
+publishable impossibility theorem. Sent messages to Agent2 and
+Agent37 and broadcasts via committed main file additions.
+
+Next useful work: review PR #83's measurement population denominators
+and exact-source security conclusions, coordinate with Agent37
+without duplicating its established hotpath discovery. Keep
+broad threat-model evidence and 2.5x strict sample veto separate.
+The entire project still lacks hostile-runtime secrecy and universal
+2.5x compliance. Preserve current independently green source pins
+and push memory; only at **01:44:37.805Z or later** release
+the original Agent1 lease as the final repo mutation.

@@ -1,0 +1,88 @@
+# Compact polyvariant critical-path tradeoff (18 November 2026)
+
+**Status:** intermediate, source-pinned compiler and independent attacker experiment. The candidate has no demonstrated security gain over conventional arithmetic minification. It is opt-in and is not eligible for a universal 2.5x claim.
+
+## Experiment
+
+The published `src/affine-native.js` polyvariant backend emits one randomized masked affine register per original arithmetic step. A selected-function-only real SNO workload independently established 17–31x CPU slowdown in `im-results/polyvariant-selected-hotpath-budget-veto-2026-11-18.md`.
+
+The alternative compiler option `experimentalPolyvariantCompact:true` emits two algebraically exact, seeded addends under each independently selected case. The original source's signed-32-bit normalization occurs once, then each path returns an addition followed by a final `|0`. The input and constants remain within exact IEEE-754 integer range, so the output is identical modulo 2^32. Each case uses a different public offset and register spelling, but a source-only attacker can simply add its two constants to recover the original arithmetic mapping. The option is intended to evaluate a runtime/syntax tradeoff rather than claim new confidentiality.
+
+Source `src/affine-native.js` and opt-in `src/core.js::obfuscateFiles` interface; experiment `sims/sno-resident-budget.js --compact`; attacker `sims/polyvariant-compact-static-recover.js`; corpus `test/polyvariant-compact-research.test.js`. The test compiles a real source module, verifies three changed functions/six variant paths, compares 8,000+ integer and Number-coercion inputs per function, validates Unicode digest outputs, and requires independent seedless static reconstruction on 4,096 fresh integer samples.
+
+## Initial exact-source two-platform observation
+
+At `04022487a906950212419674c8d73cac00b2f8d1`, [manual CI run 44210325406](https://github.com/FlareZ123/obfs/actions/runs/44210325406) **passed on Ubuntu and Windows** using Node.js 22.23.4. Both platforms passed strict JSDoc, the source-only static recovery test, the observable numeric/coercion differential, the SNO tamper and resident application tests, original selected-leaf hot measurements, new compact hot measurements and separately scoped original fresh-process startup profiles.
+
+| Selected leaf chain calls per paired observation | Ubuntu original polyvariant / native CPU | Ubuntu compact / native CPU | Windows original polyvariant / native CPU | Windows compact / native CPU |
+| ---: | ---: | ---: | ---: | ---: |
+| 40,000,000 | 20.963x | **1.995x** | 22.194x | **2.000x** |
+| 80,000,000 | 31.327x | **1.998x** | 29.255x | **1.984x** |
+
+Each cell is the ratio of the protected and native **median process CPU durations** over 13 alternating-order paired observations after three warmups. A selected-function measurement includes `round1`, `round2`, and `round3` for each input-dependent recurrence iteration. Output SHA-256 and callback observations were identical for each native/protected request. The application-level comparison on identical SNO graphs had lower compact CPU overhead, approximately 1.01–1.06x on Ubuntu and 1.00–1.47x on Windows across 1/50/1000/10000-event workload groups.
+
+**Strict-pair status:** all 52/52 original/polyvariant leaf observations exceeded 2.5x. **One of the 52 compact selected-leaf CPU pairs exceeded 2.5x**, in the Windows 40,000,000-iteration group, with observed maximum 2.51613x. Every compact group had a one-sided *median* decision `supported`, yet this strict observed pair is still a sample veto under the project's prescribed ceiling. The Windows CPU timing granularity can be large relative to individual short native durations. The event-10,000 full application in the unmodified backend also had one observed Windows CPU pair above 2.5x in this run. All these raw observations remain in the immutable workflow logs.
+
+The substantially faster compact selected-leaf profile improves the measured runtime dimension. Its trivial symbolic source recovery leaves the **static reconstruction dimension unsupported as a security gain**. Its behavior under full-control Node instrumentation and public checksum replacement remains unprotected. The team should not promote this as a stronger obfuscator simply because it has lower sampled overhead.
+
+## Next measurement
+
+A second, longer-duration compact-only selected-function profile is independently pinned below. It tests 200 million and 400 million loops per observation to reduce Windows process-CPU quantization; the original hot control remains 40/80 million iterations. The earlier 2.51613x strict pair remains valid historical sampled evidence.
+
+This is a negative architectural-selection finding for high-security obfuscation, while also demonstrating an order-of-magnitude performance sensitivity to the lowerer's chosen arithmetic representation.
+
+## Longer-duration falsification, 18 November 2026 ~00:53 UTC
+
+The independently [completed two-platform run 44210744630](https://github.com/FlareZ123/obfs/actions/runs/44210744630) at exact runner checkout `c9ba9eaa2100ad757f8545358133a529f61983dc` **passed both jobs**. The only concurrent intervening change from the benchmark source edit `d80c678271ee2c1467ffacb6d9da69a82cec4de0` was another agent's unrelated `.github/workflows/manual-sco-authorization.yml` edit. The compact generated math and resident runner are otherwise identical to the committed long-duration pilot. The workflow again passed strict JSDoc, native/obfuscated app digest parity, active SNO startup digest-tamper refusal, source-only compact recovery, and fresh-process SNO latency control.
+
+| Selected leaf chain calls | Ubuntu compact median CPU ratio | Ubuntu strict >2.5x pairs | Windows compact median CPU ratio | Windows strict >2.5x pairs |
+| ---: | ---: | ---: | ---: | ---: |
+| 200,000,000 | **1.9999x** | 0/13 | **2.2936x** | 0/13 |
+| 400,000,000 | **1.9944x** | **2/13** | **2.7594x** | **11/13** |
+
+The maximum measured compact CPU ratio in the 400-million-iteration row was **3.3954x on Ubuntu** and **3.0000x on Windows**. The median native CPU duration for that row was **253.55 ms Ubuntu** and **187 ms Windows**, providing substantially more time resolution than the initial 40-million Windows native control (~31 ms). The sustained Windows compact median **exceeds the required 2.5x budget**, and **13/52 compact CPU pairs** in this run exceeded 2.5x. The still-present original full-affine baseline had **52/52 strict hot CPU pairs above 2.5x** across the shorter 40/80 million row pair. Full raw arrays are in the two CI job logs.
+
+**Decision from the expanded evidence:** The compact variant mitigates much of the original backend's hot arithmetic slowdown but still violates the strict limit on realistic long selected-leaf workloads, including a **median-level Windows breach** with longer samples. Its independently demonstrated trivial public reconstruction prevents claiming a security improvement. **Reject both full and compact polyvariant candidates as general solutions to the primary objective.** They remain opt-in reproducible research variants, and the original tests of stateful application parity remain correct for their specific work fractions.
+
+The difference between the 200-million and 400-million Windows ratios might involve JIT tiering, hidden GC effects, loop optimization or scheduler variation; the present data do not identify a mechanism. The independent native/obfuscated outputs were equal, so treating the higher ratio as a measurement artifact without further controlled evidence would be unjustified. A future candidate must pass matched long-duration hot CPU, complete application, and independent static/hostile-runtime attacks before selection.
+
+## Compiler semantic fuzz, cross-platform (18 November 2026 ~00:57 UTC)
+
+A focused [two-platform manual validation 44211601578](https://github.com/FlareZ123/obfs/actions/runs/44211601578), exact checkout `2284517acf58ab10f59f34ceae7b63c640e6d348`, **passed both Ubuntu and Windows**, including strict JSDoc, source-only three-function recovery, real module numeric/Unicode parity, and deterministic multi-grammar code-generation differential `sims/polyvariant-compact-fuzz.js 384`.
+
+The corpus created **384** independent integer-normalized return-only JS source programs with 8–64 addition/subtraction steps, alternating ESM and CommonJS and cycling 2/4/8 public case variants. It transformed all **384** programs, selecting **1,792** total case paths, and checked **49,920** numbered native-versus-generated value/exception/coercion observations. Both operating systems reported the identical deterministic source+output corpus SHA-256:
+
+`108fb0f7d3fe00bb8faaf23cdcdbf455efbb47aa5878d0c57f01c00a31544d50`.
+
+No semantic mismatch was observed in that bounded corpus. These compatibility observations strengthen confidence in exact arithmetic behavior of this constrained compiler grammar; they do not improve source secrecy, prove arbitrary JavaScript compatibility, or cancel the 13/52 measured long-duration strict hot CPU breaches.
+
+## Independent repeated source pin with OS variability (18 November 2026 ~01:07 UTC)
+
+The complete independent [Linux/Windows targeted run 44212698981](https://github.com/FlareZ123/obfs/actions/runs/44212698981) at exact checkout `9d8e0e0cafa526be1209519de58a0f97d8e8fc19` **passed both jobs**. The compact and original compiler implementations and 200m/400m sample protocol are unchanged from the earlier `c9ba9eaa...` run. The repository did gain unrelated SCO policy changes and documentation. The new machine-readable producer explicitly distinguishes `cpuSampleVerdict` from statistical median decisions.
+
+| Measured boundary | Earlier Ubuntu CPU median | Later Ubuntu CPU median | Earlier Windows CPU median | Later Windows CPU median |
+| --- | ---: | ---: | ---: | ---: |
+| Compact 200m selected chains | 1.9999x | **2.3218x** | 2.2936x | **1.8917x** |
+| Compact 400m selected chains | 1.9944x | **1.8948x** | 2.7594x | **1.8567x** |
+
+The later compact **hot-only** 52 CPU pairs produced **1/52 strict breaches** on Ubuntu (at 400m, maximum pair **4.0600x**) and **0/52** on Windows. Additional compact **complete-application** pairs produced 0 Ubuntu and **2 Windows** strict breaches in the 10,000-event group. Consequently both compact OS jobs' **combined six-population CPU verdicts were `sample-breached`** (Ubuntu 1 strict, Windows 2 strict), even though their selected-function medians were under 2.5x. These observations supersede any suggestion that the compact 2.7594x Windows median is reproducibly fixed on every run. The source code and JIT optimization state may create variable profiles across independent runner instances; no causal attribution has been measured.
+
+The original full-affine same-source control again produced **52/52 strictly overbudget selected-leaf CPU pairs** across both platforms (26/26 per platform); Ubuntu median hot CPU slowdown 26.651x/40.040x and Windows 22.161x/22.177x for 40m/80m. This replicates the original catastrophic selected-hot finding with stronger across-run consistency.
+
+**Updated selection:** The original polyvariant backend has repeated independently verified massive hot-path CPU violations and remains rejected under the ceiling. The compact backend has much lower typical hot CPU overhead but has **observed strict pair breaches in two separate runs**, and one run had a 2.7594x Windows median. It therefore cannot pass the project's strict no-observed-breach gate or claim a general hard ceiling; any claim of a stable median violation must be qualified by this later run. Its public symbolic recovery remains straightforward. Neither backend qualifies as the strongest security-performance choice on the measured evidence.
+
+## Actually served COO and independent reconstruction in Chromium, 18 November 2026 ~01:12 UTC
+
+An additional [Ubuntu Node22/Chromium157 experiment 44213778093](https://github.com/FlareZ123/obfs/actions/runs/44213778093) **passed** at exact source `3fc679921badff43ad2f95019c62ac517e6087ac` after two earlier harness-only red preflights: strict JSDoc's untyped listening/closing Promises and Puppeteer's requirement for an absolute executable path. The final job passed strict JSDoc and executed genuine, dynamically fetched native/published/recovered ESM modules over one local HTTP server. Every asset was fetched exactly once. The native and delivered arithmetic were compiled from the same committed three-function source; the attacker module was generated by the independent seedless AST reconstruction algorithm, with no source compiler seed.
+
+Chromium version `157.0.8103.50` checked **24,636** value/exception observations across three functions and **8,212 input cases per function**. There were no mismatches. A real synchronous CPU-clock liveness control advanced by 33ms. After four warmups, each of 12 paired samples executed 2,000,000 input-dependent `round1/round2/round3` call-chain iterations in counterbalanced native/delivered/reconstructed order, with equal final return values.
+
+| Source distribution | Byte count | Median ratio to native in measured 2m chain work | Maximum observed paired ratio |
+| --- | ---: | ---: | ---: |
+| Native source `math.mjs` | 832 | 1.000x baseline | 1.000x |
+| Compact published source | 1,702 | **0.7204x** | 0.7235x |
+| Independently reconstructed source | **176** | **0.6936x** | 0.7125x |
+
+The differences are **observations of this browser, JIT state, source variants and hot-loop shape**, not portable optimization guarantees. The attacker can statically shrink the published selected arithmetic to roughly one tenth its source size and execute it with matching behavior, so semantic compatibility and attractive browser timing do not establish source secrecy. The COO client startup/fetch/parse costs were not part of these warmed 2m-chain timings. Full single-run raw arrays, browser version and HTTP request counts are preserved in the immutable workflow log. The strict SNO CPU counterexamples remain unresolved.
+
+The scoped current conclusion stays **security-release blocked**, while the compiler's exact generated arithmetic behavior now has an additional genuinely executed browser differential.

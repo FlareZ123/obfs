@@ -96,6 +96,16 @@ The original vs mutated configuration behavior is exercised through
 real HTTP requests by
 [`test/sco-policy-configuration-snapshot.test.js`](../test/sco-policy-configuration-snapshot.test.js).
 
+Accessor-backed startup configurations now retain their **first values**
+for the method registry, authorization callbacks, request-body byte cap,
+Host-header routing list and closed-world compiler selector. The Host list
+is copied by indexed access, independent of a caller-owned iterator.
+A callback's own closure may still observe live credential state.
+This prevents construction-time validation against a restrictive getter
+followed by deployment of a later, permissive getter value. Six actual HTTP
+and compiler regressions live in
+[`test/sco-request-policy-initial-snapshot.test.js`](../test/sco-request-policy-initial-snapshot.test.js).
+
 ## Explicit public source-file allowlist
 
 For source-private SCO integrations, pass `publicPaths:['entry.mjs','assets/app.css']`
@@ -132,6 +142,14 @@ asset size; behavior is covered by
 legacy behavior. A real HTTP demonstration of the default accidental
 publication and positive-allowlist refusal is in
 [`test/sco-public-file-allowlist.test.js`](../test/sco-public-file-allowlist.test.js).
+
+An accessor-backed `publicPaths` property is read once and its array
+entries are copied by indexed access before the reviewed-file comparison.
+Custom iterators and subsequent getter values cannot widen that first
+publication decision. The four-case test is
+[`test/sco-public-allowlist-snapshot.test.js`](../test/sco-public-allowlist-snapshot.test.js).
+These checks assume a trusted server integrator; intentionally publishing
+private files outside the handler remains possible.
 
 Example (CommonJS):
 

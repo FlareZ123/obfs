@@ -80,6 +80,17 @@ jobs:
         run: node examples/imported-constant-key/build-sample.cjs
       - name: Differential imported-key ESM fuzz and static reconstruction
         run: node sims/imported-constant-key-fuzz.js
+      - name: Seeded cross-file semantic sketch differential and proven private-property yield
+        run: node sims/semantic-sketch-esm.js
+      - name: Source-only static reconstruction against ordinary minified positive controls
+        run: node sims/semantic-sketch-static-control.js
+      - name: COO SNO SCO cross-mode seeded ESM semantic equivalence
+        run: node sims/semantic-sketch-crossmode.js
+      - name: Real Chromium seeded ESM semantic sketch differential
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/semantic-sketch-browser.js
       - name: Third-module key DAG, cycle-TDZ and static-normalization differential
         run: node sims/third-module-key-fuzz.js
       - name: Verify exact computed-key sample and source-only attacker

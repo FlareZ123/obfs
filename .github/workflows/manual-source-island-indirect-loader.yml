@@ -27,6 +27,16 @@ jobs:
         run: node sims/source-island-indirect-loader-attack.js
       - name: Attempt constructor escape via native object destructuring
         run: node sims/source-island-indirect-loader-attack.js --destructure
+      - name: Real Chromium default frame source-observer counterexample
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/default-browser-frame-source-observer.js --expect-guarded
+      - name: Real Chromium in-module DOM iframe source preservation
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/default-browser-frame-source-observer.js --declared-frame --expect-guarded
       - name: Real Chromium browser string-timer source reader adversary
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:

@@ -258,3 +258,59 @@ for(const [label,observer] of [
     }
   });
 }
+
+
+for(const [label,observer] of [
+  ['named host iframe',
+    'const view=frames["sourceView"];'+
+    'const text=view["doc"+"ument"]["body"]["textContent"];'+
+    'console.log(state.secretField,text.includes("secretField"));'],
+  ['globalThis frame collection',
+    'const view=globalThis["frames"]["sourceView"];'+
+    'console.log(state.secretField,view["document"]["body"]["textContent"]);'],
+  ['window frame collection',
+    'const host=window;const view=host.frames["sourceView"];'+
+    'console.log(state.secretField,view["document"]["body"]["textContent"]);']
+]) {
+  test('same-origin Window.frames distributed-source reader refuses '+label,()=>{
+    const files=graph(observer);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const output=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'frame-source-reader/'+mode+'/'+label,
+        strings:false,properties:true,identifiers:true
+      });
+      assert.equal(output.crossFile.properties,0,
+        'Host frame can expose original module text in '+mode);
+      assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  });
+}
+
+
+for(const [label,observer] of [
+  ['declared DOM iframe contentDocument',
+    'const child=document.createElement("iframe");'+
+    'const text=child.contentDocument?.body?.textContent;'+
+    'console.log(state.secretField,text);'],
+  ['declared DOM iframe contentWindow',
+    'const child=document.createElement("iframe");'+
+    'const view=child["contentWindow"];'+
+    'console.log(state.secretField,view?.document?.body?.textContent);'],
+  ['computed literal contentDocument',
+    'const child=document.createElement("iframe");'+
+    'const text=child["content"+"Document"]?.body?.textContent;'+
+    'console.log(state.secretField,text);']
+]) {
+  test('declared DOM iframe source reader refuses '+label,()=>{
+    const files=graph(observer);
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const output=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'dom-frame-source-reader/'+mode+'/'+label,
+        strings:false,properties:true,identifiers:true
+      });
+      assert.equal(output.crossFile.properties,0,
+        'DOM frame reader may obtain distributed source text in '+mode);
+      assert.deepEqual(output.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  });
+}

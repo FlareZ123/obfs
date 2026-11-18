@@ -1,0 +1,29 @@
+name: Manual compact polyvariant semantic fuzz
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compact-fuzz:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict compact JSDoc
+        run: npx tsc -p jsconfig.sno-resident.json
+      - name: Native semantics plus public seedless reconstruction
+        run: node --test test/polyvariant-compact-research.test.js
+      - name: Deterministic 384-graph multi-grammar semantic differential
+        run: node sims/polyvariant-compact-fuzz.js 384
