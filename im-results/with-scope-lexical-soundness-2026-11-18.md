@@ -85,8 +85,16 @@ authorization or strong static-analysis resistance follows. The explicit
 2.5× compute budget and cross-mode adversarial release gate require
 independent source-pinned evidence.
 
-A full Node/Chromium integration run was dispatched against source
-`7e198b7`; its final result must be recorded separately from these
-focused results. Continue to examine other compiler-generated identifiers
-inside source dynamic scopes. Experimental CFG/VM backends already refuse
+The exact [full Node 22 and Chromium integration 44309139935](https://github.com/FlareZ123/obfs/actions/runs/44309139935)
+**passed** at source `7e198b7db4f8e2715beb1600ff7e50039381e765`.
+Each OS executed 3,363 Node tests. Ubuntu passed 3,362 with one skip;
+Windows passed 3,359 with four skips; **zero failures** on both.
+Both production and external JSDoc checks, benchmark/profile steps, blind
+public recovery matrix, and lockfile-based installation succeeded on both OSes.
+All three prescribed Chromium module/host/protected-key steps passed on Ubuntu.
+This is a compatibility result for the tested code and samples, not a strict
+universal 2.5× budget or hostile-runtime protection certificate.
+
+Continue to examine other compiler-generated identifiers inside source
+dynamic scopes. Experimental CFG/VM backends already refuse
 `WithStatement`; this report does not certify every backend.
