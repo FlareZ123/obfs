@@ -87,9 +87,11 @@ for(const [name,parser,expression] of sourceCases) {
  * @param {string} parserSource
  * @param {string} expression
  * @param {string|null} [baseSource]
+ * @param {string} [parserImport]
  * @returns {ModuleFile[]}
  */
-function selectedFiles(parserSource,expression,baseSource=null) {
+function selectedFiles(parserSource,expression,baseSource=null,
+  parserImport='import {parseUrl} from "./parser.mjs";') {
   return [
     {path:'logic.mjs',sourceType:'module',
       code:'export function inspect(a){return a^17;}'},
@@ -97,8 +99,8 @@ function selectedFiles(parserSource,expression,baseSource=null) {
     ...(baseSource===null?[]:[{path:'base.mjs',sourceType:/** @type {'module'} */ ('module'),code:baseSource}]),
     {path:'observer.mjs',sourceType:'module',code:
       'import {inspect} from "./logic.mjs";'+
-      'import {parseUrl} from "./parser.mjs";'+
-      'export function observe(){return {text:'+expression+',value:inspect(31)};}'}
+      parserImport+
+      'export function observe(){return {text:'+expression+',value:inspect(31)};'}
   ];
 }
 
@@ -132,6 +134,46 @@ for(const [name,parser,base] of selectedObservers) {
     'Importing a static URL parser cannot bypass cross-file source observation');
   });
 }
+
+for(const [name,importLine,expression] of [
+  ['namespace import','import * as API from "./parser.mjs";',
+    'API.parseUrl(inspect,"https://example.test/").href'],
+  ['namespace local method extraction','import * as API from "./parser.mjs";',
+    '(()=>{const read=API.parseUrl;return read(inspect,"https://example.test/").href;})()'],
+  ['namespace computed method','import * as API from "./parser.mjs";',
+    '(()=>{const key="parseUrl";return API[key](inspect,"https://example.test/").href;})()']
+]) {
+  test('selected Wasm rejects native URL parser through imported namespace: '+name,async()=>{
+    const before=selectedFiles('export const parseUrl=URL.parse;',expression,null,importLine);
+    const original=await execute(before);
+    assert.match(original.text,/inspect/u,'Native function source witness');
+    const lowered=lowerWasmI32Functions(before[0].code,'module',{
+      seed:'url-import-namespace-wasm-counterfactual',names:['inspect']
+    });
+    assert.equal(lowered.functions,1);
+    assert.notDeepEqual(await execute(before.map((f,i)=>i===0?{...f,code:lowered.code}:f)),
+      original,'Actual Wasm emitter changes native URL observation');
+    assert.throws(()=>obfuscateFiles(before,{
+      mode:'coo',seed:'url-import-namespace-wasm/'+name,closedWorld:true,
+      strings:false,experimentalWasmI32:{'logic.mjs':['inspect']}
+    }),/Wasm i32 requires|declined/i);
+  });
+}
+
+test('selected Wasm remains eligible with imported namespace parser literal input',async()=>{
+  const before=selectedFiles('export const parseUrl=URL.parse;',
+    'API.parseUrl("/fixed","https://example.test/").href',null,
+    'import * as API from "./parser.mjs";');
+  const result=obfuscateFiles(before,{
+    mode:'coo',seed:'url-import-namespace-primitive',
+    closedWorld:true,strings:false,
+    experimentalWasmI32:{'logic.mjs':['inspect']}
+  });
+  assert.equal(result.files[0].metrics.wasmI32Functions,1);
+  assert.deepEqual(await execute(result.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }))),await execute(before));
+});
 
 test('selected Wasm remains available when imported URL parser receives literals',async()=>{
   const before=selectedFiles('export const parseUrl=URL.parse;',
