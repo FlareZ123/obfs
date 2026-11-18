@@ -120,3 +120,67 @@ encoding refusal **3/3**. The release-gate threat model and
 source-reconstruction limitations remain unchanged. This is real-browser
 semantic-parity evidence for selected source, not a universal browser
 compatibility guarantee.
+
+
+## Follow-up: host-owned getter can observe an unrelated function or class body
+
+A second, distinct issue survived the original literal-under-`with` guard.
+A non-strict source file can contain a function, arrow, method, or class
+**outside** a `with` block and then read an **opaque** property from that
+block. An external host getter can return the full `Function#toString()`
+of that unrelated declaration. The source never mentions `toString`,
+`Reflect.get`, or a source-reading API. The previous encoder changed the
+function or class's literal into its runtime helper reference, so it changed
+the host-visible string.
+
+The exact [two-platform red witness 44314528904](https://github.com/FlareZ123/obfs/actions/runs/44314528904)
+at `c94dda02c7129a967a4fd2e9ca1368f82c15d7c3` failed the
+**native-versus-obfuscated runtime output** assertion in 12/12 newly
+introduced CommonJS cases, across COO/SCO/SNO and four distinct source
+forms. For example, V8's original
+`function observed(){return 'function-source-payload';}` was reported
+by the host while the emitted source reported
+`function observed(){return _oede2e31f6dc8[0];}`. A separate in-file
+top-level literal remained correctly decoded in both versions.
+
+The conservative compiler correction in `src/strings.js` computes whether
+the AST contains any `WithStatement`, then preserves literals nested
+inside `FunctionDeclaration`, `FunctionExpression`,
+`ArrowFunctionExpression`, `ClassDeclaration`, or `ClassExpression`
+regardless of their lexical position relative to the `with` block.
+A top-level primitive literal outside a function/class and outside
+`with` remains positively encodable. This limits the exact observable
+source-text mismatch without claiming that arbitrary hostile host
+instrumentation or entire-script source reads can be hidden.
+
+The source-pinned [two-platform green gate 44315058541](https://github.com/FlareZ123/obfs/actions/runs/44315058541)
+at `4814207a8f46f215eafb0b5d34f5affd40a5d8ee` added an independent
+classic-script variant of each fixture, producing 24 source-preservation
+cases across the three modes and both grammars. The established earlier
+positive cases also remain exercised by the same focused gate.
+
+In actual Chromium, the extended
+[test/with-dynamic-scope-browser.js](../test/with-dynamic-scope-browser.js)
+runs 9 page pairs: three modes times pure-literal, captured-reflect,
+and this new **generic opaque getter** source observer. The
+[source-pinned browser/Node gate 44315351028](https://github.com/FlareZ123/obfs/actions/runs/44315351028)
+at `ef2cbd86dc7995607e43f4d8f380b61557fefbc9` passed all nine
+native-versus-generated pairs, including all three generic getter
+cases with one genuinely encoded top-level literal and exact preserved
+function-source bytes. The branch also ran strict JSDoc checks.
+
+The unchanged attacker/runtime threat model still prevents broad
+source-secrecy or 2.5× universal claims. Source exactness can also depend
+on externally supplied code that inspects complete scripts; this bounded
+repair only proves parity in the pinned tests and preservation of these
+lexical source ranges.
+
+
+The pinned [full cross-platform Node/Chromium validation 44315081894](https://github.com/FlareZ123/obfs/actions/runs/44315081894)
+also **passed** at `4814207a8f46f215eafb0b5d34f5affd40a5d8ee`:
+Ubuntu **3,392 passed, 1 skipped, 0 failed** of 3,393 tests;
+Windows **3,389 passed, 4 skipped, 0 failed** of 3,393 tests.
+Both strict JSDoc passes, blind public recovery, performance/profile
+steps, and prescribed Ubuntu Chromium integrations succeeded. The later
+`ef2cbd8` browser-fixture extension modifies only the real-Chromium
+test file; its own two-platform focused gate separately passed.
