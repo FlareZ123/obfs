@@ -29,6 +29,7 @@ test('frozen four-way source, minifier, candidate and reconstructed bytes are re
   const archived=JSON.parse(fs.readFileSync(path.join(
     __dirname,'../im-results/frozen-four-way-artifacts-2026-11-18.json'),'utf8'));
   assert.deepEqual(receipt.graphDigests,archived.graphDigests);
+  assert.deepEqual(receipt.settings,archived.settings);
   assert.deepEqual(receipt.dependencies,archived.dependencies);
   for(const name of /** @type {(keyof typeof receipt.graphs)[]} */ (
     ['native','minified','published','reconstructed'])){
