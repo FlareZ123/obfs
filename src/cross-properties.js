@@ -1394,8 +1394,19 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
-            if(binding?.type==='Identifier' && value?.type==='Identifier' &&
-               callableNames.has(value.name) && !callableNames.has(binding.name)) {
+            if(binding?.type!=='Identifier'||!value)return;
+            const ordinaryAlias=value.type==='Identifier' &&
+              callableNames.has(value.name);
+            // Calling a known host-bearing factory after .bind still
+            // returns the host capability. Join the bound name as a
+            // callable alias before tracking its invocation result.
+            const boundAlias=value.type==='CallExpression' &&
+              value.callee.type==='MemberExpression' &&
+              value.callee.object.type==='Identifier' &&
+              callableNames.has(value.callee.object.name) &&
+              (value.callee.computed?staticString(value.callee.property):
+                staticName(value.callee.property))==='bind';
+            if((ordinaryAlias||boundAlias) && !callableNames.has(binding.name)) {
               callableNames.add(binding.name);
               aliasChanged=true;
             }
@@ -1405,15 +1416,30 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         function isFactoryCall(expression) {
           let candidate=expression;
           while(candidate?.type==='AwaitExpression')candidate=candidate.argument;
-          if(candidate?.type!=='CallExpression')return false;
+          if(candidate?.type!=='CallExpression' &&
+             candidate?.type!=='NewExpression')return false;
           const callee=candidate.callee;
           if(callee.type==='Identifier')return callableNames.has(callee.name);
+          if(callee.type==='CallExpression' &&
+             callee.callee.type==='MemberExpression' &&
+             callee.callee.object.type==='Identifier' &&
+             callableNames.has(callee.callee.object.name) &&
+             (callee.callee.computed?staticString(callee.callee.property):
+               staticName(callee.callee.property))==='bind')return true;
           if(callee.type!=='MemberExpression' ||
-             callee.object.type!=='Identifier' ||
-             !namespaceNames.has(callee.object.name))return false;
+             callee.object.type!=='Identifier')return false;
           const selected=callee.computed?staticString(callee.property):
             staticName(callee.property);
-          return selected===factory;
+          if(namespaceNames.has(callee.object.name) && selected===factory)return true;
+          // Native adapters preserve the factory's return value even when
+          // the invocation is not a syntactically direct named call.
+          if(callableNames.has(callee.object.name) &&
+             (selected==='call'||selected==='apply'))return true;
+          if(callee.object.name==='Reflect' &&
+             (selected==='apply'||selected==='construct') &&
+             candidate.arguments[0]?.type==='Identifier' &&
+             callableNames.has(candidate.arguments[0].name))return true;
+          return false;
         }
         /** @type {Set<string>} */
         const returnedNames=new Set();
