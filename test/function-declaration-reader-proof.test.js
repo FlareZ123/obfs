@@ -40,8 +40,8 @@ async function runEsm(files){
 test('local direct function declarations consume owned fields without changing results',()=>{
   const original=[
     'const root={secretAlpha:23,secretBeta:7};',
-    'function first(owner){return owner.secretAlpha;}',
-    'function second(owner){return owner.secretBeta;}',
+    'function first(ownerAlpha){return ownerAlpha.secretAlpha;}',
+    'function second(ownerBeta){return ownerBeta.secretBeta;}',
     'module.exports=[first(root)+second(root),first(root),second(root)];'
   ].join('\n');
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
@@ -63,8 +63,8 @@ test('cross-module native ESM graph preserves direct named declaration reader ca
   const files=[
     {path:'owner.mjs',sourceType:'module',code:[
       'const privateRecord={secretAlpha:23,secretBeta:7};',
-      'function readAlpha(owner){return owner.secretAlpha;}',
-      'function readBeta(owner){return owner.secretBeta;}',
+      'function readAlpha(ownerAlpha){return ownerAlpha.secretAlpha;}',
+      'function readBeta(ownerBeta){return ownerBeta.secretBeta;}',
       'export function calculate(k){return k*readAlpha(privateRecord)+readBeta(privateRecord);}'
     ].join('\n')},
     {path:'api.mjs',sourceType:'module',code:[
@@ -84,6 +84,38 @@ test('cross-module native ESM graph preserves direct named declaration reader ca
     assert.ok(selected&&selected.metrics.properties===2,
       mode+': two actually rewritten keys in the declared owner');
     assert.equal(await runEsm(transformed.files),native);
+  }
+});
+
+test('immutable two-statement helper expressions can safely consume owned fields',()=>{
+  const variants=[
+    'const read=(incoming)=>{const value=incoming.secretAlpha;return value;};',
+    'const read=function(incoming){const value=incoming.secretAlpha;return value;};'
+  ];
+  for(const declaration of variants){
+    const source='const root={secretAlpha:23};'+declaration+'module.exports=read(root);';
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+      const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+        mode,seed:'immutable-reader-'+mode,strings:false,identifiers:false
+      }).files[0];
+      assert.equal(result.metrics.objects,1,mode+': local immutable helper object');
+      assert.equal(result.metrics.properties,1,mode+': proven own field');
+      assert.equal(runCommonJs(result.code),23);
+    }
+  }
+});
+
+test('name-only scope proof conservatively declines duplicate formal spellings',()=>{
+  const source='const root={secretAlpha:23};'+
+    'function first(owner){return owner.secretAlpha;}'+
+    'function second(owner){return owner.secretAlpha;}'+
+    'module.exports=[first(root),second(root)];';
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])){
+    const result=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'duplicate-formal-'+mode,strings:false,identifiers:false
+    }).files[0];
+    assert.equal(result.metrics.objects,0);
+    assert.equal(JSON.stringify(runCommonJs(result.code)),JSON.stringify(runCommonJs(source)));
   }
 });
 
