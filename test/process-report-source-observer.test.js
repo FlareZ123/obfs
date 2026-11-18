@@ -450,3 +450,34 @@ test('ordinary process metadata remains eligible for property renaming',()=>{
   assert.ok(output.metrics.properties>0,output.code);
   assert.equal(execute(output.code),execute(source));
 });
+
+
+test('globalThis process extraction preserves diagnostic report coordinates',()=>{
+  const expressions=[
+    "(()=>{const {process:proc}=globalThis;return proc.report.getReport();})()",
+    "(()=>{const proc=Reflect.get(globalThis,'process');return proc.report.getReport();})()"
+  ];
+  for(const [index,expression] of expressions.entries())
+    mustPreserveProcessReport(expression,'agent8-process-global-extract-'+index);
+});
+
+test('shadowed process parameter does not suppress safe property renaming',()=>{
+  const source="'use strict';function run(process){"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "return value+(process.report.filename.length?1:0);}"+
+    "module.exports=run({report:{filename:''}});";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'shadowed-process.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed:'agent8-shadowed-process-yield',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),73);
+  assert.ok(output.metrics.properties>0,output.code);
+});
