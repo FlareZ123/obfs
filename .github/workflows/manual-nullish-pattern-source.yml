@@ -41,5 +41,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/host-lock-stack-chromium.js --expect-guarded
+      - name: Real Chromium global error-coordinate source guard
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-error-coordinate-attack.js --expect-guarded
       - name: Validate compiler JSDoc types
         run: npm run typecheck
