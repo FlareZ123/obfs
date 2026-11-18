@@ -22,6 +22,7 @@ const assets=[
   {path:'fonts/site.woff2',sourceType:'asset',code:Buffer.from('wOF2')},
   {path:'fonts/site.ttf',sourceType:'asset',code:Buffer.from([0,1,0,0])},
   {path:'fonts/site.otf',sourceType:'asset',code:Buffer.from('OTTO')},
+  {path:'answer.wasm',sourceType:'asset',code:Buffer.from([0,97,115,109,1,0,0,0,1,5,1,96,0,1,127,3,2,1,0,7,8,1,4,112,105,110,103,0,0,10,6,1,4,0,65,42,11])},
   {path:'unknown.bin',sourceType:'asset',code:Buffer.from([0,1,2,3])}
 ];
 
@@ -41,6 +42,7 @@ const expectedTypes=new Map([
   ['fonts/site.woff2','font/woff2'],
   ['fonts/site.ttf','font/ttf'],
   ['fonts/site.otf','font/otf'],
+  ['answer.wasm','application/wasm'],
   ['unknown.bin','application/octet-stream']
 ]);
 
@@ -60,6 +62,11 @@ test('SCO serves validated static assets with browser-compatible MIME and exact 
       assert.equal(response.headers.get('x-content-type-options'),'nosniff',asset.path);
       assert.equal(response.headers.get('cache-control'),'no-store',asset.path);
       assert.deepEqual(Buffer.from(await response.arrayBuffer()),asset.code,asset.path);
+      if(asset.path==='answer.wasm'){
+        const compiled=await WebAssembly.instantiateStreaming(fetch(origin+'/obfs/'+asset.path));
+        assert.equal(typeof compiled.instance.exports.ping,'function');
+        assert.equal(/** @type {()=>number} */ (compiled.instance.exports.ping)(),42);
+      }
     }
   }finally{
     /** @type {Promise<void>} */
