@@ -32,9 +32,13 @@ class ScoIsolationBusyError extends Error {
  * lookups and releases their global reservations. This cannot interrupt a
  * synchronous blocked event loop or cancel the resolver's own I/O; a late
  * resolver result is ignored and cannot execute protected work.
+ * The optional abortPrincipalLookup flag passes an AbortSignal to the
+ * principal resolver and aborts it on expiry, allowing cooperating external
+ * identity providers to cancel their own pending I/O. Cancellation remains
+ * best effort and cannot force arbitrary user code to settle.
  *
- * @param {(request:import('node:http').IncomingMessage)=>string|Promise<string>} principalOf
- * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number,maxPrincipalResolutionMs?:number}} [options]
+ * @param {(request:import('node:http').IncomingMessage,signal?:AbortSignal)=>string|Promise<string>} principalOf
+ * @param {{maxPendingPerPrincipal?:number,maxPendingTotal?:number,maxPrincipalResolutionMs?:number,abortPrincipalLookup?:boolean}} [options]
  * @returns {(request:import('node:http').IncomingMessage,execute:()=>Promise<void>)=>Promise<void>}
  */
 function createScoKeyedIsolation(principalOf,options={}) {
@@ -42,6 +46,7 @@ function createScoKeyedIsolation(principalOf,options={}) {
   const limit=options.maxPendingPerPrincipal??Infinity;
   const totalLimit=options.maxPendingTotal??Infinity;
   const resolutionDeadline=options.maxPrincipalResolutionMs??Infinity;
+  const cancelLookup=options.abortPrincipalLookup??false;
   if(limit!==Infinity&&(!Number.isSafeInteger(limit)||limit<1)) {
     throw new TypeError('maxPendingPerPrincipal must be a positive safe integer');
   }
@@ -54,6 +59,9 @@ function createScoKeyedIsolation(principalOf,options={}) {
      resolutionDeadline<1||resolutionDeadline>2147483647)) {
     throw new TypeError('maxPrincipalResolutionMs must be 1..2147483647 milliseconds');
   }
+  if(typeof cancelLookup!=='boolean'||cancelLookup&&resolutionDeadline===Infinity){
+    throw new TypeError('abortPrincipalLookup requires a finite principal-resolution deadline');
+  }
   let totalPending=0;
   /** @type {Map<string,Promise<void>>} */
   const tails=new Map();
@@ -65,7 +73,8 @@ function createScoKeyedIsolation(principalOf,options={}) {
     if(totalPending>=totalLimit)throw new ScoIsolationBusyError();
     totalPending++;
     try{
-      const resolving=principalOf(request);
+      const controller=cancelLookup?new AbortController():undefined;
+      const resolving=controller?principalOf(request,controller.signal):principalOf(request);
       let principal;
       if(resolutionDeadline===Infinity||typeof resolving==='string'){
         // Preserve the original one-await fast path for synchronous verifiers.
@@ -89,7 +98,10 @@ function createScoKeyedIsolation(principalOf,options={}) {
             await Promise.race([
               tracked,
               new Promise((_,reject)=>{
-                timer=setTimeout(()=>reject(new ScoIsolationBusyError()),resolutionDeadline);
+                timer=setTimeout(()=>{
+                  controller?.abort();
+                  reject(new ScoIsolationBusyError());
+                },resolutionDeadline);
               })
             ]);
           }finally{
