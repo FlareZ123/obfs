@@ -194,7 +194,7 @@ const source=[
   "  }",
   "  return x===14887200154472500695n;",
   "};"
-].join('\\n');
+].join('\n');
 
 const minified=transformSync(source,{
   loader:'js',
