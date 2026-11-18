@@ -22,3 +22,6 @@ examples/application-challenge/sco-public/**/*.mjs text eol=lf
 # Exact ESM host-guard output includes generated LF prefix bytes.
 examples/closed-graph-host/before/*.mjs text eol=lf
 examples/closed-graph-host/after/*.mjs text eol=lf
+
+# Freeze SCO principal realm attacker/control original ESM bytes cross-platform.
+test/fixtures/sco-principal-realm/*.mjs text eol=lf

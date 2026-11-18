@@ -1,0 +1,13 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/**/*.js",
+    "sims/sco-principal-realm-worker.js",
+    "sims/sco-principal-realm-profile.js",
+    "sims/sco-principal-realm-http-session.js",
+    "sims/sco-principal-realm-public-attacker.cjs",
+    "test/sco-principal-realm-public-attacker.test.js",
+    "test/sco-principal-realm.test.js"
+  ],
+  "exclude": ["node_modules"]
+}
