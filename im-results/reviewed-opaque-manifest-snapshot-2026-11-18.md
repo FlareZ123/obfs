@@ -193,6 +193,21 @@ at compile or SCO server setup time. It does not establish a general
 2.5× bound on obfuscated work, short sessions or end-to-end SCO RPC.
 The full results decision index remains release-blocked.
 
+## Independent objective-axis assessment
+
+| Requested axis | Evidence from this exact source-admission work | Limit |
+| --- | --- | --- |
+| Static deobfuscation and program reconstruction | Compiled JS bytes match the non-review path in 36 paired builds; no additional static transform | **Unchanged**. The review check is a publisher-side byte boundary, not a source-obfuscation primitive |
+| Dynamic analysis, instrumentation and runtime extraction | The reviewed manifest creates no new emitted runtime mechanism | **Unchanged**. A full-control client/server owner can still instrument locally under the published threat model |
+| Unauthorized modification and integrity bypass | Four historical checker acceptance errors now reliably refuse; exact indexed content and SHA-256 are checked on a trusted build, with cross-OS approved CSS bytes controlled | Build-time file admission only; downstream publication mutation and malicious reviewer approval are outside the contract |
+| Execution outside an authorized environment | Neither domain checking nor server identity is changed | **Unchanged**. Authorization should rely on an appropriate trusted SCO server-side access control, not this asset manifest |
+| Performance and compatibility | 19 handcrafted approval regressions, 384 seeded corpora, eight CLI tests, four historical pinned attacker controls, actual cross-platform example; 36 paired COO/SNO/SCO emitted files and metrics identical | Extra validation cost is at compile/SCO setup time; no universal 2.5× runtime claim or independent full-application parity follows |
+
+The overall objective-axis decision is therefore a verified improvement
+in publisher-side consistency and developer access to that check.
+It cannot be promoted to strong obfuscation or whole-runtime integrity
+under the COO/SNO/SCO full-control threat assumptions.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
