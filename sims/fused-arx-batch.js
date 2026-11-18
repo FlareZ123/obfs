@@ -124,7 +124,9 @@ function nativeMix(state,units) {
  * @returns {{mix:(state:number[],units:Uint16Array)=>number[],bytes:Uint8Array,memory:WebAssembly.Memory}}
  */
 function createFusedArxKernel(bytes=buildArxModuleBytes()) {
-  const module=new WebAssembly.Module(bytes);
+  const source=new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(source).set(bytes);
+  const module=new WebAssembly.Module(source);
   const instance=new WebAssembly.Instance(module);
   const fn=/** @type {(a:number,b:number,c:number,d:number,pointer:number,length:number)=>void} */(
     /** @type {unknown} */(instance.exports.mix));
