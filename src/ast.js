@@ -2390,6 +2390,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+    // Acquiring a live reporting method can move it through arbitrary user
+    // containers before invocation. Preserve source at capability acquisition.
+    if(isProcessReportMethod(node))observed=true;
     // Object rest/spread can copy Node's enumerable getReport/writeReport
     // methods into an ordinary object, preserving their reporting capability.
     const reportCopyPattern=node.type==='VariableDeclarator'?
