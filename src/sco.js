@@ -30,7 +30,7 @@ const assetMediaTypes=new Map([
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {canonicalAllowedHosts,routingHostname}=require('./hosts');
@@ -504,11 +504,14 @@ function createScoHandler(sourceFiles,options={}) {
     collectVerifiedImportedStrings(normalized) : new Map();
   const importedCloneProof=normalized.length>1 ?
     collectVerifiedImportedCloneAliases(normalized) : new Map();
+  const importedUrlStaticProof=normalized.length>1 ?
+    collectVerifiedImportedUrlStaticAliases(normalized) : new Map();
   const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
-        importedKeyProof.get(file.path),importedCloneProof.get(file.path))));
+        importedKeyProof.get(file.path),importedCloneProof.get(file.path),
+        new Set(),new Set(),importedUrlStaticProof.get(file.path))));
   if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
