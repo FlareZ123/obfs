@@ -237,7 +237,8 @@ async function main(){
     mode:'coo',seed:'chrome-aliased-onerror-negative',
     strings:false,identifiers:false,properties:true
   }).files[0];
-  assert.ok(inFileOnerrorOutput.metrics.properties>0,inFileOnerrorOutput.code);
+  assert.equal(inFileOnerrorOutput.metrics.properties,0,inFileOnerrorOutput.code);
+  assert.equal(inFileOnerrorOutput.code,inFileOnerrorSource);
   const inFileListenerSource='const listen=window.addEventListener.bind(window);listen("error",function(event){'+
     'document.getElementById("answer").textContent='+
     'String(event.lineno)+":"+String(event.colno);event.preventDefault();});'+
@@ -249,7 +250,8 @@ async function main(){
     mode:'coo',seed:'chrome-aliased-error-listener-negative',
     strings:false,identifiers:false,properties:true
   }).files[0];
-  assert.ok(inFileListenerOutput.metrics.properties>0,inFileListenerOutput.code);
+  assert.equal(inFileListenerOutput.metrics.properties,0,inFileListenerOutput.code);
+  assert.equal(inFileListenerOutput.code,inFileListenerSource);
   // Exercise server-resident SCO computation from a real Chromium module.
   // The remote module contains no protected method body. Browser cookies are
   // passed automatically to same-origin fetch with credentials:'same-origin'.
@@ -380,10 +382,10 @@ async function main(){
       const actual=coordinatePattern.exec(generatedHtml)?.[1];
       assert.ok(expected,nativeHtml);
       assert.ok(actual,generatedHtml);
-      assert.notEqual(actual,expected,
-        `Expected in-file ${label} coordinate mismatch: ${output.code}`);
+      assert.equal(actual,expected,
+        `Expected in-file ${label} coordinate parity: ${output.code}`);
       process.stdout.write(
-        `Chromium PASS: ${label} source-coordinate negative ${expected} -> ${actual}\n`
+        `Chromium PASS: ${label} source-coordinate parity ${expected}\n`
       );
     }
   }finally{await new Promise(resolve=>server.close(resolve));}
