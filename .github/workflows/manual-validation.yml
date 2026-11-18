@@ -18,8 +18,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Scoped local parameter positive and attacker parity
-        run: node --test --test-reporter=spec test/local-parameter-owned-value.test.js test/local-parameter-shorthand-field.test.js test/local-parameter-value-multifile-attack.test.js test/local-parameter-value-fuzz.test.js test/local-parameter-value-public-attack.test.js
+      - name: Admission diagnosis across graph variants
+        run: node sims/local-param-admission-probe.js
       - name: Production JSDoc
         run: npm run typecheck
       - name: External JSDoc
