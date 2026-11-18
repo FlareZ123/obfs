@@ -46,19 +46,20 @@ function sample(runnerPath, modulePath, calls) {
 
 /**
  * Calibrate the existing strict 2.5x fresh-process gate with a negative
- * control. A and B differ only in their paths; their source bytes are equal.
+ * control. A and B contain identical source bytes, optionally loaded through the same path.
  * A measured strict ratio here cannot be caused by an obfuscation transform.
  * This diagnostic intentionally records breaches without asserting zero.
+ * @param {boolean} [samePath] Whether both arms load the exact same path.
  * @returns {Promise<object>}
  */
-async function run() {
+async function run(samePath = false) {
   const workspace = await fs.mkdtemp(path.join(os.tmpdir(), 'obfs-cold-placebo-'));
   try {
     const firstPath = path.join(workspace, 'native-a', 'entry.cjs');
-    const secondPath = path.join(workspace, 'native-b', 'entry.cjs');
+    const secondPath = samePath ? firstPath : path.join(workspace, 'native-b', 'entry.cjs');
     const runnerPath = path.join(workspace, 'runner.cjs');
     await atomicWrite(firstPath, original);
-    await atomicWrite(secondPath, original);
+    if (!samePath) await atomicWrite(secondPath, original);
     await atomicWrite(runnerPath, runner);
     assert.deepEqual(await fs.readFile(firstPath), await fs.readFile(secondPath),
       'Placebo A and B must have byte-identical module contents');
@@ -93,17 +94,20 @@ async function run() {
     }
     const result = {
       node: process.version, platform: process.platform,
-      sameBytes: true, byteLength: Buffer.byteLength(original),
+      sameBytes: true, samePath, byteLength: Buffer.byteLength(original),
       boundary: 'A/B identical native modules; independent Node process CPU including startup, CJS load, and work, with alternating sample order',
       rows,
       totalStrictOverBudgetPairs: rows.reduce((n, row) => n + row.strictOverBudgetPairs, 0)
     };
-    process.stdout.write('STRAIGHTLINE_READER_COLD_PLACEBO ' + JSON.stringify(result) + '\n');
+    const label = samePath ? 'STRAIGHTLINE_READER_COLD_PLACEBO_SAME_PATH' : 'STRAIGHTLINE_READER_COLD_PLACEBO';
+    process.stdout.write(label + ' ' + JSON.stringify(result) + '\n');
     return result;
   } finally {
     await fs.rm(workspace, {recursive: true, force: true});
   }
 }
 
-if (require.main === module) run().catch(error => {console.error(error); process.exitCode = 1;});
+if (require.main === module) run(process.argv.includes('--same-path')).catch(error => {
+  console.error(error); process.exitCode = 1;
+});
 module.exports = {run};
