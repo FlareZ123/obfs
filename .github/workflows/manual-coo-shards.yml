@@ -37,3 +37,5 @@ jobs:
         run: npx tsc -p jsconfig.piggyback.json
       - name: Existing-edge piggyback cold and hot cost sample
         run: node sims/coo-piggyback-profile.js
+      - name: First-call latency budget curve with unchanged ESM graph
+        run: node sims/coo-piggyback-firstuse-curve.js
