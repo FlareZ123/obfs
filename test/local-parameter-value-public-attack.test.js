@@ -19,7 +19,7 @@ test('seedless source-only attacker relabels candidate private fields and modifi
   const original='function calculate(payload){const owner={secretField:payload,bias:3};'+
     'return owner.secretField+owner.bias;}module.exports=calculate(39);';
   assert.equal(execute(original),42);
-  for(const mode of /** @type {const} */(['sno','coo'])) {
+  for(const mode of /** @type {const} */(['sno','coo','sco'])) {
     for(let seed=0;seed<8;seed++) {
       const delivered=obfuscateFiles([{path:'entry.cjs',sourceType:'commonjs',code:original}],{
         mode,seed:'public-only-formal-tamper-'+seed,
