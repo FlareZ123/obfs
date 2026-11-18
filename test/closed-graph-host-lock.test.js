@@ -144,3 +144,29 @@ test('undeclared, imported external, ambiguous and mixed graphs decline',()=>{
     allowedHosts:['allowed.example']
   }),/Host locking ESM static imports/u,'Opaque assets are outside proof');
 });
+
+
+test('closed ESM dependency chain accepts canonical IPv6 and rejects denied hosts',async()=>{
+  /** @type {Module[]} */
+  const files=[
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {value} from "./dep.mjs";globalThis.events.push("entry");globalThis.result=value;'},
+    {path:'dep.mjs',sourceType:'module',
+      code:'globalThis.events.push("dep");export const value=61;'}
+  ];
+  const original=await execute(files,'[::1]');
+  assert.deepEqual(original,{events:['dep','entry'],result:61});
+  const output=obfuscateFiles(files,{
+    mode:'coo',seed:'ipv6-static-graph',closedWorld:true,
+    allowedHosts:['[0:0:0:0:0:0:0:1]'],
+    strings:false,identifiers:false,properties:false
+  });
+  assert.equal(output.files.length,2);
+  for(const generated of output.files){
+    assert.match(String(generated.code),/Unauthorized execution host/u);
+  }
+  assert.deepEqual(await execute(/** @type {Module[]} */ (output.files),'[::1]'),original);
+  const denied=await execute(/** @type {Module[]} */ (output.files),'[::2]');
+  assert.deepEqual(denied.events,[]);
+  assert.match(denied.error??'',/Unauthorized execution host/u);
+});
