@@ -2,6 +2,19 @@ name: Manual obfuscator validation
 
 on:
   workflow_dispatch:
+    inputs:
+      alias_proof_ab:
+        description: 'Run source-paired direct-alias compiler performance experiment'
+        type: boolean
+        default: false
+      alias_owners:
+        description: 'Number of direct-alias owners for opt-in paired A/B'
+        type: number
+        default: 384
+      repeat_aliases:
+        description: 'Use four alternating control/candidate pairs for aliases'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,6 +29,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.alias_proof_ab && '0' || '1' }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.4'
@@ -24,6 +39,13 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Behavioral and adversarial suites with compact failure diagnostics
         run: node --test --test-reporter=spec test/*.test.js
+      - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
+        if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
+        env:
+          OBFS_PROOF_CONTROL_SHA: 841807ff1e37c237da347d2b70053d059bf6271f
+          OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
+          OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
+        run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:
           OBFS_BLIND_AUDIT_FILE: blind-affine-audit-${{ runner.os }}.json

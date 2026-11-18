@@ -11,6 +11,9 @@ const REPO=join(__dirname,'..');
 const PROPERTY_FILE=join(REPO,'src','properties.js');
 const DEFAULT_CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
 const CONTROL_SHA=process.env.OBFS_PROOF_CONTROL_SHA||DEFAULT_CONTROL_SHA;
+const ALIAS_OWNERS=Number(process.env.OBFS_PROOF_ALIAS_OWNERS||384);
+assert.ok(Number.isSafeInteger(ALIAS_OWNERS)&&ALIAS_OWNERS>=1&&ALIAS_OWNERS<=4096,
+  'Alias owner count must be an integer from 1 to 4096');
 assert.match(CONTROL_SHA,/^[a-f0-9]{40}$/,
   'A/B control ref must be a fully specified immutable commit SHA');
 /** @type {string} */
@@ -71,6 +74,20 @@ function mixedSource(){
 }
 
 /**
+ * Dense independent owner-to-alias-to-alias chains exercise the direct edge
+ * fixed-point, while preserving the original generated output byte-for-byte.
+ * @returns {string}
+ */
+function aliasSource(){
+  let code="'use strict';let total=0;\n";
+  for(let i=0;i<ALIAS_OWNERS;i++)
+    code+='const bag'+i+'={secret:'+(i%31)+'};'+
+      'const alias'+i+'=bag'+i+';const final'+i+'=alias'+i+';'+
+      'total=(total+final'+i+'.secret)|0;\n';
+  return code+'module.exports=total;\n';
+}
+
+/**
  * Stress cases with almost no private owners among numerous ordinary bindings.
  * A global AST index can lose to a smaller local scan on sparse inputs.
  * @returns {string}
@@ -91,13 +108,13 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'} objects
+ * @param {number|'mixed'|'sparse'|'aliases'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
   const input=objects==='mixed'?mixedSource():
-    objects==='sparse'?sparseSource():original(objects);
+    objects==='sparse'?sparseSource():objects==='aliases'?aliasSource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -107,6 +124,7 @@ function sample(objects){
   const cpu=process.cpuUsage(cpuStart);
   assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
     objects==='sparse'?emitted.files[0].metrics.properties===2:
+    objects==='aliases'?emitted.files[0].metrics.properties===ALIAS_OWNERS:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -117,7 +135,8 @@ function sample(objects){
   new Function('module',input)(native);
   assert.equal(module.exports,native.exports);
   console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
-    objects,platform:process.platform,node:process.version,
+    objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+    platform:process.platform,node:process.version,
     cpuMs:(cpu.user+cpu.system)/1000,wallMs,
     properties:emitted.files[0].metrics.properties,
     sourceHash:sha256(output),sourceBytes:Buffer.byteLength(output),
@@ -134,8 +153,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'aliases'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -151,8 +170,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','aliases'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'aliases'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -170,12 +189,17 @@ if(process.argv[2]==='sample'){
   const largeArms=process.env.OBFS_PROOF_REPEAT_LARGE==='true'?
     ['candidate','control','control','candidate','candidate','control','control','candidate']:
     ['candidate','control'];
+  /** @type {('control'|'candidate')[]} */
+  const aliasArms=process.env.OBFS_PROOF_REPEAT_ALIASES==='true'?
+    ['candidate','control','control','candidate','candidate','control','control','candidate']:
+    ['candidate','control','control','candidate'];
   try{
     for(const [objects,arms] of [
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
       /** @type {[number,('control'|'candidate')[]]} */ ([2048,largeArms]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
-      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
+      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']]),
+      /** @type {['aliases',('control'|'candidate')[]]} */ (['aliases',aliasArms])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -183,13 +207,14 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed','sparse']){
+    for(const objects of [512,2048,'mixed','sparse','aliases']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
       const average=(/** @type {number[]} */ samples)=>samples.reduce((a,b)=>a+b,0)/samples.length;
       console.log('PROOF_INDEX_AB '+JSON.stringify({
-        baseline:CONTROL_SHA,objects,platform:process.platform,node:process.version,
+        baseline:CONTROL_SHA,objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+        platform:process.platform,node:process.version,
         controlCpuMs:controlRuns.map(x=>x.cpuMs),
         candidateCpuMs:candidateRuns.map(x=>x.cpuMs),
         controlWallMs:controlRuns.map(x=>x.wallMs),
