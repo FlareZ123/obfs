@@ -10,7 +10,7 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 
 /** @typedef {(seed:number,count:number)=>Promise<unknown>} Evaluate */
 /** @typedef {{cpuMs:number,wallMs:number,values:unknown[]}} Observation */
-/** @typedef {{count:number,repetitions:number,calls:number,nativeCpuMs:number[],remoteCpuMs:number[],nativeWallMs:number[],remoteWallMs:number[],cpuBound:ReturnType<typeof pairedBudgetBound>,wallBound:ReturnType<typeof pairedBudgetBound>,strictCpuOverBudgetPairs:number,strictWallOverBudgetPairs:number}} Workload */
+/** @typedef {{count:number,repetitions:number,calls:number,nativeCpuMs:number[],remoteCpuMs:number[],nativeWallMs:number[],remoteWallMs:number[],cpuBound:ReturnType<typeof pairedBudgetBound>|null,wallBound:ReturnType<typeof pairedBudgetBound>,strictCpuOverBudgetPairs:number,unresolvedCpuPairs:number,strictWallOverBudgetPairs:number}} Workload */
 
 /**
  * Measure direct server-owned ESM execution and authenticated HTTP facade calls
@@ -37,14 +37,14 @@ async function observe(call,inputs,repetitions){
   const wallMs=performance.now()-start;
   const used=process.cpuUsage(before);
   const cpuMs=(used.user+used.system)/1000;
-  assert.ok(Number.isFinite(cpuMs)&&cpuMs>0,'Expected measured positive process CPU');
+  assert.ok(Number.isFinite(cpuMs)&&cpuMs>=0,'Expected nonnegative process CPU');
   assert.ok(Number.isFinite(wallMs)&&wallMs>0,'Expected measured positive wall time');
   return {cpuMs,wallMs,values};
 }
 
 /**
  * @param {number} [rounds]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,cpuScope:string,rows:Workload[],strictCpuBreaches:number,strictWallBreaches:number}>}
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,cpuScope:string,rows:Workload[],strictCpuBreaches:number,unresolvedCpuPairs:number,strictWallBreaches:number}>}
  */
 async function run(rounds=13){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>100)
@@ -70,14 +70,15 @@ async function run(rounds=13){
 
     /** @type {Workload[]} */
     const rows=[];
-    for(const [count,repetitions] of [[1,64],[1000,24],[120000,1]]){
+    for(const [count,repetitions] of [[1,64],[1000,64],[120000,64]]){
       const inputs=/** @type {Array<readonly [number,number]>} */ ([
         [0x12345678,count],[0xffffffff,count],[0x9e3779b9,count]
       ]);
       for(let warm=0;warm<3;warm++){
         const original=await observe(native,inputs,repetitions);
         const remote=await observe(published,inputs,repetitions);
-        assert.deepEqual(remote.values,original.values,'SCO warmup changed output');
+        assert.equal(JSON.stringify(remote.values),JSON.stringify(original.values),
+          'SCO warmup changed JSON-wire output');
       }
       /** @type {number[]} */
       const nativeCpuMs=[];
@@ -97,20 +98,23 @@ async function run(rounds=13){
           remote=await observe(published,inputs,repetitions);
           original=await observe(native,inputs,repetitions);
         }
-        assert.deepEqual(remote.values,original.values,
-          'Authenticated SCO facade changed trusted native outputs');
+        assert.equal(JSON.stringify(remote.values),JSON.stringify(original.values),
+          'Authenticated SCO facade changed JSON-wire outputs');
         nativeCpuMs.push(original.cpuMs);
         remoteCpuMs.push(remote.cpuMs);
         nativeWallMs.push(original.wallMs);
         remoteWallMs.push(remote.wallMs);
       }
+      const unresolvedCpuPairs=nativeCpuMs.filter((ms,index)=>
+        ms===0||remoteCpuMs[index]===0).length;
       rows.push({
         count,repetitions,calls:inputs.length*repetitions,
         nativeCpuMs,remoteCpuMs,nativeWallMs,remoteWallMs,
-        cpuBound:pairedBudgetBound(nativeCpuMs,remoteCpuMs),
+        cpuBound:unresolvedCpuPairs===0?pairedBudgetBound(nativeCpuMs,remoteCpuMs):null,
+        unresolvedCpuPairs,
         wallBound:pairedBudgetBound(nativeWallMs,remoteWallMs),
         strictCpuOverBudgetPairs:nativeCpuMs.filter((ms,index)=>
-          remoteCpuMs[index]>2.5*ms).length,
+          ms>0&&remoteCpuMs[index]>0&&remoteCpuMs[index]>2.5*ms).length,
         strictWallOverBudgetPairs:nativeWallMs.filter((ms,index)=>
           remoteWallMs[index]>2.5*ms).length
       });
@@ -118,9 +122,10 @@ async function run(rounds=13){
     return {
       source:'sims/sco-resident-cpu.js',node:process.version,
       platform:process.platform,initializationExcluded:true,
-      cpuScope:'Whole-process Node CPU, including both same-process loopback HTTP client and trusted server; established service, imported facade and authorization are active. Network waiting is counted only in wall time.',
+      cpuScope:'Whole-process Node CPU includes same-process loopback client and trusted server after startup. CPU observations of zero are marked unresolved due to clock quantization. Wall time includes network waiting. Output parity is checked after JSON serialization, the declared RPC value boundary.',
       rows,
       strictCpuBreaches:rows.reduce((sum,row)=>sum+row.strictCpuOverBudgetPairs,0),
+      unresolvedCpuPairs:rows.reduce((sum,row)=>sum+row.unresolvedCpuPairs,0),
       strictWallBreaches:rows.reduce((sum,row)=>sum+row.strictWallOverBudgetPairs,0)
     };
   }finally{
