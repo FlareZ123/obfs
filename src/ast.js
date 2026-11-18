@@ -534,6 +534,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const urlStaticAliases=new Set(importedUrlStaticMethods);
   /** @type {Map<string,Set<string>>} */
   const urlStaticObjectKeys=new Map();
+  // A proven ESM namespace import is an immutable record of exported
+  // methods; dotted proof keys retain the namespace owner and export name.
+  for(const alias of importedUrlStaticMethods) {
+    const dot=alias.indexOf('.');
+    if(dot<=0||dot===alias.length-1)continue;
+    const receiver=alias.slice(0,dot),method=alias.slice(dot+1);
+    let methods=urlStaticObjectKeys.get(receiver);
+    if(!methods){methods=new Set();urlStaticObjectKeys.set(receiver,methods);}
+    methods.add(method);
+  }
   /** @type {Map<string,Set<string>>} */
   const urlConstructorObjectKeys=new Map();
   const webDictionaries=new Set(webDictionaryNames);
