@@ -352,21 +352,28 @@ test('automatic report configuration aliases conservatively preserve source',()=
 });
 
 test('harmless process.report metadata writes retain property-renaming yield',()=>{
-  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
-    "const value=owner.distinctivelyLongPrivateField;"+
-    "process.report.filename='';module.exports=value;";
-  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
-  const output=obfuscateFiles([{
-    path:'process-report-metadata.cjs',
-    sourceType:'commonjs',
-    code:source
-  }],{
-    mode:'sno',
-    seed:'agent1-process-report-metadata-positive',
-    strings:false,
-    identifiers:false
-  }).files[0];
-  assert.ok(output.metrics.properties>0,output.code);
+  const variants=[
+    "process.report.filename='';",
+    "const report=process.report;report.filename='';",
+    "const {report}=process;report.filename='';"
+  ];
+  for(const [index,metadata] of variants.entries()) {
+    const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;"+metadata+
+      "module.exports=value;";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+    const output=obfuscateFiles([{
+      path:'process-report-metadata.cjs',
+      sourceType:'commonjs',
+      code:source
+    }],{
+      mode:'sno',
+      seed:'agent1-process-report-metadata-positive-'+index,
+      strings:false,
+      identifiers:false
+    }).files[0];
+    assert.ok(output.metrics.properties>0,output.code);
+  }
 });
 
 test('process.report.writeReport is admitted as a source observer without executing it',()=>{
