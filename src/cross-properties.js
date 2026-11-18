@@ -1772,6 +1772,7 @@ function renameCrossFileProperties(files,seed) {
   const knownFiles=new Set(files.map(file=>file.path));
   const verifiedStrings=collectVerifiedImportedStrings(files);
   const verifiedClones=collectVerifiedImportedCloneAliases(files);
+  const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
   const verifiedPrimitives=collectVerifiedImportedPrimitives(files);
   const acyclicImports=hasAcyclicStaticImports(modules);
   // The filename-oriented resolver only proves canonical relative imports.
@@ -1793,7 +1794,7 @@ function renameCrossFileProperties(files,seed) {
     // rather than relying on object-alias consumers alone.
     if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path),
        verifiedClones.get(module.file.path),new Set(),
-       verifiedPrimitives.get(module.file.path)) ||
+       verifiedPrimitives.get(module.file.path),verifiedUrlStatics.get(module.file.path)) ||
        observesDistributedSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
     // An unknown key on a global object may resolve to Function, Worker,
     // importScripts or another untracked module loader. Track direct global
