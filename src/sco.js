@@ -61,12 +61,15 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * HTTP JSON helper that suppresses internal exception information.
  * @param {import('node:http').ServerResponse} response
  * @param {number} status
- * @param {unknown} payload
+ * @param {Record<string,unknown>} payload
  * @returns {void}
  */
 function respondJson(response,status,payload) {
-  // Serialize before committing the HTTP status. BigInt and cycles can throw.
-  const body=JSON.stringify(payload);
+  // The protocol-owned wrapper must not inherit a host-installed toJSON
+  // method from Object.prototype. Keep application return-value serialization
+  // unchanged, including explicit toJSON methods on nested result objects.
+  // Serialize before committing the HTTP status: BigInt/cycles can throw.
+  const body=JSON.stringify(Object.assign(Object.create(null),payload));
   response.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
   response.end(body);
 }
