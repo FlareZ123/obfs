@@ -34,5 +34,7 @@ jobs:
         run: node --test test/inline-array-primitive-fuzz.test.js
       - name: JSDoc
         run: npm run typecheck
+      - name: Invert held-out author-style MBA permutation chains
+        run: node sims/mba-permutation-heldout-inverse.js
       - name: External research tool JSDoc
         run: npm run typecheck:external
