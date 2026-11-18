@@ -1,0 +1,97 @@
+'use strict';
+
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {obfuscateFiles}=require('../src');
+const {atomicWrite}=require('../src/atomic');
+
+/** @typedef {import('../src/core').SourceFile} SourceFile */
+
+/**
+ * @param {string} directory
+ * @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files
+ * @returns {Promise<{status:number|null, stdout:string, stderr:string}>}
+ */
+async function run(directory,files) {
+  await fs.mkdir(directory,{recursive:true});
+  for(const file of files)await atomicWrite(path.join(directory,file.path),file.code);
+  const child=spawnSync(process.execPath,[path.join(directory,'entry.cjs')],{
+    encoding:'utf8',windowsHide:true,timeout:15000,maxBuffer:1024*1024
+  });
+  if(child.error)throw child.error;
+  return {status:child.status,stdout:child.stdout,stderr:child.stderr};
+}
+
+/**
+ * @param {string} mutator
+ * @returns {SourceFile[]}
+ */
+function files(mutator) {
+  return [
+    {path:'entry.cjs',sourceType:'commonjs',code:
+      "require('./mutator.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'mutator.cjs',sourceType:'commonjs',code:mutator},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:'module.exports='+JSON.stringify('x'.repeat(2048)+'z')+';'}
+  ];
+}
+
+const unsafe=[
+  ['opaque String wrapper return',
+    "function owner(){return new String('u')}const P=Object.getPrototypeOf(owner());P.charCodeAt=()=>0;"],
+  ['String() primitive result',
+    "const P=Object.getPrototypeOf(String('u'));P.charCodeAt=()=>0;"],
+  ['object literal with String prototype',
+    "const P=Object.getPrototypeOf({__proto__:String.prototype});P.charCodeAt=()=>0;"],
+  ['opaque Array return and iterator',
+    "function owner(){return []}const P=Object.getPrototypeOf(owner());P[Symbol.iterator]=function*(){yield 0;};"]
+];
+
+for(const [name,mutator] of unsafe) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('opaque prototype mutation must preserve original literal: '+name+'/'+mode,async()=>{
+      const input=files(mutator);
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'opaque-prototype-safety/'+name+'/'+mode
+      });
+      const target=output.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-opaque-prototype-'));
+      try{
+        const native=await run(path.join(root,'original'),input);
+        const transformed=await run(path.join(root,'generated'),output.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.equal(native.stdout,'x'.repeat(2048)+'z');
+        assert.equal(transformed.status,native.status,transformed.stderr);
+        assert.equal(transformed.stdout,native.stdout,
+          'Eager decoder used a source-visible mutated inherited intrinsic');
+        assert.equal(target.metrics.literals,0,
+          'Opaque prototype mutation must refuse eager decoder');
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
+
+for(const mode of /** @type {const} */ (['sno','coo'])) {
+  test('obviously unrelated Number prototype keeps encoded work: '+mode,async()=>{
+    const input=files("const P=Object.getPrototypeOf(7);P.toString=()=> 'unrelated';");
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'opaque-prototype-safety/unrelated-number/'+mode
+    });
+    const target=output.files.find(file=>file.path==='target.cjs');
+    assert.ok(target);
+    assert.equal(target.metrics.literals,1,
+      'An independent Number prototype should preserve decoder yield');
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-known-number-'));
+    try{
+      assert.deepEqual(await run(path.join(root,'original'),input),
+        await run(path.join(root,'generated'),output.files));
+    }finally{await fs.rm(root,{recursive:true,force:true});}
+  });
+}
