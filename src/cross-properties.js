@@ -1145,8 +1145,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       });
       return exposed;
     }
-    /** @type {Set<string>} */
-    const returnedHostFactories=new Set();
+    /** @type {Map<string,AstNode[]>} */
+    const factoryReturnExpressions=new Map();
     walk(source.ast,node=>{
       /** @type {string|null} */
       let name=null;
@@ -1163,15 +1163,41 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         body=node.init.body;
       }
       if(name===null||body===null)return;
-      let exposed=false;
+      const expressions=factoryReturnExpressions.get(name)??[];
       if(body.type==='BlockStatement') {
         walk(body,inner=>{
-          if(inner.type==='ReturnStatement' && inner.argument &&
-             containsHostCapability(inner.argument))exposed=true;
+          if(inner.type==='ReturnStatement' && inner.argument)
+            expressions.push(inner.argument);
         });
-      }else exposed=containsHostCapability(body);
-      if(exposed)returnedHostFactories.add(name);
+      }else expressions.push(body);
+      factoryReturnExpressions.set(name,expressions);
     });
+    // A host-bearing factory may be forwarded through a second local return
+    // without spelling the ambient property at that wrapper's callsite.
+    // Names join conservatively across the supplied source, to a fixed point.
+    /** @type {Set<string>} */
+    const returnedHostFactories=new Set();
+    let returnChanged;
+    do {
+      returnChanged=false;
+      for(const [name,expressions] of factoryReturnExpressions) {
+        if(returnedHostFactories.has(name))continue;
+        const exposed=expressions.some(expression=>{
+          if(containsHostCapability(expression))return true;
+          let forwarded=false;
+          walk(expression,node=>{
+            if(node.type==='CallExpression' &&
+               node.callee.type==='Identifier' &&
+               returnedHostFactories.has(node.callee.name))forwarded=true;
+          });
+          return forwarded;
+        });
+        if(exposed){
+          returnedHostFactories.add(name);
+          returnChanged=true;
+        }
+      }
+    }while(returnChanged);
     /**
      * A call-result alias can be used directly as a constructor or callable,
      * via its member, or as an opaque callback argument. A named import of
@@ -1182,16 +1208,43 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     function invokesFactoryResult(factory) {
       for(const caller of modules.values()) {
         const callableNames=new Set([factory]);
+        /** @type {Set<string>} */
+        const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
              node.imported.type==='Identifier' && node.imported.name===factory &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
+          if(node.type==='ImportNamespaceSpecifier' &&
+             node.local.type==='Identifier')namespaceNames.add(node.local.name);
         });
+        let aliasChanged;
+        do {
+          aliasChanged=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+               callableNames.has(value.name) && !callableNames.has(binding.name)) {
+              callableNames.add(binding.name);
+              aliasChanged=true;
+            }
+          });
+        }while(aliasChanged);
         /** @param {AstNode|null|undefined} expression @returns {boolean} */
         function isFactoryCall(expression) {
-          return Boolean(expression?.type==='CallExpression' &&
-            expression.callee.type==='Identifier' &&
-            callableNames.has(expression.callee.name));
+          let candidate=expression;
+          while(candidate?.type==='AwaitExpression')candidate=candidate.argument;
+          if(candidate?.type!=='CallExpression')return false;
+          const callee=candidate.callee;
+          if(callee.type==='Identifier')return callableNames.has(callee.name);
+          if(callee.type!=='MemberExpression' ||
+             callee.object.type!=='Identifier' ||
+             !namespaceNames.has(callee.object.name))return false;
+          const selected=callee.computed?staticString(callee.property):
+            staticName(callee.property);
+          return selected===factory;
         }
         /** @type {Set<string>} */
         const returnedNames=new Set();
@@ -1203,13 +1256,27 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
             const value=node.type==='VariableDeclarator'?node.init:
               node.type==='AssignmentExpression'?node.right:null;
-            if(binding?.type!=='Identifier'||!value)return;
+            if(!binding||!value)return;
             const fromFactory=isFactoryCall(value) ||
               value.type==='MemberExpression' && isFactoryCall(value.object);
-            const fromReturn=value.type==='Identifier' && returnedNames.has(value.name);
-            if((fromFactory||fromReturn) && !returnedNames.has(binding.name)) {
+            const fromReturn=value.type==='Identifier' && returnedNames.has(value.name) ||
+              value.type==='MemberExpression' &&
+              value.object.type==='Identifier' &&
+              returnedNames.has(value.object.name);
+            if(binding.type==='Identifier' && (fromFactory||fromReturn) &&
+               !returnedNames.has(binding.name)) {
               returnedNames.add(binding.name);
               advanced=true;
+            }
+            if(binding.type==='ObjectPattern' && (fromFactory||fromReturn)){
+              for(const property of binding.properties){
+                if(property.type==='Property' &&
+                   property.value.type==='Identifier' &&
+                   !returnedNames.has(property.value.name)) {
+                  returnedNames.add(property.value.name);
+                  advanced=true;
+                }
+              }
             }
           });
         }while(advanced);
