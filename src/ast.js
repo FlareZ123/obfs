@@ -2254,10 +2254,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // Programmatic diagnostic-report triggers can emit a later JavaScript
     // stack without any explicit getReport()/writeReport() call. Conservatively
     // preserve the source whenever code writes one of the enabling switches.
-    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+    if(node.type==='AssignmentExpression'&&
        node.left.type==='MemberExpression'&&
        isProcessReportNamespace(node.left.object)&&
        processReportTriggers.has(memberName(node.left)??''))observed=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      const method=memberName(node.callee);
+      if(isReflectiveReceiver(node.callee.object)&&method==='set'&&
+         isProcessReportNamespace(node.arguments[0])&&
+         processReportTriggers.has(staticString(node.arguments[1])??'')) {
+        observed=true;
+      }
+      if(isReflectiveReceiver(node.callee.object)&&method==='assign'&&
+         isProcessReportNamespace(node.arguments[0])&&
+         node.arguments.slice(1).some(source=>source.type!=='ObjectExpression'||
+           source.properties.some(property=>property.type!=='Property'||
+             processReportTriggers.has(property.computed?
+               staticString(property.key)??'':
+               property.key.type==='Identifier'?property.key.name:
+                 staticString(property.key)??'')))) {
+        observed=true;
+      }
+    }
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
     // pathname/search/hash/credentials observable after assignment.
