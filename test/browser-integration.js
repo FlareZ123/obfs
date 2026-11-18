@@ -203,6 +203,19 @@ async function main(){
   const bad=obfuscateFiles([{
     path:'blocked.js',sourceType:'script',code:'document.getElementById("answer").textContent="unauthorized";'
   }],{mode:'coo',seed:'chrome-blocked',allowedHosts:['forbidden.example']}).files[0].code;
+  const aliasErrorSource='const errorScope=window;'+
+    'errorScope.onerror=function(message,source,line,column){'+
+    'document.getElementById("answer").textContent=String(line)+":"+String(column);return true;};'+
+    'null.value;';
+  const aliasErrorOutput=obfuscateFiles([{
+    path:'alias-error.js',sourceType:'script',code:aliasErrorSource
+  }],{
+    mode:'coo',seed:'chrome-alias-error-prefx',
+    strings:false,properties:false,identifiers:false,
+    allowedHosts:['127.0.0.1']
+  }).files[0];
+  assert.notEqual(aliasErrorOutput.code,aliasErrorSource,
+    'Pre-fix alias control must admit a host-lock rewrite');
   // An instrumented browser can intercept eager string decoding before the
   // client script initializes, even when its dormant function never executes.
   const traceCanary='browser-dormant-plaintext-canary';
@@ -234,6 +247,8 @@ async function main(){
   const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
+  content.set('/alias-error-native.js',aliasErrorSource);
+  content.set('/alias-error-generated.js',aliasErrorOutput.code);
   content.set('/trace.js',traceOutput.code);
   content.set('/trace.html','<!doctype html><html><body><span id="answer">initial</span>'+ 
     '<script>globalThis.__capture=[];const original=String.fromCharCode;'+
@@ -266,6 +281,10 @@ async function main(){
     '<script type="module" src="/container-entry.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
+  content.set('/alias-error-native.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script src="/alias-error-native.js"></script></body></html>');
+  content.set('/alias-error-generated.html','<!doctype html><html><body><div id="answer">initial</div>'+
+    '<script src="/alias-error-generated.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   content.set('/rpc-bad.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   const server=http.createServer((request,response)=>{
@@ -299,6 +318,18 @@ async function main(){
       assert.match(html,new RegExp(`id="answer">${result}<`),`Browser ${path}: ${html}`);
       process.stdout.write(`Chromium PASS: ${path}: ${result}\n`);
     }
+    const nativeAlias=await dumpDom(chromium,base+'/alias-error-native.html');
+    const generatedAlias=await dumpDom(chromium,base+'/alias-error-generated.html');
+    const coordinate=/id="answer">(\d+:\d+)</;
+    const nativeCoordinate=coordinate.exec(nativeAlias)?.[1];
+    const generatedCoordinate=coordinate.exec(generatedAlias)?.[1];
+    assert.ok(nativeCoordinate,nativeAlias);
+    assert.ok(generatedCoordinate,generatedAlias);
+    assert.notEqual(generatedCoordinate,nativeCoordinate,
+      'Pre-fix aliased onerror host-lock rewrite must shift browser coordinates');
+    process.stdout.write(
+      `Chromium PASS: aliased onerror negative ${nativeCoordinate} -> ${generatedCoordinate}\n`
+    );
   }finally{await new Promise(resolve=>server.close(resolve));}
 }
 
