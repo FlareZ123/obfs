@@ -2526,17 +2526,75 @@ function renameCrossFileProperties(files,seed) {
     const names=props.map(ownPropertyName);
     if(new Set(names).size!==names.length)continue;
 
+    // A direct default importer may use immutable string keys exported by the
+    // same producer. In a cycle, only keys initialized before the default
+    // object can be read after that owner becomes initialized. This mirrors
+    // the ordering proof used for named exported owners.
+    /** @type {Map<string,string>} */
+    const earlierKeyExports=new Map();
+    /** @type {Map<string,string>} */
+    const earlierLocalConsts=new Map();
+    for(const statement of exporter.ast.body) {
+      const keyDeclaration=statement.type==='VariableDeclaration' ? statement :
+        statement.type==='ExportNamedDeclaration' && !statement.source ?
+          statement.declaration : null;
+      if(keyDeclaration?.type!=='VariableDeclaration' ||
+         keyDeclaration.kind!=='const')continue;
+      for(const keyDecl of keyDeclaration.declarations) {
+        if(keyDecl.id.type!=='Identifier' || !keyDecl.init ||
+           keyDecl.start>=declaration.start ||
+           exporter.bindings.get(keyDecl.id.name)!==1)continue;
+        const literalKey=staticString(keyDecl.init);
+        if(literalKey!==null && names.includes(literalKey)) {
+          earlierLocalConsts.set(keyDecl.id.name,literalKey);
+        }
+      }
+    }
+    for(const statement of exporter.ast.body) {
+      if(statement.type!=='ExportNamedDeclaration' || statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const keyDecl of statement.declaration.declarations) {
+          if(keyDecl.id.type!=='Identifier')continue;
+          const literalKey=earlierLocalConsts.get(keyDecl.id.name);
+          if(literalKey!==undefined)earlierKeyExports.set(keyDecl.id.name,literalKey);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier' || spec.local.type!=='Identifier')continue;
+          const literalKey=earlierLocalConsts.get(spec.local.name);
+          const publicName=spec.exported.name??spec.exported.value;
+          if(literalKey!==undefined && typeof publicName==='string') {
+            earlierKeyExports.set(publicName,literalKey);
+          }
+        }
+      }
+    }
+
     /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
     const users=[];
     let failed=false;
     for(const [importerName,importer] of modules) {
       /** @type {string[]} */
       const aliases=[];
+      /** @type {Map<string,string>} */
+      const importedKeys=new Map();
       for(const statement of importer.ast.body) {
         const source=statement.source;
         if(!source || source.type!=='Literal' ||
-           typeof source.value!=='string' ||
-           resolveImport(importerName,source.value)!==exporterName)continue;
+           typeof source.value!=='string')continue;
+        const origin=resolveImport(importerName,source.value);
+        if(statement.type==='ImportDeclaration' && acyclicImports &&
+           origin && origin!==exporterName) {
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ImportSpecifier' ||
+               importer.bindings.get(spec.local.name)!==1)continue;
+            const key=verifiedStrings.get(importerName)?.get(spec.local.name);
+            if(key!==undefined && names.includes(key)) {
+              importedKeys.set(spec.local.name,key);
+            }
+          }
+        }
+        if(origin!==exporterName)continue;
         if(statement.type==='ExportAllDeclaration' ||
            statement.type==='ExportNamedDeclaration') {
           failed=true;
@@ -2547,6 +2605,14 @@ function renameCrossFileProperties(files,seed) {
           if(spec.type==='ImportNamespaceSpecifier') {
             failed=true;
             break;
+          }
+          if(spec.type==='ImportSpecifier') {
+            const exposed=spec.imported.name??spec.imported.value;
+            const key=typeof exposed==='string' ?
+              earlierKeyExports.get(exposed) : undefined;
+            if(key!==undefined && importer.bindings.get(spec.local.name)===1) {
+              importedKeys.set(spec.local.name,key);
+            }
           }
           const defaultImport=spec.type==='ImportDefaultSpecifier' ||
             spec.type==='ImportSpecifier' &&
@@ -2563,7 +2629,7 @@ function renameCrossFileProperties(files,seed) {
       if(failed)break;
       for(const alias of aliases) {
         const proof=proveLocalObject(importer.ast,alias,importer.bindings,
-          importedIdentities.get(importerName),undefined,undefined,
+          importedIdentities.get(importerName),undefined,importedKeys,
           verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
         if(!proof) {
           failed=true;
