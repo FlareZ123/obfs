@@ -23,7 +23,7 @@ Every run executed the same commit, branch and workflow. Every Linux job passed.
 
 Windows identical-source placebo strict witnesses:
 
-- First run, 1 call: **46 ms / 15 ms = 3.06667×** is actually the companion sample? The actual offending pair is first=15 ms, second=46 ms, yielding **3.06667×**. Its nine-pair ratio-of-medians was **1.00000×**.
+- First run, 1 call: first=15 ms, second=46 ms, yielding **3.06667×**. Its nine-pair ratio-of-medians was **1.00000×**.
 - First run, 8 million calls: first=30 ms, second=93 ms, **3.10000×**. The ratio-of-medians was **0.75410×**.
 - Second run, 1 call: first=30 ms, second=77 ms, **2.56667×**. The ratio-of-medians was **1.03333×**.
 - Third run, 1 call: first=30 ms, second=77 ms, **2.56667×**. The ratio-of-medians was **1.32609×**.
