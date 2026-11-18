@@ -110,6 +110,34 @@ confirmed the new CLI tests, 18 reviewed asset tests,
 OS. The same four unrelated external JSDoc test diagnostics made
 that run **red overall**. No general integration verdict follows.
 
+## Cross-platform reviewed-byte reproducibility
+
+The checked-in CLI example caught an independent build-pipeline
+boundary: a file approved by exact SHA-256 on Ubuntu was checked out
+with different bytes on Windows because the Git working-tree default
+converted LF to CRLF. In the pinned
+[Windows/Ubuntu run 44287863699](https://github.com/FlareZ123/obfs/actions/runs/44287863699)
+at `f05c5128e382ca259e6caf584df547a08c781631`,
+the Ubuntu example passed, but the Windows example observed
+`sha256(theme.css)=6c6fb86fb7d714f2a550118968a1fe904e768ba4df1c4d94790e5f9ded6f4672`
+instead of independently approved
+`fd001f31bc523d4952567bbddf6c5ccd203efab9928b6ec2b63f4d8628bf0a74`.
+The sample's upfront digest assertion failed deliberately before any
+publication. This is a real exact-byte review and portability mismatch.
+
+[Fix `ad8f27b`](https://github.com/FlareZ123/obfs/commit/ad8f27bc8e1afb9780cfe72cf29f11774befabfb)
+added a narrow `.gitattributes` rule
+`examples/reviewed-assets-cli/source/theme.css text eol=lf`,
+consistent with the repository's existing source-snapshot LF policy.
+The subsequent [CI run 44288401149](https://github.com/FlareZ123/obfs/actions/runs/44288401149)
+at that exact commit **passed the executable native/compiled example
+step on both Windows and Ubuntu**, including CSS byte identity,
+COO/SNO program parity and stale-approval preflight. Its overall jobs
+remained red due to the four independently observed SCO external
+JSDoc diagnostics, which this Git attribute does not address.
+A production review must pin actual distributed file bytes, not assume
+that a repository text blob hashes identically after cross-platform checkout.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
