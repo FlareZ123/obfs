@@ -63,3 +63,40 @@ The targeted workflow was extended in place:
 `.github/workflows/manual-coo-shards.yml`. It provides reusable
 Linux/Windows parity, source-snapshot and profile checks without
 creating another expensive full-suite gate.
+
+## Follow-up: selected-function source-observation admission and positive yield
+
+An initial attempt to reuse the general `src/ast.js`
+`observesFunctionSource` check over the **entire** consumer AST caused
+over-refusal. The actual two-platform
+[red targeted run 44250715167](https://github.com/FlareZ123/obfs/actions/runs/44250715167)
+at `025226bec4974accfddab4093231a5de165884c9` failed three
+pre-existing transformation-positive tests per OS (5/8 passed), even
+though the new array-carrier source-reader refusal passed. This is an
+important failed experiment: a broad observer report does not certify
+that the specific selected function's source is observable, and
+dropping all positive protected work is a genuine coverage regression.
+
+The correction uses a deliberately narrow alias-and-array-carrier
+check in `hasKnownObserver`: simple selected-function references can
+flow into an array and later be coerced to their exact source through
+`join()`. That specific pattern now declines compilation, preserving
+the six previous positive and negative cases alongside the iterator
+regression and the new reader refusal.
+
+[Green targeted Linux/Windows run 44251072708](https://github.com/FlareZ123/obfs/actions/runs/44251072708)
+at `090c8946ecdee7c1a17096174d8729b3a67804b7` ran
+**8/8 tests per OS**, passed both piggyback JSDoc and generated-output
+snapshot checks, and retained the seedless reconstruction attacker.
+The 48-graph profile sampled:
+
+| Platform | Cold graph-and-first-read median ratio | Cached hot-call median ratio |
+| --- | ---: | ---: |
+| Ubuntu | 1.20856× | 1.16667× |
+| Windows | 1.12544× | 1.19027× |
+
+This is a bounded selected-source-reader check, not a complete
+interprocedural alias/source-observation proof. In particular, arbitrary
+computed methods, host callbacks, mutable aliases, `Array#toString`,
+and other reflective readers remain possible under the explicit
+closed-world precondition.
