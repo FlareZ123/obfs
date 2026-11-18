@@ -59,7 +59,7 @@ function graph(group) {
   const names=group.map((_,index)=>'v'+index);
   const consumer='import {'+names.join(',')+',peek} from "./producer.mjs";\n'+
     'export const values=['+names.map(name=>'String('+name+')').join(',')+
-    ',String(peek())];';
+    '];export const peekResult=peek();';
   return [
     {path:'producer.mjs',sourceType:'module',code:producer},
     {path:'consumer.mjs',sourceType:'module',code:consumer}
@@ -77,7 +77,7 @@ async function execute(files) {
   try {
     for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
     const mod=await import(pathToFileURL(path.join(dir,'consumer.mjs')).href);
-    return /** @type {string[]} */ (mod.values);
+    return /** @type {string[]} */ ([...mod.values,String(mod.peekResult)]);
   }finally{
     await fs.rm(dir,{recursive:true,force:true});
   }
