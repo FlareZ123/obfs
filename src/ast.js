@@ -2127,13 +2127,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // callback receives line/column arguments directly; ErrorEvent listeners
     // can read lineno/colno. A later source prefix such as the host-lock guard
     // therefore has to fail closed around these registrations/reads too.
+    const globalErrorHandlerNames=new Set([
+      'onerror','onunhandledrejection','onrejectionhandled'
+    ]);
     if(node.type==='AssignmentExpression' && node.operator==='=' &&
-       (node.left.type==='MemberExpression' &&
-          isGlobal(node.left.object) && memberName(node.left)==='onerror' ||
-        node.left.type==='Identifier' && node.left.name==='onerror' &&
-          !bindingCounts.has('onerror'))) observed=true;
+       (node.left.type==='MemberExpression' && isGlobal(node.left.object) &&
+          globalErrorHandlerNames.has(memberName(node.left)??'') ||
+        node.left.type==='Identifier' && globalErrorHandlerNames.has(node.left.name) &&
+          !bindingCounts.has(node.left.name))) observed=true;
+    const globalErrorEventNames=new Set([
+      'error','unhandledrejection','rejectionhandled'
+    ]);
     if(node.type==='CallExpression' && node.arguments[0] &&
-       staticString(node.arguments[0])==='error' &&
+       globalErrorEventNames.has(staticString(node.arguments[0])??'') &&
        (node.callee.type==='MemberExpression' &&
           isGlobal(node.callee.object) && memberName(node.callee)==='addEventListener' ||
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
