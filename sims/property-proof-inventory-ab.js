@@ -1,0 +1,136 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {createHash}=require('node:crypto');
+const {execFileSync,spawnSync}=require('node:child_process');
+const {closeSync,openSync,readFileSync,renameSync,unlinkSync,writeFileSync}=require('node:fs');
+const {join}=require('node:path');
+const {performance}=require('node:perf_hooks');
+
+const REPO=join(__dirname,'..');
+const PROPERTY_FILE=join(REPO,'src','properties.js');
+const CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
+
+/** @param {number} objects @returns {string} */
+function original(objects){
+  let code="'use strict';let total=0;\n";
+  for(let i=0;i<objects;i++)
+    code+='const bag'+i+'={k:'+(i%31)+'};'+
+      'if("k" in bag'+i+')total=(total+bag'+i+'.k)|0;\n';
+  return code+'module.exports=total;\n';
+}
+
+/** @param {string} source @returns {string} */
+function sha256(source){
+  return createHash('sha256').update(source).digest('hex');
+}
+
+/**
+ * The sample runs in a fresh subprocess after the controlling source swap.
+ * CPU and wall both measure only obfuscateFiles, not this script's process.
+ * @param {number} objects
+ * @returns {void}
+ */
+function sample(objects){
+  const {obfuscateFiles}=require('../src');
+  const input=original(objects);
+  const cpuStart=process.cpuUsage();
+  const wallStart=performance.now();
+  const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
+    mode:'coo',seed:'own-in-onefile-'+objects,strings:false,identifiers:false
+  });
+  const wallMs=performance.now()-wallStart;
+  const cpu=process.cpuUsage(cpuStart);
+  assert.equal(emitted.files[0].metrics.properties,objects);
+  const output=/** @type {string} */ (emitted.files[0].code);
+  /** @type {{exports:number|null}} */
+  const module={exports:null};
+  new Function('module',output)(module);
+  /** @type {{exports:number|null}} */
+  const native={exports:null};
+  new Function('module',input)(native);
+  assert.equal(module.exports,native.exports);
+  console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
+    objects,platform:process.platform,node:process.version,
+    cpuMs:(cpu.user+cpu.system)/1000,wallMs,
+    properties:emitted.files[0].metrics.properties,
+    sourceHash:sha256(output),sourceBytes:Buffer.byteLength(output),
+    expectedChecksum:module.exports
+  }));
+}
+
+/** @param {string} content @returns {void} */
+function replaceAtomically(content){
+  const tmp=PROPERTY_FILE+'.ab-'+process.pid+'.tmp';
+  writeFileSync(tmp,content,{encoding:'utf8',flag:'wx'});
+  renameSync(tmp,PROPERTY_FILE);
+}
+
+/**
+ * @param {'control'|'candidate'} arm
+ * @param {number} objects
+ * @returns {{arm:string,objects:number,cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ */
+function run(arm,objects){
+  const code=arm==='control'?control:originalCompiler;
+  replaceAtomically(code);
+  const child=spawnSync(process.execPath,[__filename,'sample',String(objects)],{
+    cwd:REPO,encoding:'utf8',timeout:600000,maxBuffer:1024*1024
+  });
+  assert.equal(child.status,0,child.stderr || child.stdout || String(child.error));
+  const line=child.stdout.split(/\r?\n/).find(row=>row.startsWith('PROOF_INDEX_SAMPLE '));
+  assert.ok(line,'Missing sample result');
+  const record=JSON.parse(line.slice('PROOF_INDEX_SAMPLE '.length));
+  return {arm,...record};
+}
+
+if(process.argv[2]==='sample'){
+  sample(Number(process.argv[3]));
+}else{
+  // This intentionally swaps the single compiler file, so only run in an
+  // isolated CI checkout with no concurrent compiler clients.
+  assert.equal(process.env.CI,'true','Paired source swap requires an isolated CI job');
+  const originalCompiler=readFileSync(PROPERTY_FILE,'utf8');
+  const control=execFileSync('git',['show',CONTROL_SHA+':src/properties.js'],{
+    cwd:REPO,encoding:'utf8',maxBuffer:1024*1024
+  });
+  assert.notEqual(sha256(originalCompiler),sha256(control));
+  const lock=PROPERTY_FILE+'.ab.lock';
+  const lockFd=openSync(lock,'wx');
+  /** @type {ReturnType<typeof run>[]} */
+  const records=[];
+  try{
+    for(const [objects,arms] of [
+      /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
+      /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']])
+    ]) {
+      for(const arm of arms)records.push(run(arm,objects));
+      const group=records.filter(record=>record.objects===objects);
+      assert.equal(new Set(group.map(record=>record.sourceHash)).size,1,
+        'Control and candidate must emit byte-identical code');
+      assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
+    }
+    for(const objects of [512,2048]){
+      const group=records.filter(record=>record.objects===objects);
+      const controlRuns=group.filter(record=>record.arm==='control');
+      const candidateRuns=group.filter(record=>record.arm==='candidate');
+      const average=(/** @type {number[]} */ samples)=>samples.reduce((a,b)=>a+b,0)/samples.length;
+      console.log('PROOF_INDEX_AB '+JSON.stringify({
+        baseline:CONTROL_SHA,objects,platform:process.platform,node:process.version,
+        controlCpuMs:controlRuns.map(x=>x.cpuMs),
+        candidateCpuMs:candidateRuns.map(x=>x.cpuMs),
+        controlWallMs:controlRuns.map(x=>x.wallMs),
+        candidateWallMs:candidateRuns.map(x=>x.wallMs),
+        cpuRatio:average(controlRuns.map(x=>x.cpuMs))/average(candidateRuns.map(x=>x.cpuMs)),
+        wallRatio:average(controlRuns.map(x=>x.wallMs))/average(candidateRuns.map(x=>x.wallMs)),
+        identicalSourceHash:group[0].sourceHash,
+        propertyRenames:group[0].properties,
+        scope:'same CI checkout, alternating source-controlled fresh Node compiler processes'
+      }));
+    }
+  }finally{
+    replaceAtomically(originalCompiler);
+    closeSync(lockFd);
+    unlinkSync(lock);
+  }
+}
