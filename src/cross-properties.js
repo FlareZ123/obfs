@@ -718,11 +718,18 @@ function collectVerifiedImportedUrlStaticAliases(files) {
       const exported=origin?exportedByFile.get(origin):null;
       if(!exported)continue;
       for(const spec of statement.specifiers) {
+        if(module.bindings.get(spec.local.name)!==1)continue;
+        if(spec.type==='ImportNamespaceSpecifier') {
+          // Dotted keys are internal proof tokens for owned namespace methods;
+          // each is installed into the AST method-record map before scanning.
+          for(const publicName of exported)
+            aliases.add(spec.local.name+'.'+publicName);
+          continue;
+        }
         const publicName=spec.type==='ImportSpecifier'?
           spec.imported.name??spec.imported.value:
           spec.type==='ImportDefaultSpecifier'?'default':null;
-        if(publicName!==null&&exported.has(publicName)&&
-           module.bindings.get(spec.local.name)===1)aliases.add(spec.local.name);
+        if(publicName!==null&&exported.has(publicName))aliases.add(spec.local.name);
       }
     }
     imported.set(filename,aliases);
