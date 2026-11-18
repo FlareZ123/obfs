@@ -40,6 +40,11 @@ jobs:
         with:
           ref: 6980e63c9b607c4673e4cbf19d4254f7003cd78f
           path: css-rule-previous
+      - name: Checkout C0 URL normalization prepatch compiler
+        uses: actions/checkout@v4
+        with:
+          ref: c50dc0b2163ba8cd4635024a3fa70cf20891e81c
+          path: css-c0-previous
       - name: Checkout current protected candidate
         uses: actions/checkout@v4
         with:
@@ -63,6 +68,9 @@ jobs:
       - name: Install rule-context prepatch dependencies
         working-directory: css-rule-previous
         run: npm install --no-package-lock --ignore-scripts
+      - name: Install C0 URL normalization prepatch dependencies
+        working-directory: css-c0-previous
+        run: npm install --no-package-lock --ignore-scripts
       - name: Install protected dependencies
         working-directory: protected
         run: npm install --no-package-lock --ignore-scripts
@@ -76,6 +84,8 @@ jobs:
         run: node protected/sims/html-data-stylesheet-attack.js data-style-previous protected
       - name: Paired CSS import grammar negative and original-source protection controls
         run: node protected/sims/css-rule-context-compatibility.js css-rule-previous protected
+      - name: Paired leading-C0 nested CSS original-source extraction and SCO HTTP refusal
+        run: node protected/sims/css-leading-c0-attack.js css-c0-previous protected
       - name: Paired nested CSS data-import source-map extraction
         run: node protected/sims/css-nested-data-import-attack.js data-style-previous protected
       - name: Paired Wasm debug names attacker and SCO publication refusal
