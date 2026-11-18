@@ -2,6 +2,11 @@ name: Manual SCO fresh-process batch end-to-end CPU comparison
 
 on:
   workflow_dispatch:
+    inputs:
+      immutable_batch:
+        description: 'Opt into frozen shared JSON arguments for read-only authenticated SCO batches'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -27,6 +32,7 @@ jobs:
         run: npm run typecheck:external
       - name: Measure paired startup-inclusive original and authenticated SCO sessions
         env:
+          OBFS_SCO_BATCH_IMMUTABLE_ARGS: ${{ inputs.immutable_batch && '1' || '0' }}
           OBFS_SCO_BATCH_PROCESS_AUDIT_FILE: sco-batch-process-${{ runner.os }}.json
         run: node sims/sco-batch-fresh-process-cpu.js
       - name: Preserve full exact paired process-CPU samples
