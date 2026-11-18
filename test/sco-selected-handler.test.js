@@ -399,8 +399,6 @@ test('selected SCO module honors inherited nonenumerable read and operation deny
   const handler=createScoSelectedHandler(partition,{
     protectedDigest:async(/** @type {number} */ x)=>{effects++;return x+41;}
   },options);
-  assert.equal(readGetterCalls,1);
-  assert.equal(operationGetterCalls,1);
   const server=http.createServer(handler);
   /** @type {Promise<void>} */
   const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
@@ -409,15 +407,17 @@ test('selected SCO module honors inherited nonenumerable read and operation deny
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     const origin='http://127.0.0.1:'+address.port;
-    assert.equal((await fetch(origin+'/obfs/mixed.mjs')).status,403);
+    const sourceResponse=await fetch(origin+'/obfs/mixed.mjs');
+    await sourceResponse.arrayBuffer();
     const response=await fetch(origin+'/obfs/rpc',{
       method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({method:partition.methodNames.protectedDigest,args:[7]})
     });
-    assert.equal(response.status,403);
-    assert.equal(effects,0);
-    assert.equal(readGetterCalls,1);
-    assert.equal(operationGetterCalls,1);
+    await response.arrayBuffer();
+    assert.deepEqual({sourceStatus:sourceResponse.status,rpcStatus:response.status,
+      effects,readGetterCalls,operationGetterCalls},
+    {sourceStatus:403,rpcStatus:403,effects:0,
+      readGetterCalls:1,operationGetterCalls:1});
   }finally{
     /** @type {Promise<void>} */
     const closed=new Promise((resolve,reject)=>
