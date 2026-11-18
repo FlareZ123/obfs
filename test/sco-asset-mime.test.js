@@ -46,6 +46,13 @@ const expectedTypes=new Map([
   ['unknown.bin','application/octet-stream']
 ]);
 
+test('WebAssembly streaming refuses the historical octet-stream MIME control',async()=>{
+  const wasm=assets.find(file=>file.path==='answer.wasm');
+  assert.ok(wasm);
+  const control=new Response(wasm.code,{headers:{'content-type':'application/octet-stream'}});
+  await assert.rejects(WebAssembly.instantiateStreaming(Promise.resolve(control)),TypeError);
+});
+
 test('SCO serves validated static assets with browser-compatible MIME and exact bytes',async()=>{
   const server=createServer(createScoHandler(assets,{publicPaths:assets.map(file=>file.path)}));
   /** @type {Promise<void>} */
