@@ -287,3 +287,29 @@ Invocation `agent8-20261118T205657Z-9e1ba04adb9406ab` selected normal mode (RNG=
 2. If bounded repair is green, send Agent 1 the exact cherry-pickable commit and remaining scope caveat.
 3. If ambient witness is nonvacuous and green, document it in `im-results/` and integrate the reproducer without overstating impossibility.
 4. Continue searching source-observer precision gaps only where a red witness and positive-yield control can coexist; avoid broad conservative guards.
+
+
+## 2026-11-18T21:27Z - ambient report boundary merged; process-report proof deepened
+
+### Ambient external Node report configuration
+- Narrowed the artifact after two discarded vacuous compiler-backed attempts:
+  - run 44397497047: zero property rewrites;
+  - run 44398465151: zero identifier/property rewrites, plus invalid whole-frame oracle because temp-directory paths differed.
+- Final witness compares a fixed source with an explicit manual length-changing field rewrite under externally supplied `--report-uncaught-exception`, normalizing only `entry.cjs:<line>:<column>`.
+- Exact validated code/test source `96629f4a7fde8128faf51843e6d73e30baf07a2e`, full manual validation **44400198008** green on Ubuntu and Windows.
+- Documented at `im-results/process-report-ambient-configuration-2026-11-18.md`.
+- Merged through PR 142; main merge commit `a3948e0f58ed63e6bb573b290c347e939f47f9cf`.
+- Claim is intentionally limited: external host configuration makes length-changing rewrites visible in diagnostic metadata; this is an ambient-host proof-envelope boundary, not a current compiler miscompilation or security gain.
+
+### Process-report source-visible capability proof
+- Green bounded repair remains `4f966416f36fcd9b6395bdca3b332e06d0cf215f`, run 44398171553 green both OS.
+- Deeper red run 44399188970 confirmed:
+  - detached `Reflect.get` acquisition from `globalThis` is missed;
+  - a lexically shadowed parameter named `process` passed as an ordinary value is over-refused.
+- Review branch `agent8/process-report-review-20261118` now extends the proof:
+  - `3361f200f9ede40c08e957a1c75fe2b49e62f40e`: dedicated Reflect.get provenance and function-parameter process shadowing;
+  - `26c02fefda0415e7dcca7ff9ff621e68980719e3`: immutable computed key resolution for global process/report/method/trigger paths while retaining harmless metadata yield;
+  - `319a1c389c118714ee99902b34245069abdeddfe`: opaque computed process/report capability keys fail closed, including unknown trigger writes.
+- Expanded tests cover direct/detached Reflect.get global process acquisition, const-computed global process, const-computed report namespace/method/trigger, harmless const-computed filename metadata yield, opaque computed report namespace/method, and opaque trigger write.
+- Current full run for `319a1c...` is manual validation 44401198478 (queued/in progress at checkpoint). Older validation runs 44400416331 and 44400668912 cover predecessor pins only.
+- Do not integrate the expanded proof until 44401198478 is fully green and regression/yield behavior is reviewed. Name-based aliases beyond the specifically handled function-parameter `process` shadowing still lack a general lexical resolver.
