@@ -108,6 +108,22 @@ async function run(rounds=13){
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Expected localhost listener');
     const origin='http://127.0.0.1:'+address.port;
+    // Actual HTTP denials prevent a performance-only success from being
+    // mistaken for a protected authenticated transport.
+    const deniedPublic=await originalFetch(origin+'/obfs/'+EXPOSED);
+    assert.equal(deniedPublic.status,403,'SCO public facade must require authorization');
+    const deniedRpc=await originalFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:batchMethod,args:[[{method,args:[0,1]}]]})
+    });
+    assert.equal(deniedRpc.status,403,'Unauthenticated SCO batch must be denied');
+    const deniedInner=await originalFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json',
+        'x-batch-token':bearer},
+      body:JSON.stringify({method:batchMethod,args:[[{method,args:[0,150001]}]]})
+    });
+    assert.equal(deniedInner.status,403,
+      'Authenticated outer batch must not bypass an invalid inner argument');
     globalThis.fetch=(input,init)=>{
       const headers=new Headers(init?.headers);
       headers.set('x-batch-token',bearer);
