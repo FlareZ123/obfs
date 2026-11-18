@@ -532,6 +532,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const urlStaticAliases=new Set();
   /** @type {Map<string,Set<string>>} */
   const urlStaticObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const urlConstructorObjectKeys=new Map();
   const webDictionaries=new Set(webDictionaryNames);
   // Blob's second constructor argument is a Web IDL options dictionary.
   const blobNames=new Set(['Blob']);
@@ -698,7 +700,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys :
       aliases===webStringConstructors ? webStringObjectKeys :
-      aliases===blobConstructors ? blobObjectKeys : null;
+      aliases===blobConstructors ? blobObjectKeys :
+      aliases===urlConstructors ? urlConstructorObjectKeys : null;
     const keys=properties?.get(node.object.name);
     // A runtime-computed key could select any recorded native method.
     return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
@@ -896,6 +899,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(redirectObjectKeys,receiver,key);
     if(isUrlStaticMethod(expression))
       addWebObjectKey(urlStaticObjectKeys,receiver,key);
+    if(isWebConstructor(expression,urlConstructors,urlNativeNames))
+      addWebObjectKey(urlConstructorObjectKeys,receiver,key);
   }
   do {
     changed=false;
@@ -1092,7 +1097,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
-            boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys]) {
+            boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
+            urlConstructorObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1200,6 +1206,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(responseRedirects,property.value.name)||changed;
           if(urlStaticObjectKeys.get(node.init.name)?.has(key))
             changed=add(urlStaticAliases,property.value.name)||changed;
+          if(urlConstructorObjectKeys.get(node.init.name)?.has(key))
+            changed=add(urlConstructors,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
