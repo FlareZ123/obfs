@@ -136,14 +136,14 @@ test('hoisted function called before its declaration and directive prologue rema
 });
 
 test('source-visible Array iterator replacement does not alter lazy decoded output',async()=>{
-  const expected='A\\u0000\\ud800\\u2603Z';
-  const app="import {hijack} from './constants.mjs';\\n"+
-    'export function message(){return '+JSON.stringify(expected)+';}\\n'+
-    'export function exercise(){const restore=hijack();try{return message();}finally{restore();}}\\n';
+  const expected='A\u0000\ud800\u2603Z';
+  const app="import {hijack} from './constants.mjs';\n"+
+    'export function message(){return '+JSON.stringify(expected)+';}\n'+
+    'export function exercise(){const restore=hijack();try{return message();}finally{restore();}}\n';
   const donor='export function hijack(){'+
     'const old=Array.prototype[Symbol.iterator];'+
     'Array.prototype[Symbol.iterator]=function*(){yield 78;};'+
-    'return ()=>{Array.prototype[Symbol.iterator]=old;};}\\n';
+    'return ()=>{Array.prototype[Symbol.iterator]=old;};}\n';
   const transformed=transform(app,donor,'iterator-override');
   assert.equal(transformed.transformed,true);
   assert.ok(!transformed.files[0].code.includes('...units'),
