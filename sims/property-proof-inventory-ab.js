@@ -31,40 +31,40 @@ function original(objects){
  * @returns {string}
  */
 function mixedSource(){
-  let code="'use strict';let total=0;\\n";
+  let code="'use strict';let total=0;\n";
   for(let i=0;i<48;i++){
     const n=String(i),v=i%29;
     switch(i%7){
       case 0:
         code+='const key'+n+'="secret";const bag'+n+'={secret:'+v+'};'+
-          'total=(total+bag'+n+'[key'+n+'])|0;\\n';
+          'total=(total+bag'+n+'[key'+n+'])|0;\n';
         break;
       case 1:
         code+='const bag'+n+'={secret:'+v+'};const alias'+n+'=bag'+n+';'+
-          'total=(total+alias'+n+'.secret)|0;\\n';
+          'total=(total+alias'+n+'.secret)|0;\n';
         break;
       case 2:
         code+='const bag'+n+'={secret:'+v+'};const tuple'+n+'=[0,bag'+n+',3];'+
-          'const owned'+n+'=tuple'+n+'[1];total=(total+owned'+n+'.secret)|0;\\n';
+          'const owned'+n+'=tuple'+n+'[1];total=(total+owned'+n+'.secret)|0;\n';
         break;
       case 3:
         code+='const bag'+n+'={secret:'+v+'};const holder'+n+'={tag:0,owned:bag'+n+'};'+
-          'const owned'+n+'=holder'+n+'.owned;total=(total+owned'+n+'.secret)|0;\\n';
+          'const owned'+n+'=holder'+n+'.owned;total=(total+owned'+n+'.secret)|0;\n';
         break;
       case 4:
         code+='const bag'+n+'={secret:'+v+'};const reader'+n+'=(value)=>value.secret;'+
-          'total=(total+reader'+n+'(bag'+n+'))|0;\\n';
+          'total=(total+reader'+n+'(bag'+n+'))|0;\n';
         break;
       case 5:
         code+='const bag'+n+'={secret:'+v+'};function forward'+n+'(value){return value;}'+
-          'total=(total+forward'+n+'(bag'+n+').secret)|0;\\n';
+          'total=(total+forward'+n+'(bag'+n+').secret)|0;\n';
         break;
       default:
         code+='const bag'+n+'={secret:'+v+'};'+
-          'total=(total+Object.keys(bag'+n+').includes("secret"))|0;\\n';
+          'total=(total+Object.keys(bag'+n+').includes("secret"))|0;\n';
     }
   }
-  return code+'module.exports=total;\\n';
+  return code+'module.exports=total;\n';
 }
 
 /** @param {string} source @returns {string} */
@@ -75,7 +75,7 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number} objects
+ * @param {number|'mixed'} objects
  * @returns {void}
  */
 function sample(objects){
