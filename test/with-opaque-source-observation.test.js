@@ -26,7 +26,7 @@ function execute(code) {
     }
   });
   vm.runInContext(code,context,{timeout:2500});
-  return String(context.module.exports);
+  return JSON.stringify(context.module.exports);
 }
 
 /** @type {{kind:string,definition:string,sourceMarker:string}[]} */
@@ -59,7 +59,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       const source=fixture.definition+
         "globalThis.outside='top-level-encoded-payload';"+
         "with(globalThis.opaqueScope){globalThis.captured=inspected;}"+
-        "module.exports=globalThis.captured+'|'+globalThis.outside;";
+        "module.exports={captured:globalThis.captured,outside:globalThis.outside};";
       const output=obfuscateFiles([{
         path:'opaque.cjs',sourceType:'commonjs',code:source
       }],{
