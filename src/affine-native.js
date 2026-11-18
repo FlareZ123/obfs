@@ -156,6 +156,36 @@ function lowerAffineNative(source,sourceType,options) {
 }
 
 
+/**
+ * Lower an integer-addition chain into two exact additive terms with
+ * seed-diversified offsets. The sole ToInt32 conversion is at the end; the
+ * normalized input and both added constants stay within the exact Number
+ * integer range. The public case structure is trivially invertible and
+ * provides no security advantage over a native arithmetic baseline.
+ *
+ * This opt-in experiment measures the runtime/complexity tradeoff for an
+ * affine case variant with a substantially shorter critical path.
+ * @param {number[]} steps
+ * @param {string} parameter
+ * @param {Buffer} entropy
+ * @param {Set<string>} used
+ * @returns {string}
+ */
+function emitCompactAffineBody(steps,parameter,entropy,used){
+  const total=steps.reduce((sum,step)=>sum+step,0);
+  const mask=createHash('sha256').update(entropy).update('\0')
+    .update('compact/offset').digest().readInt32LE(0);
+  let attempt=0,name='';
+  do{
+    name='_ac_'+createHash('sha256').update(entropy).update('\0')
+      .update('compact/register/'+attempt++).digest('hex').slice(0,14);
+  }while(used.has(name));
+  used.add(name);
+  return '{const '+name+'=('+parameter+'+('+mask+'));'+
+    'return ('+name+'+('+String(total-mask)+'))|0;}';
+}
+
+
 /** @typedef {{code:string,functions:number,steps:number,paths:number,declined:number}} PolyvariantAffineResult */
 
 /**
@@ -173,14 +203,15 @@ function lowerAffineNative(source,sourceType,options) {
  *
  * @param {string} source
  * @param {'module'|'commonjs'} sourceType
- * @param {{seed:string,names:string[],variants?:2|4|8}} options
+ * @param {{seed:string,names:string[],variants?:2|4|8,compact?:boolean}} options
  * @returns {PolyvariantAffineResult}
  */
 function lowerPolyvariantAffine(source,sourceType,options) {
   if(typeof source!=='string'||!['module','commonjs'].includes(sourceType)||
      !options||typeof options.seed!=='string'||!options.seed||
      !Array.isArray(options.names)||options.names.some(name=>typeof name!=='string')||
-     options.variants!==undefined&&![2,4,8].includes(options.variants)) {
+     (options.variants!==undefined&&![2,4,8].includes(options.variants))||
+     (options.compact!==undefined&&typeof options.compact!=='boolean')) {
     throw new TypeError('Expected source, type, seed, targets and 2/4/8 variants');
   }
   const targets=new Set(options.names);
@@ -248,9 +279,11 @@ function lowerPolyvariantAffine(source,sourceType,options) {
         attempt++;
       } while(reserved.has(slot));
       reserved.add(slot);
-      const narrowed='{const '+slot+'=((('+normalized+'>>'+shift+
-        ')<<'+shift+')|'+index+');'+
-        emitAffineBody(chain,slot,derive('variant/'+index),reserved)+'}';
+      const narrowed=options.compact?
+        emitCompactAffineBody(chain,normalized,derive('variant/'+index),reserved):
+        '{const '+slot+'=((('+normalized+'>>'+shift+
+          ')<<'+shift+')|'+index+');'+
+          emitAffineBody(chain,slot,derive('variant/'+index),reserved)+'}';
       cases.push({label:index,order:derive('order/'+index).readUInt32LE(0),
         body:narrowed});
     }
