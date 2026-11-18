@@ -138,6 +138,9 @@ function proveSourceObserverIslands(files,selections) {
     // CacheStorage exposes fetched module bytes without an explicit fetch().
     // Cache.add() performs a request, then Cache.match().text() reveals it.
     'caches','CacheStorage',
+    // A same-origin host iframe may expose selected .mjs source text to a
+    // declared module through the ambient Window.frames collection.
+    'frames',
     'URL','Blob','WebSocket','readFile','readFileSync','createRequire',
     'getBuiltinModule'
   ]);
