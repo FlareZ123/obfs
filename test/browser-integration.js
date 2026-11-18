@@ -49,7 +49,7 @@ async function main(){
     {path:'parameter-shorthand-entry.mjs',sourceType:'module',
       code:'import {compute} from "./parameter-shorthand-helper.mjs";'+
         'document.getElementById("answer").textContent=compute(39);'}
-  ],{mode:'coo',closedWorld:true,seed:'chrome-local-formal-shorthand',
+  ],{mode:'coo',closedWorld:false,seed:'chrome-local-formal-shorthand',
     identifiers:false,strings:false,properties:true});
   assert.equal(parameterShorthandSet.files.reduce((sum,file)=>sum+file.metrics.objects,0),1);
   // Calling a passed function as an owner method exposes its receiver's
