@@ -293,3 +293,50 @@ test('unrelated local primitive-return helper keeps private record transformatio
   assert.equal(compiled.crossFile.properties,1);
   assert.equal(await execute(compiled.files),native);
 });
+
+for(const [label,setup,factorySource] of [
+  ['awaited factory result',[
+    'async function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const ctor=await getFactory();'
+  ].join('\n'),null],
+  ['destructured factory holder',[
+    'function getFactory(){return {ctor:globalThis.RUNTIME_FACTORY};}',
+    'const {ctor}=getFactory();'
+  ].join('\n'),null],
+  ['ESM namespace-imported factory',[
+    "import * as factories from './factory.mjs';",
+    'const ctor=factories.getFactory();'
+  ].join('\n'),'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'],
+  ['local forwarding wrapper',[
+    'function inner(){return globalThis.RUNTIME_FACTORY;}',
+    'function getFactory(){return inner();}',
+    'const ctor=getFactory();'
+  ].join('\n'),null],
+  ['local factory alias',[
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}',
+    'const factory=getFactory;',
+    'const ctor=factory();'
+  ].join('\n'),null],
+  ['separate returned-holder member',[
+    'function getFactory(){return {ctor:globalThis.RUNTIME_FACTORY};}',
+    'const holder=getFactory();',
+    'const ctor=holder.ctor;'
+  ].join('\n'),null]
+]) {
+  test('forwarded host return via '+label+' cannot change distributed owner spelling',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    if(factorySource)files.push({path:'factory.mjs',sourceType:'module',code:factorySource});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-return-next-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
