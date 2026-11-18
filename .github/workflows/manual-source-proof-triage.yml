@@ -22,6 +22,8 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
+      - name: Direct declaration reader interprocedural proof and native ESM differential
+        run: node --test test/function-declaration-reader-proof.test.js
       - name: Bounded independent-source-observer island proof differential
         run: node --test test/source-observer-islands.test.js test/source-observer-coverage.test.js
       - name: Held-out 36-case source-island ESM and seedless normalization grid
