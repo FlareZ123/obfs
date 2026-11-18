@@ -196,8 +196,7 @@ function mutatesDecoderIntrinsic(ast) {
         (memberName(node)==='prototype'||memberName(node)===null);
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-       node.callee.object.type==='Identifier' &&
-       ['Object','Reflect'].includes(node.callee.object.name) &&
+       (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)) &&
        memberName(node.callee)==='getPrototypeOf' &&
        node.arguments[0] && isStringInstance(node.arguments[0]))return true;
     return false;
