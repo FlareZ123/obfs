@@ -36,5 +36,9 @@ jobs:
         run: npm run typecheck
       - name: Invert held-out author-style MBA permutation chains
         run: node sims/mba-permutation-heldout-inverse.js
+      - name: Reproduce committed author SMT pseudo-rotate collision
+        run: node sims/mba-author-smt-rotate-collision.js
+      - name: Typecheck MBA permutation research tools in isolation
+        run: npx tsc --allowJs --checkJs --noEmit --strict --target ES2022 --module commonjs --moduleResolution node --types node --skipLibCheck sims/mba-permutation-component-inverse.js sims/mba-permutation-heldout-inverse.js sims/mba-author-smt-rotate-collision.js
       - name: External research tool JSDoc
         run: npm run typecheck:external
