@@ -132,6 +132,59 @@ test('SCO graph fingerprints block exact original source copies and original exp
 });
 
 
+test('SCO graph snapshots the approved exposedPaths getter before facade selection',async()=>{
+  const files=[
+    {path:'public.mjs',code:'export async function allowed(){return 7;}'},
+    {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'}
+  ];
+  let reads=0;
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-exposure-options-20261118',
+    get exposedPaths(){
+      reads++;
+      return reads<=3?['public.mjs']:['admin.mjs'];
+    }
+  });
+  assert.equal(reads,1,'The public export authorization list must be captured once');
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,['admin.mjs']);
+  const server=http.createServer(createScoGraphHandler(graph,{
+    'public.mjs':{allowed:async()=>7},
+    'admin.mjs':{adminOnly:async()=>31337}
+  },{authorizeRpc:()=>true}));
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/public.mjs')).status,200);
+    assert.equal((await fetch(origin+'/obfs/admin.mjs')).status,404);
+    const rpc=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:graph.partitions['public.mjs'].methodNames.allowed,args:[]})
+    });
+    assert.equal(rpc.status,200);
+    assert.deepEqual(await rpc.json(),{ok:true,value:7});
+    assert.equal(reads,1,'Serving requests must not revisit caller-owned publication getters');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+test('SCO graph ignores a caller-owned exposedPaths iterator that changes authorized modules',()=>{
+  const files=[
+    {path:'public.mjs',code:'export async function allowed(){return 7;}'},
+    {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'}
+  ];
+  const exposedPaths=['public.mjs'];
+  exposedPaths[Symbol.iterator]=function*(){yield 'admin.mjs';};
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-exposure-iterator-20261118',exposedPaths
+  });
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,['admin.mjs']);
+});
+
 test('composed SCO graph handler binds only original exports and permits only generated facades',async()=>{
   const graph=partitionScoAsyncGraph(originals,{
     seed:'sco-graph-composed-handler-20261116',exposedPaths:['api.mjs','audit.mjs']
