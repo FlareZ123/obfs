@@ -133,3 +133,77 @@ The source scanner is intentionally not a complete browser realm
 provenance proof. Shadowed/detached documents may overrefuse. Unknown
 external preloads remain outside the supplied graph. This is bounded
 compatibility, not a confidentiality or 2.5x-runtime advancement.
+
+## 18 November 2026 continued: fixed-point + imported Document aliases
+
+Further source-visible tests expanded the mainline Document.defaultView
+parity repair from its three initial syntactic cases to true alias
+analysis with declaration destructuring, assignment destructuring,
+CJS require and ESM imported bindings:
+
+- Added three local binding cases and real Chromium equivalents.
+  Red [44254798329](https://github.com/FlareZ123/obfs/actions/runs/44254798329)
+  at `edc12bf16b62dd88926a593779671a341ba3a9fa` was **114/117**
+  on each OS with three actual native/emitted source-output mismatches.
+  `src/core.js` now has `documentNames`, `isDocumentValue`, and
+  propagates global/document aliases through the existing monotonic
+  fixed-point VariableDeclarator and destructuring logic.
+  Green [44254995341](https://github.com/FlareZ123/obfs/actions/runs/44254995341)
+  source `58ebd17ed535a108b2d32889ab63ae6d5721fd35`,
+  117/117 Node tests each OS and 13 real Chromium fixtures.
+- Object-pattern `AssignmentExpression` was a separate real hole.
+  Red [44255248526](https://github.com/FlareZ123/obfs/actions/runs/44255248526)
+  source `c99d6af3a3457da3d1cfe7127342fdbd99b5d4f8` was
+  **117/119** per OS with two runtime discrepancies. Shared
+  `recordDocumentPattern` inside `src/core.js` handles patterns
+  in declarations and assignments, including existing target
+  identifiers. Green [44255415512](https://github.com/FlareZ123/obfs/actions/runs/44255415512)
+  source `c03a77cf5cfb5003f6fdc04baba2937c9adf246c` had
+  119/119 Node tests each OS, JSDoc and 16 browser fixtures.
+- Cross-module `require('./owner.cjs')` opaque result can carry
+  the Document, then `Doc.defaultView.String.fromCharCode=...`
+  before a target literal initializes. Red
+  [44255769510](https://github.com/FlareZ123/obfs/actions/runs/44255769510)
+  source `9cb319e9684014f260f84360e2390ffe35f8e79f`
+  measured `???????????????????????` versus native
+  `protected-literal-value` on Ubuntu+Windows, 119/120 tests.
+  `src/core.js` now conservatively seeds document aliases from
+  unproved CommonJS require results and all ESM imported local
+  identifiers. Same fixed-point collector handles chained aliases.
+  Standalone ESM imported-Document negative+positive cases were
+  added to `test/ambient-string-intrinsic.test.js` and its workflow.
+  Green [44256040665](https://github.com/FlareZ123/obfs/actions/runs/44256040665)
+  at `40966c4af2f462b016d8d1110f5d2958bcaf8abc` ran 132/132
+  tests per OS plus real Chromium.
+- The latest source-pinned targeted
+  [green 44256257798](https://github.com/FlareZ123/obfs/actions/runs/44256257798)
+  at `9142e64bdd9de4f0c2ae5318b026d37100c75668`
+  covers **132/132 Node tests per OS**, production JSDoc,
+  and **21 real Chromium fixtures**, including imported
+  `owner.mjs` document source (unsafe String refusal)
+  and unrelated Number write (one protected literal retained,
+  the independent source-only attacker recovers it).
+  Final full integration was manually dispatched as
+  [run 44256264367](https://github.com/FlareZ123/obfs/actions/runs/44256264367)
+  against the exact same SHA, was in progress as of ~07:08 UTC;
+  check verdict before release. An earlier full
+  [44254480016](https://github.com/FlareZ123/obfs/actions/runs/44254480016)
+  passed but predates these alias extensions.
+- Intermediate source-pinned report was extended in place:
+  `im-results/document-defaultview-intrinsic-semantic-parity-2026-11-18.md`.
+  Existing cross-platform targeted workflow
+  `.github/workflows/manual-captured-read-proof.yml` now tests CJS,
+  ESM and genuine Chromium graphs.
+
+All measures are conservative admission and behavioral parity,
+not proven anti-reconstruction advantage. False refusal may occur
+for unrelated imported objects shaped like Documents, but positive
+unrelated Number cases stay enabled. Source-visible arbitrary
+factories, proxies and external untracked code remain unproved.
+Stronger security claims and universal 2.5x runtime remain blocked.
+
+When the original claim at 06:07:05.628810 UTC reaches >=70min
+(07:17:05.628810 UTC) **at an actual checked checkpoint**, perform
+the orderly release with current memory, push all data first, then
+delete `agents/agent27/.lease.json` as the very last repository
+mutation, and verify remote deletion. Do not voluntarily leave earlier.
