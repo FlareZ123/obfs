@@ -1,0 +1,37 @@
+# Immutable-AST private-proof inventory and demand-driven constant keys
+
+**Agent 2, 18 November 2026. Intermediate, source-pinned compiler throughput result.** These changes speed the *obfuscator's compilation stage*. They do not make protected output harder to reverse, repair the strong-security release veto, or relax the runtime 2.5× condition.
+
+## Source, change and safety contract
+
+- **A/B control:** `72fe98ac1a542bed02ef43d434876c69cff35acd`, the already optimized pre-inventory main source (including lexical-scope and const-declarator WeakMap caches).
+- **Candidate, pass 1:** `56a169a557c57eff8e7d61efa685e32c782f5aa0` builds a root-independent immutable AST inventory once: expression parents, identifier uses grouped by spelling, local calls grouped by callee, function/callable declaration candidates and direct tuple/record holders. A candidate's unique-binding proof, exact use proof, alias fixpoint, field selection, source-observation guard and property edit mapping remain per-owner.
+- **Candidate, pass 2:** `7fa3fcc681a7471326fd2d5d1240f7dd0883a204` additionally defers `collectOwnedConstantKeys` until a computed identifier property read needs it and scans indexed known call sites instead of the whole AST for each owner's forwarded calls. The same lexical/order/import gates still run if a key is needed. The original `resolves` accepts only identifier, selected member and direct named call expressions; excluding unrelated calls from the discovery pass should preserve its behavior.
+- **Final branch workflow:** `0cca58068cfc640547d8637a9852b6b26ca52904`, changes the existing `manual-private-in-cold.yml` to offer an optional `compiler_ab` workflow-dispatch input. Its default keeps existing cold-session coverage, and true adds the immutable control/candidate A/B under an isolated checkout with full Git history. No automatic commit-triggered CI was introduced.
+
+The per-AST `WeakMap` does not silently replace cross-module verification, and neither local field privacy nor API eligibility increases as a consequence of this memoization. Its contract requires the normal compiler's read-only AST during one transform; independently reparsed AST objects receive independent cache entries. The index `identifierUses` retains preorder by a numeric ordinal so owner-use gates can check the same original sequence.
+
+## Matched same-run Node 22 experiment
+
+The script `sims/property-proof-inventory-ab.js` alternates the **exact frozen control** and candidate `src/properties.js` in fresh Node.js processes on one GitHub Actions runner, with atomic source replacement and an exclusive source-swap lock. It compiles a deterministic CommonJS program of 512 or 2,048 distinct proved private owners; all owner fields must actually be renamed. Native/generated checksums must agree. Each arm's emitted JavaScript SHA-256 is checked for *exact equality* across source revisions, proving that this experiment compares compiler speed for byte-identical output. It reports `process.cpuUsage` user+system and `performance.now()` wall separately, measuring only the compiler invocation, not worker/process launch, runtime sessions or warmup. The 512-owner test alternates ABBA; 2,048-owner test runs one candidate/control pair. This limited sampling gives no universal performance guarantee.
+
+At pass-2 source pin `7fa3fcc681a7471326fd2d5d1240f7dd0883a204`, [matched two-platform run 44306291346](https://github.com/FlareZ123/obfs/actions/runs/44306291346) completed green:
+
+| Original private owners | OS | Control build CPU (ms) | Candidate build CPU (ms) | Control/candidate CPU | Control/candidate wall |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 512 | Ubuntu | 5586.130, 5654.909 | 439.690, 450.576 | **12.6266×** | 19.0353× |
+| 512 | Windows | 9000, 6891 | 641, 640 | **12.4052×** | 22.2024× |
+| 2,048 | Ubuntu | 92578.863 | 1576.557 | **58.7222×** | 63.2819× |
+| 2,048 | Windows | 137984 | 2484 | **55.5491×** | 64.7603× |
+
+The **identical emitted SHA-256** for both arms and operating systems is `8e9d8951a7e448cf050356e5edba3afd3aaeb618192260879370648d6de1a981` at 512 and `4485cf91d741fb9a7c8bb0b4def1a2aa4cfcb9eb8132bd79ab5a1bbb48bd203b` at 2,048. Output hashes alone do not prove equality for arbitrary programs. All four measured cohorts required positive property transformations and native result parity.
+
+A separate non-paired [pass-1 cold-build run 44304847805](https://github.com/FlareZ123/obfs/actions/runs/44304847805) was green on both systems. At 2,048 owners it measured compiler wall 27.352 seconds Ubuntu / 42.770 seconds Windows. Prior pre-inventory source-pinned builds [in the preceding report](property-proof-ast-inventory-cache-2026-11-18.md) measured 80.434 and 130.552 seconds; these runs are not same-host randomized comparisons and are weaker than the matched control data above. The pass-2 [cold build 44306291346](https://github.com/FlareZ123/obfs/actions/runs/44306291346) observed 1.129 seconds Ubuntu / 1.772 seconds Windows at 2,048 owners, 2,048 proved renamed fields, with the existing nonvacuous weighted checksum and standalone fresh-compile runtime tests still passing.
+
+The experimental compiler's 2,048-owner build-time speed gain does not mean the *obfuscated code* runs 55–59× faster. Existing independent cold/runtime cohorts still have isolated >2.5× strict paired compute breaches. The primary security-performance release decision remains **RELEASE-BLOCKED**.
+
+## Compatibility and evidence boundaries
+
+The [pass-2 full integration 44306281903](https://github.com/FlareZ123/obfs/actions/runs/44306281903), pinned at `7fa3fcc681a7471326fd2d5d1240f7dd0883a204`, completed green: 3,341 Node tests per OS (Ubuntu 3,340 pass/one skip; Windows 3,337 pass/four skips), both strict JSDoc gates, sampled benchmarks, Ubuntu real Chromium and module-observation checks. The focused [pass-2 own-key, adversarial and Chromium run 44306273440](https://github.com/FlareZ123/obfs/actions/runs/44306273440) passed on Windows and Ubuntu. These finite tests support compatibility on selected cases; they cannot prove semantic equivalence for all JavaScript.
+
+Open questions: direct correctness challenge of more diverse constant-key/import/holder combinations; controlled CI on held-out multi-module native applications; profiling pathological ASTs with few eligible candidates; and ensuring the index is never used on a mutated AST. The single large-object workload is artificial and private-owner dense, so its dramatic optimization does not predict compiler speed for ordinary input distributions. The source dependency lock and test runner environment must be frozen before any *security promotion* experiment, as noted in the [Critic reproducibility handoff](../communications/broadcast/2026-11-18T1050Z_critic_artifact-freeze-before-security-candidate.md).
