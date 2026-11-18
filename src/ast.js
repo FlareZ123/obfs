@@ -525,6 +525,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Event','CustomEvent','MessageEvent','BroadcastChannel',
     'TextDecoder','TextDecoderStream','CompressionStream','DecompressionStream']);
   const webScalars=new Set(webScalarNames);
+  // URL.parse and URL.canParse convert operands to USVString.
+  const urlNativeNames=new Set(['URL']);
+  const urlConstructors=new Set(urlNativeNames);
+  const urlStaticNames=new Set(['parse','canParse']);
+  const urlStaticAliases=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const urlStaticObjectKeys=new Map();
   const webDictionaries=new Set(webDictionaryNames);
   // Blob's second constructor argument is a Web IDL options dictionary.
   const blobNames=new Set(['Blob']);
@@ -760,6 +767,27 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          redirectObjectKeys.get(node.object.name)?.has(memberName(node)??'') :
          node.computed && Boolean(redirectObjectKeys.get(node.object.name)?.size)))));
   }
+  /**
+   * Recognize native URL static parsing methods and bounded local aliases.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isUrlStaticMethod(node) {
+    if(!node)return false;
+    if(node.type==='SequenceExpression')
+      return isUrlStaticMethod(node.expressions[node.expressions.length-1]);
+    if(node.type==='Identifier')return urlStaticAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isUrlStaticMethod(node.callee.object);
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(isWebConstructor(node.object,urlConstructors,urlNativeNames))
+      return urlStaticNames.has(name??'')||Boolean(node.computed&&name===null);
+    if(node.object.type!=='Identifier')return false;
+    const keys=urlStaticObjectKeys.get(node.object.name);
+    return name!==null?keys?.has(name)??false:Boolean(node.computed&&keys?.size);
+  }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
   function isWebInstance(node,instances,constructors,names) {
@@ -866,6 +894,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(boundStringObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
+    if(isUrlStaticMethod(expression))
+      addWebObjectKey(urlStaticObjectKeys,receiver,key);
   }
   do {
     changed=false;
@@ -954,6 +984,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webScalars,webScalarNames)) {
           changed=add(webScalars,name)||changed;
         }
+        if(isWebConstructor(value,urlConstructors,urlNativeNames))
+          changed=add(urlConstructors,name)||changed;
+        if(isUrlStaticMethod(value))
+          changed=add(urlStaticAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
@@ -1058,7 +1092,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
             blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
-            boundStringObjectKeys,redirectObjectKeys]) {
+            boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1164,6 +1198,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(boundStringConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
+          if(urlStaticObjectKeys.get(node.init.name)?.has(key))
+            changed=add(urlStaticAliases,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -1200,6 +1236,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(fromHeaders&&(name==='headers'||name===null&&property.computed) ||
              fromSearch&&(name==='searchParams'||name===null&&property.computed))
             changed=add(webStringInstances,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isWebConstructor(node.init,urlConstructors,urlNativeNames)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(urlStaticNames.has(name??'')||property.computed&&name===null)
+            changed=add(urlStaticAliases,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
@@ -1285,6 +1331,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(name!==null&&webScalarNames.has(name)) {
             changed=add(webScalars,property.value.name)||changed;
           }
+          if(name==='URL')changed=add(urlConstructors,property.value.name)||changed;
           if(name!==null&&webDictionaryNames.has(name)) {
             changed=add(webDictionaries,property.value.name)||changed;
           }
@@ -2328,6 +2375,31 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      // URL.parse can expose the original Function#toString in its encoded URL.
+      if(isUrlStaticMethod(callee) &&
+          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+      if(callee.type==='MemberExpression'&&isUrlStaticMethod(callee.object)) {
+        const method=memberName(callee);
+        if((method==='call'||method==='bind') &&
+           node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
+             !isDefinitelyPrimitive(value)))observed=true;
+        if(method==='apply') {
+          const args=node.arguments[1];
+          if(args?.type==='ArrayExpression') {
+            if(args.elements.slice(0,2).some((/** @type {AstNode|null} */ value)=>
+              Boolean(value&&!isDefinitelyPrimitive(value))))observed=true;
+          } else if(args)observed=true;
+        }
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isUrlStaticMethod(node.arguments[0])) {
+        const args=node.arguments[2];
+        if(args?.type==='ArrayExpression') {
+          if(args.elements.slice(0,2).some((/** @type {AstNode|null} */ value)=>
+            Boolean(value&&!isDefinitelyPrimitive(value))))observed=true;
+        } else if(args)observed=true;
+      }
       if(isWebConstructor(callee,webScalars,webScalarNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
