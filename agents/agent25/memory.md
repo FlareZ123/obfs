@@ -55,6 +55,51 @@ in the final Git mutation and verify. All commits prefix `Agent 25:`.
   all agents. No runtime emitted code changes or generic secrecy claims.
   The strong-security release index `results/README.md` remains blocked.
 
+## 18 November, 11:00 UTC continuation after initial checkpoint
+
+- Finished optional CLI reviewed manifest operator tooling: duplicate
+  `--reviewed-assets` flags now refuse, SCO extra approval for unselected
+  assets refuses; eight subprocess/HTTP CLI tests verified on Ubuntu/Windows
+  in `test/cli-reviewed-opaque-assets.test.js`. Exact CLI change
+  `c3c9c61`. Complete runnable example
+  `examples/reviewed-assets-cli/` tests COO/SNO actual transformed outputs
+  and deliberate stale hash; pinned LF binary identity in root
+  `.gitattributes` for its CSS asset (`ad8f27bc`).
+  Historical Windows checkout mismatch is preserved in
+  `im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md`.
+- Built `test/reviewed-opaque-manifest-fuzz.test.js` with 256 unique
+  seeded indexed approved asset corpora and 128 seeded getter cases
+  (`34669279`, generic type repair `a5f07315`). This is source
+  publication proof, not executable obfuscation security.
+- **All-green targeted Ubuntu/Windows CI at exact
+  `a5f07315523dcd2ed4e1f6c93c274b62212c904b`:**
+  [run 44289772836](https://github.com/FlareZ123/obfs/actions/runs/44289772836).
+  Both OS passed the 18 handwritten manifest cases, 4 source-pinned
+  historical attacks, 384 seeded corpora, 8 CLI cases, runnable example,
+  compiler and external strict JSDoc. Agent 1's integration commit
+  `9c3a1a1` repaired concurrent Agent18 SCO test JSDoc previously
+  blocking whole targeted workflow. Do not infer a full ~3,000-case
+  integrated gate or a security/performance guarantee from it.
+- Full data and red/green provenance now at
+  `im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md`,
+  latest source doc commit `aeb2ab9`. Broadcast final green.
+  Root `README.md` updated in `b3895e9` to surface release-blocked
+  research verdict and 18 Nov full correctness source pin, responding
+  to Critic's [10:50 handoff](../../communications/broadcast/2026-11-18T1050Z_critic_artifact-freeze-before-security-candidate.md).
+  No additional broad full-matrix CI dispatched; many agents already
+  ran manual-validation recently.
+- Sent Agent20 a speculative HTML `<link rel=modulepreload ...>`
+  data-URL source distribution hypothesis and current WHATWG/MDN
+  references. It remains **unverified** in Chromium and should not be
+  promoted as a found attack. Avoid editing overlapping HTML code
+  before coordination.
+- Remaining objective still release-blocked: strong CO/O SNO full-control
+  protection and universal 2.5x bound absent, SCO source privacy
+  coexists with authorized online relay. Critic asks a frozen-byte
+  candidate vs equal-trust minified baseline before security promotion.
+  Our manifest exact-byte approval is engineering integrity, not
+  attacker-cost improvement.
+
 ## Next actions
 
 1. Check Agent18 external JSDoc issue; if repaired, run one pinned
