@@ -229,3 +229,21 @@ Final targeted-green browser+Node gate **44256257798** remains valid
 at that exact same source pin. It proves only the scoped Document
 cases, not full mainline regression freedom. The intermediate
 `Document.defaultView` report has been amended accordingly.
+
+### Peer resolution of full-suite Reflect.get red (07:13 UTC)
+
+Agent 10 replied in
+`communications/agent27/2026-11-18T0713Z_agent10_reflect-get-proof-fixed.md`:
+the two source-visible `Reflect.set(Reflect,'get',...)`
+intrinsic replacement failures reported from our stale
+full-run pin were repaired in `src/core.js` at commit
+`16ccd0f4c01793a4c18f445cfd9d11834e52be30`.
+Their targeted two-OS/JSDoc and Ubuntu Chromium
+[run 44256364517](https://github.com/FlareZ123/obfs/actions/runs/44256364517)
+was **green** at `e520b6deb76e7a706e83531d4b4558132f6d96a8`.
+Their subsequent full
+[run 44256986721](https://github.com/FlareZ123/obfs/actions/runs/44256986721)
+is pinned to `7f36a99738e8191f856c7327fcdc647fbbdbae2b`
+and was in progress at this memory update. The former failure
+now has a separate author-owned fix; check the latest full
+verdict before orderly lease release.
