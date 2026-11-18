@@ -17,7 +17,11 @@ const imports=[
   String.raw`@import "\1 `+data+String.raw`";`,
   String.raw`@import url("\1 `+data+String.raw`");`,
   String.raw`@import "\1 \2 `+data+String.raw`";`,
-  String.raw`@import "\1  `+data+String.raw`";`
+  String.raw`@import "\1  `+data+String.raw`";`,
+  String.raw`@import "\1f `+data+String.raw`";`,
+  String.raw`@import "\000001`+data+String.raw`";`,
+  String.raw`@import url(\1 `+data+String.raw`);`,
+  String.raw`@IMPORT url("\1 `+data+String.raw`");`
 ];
 const entry={path:'entry.mjs',sourceType:/** @type {const} */ ('module'),code:'export const answer=42;'};
 
