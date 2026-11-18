@@ -213,6 +213,21 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     return node.computed ? staticString(node.property) :
       node.property.type==='Identifier' ? node.property.name : null;
   }
+  /**
+   * Exact container paths may use numeric computed indices even where the
+   * general mutation model intentionally treats computed members as opaque.
+   * @param {import('./ast').AstNode} node
+   * @returns {string|null}
+   */
+  function pathMemberName(node) {
+    if(node.type!=='MemberExpression')return null;
+    if(!node.computed)return node.property.type==='Identifier'?node.property.name:null;
+    if(node.property.type==='Literal'&&node.property.regex===undefined&&
+       ['string','number','bigint','boolean'].includes(typeof node.property.value)) {
+      return String(node.property.value);
+    }
+    return staticString(node.property);
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isDocumentValue(node) {
     return node.type==='Identifier' && documentNames.has(node.name) ||
@@ -406,7 +421,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     const parts=[];
     let cursor=node;
     while(cursor.type==='MemberExpression') {
-      parts.unshift(memberName(cursor));
+      parts.unshift(pathMemberName(cursor));
       cursor=cursor.object;
     }
     let ownerName=null;
@@ -638,7 +653,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
         const parts=[];
         let cursor=target;
         while(cursor.type==='MemberExpression') {
-          const key=memberName(cursor);
+          const key=pathMemberName(cursor);
           if(key===null)return;
           parts.unshift(key);
           cursor=cursor.object;
