@@ -39,7 +39,7 @@ function sample(runnerPath,entryPath,count){
   });
   assert.equal(child.status,0,child.stderr||child.error?.message);
   const result=/** @type {{digest:number,cpuMs:number}} */(JSON.parse(child.stdout));
-  assert.ok(Number.isFinite(result.cpuMs)&&result.cpuMs>0);
+  assert.ok(Number.isFinite(result.cpuMs)&&result.cpuMs>=0);
   return result;
 }
 
@@ -59,7 +59,8 @@ async function run(){
     await atomicWrite(protectedPath,compiled.code);
     await atomicWrite(runnerPath,runner);
     /** @type {Array<{calls:number,pairs:number,nativeCpuMs:number[],compiledCpuMs:number[],
-     * ratioOfMedians:number,maxPairedRatio:number,strictOverBudgetPairs:number}>} */
+     * pairedRatios:(number|null)[],ratioOfMedians:number|null,maxPairedRatio:number|null,
+     * strictOverBudgetPairs:number,unresolvedZeroPairs:number}>} */
     const rows=[];
     // The 128M row amplifies protected work well beyond coarse Windows
     // process-CPU ticks; retain tiny cold rows as separate strict witnesses.
@@ -82,23 +83,34 @@ async function run(){
         nativeCpuMs.push(native.cpuMs);
         compiledCpuMs.push(transformed.cpuMs);
       }
-      const ratios=nativeCpuMs.map((ms,i)=>compiledCpuMs[i]/ms);
+      // A short Windows child may report zero CPU ticks; preserve the sample
+      // and classify its ratio as unresolved instead of dividing by zero.
+      const pairedRatios=nativeCpuMs.map((ms,i)=>
+        ms>0&&compiledCpuMs[i]>0?compiledCpuMs[i]/ms:null);
+      const resolvedRatios=pairedRatios.filter(ratio=>ratio!==null);
+      const nativeMedian=median(nativeCpuMs);
+      const compiledMedian=median(compiledCpuMs);
       rows.push({
         calls:count,pairs:9,nativeCpuMs,compiledCpuMs,
-        ratioOfMedians:median(compiledCpuMs)/median(nativeCpuMs),
-        maxPairedRatio:Math.max(...ratios),
-        strictOverBudgetPairs:ratios.filter(ratio=>ratio>2.5).length
+        pairedRatios,
+        ratioOfMedians:nativeMedian>0&&compiledMedian>0?compiledMedian/nativeMedian:null,
+        maxPairedRatio:resolvedRatios.length?Math.max(...resolvedRatios):null,
+        strictOverBudgetPairs:resolvedRatios.filter(ratio=>ratio>2.5).length,
+        unresolvedZeroPairs:pairedRatios.length-resolvedRatios.length
       });
     }
     const summary={
       node:process.version,platform:process.platform,
       compiledPrivateOwnFields:compiled.metrics.properties,
       boundary:'Fresh Node process CPU from startup through CJS require and business calls; original and emitted modules loaded with same runner; no compiler/build CPU',
-      rows
+      rows,
+      totalUnresolvedZeroPairs:rows.reduce((sum,row)=>sum+row.unresolvedZeroPairs,0)
     };
     process.stdout.write('STRAIGHTLINE_READER_COLD '+JSON.stringify(summary)+'\n');
     assert.equal(rows.reduce((sum,row)=>sum+row.strictOverBudgetPairs,0),0,
       'Observed fresh-process sampled CPU exceeds strict 2.5x budget');
+    assert.equal(summary.totalUnresolvedZeroPairs,0,
+      'Fresh-process CPU includes zero-tick samples; strict paired ratio unresolved');
     return summary;
   }finally{
     await fs.rm(workspace,{recursive:true,force:true});
