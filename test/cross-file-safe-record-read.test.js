@@ -340,3 +340,44 @@ for(const [label,setup,factorySource] of [
     assert.equal(compiled.crossFile.properties,0,label);
   });
 }
+
+
+/**
+ * Native invocation adapters can call a host-bearing factory while its
+ * returned Function escapes through the call result. A static direct-callee
+ * proof must reject such unknown runtime loader paths. The ordinary
+ * direct-call positive in this file remains the non-vacuity control.
+ */
+for(const [label,setup] of /** @type {[string,string][]} */ ([
+  ['function call adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.call(null);'],
+  ['function apply adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.apply(null,[]);'],
+  ['Reflect apply adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=Reflect.apply(getFactory,null,[]);'],
+  ['bound function adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const bound=getFactory.bind(null);const ctor=bound();'],
+  ['aliased call adapter',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const factory=getFactory;const ctor=factory.call(null);']
+])) {
+  test('host factory '+label+' preserves native published owner keys',async()=>{
+    const files=graph([
+      setup,
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'host-factory-adapter-'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(compiled.crossFile.properties,0,label);
+    assert.equal(await execute(compiled.files,true),native,label);
+  });
+}
