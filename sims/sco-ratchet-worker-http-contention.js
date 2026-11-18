@@ -251,9 +251,11 @@ function makeWorkerServer(root,activeTrial){
  * and principals remain distinct. The child process starts B while trusted
  * Node is synchronously processing A's private HMAC batch.
  * @param {'generated'|'worker'} mode
+ * @param {number} [trials]
+ * @param {number} [firstTrial]
+ * @param {Buffer} [root]
  */
-async function experiment(mode){
-  const root=randomBytes(32);
+async function experiment(mode,trials=7,firstTrial=0,root=randomBytes(32)){
   /** @type {Trial|null} */
   let current=null;
   const workerBackend=mode==='worker'?makeWorkerServer(root,()=>current):null;
@@ -283,7 +285,7 @@ async function experiment(mode){
    * loadedRatio:number,aBusyMs:number,overlap:true}>} */
   const samples=[];
   try{
-    for(let trial=0;trial<7;trial++){
+    for(let trial=firstTrial;trial<firstTrial+trials;trial++){
       const quietPrincipal='quiet-B/'+trial;
       const matchedQuietPrincipal='quiet-child-B/'+trial;
       const bPrincipal='victim-B/'+trial;
@@ -365,8 +367,8 @@ async function experiment(mode){
         quietPrincipal,matchedQuietPrincipal,bPrincipal,aPrincipal
       ]);
     }
-    assert.equal(samples.length,7);
-    assert.equal(backend.calls(),7*(16+16+64+16));
+    assert.equal(samples.length,trials);
+    assert.equal(backend.calls(),trials*(16+16+64+16));
     const loadedOverBudget=samples.filter(s=>s.loadedRatio>2.5).length;
     const quietOverBudget=samples.filter(s=>s.quietRatio>2.5).length;
     const matchedQuietOverBudget=samples.filter(s=>s.matchedQuietRatio>2.5).length;
@@ -395,7 +397,7 @@ async function experiment(mode){
         aBusyMs:Number(s.aBusyMs.toFixed(5)),
         overlappingBSubmission:s.overlap
       })),
-      scope:'Localhost single Node server main-thread synchronous HMAC load; not an isolated worker pool, measured WAN, or generic denial-of-service proof.'
+      scope:'Localhost SCO real authenticated HTTP single-thread baseline or prestarted per-principal worker deployment; no global quota, WAN, Sybil, or universal CPU bound.'
     };
   }finally{
     await workerBackend?.shutdown();
@@ -409,29 +411,78 @@ async function experiment(mode){
 
 
 /**
- * Compare the exact same original private HMAC behind a synchronous
- * generated SCO endpoint and a resident per-principal worker endpoint.
- * This is a tenant-fairness capacity test, not a claim about obfuscation
- * secrecy, online relaying, or generic compute-overhead guarantees.
+ * Aggregate independent fresh-server trials into one arm with matched
+ * source-original and independent-child B output/timing controls.
+ * @param {Array<Awaited<ReturnType<typeof experiment>>>} runs
+ * @param {'generated'|'worker'} mode
+ */
+function aggregate(runs,mode){
+  const samples=runs.flatMap(run=>run.samples);
+  assert.equal(samples.length,7);
+  const total=runs.reduce((n,run)=>n+run.totalActualPrivateEvents,0);
+  const overlaps=runs.reduce((n,run)=>n+run.overlappingBSubmissions,0);
+  assert.equal(total,784);
+  assert.equal(overlaps,7);
+  return {
+    mode,platform:process.platform,node:process.version,
+    hashRootBytes:32,privateWorkBytesPerEvent:8388608,
+    attackerEventsPerTrial:64,victimEventsPerTrial:16,quietEventsPerTrial:16,
+    statusCodesAll200:runs.every(run=>run.statusCodesAll200),
+    independentChildProcess:runs.every(run=>run.independentChildProcess),
+    overlappingBSubmissions:overlaps,totalActualPrivateEvents:total,
+    quietOverBudget:samples.filter(s=>s.quietRatio>2.5).length,
+    matchedQuietOverBudget:samples.filter(s=>s.matchedQuietRatio>2.5).length,
+    loadedOverBudget:samples.filter(s=>s.loadedRatio>2.5).length,
+    medianQuietRatio:median(samples.map(s=>s.quietRatio)),
+    medianMatchedQuietRatio:median(samples.map(s=>s.matchedQuietRatio)),
+    medianLoadedRatio:median(samples.map(s=>s.loadedRatio)),
+    maximumLoadedRatio:Math.max(...samples.map(s=>s.loadedRatio)),
+    samples
+  };
+}
+
+/**
+ * Compare genuinely identical original private HMAC in the same generated
+ * authenticated SCO endpoint, running either synchronously on the main
+ * event loop or inside resident per-principal workers. Alternating arm
+ * order and same private root per independent pair protect against order
+ * bias and cryptographic-seed confounding.
  * @returns {Promise<object>}
  */
 async function compare(){
-  const synchronous=await experiment('generated');
-  const isolated=await experiment('worker');
-  const syncRows=/** @type {Array<{loadedBMs:number,matchedQuietBMs:number}>} */(synchronous.samples);
-  const workerRows=/** @type {Array<{loadedBMs:number,matchedQuietBMs:number}>} */(isolated.samples);
-  const pairs=syncRows.map((s,i)=>({
-    trial:i+1,synchronousLoadedBMs:s.loadedBMs,workerLoadedBMs:workerRows[i].loadedBMs,
-    workerVsSynchronous:workerRows[i].loadedBMs / s.loadedBMs
+  /** @type {Array<Awaited<ReturnType<typeof experiment>>>} */
+  const syncRuns=[],workerRuns=[];
+  for(let trial=0;trial<7;trial++){
+    const root=randomBytes(32);
+    if(trial%2===0){
+      syncRuns.push(await experiment('generated',1,trial,root));
+      workerRuns.push(await experiment('worker',1,trial,root));
+    }else{
+      workerRuns.push(await experiment('worker',1,trial,root));
+      syncRuns.push(await experiment('generated',1,trial,root));
+    }
+  }
+  const synchronous=aggregate(syncRuns,'generated');
+  const isolated=aggregate(workerRuns,'worker');
+  assert.equal(synchronous.overlappingBSubmissions,7);
+  assert.equal(isolated.overlappingBSubmissions,7);
+  const pairs=synchronous.samples.map((row,i)=>({
+    trial:i+1,synchronousLoadedBMs:row.loadedBMs,
+    workerLoadedBMs:isolated.samples[i].loadedBMs,
+    workerVsSynchronous:isolated.samples[i].loadedBMs/row.loadedBMs
   }));
   return {
+    experiment:'Same-root alternating crossover SCO private resident worker versus synchronous A/B',
     platform:process.platform,node:process.version,synchronous,isolated,
+    matchedLoadedPairs:pairs,
     medianWorkerVsSynchronous:median(pairs.map(x=>x.workerVsSynchronous)),
     loadedWorkerOverBudget:isolated.loadedOverBudget,
     exactOverlapInBoth:synchronous.overlappingBSubmissions===7&&isolated.overlappingBSubmissions===7,
-    scope:'Real authenticated generated SCO handler, 7 independent cold child B requests, 64 A original HMAC events, 16 B events, workers resident before B timing. Single-process Node worker scheduling, no WAN, no global quota/Sybil fairness, no general 2.5x proof.'
+    armOrder:'sync-worker,worker-sync alternating with same fresh 256-bit private root per pair',
+    scope:'Both arms same real authenticated generated SCO handler, seven same-key crossover pairs, verified 64A/16B private original and exact B HTTP during A. Worker initialization before B timing; no TLS/WAN, global quota, Sybil defense, or universal compute claim.'
   };
 }
+
 if(require.main===module){
   compare().then(result=>process.stdout.write('SCO_WORKER_HTTP_CONTENTION '+JSON.stringify(result)+'\n'),
     error=>{process.stderr.write(String(error.stack||error)+'\n');process.exitCode=1;});
