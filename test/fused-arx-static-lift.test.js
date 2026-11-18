@@ -3,14 +3,17 @@
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
-const {buildArxModuleBytes,nativeMix}=require('../sims/fused-arx-batch');
+const {readFileSync}=require('node:fs');
+const {join}=require('node:path');
+const {nativeMix}=require('../sims/fused-arx-batch');
 const {staticLiftFusedArx}=require('../sims/fused-arx-static-lift');
 
 /** @param {number} value @returns {number} */
 function next(value){value^=value<<13;value^=value>>>17;value^=value<<5;return value|0;}
 
 test('source-only lift of frozen public fused Wasm reproduces held-out states',()=>{
-  const bytes=buildArxModuleBytes();
+  const bytes=Uint8Array.from(Buffer.from(
+    readFileSync(join(__dirname,'../sims/fused-arx-public-196.hex'),'utf8').trim(),'hex'));
   const sha=createHash('sha256').update(bytes).digest('hex');
   assert.equal(sha,'c2e9f1fbf85505a43681f0a09da9c0ebe9b7eeb9f067b69cd8320b703d8df88d');
   const originalWasm=globalThis.WebAssembly;
