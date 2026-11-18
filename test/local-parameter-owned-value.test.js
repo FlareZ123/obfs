@@ -77,7 +77,7 @@ const scenarios=[
   }
 ];
 
-for(const mode of /** @type {const} */ (['sno','coo'])) {
+for(const mode of /** @type {const} */ (['sno','coo','sco'])) {
   for(const scenario of scenarios) {
     test(mode+' private parameter-owned field: '+scenario.name,()=>{
       // The final fixture has an intentionally unbound read. The thrown
