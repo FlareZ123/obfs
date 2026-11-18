@@ -604,3 +604,26 @@ test('opaque computed automatic report write fails closed',()=>{
   }).files[0];
   assert.equal(output.code,source);
 });
+
+
+test('explicit automatic-report disabling retains property yield',()=>{
+  const mutations=[
+    "process.report.reportOnUncaughtException=false;",
+    "Reflect.set(process.report,'reportOnSignal',false);",
+    "Object.assign(process.report,{reportOnFatalError:false});"
+  ];
+  for(const [index,mutation] of mutations.entries()){
+    const source="'use strict';"+mutation+
+      "const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;module.exports=value;";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+    const output=obfuscateFiles([{
+      path:'report-disable-'+index+'.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode:'sno',seed:'agent8-report-disable-'+index,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(execute(output.code),73);
+    assert.ok(output.metrics.properties>0,output.code);
+  }
+});
