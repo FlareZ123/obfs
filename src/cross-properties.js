@@ -1123,6 +1123,185 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       }
       return false;
     }
+    /**
+     * Source-visible function returns are a capability transfer edge. Only
+     * decline the private-record proof when a returned host capability is
+     * subsequently invoked or forwarded to a call in the declared graph.
+     * This keeps benign primitive-return helpers transformable. The name
+     * analysis is deliberately conservative, and is not complete module
+     * scope resolution or a proof about unlisted dynamic imports.
+     *
+     * @param {AstNode} expression
+     * @returns {boolean}
+     */
+    function containsHostCapability(expression) {
+      let exposed=false;
+      walk(expression,child=>{
+        if(readsHostCallable(child) ||
+           child.type==='Identifier' &&
+           (hostCallAliases.has(child.name)||hostContainers.has(child.name))) {
+          exposed=true;
+        }
+      });
+      return exposed;
+    }
+    /** @type {Map<string,AstNode[]>} */
+    const factoryReturnExpressions=new Map();
+    walk(source.ast,node=>{
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|null} */
+      let body=null;
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier'){
+        name=node.id.name;
+        body=node.body;
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression')) {
+        name=node.id.name;
+        body=node.init.body;
+      }
+      if(name===null||body===null)return;
+      const expressions=factoryReturnExpressions.get(name)??[];
+      if(body.type==='BlockStatement') {
+        walk(body,inner=>{
+          if(inner.type==='ReturnStatement' && inner.argument)
+            expressions.push(inner.argument);
+        });
+      }else expressions.push(body);
+      factoryReturnExpressions.set(name,expressions);
+    });
+    // A host-bearing factory may be forwarded through a second local return
+    // without spelling the ambient property at that wrapper's callsite.
+    // Names join conservatively across the supplied source, to a fixed point.
+    /** @type {Set<string>} */
+    const returnedHostFactories=new Set();
+    let returnChanged;
+    do {
+      returnChanged=false;
+      for(const [name,expressions] of factoryReturnExpressions) {
+        if(returnedHostFactories.has(name))continue;
+        const exposed=expressions.some(expression=>{
+          if(containsHostCapability(expression))return true;
+          let forwarded=false;
+          walk(expression,node=>{
+            if(node.type==='CallExpression' &&
+               node.callee.type==='Identifier' &&
+               returnedHostFactories.has(node.callee.name))forwarded=true;
+          });
+          return forwarded;
+        });
+        if(exposed){
+          returnedHostFactories.add(name);
+          returnChanged=true;
+        }
+      }
+    }while(returnChanged);
+    /**
+     * A call-result alias can be used directly as a constructor or callable,
+     * via its member, or as an opaque callback argument. A named import of
+     * the factory is recognized across declared ESM module boundaries.
+     * @param {string} factory
+     * @returns {boolean}
+     */
+    function invokesFactoryResult(factory) {
+      for(const caller of modules.values()) {
+        const callableNames=new Set([factory]);
+        /** @type {Set<string>} */
+        const namespaceNames=new Set();
+        walk(caller.ast,node=>{
+          if(node.type==='ImportSpecifier' &&
+             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.local.type==='Identifier')callableNames.add(node.local.name);
+          if(node.type==='ImportNamespaceSpecifier' &&
+             node.local.type==='Identifier')namespaceNames.add(node.local.name);
+        });
+        let aliasChanged;
+        do {
+          aliasChanged=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+               callableNames.has(value.name) && !callableNames.has(binding.name)) {
+              callableNames.add(binding.name);
+              aliasChanged=true;
+            }
+          });
+        }while(aliasChanged);
+        /** @param {AstNode|null|undefined} expression @returns {boolean} */
+        function isFactoryCall(expression) {
+          let candidate=expression;
+          while(candidate?.type==='AwaitExpression')candidate=candidate.argument;
+          if(candidate?.type!=='CallExpression')return false;
+          const callee=candidate.callee;
+          if(callee.type==='Identifier')return callableNames.has(callee.name);
+          if(callee.type!=='MemberExpression' ||
+             callee.object.type!=='Identifier' ||
+             !namespaceNames.has(callee.object.name))return false;
+          const selected=callee.computed?staticString(callee.property):
+            staticName(callee.property);
+          return selected===factory;
+        }
+        /** @type {Set<string>} */
+        const returnedNames=new Set();
+        let advanced;
+        do {
+          advanced=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(!binding||!value)return;
+            const fromFactory=isFactoryCall(value) ||
+              value.type==='MemberExpression' && isFactoryCall(value.object);
+            const fromReturn=value.type==='Identifier' && returnedNames.has(value.name) ||
+              value.type==='MemberExpression' &&
+              value.object.type==='Identifier' &&
+              returnedNames.has(value.object.name);
+            if(binding.type==='Identifier' && (fromFactory||fromReturn) &&
+               !returnedNames.has(binding.name)) {
+              returnedNames.add(binding.name);
+              advanced=true;
+            }
+            if(binding.type==='ObjectPattern' && (fromFactory||fromReturn)){
+              for(const property of binding.properties){
+                if(property.type==='Property' &&
+                   property.value.type==='Identifier' &&
+                   !returnedNames.has(property.value.name)) {
+                  returnedNames.add(property.value.name);
+                  advanced=true;
+                }
+              }
+            }
+          });
+        }while(advanced);
+        let invoked=false;
+        walk(caller.ast,node=>{
+          if(node.type!=='CallExpression'&&node.type!=='NewExpression')return;
+          if(node.callee.type==='Identifier' &&
+             returnedNames.has(node.callee.name) ||
+             node.callee.type==='MemberExpression' &&
+             (node.callee.object.type==='Identifier' &&
+              returnedNames.has(node.callee.object.name) ||
+              isFactoryCall(node.callee.object)) ||
+             isFactoryCall(node.callee) ||
+             node.arguments.some((/** @type {AstNode} */ argument)=>
+               argument?.type==='Identifier' && returnedNames.has(argument.name))) {
+            invoked=true;
+          }
+        });
+        if(invoked)return true;
+      }
+      return false;
+    }
+    for(const factory of returnedHostFactories) {
+      if(invokesFactoryResult(factory))changedIntrinsic=true;
+    }
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
       // a Reflect mutation or distributed module import in the declared ESM.
