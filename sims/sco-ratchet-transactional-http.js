@@ -29,16 +29,18 @@ function challenge(label,index){
  * @param {number} [journalModeRetries] Test-only startup retry control.
  * @param {boolean} [accountShards] Test-only verified-account file layout.
  * @param {string} [privateAMarker] Trusted test-only pre-long-HMAC marker path.
+ * @param {number} [bucketCount] Trusted fixed root-keyed account bucket count.
  * @returns {Promise<Worker>}
  */
-async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLock=false,journalModeRetries=4,accountShards=false,privateAMarker=''){
+async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLock=false,journalModeRetries=4,accountShards=false,privateAMarker='',bucketCount=0){
   const child=spawn(process.execPath,[require.resolve('./sco-ratchet-transactional-http-child')],{
     env:{...process.env,SCO_TEST_DB:databasePath,SCO_TEST_ROOT:root.toString('hex'),
       SCO_TEST_TOKEN_A:tokenA,SCO_TEST_TOKEN_B:tokenB,SCO_TEST_CONTROL:control,
       SCO_TEST_LEGACY_UNAUTH_LOCK:legacyAnonymousLock?'1':'0',
       SCO_TEST_NO_JOURNAL_RETRY:journalModeRetries===0?'1':'0',
       SCO_TEST_ACCOUNT_SHARDS:accountShards?'1':'0',
-      SCO_TEST_A_WORK_MARKER:privateAMarker},
+      SCO_TEST_A_WORK_MARKER:privateAMarker,
+      SCO_TEST_ACCOUNT_BUCKETS:String(bucketCount)},
     stdio:['ignore','pipe','pipe']
   });
   if(!child.stdout||!child.stderr)throw new TypeError('Missing child output streams');
