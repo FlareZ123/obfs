@@ -43,8 +43,9 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/closed-graph-host-import-map-attack.js
-      - name: In-memory computed loader refusal ablation and hostile dynamic import
-        run: node sims/computed-refusal-ablation.js
+      # The historical computed-refusal ablation is source-anchored to a
+      # removed compiler clause and cannot run against modern main; its pinned
+      # counterfactual evidence remains in sims/computed-refusal-ablation.js.
       - name: Strict external researcher and diagnostic JSDoc
         run: npx tsc -p jsconfig.external.json
       - name: Strict JSDoc type safety
