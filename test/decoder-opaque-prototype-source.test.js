@@ -110,12 +110,18 @@ for(const mode of /** @type {const} */ (['sno','coo'])) {
     ['unrelated Reflect helper field',
       "Reflect.set(Reflect,'unrelatedAppField',7);"]
   ]) {
-    test('non-decoder intrinsic helper mutation retains transformed literal: '+name+'/'+mode,()=>{
-      const output=obfuscateFiles(files(side),{
+    test('non-decoder intrinsic helper mutation retains transformed literal: '+name+'/'+mode,async()=>{
+      const input=files(side);
+      const output=obfuscateFiles(input,{
         mode,strings:true,properties:false,identifiers:false,
         seed:'opaque-prototype-safety/unrelated-helper/'+name+'/'+mode
       });
       assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-unrelated-proto-helper-'));
+      try {
+        assert.deepEqual(await run(path.join(root,'original'),input),
+          await run(path.join(root,'generated'),output.files));
+      }finally{await fs.rm(root,{recursive:true,force:true});}
     });
   }
 
