@@ -76,6 +76,13 @@ test('destructured process.report method preserves source coordinates',()=>{
   );
 });
 
+test('defaulted destructured process.report method preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    '(()=>{const {getReport=()=>null}=process.report;return getReport();})()',
+    'agent1-process-report-method-default'
+  );
+});
+
 test('bound process.report method preserves source coordinates',()=>{
   mustPreserveProcessReport(
     '(()=>{const getReport=process.report.getReport.bind(process.report);return getReport();})()',
@@ -122,6 +129,20 @@ test('nested CommonJS process report destructuring preserves source coordinates'
   mustPreserveProcessReport(
     "(()=>{const {report:{getReport}}=require('node:process');return getReport();})()",
     'agent1-process-report-cjs-nested'
+  );
+});
+
+test('defaulted nested CommonJS process report destructuring preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const {report:{getReport=()=>null}}=require('node:process');return getReport();})()",
+    'agent1-process-report-cjs-nested-default'
+  );
+});
+
+test('defaulted process report namespace preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    '(()=>{const {report=()=>null}=process;return report.getReport();})()',
+    'agent1-process-report-namespace-default'
   );
 });
 
