@@ -163,6 +163,8 @@ function mutatesDecoderIntrinsic(ast) {
   const returnedSensitiveFunctions=new Set();
   /** @type {Map<string,Set<string>>} */
   const returnedSensitiveFields=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const containerSensitiveFields=new Map();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -361,6 +363,34 @@ function mutatesDecoderIntrinsic(ast) {
     return Boolean(fields && (key===null||fields.has(key)));
   }
   /**
+   * Recognize a local object/array field proven to carry a sensitive
+   * reference, including an unknown computed key that could select that
+   * field. The field summaries are populated by the alias fixed point below.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isContainerSensitiveMember(node) {
+    if(node.type!=='MemberExpression')return false;
+    /** @type {(string|null)[]} */
+    const keys=[];
+    let current=node;
+    while(current.type==='MemberExpression') {
+      keys.unshift(memberName(current));
+      current=current.object;
+    }
+    if(current.type!=='Identifier')return false;
+    const fields=containerSensitiveFields.get(current.name);
+    if(!fields?.size)return false;
+    const unknown=keys.indexOf(null);
+    if(unknown>=0) {
+      const prefix=keys.slice(0,unknown).join('.');
+      return [...fields].some(field=>!prefix||field===prefix||
+        field.startsWith(prefix+'.'));
+    }
+    const name=keys.join('.');
+    return [...fields].some(field=>field===name||field.startsWith(name+'.'));
+  }
+  /**
    * A dynamically supplied receiver can resolve to a decoder-sensitive
    * prototype even if no local literal, array or constructor proves its type.
    * Known nonstring primitive literals are a safe precision exception.
@@ -369,7 +399,7 @@ function mutatesDecoderIntrinsic(ast) {
    */
   function isPossiblePrototype(node) {
     if(node.type==='Identifier')return possiblePrototypes.has(node.name);
-    if(isReturnedSensitiveField(node))return true;
+    if(isContainerSensitiveMember(node)||isReturnedSensitiveField(node))return true;
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        returnedSensitiveFunctions.has(node.callee.name))return true;
     if(node.type==='MemberExpression')return (
@@ -396,7 +426,7 @@ function mutatesDecoderIntrinsic(ast) {
    */
   function isPossibleConstructor(node) {
     if(node.type==='Identifier')return possibleConstructors.has(node.name);
-    if(isReturnedSensitiveField(node))return true;
+    if(isContainerSensitiveMember(node)||isReturnedSensitiveField(node))return true;
     if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
        returnedSensitiveFunctions.has(node.callee.name))return true;
     if(node.type==='MemberExpression') {
@@ -684,6 +714,7 @@ function mutatesDecoderIntrinsic(ast) {
    * @returns {boolean}
    */
   function containsDecoderIntrinsic(expression) {
+    if(expression.type==='Identifier'&&containerSensitiveFields.has(expression.name))return true;
     if(touchesString(expression)||isArrayPrototype(expression)||
        isObjectPrototype(expression)||isPossiblePrototype(expression)||
        isPossibleConstructor(expression))return true;
