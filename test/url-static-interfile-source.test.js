@@ -80,6 +80,14 @@ for(const [name,parser,expression] of sourceCases) {
   });
 }
 
+test('cross-file exported direct function is source-changing without an observer',()=>{
+  const before=sourceFiles('export const parseUrl=URL.parse;',
+    'parseUrl("/fixed","https://example.test/").href');
+  const generated=transform(before);
+  assert.notEqual(generated[0].code,before[0].code,
+    'This fixture must actually change a function before it can prove the imported observer boundary');
+});
+
 test('imported native URL.parse with primitive inputs retains independently safe key rewrite',async()=>{
   const before=sourceFiles('export const parseUrl=URL.parse;',
     'parseUrl("/fixed","https://example.test/").href',true);
