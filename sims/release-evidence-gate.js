@@ -67,6 +67,27 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
   assert.equal(coo.rows.length,4,'COO must include short and sustained sessions');
   assert.equal(snoProfile.length,4,'SNO must include short and sustained sessions');
   assert.equal(sco.semanticsPreserved,true,'SCO relay must retain expected semantics');
+  assert.deepEqual(coo.rows.map(row=>row.events),[1,50,1000,10000],
+    'COO application workloads changed');
+  assert.deepEqual(snoProfile.map(row=>row.events),[1,50,1000,10000],
+    'SNO cold-session workloads changed');
+  assert.equal(sco.light.count,1,'SCO light workload changed');
+  assert.equal(sco.heavy.count,120000,'SCO heavy workload changed');
+  for(const row of coo.rows){
+    assert.equal(row.publishedVsNative.samplePairs,9,'COO paired count changed');
+    assert.equal(row.rawSamples.native.length,9,'COO native trial count changed');
+    assert.equal(row.rawSamples.published.length,9,'COO protected trial count changed');
+    assert.equal(row.rawSamples.reconstructed.length,9,'COO recovery trial count changed');
+  }
+  for(const row of snoProfile){
+    assert.equal(row.pairedBound.samplePairs,13,'SNO cold paired count changed');
+    assert.equal(row.rawTimingMs.native.length,13,'SNO cold native trials changed');
+    assert.equal(row.rawTimingMs.sno.length,13,'SNO cold protected trials changed');
+  }
+  for(const item of [sco.light,sco.heavy]){
+    assert.equal(item.samples.native.length,9,'SCO native trial count changed');
+    assert.equal(item.samples.remote.length,9,'SCO remote trial count changed');
+  }
   const cooBudget=coo.rows.map(row=>({
     events:row.events,ratioOfMedians:row.publishedVsNative.ratioOfMedians,
     oneSidedMedianDecision:row.publishedVsNative.decision,
