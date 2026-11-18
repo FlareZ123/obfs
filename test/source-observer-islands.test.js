@@ -251,3 +251,35 @@ test('CacheStorage implicit requests and response-body readers cannot bypass sou
       'The cache veto must preserve actual independent safe-field rewriting in '+mode);
   }
 });
+
+
+test('source-observer islands refuse undeclared same-origin Window.frames source readers',()=>{
+  const badEntries=[
+    'const view=frames["sourceView"];console.log(view["doc"+"ument"].body.textContent);',
+    'const host=window;const view=host["frames"]["sourceView"];console.log(view.document.body.textContent);',
+    'const view=globalThis["frames"]["sourceView"];console.log(view.document.body.textContent);',
+    'export function inspectFrame(frame){return frame.contentDocument.body.textContent.includes("privateB");}',
+    'export function inspectFrameWindow(frame){return frame["contentWindow"].document.body.textContent.includes("privateB");}'
+  ];
+  for(const source of badEntries) {
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+      const entryFile=entry('import {watched} from "./watched.mjs";'+
+        'import {unrelated} from "./independent.mjs";'+
+        'console.log(watched.toString());'+source+'console.log(unrelated());');
+      assert.throws(()=>obfuscateFiles([watched,independent,entryFile],{
+        mode,closedWorld:true,strings:false,identifiers:false,
+        experimentalSourceObserverIslands:['independent.mjs']
+      }),/Source observer island/);
+    }
+  }
+  const allowed=obfuscateFiles([watched,independent,entry(
+    'import {watched} from "./watched.mjs";'+
+    'import {unrelated} from "./independent.mjs";'+
+    'console.log(watched.toString(),unrelated());'
+  )],{
+    mode:'coo',closedWorld:true,strings:false,identifiers:false,
+    experimentalSourceObserverIslands:['independent.mjs']
+  });
+  assert.ok((allowed.files.find(f=>f.path==='independent.mjs')?.metrics.properties??0)>=1,
+    'An unrelated pure ESM leaf must still undergo a genuine field rewrite');
+});
