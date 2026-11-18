@@ -68,7 +68,10 @@ function coefficients(stream,degree){
 }
 
 /**
- * @typedef {import('./mba-permutation-component-inverse').MbaPermutationRound} MbaPermutationRound
+ * @typedef {object} MbaPermutationRound
+ * @property {bigint[]} coefficients
+ * @property {number[]} xorShifts
+ * @property {number[]} cyclicShifts
  */
 
 /**
