@@ -156,11 +156,11 @@ function recover(source){
   if(rounds===null||rounds<1)throw new Error('literal round count not found');
 
   const body=loop.body;
-  if(body.type!=='BlockStatement')throw new Error('round body not found');
-  const assignments=body.body
-    .filter((/** @type {AstNode} */ statement)=>statement.type==='ExpressionStatement'&&
-      statement.expression.type==='AssignmentExpression')
-    .map((/** @type {AstNode} */ statement)=>statement.expression.right);
+  /** @type {AstNode[]} */
+  const assignments=[];
+  walk(body,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='=')assignments.push(node.right);
+  });
 
   /** @type {bigint[]|null} */
   let coefficients=null;
