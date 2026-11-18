@@ -4,7 +4,7 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports three aut
 
 - `authorizeRead(request)`: optional sync or async callback evaluated before every valid GET of an obfuscated JavaScript file **or** static asset under `routePrefix`. Only the literal boolean `true` authorizes the read; all other results return HTTP 403 with an empty body; an exception returns HTTP 500 without exposing the internal error. Missing files still return 404 before the callback.
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. The result must be the literal boolean `true` to allow a call, including when resolved asynchronously. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
-- `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Only the literal boolean `true` authorizes the operation; all other results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. It does not replace the required coarse `authorizeRpc` gate.
+- `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Only the literal boolean `true` authorizes the operation; all other results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. The callback receives an independent parse of the bounded JSON arguments, so edits to its input cannot redirect execution of the already submitted values. It does not replace the required coarse `authorizeRpc` gate.
 
 **Boolean authorization contract:** Each configured callback must return the literal boolean `true` to grant its respective permission; `authorizeRpc` is mandatory for RPC, whereas the read and operation callbacks are optional. A truthy object (such as a verified session record), string, number or Boolean wrapper is refused even when it evaluates truthy in JavaScript; `false`, `null` and `undefined` are also refused. If your verifier returns a principal object, explicitly use `return Boolean(await verifyUserSession(request));` after independently validating that identity. This is a deliberate behavior change from the previous truthiness-based gate and may require integrator migration. Denied requests return 403; callback exceptions retain their generic 500 handling. This enforcement protects against accidental return-type confusion, not a compromised trusted SCO server or an authorization callback that intentionally returns `true` for an attacker.
 
@@ -301,26 +301,32 @@ const results=await remote.batch([
 The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. For a batch created by `createScoBatchMethod`, an installed `authorizeOperation` callback runs for the outer batch and **each inner call of an executable, completely validated batch**, before any batch side effects. The helper first checks the batch count against `maxCalls`, the registration of every method, and each arguments array. An invalid or oversized batch skips all inner authorization callbacks and still fails with the helper's generic HTTP 500 before executing any private operation. This avoids issuing unnecessary per-item policy or database checks for work that cannot execute. It intentionally changes the HTTP result for batches that an earlier inner callback would have rejected as HTTP 403; no invalid batch becomes executable. The callback must permit both the batch method and every authorized inner method. Denying a later call blocks execution of the entire batch. An inner policy exception returns a generic HTTP 500 without exposing the exception. Invalid batch structures are still rejected by the batch helper. A batch helper may not be registered inside another batch helper even under a different operation name; this rejects nested recognized helpers whose deeper operations would otherwise bypass the single-level policy preflight. Custom wrappers around batch functions remain outside automatic recognition and must implement their own authorization preflight. Custom batch functions that do not originate from `createScoBatchMethod` have no automatic inner inspection; implement their own preflight authorization. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
 
 
-A recognized batch is now executed from a private snapshot of the parsed
-JSON argument graph, taken before the outer `authorizeOperation` callback.
-The inner authorization callback receives a separate copy of each checked
-call's arguments. The handler now reparses the already validated,
-size-bounded raw JSON request into independent graphs for the inner policy
-and for final execution. This uses the native parser to retain the original
-JSON semantics, including deeply nested values, negative zero and own
-`__proto__` data keys. No extra parse is done for unrecognized methods
-or when no argument-aware authorization callback is installed. A policy callback that edits the outer batch, changes a
-previously approved method name, or overwrites a previously checked argument
-cannot redirect the batch toward an unapproved operation. The execution
-snapshot preserves the JSON-parsed values originally submitted by the client.
-This safeguards accidental policy mutation, while leaving the authorization
-callback responsible for checking the entire submitted operation and applying
-correct identity and state rules. The snapshot does not make permission checks
-atomic with asynchronous external state, does not prevent a legitimate method
-from changing state mid-batch, and does not cancel work already started. The
-copy costs allocation and CPU proportional to the bounded RPC request graph;
-benchmark the whole authenticated call for the application's 2.5× budget.
-See `test/sco-batch-policy-mutation.test.js` for real-HTTP mutation controls.
+The handler executes the original bounded, validated JSON argument graph.
+Every configured `authorizeOperation` callback receives a second, independent
+native `JSON.parse` result. Recognized batches additionally receive a third
+independent graph for their inner policy calls. Consequently, accidental
+mutation of the outer request arguments, a previously approved batch method,
+or an inner argument cannot redirect the submitted private operation. Native
+JSON parsing retains deeply nested values, negative zero, and own
+`__proto__` data properties without a custom clone stack limit.
+
+This intentionally changes the historical ordinary-RPC behavior: a trusted
+authorization callback that previously edited its `args` to normalize values
+for the private method must now perform normalization in the method itself or
+in an explicitly reviewed wrapper. A callback should make an authorization
+decision based on the submitted inputs, not change what later executes.
+An ordinary RPC with argument-aware policy incurs one additional full JSON
+parse; a recognized batch with that policy incurs two. When no
+`authorizeOperation` is configured, neither incurs an extra parse. Costs
+scale with the bounded request size and require whole-application profiling
+against the 2.5× compute limit.
+
+This protects against policy-side argument mutation within one request.
+It does not make permission checks atomic with external state, protect
+against deliberate privilege grants by trusted callbacks, cancel running
+methods or provide an anti-relay mechanism. Native real-HTTP regression
+tests are in `test/sco-operation-auth.test.js` and
+`test/sco-batch-policy-mutation.test.js`.
 
 
 ## Authorization state changes within one batch

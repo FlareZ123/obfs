@@ -154,21 +154,23 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // Registered batches with an argument-aware policy require three
-    // independent views of the exact validated JSON text: outer policy,
-    // inner policy, and execution. Native JSON.parse preserves deep nesting
-    // and parsed numeric values without custom recursive clone machinery.
-    // No extra parsing happens for unrecognized methods or absent policy.
+    // The policy receives its own parsed JSON argument graph. A trusted
+    // authorizer may accidentally mutate its inputs; the private method
+    // must still execute the values admitted from the wire. Recognized
+    // batches additionally require a separate inner-policy graph so an
+    // outer-policy mutation cannot redirect their checked operations.
+    // Native JSON.parse preserves deep values, -0 and own "__proto__" keys.
+    // Without an argument-aware policy, no additional parsing is required.
     const needsBatchViews=options.authorizeOperation &&
       getScoBatchCalls(task,args)!==null;
-    const checkedBatchArgs=needsBatchViews ?
+    const policyArgs=options.authorizeOperation ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     const innerPolicyArgs=needsBatchViews ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
-      const operationAllowed=await options.authorizeOperation(request,method,args);
+      const operationAllowed=await options.authorizeOperation(request,method,policyArgs??args);
       ensureScopeOpen();
       if(operationAllowed!==true) {
         respondJson(response,403,{ok:false,error:'Forbidden'});
@@ -196,7 +198,7 @@ async function handleRpc(request,response,options) {
       }
     }
     ensureScopeOpen();
-    const result=await task(...(checkedBatchArgs??args));
+    const result=await task(...args);
     ensureScopeOpen();
     respondJson(response,200,{ok:true,value:result});
     };
