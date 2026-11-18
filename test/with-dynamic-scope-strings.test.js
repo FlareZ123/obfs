@@ -29,7 +29,8 @@ function executeWithDynamicScope(code,type) {
   });
   context.opaqueScope=scope;
   vm.runInContext(code,context,{timeout:2500});
-  return String(type==='script'?context.output:context.module.exports);
+  return JSON.stringify({value:type==='script'?context.output:context.module.exports,
+    outside:context.outside??null});
 }
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
@@ -51,8 +52,8 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
 
     test(mode+' '+sourceType+' still encodes literal outside with scope',()=>{
       const source=
-        "const outside='outside-encoded-literal';"+
-        "with(globalThis.opaqueScope){"+assign+"=outside+'|inside-with-literal';}";
+        "globalThis.outside='outside-encoded-literal';"+
+        "with(globalThis.opaqueScope){"+assign+"='inside-with-literal';}";
       const output=obfuscateFiles([{path:file,sourceType,code:source}],{
         mode,seed:'with-scope-positive/'+mode+'/'+sourceType,
         strings:true,properties:false,identifiers:false
