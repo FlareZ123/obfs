@@ -66,3 +66,16 @@ The 13-pair 12,288-call 1,000-iteration control gave 1.2493× Ubuntu and 1.2811�
 All four full paired-timing JSON files are retained as successful run artifacts named `sco-batch-Linux` and `sco-batch-Windows`, each containing the ordinary 13-pair and amplified 51-pair observations with all raw CPU and wall durations. Dependency versions were recorded by `npm ls --all`. The source-pinned report is reproducible by rerunning the manual workflow, but the files are host-generated empirical observations, not immutable forecasts for all runtimes.
 
 **Overall:** the most defensible deployment direction from this experiment is a *selective*, resource-admitted, coarse SCO server-private batch for applications whose authorized operation semantics make grouping correct. Exact raw JavaScript own-field semantics, tiny calls, unlimited legitimate online relay and arbitrary malicious client emulation remain independent unsolved goals. Security dimensions should not be inferred from a successful CPU benchmark.
+
+
+### Statistical caution on the observed zero-breach 51-pair controls
+
+For a fixed operating-system/workload population with independently sampled, representative paired trials and unknown probability `p` of a **strict observed >2.5× CPU breach**, seeing zero breaches in `n=51` trials yields the exact one-sided binomial 95% upper bound
+
+`p <= 1 - 0.05^(1/51) = 0.05704795` (approximately **5.70%**).
+
+To state two simultaneous per-platform bounds with at least 95% familywise coverage by a conservative Bonferroni split, use `0.025` per platform:
+
+`p_OS <= 1 - 0.025^(1/51) = 0.06977703` (approximately **6.98% per OS**).
+
+These are **conditional statistical tail-risk limits, not a hard 2.5× compute guarantee**. In particular, CPU trial independence, stationarity, representative workload sampling, fixed deployed source and runtime, and the same input distribution are assumptions; hostile or unusual workloads can have higher breach risk. The 13-pair Windows short-batch sample that included one strict breach is retained separately, and this tail bound does not combine it with the differently sized 51-pair stable workload. The mainline release therefore remains blocked pending actual threat-model and whole-session evidence.
