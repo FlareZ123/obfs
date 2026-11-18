@@ -82,6 +82,13 @@ test('escaped process.report namespaces preserve source coordinates',()=>{
     mustPreserveProcessReport(expression,'agent1-process-report-escape-'+index);
 });
 
+test('dynamic process report namespace acquisition preserves source',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='report';return process[key].getReport();})()",
+    'agent1-process-report-dynamic-namespace'
+  );
+});
+
 test('dynamic process.report member access preserves source',()=>{
   mustPreserveProcessReport(
     "(()=>{const key='getReport';return process.report[key]();})()",
@@ -417,7 +424,7 @@ test('unsafe private-property rewrite changes process.report stack coordinates',
 test('ordinary process metadata remains eligible for property renaming',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;"+
-    "module.exports=value+(process.pid>0?0:1);";
+    "module.exports=value+(process['pid']>0?0:1);";
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
   const output=obfuscateFiles([{
     path:'process-report-observer.cjs',
