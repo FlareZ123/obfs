@@ -529,3 +529,126 @@ test('const-computed Reflect.get globalThis process preserves diagnostic report 
     'agent8-process-global-reflect-computed-key'
   );
 });
+
+
+test('const-computed process report namespace preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='report';return process[key].getReport();})()",
+    'agent8-process-report-computed-namespace'
+  );
+});
+
+test('const-computed process report method preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='getReport';return process.report[key]();})()",
+    'agent8-process-report-computed-method'
+  );
+});
+
+test('const-computed automatic report trigger preserves source',()=>{
+  const source="'use strict';const key='reportOnUncaughtException';"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report[key]=true;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'computed-report-trigger.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-computed-report-trigger',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+});
+
+test('const-computed harmless report metadata retains property yield',()=>{
+  const source="'use strict';const key='filename';process.report[key]='';"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'computed-report-metadata.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-computed-report-metadata',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),73);
+  assert.ok(output.metrics.properties>0,output.code);
+});
+
+
+test('opaque computed process report namespace preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "((key)=>process[key].getReport())('report')",
+    'agent8-process-report-opaque-namespace'
+  );
+});
+
+test('opaque computed process report method preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "((key)=>process.report[key]())('getReport')",
+    'agent8-process-report-opaque-method'
+  );
+});
+
+test('opaque computed automatic report write fails closed',()=>{
+  const source="'use strict';function choose(){return 'reportOnUncaughtException';}"+
+    "const key=choose();const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report[key]=true;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'opaque-report-trigger.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-opaque-report-trigger',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+});
+
+
+test('explicit automatic-report disabling retains property yield',()=>{
+  const mutations=[
+    "process.report.reportOnUncaughtException=false;",
+    "Reflect.set(process.report,'reportOnSignal',false);",
+    "Object.assign(process.report,{reportOnFatalError:false});"
+  ];
+  for(const [index,mutation] of mutations.entries()){
+    const source="'use strict';"+mutation+
+      "const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;module.exports=value;";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+    const output=obfuscateFiles([{
+      path:'report-disable-'+index+'.cjs',sourceType:'commonjs',code:source
+    }],{
+      mode:'sno',seed:'agent8-report-disable-'+index,
+      strings:false,identifiers:false
+    }).files[0];
+    assert.equal(execute(output.code),73);
+    assert.ok(output.metrics.properties>0,output.code);
+  }
+});
+
+
+test('Reflect.get invocation wrappers preserve global process report coordinates',()=>{
+  const expressions=[
+    "(()=>{const proc=Reflect.get.call(Reflect,globalThis,'process');return proc.report.getReport();})()",
+    "(()=>{const proc=Reflect.get.apply(Reflect,[globalThis,'process']);return proc.report.getReport();})()",
+    "(()=>{const proc=Reflect.apply(Reflect.get,Reflect,[globalThis,'process']);return proc.report.getReport();})()",
+    "(()=>{const get=Reflect.get.bind(Reflect);const proc=get(globalThis,'process');return proc.report.getReport();})()"
+  ];
+  for(const [index,expression] of expressions.entries())
+    mustPreserveProcessReport(expression,'agent8-process-global-reflect-wrapper-'+index);
+});
+
+test('indirect Reflect.get env wrappers remain generic reflection refusals',()=>{
+  const expressions=[
+    "Reflect.get.call(Reflect,process,'env').PATH",
+    "Reflect.get.apply(Reflect,[process,'env']).PATH",
+    "Reflect.apply(Reflect.get,Reflect,[process,'env']).PATH",
+    "(()=>{const get=Reflect.get.bind(Reflect);return get(process,'env').PATH;})()"
+  ];
+  for(const expression of expressions) {
+    const source="'use strict';void ("+expression+");";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  }
+});
