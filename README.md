@@ -166,6 +166,22 @@ minification on the measured attacks**. Server-private state and account
 authorization remain the actual protection, with valid-A online relaying possible.
 No COO/SNO or general 2.5× claim follows.
 
+**SCO cross-account CPU contention, strict runtime veto:** In a
+[precommitted adversarial resource-isolation test](im-results/sco-ratchet-cross-account-contention-2026-11-18.md),
+one legitimate Account A 64-event private HMAC batch ran synchronously on
+the same Node event loop that served an unrelated Account B 16-event batch.
+Two-process monotonic timestamps verified B submitted its HTTP request during
+A's private work. **All 14 of 14** B sessions across Linux and Windows
+exceeded 2.5× native runtime (median approximately **5.10×** and **5.07×**),
+while **0/14** matched quiet independent-child controls did. Account B's
+credentials and original output integrity remained correct; the failure is
+CPU-service fairness, not cross-account authorization. The
+[pinned full ratchet gate](https://github.com/FlareZ123/obfs/actions/runs/44206143926)
+passed exact behavior, TLS, Chrome and strict JSDoc. The tested synchronous
+single-thread implementation therefore cannot claim unconditional per-account
+2.5× under the prompt's unlimited legitimate attacker calls. Independent
+worker pools, quotas and production WAN conditions need separate evaluation.
+
 **Real-browser HTTPS SCO check:** [Ubuntu Chromium browser workflow 43762602922](https://github.com/FlareZ123/obfs/actions/runs/43762602922) at `9d490fe68a9078b61ba8da74f469a47ecdff9e30` ran the compiler-generated ESM facade through a local TLS 1.3 proxy and returned the exact server-private HMAC output. An isolated browser profile without trust for the self-signed fixture could not retrieve the result. Chrome's *test-only exact SPKI key exception* was used for the successful profile, not real production PKI validation. [Executable TLS browser report](im-results/sco-tls-browser-2026-11-15.md). An additional [pinned Chrome instrumentation run 43763160286](https://github.com/FlareZ123/obfs/actions/runs/43763160286) confirms a client-modified page can intercept the generated facade's authenticated fetch, recover the RPC method identifier, and observe the exact private-service response without recovering the server key.
 
 **Certificate-validated SCO transport:** [Linux/Windows TLS test run 43761362939](https://github.com/FlareZ123/obfs/actions/runs/43761362939) at exact SHA `987b51ae2d7a55e8de6f6fc53a78fa5b991988a6` executed a compiler-generated RPC facade with a localhost TLS 1.3 authenticated server: **12/12** facade calls matched the private native HMAC, while an authorized online attacker relay matched **32/32** never-queried challenges. The relay measured **1.425× Ubuntu / 1.291× Windows** for the tested 8 MiB HMAC workload and exposed no private implementation/key. This confirms the authorization/relaying limitation in spite of TLS. A separate [TLS connection-granularity report](im-results/sco-tls-boundary-2026-11-15.md) demonstrates 2.5× budget failures for lighter operations. See the [generated facade TLS relay evidence](im-results/sco-tls-generated-facade-relay-2026-11-15.md); neither benchmark measures physical WAN latency or proves general compatibility/security.
