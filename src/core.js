@@ -522,6 +522,67 @@ function mutatesDecoderIntrinsic(ast) {
         }
       }
       /**
+       * @param {import('./ast').AstNode} owner
+       * @param {string|null} key
+       * @returns {boolean}
+       */
+      function hasSensitiveContainerField(owner,key) {
+        if(owner.type==='Identifier') {
+          const fields=returnedSensitiveFields.get(owner.name);
+          return Boolean(fields&&(key===null||fields.has(key)));
+        }
+        if(owner.type==='ObjectExpression') {
+          for(const property of owner.properties) {
+            if(property.type!=='Property')continue;
+            const propertyKey=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((key===null||propertyKey===key)&&sensitiveReturnValue(property.value))return true;
+          }
+          return false;
+        }
+        if(owner.type!=='ArrayExpression')return false;
+        if(key===null)return owner.elements.some(
+          (/** @type {import('./ast').AstNode|null} */ element)=>
+            element!==null&&element.type!=='SpreadElement'&&sensitiveReturnValue(element));
+        if(!/^(?:0|[1-9][0-9]*)$/u.test(key))return false;
+        const element=owner.elements[Number(key)];
+        return Boolean(element&&element.type!=='SpreadElement'&&sensitiveReturnValue(element));
+      }
+      /**
+       * Preserve sensitive field provenance through finite destructuring
+       * without tainting unrelated sibling fields.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordSensitiveContainerPattern(pattern,owner) {
+        if(pattern.type==='ObjectPattern') {
+          for(const property of pattern.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(!hasSensitiveContainerField(owner,key))continue;
+            const target=property.value.type==='AssignmentPattern'?
+              property.value.left:property.value;
+            if(target.type==='Identifier') {
+              add(possiblePrototypes,target.name);
+              add(possibleConstructors,target.name);
+            }
+          }
+          return;
+        }
+        if(pattern.type!=='ArrayPattern')return;
+        for(let index=0;index<pattern.elements.length;index++) {
+          const element=pattern.elements[index];
+          if(!element||element.type==='RestElement'||
+             !hasSensitiveContainerField(owner,String(index)))continue;
+          const target=element.type==='AssignmentPattern'?element.left:element;
+          if(target.type==='Identifier') {
+            add(possiblePrototypes,target.name);
+            add(possibleConstructors,target.name);
+          }
+        }
+      }
+      /**
        * @param {string} name
        * @param {import('./ast').AstNode} fn
        */
@@ -627,6 +688,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordArrayParentPattern(node.id,node.init);
         recordPossibleConstructorPattern(node.id,node.init);
         recordDocumentPattern(node.id,node.init);
+        recordSensitiveContainerPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           recordLiteralSensitiveFields(node.id.name,node.init);
           if(node.init.type==='Identifier') {
@@ -675,10 +737,11 @@ function mutatesDecoderIntrinsic(ast) {
           }
         }
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
-                node.left.type==='ObjectPattern') {
+                (node.left.type==='ObjectPattern'||node.left.type==='ArrayPattern')) {
         recordArrayParentPattern(node.left,node.right);
         recordPossibleConstructorPattern(node.left,node.right);
         recordDocumentPattern(node.left,node.right);
+        recordSensitiveContainerPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         recordLiteralSensitiveFields(node.left.name,node.right);
