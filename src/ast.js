@@ -183,13 +183,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
+ * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
-     !importedFunctionArrays.size&&!importedPrimitives.size) {
+     !importedFunctionArrays.size&&!importedPrimitives.size&&
+     !importedUrlStaticMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -529,7 +531,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const urlNativeNames=new Set(['URL']);
   const urlConstructors=new Set(urlNativeNames);
   const urlStaticNames=new Set(['parse','canParse']);
-  const urlStaticAliases=new Set();
+  const urlStaticAliases=new Set(importedUrlStaticMethods);
   /** @type {Map<string,Set<string>>} */
   const urlStaticObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
@@ -2684,7 +2686,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
-     !importedFunctionArrays.size&&!importedPrimitives.size)
+     !importedFunctionArrays.size&&!importedPrimitives.size&&
+     !importedUrlStaticMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
