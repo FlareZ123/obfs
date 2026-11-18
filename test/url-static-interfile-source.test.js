@@ -7,6 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {pathToFileURL}=require('node:url');
 const {obfuscateFiles}=require('../src');
+const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
@@ -80,12 +81,61 @@ for(const [name,parser,expression] of sourceCases) {
   });
 }
 
-test('cross-file exported direct function is source-changing without an observer',()=>{
-  const before=sourceFiles('export const parseUrl=URL.parse;',
+/**
+ * A selected Wasm function definitely changes source spelling; its source can
+ * be imported by a consumer of an independently imported native parser.
+ * @param {string} parserSource
+ * @param {string} expression
+ * @returns {ModuleFile[]}
+ */
+function selectedFiles(parserSource,expression) {
+  return [
+    {path:'logic.mjs',sourceType:'module',
+      code:'export function inspect(a){return a^17;}'},
+    {path:'parser.mjs',sourceType:'module',code:parserSource},
+    {path:'observer.mjs',sourceType:'module',code:
+      'import {inspect} from "./logic.mjs";'+
+      'import {parseUrl} from "./parser.mjs";'+
+      'export function observe(){return {text:'+expression+',value:inspect(31)};}'}
+  ];
+}
+
+for(const [name,parser] of [
+  ['direct export','export const parseUrl=URL.parse;'],
+  ['reexported immutable alias','const original=globalThis.URL.parse;export {original as parseUrl};']
+]) {
+  test('selected Wasm rejects imported URL parser observing a function: '+name,async()=>{
+    const before=selectedFiles(parser,
+      'parseUrl(inspect,"https://example.test/").href');
+    const original=await execute(before);
+    const lowered=lowerWasmI32Functions(before[0].code,'module',{
+      seed:'url-import-wasm-counterfactual',names:['inspect']
+    });
+    assert.equal(lowered.functions,1,'Counterfactual must select a real Wasm function');
+    const altered=before.map((file,i)=>i===0?{...file,code:lowered.code}:file);
+    assert.notDeepEqual(await execute(altered),original,
+      'Actual Wasm lowering must expose different function-source text');
+
+    assert.throws(()=>obfuscateFiles(before,{
+      mode:'coo',seed:'url-import-wasm-refusal/'+name,closedWorld:true,
+      strings:false,experimentalWasmI32:{'logic.mjs':['inspect']}
+    }),/Wasm i32 requires|declined/i,
+    'Importing a static URL parser cannot bypass cross-file source observation');
+  });
+}
+
+test('selected Wasm remains available when imported URL parser receives literals',async()=>{
+  const before=selectedFiles('export const parseUrl=URL.parse;',
     'parseUrl("/fixed","https://example.test/").href');
-  const generated=transform(before);
-  assert.notEqual(generated[0].code,before[0].code,
-    'This fixture must actually change a function before it can prove the imported observer boundary');
+  const transformed=obfuscateFiles(before,{
+    mode:'coo',seed:'url-import-wasm-positive',closedWorld:true,
+    strings:false,experimentalWasmI32:{'logic.mjs':['inspect']}
+  });
+  assert.equal(transformed.files[0].metrics.wasmI32Functions,1);
+  const after=transformed.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }));
+  assert.deepEqual(await execute(after),await execute(before));
 });
 
 test('imported native URL.parse with primitive inputs retains independently safe key rewrite',async()=>{
