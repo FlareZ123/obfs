@@ -2,6 +2,8 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const fs=require('node:fs');
+const path=require('node:path');
 const {createReceipt,hash}=require('../sims/frozen-four-way-artifacts');
 
 test('frozen four-way source, minifier, candidate and reconstructed bytes are reversible',async()=>{
@@ -22,6 +24,15 @@ test('frozen four-way source, minifier, candidate and reconstructed bytes are re
       assert.equal(hash(restored),file.sha256);
       assert.equal(restored.toString('base64'),file.base64);
     }
+  }
+  /** @type {Awaited<ReturnType<typeof createReceipt>>} */
+  const archived=JSON.parse(fs.readFileSync(path.join(
+    __dirname,'../im-results/frozen-four-way-artifacts-2026-11-18.json'),'utf8'));
+  assert.deepEqual(receipt.graphDigests,archived.graphDigests);
+  assert.deepEqual(receipt.dependencies,archived.dependencies);
+  for(const name of /** @type {(keyof typeof receipt.graphs)[]} */ (
+    ['native','minified','published','reconstructed'])){
+    assert.deepEqual(receipt.graphs[name],archived.graphs[name]);
   }
   assert.notEqual(receipt.graphDigests.native,receipt.graphDigests.minified);
   assert.notEqual(receipt.graphDigests.native,receipt.graphDigests.published);
