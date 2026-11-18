@@ -356,9 +356,33 @@ function mutatesDecoderIntrinsic(ast) {
    * @returns {boolean}
    */
   function isPossibleConstructor(node) {
-    return node.type==='Identifier'&&possibleConstructors.has(node.name)||
-      node.type==='MemberExpression'&&isPossiblePrototype(node.object)&&
-        (memberName(node)==='constructor'||memberName(node)===null);
+    if(node.type==='Identifier')return possibleConstructors.has(node.name);
+    if(node.type==='MemberExpression') {
+      if(isPossiblePrototype(node.object) &&
+         (memberName(node)==='constructor'||memberName(node)===null))return true;
+      // A descriptor's value exposes the same constructor without
+      // spelling P.constructor in the source.
+      const descriptor=node.object;
+      return memberName(node)==='value' &&
+        descriptor.type==='CallExpression' &&
+        descriptor.callee.type==='MemberExpression' &&
+        isObjectIntrinsic(descriptor.callee.object) &&
+        memberName(descriptor.callee)==='getOwnPropertyDescriptor' &&
+        Boolean(descriptor.arguments[0]&&
+          isPossiblePrototype(descriptor.arguments[0])&&
+          (!descriptor.arguments[1]||
+           staticString(descriptor.arguments[1])===null||
+           staticString(descriptor.arguments[1])==='constructor'));
+    }
+    // A reflective read of an opaque prototype's constructor can yield the
+    // native String constructor and permit String.fromCharCode replacement.
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      isReflectIntrinsic(node.callee.object) &&
+      memberName(node.callee)==='get' &&
+      Boolean(node.arguments[0]&&isPossiblePrototype(node.arguments[0])&&
+        (!node.arguments[1]||staticString(node.arguments[1])===null||
+         staticString(node.arguments[1])==='constructor'));
   }
   /**
    * A computed unknown key might be Symbol.iterator, charCodeAt or an index
@@ -418,6 +442,24 @@ function mutatesDecoderIntrinsic(ast) {
         }
       }
       /**
+       * A constructor destructured from an opaque runtime prototype may be
+       * String, whose fromCharCode method the eager decoder invokes.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordPossibleConstructorPattern(pattern,owner) {
+        if(pattern.type!=='ObjectPattern'||!isPossiblePrototype(owner))return;
+        for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key!==null&&key!=='constructor')continue;
+          const target=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(target.type==='Identifier')add(possibleConstructors,target.name);
+        }
+      }
+      /**
        * Assignment destructuring can expose the same ambient WindowProxy as
        * declaration destructuring. Propagate both paths to the existing
        * monotonic intrinsic alias sets before deciding decoder safety.
@@ -439,6 +481,7 @@ function mutatesDecoderIntrinsic(ast) {
       }
       if(node.type==='VariableDeclarator' && node.init) {
         recordArrayParentPattern(node.id,node.init);
+        recordPossibleConstructorPattern(node.id,node.init);
         recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
@@ -477,6 +520,7 @@ function mutatesDecoderIntrinsic(ast) {
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='ObjectPattern') {
         recordArrayParentPattern(node.left,node.right);
+        recordPossibleConstructorPattern(node.left,node.right);
         recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
