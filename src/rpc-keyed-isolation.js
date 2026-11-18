@@ -71,18 +71,33 @@ function createScoKeyedIsolation(principalOf,options={}) {
         // Preserve the original one-await fast path for synchronous verifiers.
         principal=await resolving;
       }else{
-        /** @type {NodeJS.Timeout|undefined} */
-        let timer;
-        try{
-          principal=await Promise.race([
-            Promise.resolve(resolving),
-            new Promise((_,reject)=>{
-              timer=setTimeout(()=>reject(new ScoIsolationBusyError()),resolutionDeadline);
-            })
-          ]);
-        }finally{
-          if(timer!==undefined)clearTimeout(timer);
+        // Synchronously fulfilled promises are common for cached sessions.
+        // Let their settlement microtask run before registering a costly
+        // Node timer. An unresolved lookup still receives a real deadline.
+        let settled=false;
+        let rejected=false;
+        let value;
+        const tracked=Promise.resolve(resolving).then(
+          result=>{settled=true;value=result;},
+          error=>{settled=true;rejected=true;value=error;}
+        );
+        await Promise.resolve();
+        if(!settled){
+          /** @type {NodeJS.Timeout|undefined} */
+          let timer;
+          try{
+            await Promise.race([
+              tracked,
+              new Promise((_,reject)=>{
+                timer=setTimeout(()=>reject(new ScoIsolationBusyError()),resolutionDeadline);
+              })
+            ]);
+          }finally{
+            if(timer!==undefined)clearTimeout(timer);
+          }
         }
+        if(rejected)throw value;
+        principal=value;
       }
       if(typeof principal!=='string'||principal.length<1||principal.length>256) {
         throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');
