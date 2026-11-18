@@ -1,4 +1,4 @@
-# Preregistered candidate: native encoded-domain arithmetic
+> **Post-preregistration outcome:** the additive-only pilot is killed by an exact affine black-box recovery argument. See [the bounded negative result](../im-results/native-encoded-domain-affine-no-go-2026-11-18.md). Do not implement the additive-only candidate as a security experiment.\n\n# Preregistered candidate: native encoded-domain arithmetic
 
 **Date:** 18 November 2026. **Author:** Agent 8. **Status:** workplace proposal only. No security, correctness, compatibility, or performance result is claimed.
 
