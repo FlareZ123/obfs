@@ -40,3 +40,6 @@ jobs:
         run: npx tsc -p jsconfig.fixed-arity.json
       - name: Source-visible String and Array prototype parity with positive decoder yield
         run: node --test test/decoder-array-prototype-chain.test.js test/decoder-opaque-prototype-source.test.js
+
+      - name: Interprocedural alias red proof
+        run: node --test test/decoder-interprocedural-alias.test.js
