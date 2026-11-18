@@ -25,12 +25,14 @@ function challenge(label,index){
  * @param {string} tokenA
  * @param {string} tokenB
  * @param {string} control
+ * @param {boolean} [legacyAnonymousLock] Test-only reproduction of old unauthenticated lock behavior.
  * @returns {Promise<Worker>}
  */
-async function launch(databasePath,root,tokenA,tokenB,control){
+async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLock=false){
   const child=spawn(process.execPath,[require.resolve('./sco-ratchet-transactional-http-child')],{
     env:{...process.env,SCO_TEST_DB:databasePath,SCO_TEST_ROOT:root.toString('hex'),
-      SCO_TEST_TOKEN_A:tokenA,SCO_TEST_TOKEN_B:tokenB,SCO_TEST_CONTROL:control},
+      SCO_TEST_TOKEN_A:tokenA,SCO_TEST_TOKEN_B:tokenB,SCO_TEST_CONTROL:control,
+      SCO_TEST_LEGACY_UNAUTH_LOCK:legacyAnonymousLock?'1':'0'},
     stdio:['ignore','pipe','pipe']
   });
   if(!child.stdout||!child.stderr)throw new TypeError('Missing child output streams');
