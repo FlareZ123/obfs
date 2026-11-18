@@ -3,8 +3,9 @@
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const {execFileSync,spawnSync}=require('node:child_process');
-const {closeSync,openSync,readFileSync,renameSync,unlinkSync,writeFileSync}=require('node:fs');
+const {closeSync,mkdirSync,mkdtempSync,openSync,readFileSync,renameSync,rmSync,unlinkSync,writeFileSync}=require('node:fs');
 const {join}=require('node:path');
+const {tmpdir}=require('node:os');
 const {performance}=require('node:perf_hooks');
 
 const REPO=join(__dirname,'..');
@@ -80,6 +81,56 @@ function sparseSource(){
     'total=(total+tiny0.secret+tiny1.secret)|0;module.exports=total;\n';
 }
 
+
+/**
+ * An actual, closed-world three-file ESM cross-module reader+identity graph,
+ * with two proven renamed properties and exact native runtime parity.
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function esmSource(){
+  return [
+    {path:'state.mjs',sourceType:'module',code:
+      'export const state={secretField:23,otherField:47};'+
+      'export function peek(x){return x.secretField;}'+
+      'export function other(x){return x["otherField"];}'},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=x=>x;'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek,other} from "./state.mjs";'+
+      'import {identity} from "./identity.mjs";'+
+      'const alias=identity(state);console.log(peek(alias),other(alias));'}
+  ];
+}
+
+/**
+ * Native ESM loader comparison uses a fresh isolated directory per sample.
+ * This is deliberately excluded from the measured compiler build window.
+ * @param {{path:string,code:string}[]} native
+ * @param {{path:string,code:string}[]} emitted
+ * @returns {string}
+ */
+function compareEsmExecution(native,emitted){
+  const root=mkdtempSync(join(tmpdir(),'obfs-property-ab-'));
+  /** @param {'native'|'emitted'} kind @param {{path:string,code:string}[]} files */
+  function execute(kind,files){
+    const target=join(root,kind);
+    mkdirSync(target);
+    for(const file of files)writeFileSync(join(target,file.path),file.code,{flag:'wx'});
+    const outcome=spawnSync(process.execPath,[join(target,'main.mjs')],{
+      encoding:'utf8',timeout:15000,maxBuffer:1024*1024
+    });
+    assert.equal(outcome.status,0,outcome.stderr||String(outcome.error));
+    return outcome.stdout;
+  }
+  try{
+    const expected=execute('native',native);
+    const observed=execute('emitted',emitted);
+    assert.equal(observed,expected);
+    return observed;
+  }finally{
+    rmSync(root,{recursive:true,force:true});
+  }
+}
+
 /** @param {string} source @returns {string} */
 function sha256(source){
   return createHash('sha256').update(source).digest('hex');
@@ -88,11 +139,33 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'} objects
+ * @param {number|'mixed'|'sparse'|'esm'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
+  if(objects==='esm'){
+    const native=esmSource();
+    const cpuStart=process.cpuUsage();
+    const wallStart=performance.now();
+    const generated=obfuscateFiles(native,{
+      mode:'coo',closedWorld:true,seed:'private-proof-esm-ab',strings:false,identifiers:false
+    });
+    const wallMs=performance.now()-wallStart;
+    const cpu=process.cpuUsage(cpuStart);
+    assert.equal(generated.crossFile.properties,2,
+      'ESM cross-graph proof did not rename two known own properties');
+    const output=generated.files.map(file=>({path:file.path,code:file.code}));
+    const checksum=compareEsmExecution(native,output);
+    console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
+      objects,platform:process.platform,node:process.version,
+      cpuMs:(cpu.user+cpu.system)/1000,wallMs,properties:generated.crossFile.properties,
+      sourceHash:sha256(JSON.stringify(output)),
+      sourceBytes:output.reduce((size,file)=>size+Buffer.byteLength(file.code),0),
+      expectedChecksum:checksum
+    }));
+    return;
+  }
   const input=objects==='mixed'?mixedSource():
     objects==='sparse'?sparseSource():original(objects);
   const cpuStart=process.cpuUsage();
@@ -131,8 +204,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'esm'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'esm',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number|string}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -148,8 +221,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','esm'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'esm'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -168,7 +241,8 @@ if(process.argv[2]==='sample'){
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
       /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
-      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
+      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']]),
+      /** @type {['esm',('control'|'candidate')[]]} */ (['esm',['control','candidate']])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -176,7 +250,7 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed','sparse']){
+    for(const objects of [512,2048,'mixed','sparse','esm']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
