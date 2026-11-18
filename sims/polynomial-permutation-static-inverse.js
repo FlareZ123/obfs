@@ -126,10 +126,18 @@ function uint32Literal(node) {
 /** @param {import('../src/ast').AstNode} node @returns {import('../src/ast').AstNode} */
 function unwrapUint32(node) {
   let current=node;
-  while(current.type==='BinaryExpression'&&current.operator==='>>>'&&
-        current.right?.type==='Literal'&&current.right.value===0)
-    current=current.left;
-  return current;
+  for(;;) {
+    if(current.type==='SequenceExpression'&&current.expressions.length) {
+      current=current.expressions[current.expressions.length-1];
+      continue;
+    }
+    if(current.type==='BinaryExpression'&&current.operator==='>>>'&&
+       current.right?.type==='Literal'&&current.right.value===0) {
+      current=current.left;
+      continue;
+    }
+    return current;
+  }
 }
 
 /** @param {import('../src/ast').AstNode} node @param {string} valueName @returns {number[]|null} */
@@ -171,9 +179,14 @@ function recoverSecretFromSource(source) {
     }
     if(node.type!=='FunctionDeclaration'||node.id?.type!=='Identifier'||
        node.params.length!==1||node.params[0].type!=='Identifier')return;
-    const returns=node.body.body.filter(statement=>statement.type==='ReturnStatement');
-    if(returns.length!==1||!returns[0].argument)return;
-    const highToLow=recoverHornerHighToLow(returns[0].argument,node.params[0].name);
+    let returnArgument=null,returnCount=0;
+    for(const statement of node.body.body) {
+      if(statement.type!=='ReturnStatement')continue;
+      returnCount++;
+      returnArgument=statement.argument??null;
+    }
+    if(returnCount!==1||returnArgument===null)return;
+    const highToLow=recoverHornerHighToLow(returnArgument,node.params[0].name);
     if(!highToLow||highToLow.length<2)return;
     const coefficients=[...highToLow].reverse();
     if(isRivestPermutation(coefficients))polynomialFunctions.set(node.id.name,coefficients);
@@ -242,6 +255,7 @@ function runRecoveryMatrix(sampleCount=64) {
 function runRuntimeProfile() {
   const sample=makeSample('agent1-polynomial-runtime-profile');
   const candidate=compilePredicate(sample.source);
+  /** @type {(value:number)=>boolean} */
   const native=value=>(value|0)===sample.secret;
   const inputWords=hashWords('agent1-polynomial-runtime-inputs',4096);
   const inputs=new Int32Array(4096);
