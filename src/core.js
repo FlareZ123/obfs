@@ -564,6 +564,56 @@ function mutatesDecoderIntrinsic(ast) {
          (node.right.type==='FunctionExpression'||node.right.type==='ArrowFunctionExpression')) {
         recordLocalReturns(node.left.name,node.right);
       }
+      /** @param {string} name @param {string} key */
+      function addContainerField(name,key) {
+        let fields=containerSensitiveFields.get(name);
+        if(!fields) {
+          fields=new Set();
+          containerSensitiveFields.set(name,fields);
+        }
+        if(!fields.has(key)){fields.add(key);discovered=true;}
+      }
+      /**
+       * Collect finite statically visible object/array field paths into a
+       * per-binding may-carry set. Alias copies inherit every known path.
+       * @param {string} name
+       * @param {import('./ast').AstNode} expression
+       * @param {string} prefix
+       * @param {number} depth
+       */
+      function recordContainerFields(name,expression,prefix='',depth=0) {
+        if(depth>12)return;
+        if(expression.type==='Identifier') {
+          for(const key of containerSensitiveFields.get(expression.name)??[]) {
+            addContainerField(name,prefix?prefix+'.'+key:key);
+          }
+          return;
+        }
+        /** @type {{key:string,value:import('./ast').AstNode}[]} */
+        const entries=[];
+        if(expression.type==='ObjectExpression') {
+          for(const property of expression.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:
+              property.key.type==='Literal'&&typeof property.key.value==='number'?
+                String(property.key.value):staticString(property.key);
+            if(key!==null)entries.push({key,value:property.value});
+          }
+        } else if(expression.type==='ArrayExpression') {
+          for(let i=0;i<expression.elements.length;i++) {
+            const element=expression.elements[i];
+            if(element&&element.type!=='SpreadElement') {
+              entries.push({key:String(i),value:element});
+            }
+          }
+        }
+        for(const {key,value} of entries) {
+          const path=prefix?prefix+'.'+key:key;
+          if(sensitiveReturnValue(value))addContainerField(name,path);
+          recordContainerFields(name,value,path,depth+1);
+        }
+      }
       /**
        * A destructuring pattern can read Array.prototype's inherited
        * __proto__ getter, including with a computed unknown key. Preserve
@@ -627,6 +677,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordPossibleConstructorPattern(node.id,node.init);
         recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
+          recordContainerFields(node.id.name,node.init);
           if(node.init.type==='Identifier') {
             if(returnedSensitiveFunctions.has(node.init.name)) {
               add(returnedSensitiveFunctions,node.id.name);
@@ -679,6 +730,7 @@ function mutatesDecoderIntrinsic(ast) {
         recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
+        recordContainerFields(node.left.name,node.right);
         if(node.right.type==='Identifier') {
           if(returnedSensitiveFunctions.has(node.right.name)) {
             add(returnedSensitiveFunctions,node.left.name);
