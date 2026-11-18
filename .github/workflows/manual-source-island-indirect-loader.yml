@@ -56,7 +56,7 @@ jobs:
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node sims/default-browser-frame-source-observer.js --expect-red
+        run: node sims/default-browser-frame-source-observer.js --expect-guarded
       - name: Validate repository JSDoc types
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
