@@ -7,6 +7,7 @@ const path=require('node:path');
 const {obfuscateFiles}=require('../src');
 const {recoverCompact}=require('../sims/polyvariant-compact-static-recover');
 
+/** @type {ReadonlyArray<'round1'|'round2'|'round3'>} */
 const names=Object.freeze(['round1','round2','round3']);
 const original=fs.readFileSync(path.join(__dirname,
   '../examples/polyvariant-app/native/math.mjs'),'utf8');
