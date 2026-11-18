@@ -48,11 +48,13 @@ async function observe(work){
  * fields are intentionally outside this interface.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,batchSize:number,perObservationCalls:number,initializationExcluded:boolean,cpuScope:string,rows:Row[]}>}
+ * @param {boolean} [stability] Perform 51 longer 24,576-call paired trials of the selected 1,000-iteration operation only.
+ * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,batchSize:number,perObservationCalls:number,initializationExcluded:boolean,stability:boolean,cpuScope:string,rows:Row[]}>}
  */
-async function run(rounds=13){
+async function run(rounds=13,stability=false){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>100)
     throw new RangeError('Expected 9 to 100 paired batches');
+  if(typeof stability!=='boolean')throw new TypeError('Expected boolean stability selection');
   const oldWindow=globalThis.window;
   const originalFetch=globalThis.fetch;
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-batch-cpu-'));
@@ -140,10 +142,10 @@ async function run(rounds=13){
       await import(pathToFileURL(sourcePath).href));
     assert.equal(typeof published.batch,'function');
 
-    const batchSize=1024,totalCalls=12*batchSize;
+    const batchSize=1024,totalCalls=(stability?24:12)*batchSize;
     /** @type {Row[]} */
     const rows=[];
-    for(const iterationsPerCall of [1,1000]){
+    for(const iterationsPerCall of (stability?[1000]:[1,1000])){
       const seeds=[0x12345678,0xffffffff,0x9e3779b9];
       const cases=Array.from({length:totalCalls},(_,index)=>
         /** @type {readonly [number,number]} */ (
@@ -217,7 +219,7 @@ async function run(rounds=13){
     return {
       source:'sims/sco-batch-resident-cpu.js',platform:process.platform,
       node:process.version,batchSize,perObservationCalls:totalCalls,
-      initializationExcluded:true,
+      initializationExcluded:true,stability,
       cpuScope:'Whole-process CPU from direct native methods versus twelve actually authenticated, internally authorized JSON batches, each containing 1,024 original operations. Startup and import excluded. Raw JS object shape is outside JSON API.',
       rows
     };
@@ -234,11 +236,14 @@ async function run(rounds=13){
   }
 }
 
-if(require.main===module)run().then(report=>
+if(require.main===module){
+  const stability=process.argv.includes('--stability');
+  run(stability?51:13,stability).then(report=>
   process.stdout.write('SCO_BATCH_RESIDENT_CPU '+JSON.stringify(report)+'\n')
 ).catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
   process.exitCode=1;
-});
+  });
+}
 
 module.exports={run,observe};
