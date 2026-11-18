@@ -154,6 +154,99 @@ const bindingScopeCache=new WeakMap();
 const constantDeclaratorsCache=new WeakMap();
 
 /**
+ * Reuse root-independent proof facts across candidate owners in one immutable
+ * parsed AST. The per-owner fixed point, lexical gates, and edit decisions
+ * remain independently checked for every candidate.
+ * @type {WeakMap<AstNode,ReturnType<typeof collectProofInventory>>}
+ */
+const proofInventoryCache=new WeakMap();
+
+/**
+ * @param {AstNode} ast
+ * @returns {{
+ *   calls:Map<string,AstNode[]>, declarations:AstNode[],
+ *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
+ *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
+ *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
+ *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   aliasDeclarations:AstNode[], tupleDeclarations:Map<string,AstNode[]>,
+ *   recordDeclarations:Map<string,AstNode[]>
+ * }}
+ */
+function collectProofInventory(ast) {
+  const cached=proofInventoryCache.get(ast);
+  if(cached)return cached;
+  /** @type {Map<string,AstNode[]>} */
+  const calls=new Map();
+  /** @type {AstNode[]} */
+  const declarations=[];
+  /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]} */
+  const identifiers=[];
+  /** @type {Map<string,typeof identifiers>} */
+  const identifierUses=new Map();
+  /** @type {WeakMap<AstNode,AstNode>} */
+  const parents=new WeakMap();
+  /** @type {AstNode[]} */
+  const functionDeclarations=[];
+  /** @type {AstNode[]} */
+  const callableDeclarators=[];
+  let dynamicScope=false;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(parent)parents.set(node,parent);
+    if(node.type==='WithStatement' ||
+       node.type==='CallExpression'&&node.callee.type==='Identifier'&&node.callee.name==='eval')
+      dynamicScope=true;
+    if(node.type==='Identifier'){
+      const entry={node,parent,key,ancestors,order:identifiers.length};
+      identifiers.push(entry);
+      const uses=identifierUses.get(node.name)??[];
+      uses.push(entry);
+      identifierUses.set(node.name,uses);
+    }
+    if(node.type==='VariableDeclaration'&&['const','let'].includes(node.kind))
+      declarations.push(...node.declarations);
+    if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier')
+      functionDeclarations.push(node);
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+       parent?.type==='VariableDeclaration'&&parent.kind==='const'&&node.init&&
+       ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+      callableDeclarators.push(node);
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'){
+      const sites=calls.get(node.callee.name)??[];
+      sites.push(node);
+      calls.set(node.callee.name,sites);
+    }
+  });
+  const aliasDeclarations=declarations.filter(node=>node.init&&
+    ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
+  /** @type {Map<string,AstNode[]>} */
+  const tupleDeclarations=new Map();
+  /** @type {Map<string,AstNode[]>} */
+  const recordDeclarations=new Map();
+  for(const node of declarations){
+    const init=node.init;
+    if(!init)continue;
+    /** @type {Map<string,AstNode[]>|null} */
+    const target=init.type==='ArrayExpression'?tupleDeclarations:
+      init.type==='ObjectExpression'?recordDeclarations:null;
+    if(!target)continue;
+    const values=init.type==='ArrayExpression'?init.elements:
+      init.properties.map((/** @type {AstNode} */ property)=>property.value);
+    const names=new Set(values.filter((/** @type {AstNode|null} */ value)=>
+      value?.type==='Identifier').map((/** @type {AstNode} */ value)=>value.name));
+    for(const name of names){
+      const list=target.get(name)??[];
+      list.push(node);
+      target.set(name,list);
+    }
+  }
+  const inventory={calls,declarations,identifiers,identifierUses,parents,dynamicScope,
+    functionDeclarations,callableDeclarators,aliasDeclarations,tupleDeclarations,recordDeclarations};
+  proofInventoryCache.set(ast,inventory);
+  return inventory;
+}
+
+/**
  * Each simple binding's visible lexical region. A unique name alone cannot
  * prove that a same-spelled free reference outside the region is the binding.
  * Derived from Agent 2's lexical-containment counterexample and implementation.
@@ -255,27 +348,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
-  /** @type {Map<string,AstNode[]>} */
-  const calls = new Map();
-  /** @type {AstNode[]} */
-  const declarations = [];
-  /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
-  const identifiers = [];
-  /** @type {WeakMap<AstNode,AstNode>} */
-  const parents = new WeakMap();
-  let dynamicScope = false;
-
-  walk(ast, (node, parent, key, ancestors) => {
-    if (parent) parents.set(node,parent);
-    if (node.type === 'WithStatement' ||
-        (node.type === 'CallExpression' && node.callee.type === 'Identifier' && node.callee.name === 'eval')) dynamicScope = true;
-    if (node.type === 'Identifier') identifiers.push({node,parent,key,ancestors});
-    // A let alias is renameable when every later use remains an ownership-
-    // preserving read. The identifier-use proof below rejects any reassignment,
-    // destructuring write, escape, or dynamic-scope access.
-    if (node.type === 'VariableDeclaration' && (node.kind === 'const' || node.kind === 'let')) {
-      declarations.push(...node.declarations);
-    }
+  const {calls,declarations,identifiers,identifierUses,parents,dynamicScope,
+    functionDeclarations,callableDeclarators,aliasDeclarations,
+    tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
+  for(const node of functionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
@@ -290,6 +366,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       }
       functions.set(node.id.name,{node,params:node.params,forwardIndex,returnsRoot});
     }
+  }
+  for(const node of callableDeclarators){
+    const parent=parents.get(node);
     // Immutable local forwarding expressions return one plain parameter,
     // or a captured immutable root through a zero-argument getter.
     // The use proof rejects exported getters, callback escape, reflection,
@@ -345,13 +424,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         }
       }
     }
-    if (node.type === 'CallExpression' && node.callee.type === 'Identifier') {
-      const key = node.callee.name;
-      const sites=calls.get(key)??[];
-      sites.push(node);
-      calls.set(key,sites);
-    }
-  });
+  }
   if (dynamicScope) return null;
   // A cross-module signature is admitted only after the module graph has
   // proved the imported function is a stable, pure one-parameter identity.
@@ -382,18 +455,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   // constructing the tuple cannot invoke code that observes the owner.
   // Every holder use must read that same slot into a local binding. Unknown
   // indexes, mutation, reflection and all holder escapes retain original keys.
-  /** @type {Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]>} */
-  const holderIdentifierUses=new Map();
-  for(const entry of identifiers){
-    const group=holderIdentifierUses.get(entry.node.name)??[];
-    group.push(entry);
-    holderIdentifierUses.set(entry.node.name,group);
-  }
+  const holderIdentifierUses=identifierUses;
+  const declarationSet=new Set(declarations);
   /** @type {Map<string,{index:number}>} */
   const privateOwnerTuples=new Map();
   /** @type {Set<AstNode>} */
   const privateArrayLiteralElements=new Set();
-  for(const decl of declarations){
+  for(const decl of tupleDeclarations.get(rootName)??[]){
     if(decl.id.type!=='Identifier'||decl.id.name===rootName||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
@@ -424,7 +492,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
          receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
-         !declarations.includes(receiver)){
+         !declarationSet.has(receiver)){
         valid=false;
         break;
       }
@@ -442,7 +510,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const privateOwnerRecords=new Map();
   /** @type {Set<AstNode>} */
   const privateRecordLiteralValues=new Set();
-  for(const decl of declarations){
+  for(const decl of recordDeclarations.get(rootName)??[]){
     if(decl.id.type!=='Identifier'||decl.id.name===rootName||
        parents.get(decl)?.type!=='VariableDeclaration'||
        parents.get(decl)?.kind!=='const'||
@@ -498,7 +566,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(!ancestors.includes(scope)||!read||
          receiver?.type!=='VariableDeclarator'||receiver.init!==parent||
          receiver.id.type!=='Identifier'||bindings.get(receiver.id.name)!==1||
-         !declarations.includes(receiver)){
+         !declarationSet.has(receiver)){
         safe=false;
         break;
       }
@@ -510,8 +578,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   }
   /** @type {Set<string>} */
   const unusableFunctions = new Set();
-  for (const {node,parent,key,ancestors} of identifiers) {
-    if (!functions.has(node.name)) continue;
+  for (const name of functions.keys()) for (const {node,parent,key,ancestors} of identifierUses.get(name)??[]) {
     const scope=scopes.get(node.name);
     if (!scope || !ancestors.includes(scope)) {
       unusableFunctions.add(node.name);
@@ -558,7 +625,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   let changed;
   do {
     changed = false;
-    for (const decl of declarations) {
+    for (const decl of aliasDeclarations) {
       if (decl.id.type === 'Identifier' && bindings.get(decl.id.name) === 1 &&
           !aliases.has(decl.id.name) && resolves(decl.init)) {
         aliases.add(decl.id.name);
@@ -601,8 +668,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const patterns = [];
   /** @type {AstNode[]} */
   const inChecks = [];
-  for (const {node,parent,key,ancestors} of identifiers) {
-    if (!aliases.has(node.name)) continue;
+  const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
+  aliasUses.sort((a,b)=>a.order-b.order);
+  for (const {node,parent,key,ancestors} of aliasUses) {
     // An ESTree Identifier used as a noncomputed property name is a grammar
     // token rather than a reference to the same-spelled lexical binding.
     // A forwarded parameter called "value" must not be confused with
@@ -684,12 +752,12 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     return null;
   }
   // `arguments[0]` aliases parameters invisibly to name-based reference analysis.
-  if (identifiers.some(({node}) => node.name === 'arguments') &&
+  if (identifierUses.has('arguments') &&
       [...functions.values()].some(fn => fn.params.some((/** @type {AstNode} */ p) => p.type === 'Identifier' && aliases.has(p.name)))) return null;
   // A forwarded object must be consumed by a tracked const alias or discarded.
-  for (const {node,parent,key} of identifiers) {
-    if (parent?.type !== 'CallExpression' || key !== 'callee') continue;
-    const fn = functions.get(node.name);
+  for (const [name] of functions) for (const parent of calls.get(name)??[]) {
+    const node=parent.callee;
+    const fn = functions.get(name);
     if(!fn) continue;
     if (!fn.returnsRoot &&
         (fn.forwardIndex < 0 || !resolves(parent.arguments[fn.forwardIndex]))) continue;
