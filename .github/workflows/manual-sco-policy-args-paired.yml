@@ -2,6 +2,17 @@ name: Manual SCO ordinary policy argument isolation paired cost
 
 on:
   workflow_dispatch:
+    inputs:
+      old_ref:
+        description: Pinned original source commit
+        required: false
+        type: string
+        default: 51b64ee3b5516e8d70dd5f16eafdbb1da398c243
+      fixed_ref:
+        description: Pinned repaired source commit
+        required: false
+        type: string
+        default: c66f47bcb61893374bb76ab7db510fee935ddf8b
 
 permissions:
   contents: read
@@ -20,11 +31,11 @@ jobs:
           path: harness
       - uses: actions/checkout@v4
         with:
-          ref: 51b64ee3b5516e8d70dd5f16eafdbb1da398c243
+          ref: ${{ inputs.old_ref }}
           path: old
       - uses: actions/checkout@v4
         with:
-          ref: c66f47bcb61893374bb76ab7db510fee935ddf8b
+          ref: ${{ inputs.fixed_ref }}
           path: fixed
       - uses: actions/setup-node@v4
         with:
