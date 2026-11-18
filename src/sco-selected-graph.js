@@ -164,7 +164,11 @@ function assertImmutablePrivateModuleTopLevels(sources){
  * @returns {ScoSelectedGraph}
  */
 function partitionScoSelectedGraph(units){
-  if(!Array.isArray(units)||units.length===0){
+  if(!Array.isArray(units)){
+    throw new TypeError('Selected SCO graph requires at least one module');
+  }
+  const unitCount=units.length;
+  if(unitCount===0){
     throw new TypeError('Selected SCO graph requires at least one module');
   }
   /** @type {Record<string,ScoSelectivePartition>} */
@@ -202,7 +206,10 @@ function partitionScoSelectedGraph(units){
     return normalized;
   }
 
-  for(const unit of units){
+  // Iterate the reviewed indexed inventory, not caller-supplied iterators
+  // that can substitute or add an unapproved public facade.
+  for(let index=0;index<unitCount;index++){
+    const unit=units[index];
     const suppliedFile=unit?.file;
     if(!suppliedFile||typeof suppliedFile!=='object'){
       throw new TypeError('Selected SCO graph needs explicit source units');
