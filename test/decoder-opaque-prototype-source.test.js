@@ -48,7 +48,19 @@ const unsafe=[
   ['object literal with String prototype',
     "const P=Object.getPrototypeOf({__proto__:String.prototype});P.charCodeAt=()=>0;"],
   ['opaque Array return and iterator',
-    "function owner(){return []}const P=Object.getPrototypeOf(owner());P[Symbol.iterator]=function*(){yield 0;};"]
+    "function owner(){return []}const P=Object.getPrototypeOf(owner());P[Symbol.iterator]=function*(){yield 0;};"],
+  ['opaque String prototype through Reflect.defineProperty',
+    "function owner(){return new String('u')}const P=Reflect.getPrototypeOf(owner());Reflect.defineProperty(P,'charCodeAt',{value:()=>0,configurable:true});"],
+  ['transitive opaque prototype alias',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const Q=P;Q.charCodeAt=()=>0;"],
+  ['opaque prototype through Object.assign',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());Object.assign(P,{charCodeAt:()=>0});"],
+  ['opaque String constructor alias',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=P.constructor;C.fromCharCode=()=>'?';"],
+  ['opaque String prototype legacy setter',
+    "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());P.__defineGetter__('charCodeAt',()=>()=>0);"],
+  ['opaque Array iterator through Reflect.set',
+    "function owner(){return []}const P=Object.getPrototypeOf(owner());Reflect.set(P,Symbol.iterator,function*(){yield 0;});"]
 ];
 
 for(const [name,mutator] of unsafe) {
