@@ -196,7 +196,7 @@ async function run(rounds=13){
     // surrounding stateful session and JSON work in the main application.
     /** @type {ResidentRow[]} */
     const leafRows=[];
-    for(const repeat of [8000000,16000000]){
+    for(const repeat of [40000000,80000000]){
       const base=/** @type {Request} */ ({
         id:0,seed:0x4137109d,records:[],mode:'leaves',repeat
       });
