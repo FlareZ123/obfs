@@ -50,6 +50,9 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * @property {import('./reviewed-assets').ReviewedOpaqueAsset[]} [reviewedOpaqueAssets] Exact reviewed path+digest manifest for all opaque public assets; caller must approve bytes independently.
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
+ * @property {string[]} [requireBatchPreflight] Exact remote method names whose
+ *   automatic inner authorization preflight is security-required. Each name
+ *   must resolve directly to a createScoBatchMethod helper at construction.
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
@@ -351,6 +354,7 @@ function createScoHandler(sourceFiles,options={}) {
   const authorizeRpc=options.authorizeRpc;
   const authorizeRead=options.authorizeRead;
   const authorizeOperation=options.authorizeOperation;
+  const suppliedBatchPreflight=options.requireBatchPreflight;
   const runRpcIsolated=options.runRpcIsolated;
   const maxRpcBytes=options.maxRpcBytes;
   const closedWorld=options.closedWorld;
@@ -375,6 +379,29 @@ function createScoHandler(sourceFiles,options={}) {
   }
   if (authorizeOperation !== undefined && typeof authorizeOperation!=='function') {
     throw new TypeError('authorizeOperation must be a function');
+  }
+  if(suppliedBatchPreflight!==undefined){
+    if(!Array.isArray(suppliedBatchPreflight)){
+      throw new TypeError('requireBatchPreflight must be an array');
+    }
+    const required=snapshotMetadataEntries(suppliedBatchPreflight);
+    if(required.length&&typeof authorizeOperation!=='function'){
+      throw new TypeError('requireBatchPreflight requires authorizeOperation');
+    }
+    const seen=new Set();
+    for(const name of required){
+      if(typeof name!=='string'||name.length===0){
+        throw new TypeError('requireBatchPreflight must contain nonempty strings');
+      }
+      if(seen.has(name)){
+        throw new TypeError('Duplicate requireBatchPreflight method: '+name);
+      }
+      seen.add(name);
+      const task=remoteMethods&&Object.hasOwn(remoteMethods,name)?remoteMethods[name]:undefined;
+      if(typeof task!=='function'||getScoBatchCalls(task,[])===null){
+        throw new TypeError('requireBatchPreflight method must be a direct createScoBatchMethod helper: '+name);
+      }
+    }
   }
   if (runRpcIsolated !== undefined && typeof runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');

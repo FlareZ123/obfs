@@ -20,6 +20,7 @@
     "sims/sco-utf8-admission-profile.js",
     "sims/sco-batch-json-parse-cost.js",
     "sims/sco-batch-wrapper-preflight-attack.js",
+    "test/sco-batch-required-preflight.test.js",
     "sims/jsdeobsbench-adapter.js",
     "sims/jsdeobsbench-audit.js",
     "sims/jsdeobsbench-coverage.js",
