@@ -109,7 +109,7 @@ async function compareStatefulMinifier(recordCount=12288){
     esbuildVersion:esbuild.version};
 }
 
-module.exports={compareStatefulMinifier};
+module.exports={compareStatefulMinifier,recordsFor};
 
 if(require.main===module){
   compareStatefulMinifier().then(receipt=>console.log('STATEFUL_ARX_CONTROL '+JSON.stringify(receipt)))
