@@ -18,7 +18,26 @@ const graph=[
 /** @type {Array<{name:string,files:Source[]}>} */
 const variants=[
   {name:'original-three',files:graph},
-  {name:'private-only',files:graph.slice(0,1)},
+  {name:'wrapped-private-only',files:[{
+    path:'private.mjs',sourceType:'module',code:
+      graph[0].code.replace('export function compute(payload)','function compute(payload)')+
+      'export function invoke(payload){return compute(payload);}'
+  }]},
+  {name:'wrapped-three',files:[
+    {path:'private.mjs',sourceType:'module',code:
+      graph[0].code.replace('export function compute(payload)','function compute(payload)')+
+      'export function invoke(payload){return compute(payload);}'},
+    graph[1],
+    {...graph[2],code:graph[2].code.replace('{compute}','{invoke}').replace('result:compute(39)','result:invoke(39)')}
+  ]},
+  {name:'wrapped-two-dom',files:[
+    {path:'private.mjs',sourceType:'module',code:
+      'function compute(payload){const owner={payload,bias:3};return owner.payload+owner.bias;}' +
+      'export function invoke(payload){return compute(payload);}'},
+    {path:'entry.mjs',sourceType:'module',code:
+      'import {invoke} from "./private.mjs";document.getElementById("answer").textContent=invoke(39);'}
+  ]},
+    {name:'private-only',files:graph.slice(0,1)},
   {name:'without-host-setup',files:[graph[0],graph[2]]},
   {name:'host-setup-only',files:[graph[0],graph[1]]},
   {name:'original-three-direct-local-call',files:[
