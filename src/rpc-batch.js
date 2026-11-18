@@ -19,7 +19,11 @@ const recognizedBatches=new WeakMap();
  * nor their private exceptions are shipped to clients.
  *
  * @param {Record<string,(...args:any[])=>unknown|Promise<unknown>>} methods
- * @param {{maxCalls?:number}} [options]
+ * @param {{maxCalls?:number,yieldEvery?:number}} [options]
+ * `yieldEvery` is explicit Node-server cooperative scheduling. It yields the
+ * event loop between contiguous chunks of a single ordered batch. Enabling
+ * it can change the interleaving of concurrent requests and must be admitted
+ * only for APIs that allow that external scheduling difference.
  * @returns {(calls:RpcBatchCall[])=>Promise<RpcBatchResult[]>}
  */
 function createScoBatchMethod(methods,options={}) {
@@ -30,6 +34,9 @@ function createScoBatchMethod(methods,options={}) {
   if (!Number.isSafeInteger(maxCalls) || maxCalls<1 || maxCalls>1024) {
     throw new TypeError('maxCalls must be a positive integer up to 1024');
   }
+  const yieldEvery=options.yieldEvery??0;
+  if(!Number.isSafeInteger(yieldEvery)||yieldEvery<0||yieldEvery>1024)
+    throw new TypeError('yieldEvery must be zero or a positive integer up to 1024');
   /** @type {Map<string,(...args:any[])=>unknown|Promise<unknown>>} */
   const registry=new Map();
   for(const [name,task] of Object.entries(methods)) {
@@ -52,7 +59,8 @@ function createScoBatchMethod(methods,options={}) {
     }
     /** @type {RpcBatchResult[]} */
     const results=[];
-    for(const call of calls) {
+    for(let index=0;index<calls.length;index++) {
+      const call=calls[index];
       try {
         const task=registry.get(call.method);
         if (!task) throw new TypeError('Unknown batch method');
@@ -61,6 +69,11 @@ function createScoBatchMethod(methods,options={}) {
       } catch (error) {
         results.push({ok:false,error:'Operation failed'});
       }
+      // One explicit Node turn lets a competing authorized account's HTTP
+      // request enter the server while the current long private batch runs.
+      // Per-batch item ordering and the unchanged default remain intact.
+      if(yieldEvery>0&&(index+1)%yieldEvery===0&&index+1<calls.length)
+        await new Promise(resolve=>setImmediate(resolve));
     }
     return results;
   };
