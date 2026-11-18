@@ -48,10 +48,12 @@ function mayAppearInFailedOperand(node,ancestors) {
        outer.type==='TaggedTemplateExpression' && outer.tag===expression ||
        outer.type==='SpreadElement' && outer.argument===expression ||
        outer.type==='ForOfStatement' && outer.right===expression ||
+       outer.type==='AssignmentPattern' && outer.right===expression &&
+         ['ArrayPattern','ObjectPattern'].includes(outer.left.type) ||
        outer.type==='VariableDeclarator' && outer.init===expression &&
-         outer.id.type==='ArrayPattern' ||
+         ['ArrayPattern','ObjectPattern'].includes(outer.id.type) ||
        outer.type==='AssignmentExpression' && outer.right===expression &&
-         outer.left.type==='ArrayPattern' ||
+         ['ArrayPattern','ObjectPattern'].includes(outer.left.type) ||
        outer.type==='YieldExpression' && outer.delegate &&
          outer.argument===expression) return true;
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(outer.type))break;
