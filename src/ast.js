@@ -1455,6 +1455,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // shadowed declarations or dynamic scope must remain unproved.
   /** @type {Map<string,number>} */
   const bindingCounts=new Map();
+  const bindingNodes=new Set();
   /** @type {Map<string,AstNode>} */
   const primitiveCandidates=new Map();
   /** @type {Map<string,number>} */
@@ -1463,6 +1464,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function recordPattern(pattern) {
     if(!pattern)return;
     if(pattern.type==='Identifier') {
+      bindingNodes.add(pattern);
       bindingCounts.set(pattern.name,(bindingCounts.get(pattern.name)??0)+1);
     } else if(pattern.type==='RestElement'||pattern.type==='AssignmentPattern') {
       recordPattern(pattern.argument??pattern.left);
@@ -1697,12 +1699,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const reflectiveBulkReaders=new Set();
   const reflectiveApplyMethods=new Set();
   const reflectiveConstructMethods=new Set();
+  const reflectGetReceivers=new Set(['Reflect']);
+  const reflectGetMethods=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
     return Boolean(expression && (expression.type==='Identifier' &&
       reflectiveReceivers.has(expression.name) ||
       expression.type==='MemberExpression' && isGlobal(expression.object) &&
       ['Reflect','Object'].includes(memberName(expression)??'')));
+  }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isReflectGetReceiver(expression) {
+    return Boolean(expression && (
+      expression.type==='Identifier' && reflectGetReceivers.has(expression.name) ||
+      expression.type==='MemberExpression' && isGlobal(expression.object) &&
+        memberName(expression)==='Reflect'
+    ));
+  }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isReflectGetMethod(expression) {
+    return Boolean(expression && (
+      expression.type==='Identifier' && reflectGetMethods.has(expression.name) ||
+      expression.type==='MemberExpression' && isReflectGetReceiver(expression.object) &&
+        (expression.computed?sourceStringKey(expression.property):memberName(expression))==='get'
+    ));
   }
   let reflectiveChanged;
   do {
@@ -1719,6 +1739,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const name=pattern.name;
         if(isReflectiveReceiver(value) && !reflectiveReceivers.has(name)) {
           reflectiveReceivers.add(name);
+          reflectiveChanged=true;
+        }
+        if(isReflectGetReceiver(value) && !reflectGetReceivers.has(name)) {
+          reflectGetReceivers.add(name);
+          reflectiveChanged=true;
+        }
+        if(value.type==='Identifier' && reflectGetMethods.has(value.name) &&
+           !reflectGetMethods.has(name)) {
+          reflectGetMethods.add(name);
           reflectiveChanged=true;
         }
         if(value.type==='Identifier' && reflectiveApplyMethods.has(value.name) &&
@@ -1766,6 +1795,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             reflectiveReaders.add(name);
             reflectiveChanged=true;
           }
+          if(isReflectGetReceiver(value.object) && method==='get' &&
+             !reflectGetMethods.has(name)) {
+            reflectGetMethods.add(name);
+            reflectiveChanged=true;
+          }
           if(method==='getOwnPropertyDescriptors'&&!reflectiveBulkReaders.has(name)) {
             reflectiveBulkReaders.add(name);
             reflectiveChanged=true;
@@ -1789,6 +1823,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
              !reflectiveReaders.has(property.value.name)) {
             reflectiveReaders.add(property.value.name);
+            reflectiveChanged=true;
+          }
+          if(isReflectGetReceiver(value) && method==='get' &&
+             !reflectGetMethods.has(property.value.name)) {
+            reflectGetMethods.add(property.value.name);
             reflectiveChanged=true;
           }
           if((method===null || method==='getOwnPropertyDescriptors') &&
@@ -1883,12 +1922,283 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Node warning calls capture caller positions under --trace-warnings.
   // Native process.emitWarning remains callable after local extraction/binding.
   const warningMethodAliases=new Set();
+  const processModuleNamespaces=new Set();
+  const processBindingNodes=new Set();
+  // Node diagnostic reports embed the live JavaScript call stack. Reading a
+  // report object or writing one to disk therefore exposes generated source
+  // coordinates even without a syntactic .stack access.
+  const processReportNamespaces=new Set();
+  const processReportBindingNodes=new Set();
+  const processReportMethods=new Set();
+  /** @type {Map<string,string>} */
+  const processReportMutators=new Map();
+  const processParameterScopes=new Set();
+  const shadowedProcessIdentifiers=new Set();
+  /** @param {AstNode|null|undefined} pattern @returns {boolean} */
+  function patternContainsProcess(pattern) {
+    if(!pattern)return false;
+    if(pattern.type==='Identifier')return pattern.name==='process';
+    if(pattern.type==='RestElement'||pattern.type==='AssignmentPattern')
+      return patternContainsProcess(pattern.argument??pattern.left);
+    if(pattern.type==='ArrayPattern')
+      return pattern.elements.some((/** @type {AstNode|null} */ value)=>
+        patternContainsProcess(value));
+    if(pattern.type==='ObjectPattern')
+      return pattern.properties.some((/** @type {AstNode} */ property)=>
+        patternContainsProcess(property.type==='RestElement'?
+          property.argument:property.value));
+    return false;
+  }
+  walk(ast,node=>{
+    if((node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+        node.type==='ArrowFunctionExpression') &&
+       node.params.some((/** @type {AstNode} */ param)=>patternContainsProcess(param)))
+      processParameterScopes.add(node);
+  });
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='Identifier'&&node.name==='process'&&!bindingNodes.has(node)&&
+       ancestors.some(ancestor=>processParameterScopes.has(ancestor)))
+      shadowedProcessIdentifiers.add(node);
+  });
+  const processReportTriggers=new Set([
+    'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
+  ]);
+  /** @param {AstNode} property @returns {boolean} */
+  function processReportPropertyMayEnable(property) {
+    if(property.type!=='Property')return true;
+    const name=property.computed?staticString(property.key):
+      property.key.type==='Identifier'?property.key.name:staticString(property.key);
+    return processReportTriggers.has(name??'');
+  }
+  /** @param {AstNode|null|undefined} source @returns {boolean} */
+  function processReportAssignmentSourceMayEnable(source) {
+    return !source||source.type!=='ObjectExpression' ||
+      /** @type {AstNode[]} */ (source.properties).some(processReportPropertyMayEnable);
+  }
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration' ||
+       !['process','node:process'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type)) {
+        processModuleNamespaces.add(spec.local.name);
+        processBindingNodes.add(spec.local);
+      }
+      if(spec.type==='ImportSpecifier' &&
+         String(spec.imported.name??spec.imported.value)==='report') {
+        processReportNamespaces.add(spec.local.name);
+        processReportBindingNodes.add(spec.local);
+      }
+    }
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessModuleRequire(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require' &&
+      node.arguments.length===1 &&
+      ['process','node:process'].includes(staticString(node.arguments[0])??''));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReceiver(node) {
-    return Boolean(node && (node.type==='Identifier'&&node.name==='process'||
+    return Boolean(node && (
+      node.type==='Identifier'&&
+        (node.name==='process'&&!shadowedProcessIdentifiers.has(node) ||
+         processModuleNamespaces.has(node.name)) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
-        memberName(node)==='process'));
+        (node.computed?sourceStringKey(node.property):memberName(node))==='process' ||
+      node.type==='CallExpression'&&isReflectGetMethod(node.callee)&&
+        isGlobal(node.arguments[0])&&sourceStringKey(node.arguments[1])==='process' ||
+      isProcessModuleRequire(node)
+    ));
   }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessReportNamespace(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      processReportNamespaces.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='report'&&
+        isProcessReceiver(node.object) ||
+      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+        isReflectiveReceiver(node.callee.object)&&
+        memberName(node.callee)==='get'&&node.arguments.length>1&&
+        isProcessReceiver(node.arguments[0])&&
+        staticString(node.arguments[1])==='report'));
+  }
+  /** @param {AstNode} node @returns {AstNode} */
+  function unwrapAssignmentPattern(node) {
+    return node.type==='AssignmentPattern'?node.left:node;
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isProcessReportMethod(node,depth=0) {
+    if(!node||depth>16)return false;
+    if(node.type==='Identifier')return processReportMethods.has(node.name);
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(['getReport','writeReport'].includes(name??'')&&
+         isProcessReportNamespace(node.object))return true;
+      if(['call','apply'].includes(name??''))
+        return isProcessReportMethod(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      if(memberName(node.callee)==='bind')
+        return isProcessReportMethod(node.callee.object,depth+1);
+      if(isReflectiveReceiver(node.callee.object)&&
+         memberName(node.callee)==='get'&&node.arguments.length>1&&
+         isProcessReportNamespace(node.arguments[0])&&
+         ['getReport','writeReport'].includes(staticString(node.arguments[1])??''))
+        return true;
+    }
+    return false;
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {string|null} */
+  function processReportMutator(node,depth=0) {
+    if(!node||depth>16)return null;
+    if(node.type==='Identifier')return processReportMutators.get(node.name)??null;
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(['set','assign'].includes(name??'')&&isReflectiveReceiver(node.object))
+        return name;
+      if(['call','apply'].includes(name??''))
+        return processReportMutator(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return processReportMutator(node.callee.object,depth+1);
+    return null;
+  }
+  /**
+   * @param {AstNode} node
+   * @returns {{method:string,args:(AstNode|null)[]}|null}
+   */
+  function processReportMutatorInvocation(node) {
+    if(node.type!=='CallExpression')return null;
+    if(isReflectApplyMethod(node.callee)) {
+      const method=processReportMutator(node.arguments[0]);
+      if(!method)return null;
+      const list=node.arguments[2];
+      return {method,args:list?.type==='ArrayExpression'?list.elements:[null]};
+    }
+    const method=processReportMutator(node.callee);
+    if(!method)return null;
+    if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='call')
+      return {method,args:node.arguments.slice(1)};
+    if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='apply') {
+      const list=node.arguments[1];
+      return {method,args:list?.type==='ArrayExpression'?list.elements:[null]};
+    }
+    return {method,args:node.arguments};
+  }
+  let changedProcessReportAliases;
+  do {
+    changedProcessReportAliases=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!id||!value)return;
+      if(id.type==='Identifier'&&isProcessReceiver(value)) {
+        processBindingNodes.add(id);
+        if(!processModuleNamespaces.has(id.name)) {
+          processModuleNamespaces.add(id.name);
+          changedProcessReportAliases=true;
+        }
+      }
+      if(id.type==='ObjectPattern'&&isGlobal(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name!=='process')continue;
+          const processBinding=unwrapAssignmentPattern(property.value);
+          if(processBinding.type==='Identifier') {
+            processBindingNodes.add(processBinding);
+            if(!processModuleNamespaces.has(processBinding.name)) {
+              processModuleNamespaces.add(processBinding.name);
+              changedProcessReportAliases=true;
+            }
+          }
+        }
+      }
+      if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name!=='report')continue;
+          const reportBinding=unwrapAssignmentPattern(property.value);
+          if(reportBinding.type==='Identifier') {
+            processReportBindingNodes.add(reportBinding);
+            if(!processReportNamespaces.has(reportBinding.name)) {
+              processReportNamespaces.add(reportBinding.name);
+              changedProcessReportAliases=true;
+            }
+          }
+          if(reportBinding.type==='ObjectPattern') {
+            for(const methodProperty of reportBinding.properties) {
+              if(methodProperty.type!=='Property')continue;
+              const methodBinding=unwrapAssignmentPattern(methodProperty.value);
+              if(methodBinding.type!=='Identifier')continue;
+              const method=methodProperty.computed?staticString(methodProperty.key):
+                methodProperty.key.type==='Identifier'?methodProperty.key.name:
+                  staticString(methodProperty.key);
+              if(['getReport','writeReport'].includes(method??'') &&
+                 !processReportMethods.has(methodBinding.name)) {
+                processReportMethods.add(methodBinding.name);
+                changedProcessReportAliases=true;
+              }
+            }
+          }
+        }
+        return;
+      }
+      if(id.type==='ObjectPattern'&&isProcessReportNamespace(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const methodBinding=unwrapAssignmentPattern(property.value);
+          if(methodBinding.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(['getReport','writeReport'].includes(name??'')&&
+             !processReportMethods.has(methodBinding.name)) {
+            processReportMethods.add(methodBinding.name);
+            changedProcessReportAliases=true;
+          }
+        }
+        return;
+      }
+      if(id.type==='ObjectPattern'&&isReflectiveReceiver(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const binding=unwrapAssignmentPattern(property.value);
+          if(binding.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(['set','assign'].includes(name??'')&&
+             processReportMutators.get(binding.name)!==name) {
+            processReportMutators.set(binding.name,name);
+            changedProcessReportAliases=true;
+          }
+        }
+        return;
+      }
+      if(id.type!=='Identifier')return;
+      if(isProcessReportNamespace(value)) {
+        processReportBindingNodes.add(id);
+        if(!processReportNamespaces.has(id.name)) {
+          processReportNamespaces.add(id.name);
+          changedProcessReportAliases=true;
+        }
+      }
+      if(isProcessReportMethod(value)&&!processReportMethods.has(id.name)) {
+        processReportMethods.add(id.name);
+        changedProcessReportAliases=true;
+      }
+      const mutator=processReportMutator(value);
+      if(mutator&&processReportMutators.get(id.name)!==mutator) {
+        processReportMutators.set(id.name,mutator);
+        changedProcessReportAliases=true;
+      }
+    });
+  }while(changedProcessReportAliases);
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function isWarningMethod(node,depth=0) {
     if(!node||depth>16)return false;
@@ -2159,6 +2469,29 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   walk(ast,(node,parent,key)=>{
+    // Keep precise local aliases and direct member access analyzable, while
+    // refusing opaque process/report capability escapes that can reach getReport later.
+    const directMember=parent?.type==='MemberExpression'&&key==='object';
+    const staticKey=node.type==='Identifier'&&parent&&
+      (parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
+       parent.type==='Property'&&key==='key'&&!parent.computed);
+    const localAlias=parent?.type==='VariableDeclarator'&&key==='init'&&
+      ['Identifier','ObjectPattern'].includes(parent.id.type);
+    const assignedAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
+      ['Identifier','ObjectPattern'].includes(parent.left.type);
+    const benignProcessEnvironmentRead=parent?.type==='CallExpression'&&
+      parent.arguments[0]===node&&parent.arguments[1]&&
+      staticString(parent.arguments[1])==='env'&&
+      (parent.callee.type==='Identifier'&&reflectiveReaders.has(parent.callee.name) ||
+       parent.callee.type==='MemberExpression'&&
+         isReflectiveReceiver(parent.callee.object)&&
+         ['get','getOwnPropertyDescriptor'].includes(memberName(parent.callee)??''));
+    if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
+       !bindingNodes.has(node)&&!benignProcessEnvironmentRead&&
+       !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
+    if(isProcessReportNamespace(node)&&parent&&
+       !processReportBindingNodes.has(node)&&
+       !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
     // callback receives line/column arguments directly; ErrorEvent listeners
@@ -2181,6 +2514,56 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+    if(node.type==='MemberExpression'&&isProcessReceiver(node.object)&&
+       memberName(node)===null)observed=true;
+    if(node.type==='MemberExpression'&&
+       isProcessReportNamespace(node.object)&&memberName(node)===null)
+      observed=true;
+    // Acquiring a live reporting method can move it through arbitrary user
+    // containers before invocation. Preserve source at capability acquisition.
+    if(isProcessReportMethod(node))observed=true;
+    // Object rest/spread can copy Node's enumerable getReport/writeReport
+    // methods into an ordinary object, preserving their reporting capability.
+    const reportCopyPattern=node.type==='VariableDeclarator'?
+      {pattern:node.id,value:node.init}:
+      node.type==='AssignmentExpression'?
+        {pattern:node.left,value:node.right}:null;
+    if(reportCopyPattern?.pattern.type==='ObjectPattern'&&
+       isProcessReportNamespace(reportCopyPattern.value)&&
+       reportCopyPattern.pattern.properties.some(
+         (/** @type {AstNode} */ property)=>property.type==='RestElement'))
+      observed=true;
+    if(node.type==='ObjectExpression'&&
+       node.properties.some((/** @type {AstNode} */ property)=>
+         property.type==='SpreadElement'&&
+         isProcessReportNamespace(property.argument)))observed=true;
+    // Legacy accessor reflection can recover Node's native automatic-report
+    // setter. Merely exposing that capability is enough to make later source
+    // coordinates observable through a generated report.
+    if(node.type==='MemberExpression'&&
+       isProcessReportNamespace(node.object)&&
+       memberName(node)==='__lookupSetter__')observed=true;
+    // Programmatic diagnostic-report triggers can emit a later JavaScript
+    // stack without any explicit getReport()/writeReport() call. Conservatively
+    // preserve the source whenever code writes one of the enabling switches.
+    if(node.type==='AssignmentExpression'&&
+       node.left.type==='MemberExpression'&&
+       isProcessReportNamespace(node.left.object)&&
+       processReportTriggers.has(memberName(node.left)??''))observed=true;
+    if(node.type==='CallExpression') {
+      const mutation=processReportMutatorInvocation(node);
+      if(mutation?.method==='set'&&mutation.args[1]&&
+         isProcessReportNamespace(mutation.args[0])&&
+         processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
+      if(mutation?.method==='assign'&&
+         mutation.args.slice(1).some(
+           (/** @type {AstNode|null} */ source)=>isProcessReportNamespace(source)))
+        observed=true;
+      if(mutation?.method==='assign'&&
+         isProcessReportNamespace(mutation.args[0])&&
+         mutation.args.slice(1).some(processReportAssignmentSourceMayEnable))
+        observed=true;
+    }
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
     // pathname/search/hash/credentials observable after assignment.
@@ -2196,6 +2579,39 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      // process.report.getReport() returns the current JavaScript stack and
+      // writeReport() persists it. Either operation observes source locations.
+      if(isProcessReportMethod(callee))observed=true;
+      if(callee.type==='MemberExpression' &&
+         isReflectiveReceiver(callee.object)&&memberName(callee)==='apply' &&
+         isProcessReportMethod(node.arguments[0]))observed=true;
+      const reportDescriptorRead=node.arguments.length>1&&
+        isProcessReportNamespace(node.arguments[0])&&
+        processReportTriggers.has(staticString(node.arguments[1])??'')&&
+        (callee.type==='MemberExpression'&&
+          isReflectiveReceiver(callee.object)&&
+          memberName(callee)==='getOwnPropertyDescriptor' ||
+         callee.type==='Identifier'&&reflectiveReaders.has(callee.name));
+      if(reportDescriptorRead)observed=true;
+      if(callee.type==='MemberExpression'&&
+         ['call','apply'].includes(memberName(callee)??'')&&
+         callee.object.type==='MemberExpression'&&
+         memberName(callee.object)==='__lookupSetter__'&&
+         isProcessReportNamespace(node.arguments[0])) {
+        const trigger=memberName(callee)==='call'?
+          staticString(node.arguments[1]):
+          node.arguments[1]?.type==='ArrayExpression'?
+            staticString(node.arguments[1].elements[0]):null;
+        if(processReportTriggers.has(trigger??''))observed=true;
+      }
+      if(isReflectApplyMethod(callee)&&
+         node.arguments[0]?.type==='MemberExpression'&&
+         memberName(node.arguments[0])==='__lookupSetter__'&&
+         isProcessReportNamespace(node.arguments[1])) {
+        const list=node.arguments[2];
+        if(list?.type==='ArrayExpression'&&
+           processReportTriggers.has(staticString(list.elements[0])??''))observed=true;
+      }
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
       if(isWarningMethod(callee))observed=true;
