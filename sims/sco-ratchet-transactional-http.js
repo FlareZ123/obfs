@@ -35,11 +35,24 @@ async function launch(databasePath,root,tokenA,tokenB,control){
   });
   if(!child.stdout||!child.stderr)throw new TypeError('Missing child output streams');
   const output=readline.createInterface({input:child.stdout});
+  let errorLog='';
+  child.stderr.setEncoding('utf8');
+  child.stderr.on('data',chunk=>{errorLog+=String(chunk).slice(0,4000);});
   /** @type {Promise<string>} */
   const started=new Promise((resolve,reject)=>{
-    output.once('line',resolve);
-    child.once('error',reject);
-    child.once('exit',code=>reject(new Error('Trusted worker exited before ready: '+code)));
+    const timer=setTimeout(()=>{
+      child.kill('SIGKILL');
+      reject(new Error('Trusted worker startup timeout; stderr='+errorLog.slice(-1000)));
+    },15000);
+    const finish=(/** @type {string|Error} */ value)=>{
+      clearTimeout(timer);
+      if(typeof value==='string')resolve(value);
+      else reject(value);
+    };
+    output.once('line',finish);
+    child.once('error',finish);
+    child.once('exit',code=>finish(new Error(
+      'Trusted worker exited before ready: '+code+'; stderr='+errorLog.slice(-1000))));
   });
   const ready=/** @type {{ready:boolean,port:number}} */(JSON.parse(await started));
   output.close();
@@ -230,4 +243,4 @@ async function experiment(){
 if(require.main===module){
   experiment().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={experiment};
+module.exports={experiment,launch,stop};
