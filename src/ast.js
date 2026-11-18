@@ -2330,6 +2330,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
+    // Legacy accessor reflection can recover Node's native automatic-report
+    // setter. Merely exposing that capability is enough to make later source
+    // coordinates observable through a generated report.
+    if(node.type==='MemberExpression'&&
+       isProcessReportNamespace(node.object)&&
+       memberName(node)==='__lookupSetter__')observed=true;
     // Programmatic diagnostic-report triggers can emit a later JavaScript
     // stack without any explicit getReport()/writeReport() call. Conservatively
     // preserve the source whenever code writes one of the enabling switches.
@@ -2380,6 +2386,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           memberName(callee)==='getOwnPropertyDescriptor' ||
          callee.type==='Identifier'&&reflectiveReaders.has(callee.name));
       if(reportDescriptorRead)observed=true;
+      if(callee.type==='MemberExpression'&&
+         ['call','apply'].includes(memberName(callee)??'')&&
+         callee.object.type==='MemberExpression'&&
+         memberName(callee.object)==='__lookupSetter__'&&
+         isProcessReportNamespace(node.arguments[0])) {
+        const trigger=memberName(callee)==='call'?
+          staticString(node.arguments[1]):
+          node.arguments[1]?.type==='ArrayExpression'?
+            staticString(node.arguments[1].elements[0]):null;
+        if(processReportTriggers.has(trigger??''))observed=true;
+      }
+      if(isReflectApplyMethod(callee)&&
+         node.arguments[0]?.type==='MemberExpression'&&
+         memberName(node.arguments[0])==='__lookupSetter__'&&
+         isProcessReportNamespace(node.arguments[1])) {
+        const list=node.arguments[2];
+        if(list?.type==='ArrayExpression'&&
+           processReportTriggers.has(staticString(list.elements[0])??''))observed=true;
+      }
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
       if(isWarningMethod(callee))observed=true;
