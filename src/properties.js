@@ -282,10 +282,28 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
                     value.type === 'FunctionExpression') &&
           !value.async && !value.generator &&
           value.params.every((/** @type {AstNode} */ p)=>p.type === 'Identifier')) {
-        const body=value.body.type === 'BlockStatement'
-          ? value.body.body.length === 1 && value.body.body[0].type === 'ReturnStatement'
-            ? value.body.body[0].argument : null
-          : value.body;
+        /** @type {AstNode|null|undefined} */
+        let body=value.body;
+        if(value.body.type==='BlockStatement'){
+          const statements=value.body.body;
+          body=statements.length===1 && statements[0].type==='ReturnStatement' ?
+            statements[0].argument : null;
+          // A straight-line, immutable primitive read followed by return of
+          // the same local binding has the same owner-consumption contract as
+          // a concise arrow returning owner.key. The existing alias, member
+          // and function-escape proofs validate all callers and field names.
+          if(statements.length===2 &&
+             statements[0].type==='VariableDeclaration' &&
+             statements[0].kind==='const' &&
+             statements[0].declarations.length===1 &&
+             statements[0].declarations[0].id.type==='Identifier' &&
+             statements[0].declarations[0].init?.type==='MemberExpression' &&
+             statements[1].type==='ReturnStatement' &&
+             statements[1].argument?.type==='Identifier' &&
+             statements[1].argument.name===statements[0].declarations[0].id.name){
+            body=statements[0].declarations[0].init;
+          }
+        }
         if (body?.type === 'Identifier') {
           const index=value.params.findIndex((/** @type {AstNode} */ p)=>p.name===body.name);
           const returnsRoot=!value.params.length && body.name===rootName;
