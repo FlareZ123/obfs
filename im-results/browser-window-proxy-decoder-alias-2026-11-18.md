@@ -92,3 +92,28 @@ the *postpatch* browser semantics. The security objective, independent
 tamper resistance, and universal strict 2.5x runtime bound remain
 unproved. A workload-specific performance comparison is still required
 before enabling the decoder in production.
+
+## Long decoder-path follow-up, 18 November 2026 10:37 UTC
+
+The initial witness used a short literal and the `String.fromCharCode`
+reconstructor. The independent follow-up
+`test/decoder-windowproxy-chunked.test.js` exercises a **2,049-unit**
+payload, which causes the compiler's default long-string chunk/spread
+decoder path. It mutates `top.String.prototype.charCodeAt`,
+`parent.String.prototype.charCodeAt`,
+`top.Array.prototype[Symbol.iterator]`, and
+`window.parent.Array.prototype[Symbol.iterator]` in an earlier
+CommonJS file. Both COO and SNO outputs must preserve the exact
+native SHA-256 and output length, with **zero eligible encoded literals**
+after these modifications. The unrelated `top.Number` property
+write is a positive control requiring **one actual long encoded literal**
+in both modes.
+
+The two-platform focused
+[run 44286888489](https://github.com/FlareZ123/obfs/actions/runs/44286888489)
+passed all ten new child-process tests, adjacent existing decoder tests,
+the production and fixed-arity JSDoc gates, and the earlier live Chromium
+short-string suite. It adds evidence for a separate decoder mechanism,
+without implying that the large-string workload satisfies the universal
+2.5x budget or that the long-string mutation was independently reproduced
+in Chromium. The compiler itself was unchanged after the first fix.

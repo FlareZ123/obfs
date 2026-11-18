@@ -66,3 +66,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/decoder-browser-window-alias-browser.js
+
+      - name: WindowProxy-mediated long-string String and Array mutation differential
+        run: node --test test/decoder-windowproxy-chunked.test.js
