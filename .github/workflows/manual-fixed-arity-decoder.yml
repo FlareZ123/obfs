@@ -73,6 +73,9 @@ jobs:
       - name: Post-construction container field provenance red and positive-yield gate
         run: node --test test/decoder-container-write.test.js
 
+      - name: Cross-file ESM decoder export provenance red and positive-yield gate
+        run: node --test test/decoder-esm-export.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
