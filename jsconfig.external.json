@@ -134,6 +134,7 @@
     "sims/sco-ratchet-tenant-worker.js",
     "sims/sco-ratchet-worker-http-contention.js",
     "sims/sco-ratchet-worker-policy.js",
+    "sims/sco-ratchet-worker-multi-principal.js",
     "sims/sco-principal-resolution-cost.js",
     "sims/sco-resident-cpu.js",
     "test/sco-json-shape-contract.test.js",
