@@ -16,13 +16,14 @@ const {relabelAndTamperOneFieldArithmetic}=
 /** @type {ModuleSource[]} */
 const native=[
   {path:'private.mjs',sourceType:'module',code:
-    'export function compute(payload){const owner={payload,bias:3};'+
-    'return globalThis.HOST.externalValue(owner.payload+owner.bias);}'},
+    'function compute(payload){const owner={payload,bias:3};'+
+    'return globalThis.HOST.externalValue(owner.payload+owner.bias);}'+
+    'export function publicCompute(input){return compute(input);}'},
   {path:'host.mjs',sourceType:'module',code:
     'globalThis.HOST={externalValue(number){globalThis.events.push(number);return number*2;}};'},
   {path:'entry.mjs',sourceType:'module',code:
-    'import "./host.mjs";import {compute} from "./private.mjs";'+
-    'globalThis.events=[];console.log(JSON.stringify({result:compute(39),events:globalThis.events}));'}
+    'import "./host.mjs";import {publicCompute} from "./private.mjs";'+
+    'globalThis.events=[];console.log(JSON.stringify({result:publicCompute(39),events:globalThis.events}));'}
 ];
 
 /**
