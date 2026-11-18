@@ -133,31 +133,34 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
       'SNO resident comparison must preserve four application workloads');
     assert.equal(snoResident.leafRows.length,2,
       'SNO resident comparison must retain two selected-function stress controls');
-    for(const [source,destination] of [
-      [snoResident.rows,snoPostInitRows],
-      [snoResident.leafRows,snoPostInitLeafRows]
-    ]){
-      for(const row of source){
-        assert.equal(row.allOutputsEquivalent,true,
-          'SNO post-initialization work must retain original output parity');
-        assert.equal(row.cpuBudget.samplePairs,row.nativeCpuMs.length);
-        assert.equal(row.nativeCpuMs.length,row.snoCpuMs.length);
-        assert.equal(row.nativeMs.length,row.snoMs.length);
-        assert.equal(row.nativeMs.length,row.nativeCpuMs.length);
-        destination.push({
-          events:row.events,repetitions:row.repetitions,
-          ratioOfMedians:row.cpuBudget.ratioOfMedians,
-          wallRatioOfMedians:row.budget.ratioOfMedians,
-          oneSidedMedianDecision:row.cpuBudget.decision,
-          samplePairs:row.cpuBudget.samplePairs,
-          upperMedianBound:row.cpuBudget.upperMedianBound,
-          strictObservedCpuOverBudgetPairs:row.strictCpuOverBudgetPairs,
-          strictObservedWallOverBudgetPairs:row.strictOverBudgetPairs,
-          rawCpuTimeMs:{native:row.nativeCpuMs,sno:row.snoCpuMs},
-          rawWallTimeMs:{native:row.nativeMs,sno:row.snoMs}
-        });
-      }
+    /**
+     * Preserve both application and direct-leaf stress rows with the same
+     * explicit shape and compiler-checkable source type.
+     * @param {Awaited<ReturnType<typeof runSnoResidentEvidence>>['rows'][number]} row
+     * @param {typeof snoPostInitRows} destination
+     */
+    function captureResidentRow(row,destination){
+      assert.equal(row.allOutputsEquivalent,true,
+        'SNO post-initialization work must retain original output parity');
+      assert.equal(row.cpuBudget.samplePairs,row.nativeCpuMs.length);
+      assert.equal(row.nativeCpuMs.length,row.snoCpuMs.length);
+      assert.equal(row.nativeMs.length,row.snoMs.length);
+      assert.equal(row.nativeMs.length,row.nativeCpuMs.length);
+      destination.push({
+        events:row.events,repetitions:row.repetitions,
+        ratioOfMedians:row.cpuBudget.ratioOfMedians,
+        wallRatioOfMedians:row.budget.ratioOfMedians,
+        oneSidedMedianDecision:row.cpuBudget.decision,
+        samplePairs:row.cpuBudget.samplePairs,
+        upperMedianBound:row.cpuBudget.upperMedianBound,
+        strictObservedCpuOverBudgetPairs:row.strictCpuOverBudgetPairs,
+        strictObservedWallOverBudgetPairs:row.strictOverBudgetPairs,
+        rawCpuTimeMs:{native:row.nativeCpuMs,sno:row.snoCpuMs},
+        rawWallTimeMs:{native:row.nativeMs,sno:row.snoMs}
+      });
     }
+    for(const row of snoResident.rows)captureResidentRow(row,snoPostInitRows);
+    for(const row of snoResident.leafRows)captureResidentRow(row,snoPostInitLeafRows);
   }
   // The strict compute interpretation uses post-init SNO process CPU,
   // whereas the historical ten-workload join above retains cold SNO startup
