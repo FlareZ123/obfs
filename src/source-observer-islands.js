@@ -151,7 +151,19 @@ function proveSourceObserverIslands(files,selections) {
     // when this ESM graph never spells a Window or Document global.
     'contentDocument','contentWindow'
   ]);
+  const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
+    // An unselected module is retained byte-for-byte, but exporting an
+    // arbitrary callable lets an embedding host supply a callback that reads
+    // the selected module's on-disk or served source. That callback is outside
+    // this declared ESM graph and cannot be recognized by a source-reader
+    // identifier blacklist. Only the inert primitive-returning envelope
+    // already accepted for selected leaves is admitted for other exports.
+    if(!selectionSet.has(filename) &&
+       module.ast.body.some(statement=>statement.type.startsWith('Export')) &&
+       !purePrimitiveLeafExports(module.ast)) {
+      throw new TypeError('Source observer islands refuse unreviewed host-callable exports');
+    }
     for(const statement of module.ast.body) {
       if(statement.type==='ExportAllDeclaration' ||
          statement.type==='ExportNamedDeclaration' && statement.source) {
