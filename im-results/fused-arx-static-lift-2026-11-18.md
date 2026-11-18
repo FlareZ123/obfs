@@ -1,0 +1,25 @@
+# Fixed fused-ARX Wasm source-only opcode lift
+
+**Agent 47, 18 November 2026. Classification: intermediate independent static-attack evidence, deliberately limited to the published fixed kernel.** This complements the separate runtime byte-capture attack in [fused-arx-runtime-capture](fused-arx-runtime-capture-2026-11-18.md). It does not meet the three-file, equal-trust, blinded security-candidate charter.
+
+## Attacker input and independent implementation
+
+The frozen fixed-kernel public Wasm module is **196 bytes**, SHA-256 `c2e9f1fbf85505a43681f0a09da9c0ebe9b7eeb9f067b69cd8320b703d8df88d`. Its public wrapper declares the six-i32 `mix` call ABI, UTF-16 units starting at memory offset 16 and four result words at offsets 0–15. The same hash is independently asserted by the existing [dynamic extraction regression](../test/fused-arx-runtime-extraction.test.js).
+
+The new [attacker](../sims/fused-arx-static-lift.js) consumes the binary `Uint8Array` and uses its own unsigned/signed LEB readers to extract the code section, locals, block/loop boundaries, branch depths, integer arithmetic, little-endian loads and stores. It then executes **a JavaScript interpreter for the decoded instructions**. It never imports the compiler, native `mix` implementation or `WebAssembly` runtime, and never calls `WebAssembly.Module` or `Instance`. This is a functional clone through static binary parsing and JS instruction interpretation, **not** a recovery of original function spelling, comments or an optimized high-level algorithm.
+
+The supported opcode subset is intentionally restricted to the fixed import-free pilot: structured block/loop/end/branch, i32 get/set/const, i32 unsigned comparison, 16-bit unsigned load, 32-bit store, add/multiply/or/xor/shifts. It is not a generic WebAssembly-to-JS compiler. The opcode/label behavior follows the [WebAssembly Core instruction specification](https://webassembly.github.io/spec/core/syntax/instructions.html). An arbitrary module with imports, tables, multiple functions, richer types or instructions is outside the test.
+
+## Executed local control
+
+The [regression](../test/fused-arx-static-lift.test.js) obtains the exact digest-matched public binary from the existing pilot solely as test fixture, **then temporarily disables the entire global `WebAssembly` binding** while decoding and running the attacker. The attacker consumes no original JS implementation; only the separate held-out correctness oracle in the test calls `nativeMix`.
+
+Using a deterministic xorshift seed, the test submitted **12,288 held-out records**, varying input lengths 0–22 UTF-16 code units, embedded surrogate code units and signed state words. Every recovered four-word result matched the JS reference (49,152 exact signed result words). The parser decoded **75 instructions** from the known public binary; the Node 22.16.0 local test passed in approximately **0.1 seconds**. A strict JavaScript typecheck of these two new files, together with a locally reproduced copy of the pilot fixture and Node declarations, passed. The test checks no artifact-level control flow, browser entrypoint, host callback or full-graph output.
+
+The source-pinned cross-platform workflow is [manual-wasm-i32](https://github.com/FlareZ123/obfs/actions/workflows/manual-wasm-i32.yml), run **44328762433**, at commit `2a2fbbc191b87b6ba62f5b9fd9532d829812b441`. **At report creation the workflow was in progress; do not treat it as a green cross-platform pin until verified.** The same workflow now executes the attacker regression and strict JSDoc on both OS jobs. The new test is also included in the root `node --test test/*.test.js` sweep.
+
+## What this changes
+
+This fixed Wasm layout can be lifted into a **WebAssembly-free JavaScript functional clone** from published bytes and public ABI information, without source-level access to the obfuscator. The test demonstrates static functional recoverability on the declared workload even if attackers cannot execute the Wasm engine itself. It strengthens the **negative** static-analysis evidence against the standalone pilot and complements previously demonstrated dynamic capture, remote-origin replay and runtime substitution.
+
+It does not establish a quantified incremental reconstruction-effort advantage or disadvantage versus an esbuild-minified, frozen three-file application. The static parser was written knowing the public pilot architecture; it was not performed under blind, balanced attacker effort. It does not prove a complete application is clonable and offers **no revised 2.5× candidate compute verdict**. The charter's full three-file and cross-platform cold/browser/short-session vetoes remain open, and the primary release decision stays blocked.
