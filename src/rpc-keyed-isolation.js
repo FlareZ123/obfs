@@ -67,7 +67,8 @@ function createScoKeyedIsolation(principalOf,options={}) {
     try{
       const resolving=principalOf(request);
       let principal;
-      if(resolutionDeadline===Infinity){
+      if(resolutionDeadline===Infinity||typeof resolving==='string'){
+        // Preserve the original one-await fast path for synchronous verifiers.
         principal=await resolving;
       }else{
         /** @type {NodeJS.Timeout|undefined} */
