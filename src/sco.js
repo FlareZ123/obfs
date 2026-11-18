@@ -124,7 +124,9 @@ async function handleRpc(request,response,options) {
       respondJson(response,400,{ok:false,error:'Malformed JSON'});
       return;
     }
-    if (!query || typeof query !== 'object' || typeof query.method!=='string' ||
+    if (!query || typeof query !== 'object' ||
+        !Object.hasOwn(query,'method') || !Object.hasOwn(query,'args') ||
+        typeof query.method!=='string' ||
         !Object.hasOwn(options.remoteMethods,query.method) || !Array.isArray(query.args)) {
       respondJson(response,400,{ok:false,error:'Unknown method or invalid arguments'});
       return;
