@@ -65,7 +65,7 @@ function observe(application,seed,records){
  * Compare the actual three-module native application with a pinned esbuild
  * minified, bundled ESM client, without ever writing a generated source file.
  * @param {number} [recordCount]
- * @returns {Promise<{recordCount:number,seeds:number[],sourceDigests:Record<string,string>,lockDigest:string,controlDigest:string,controlBytes:number,codeUnitTransitions:number,matchedEvents:number,esbuildVersion:string}>}
+ * @returns {Promise<{recordCount:number,seeds:number[],sourceDigests:Record<string,string>,lockDigest:string,controlDigest:string,controlBytes:number,codeUnitTransitions:number,matchedEvents:number,matchedCandidateEvents:number,esbuildVersion:string}>}
  */
 async function compareStatefulMinifier(recordCount=12288){
   const root=path.join(__dirname,'../examples/stateful-arx-app/native');
@@ -76,6 +76,8 @@ async function compareStatefulMinifier(recordCount=12288){
     sourceDigests[file]=digest(readFileSync(path.join(root,file)));
   const lockDigest=digest(readFileSync(path.join(__dirname,'../package-lock.json')));
   const native=/** @type {ScenarioModule} */(await import(pathToFileURL(entry).href));
+  const candidate=/** @type {ScenarioModule} */(await import(pathToFileURL(
+    path.join(__dirname,'../examples/stateful-arx-app/wasm/entry.mjs')).href));
   const built=await esbuild.build({entryPoints:[entry],bundle:true,write:false,
     minify:true,platform:'neutral',format:'esm',target:'es2022',
     sourcemap:false,logLevel:'silent'});
@@ -85,21 +87,25 @@ async function compareStatefulMinifier(recordCount=12288){
   const minified=/** @type {ScenarioModule} */(await import(url));
   const records=recordsFor(recordCount);
   const seeds=[0,-1,0x7fffffff,0x80000000|0];
-  let matchedEvents=0;
+  let matchedEvents=0,matchedCandidateEvents=0;
   for(const seed of seeds){
     const original=observe(native,seed,records);
     const reduced=observe(minified,seed,records);
+    const protectedOutput=observe(candidate,seed,records);
     assert.equal(reduced.serialized,original.serialized,'Minified output mismatch seed '+seed);
     assert.deepEqual(reduced.events,original.events,'Host callback mismatch seed '+seed);
+    assert.equal(protectedOutput.serialized,original.serialized,'Wasm output mismatch seed '+seed);
+    assert.deepEqual(protectedOutput.events,original.events,'Wasm host callback mismatch seed '+seed);
     assert.equal(original.events.length,recordCount,'Missing original host callbacks');
     matchedEvents+=original.events.length;
+    matchedCandidateEvents+=protectedOutput.events.length;
   }
   let codeUnitTransitions=0;
   for(const record of records)
     codeUnitTransitions+=(String(record.kind)+':'+String(record.payload)).length;
   return {recordCount,seeds,sourceDigests,lockDigest,
     controlDigest:digest(controlBytes),controlBytes:controlBytes.length,
-    codeUnitTransitions:codeUnitTransitions*seeds.length,matchedEvents,
+    codeUnitTransitions:codeUnitTransitions*seeds.length,matchedEvents,matchedCandidateEvents,
     esbuildVersion:esbuild.version};
 }
 
