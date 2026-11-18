@@ -113,7 +113,8 @@ async function runGraphs(root,cases){
  * distinguish genuine local property rewrites from vacuous parity checks.
  * @param {number} [seedCount]
  * @returns {Promise<{graphs:number,positiveCount:number,positiveRewrites:number,
- *   observationalStyles:string[],refusedOrZero:number,nonzero:number,equal:boolean}>}
+ *   observationalStyles:string[],refusedOrZero:number,nonzero:number,
+ *   perStyle:Array<{style:string,graphs:number,renames:number,nonzero:number}>,equal:boolean}>}
  */
 async function runSketchMatrix(seedCount=6){
   const cases=[];
@@ -121,12 +122,21 @@ async function runSketchMatrix(seedCount=6){
     for(let style=0;style<16;style++)cases.push(makeSketch(seed,style));
   }
   let positiveCount=0,positiveRewrites=0,refusedOrZero=0,nonzero=0;
+  /** @type {Map<string,{style:string,graphs:number,renames:number,nonzero:number}>} */
+  const byStyle=new Map();
   const transformed=cases.map(item=>{
     const result=obfuscateFiles(item.files,{
       mode:'coo',closedWorld:true,seed:'semantic-sketch/'+item.id,
       strings:false,identifiers:false
     });
     const properties=result.crossFile.properties;
+    const current=byStyle.get(item.style)||{
+      style:item.style,graphs:0,renames:0,nonzero:0
+    };
+    current.graphs++;
+    current.renames+=properties;
+    if(properties>0)current.nonzero++;
+    byStyle.set(item.style,current);
     if(item.safeYield){
       assert.ok(properties>=2,
         'Expected real private-field rewrites: '+item.id+'/'+item.style);
@@ -147,7 +157,7 @@ async function runSketchMatrix(seedCount=6){
     }
     return {graphs:cases.length,positiveCount,positiveRewrites,
       observationalStyles:[...new Set(cases.map(item=>item.style))],
-      refusedOrZero,nonzero,equal:true};
+      refusedOrZero,nonzero,perStyle:[...byStyle.values()],equal:true};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
