@@ -3,13 +3,14 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const http=require('node:http');
+const vm=require('node:vm');
 const {createScoHandler}=require('../src');
 
-/** @param {number} port @param {string} host @param {boolean} [rpc] @returns {Promise<{status:number,body:string}>} */
-function request(port,host,rpc=false) {
+/** @param {number} port @param {string} host @param {boolean} [rpc] @param {string} [resource] @returns {Promise<{status:number,body:string}>} */
+function request(port,host,rpc=false,resource='data.json') {
   return new Promise((resolve,reject)=>{
     const outgoing=http.request({
-      hostname:'127.0.0.1',port,path:rpc?'/obfs/rpc':'/obfs/data.json',
+      hostname:'127.0.0.1',port,path:rpc?'/obfs/rpc':'/obfs/'+resource,
       method:rpc?'POST':'GET',
       headers:{host,'content-type':'application/json'}
     },response=>{
@@ -28,7 +29,8 @@ function request(port,host,rpc=false) {
 test('SCO IPv6 Host-header routing recognizes bracketed addresses and denies malformed aliases',async()=>{
   const allowed=['[::1]'];
   const handler=createScoHandler([
-    {path:'data.json',sourceType:'asset',code:'{"value":42}'}
+    {path:'data.json',sourceType:'asset',code:'{"value":42}'},
+    {path:'client.js',sourceType:'script',code:'globalThis.obfsIpv6Ready=42;'}
   ],{
     allowedHosts:allowed,
     remoteMethods:{read:()=>42},
@@ -47,6 +49,16 @@ test('SCO IPv6 Host-header routing recognizes bracketed addresses and denies mal
       const rpc=await request(address.port,host,true);
       assert.equal(rpc.status,200,host);
       assert.deepEqual(JSON.parse(rpc.body),{ok:true,value:42},host);
+      const script=await request(address.port,host,false,'client.js');
+      assert.equal(script.status,200,host+' obfuscated JS');
+      const authorized={location:{hostname:'[::1]'}};
+      vm.runInNewContext(script.body,authorized,{timeout:1000});
+      assert.equal(/** @type {{obfsIpv6Ready?:number}} */ (authorized).obfsIpv6Ready,42,
+        host+' authorized browser hostname');
+      const denied={location:{hostname:'[::2]'}};
+      assert.throws(()=>vm.runInNewContext(script.body,denied,{timeout:1000}),
+        /Unauthorized execution host/,host+' unauthorized browser hostname');
+      assert.equal(/** @type {{obfsIpv6Ready?:number}} */ (denied).obfsIpv6Ready,undefined);
     }
     const negative=['[::2]','[::1]evil','[::1]@evil.example',
       '[::1]:notaport','[::1]:99999','[::::]','evil.example','[::1]:8080@evil.example'];
