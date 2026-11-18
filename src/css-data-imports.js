@@ -1,125 +1,44 @@
 'use strict';
 
-/** @param {string} source @param {number} at @returns {{value:string,next:number}} */
-function readEscape(source,at) {
-  const hex=/^[0-9a-f]{1,6}/iu.exec(source.slice(at+1,at+7))?.[0];
-  if(hex) {
-    let next=at+1+hex.length;
-    if(/[ \t\r\n\f]/u.test(source[next]??'')) {
-      if(source[next]==='\r' && source[next+1]==='\n')next++;
-      next++;
-    }
-    const point=Number.parseInt(hex,16);
-    return {value:point===0 || point>0x10ffff ||
-      point>=0xd800&&point<=0xdfff?'\uFFFD':String.fromCodePoint(point),next};
-  }
-  const char=source[at+1];
-  if(char===undefined)return {value:'',next:at+1};
-  if(char==='\r'||char==='\n'||char==='\f') {
-    return {value:'',next:at+(char==='\r'&&source[at+2]==='\n'?3:2)};
-  }
-  return {value:char,next:at+2};
-}
-
-/** @param {string} source @param {number} at @returns {{value:string,next:number}} */
-function readIdentifier(source,at) {
-  let value='';let index=at;
-  while(index<source.length) {
-    const char=source[index];
-    if(char==='\\') {
-      const escaped=readEscape(source,index);
-      value+=escaped.value;index=escaped.next;
-    } else if(/[\w-]/u.test(char)||char.charCodeAt(0)>=0x80) {
-      value+=char;index++;
-    } else break;
-  }
-  return {value,next:index};
-}
-
-/** @param {string} source @param {number} at @returns {number} */
-function skipTrivia(source,at) {
-  let index=at;
-  while(index<source.length) {
-    if(/[ \t\r\n\f]/u.test(source[index])){index++;continue;}
-    if(source[index]==='/' && source[index+1]==='*') {
-      const end=source.indexOf('*/',index+2);
-      index=end<0?source.length:end+2;continue;
-    }
-    break;
-  }
-  return index;
-}
-
-/** @param {string} source @param {number} at @returns {{value:string,next:number}|null} */
-function readQuoted(source,at) {
-  const quote=source[at];let value='';let index=at+1;
-  while(index<source.length) {
-    const char=source[index];
-    if(char===quote)return {value,next:index+1};
-    if(char==='\n'||char==='\r'||char==='\f')return null;
-    if(char==='\\') {
-      const escaped=readEscape(source,index);
-      value+=escaped.value;index=escaped.next;
-    } else {value+=char;index++;}
-  }
-  return null;
-}
-
-/** @param {string} source @param {number} at @returns {string|null} */
-function readImportUrl(source,at) {
-  let index=skipTrivia(source,at);
-  if(source[index]==='"'||source[index]==="'")return readQuoted(source,index)?.value??null;
-  const keyword=readIdentifier(source,index);
-  if(keyword.value.toLowerCase()!=='url')return null;
-  index=skipTrivia(source,keyword.next);
-  if(source[index]!=='(')return null;
-  index=skipTrivia(source,index+1);
-  if(source[index]==='"'||source[index]==="'")return readQuoted(source,index)?.value??null;
-  let url='';
-  while(index<source.length) {
-    const char=source[index];
-    if(char===')')return url.trimEnd();
-    if(/[ \t\r\n\f"'()]/u.test(char))return null;
-    if(char==='\\') {
-      const escaped=readEscape(source,index);
-      url+=escaped.value;index=escaped.next;
-    } else {url+=char;index++;}
-  }
-  return null;
-}
-
 /**
- * A CSS data: import may embed an entire untransformed stylesheet and its
- * inline source map, bypassing standalone CSS/source-map asset preflights.
- * Refuse the recognized nested URL without changing ordinary external imports.
- * This is a bounded publication guard, not a full audit of all CSS data values.
+ * Detect nested CSS data-URL stylesheets by traversing parsed import-rule
+ * nodes. A token spelled like an import in a custom-property declaration is
+ * inert; treating every at-keyword in the source as a rule rejects otherwise
+ * valid assets. Quoted strings, escaped names and URLs are parsed as CSS.
+ *
+ * Malformed or opaque import-rule preludes are conservatively refused.
+ * This is a source-publication check, not a full confidentiality proof.
+ *
  * @param {string|Buffer} code
  * @returns {boolean}
  */
 function hasCssDataImport(code) {
+  // Keep JavaScript-only compiles independent of CSS parser initialization.
+  const cssTree=require('css-tree');
   const source=Buffer.isBuffer(code)
     ?new TextDecoder('utf-8',{fatal:true}).decode(code):code;
   if(source.includes('\0'))throw new TypeError('CSS asset contains NUL bytes');
-  for(let index=0;index<source.length;) {
-    if(source[index]==='/'&&source[index+1]==='*') {
-      index=skipTrivia(source,index);continue;
+
+  const ast=cssTree.parse(source);
+  let unaudited=false;
+  cssTree.walk(ast,node=>{
+    if(node.type!=='Atrule' ||
+       cssTree.ident.decode(node.name).toLowerCase()!=='import')return;
+    if(node.prelude?.type!=='AtrulePrelude') {
+      unaudited=true;
+      return;
     }
-    if(source[index]==='"'||source[index]==="'") {
-      index=readQuoted(source,index)?.next??source.length;continue;
+    const first=node.prelude.children.first;
+    if(!first || (first.type!=='Url' && first.type!=='String')) {
+      unaudited=true;
+      return;
     }
-    if(source[index]==='@') {
-      const keyword=readIdentifier(source,index+1);
-      if(keyword.value.toLowerCase()==='import') {
-        const url=readImportUrl(source,keyword.next);
-        // WHATWG URL parsing strips ASCII tab/newline anywhere in the input.
-        // An escaped CSS tab can otherwise disguise d\u0009ata: as a data: scheme.
-        if(url && url.replace(/[\t\n\r]/gu,'').trimStart().toLowerCase().startsWith('data:'))return true;
-      }
-      index=Math.max(index+1,keyword.next);continue;
-    }
-    index++;
-  }
-  return false;
+    // WHATWG URL parsing drops tab/newline anywhere in a URL. CSS-tree has
+    // already decoded escapes in the URL and quoted-string token values.
+    const normalized=first.value.replace(/[\t\r\n]/gu,'').trimStart().toLowerCase();
+    if(normalized.startsWith('data:'))unaudited=true;
+  });
+  return unaudited;
 }
 
 module.exports={hasCssDataImport};
