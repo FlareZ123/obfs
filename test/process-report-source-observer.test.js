@@ -85,6 +85,20 @@ test('Reflect.apply process.report method preserves source coordinates',()=>{
   );
 });
 
+test('Reflect.get process.report method preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "Reflect.get(process.report,'getReport')()",
+    'agent1-process-report-reflect-get-method'
+  );
+});
+
+test('Reflect.get process report namespace preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "Reflect.get(process,'report').getReport()",
+    'agent1-process-report-reflect-get-namespace'
+  );
+});
+
 test('CommonJS process module namespace preserves source coordinates',()=>{
   mustPreserveProcessReport(
     "(()=>{const proc=require('node:process');return proc.report.getReport();})()",
