@@ -11,6 +11,7 @@
     "sims/wasm-i32-commonjs-runtime-budget.js",
     "sims/wasm-i32-runtime-extraction.js",
     "sims/wasm-runtime-capture.js",
+    "sims/wasm-captured-clone.js",
     "test/wasm-runtime-capture.test.js",
     "test/wasm-i32.test.js",
     "test/wasm-i32-commonjs-lazy.test.js",
