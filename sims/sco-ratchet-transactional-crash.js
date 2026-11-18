@@ -136,4 +136,4 @@ async function experiment(){
 if(require.main===module){
   experiment().catch(error=>{console.error(error);process.exitCode=1;});
 }
-module.exports={experiment};
+module.exports={experiment,terminateAtBarrier};
