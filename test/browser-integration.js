@@ -30,6 +30,40 @@ async function main(){
   ];
   const moduleSet=obfuscateFiles(sources,{mode:'coo',closedWorld:true,seed:'chrome-modules'});
   assert.equal(moduleSet.crossFile.properties,1);
+  // A local closed owner may contain a direct lexical function parameter
+  // without deriving an anonymous function name from its field spelling.
+  const parameterSet=obfuscateFiles([{
+    path:'parameter-owner.mjs',sourceType:'module',
+    code:'function compute(payload){const owner={secretField:payload,bias:3};'+
+      'return owner.secretField+owner.bias;}'+
+      'document.getElementById("answer").textContent=compute(39);'
+  }],{mode:'coo',seed:'chrome-local-formal-owner',
+    identifiers:false,strings:false,properties:true});
+  assert.equal(parameterSet.files[0].metrics.objects,1);
+  // Two actual browser ESM files retain their public import and DOM
+  // contracts while a bound formal supplies a shorthand private own field.
+  const parameterShorthandSet=obfuscateFiles([
+    {path:'parameter-shorthand-helper.mjs',sourceType:'module',
+      code:'function compute(payload){const owner={payload,bias:3};'+
+        'return owner.payload+owner.bias;}'+
+         'export function publicCompute(input){return compute(input);}'},
+    {path:'parameter-shorthand-entry.mjs',sourceType:'module',
+      code:'import {publicCompute} from "./parameter-shorthand-helper.mjs";'+
+        'document.getElementById("answer").textContent=publicCompute(39);'}
+  ],{mode:'coo',closedWorld:false,seed:'chrome-local-formal-shorthand',
+    identifiers:false,strings:false,properties:true});
+  assert.equal(parameterShorthandSet.files.reduce((sum,file)=>sum+file.metrics.objects,0),1);
+  // Calling a passed function as an owner method exposes its receiver's
+  // original enumerable key. Keep that owner unrenamed.
+  const parameterRefusalSet=obfuscateFiles([{
+    path:'parameter-refusal.mjs',sourceType:'module',
+    code:'function inspect(payload){const owner={secretField:payload};'+
+      'return owner.secretField();}'+
+      'document.getElementById("answer").textContent='+
+      'inspect(function(){return Object.keys(this).join(",")});'
+  }],{mode:'coo',seed:'chrome-local-formal-method-refusal',
+    identifiers:false,strings:false,properties:true});
+  assert.equal(parameterRefusalSet.files[0].metrics.objects,0);
   // The published HTML remains opaque, so the compiler conservatively avoids
   // private-key renames in the adjacent module graph. A real browser must
   // still execute the audited page and its separately emitted module files.
@@ -197,7 +231,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -208,6 +242,9 @@ async function main(){
     '<script src="/trace.js"></script>'+ 
     '<script>document.getElementById("answer").textContent='+
     'String(globalThis.__obfsTraceResult)+":"+__capture.join("");</script></body></html>');
+  content.set('/parameter-shorthand.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-shorthand-entry.mjs"></script></body></html>');
+  content.set('/parameter-owner.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-owner.mjs"></script></body></html>');
+  content.set('/parameter-refusal.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/parameter-refusal.mjs"></script></body></html>');
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
@@ -246,7 +283,10 @@ async function main(){
     if(typeof addr==='string'||!addr)throw Error('Missing TCP address');
     const base=`http://127.0.0.1:${addr.port}`;
     for(const [path,result] of [
-      ['/module.html','41'],['/audited-module.html','41'],['/js-module.html','23'],
+      ['/module.html','41'],['/parameter-owner.html','42'],
+      ['/parameter-shorthand.html','42'],
+      ['/parameter-refusal.html','secretField'],
+      ['/audited-module.html','41'],['/js-module.html','23'],
       ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
