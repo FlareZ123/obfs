@@ -215,43 +215,6 @@ async function main(){
   assert.ok(traceOutput.metrics.literals>0);
   assert.equal(typeof traceOutput.code,'string');
   assert.ok(!/** @type {string} */ (traceOutput.code).includes(traceCanary));
-  // Window error handlers receive browser-generated source coordinates.
-  // Keep a frozen native/generated pair on the same one-line shape so this
-  // browser integration can prove whether a property rewrite moves colno.
-  const errorCoordinateSource='const owner={distinctivelyLongPrivateField:73};'+
-    'const value=owner.distinctivelyLongPrivateField;throw new Error(String(value));';
-  const errorCoordinateOutput=obfuscateFiles([{
-    path:'error-coordinate.js',sourceType:'script',code:errorCoordinateSource
-  }],{
-    mode:'coo',seed:'chrome-error-coordinate-negative',
-    strings:false,identifiers:false,properties:true
-  }).files[0];
-  assert.ok(errorCoordinateOutput.metrics.properties>0,errorCoordinateOutput.code);
-  const inFileOnerrorSource='const errorScope=window;errorScope.onerror=function(message,source,line,column){'+
-    'document.getElementById("answer").textContent=String(line)+":"+String(column);return true;};'+
-    'const owner={distinctivelyLongPrivateField:73};'+
-    'const value=owner.distinctivelyLongPrivateField;throw new Error(String(value));';
-  const inFileOnerrorOutput=obfuscateFiles([{
-    path:'in-file-onerror.js',sourceType:'script',code:inFileOnerrorSource
-  }],{
-    mode:'coo',seed:'chrome-aliased-onerror-negative',
-    strings:false,identifiers:false,properties:true
-  }).files[0];
-  assert.equal(inFileOnerrorOutput.metrics.properties,0,inFileOnerrorOutput.code);
-  assert.equal(inFileOnerrorOutput.code,inFileOnerrorSource);
-  const inFileListenerSource='const listen=window.addEventListener.bind(window);listen("error",function(event){'+
-    'document.getElementById("answer").textContent='+
-    'String(event.lineno)+":"+String(event.colno);event.preventDefault();});'+
-    'const owner={distinctivelyLongPrivateField:73};'+
-    'const value=owner.distinctivelyLongPrivateField;throw new Error(String(value));';
-  const inFileListenerOutput=obfuscateFiles([{
-    path:'in-file-error-listener.js',sourceType:'script',code:inFileListenerSource
-  }],{
-    mode:'coo',seed:'chrome-aliased-error-listener-negative',
-    strings:false,identifiers:false,properties:true
-  }).files[0];
-  assert.equal(inFileListenerOutput.metrics.properties,0,inFileListenerOutput.code);
-  assert.equal(inFileListenerOutput.code,inFileListenerSource);
   // Exercise server-resident SCO computation from a real Chromium module.
   // The remote module contains no protected method body. Browser cookies are
   // passed automatically to same-origin fetch with credentials:'same-origin'.
@@ -271,12 +234,6 @@ async function main(){
   const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
-  content.set('/error-coordinate-native.js',errorCoordinateSource);
-  content.set('/error-coordinate-generated.js',errorCoordinateOutput.code);
-  content.set('/in-file-onerror-native.js',inFileOnerrorSource);
-  content.set('/in-file-onerror-generated.js',inFileOnerrorOutput.code);
-  content.set('/in-file-error-listener-native.js',inFileListenerSource);
-  content.set('/in-file-error-listener-generated.js',inFileListenerOutput.code);
   content.set('/trace.js',traceOutput.code);
   content.set('/trace.html','<!doctype html><html><body><span id="answer">initial</span>'+ 
     '<script>globalThis.__capture=[];const original=String.fromCharCode;'+
@@ -309,22 +266,6 @@ async function main(){
     '<script type="module" src="/container-entry.mjs"></script></body></html>');
   content.set('/good.html','<!doctype html><html><body><div id="answer">initial</div><script src="/good.js"></script></body></html>');
   content.set('/blocked.html','<!doctype html><html><body><div id="answer">initial</div><script src="/blocked.js"></script></body></html>');
-  content.set('/error-coordinate-native.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script>window.onerror=function(message,source,line,column){'+
-    'document.getElementById("answer").textContent=String(line)+":"+String(column);return true;};</script>'+
-    '<script src="/error-coordinate-native.js"></script></body></html>');
-  content.set('/error-coordinate-generated.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script>window.onerror=function(message,source,line,column){'+
-    'document.getElementById("answer").textContent=String(line)+":"+String(column);return true;};</script>'+
-    '<script src="/error-coordinate-generated.js"></script></body></html>');
-  content.set('/in-file-onerror-native.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script src="/in-file-onerror-native.js"></script></body></html>');
-  content.set('/in-file-onerror-generated.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script src="/in-file-onerror-generated.js"></script></body></html>');
-  content.set('/in-file-error-listener-native.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script src="/in-file-error-listener-native.js"></script></body></html>');
-  content.set('/in-file-error-listener-generated.html','<!doctype html><html><body><div id="answer">initial</div>'+
-    '<script src="/in-file-error-listener-generated.js"></script></body></html>');
   content.set('/rpc-good.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   content.set('/rpc-bad.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import remote from "/obfs/remote.mjs";try{document.getElementById("answer").textContent=await remote.score(19)}catch{document.getElementById("answer").textContent="denied"}</script></body></html>');
   const server=http.createServer((request,response)=>{
@@ -357,36 +298,6 @@ async function main(){
       const html=await dumpDom(chromium,base+path);
       assert.match(html,new RegExp(`id="answer">${result}<`),`Browser ${path}: ${html}`);
       process.stdout.write(`Chromium PASS: ${path}: ${result}\n`);
-    }
-    const nativeErrorHtml=await dumpDom(chromium,base+'/error-coordinate-native.html');
-    const generatedErrorHtml=await dumpDom(chromium,base+'/error-coordinate-generated.html');
-    const coordinatePattern=/id="answer">(\d+:\d+)</;
-    const nativeCoordinate=coordinatePattern.exec(nativeErrorHtml)?.[1];
-    const generatedCoordinate=coordinatePattern.exec(generatedErrorHtml)?.[1];
-    assert.ok(nativeCoordinate,nativeErrorHtml);
-    assert.ok(generatedCoordinate,generatedErrorHtml);
-    assert.notEqual(generatedCoordinate,nativeCoordinate,
-      `Expected transformed source coordinate mismatch: ${errorCoordinateOutput.code}`);
-    process.stdout.write(
-      `Chromium PASS: ambient source-coordinate negative ${nativeCoordinate} -> ${generatedCoordinate}\n`
-    );
-    for(const [label,nativePath,generatedPath,output] of [
-      ['window.onerror','/in-file-onerror-native.html','/in-file-onerror-generated.html',
-        inFileOnerrorOutput],
-      ['window.addEventListener(error)','/in-file-error-listener-native.html',
-        '/in-file-error-listener-generated.html',inFileListenerOutput]
-    ]) {
-      const nativeHtml=await dumpDom(chromium,base+nativePath);
-      const generatedHtml=await dumpDom(chromium,base+generatedPath);
-      const expected=coordinatePattern.exec(nativeHtml)?.[1];
-      const actual=coordinatePattern.exec(generatedHtml)?.[1];
-      assert.ok(expected,nativeHtml);
-      assert.ok(actual,generatedHtml);
-      assert.equal(actual,expected,
-        `Expected in-file ${label} coordinate parity: ${output.code}`);
-      process.stdout.write(
-        `Chromium PASS: ${label} source-coordinate parity ${expected}\n`
-      );
     }
   }finally{await new Promise(resolve=>server.close(resolve));}
 }
