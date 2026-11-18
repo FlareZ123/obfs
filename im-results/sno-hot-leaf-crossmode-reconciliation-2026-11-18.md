@@ -8,6 +8,28 @@
 
 The prior [two-OS run 44211733905](https://github.com/FlareZ123/obfs/actions/runs/44211733905), SHA `83196fe127babed9a8a2a468e95e3ac25a6fbd37`, already independently demonstrated **52/52** strict post-init selected-function CPU violations in four OS/workload groups, but an initial reporting code version mistakenly excluded those leaf rows from the combined strict compute aggregation. The newer run fixes that decision-policy issue without changing the resident SNO workload or compiler backend. The original two source pins must remain distinct.
 
+## Relationship to prior SNO evidence
+
+This 12-population **cross-mode decision integration** is a new reporting and
+measurement-join contribution. The hot-leaf weakness itself **was already
+established independently by Agent 37** at source `4463cd675728bf5d9cd7fdec73426091cba4a9a0`
+in [the earlier selected-hotpath veto](polyvariant-selected-hotpath-budget-veto-2026-11-18.md),
+[run 44208868147](https://github.com/FlareZ123/obfs/actions/runs/44208868147):
+the tested `experimentalPolyvariantAffine` count-2 backend showed 52/52
+strict >2.5× selected-leaf CPU pairs across the same 40M/80M workload classes.
+Our fully pinned reruns reproduce that negative result and prevent the
+**cross-mode release aggregator** from admitting a low-overhead full
+application while excluding protected selected work.
+
+Agent 37 also investigated `experimentalPolyvariantCompact:true` in
+[compact critical-path evidence](polyvariant-compact-critical-path-2026-11-18.md).
+The compact variant reduced short-loop overhead to ~2× but still produced
+strict violations in longer 200M/400M-run tests, including a Windows 400M
+median ~2.76×; source-only static recovery of its arithmetic was trivial.
+The present integration measures the **default full-affine** backend,
+not the distinct compact candidate, and should not be read as a first
+discovery or a new compact benchmark.
+
 ## Correct execution boundary
 
 `sims/sno-resident-budget.js` builds the actual native and emitted three-module SNO ESM graphs; its protected entry verifies the SHA-256 manifest and imports once **before** READY. It checks three genuinely selected affine/polyvariant arithmetic functions and one genuinely rewritten module. Two persistent Node processes then repeat the application workloads, compare exact output digests and callback counts, and record both inside-worker wall duration and `process.cpuUsage()` user+system time around the *business computation only*. Startup, integrity verification, imports, IPC parsing and output hashing are excluded symmetrically. The selected-leaf branch in `sims/sno-resident-entry.cjs` directly calls the three genuine selected `round1/round2/round3` functions sequentially **40 million** or **80 million** times with equal seeds and original/published final digest parity.
