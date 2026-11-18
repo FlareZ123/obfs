@@ -33,11 +33,16 @@ jobs:
         env:
           OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-stability-${{ runner.os }}.json
         run: node sims/sco-batch-resident-cpu.js --stability
-      - name: Retain full authenticated SCO batch and stability timing arrays
+      - name: Include actual client download and fresh ESM compilation per trial
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-fresh-client-${{ runner.os }}.json
+        run: node sims/sco-batch-resident-cpu.js --fresh-client-module
+      - name: Retain full authenticated SCO batch, fresh client, and stability timings
         uses: actions/upload-artifact@v4
         with:
           name: sco-batch-${{ runner.os }}
           path: |
             sco-batch-${{ runner.os }}.json
             sco-batch-stability-${{ runner.os }}.json
+            sco-batch-fresh-client-${{ runner.os }}.json
           if-no-files-found: error
