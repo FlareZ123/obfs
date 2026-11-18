@@ -1884,6 +1884,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Native process.emitWarning remains callable after local extraction/binding.
   const warningMethodAliases=new Set();
   const processModuleNamespaces=new Set();
+  const processBindingNodes=new Set();
   // Node diagnostic reports embed the live JavaScript call stack. Reading a
   // report object or writing one to disk therefore exposes generated source
   // coordinates even without a syntactic .stack access.
@@ -1911,8 +1912,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type!=='ImportDeclaration' ||
        !['process','node:process'].includes(String(node.source?.value??'')))return;
     for(const spec of node.specifiers) {
-      if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))
+      if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type)) {
         processModuleNamespaces.add(spec.local.name);
+        processBindingNodes.add(spec.local);
+      }
       if(spec.type==='ImportSpecifier' &&
          String(spec.imported.name??spec.imported.value)==='report') {
         processReportNamespaces.add(spec.local.name);
@@ -2020,10 +2023,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
       if(!id||!value)return;
-      if(id.type==='Identifier'&&isProcessReceiver(value)&&
-         !processModuleNamespaces.has(id.name)) {
-        processModuleNamespaces.add(id.name);
-        changedProcessReportAliases=true;
+      if(id.type==='Identifier'&&isProcessReceiver(value)) {
+        processBindingNodes.add(id);
+        if(!processModuleNamespaces.has(id.name)) {
+          processModuleNamespaces.add(id.name);
+          changedProcessReportAliases=true;
+        }
       }
       if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
         for(const property of id.properties) {
@@ -2377,19 +2382,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }while(changedWorkerInstances);
   walk(ast,(node,parent,key)=>{
     // Keep precise local aliases and direct member access analyzable, while
-    // refusing opaque capability escapes that could invoke getReport later.
+    // refusing opaque process/report capability escapes that can reach getReport later.
+    const directMember=parent?.type==='MemberExpression'&&key==='object';
+    const staticKey=node.type==='Identifier'&&parent&&
+      (parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
+       parent.type==='Property'&&key==='key'&&!parent.computed);
+    const localAlias=parent?.type==='VariableDeclarator'&&key==='init'&&
+      ['Identifier','ObjectPattern'].includes(parent.id.type);
+    const assignedAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
+      ['Identifier','ObjectPattern'].includes(parent.left.type);
+    if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
+       !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     if(isProcessReportNamespace(node)&&parent&&
-       !processReportBindingNodes.has(node)) {
-      const directMember=parent.type==='MemberExpression'&&key==='object';
-      const staticKey=node.type==='Identifier'&&
-        (parent.type==='MemberExpression'&&key==='property'&&!parent.computed ||
-         parent.type==='Property'&&key==='key'&&!parent.computed);
-      const localAlias=parent.type==='VariableDeclarator'&&key==='init'&&
-        ['Identifier','ObjectPattern'].includes(parent.id.type);
-      const assignedAlias=parent.type==='AssignmentExpression'&&key==='right'&&
-        ['Identifier','ObjectPattern'].includes(parent.left.type);
-      if(!directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
-    }
+       !processReportBindingNodes.has(node)&&
+       !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
     // callback receives line/column arguments directly; ErrorEvent listeners
