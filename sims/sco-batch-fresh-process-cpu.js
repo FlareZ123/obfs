@@ -117,7 +117,7 @@ async function run(rounds=9){
               args[0].length===0||args[0].length>1024)return false;
           let totalWork=0;
           for(const call of args[0]){
-            if(!call||typeof call!=='object'||call.name!=='evaluateRemote'||
+            if(!call||typeof call!=='object'||call.method!==directMethod||
                 !Array.isArray(call.args)||call.args.length!==2||
                 typeof call.args[1]!=='number'||
                 !Number.isSafeInteger(call.args[1])||call.args[1]<0||
