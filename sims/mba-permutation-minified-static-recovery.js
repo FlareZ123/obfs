@@ -132,13 +132,13 @@ function cyclicShifts(node){
  */
 function recover(source){
   const ast=parse(source,'commonjs');
-  /** @type {AstNode|null} */
-  let loop=null;
+  /** @type {AstNode[]} */
+  const loops=[];
   /** @type {bigint|null} */
   let target=null;
 
   walk(ast,node=>{
-    if(!loop&&node.type==='ForStatement')loop=node;
+    if(node.type==='ForStatement')loops.push(node);
     if(node.type==='ReturnStatement'&&node.argument?.type==='BinaryExpression'&&
         ['===','=='].includes(node.argument.operator)){
       const left=bigIntLiteral(node.argument.left);
@@ -147,6 +147,7 @@ function recover(source){
       if(right!==null)target=right;
     }
   });
+  const loop=loops[0];
   if(!loop||target===null)throw new Error('author-style loop or public target not found');
 
   const test=loop.test;
