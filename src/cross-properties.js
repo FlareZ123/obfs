@@ -868,8 +868,29 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
      * @returns {boolean}
      */
     function closedLiteralFormalActual(formal,actual) {
+      /**
+       * @param {AstNode} node
+       * @param {number} depth
+       * @returns {boolean}
+       */
+      function inert(node,depth) {
+        if(depth>16)return false;
+        if(node.type==='ObjectExpression')return node.properties.every(property=>{
+          if(property.type!=='Property'||property.kind!=='init'||
+             property.method||property.shorthand)return false;
+          const name=ownPropertyName(property);
+          return name!==null&&name!=='__proto__'&&
+            inert(property.value,depth+1);
+        });
+        if(node.type==='ArrayExpression')return node.elements.every(element=>
+          element!==null&&element.type!=='SpreadElement'&&
+          inert(element,depth+1));
+        return isLiteralValue(node)&&
+          (node.type!=='Literal'||node.value===null||
+           ['number','string','boolean','bigint'].includes(typeof node.value));
+      }
       if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
-         !isLiteralValue(actual))return false;
+         !inert(actual,0))return false;
       /** @type {Map<string,AstNode>} */
       const fields=new Map();
       for(const property of actual.properties) {
@@ -884,11 +905,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
            property.value.type!=='Identifier')return false;
         const name=ownPropertyName(property);
         const value=name!==null?fields.get(name):undefined;
-        if(!value||!isLiteralValue(value)||
-           value.type==='ObjectExpression'||value.type==='ArrayExpression'||
-           value.type==='Literal'&&value.value!==null&&
-           !['number','string','boolean','bigint'].includes(typeof value.value))
-          return false;
+        if(!value||!inert(value,0))return false;
       }
       return true;
     }
@@ -959,8 +976,15 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
             formal=formal.left;
           }
           if(formal.type==='ObjectPattern'&&actual?.type!=='Identifier') {
-            // A function result or computed expression can be globalThis
-            // without spelling an ambient root in the formal invocation.
+            // Binding a function may capture only a prefix of its formals.
+            // The missing tail is analyzed when the bound adapter is called.
+            const boundCapture=node.type==='CallExpression'&&
+              node.callee.type==='MemberExpression'&&
+              (node.callee.computed?staticString(node.callee.property):
+               staticName(node.callee.property))==='bind';
+            if(actual===undefined&&boundCapture)continue;
+            // A returned or computed actual can be globalThis even though
+            // the callsite contains no syntactically explicit ambient root.
             if(!closedLiteralFormalActual(formal,actual))
               changedIntrinsic=true;
             continue;
