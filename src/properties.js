@@ -880,6 +880,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
          ancestor.type==='TaggedTemplateExpression' && ancestor.tag===expression ||
          ancestor.type==='ForOfStatement' && ancestor.right===expression ||
          ancestor.type==='SpreadElement' && ancestor.argument===expression ||
+         // Nested default patterns can also fail during destructuring
+         // and print their default-value expression into TypeError.message.
+         ancestor.type==='AssignmentPattern' && ancestor.right===expression &&
+           ['ArrayPattern','ObjectPattern'].includes(ancestor.left.type) ||
          // Nullish object destructuring can also print the RHS member
          // spelling into the caught TypeError, like array destructuring.
          ancestor.type==='VariableDeclarator' && ancestor.init===expression &&
