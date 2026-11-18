@@ -11,7 +11,7 @@ const keywords=['@import','@IMPORT',String.raw`@\69mport`,String.raw`@im\70ort`,
 const urls=[
   '"data:text/css,canary"',"'data:text/css,canary'",
   'url("data:text/css,canary")','url(data:text/css,canary)',
-  String.raw`url("d\61 ata:text/css,canary")`,
+  String.raw`url("d\61 ta:text/css,canary")`,
   String.raw`url("da\9 ta:text/css,canary")`
 ];
 const gaps=[' ',' /**/ ','\t','\n'];
