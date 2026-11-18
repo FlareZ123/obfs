@@ -9,7 +9,7 @@ const fs=require('node:fs');
 
 /** @param {ChildReply} message @returns {void} */
 function send(message){
-  assert.equal(typeof process.send,'function');
+  if(!process.send)throw new TypeError('Expected an IPC-connected child process');
   process.send(message,()=>{if(message.phase!=='ready')process.disconnect?.();});
 }
 
