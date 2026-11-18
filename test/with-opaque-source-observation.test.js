@@ -21,7 +21,7 @@ function execute(code) {
     },
     get(_target,key) {
       if(key===Symbol.unscopables)return undefined;
-      if(key==='inspected')return context.observed.toString();
+      if(key==='inspected')return String(vm.runInContext('observed.toString()',context));
       return undefined;
     }
   });
@@ -33,23 +33,22 @@ function execute(code) {
 const fixtures=[
   {
     kind:'function declaration',
-    definition:"function observed(){return 'function-source-payload';}"+
-      "globalThis.observed=observed;",
+    definition:"function observed(){return 'function-source-payload';}",
     sourceMarker:'function-source-payload'
   },
   {
     kind:'arrow expression',
-    definition:"globalThis.observed=()=> 'arrow-source-payload';",
+    definition:"const observed=()=> 'arrow-source-payload';",
     sourceMarker:'arrow-source-payload'
   },
   {
     kind:'object method',
-    definition:"globalThis.observed=({method(){return 'method-source-payload';}}).method;",
+    definition:"const observed=({method(){return 'method-source-payload';}}).method;",
     sourceMarker:'method-source-payload'
   },
   {
     kind:'class static field',
-    definition:"globalThis.observed=class Record {static payload='class-source-payload';};",
+    definition:"const observed=class Record {static payload='class-source-payload';};",
     sourceMarker:'class-source-payload'
   }
 ];
