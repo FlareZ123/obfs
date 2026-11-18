@@ -34,7 +34,12 @@ const observedCases=[
   ['URL.parse.apply','','URL.parse.apply(URL,[inspect,"https://example.test/"]).href'],
   ['bound URL.parse','const read=URL.parse.bind(URL);','read(inspect,"https://example.test/").href'],
   ['Reflect.apply','','Reflect.apply(URL.parse,URL,[inspect,"https://example.test/"]).href'],
-  ['computed static method','const method="parse";','URL[method](inspect,"https://example.test/").href']
+  ['computed static method','const method="parse";','URL[method](inspect,"https://example.test/").href'],
+  ['owned URL constructor','const box={Ctor:URL};','box.Ctor.parse(inspect,"https://example.test/").href'],
+  ['owned constructor alias','const box={Ctor:URL};const alias=box;','alias.Ctor.parse(inspect,"https://example.test/").href'],
+  ['owned constructor destructuring','const box={Ctor:URL};const {Ctor:U}=box;','U.parse(inspect,"https://example.test/").href'],
+  ['prebound source argument','const read=URL.parse.bind(URL,inspect);','read("https://example.test/").href'],
+  ['owned method destructuring','const box={read:URL.parse};const {read}=box;','read(inspect,"https://example.test/").href']
 ];
 
 for(const [name,declarations,expression] of observedCases) {
@@ -70,6 +75,10 @@ const primitiveCases=[
   ['bound URL.parse','const read=URL.parse.bind(URL);','read("/fixed","https://example.test/").href'],
   ['Reflect.apply','','Reflect.apply(URL.parse,URL,["/fixed","https://example.test/"]).href'],
   ['computed static method','const method="parse";','URL[method]("/fixed","https://example.test/").href'],
+  ['owned URL constructor','const box={Ctor:URL};','box.Ctor.parse("/fixed","https://example.test/").href'],
+  ['owned constructor alias','const box={Ctor:URL};const alias=box;','alias.Ctor.parse("/fixed","https://example.test/").href'],
+  ['owned constructor destructuring','const box={Ctor:URL};const {Ctor:U}=box;','U.parse("/fixed","https://example.test/").href'],
+  ['owned method destructuring','const box={read:URL.parse};const {read}=box;','read("/fixed","https://example.test/").href'],
   ['URL.canParse','','URL.canParse("/fixed","https://example.test/")']
 ];
 
