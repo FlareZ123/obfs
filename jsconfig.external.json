@@ -174,7 +174,8 @@
     "test/stateful-arx-static-clone.test.js",
     "test/stateful-arx-wasm-artifact.test.js",
     "sims/stateful-arx-cold-child.cjs",
-    "sims/stateful-arx-three-way-cold.js"
+    "sims/stateful-arx-three-way-cold.js",
+    "sims/stateful-arx-three-way-warm.js"
   ],
   "exclude": [
     "node_modules"
