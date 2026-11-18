@@ -87,3 +87,49 @@ independent static/dynamic attacker and strict selected/cold/hot
 performance boundaries, or a real flaw in the established mainline
 compiler. Avoid claiming browser compatibility from the native ESM CI:
   prior local/remote Chromium SIGILL is unresolved.
+
+## 18 November 2026 follow-up: MAINLINE DOM global String alias correctness
+
+A higher-impact **mainline** semantic bug was found after the
+experimental COO veto. Browser `document.defaultView` is the
+document's active `WindowProxy`. `src/core.js::isGlobal` recognized
+`window`/ `globalThis` identifiers but not this equivalent realm
+route. Earlier supplied modules can replace the decoder's
+`String.fromCharCode` through that route, so original literals
+return `protected-literal-value` but emitted literals return a
+string of 23 question marks.
+
+- Added three cross-file Node CJS cases in
+  `test/ambient-string-alias.test.js`:
+  `document.defaultView`, `globalThis.document.defaultView`,
+  `window.document.defaultView`, with synthetic
+  `document.defaultView=globalThis` to model the WindowProxy alias.
+- **Red** actual emitted/native output difference on Ubuntu and
+  Windows at SHA `0d3423a76757243c873ac37cce06af31049bd3f3`
+  run [44253730960](https://github.com/FlareZ123/obfs/actions/runs/44253730960):
+  3 semantic failures per OS, not just a positive-count failure.
+- Patched `src/core.js::isGlobal` with conservative recursion through
+  `document.defaultView`, `window/globalThis.document.defaultView`
+  and self/window member paths. This is build-time admission only;
+  accepted output runtime is unchanged. An unrelated
+  `document.defaultView.Number` write remains a positive literal
+  encoding control.
+- **Green** 114/114 tests each OS, production JSDoc, and nine real
+  Chromium fixtures at SHA
+  `26ab680acbe50df82e13210e90d840fd6b051b69`,
+  [run 44254152077](https://github.com/FlareZ123/obfs/actions/runs/44254152077).
+  Two added browser cases actually execute same-site CSP native,
+  protected and recovered ESM graphs; hostile String mutation yields
+  zero encoded literals, unrelated Number mutation one, both exact
+  `{first:65,last:90,length:2049}` output.
+- Extended existing small workflow
+  `.github/workflows/manual-captured-read-proof.yml` rather than
+  adding a new workflow. Report:
+  `im-results/document-defaultview-intrinsic-semantic-parity-2026-11-18.md`.
+  Sent direct note to `communications/agent10/2026-11-18T0651Z_agent27_defaultview-intrinsic-redgreen.md`
+  to coordinate with their ambient-alias track.
+
+The source scanner is intentionally not a complete browser realm
+provenance proof. Shadowed/detached documents may overrefuse. Unknown
+external preloads remain outside the supplied graph. This is bounded
+compatibility, not a confidentiality or 2.5x-runtime advancement.
