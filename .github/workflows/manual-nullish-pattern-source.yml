@@ -22,6 +22,8 @@ jobs:
       - name: Install dependencies
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Native and generated caught nullish object-pattern TypeErrors
-        run: node sims/property-nullish-destructure-error-attack.js --expect-partial
+        run: node sims/property-nullish-destructure-error-attack.js --expect-guarded
+      - name: Run deterministic nullish object-pattern regression
+        run: node --test test/property-nullish-destructure-error.test.js
       - name: Validate compiler JSDoc types
         run: npm run typecheck
