@@ -140,9 +140,10 @@ class TransactionalRatchet{
    * @param {string} principal Verified by the caller; this class is not auth.
    * @param {number} start
    * @param {string[]} inputs
+   * @param {()=>void} [beforeCommit] Trusted test-only fault barrier, never from RPC arguments.
    * @returns {BatchDecision}
    */
-  batch(principal,start,inputs){
+  batch(principal,start,inputs,beforeCommit){
     if(!validBatch(principal,start,inputs)){
       return {kind:'denied',outputs:[],privateExecutions:0};
     }
@@ -173,6 +174,9 @@ class TransactionalRatchet{
         principal,start+inputs.length,state,start,digest,
         JSON.stringify(outputs),(row?.committed??0)+inputs.length
       );
+      // A trusted test harness can hold the transaction after the SQL write
+      // to inject process death at an exact uncommitted boundary.
+      beforeCommit?.();
       this.db.exec('COMMIT');
       return {kind:'fresh',outputs,privateExecutions:inputs.length};
     }catch(error){
