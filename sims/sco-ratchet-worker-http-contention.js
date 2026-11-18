@@ -398,8 +398,8 @@ async function experiment(mode){
       scope:'Localhost single Node server main-thread synchronous HMAC load; not an isolated worker pool, measured WAN, or generic denial-of-service proof.'
     };
   }finally{
-    fs.rmSync(folder,{recursive:true,force:true});
     if('shutdown' in backend)await backend.shutdown();
+    fs.rmSync(folder,{recursive:true,force:true});
     /** @type {Promise<void>} */
     const closed=new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
@@ -422,7 +422,7 @@ async function compare(){
   const workerRows=/** @type {Array<{loadedBMs:number,matchedQuietBMs:number}>} */(isolated.samples);
   const pairs=syncRows.map((s,i)=>({
     trial:i+1,synchronousLoadedBMs:s.loadedBMs,workerLoadedBMs:workerRows[i].loadedBMs,
-    workerVsSynchronous:s.workerLoadedBMs / s.loadedBMs
+    workerVsSynchronous:workerRows[i].loadedBMs / s.loadedBMs
   }));
   return {
     platform:process.platform,node:process.version,synchronous,isolated,
