@@ -499,9 +499,16 @@ function mutatesDecoderIntrinsic(ast) {
         /** @type {import('./ast').AstNode[]} */
         const returned=[];
         if(fn.body.type==='BlockStatement') {
-          for(const stmt of fn.body.body) {
-            if(stmt.type==='ReturnStatement'&&stmt.argument)returned.push(stmt.argument);
-          }
+          walk(fn.body,(innerNode,_parent,_key,ancestors)=>{
+            if(innerNode.type!=='ReturnStatement'||!innerNode.argument)return;
+            // A declaration or class inside this function has an independent
+            // return boundary. Its returned intrinsic does not escape this
+            // outer function merely by appearing in a nested body.
+            if(ancestors.some((/** @type {import('./ast').AstNode} */ parent)=>
+              ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+               'ClassDeclaration','ClassExpression'].includes(parent.type)))return;
+            returned.push(innerNode.argument);
+          });
         } else returned.push(fn.body);
         for(const value of returned) {
           if(sensitiveReturnValue(value))add(returnedSensitiveFunctions,name);
