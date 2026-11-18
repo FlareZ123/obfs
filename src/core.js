@@ -872,6 +872,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             for(const pathKey of returnedSensitivePaths.get(node.init.name)??[]) {
               addReturnedPathKey(node.id.name,pathKey);
             }
+            for(const key of returnedSensitiveFields.get(node.id.name)??[]) {
+              addReturnedField(node.init.name,key);
+            }
+            for(const pathKey of returnedSensitivePaths.get(node.id.name)??[]) {
+              addReturnedPathKey(node.init.name,pathKey);
+            }
           }
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isDocumentValue(node.init) ||
@@ -928,6 +934,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           }
           for(const pathKey of returnedSensitivePaths.get(node.right.name)??[]) {
             addReturnedPathKey(node.left.name,pathKey);
+          }
+          for(const key of returnedSensitiveFields.get(node.left.name)??[]) {
+            addReturnedField(node.right.name,key);
+          }
+          for(const pathKey of returnedSensitivePaths.get(node.left.name)??[]) {
+            addReturnedPathKey(node.right.name,pathKey);
           }
         }
         if(isGlobal(node.right))add(globalNames,node.left.name);
