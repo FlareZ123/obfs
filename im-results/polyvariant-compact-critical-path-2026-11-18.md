@@ -45,3 +45,13 @@ The maximum measured compact CPU ratio in the 400-million-iteration row was **3.
 **Decision from the expanded evidence:** The compact variant mitigates much of the original backend's hot arithmetic slowdown but still violates the strict limit on realistic long selected-leaf workloads, including a **median-level Windows breach** with longer samples. Its independently demonstrated trivial public reconstruction prevents claiming a security improvement. **Reject both full and compact polyvariant candidates as general solutions to the primary objective.** They remain opt-in reproducible research variants, and the original tests of stateful application parity remain correct for their specific work fractions.
 
 The difference between the 200-million and 400-million Windows ratios might involve JIT tiering, hidden GC effects, loop optimization or scheduler variation; the present data do not identify a mechanism. The independent native/obfuscated outputs were equal, so treating the higher ratio as a measurement artifact without further controlled evidence would be unjustified. A future candidate must pass matched long-duration hot CPU, complete application, and independent static/hostile-runtime attacks before selection.
+
+## Compiler semantic fuzz, cross-platform (18 November 2026 ~00:57 UTC)
+
+A focused [two-platform manual validation 44211601578](https://github.com/FlareZ123/obfs/actions/runs/44211601578), exact checkout `2284517acf58ab10f59f34ceae7b63c640e6d348`, **passed both Ubuntu and Windows**, including strict JSDoc, source-only three-function recovery, real module numeric/Unicode parity, and deterministic multi-grammar code-generation differential `sims/polyvariant-compact-fuzz.js 384`.
+
+The corpus created **384** independent integer-normalized return-only JS source programs with 8–64 addition/subtraction steps, alternating ESM and CommonJS and cycling 2/4/8 public case variants. It transformed all **384** programs, selecting **1,792** total case paths, and checked **49,920** numbered native-versus-generated value/exception/coercion observations. Both operating systems reported the identical deterministic source+output corpus SHA-256:
+
+`108fb0f7d3fe00bb8faaf23cdcdbf455efbb47aa5878d0c57f01c00a31544d50`.
+
+No semantic mismatch was observed in that bounded corpus. These compatibility observations strengthen confidence in exact arithmetic behavior of this constrained compiler grammar; they do not improve source secrecy, prove arbitrary JavaScript compatibility, or cancel the 13/52 measured long-duration strict hot CPU breaches.
