@@ -220,3 +220,42 @@ test('SCO read-only registered batch needs one request-body JSON.parse versus th
     JSON.parse=parse;
   }
 });
+
+test('SCO immutable batch keeps independent outer and inner authorization reference identities',async()=>{
+  let forbiddenEffects=0;
+  const methods={batch:createScoBatchMethod({
+    allowed:()=>1,
+    forbidden:()=>{forbiddenEffects++;return 99;}
+  })};
+  /** @param {boolean} immutableBatchArgs */
+  function policyHandler(immutableBatchArgs){
+    // This policy reads its argument graphs without modifying any of their
+    // properties. Its WeakSet avoids revalidating a nested argument list when
+    // another authorization phase has already checked its *identity*.
+    // The ordinary SCO policy-copy boundary always kept phase identities
+    // independent. Sharing a single graph must not bypass the inner gate.
+    const envelopeObserved=new WeakSet();
+    return createScoHandler([],{
+      immutableBatchArgs,
+      remoteMethods:methods,
+      authorizeRpc:()=>true,
+      authorizeOperation:(req,method,args)=>{
+        if(method==='batch'){
+          for(const call of /** @type {{args:unknown[]}[]} */ (args[0])){
+            envelopeObserved.add(call.args);
+          }
+          return true;
+        }
+        return method==='allowed' || envelopeObserved.has(args);
+      }
+    });
+  }
+  const body=payload([{method:'forbidden',args:[1]}]);
+  assert.deepEqual(await request(policyHandler(false),body),{
+    status:403,body:{ok:false,error:'Forbidden'}
+  });
+  assert.deepEqual(await request(policyHandler(true),body),{
+    status:403,body:{ok:false,error:'Forbidden'}
+  });
+  assert.equal(forbiddenEffects,0,'A denied inner method must never execute');
+});
