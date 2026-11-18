@@ -14,7 +14,7 @@ const {emitSno}=require('./polyvariant-app-sno');
 
 /** @typedef {{kind:string,payload:string}[]} Records */
 /** @typedef {{id:number,seed:number,records:Records,repeat:number}} Request */
-/** @typedef {{id:number,emitted:number,ms:number,digest:string}} Reply */
+/** @typedef {{id:number,emitted:number,ms:number,cpuMs:number,digest:string}} Reply */
 /** @typedef {{child:import('node:child_process').ChildProcessWithoutNullStreams,lines:readline.Interface,iterator:AsyncIterableIterator<string>,stderr:string}} ResidentWorker */
 
 /**
@@ -98,7 +98,8 @@ async function submit(worker,request){
   const result=/** @type {Reply} */ (JSON.parse(await response));
   assert.equal(result.id,request.id);
   assert.equal(result.emitted,request.records.length*request.repeat);
-  assert.ok(Number.isFinite(result.ms)&&result.ms>0,'Expected positive compute duration');
+  assert.ok(Number.isFinite(result.ms)&&result.ms>0,'Expected positive wall duration');
+  assert.ok(Number.isFinite(result.cpuMs)&&result.cpuMs>0,'Expected positive CPU duration');
   assert.match(result.digest,/^[0-9a-f]{64}$/u);
   return result;
 }
@@ -123,7 +124,7 @@ async function closeResident(worker){
  * measurement of the SNO *post-init repeated-compute* exemption boundary.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],budget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,allOutputsEquivalent:boolean}>}>}
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>}>}
  */
 async function run(rounds=13){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
@@ -138,7 +139,7 @@ async function run(rounds=13){
     workers.push(native);
     const sno=await startResident(snoEntry);
     workers.push(sno);
-    /** @type {Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],budget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,allOutputsEquivalent:boolean}>} */
+    /** @type {Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>} */
     const rows=[];
     let id=0;
     for(const [count,repeat] of [[1,2000],[50,100],[1000,8],[10000,1]]){
@@ -155,6 +156,10 @@ async function run(rounds=13){
       const nativeMs=[];
       /** @type {number[]} */
       const snoMs=[];
+      /** @type {number[]} */
+      const nativeCpuMs=[];
+      /** @type {number[]} */
+      const snoCpuMs=[];
       for(let trial=0;trial<rounds;trial++){
         const request={...base,id:++id};
         /** @type {Reply|undefined} */
@@ -169,11 +174,16 @@ async function run(rounds=13){
         assert.equal(published.digest,original.digest,'Resident stateful output changed');
         nativeMs.push(original.ms);
         snoMs.push(published.ms);
+        nativeCpuMs.push(original.cpuMs);
+        snoCpuMs.push(published.cpuMs);
       }
       const budget=pairedBudgetBound(nativeMs,snoMs);
+      const cpuBudget=pairedBudgetBound(nativeCpuMs,snoCpuMs);
       rows.push({
-        events:count,repetitions:repeat,nativeMs,snoMs,budget,
+        events:count,repetitions:repeat,nativeMs,snoMs,nativeCpuMs,snoCpuMs,
+        budget,cpuBudget,
         strictOverBudgetPairs:nativeMs.filter((ms,index)=>snoMs[index]>2.5*ms).length,
+        strictCpuOverBudgetPairs:nativeCpuMs.filter((ms,index)=>snoCpuMs[index]>2.5*ms).length,
         allOutputsEquivalent:true
       });
     }
