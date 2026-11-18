@@ -348,7 +348,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
-  const {calls,declarations,declarationSet,identifiers,identifierUses,parents,dynamicScope,
+  const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
     functionDeclarations,callableDeclarators,aliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
