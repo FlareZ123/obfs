@@ -160,11 +160,12 @@ function median(values) {
 /** @returns {{trials:number,cases:Array<Record<string,unknown>>}} */
 function profileRuntime() {
   const trials = 9;
-  const nativeCount = 20000000;
-  const protectedCount = 2000000;
+  const nativeCount = 100000000;
   /** @type {Array<Record<string,unknown>>} */
   const cases = [];
   for (const rounds of [1, 2, 4, 8, 16, 32, 48]) {
+    const protectedCount = rounds <= 2 ? 20000000 :
+      rounds <= 8 ? 10000000 : rounds <= 16 ? 5000000 : 2000000;
     const candidate = protectedPredicate(rounds);
     for (let code = 0; code < 128; code++) {
       assert.equal(candidate(code), nativePredicate(code));
