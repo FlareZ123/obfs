@@ -2476,6 +2476,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(callee.type==='MemberExpression' &&
          isReflectiveReceiver(callee.object)&&memberName(callee)==='apply' &&
          isProcessReportMethod(node.arguments[0]))observed=true;
+      const reportDescriptorRead=node.arguments.length>1&&
+        isProcessReportNamespace(node.arguments[0])&&
+        processReportTriggers.has(staticString(node.arguments[1])??'')&&
+        (callee.type==='MemberExpression'&&
+          isReflectiveReceiver(callee.object)&&
+          memberName(callee)==='getOwnPropertyDescriptor' ||
+         callee.type==='Identifier'&&reflectiveReaders.has(callee.name));
+      if(reportDescriptorRead)observed=true;
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
       if(isWarningMethod(callee))observed=true;
