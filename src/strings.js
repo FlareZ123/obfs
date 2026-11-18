@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk, applyEdits, observesFunctionSource} = require('./ast');
+const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -43,19 +43,7 @@ function mayAppearInFailedOperand(node,ancestors) {
   let expression=node;
   for(let i=ancestors.length-1;i>=0;i--){
     const outer=ancestors[i];
-    if(outer.type==='CallExpression' && outer.callee===expression ||
-       outer.type==='NewExpression' && outer.callee===expression ||
-       outer.type==='TaggedTemplateExpression' && outer.tag===expression ||
-       outer.type==='SpreadElement' && outer.argument===expression ||
-       outer.type==='ForOfStatement' && outer.right===expression ||
-       outer.type==='AssignmentPattern' && outer.right===expression &&
-         ['ArrayPattern','ObjectPattern'].includes(outer.left.type) ||
-       outer.type==='VariableDeclarator' && outer.init===expression &&
-         ['ArrayPattern','ObjectPattern'].includes(outer.id.type) ||
-       outer.type==='AssignmentExpression' && outer.right===expression &&
-         ['ArrayPattern','ObjectPattern'].includes(outer.left.type) ||
-       outer.type==='YieldExpression' && outer.delegate &&
-         outer.argument===expression) return true;
+    if(sourceSpelledErrorOperand(outer)===expression)return true;
     if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(outer.type))break;
     expression=outer;
   }
