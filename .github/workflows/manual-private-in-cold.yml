@@ -16,11 +16,15 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Same-run controlled compiler inventory A/B with exact output-byte match
+        run: node sims/property-proof-inventory-ab.js
       - name: Exact standalone generated CommonJS cold profile
         run: node sims/private-in-onefile-cold.js
       - name: Immediate top-level generated-source cold profile
