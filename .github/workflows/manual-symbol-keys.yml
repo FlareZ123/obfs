@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Single-file exact-emitted COO first-evaluation budget
+        run: node sims/private-in-onefile-cold.js
       - name: COO generated private-in immediate cold budget
         run: node sims/private-in-immediate-cold.js
       - name: COO native private-in cold-session budget
