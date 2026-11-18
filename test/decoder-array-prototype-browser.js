@@ -141,6 +141,18 @@ async function main() {
       expectEncoded:false},
     {name:'document-defaultview-unrelated-Number',
       mutation:'document.defaultView.Number=()=>7;',
+      expectEncoded:true},
+    {name:'document-binding-defaultview-String',
+      mutation:'const Doc=document;Doc.defaultView.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'destructured-defaultview-String',
+      mutation:'const {defaultView:View}=document;View.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'global-destructured-document-String',
+      mutation:'const {document:Doc}=globalThis;Doc.defaultView.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'document-binding-unrelated-Number',
+      mutation:'const Doc=document;Doc.defaultView.Number=()=>7;',
       expectEncoded:true}
   ];
   const observations=[];
