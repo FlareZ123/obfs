@@ -13,6 +13,7 @@ const {partitionScoAsyncModule,bindScoModuleExports,createScoHandler}=require('.
 const {ROOT,EXPOSED,build}=require('../examples/application-challenge/sco-build.cjs');
 const {externalValue}=require('../examples/application-challenge/sco-server.cjs');
 const {atomicWrite}=require('../src/atomic');
+const {createScoBatchMethod}=require('../src/rpc-batch');
 
 const A_SEED=0xa1a1a1a1,B_SEED=0xb2b2b2b2;
 const A_COUNT=1000,B_COUNT=1,BATCH_SIZE=1024,A_BATCHES=8;
@@ -104,10 +105,11 @@ function signal(filename){
  * value equality, distinct bearer tokens and exact monotonic overlap proof.
  *
  * @param {number} [rounds]
+ * @param {boolean} [cooperative] Allow independent requests between every 64 private batch items.
  * @returns {Promise<{
  *  source:string,platform:NodeJS.Platform,node:string,
  *  attackerOperations:number,attackerBatches:number,
- *  attackerIterationsPerCall:number,
+ *  attackerIterationsPerCall:number,cooperativeYieldEvery:number,
  *  victimOperations:number,victimIterationsPerCall:number,
  *  distinctAccountBearers:boolean,clientFetchPrewarmed:boolean,
  *  overlapCount:number,overTwoPointFiveLoadedVsQuiet:number,
@@ -115,9 +117,11 @@ function signal(filename){
  *  rows:Row[],limitation:string
  * }>}
  */
-async function run(rounds=9){
+async function run(rounds=9,cooperative=false){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>20)
     throw RangeError('Expected 5 to 20 independent matched contention trials');
+  if(typeof cooperative!=='boolean')
+    throw TypeError('Expected boolean cooperative scheduling option');
   const beforeWindow=globalThis.window;
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-real-batch-contention-'));
   /** @type {http.Server|undefined} */
@@ -162,6 +166,13 @@ async function run(rounds=9){
       }
     };
     const registry=bindScoModuleExports(partition,instrumented);
+    const directMethod=partition.methodNames.evaluateRemote;
+    const batchMethod=partition.batchMethod;
+    if(cooperative){
+      registry[batchMethod]=createScoBatchMethod({
+        [directMethod]:registry[directMethod]
+      },{maxCalls:BATCH_SIZE,yieldEvery:64});
+    }
     partition.clientFile.privateModulePaths=[...graph.privatePaths];
     partition.clientFile.privateOriginalDigests=graph.privateSourceDigests.map(
       item=>item.sha256);
@@ -178,8 +189,6 @@ async function run(rounds=9){
         return 'B';
       return null;
     }
-    const directMethod=partition.methodNames.evaluateRemote;
-    const batchMethod=partition.batchMethod;
     const handler=createScoHandler([partition.clientFile],{
       publicPaths:[EXPOSED],remoteMethods:registry,maxRpcBytes:262144,
       authorizeRead:req=>principal(req)!==null,
@@ -296,13 +305,13 @@ async function run(rounds=9){
       source:'sims/sco-batch-cross-account-contention.js',
       platform:process.platform,node:process.version,
       attackerOperations:BATCH_SIZE*A_BATCHES,attackerBatches:A_BATCHES,
-      attackerIterationsPerCall:A_COUNT,
+      attackerIterationsPerCall:A_COUNT,cooperativeYieldEvery:cooperative?64:0,
       victimOperations:1,victimIterationsPerCall:B_COUNT,
       distinctAccountBearers:true,clientFetchPrewarmed:true,overlapCount:rows.length,
       overTwoPointFiveLoadedVsQuiet:rows.filter(s=>s.ratio>2.5).length,
       medianLoadedOverQuiet:median(rows.map(s=>s.ratio)),
       maximumLoadedOverQuiet:Math.max(...rows.map(s=>s.ratio)),
-      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; eight concurrently issued legitimate A batches each at the individual per-request aggregate cap, one prewarmed B request from an independent process versus matched prewarmed quiet B control. Relative quiet B latency isolates service queue fairness, not an original-to-obfuscated CPU budget.'
+      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; eight concurrently issued legitimate A batches each at the individual per-request aggregate cap, one prewarmed B request from an independent process versus matched prewarmed quiet B control. Optional yieldEvery=64 intentionally admits cross-request interleaving and is unsuitable without application-specific semantic permission. Relative quiet B latency isolates service queue fairness, not an original-to-obfuscated CPU budget.'
     };
   }finally{
     if(server){
@@ -315,7 +324,7 @@ async function run(rounds=9){
     else globalThis.window=beforeWindow;
   }
 }
-if(require.main===module)run().then(async result=>{
+if(require.main===module)run(9,process.argv.includes('--cooperative')).then(async result=>{
   if(process.env.OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE)
     await atomicWrite(process.env.OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE,
       JSON.stringify(result,null,2)+'\n');
