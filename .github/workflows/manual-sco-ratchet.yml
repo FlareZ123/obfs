@@ -41,6 +41,8 @@ jobs:
         run: node sims/sco-ratchet-transactional-repair.js
       - name: Two independent actual SCO HTTP replicas with local SQLite admission
         run: node sims/sco-ratchet-transactional-http.js
+      - name: Killed independent worker at SQLite pre/post commit boundaries
+        run: node sims/sco-ratchet-transactional-crash.js
       - name: Authorized A CPU flood cross-account B 2.5x contention witness
         run: node sims/sco-ratchet-cross-account-contention.js
       - name: Per-principal resident worker isolation performance pilot
