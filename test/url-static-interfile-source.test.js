@@ -86,13 +86,15 @@ for(const [name,parser,expression] of sourceCases) {
  * be imported by a consumer of an independently imported native parser.
  * @param {string} parserSource
  * @param {string} expression
+ * @param {string|null} [baseSource]
  * @returns {ModuleFile[]}
  */
-function selectedFiles(parserSource,expression) {
+function selectedFiles(parserSource,expression,baseSource=null) {
   return [
     {path:'logic.mjs',sourceType:'module',
       code:'export function inspect(a){return a^17;}'},
     {path:'parser.mjs',sourceType:'module',code:parserSource},
+    ...(baseSource===null?[]:[{path:'base.mjs',sourceType:/** @type {'module'} */ ('module'),code:baseSource}]),
     {path:'observer.mjs',sourceType:'module',code:
       'import {inspect} from "./logic.mjs";'+
       'import {parseUrl} from "./parser.mjs";'+
@@ -100,13 +102,20 @@ function selectedFiles(parserSource,expression) {
   ];
 }
 
-for(const [name,parser] of [
-  ['direct export','export const parseUrl=URL.parse;'],
-  ['reexported immutable alias','const original=globalThis.URL.parse;export {original as parseUrl};']
-]) {
+/** @type {Array<[string,string,string|null]>} */
+const selectedObservers=[
+  ['direct export','export const parseUrl=URL.parse;',null],
+  ['reexported immutable alias','const original=globalThis.URL.parse;export {original as parseUrl};',null],
+  ['direct forwarded export','export {parseUrl} from "./base.mjs";','export const parseUrl=URL.parse;'],
+  ['renamed forwarded export','export {nativeParse as parseUrl} from "./base.mjs";',
+    'export const nativeParse=globalThis.URL.parse;'],
+  ['star forwarded export','export * from "./base.mjs";','export const parseUrl=URL.parse;']
+];
+
+for(const [name,parser,base] of selectedObservers) {
   test('selected Wasm rejects imported URL parser observing a function: '+name,async()=>{
     const before=selectedFiles(parser,
-      'parseUrl(inspect,"https://example.test/").href');
+      'parseUrl(inspect,"https://example.test/").href',base);
     const original=await execute(before);
     const lowered=lowerWasmI32Functions(before[0].code,'module',{
       seed:'url-import-wasm-counterfactual',names:['inspect']
