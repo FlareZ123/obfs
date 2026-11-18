@@ -111,6 +111,12 @@ for(const [name,mutator] of unsafe) {
 
 for(const mode of /** @type {const} */ (['sno','coo'])) {
   for(const [name,side] of [
+    ['read-only Reflect.get opaque String constructor',
+      "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Reflect.get(P,'constructor');const f=C.fromCharCode;"],
+    ['read-only destructured opaque String constructor',
+      "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const {constructor:C}=P;const f=C.fromCharCode;"],
+    ['read-only descriptor opaque String constructor',
+      "function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Object.getOwnPropertyDescriptor(P,'constructor').value;const f=C.fromCharCode;"],
     ['unrelated Object helper field',
       "Object.defineProperty(Object,'unrelatedAppField',{value:7,configurable:true});"],
     ['unrelated Reflect helper field',
