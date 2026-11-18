@@ -2520,11 +2520,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       reflectGetInvocation(parent):null;
     const benignProcessEnvironmentRead=reflectedProcessRead?.[0]===node&&
       sourceStringKey(reflectedProcessRead[1])==='env';
+    const reportMutation=parent?.type==='CallExpression'?
+      processReportMutatorInvocation(parent):null;
+    const benignProcessReportMutationTarget=reportMutation?.args[0]===node&&(
+      reportMutation.method==='set'&&isLiteralFalse(reportMutation.args[2]) ||
+      reportMutation.method==='assign'&&
+        reportMutation.args.slice(1).every(source=>
+          !processReportAssignmentSourceMayEnable(source))
+    );
     if(isProcessReceiver(node)&&parent&&!processBindingNodes.has(node)&&
        !bindingNodes.has(node)&&!benignProcessEnvironmentRead&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     if(isProcessReportNamespace(node)&&parent&&
-       !processReportBindingNodes.has(node)&&
+       !processReportBindingNodes.has(node)&&!benignProcessReportMutationTarget&&
        !directMember&&!staticKey&&!localAlias&&!assignedAlias)observed=true;
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
