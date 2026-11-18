@@ -39,8 +39,8 @@ test('process.report.getReport currently exposes a transformed source coordinate
   const transformed=execute(output.code);
   assert.equal(typeof native,'string');
   assert.equal(typeof transformed,'string');
-  assert.match(native,/process-report-observer\\.cjs:1:\\d+/);
-  assert.match(transformed,/process-report-observer\\.cjs:1:\\d+/);
+  assert.match(native,/process-report-observer\.cjs:1:\d+/);
+  assert.match(transformed,/process-report-observer\.cjs:1:\d+/);
   assert.ok(output.metrics.properties>0,output.code);
   assert.notEqual(transformed,native,output.code);
 });
