@@ -164,7 +164,9 @@
     "sims/property-in-operator-static-recover.js",
     "sims/private-in-cold-budget.js",
     "sims/private-in-immediate-cold.js",
-    "sims/private-in-onefile-cold.js"
+    "sims/private-in-onefile-cold.js",
+    "sims/fused-arx-static-lift.js",
+    "test/fused-arx-static-lift.test.js"
   ],
   "exclude": [
     "node_modules"
