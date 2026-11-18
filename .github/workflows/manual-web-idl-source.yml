@@ -33,5 +33,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/blob-options-browser.js
+      - name: Real Chromium URL.parse source and selected-Wasm differential
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/url-static-source-browser.js
       - name: Strict source-transform JSDoc typing
         run: npm run typecheck
