@@ -585,6 +585,18 @@ function mutatesDecoderIntrinsic(ast) {
     // can return mutable references or descriptors. An alias held by another
     // function can mutate them after this syntax-only analysis.
     const name=node.arguments[1];
+    // The proof that getPrototypeOf(7) cannot reach String.prototype assumes
+    // native Object/Reflect lookup semantics. An earlier dependency can
+    // replace either method through a descriptor or a property bag without
+    // ever exposing a first-class getPrototypeOf member reference.
+    if((isObjectIntrinsic(first)||isReflectIntrinsic(first)) &&
+       (isObjectIntrinsic(receiver)&&mutatorsObject.has(method??'') ||
+        isReflectIntrinsic(receiver)&&mutatorsReflect.has(method??'')) &&
+       (method!=='defineProperty'&&method!=='set'&&method!=='deleteProperty' ||
+        !name||staticString(name)===null||staticString(name)==='getPrototypeOf')) {
+      mutated=true;
+      return;
+    }
     const mayReadString=!name||name.type!=='Literal'||name.value==='String';
     const mayReadArray=!name||name.type!=='Literal'||name.value==='Array';
     const mayReadPrototype=!name||name.type!=='Literal'||name.value==='prototype';
