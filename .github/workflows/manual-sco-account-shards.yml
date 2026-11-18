@@ -27,3 +27,5 @@ jobs:
         run: npm run typecheck:external
       - name: Authenticated account-sharded SCO HTTP cross-process differential
         run: node sims/sco-ratchet-account-shards.js
+      - name: Same-process authenticated A CPU blocking B despite storage shards
+        run: node sims/sco-ratchet-shards-eventloop.js
