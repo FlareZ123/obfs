@@ -578,6 +578,16 @@ function mutatesDecoderIntrinsic(ast) {
        isObjectPrototype(expression)||isPossiblePrototype(expression)||
        isPossibleConstructor(expression))return true;
     if(expression.type==='SpreadElement')return containsDecoderIntrinsic(expression.argument);
+    if(expression.type==='SequenceExpression')return expression.expressions.some(
+      (/** @type {import('./ast').AstNode} */ part)=>containsDecoderIntrinsic(part));
+    if(expression.type==='ConditionalExpression')return (
+      containsDecoderIntrinsic(expression.test)||
+      containsDecoderIntrinsic(expression.consequent)||
+      containsDecoderIntrinsic(expression.alternate));
+    if(expression.type==='LogicalExpression')return (
+      containsDecoderIntrinsic(expression.left)||
+      containsDecoderIntrinsic(expression.right));
+    if(expression.type==='ChainExpression')return containsDecoderIntrinsic(expression.expression);
     if(expression.type==='ArrayExpression')return expression.elements.some(
       (/** @type {import('./ast').AstNode|null} */ element)=>
         element!==null&&containsDecoderIntrinsic(element));
