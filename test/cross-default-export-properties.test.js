@@ -124,3 +124,35 @@ test('shape observation through direct default import declines renaming',async()
   ];
   await compileAndCompare(files,0);
 });
+
+
+test('direct default owner preserves local alias and imported identity flow',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export default {secretField:23};'},
+    {path:'identity.mjs',sourceType:'module',code:'export const identity=x=>x;'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import state from "./state.mjs";',
+      'import {identity} from "./identity.mjs";',
+      'const first=state;',
+      'const second=identity(first);',
+      'console.log(second.secretField);'
+    ].join('\n')}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('opaque imported consumer of direct default owner declines renaming',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',code:'export default {secretField:23};'},
+    {path:'sink.mjs',sourceType:'module',
+      code:'export function inspect(value){return Object.keys(value)[0];}'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import state from "./state.mjs";',
+      'import {inspect} from "./sink.mjs";',
+      'console.log(inspect(state),state.secretField);'
+    ].join('\n')}
+  ];
+  await compileAndCompare(files,0);
+});
