@@ -57,3 +57,12 @@ jobs:
         run: node --test test/decoder-returned-alias.test.js
       - name: Nested if try switch return and scoped alias proof
         run: node --test test/decoder-returned-branches.test.js
+
+      - name: Browser WindowProxy decoder-alias differential and positive-yield control
+        run: node --test test/decoder-browser-window-alias.test.js
+
+      - name: Real Chromium WindowProxy intrinsic alias and protected-work parity
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-browser-window-alias-browser.js
