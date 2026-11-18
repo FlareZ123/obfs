@@ -74,6 +74,8 @@ jobs:
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
         run: npm run typecheck:external
+      - name: Deterministic CPU pair and zero-tick accounting regressions
+        run: node --test test/cpu-pair-summary.test.js
       - name: Exact same-path native A/A fresh-process CPU placebo calibration
         run: node sims/straightline-reader-cold-placebo.js --same-path
       - name: Byte-identical native A/B fresh-process CPU placebo calibration
