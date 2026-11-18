@@ -25,6 +25,8 @@ jobs:
         run: npx tsc -p jsconfig.sno-resident.json
       - name: Compact case semantics, real protected work and static reconstruction
         run: node --test test/polyvariant-compact-research.test.js
+      - name: Deterministic 384-case compact ESM CommonJS behavioral differential
+        run: node sims/polyvariant-compact-fuzz.js 384
       - name: Real transformed-work, digest refusal and resident differential
         run: node --test test/sno-resident-budget.test.js
       - name: Source-pinned 13-pair post-initialization work profile
