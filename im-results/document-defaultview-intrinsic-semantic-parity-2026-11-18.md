@@ -156,3 +156,39 @@ the finite set. Member reads through opaque functions, proxies,
 unknown module preloads, and mutation outside the supplied graph
 remain outside the admission proof. Strong-obfuscation release
 remains blocked independently by cost and attacker recovery.
+
+## Follow-up: object-pattern assignments after declarations
+
+A `VariableDeclarator` destructuring guard is insufficient when an
+existing variable is populated by a later `AssignmentExpression`
+whose left-hand side is an object pattern. Two new real three-file
+CJS source-visible cases assign to `View` through
+`({defaultView:View}=document)` or to `Doc` through
+`({document:Doc}=globalThis)`; both then overwrite the ambient
+`String.fromCharCode`.
+
+[Red two-platform run 44255248526](https://github.com/FlareZ123/obfs/actions/runs/44255248526)
+at `c99d6af3a3457da3d1cfe7127342fdbd99b5d4f8` observed
+**two actual SNO process-output mismatches per OS** and
+117/119 passing tests. The native target continued to return the
+unchanged literal while emitted code used the tampered decoder.
+
+The safe scanner now shares `recordDocumentPattern(pattern,owner)`
+between `VariableDeclarator` and `AssignmentExpression`. It follows
+only statically recognized source-owner pairs and bound identifiers,
+adding a potential document or WindowProxy to the same fixed-point
+alias sets used by the original intrinsic-mutation refusal.
+No runtime instrumentation or network lookup was added.
+
+[Green two-platform run 44255415512](https://github.com/FlareZ123/obfs/actions/runs/44255415512)
+at `c03a77cf5cfb5003f6fdc04baba2937c9adf246c`
+passed **119/119** Node semantic regressions on each OS,
+production JSDoc, and **16** real Chromium native/emitted/recovered
+ESM fixtures on Ubuntu. The two new hostile assignment forms
+emitted **zero** string-encoded literals, while assigning an unrelated
+`Number` property through destructured `View` preserved one
+encoded literal and the independent static-recovery canary.
+
+These checks establish the named source-visible patterns only.
+A dynamic property bag, arbitrary factory, external preloaded scripts
+and a fully hostile runtime remain outside this compiler proof.
