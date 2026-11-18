@@ -8,6 +8,7 @@ const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src/core');
 const {atomicWrite}=require('../src/atomic');
 const {original}=require('./straightline-reader-profile');
+const {summarizeCpuPairs}=require('./cpu-pair-summary');
 
 const runner=[
   "'use strict';",
@@ -18,12 +19,6 @@ const runner=[
   "const elapsed=process.cpuUsage();",
   "process.stdout.write(JSON.stringify({digest,cpuMs:(elapsed.user+elapsed.system)/1000}));"
 ].join('\n');
-
-/** @param {number[]} values @returns {number} */
-function median(values){
-  const sorted=[...values].sort((a,b)=>a-b);
-  return sorted[Math.floor(sorted.length/2)];
-}
 
 /**
  * Execute an actual CJS module in a fresh Node process, including module load,
@@ -83,20 +78,9 @@ async function run(){
         nativeCpuMs.push(native.cpuMs);
         compiledCpuMs.push(transformed.cpuMs);
       }
-      // A short Windows child may report zero CPU ticks; preserve the sample
-      // and classify its ratio as unresolved instead of dividing by zero.
-      const pairedRatios=nativeCpuMs.map((ms,i)=>
-        ms>0&&compiledCpuMs[i]>0?compiledCpuMs[i]/ms:null);
-      const resolvedRatios=pairedRatios.filter(ratio=>ratio!==null);
-      const nativeMedian=median(nativeCpuMs);
-      const compiledMedian=median(compiledCpuMs);
       rows.push({
         calls:count,pairs:9,nativeCpuMs,compiledCpuMs,
-        pairedRatios,
-        ratioOfMedians:nativeMedian>0&&compiledMedian>0?compiledMedian/nativeMedian:null,
-        maxPairedRatio:resolvedRatios.length?Math.max(...resolvedRatios):null,
-        strictOverBudgetPairs:resolvedRatios.filter(ratio=>ratio>2.5).length,
-        unresolvedZeroPairs:pairedRatios.length-resolvedRatios.length
+        ...summarizeCpuPairs(nativeCpuMs,compiledCpuMs)
       });
     }
     const summary={
