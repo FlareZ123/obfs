@@ -1,0 +1,27 @@
+name: Manual SCO bucket crash and replay isolation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bucket-crash:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict source and external JSDoc
+        run: npm run typecheck:external
+      - name: Pre-and-post-SQL-commit process kill in account bucket
+        run: node sims/sco-ratchet-bucket-crash.js
