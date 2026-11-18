@@ -129,6 +129,26 @@ function isLiteralValue(node) {
 }
 
 /**
+ * A direct lexical parameter read does not infer a function name from its
+ * enclosing object key. Restrict this local-owner extension to a unique
+ * simple formal in the nearest function, avoiding unresolved names and
+ * closure-scoped guesses. The separate owner-use proof still rejects escapes,
+ * reflection, and source observers.
+ * @param {AstNode} value
+ * @param {AstNode[]} ancestors
+ * @param {Map<string,number>} bindings
+ * @returns {boolean}
+ */
+function isDirectParameterValue(value,ancestors,bindings) {
+  if(value.type!=='Identifier'||bindings.get(value.name)!==1)return false;
+  const fn=[...ancestors].reverse().find(node=>
+    node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+    node.type==='ArrowFunctionExpression');
+  return Boolean(fn && fn.params.some((/** @type {AstNode} */ param)=>
+    param.type==='Identifier'&&param.name===value.name));
+}
+
+/**
  * Each simple binding's visible lexical region. A unique name alone cannot
  * prove that a same-spelled free reference outside the region is the binding.
  * Derived from Agent 2's lexical-containment counterexample and implementation.
@@ -859,8 +879,10 @@ function renameLocalProperties(source, ast, options) {
     if(!literal)return;
     /** @type {AstNode[]} */
     const properties = literal.properties;
-    if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.shorthand || p.kind !== 'init' ||
-          ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) || !isLiteralValue(p.value))) return;
+    if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.kind !== 'init' ||
+          ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) ||
+          !(isLiteralValue(p.value) || literal===node &&
+            isDirectParameterValue(p.value,ancestors,bindings)))) return;
     const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
     candidates.push({node:literal,name:parent.id.name,properties});
@@ -887,7 +909,14 @@ function renameLocalProperties(source, ast, options) {
     // Truncated digests can collide. Duplicating literal keys silently changes
     // both object contents and all subsequent reads, so decline this object.
     if (new Set(mapping.values()).size !== mapping.size) continue;
-    for (const prop of candidate.properties) edits.push({start:prop.key.start,end:prop.key.end,text:JSON.stringify(mapping.get(ownPropertyName(prop)))});
+    for (const prop of candidate.properties) {
+      const renamed=JSON.stringify(mapping.get(ownPropertyName(prop)));
+      // Shorthand has one token for its key and value. Keep the original
+      // lexical value and function-name inference when expanding the field.
+      const text=prop.shorthand ?
+        renamed+':'+source.slice(prop.value.start,prop.value.end) : renamed;
+      edits.push({start:prop.key.start,end:prop.key.end,text});
+    }
     for (const member of proof.members) {
       const name=proof.memberNames.get(member);
       if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
