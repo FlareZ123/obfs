@@ -1954,12 +1954,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
         for(const property of id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          if(property.type!=='Property')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name==='report'&&!processReportNamespaces.has(property.value.name)) {
+          if(name!=='report')continue;
+          if(property.value.type==='Identifier' &&
+             !processReportNamespaces.has(property.value.name)) {
             processReportNamespaces.add(property.value.name);
             changedProcessReportAliases=true;
+          }
+          if(property.value.type==='ObjectPattern') {
+            for(const methodProperty of property.value.properties) {
+              if(methodProperty.type!=='Property' ||
+                 methodProperty.value.type!=='Identifier')continue;
+              const method=methodProperty.computed?staticString(methodProperty.key):
+                methodProperty.key.type==='Identifier'?methodProperty.key.name:
+                  staticString(methodProperty.key);
+              if(['getReport','writeReport'].includes(method??'') &&
+                 !processReportMethods.has(methodProperty.value.name)) {
+                processReportMethods.add(methodProperty.value.name);
+                changedProcessReportAliases=true;
+              }
+            }
           }
         }
         return;
