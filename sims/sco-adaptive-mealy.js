@@ -1,6 +1,7 @@
 'use strict';
 
 const {performance}=require('node:perf_hooks');
+const {testWMethod}=require('./sco-w-method');
 
 /** @typedef {{reset:()=>Promise<boolean>,step:(symbol:number)=>Promise<number>}} Oracle */
 /** @typedef {{next:number[][],output:number[][],access:number[][]}} LearnedMachine */
@@ -12,19 +13,23 @@ const {performance}=require('node:perf_hooks');
  *
  * @param {Oracle} api
  * @param {{maxStates?:number,alphabetSize?:number,conformanceDepth?:number,
- *   randomProbes?:number,seed?:number}} [options]
+ *   randomProbes?:number,seed?:number,certifyWithinBound?:boolean,
+ *   maxCertificateWords?:number}} [options]
  * @returns {Promise<{machine:LearnedMachine,requests:number,steps:number,
  *   conformanceQueries:number,counterexamples:number,experiments:number,
- *   trainingWords:string[],conformancePassed:boolean,elapsedMs:number}>}
+ *   trainingWords:string[],conformancePassed:boolean,elapsedMs:number,
+ *   certifiedWithinBound:boolean,wMethodTests:number}>}
  */
 async function learnAdaptiveMealy(api, options={}) {
   const started=performance.now();
   const {maxStates=12,alphabetSize=2,conformanceDepth=6,
-    randomProbes=320,seed=0x715c317}=options;
+    randomProbes=320,seed=0x715c317,certifyWithinBound=false,
+    maxCertificateWords=50000}=options;
   if(!Number.isSafeInteger(maxStates)||maxStates<2||maxStates>32 ||
      !Number.isSafeInteger(alphabetSize)||alphabetSize<1||alphabetSize>4 ||
      !Number.isSafeInteger(conformanceDepth)||conformanceDepth<1||conformanceDepth>10 ||
-     !Number.isSafeInteger(randomProbes)||randomProbes<0||randomProbes>4000) {
+     !Number.isSafeInteger(randomProbes)||randomProbes<0||randomProbes>4000 ||
+     !Number.isSafeInteger(maxCertificateWords)||maxCertificateWords<1||maxCertificateWords>1000000) {
     throw new RangeError('Unsupported active-learning bounds');
   }
   /** @type {number[][]} */
@@ -35,7 +40,7 @@ async function learnAdaptiveMealy(api, options={}) {
   const observations=new Map();
   /** @type {Set<string>} */
   const training=new Set();
-  let requests=0,steps=0,conformanceQueries=0,counterexamples=0;
+  let requests=0,steps=0,conformanceQueries=0,counterexamples=0,wMethodTests=0;
   /** @param {number[]} word @returns {Promise<number[]>} */
   async function trace(word) {
     const key=JSON.stringify(word);
@@ -166,7 +171,7 @@ async function learnAdaptiveMealy(api, options={}) {
   let machine={next:[],output:[],access:[]};
   for(let round=0;round<maxStates*3;round++){
     if(!await settle())return {machine,requests,steps,conformanceQueries,
-      counterexamples,experiments:experiments.length,trainingWords:[...training],conformancePassed:false,elapsedMs:elapsed()};
+      counterexamples,experiments:experiments.length,trainingWords:[...training],conformancePassed:false,certifiedWithinBound:false,wMethodTests,elapsedMs:elapsed()};
     machine=await hypothesis();
     let witness=null;
     for(const word of conformance){
@@ -175,8 +180,17 @@ async function learnAdaptiveMealy(api, options={}) {
         witness=word;break;
       }
     }
+    if(witness===null && certifyWithinBound){
+      const certificate=await testWMethod(machine,maxStates,trace,maxCertificateWords);
+      wMethodTests+=certificate.tests;
+      if(!certificate.passed)witness=certificate.counterexample;
+      else return {machine,requests,steps,conformanceQueries,
+        counterexamples,experiments:experiments.length,trainingWords:[...training],
+        conformancePassed:true,certifiedWithinBound:certificate.exhaustive,wMethodTests,elapsedMs:elapsed()};
+    }
     if(witness===null)return {machine,requests,steps,conformanceQueries,
-      counterexamples,experiments:experiments.length,trainingWords:[...training],conformancePassed:true,elapsedMs:elapsed()};
+      counterexamples,experiments:experiments.length,trainingWords:[...training],
+      conformancePassed:true,certifiedWithinBound:false,wMethodTests,elapsedMs:elapsed()};
     counterexamples++;
     let grew=false;
     for(let index=0;index<witness.length;index++){
@@ -188,7 +202,7 @@ async function learnAdaptiveMealy(api, options={}) {
     if(!grew)throw new Error('Conformance witness did not refine experiment set');
   }
   return {machine,requests,steps,conformanceQueries,counterexamples,
-    experiments:experiments.length,trainingWords:[...training],conformancePassed:false,elapsedMs:elapsed()};
+    experiments:experiments.length,trainingWords:[...training],conformancePassed:false,certifiedWithinBound:false,wMethodTests,elapsedMs:elapsed()};
 }
 
 module.exports={learnAdaptiveMealy};
