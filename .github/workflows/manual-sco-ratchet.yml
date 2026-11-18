@@ -29,6 +29,8 @@ jobs:
         run: node sims/sco-ratchet-boundary.js
       - name: Actual generated batch facade vs independent attacker and 25ms budget
         run: node sims/sco-ratchet-batch-candidate.js
+      - name: Equal-trust esbuild-minified and generated client attacker and 2.5x control
+        run: node sims/sco-ratchet-minifier-control.js
       - name: Anonymous downstream uses authorized A proxy to clone live state
         run: node sims/sco-ratchet-online-relay.js
       - name: Lost-response strict failure vs idempotent last-result recovery
@@ -45,3 +47,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-ratchet-browser-attacker.js
+      - name: Matched generated and minified facade hostile Chromium A-only interception
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-browser-equal-trust.js
