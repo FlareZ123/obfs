@@ -220,7 +220,7 @@ test('ambient Symbol overwrite breaks naive island Symbol lowering but stays ref
   }),/Source observer islands support literal property renaming only/);
 });
 
-test('CacheStorage's implicit request and response-body reader cannot bypass source island proof',()=>{
+test('CacheStorage implicit requests and response-body readers cannot bypass source islands',()=>{
   const cacheExpressions=[
     'const box=await caches.open("source-cache");await box.add("./independent.mjs");'+
       'const response=await box.match("./independent.mjs");console.log((await response.text()).includes("privateB"));',
