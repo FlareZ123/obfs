@@ -1883,17 +1883,38 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Node warning calls capture caller positions under --trace-warnings.
   // Native process.emitWarning remains callable after local extraction/binding.
   const warningMethodAliases=new Set();
-  /** @param {AstNode|null|undefined} node @returns {boolean} */
-  function isProcessReceiver(node) {
-    return Boolean(node && (node.type==='Identifier'&&node.name==='process'||
-      node.type==='MemberExpression'&&isGlobal(node.object)&&
-        memberName(node)==='process'));
-  }
+  const processModuleNamespaces=new Set();
   // Node diagnostic reports embed the live JavaScript call stack. Reading a
   // report object or writing one to disk therefore exposes generated source
   // coordinates even without a syntactic .stack access.
   const processReportNamespaces=new Set();
   const processReportMethods=new Set();
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration' ||
+       !['process','node:process'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))
+        processModuleNamespaces.add(spec.local.name);
+      if(spec.type==='ImportSpecifier' &&
+         String(spec.imported.name??spec.imported.value)==='report')
+        processReportNamespaces.add(spec.local.name);
+    }
+  });
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessModuleRequire(node) {
+    return Boolean(node?.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require' &&
+      node.arguments.length===1 &&
+      ['process','node:process'].includes(staticString(node.arguments[0])??''));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessReceiver(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      (node.name==='process'||processModuleNamespaces.has(node.name)) ||
+      node.type==='MemberExpression'&&isGlobal(node.object)&&
+        memberName(node)==='process' ||
+      isProcessModuleRequire(node)));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReportNamespace(node) {
     return Boolean(node && (node.type==='Identifier'&&
@@ -1926,6 +1947,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'?node.right:null;
       if(!id||!value)return;
+      if(id.type==='Identifier'&&isProcessReceiver(value)&&
+         !processModuleNamespaces.has(id.name)) {
+        processModuleNamespaces.add(id.name);
+        changedProcessReportAliases=true;
+      }
       if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
         for(const property of id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
