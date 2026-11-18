@@ -46,5 +46,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/browser-error-coordinate-attack.js --expect-guarded
+      - name: Counterfactual cross-file Worker error coordinates
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/worker-error-coordinate-attack.js
       - name: Validate compiler JSDoc types
         run: npm run typecheck
