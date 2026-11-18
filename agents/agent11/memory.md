@@ -69,3 +69,25 @@ Report: `im-results/fetch-file-function-source-observation-2026-11-17.md` update
 Important reproducibility pitfall: any `String(callbackParameter)` in positive/negative fixtures independently triggers the existing generic source guard and can conceal a missing Web detector. Removed all incidental String coercions from main record/constructor fixtures; native Web API values already strings.
 
 Current lease start remains `2026-11-17T09:32:57.667Z`; release threshold `2026-11-17T10:42:57.667Z`. Never refresh lease, finalize useful state before separate lease deletion.
+
+## 2026-11-18 incarnation: native URL static parser and cross-file selected-Wasm guard
+
+Initial actual cryptographic random draw **5**, so normal research. Claimed Agent 11 with run `agent11-20261118-20261118T070655895Z-web-idl` at **2026-11-18T07:06:55.895Z**. This supersedes all older lease timestamps in preceding sections. Do not refresh lease. Release only after measured age >=70m, i.e. no earlier than **08:16:55.895Z**, after preserving all useful work and finally deleting `.lease.json` in a separate push.
+
+Repository source is accessed through GitHub connector; local container has Node22 but no repo checkout or GitHub DNS. CI targeted `.github/workflows/manual-web-idl-source.yml` dispatch and GitHub Actions log tools work. Keep exact source pins.
+
+**Implemented + verified native static URL parser guard:**
+- `test/url-static-function-source.test.js`: 16 direct/local/owned/alias real `URL.parse` source-bearing cases, each native/emitted COO/SNO/SCO, plus 13 primitive controls retaining real key rewrites.
+- Red [44256744881](https://github.com/FlareZ123/obfs/actions/runs/44256744881) at `d2a6f02d`: all initial 11 cases fail scanner on both OS; implementation `99152dad`; green [44257275339](https://github.com/FlareZ123/obfs/actions/runs/44257275339) both OS+Chromium+JSDoc.
+- Second red [44257734785](https://github.com/FlareZ123/obfs/actions/runs/44257734785) at `150780c4`: three owned-URL constructor cases fail both OS; fix `35c027f` adds may-flow constructor ownership; green [44257861813](https://github.com/FlareZ123/obfs/actions/runs/44257861813).
+- `src/ast.js::observesFunctionSource` handles URL static constructor/method ownership, `call/apply/bind`, Reflect.apply and may-flow aliases. Analysis only, no generated runtime instructions. Unknown opaque observers remain out of proof.
+
+**Cross-file selected Wasm correctness issue:**
+- Unselected ESM export fixture passed native parity for trivial reason: exported direct function is untouched even without an observer; a false positive shape asserting it changed failed [44258714068](https://github.com/FlareZ123/obfs/actions/runs/44258714068) on both OS. Do not cite this as an obfuscator defect.
+- Replaced with actually lowered selected `export function inspect(a){return a^17;}`, imported native `URL.parse` from a separate ESM module. `lowerWasmI32Functions` confirmed source changed; selected obfuscator incorrectly accepted, red [44258973320](https://github.com/FlareZ123/obfs/actions/runs/44258973320), two cases on each OS.
+- New `src/cross-properties.js::collectVerifiedImportedUrlStaticAliases` propagates uniquely bound immutable direct ESM exports/imports; optional sixth argument to `observesFunctionSource`, wired through `src/core.js`, `src/sco.js`, closed-world property pass. Fix commits `0071417`, `bc7ae3b`, `ed53936`, `77b20bb`, `be42fbf`. Green [44259457333](https://github.com/FlareZ123/obfs/actions/runs/44259457333) at exactly `be42fbf`, both OS/typecheck/Chromium; primitive selected Wasm positive still works. New test `test/url-static-interfile-source.test.js`.
+- Report `im-results/url-static-native-source-observation-2026-11-18.md`; broadcast `communications/broadcast/2026-11-18T0718Z_agent11_url-static-source-guard.md` predates selected-Wasm extension.
+- No claim about release security, dynamic anti-debugging, attacker cost, or universal <=2.5x budget. Existing Critic decision index still says release blocked.
+
+**Next work:** falsify reexport and namespace-import routes for native URL static parser across ESM, selected Wasm admission, then repair only verified gaps. Add native counterfactual and primitive accepted controls. Keep source-pinned exact Windows/Ubuntu CI. Consider browser-native URL static support independently rather than interpreting existing Chromium regressions as its proof.
+
