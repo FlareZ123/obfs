@@ -35,7 +35,7 @@ function expressions() {
     const left=make(depth-1);
     const right=make(depth-1);
     const op=['+','-','*','/','%','|','^','===','!==','&&','||','??'][next(12)];
-    const binary='('+left+op+right+')';
+    const binary='('+left+' '+op+' '+right+')';
     switch(next(7)) {
       case 0: return '!('+binary+')';
       case 1: return '~('+binary+')';
