@@ -309,20 +309,40 @@ function snapshotMetadataEntries(declared) {
  */
 function createScoHandler(sourceFiles,options={}) {
   const prefix = options.routePrefix ?? '/obfs/';
+  // Retain the first configured policy values, including the original
+  // callbacks and registered methods. Caller-managed accessors may yield
+  // different authorities on a later read during initialization.
+  const suppliedMethods=options.remoteMethods;
+  const remoteMethods=suppliedMethods?{...suppliedMethods}:undefined;
+  const authorizeRpc=options.authorizeRpc;
+  const authorizeRead=options.authorizeRead;
+  const authorizeOperation=options.authorizeOperation;
+  const runRpcIsolated=options.runRpcIsolated;
+  const maxRpcBytes=options.maxRpcBytes;
+  const closedWorld=options.closedWorld;
+  const suppliedHosts=options.allowedHosts;
+  if(suppliedHosts!==undefined&&!Array.isArray(suppliedHosts)){
+    throw new TypeError('SCO allowedHosts must be an array');
+  }
+  const allowedHosts=suppliedHosts===undefined?undefined:
+    snapshotMetadataEntries(suppliedHosts);
+  if(allowedHosts?.some(value=>typeof value!=='string')){
+    throw new TypeError('SCO allowedHosts must contain strings');
+  }
   if (!prefix.startsWith('/') || !prefix.endsWith('/')) throw new TypeError('routePrefix must start and end with /');
-  if (options.remoteMethods && typeof options.authorizeRpc!=='function') {
+  if (remoteMethods && typeof authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
   }
-  if (options.authorizeRead !== undefined && typeof options.authorizeRead!=='function') {
+  if (authorizeRead !== undefined && typeof authorizeRead!=='function') {
     throw new TypeError('authorizeRead must be a function');
   }
-  if (options.authorizeOperation !== undefined && typeof options.authorizeOperation!=='function') {
+  if (authorizeOperation !== undefined && typeof authorizeOperation!=='function') {
     throw new TypeError('authorizeOperation must be a function');
   }
-  if (options.runRpcIsolated !== undefined && typeof options.runRpcIsolated!=='function') {
+  if (runRpcIsolated !== undefined && typeof runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');
   }
-  if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
+  if (maxRpcBytes !== undefined && (!Number.isSafeInteger(maxRpcBytes) || maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
@@ -443,7 +463,7 @@ function createScoHandler(sourceFiles,options={}) {
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
   // transformations for the whole published group when one is present.
-  const importedKeyProof=options.closedWorld ?
+  const importedKeyProof=closedWorld ?
     collectVerifiedImportedStrings(normalized) : new Map();
   const importedCloneProof=normalized.length>1 ?
     collectVerifiedImportedCloneAliases(normalized) : new Map();
@@ -452,10 +472,10 @@ function createScoHandler(sourceFiles,options={}) {
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedKeyProof.get(file.path),importedCloneProof.get(file.path))));
-  if(interfileSourceObserver && options.allowedHosts?.length) {
+  if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
+  const prepared = closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   // The server's admission and authorization configuration belongs to this
   // handler instance. Keep an owned startup snapshot so later mutations of a
@@ -467,16 +487,16 @@ function createScoHandler(sourceFiles,options={}) {
     // Copy only the request-time policy fields. Spreading the original
     // options would re-read unrelated publication getters such as publicPaths
     // after their authoritative startup snapshots had been validated.
-    allowedHosts:options.allowedHosts?[...options.allowedHosts]:undefined,
+    allowedHosts,
     // Preserve exact method identity. Batch policy preflight uses a private
     // WeakMap on original function objects; binding/wrapping a method loses
     // its verified transitive operation metadata and is unsafe.
-    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined,
-    authorizeRpc:options.authorizeRpc,
-    authorizeOperation:options.authorizeOperation,
-    runRpcIsolated:options.runRpcIsolated,
-    maxRpcBytes:options.maxRpcBytes,
-    authorizeRead:options.authorizeRead
+    remoteMethods,
+    authorizeRpc,
+    authorizeOperation,
+    runRpcIsolated,
+    maxRpcBytes,
+    authorizeRead
   };
   return (request,response) => {
     // Node's HTTP parser accepts some malformed absolute-form request targets.
