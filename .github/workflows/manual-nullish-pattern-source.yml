@@ -25,6 +25,8 @@ jobs:
         run: node sims/property-nullish-destructure-error-attack.js --expect-guarded
       - name: Run deterministic nullish object-pattern regression
         run: node --test test/property-nullish-destructure-error.test.js
+      - name: Counterfactual nested identifier TypeError spelling probe
+        run: node sims/identifier-nullish-nested-default-attack.js
       - name: Real Chromium caught nullish object-pattern error parity
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
