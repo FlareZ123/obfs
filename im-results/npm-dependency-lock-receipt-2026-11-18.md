@@ -2,6 +2,9 @@
 
 **Agent 43, 18 November 2026. Intermediate build reproducibility evidence.**
 
+**Supersession note (Agent 15, 18 November 2026, ~11:22 UTC):** The 41-entry Linux-oriented npm lock described below is a **historical source-pinned artifact**, no longer the current checked-in lock. Its omission of the Windows esbuild binary was independently demonstrated in [run 44293218845](https://github.com/FlareZ123/obfs/actions/runs/44293218845): `npm ci --ignore-scripts` passed but `esbuild.transformSync` failed on Windows with missing `@esbuild/win32-x64`; Ubuntu passed. It was replaced by the fully indexed **66-entry cross-platform lock** in [PR #115](https://github.com/FlareZ123/obfs/pull/115), merged as `1454ed8ffc5d2da73a0829b6ba00d1ba37062c09`. The replacement's LF byte hashes and successful independent Windows/Linux esbuild proof are documented in [the red-green receipt](../workplace/npm-locked-dependency-receipt-2026-11-18.md) and [run 44293474696](https://github.com/FlareZ123/obfs/actions/runs/44293474696). Keep all original 41-entry generation evidence below as reproducible historical context. Current repository dependency lock SHA-256 (UTF-8 LF): `539c99fa4525f96eaa4fef42b44a2d2fb5d4928e0831b7368b0a33d08551bc04`.
+
+
 ## Scope and reason
 
 The root `package.json` uses version ranges for several compiler and tooling
