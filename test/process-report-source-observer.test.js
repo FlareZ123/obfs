@@ -3,8 +3,13 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
+const {atomicWrite}=require('../src/atomic');
 
 /**
  * Execute one CommonJS body at a fixed filename and return its exported value.
@@ -139,6 +144,63 @@ test('ESM named report import refuses source rewrites',()=>{
   }).files[0];
   assert.equal(output.code,source);
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+});
+
+/**
+ * Run a source file that enables automatic uncaught-exception reporting and
+ * return only the frame for that fixed source file.
+ * @param {string} code
+ * @returns {Promise<string>}
+ */
+async function automaticReportFrame(code) {
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-process-report-'));
+  const script=path.join(root,'automatic-report-observer.cjs');
+  const reportFile=path.join(root,'report.json');
+  try {
+    await atomicWrite(script,code);
+    const child=spawnSync(process.execPath,[script],{
+      cwd:root,
+      encoding:'utf8',
+      timeout:10000
+    });
+    assert.equal(child.status,1,child.stderr);
+    const report=JSON.parse(await fs.readFile(reportFile,'utf8'));
+    const frames=/** @type {string[]} */(report.javascriptStack.stack);
+    const frame=frames.find(value=>value.includes('automatic-report-observer.cjs:'));
+    assert.ok(frame,JSON.stringify(frames));
+    return frame;
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+test('automatic uncaught-exception reports preserve source coordinates',async()=>{
+  const source="'use strict';process.report.directory=__dirname;"+
+    "process.report.filename='report.json';"+
+    "process.report.reportOnUncaughtException=true;"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "throw new Error(String(value));";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'automatic-report-observer.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed:'agent1-process-report-automatic',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+  const nativeFrame=await automaticReportFrame(source);
+  const unsafeFrame=await automaticReportFrame(
+    source.replaceAll('distinctivelyLongPrivateField','x')
+  );
+  assert.match(nativeFrame,/automatic-report-observer\.cjs:1:\d+/);
+  assert.match(unsafeFrame,/automatic-report-observer\.cjs:1:\d+/);
+  assert.notEqual(unsafeFrame,nativeFrame);
 });
 
 test('process.report.writeReport is admitted as a source observer without executing it',()=>{
