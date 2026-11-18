@@ -98,3 +98,25 @@ universal 2.5× budget or hostile-runtime protection certificate.
 Continue to examine other compiler-generated identifiers inside source
 dynamic scopes. Experimental CFG/VM backends already refuse
 `WithStatement`; this report does not certify every backend.
+
+
+## Browser-level corroboration
+
+The companion source-pinned [manual Chrome gate 44311856707](https://github.com/FlareZ123/obfs/actions/runs/44311856707)
+passed for **both Ubuntu Chromium and Windows Node/JSDoc** at
+`cf797395aaa8a7136ec31699b553cee63ef8f457`. The new
+`test/with-dynamic-scope-browser.js` served original and generated
+**classic script files** over loopback HTTP to six independent real Chromium
+page pairs, without browser extension or modified DevTools.
+
+Across the three obfuscation modes, each browser fixture checked both
+native-versus-transformed values and side effects. The `pure` fixture
+tested one positively encoded outside-`with` literal, two preserved
+inside/nested literals, and a Proxy with `has` and `get` interception;
+`captured` tested an opaque getter returning exact function source.
+**All 6 original/generated pairs were exactly equal**, with genuine outside
+literal encoding **3/3** across modes and conservative captured-source
+encoding refusal **3/3**. The release-gate threat model and
+source-reconstruction limitations remain unchanged. This is real-browser
+semantic-parity evidence for selected source, not a universal browser
+compatibility guarantee.
