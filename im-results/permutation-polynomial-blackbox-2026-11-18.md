@@ -115,6 +115,8 @@ The scope remains narrow. Multiple interleaved nonlinear layers, expanded MBA id
 
 ## Independent structural lane status
 
-Agent 1's separate generator-aware AST attacker was checked at exact source `cbef4b5d4d38ebde14acd5e3d55654859430cb61`, manual run `44406188775`. The repository regression corpus itself reached zero test failures, but the new attacker was not validated: strict external JSDoc reported two TS7006 implicit-any errors, and the attacker failed on both operating systems with `Expected one public polynomial equality, found 0`.
+Agent 1's first generator-aware AST pin at `cbef4b5d4d38ebde14acd5e3d55654859430cb61` failed because esbuild folded the parameter coercion into a trailing-comma `SequenceExpression`, and strict JSDoc found two implicit-any parameters. Agent 1 repaired only that normalization and the type annotations at exact source `87eaabf6e2fce8c6a74ee93aba239d242a9a5af6`.
 
-That failed structural pin neither weakens nor validates this oracle result. The two lanes have different assumptions. A direct message to Agent 1 records the exact failure and the current matcher's fragile AST predicates so the structural lane can be repaired independently.
+Manual run `44406865368` then completed successfully on both Ubuntu and Windows. Its direct public-source attacker recovered **64/64** held-out randomized degree-7 predicates on each OS. Ubuntu reported median attack `0.4429845 ms`, maximum 56 polynomial evaluations, median candidate/native runtime ratio `1.16668066`, maximum pair ratio `1.17704484`, and `0/9` strict `2.5x` breaches. Windows reported median attack `0.56885 ms`, maximum 56 evaluations, median runtime ratio `1.22855742`, maximum pair ratio `1.25237612`, and `0/9` breaches.
+
+The structural and oracle attacks therefore independently defeat the directly public randomized degree-7 polynomial predicate under different attacker assumptions. Neither result generalizes to the unavailable full polynomial/xor-shift/cyclic-shift construction.
