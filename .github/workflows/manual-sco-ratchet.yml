@@ -35,6 +35,8 @@ jobs:
         run: node sims/sco-ratchet-online-relay.js
       - name: Lost-response strict failure vs idempotent last-result recovery
         run: node sims/sco-ratchet-retry-candidate.js
+      - name: Same-root multi-replica ratchet and idempotent-cache split-brain
+        run: node sims/sco-ratchet-replica-splitbrain.js
       - name: Authorized A CPU flood cross-account B 2.5x contention witness
         run: node sims/sco-ratchet-cross-account-contention.js
       - name: Per-principal resident worker isolation performance pilot
