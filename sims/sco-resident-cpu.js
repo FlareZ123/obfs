@@ -125,9 +125,12 @@ async function run(rounds=13){
     };
   }finally{
     globalThis.fetch=originalFetch;
-    if(service)await new Promise((resolve,reject)=>service.server.close(
-      error=>error?reject(error):resolve()));
-    if(oldWindow===undefined)delete globalThis.window;
+    if(service){
+      const server=service.server;
+      await new Promise((resolve,reject)=>server.close(
+        error=>error?reject(error):resolve(undefined)));
+    }
+    if(oldWindow===undefined)Reflect.deleteProperty(globalThis,'window');
     else globalThis.window=oldWindow;
   }
 }
