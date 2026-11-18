@@ -1,0 +1,27 @@
+name: Manual polynomial permutation inverse
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inverse:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned package dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict-check research attacker
+        run: npm run typecheck:external
+      - name: Recover held-out public polynomial predicates and profile runtime
+        run: node sims/polynomial-permutation-static-inverse.js
