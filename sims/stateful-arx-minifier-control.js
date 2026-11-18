@@ -65,7 +65,7 @@ function observe(application,seed,records){
  * Compare the actual three-module native application with a pinned esbuild
  * minified, bundled ESM client, without ever writing a generated source file.
  * @param {number} [recordCount]
- * @returns {Promise<{recordCount:number,seeds:number[],sourceDigests:Record<string,string>,lockDigest:string,controlDigest:string,controlBytes:number,codeUnitTransitions:number,matchedEvents:number,matchedCandidateEvents:number,esbuildVersion:string}>}
+ * @returns {Promise<{recordCount:number,seeds:number[],sourceDigests:Record<string,string>,lockDigest:string,controlDigest:string,controlBytes:number,controlSourceUTF8:string,codeUnitTransitions:number,matchedEvents:number,matchedCandidateEvents:number,esbuildVersion:string}>}
  */
 async function compareStatefulMinifier(recordCount=12288){
   const root=path.join(__dirname,'../examples/stateful-arx-app/native');
@@ -105,6 +105,7 @@ async function compareStatefulMinifier(recordCount=12288){
     codeUnitTransitions+=(String(record.kind)+':'+String(record.payload)).length;
   return {recordCount,seeds,sourceDigests,lockDigest,
     controlDigest:digest(controlBytes),controlBytes:controlBytes.length,
+    controlSourceUTF8:Buffer.from(controlBytes).toString('utf8'),
     codeUnitTransitions:codeUnitTransitions*seeds.length,matchedEvents,matchedCandidateEvents,
     esbuildVersion:esbuild.version};
 }
