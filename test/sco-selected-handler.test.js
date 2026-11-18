@@ -324,3 +324,49 @@ test('selective SCO handler snapshots compiler-owned source across changing gett
   }),/manifest was modified after partitioning/);
   assert.equal(reads,1);
 });
+
+
+test('selected SCO handler preserves inherited and non-enumerable route prefix',{
+  timeout:15000
+},async()=>{
+  const partition=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',code:mixed,sourceType:'module'
+  },{
+    seed:'selected-route-prototype-20261118',
+    privateNames:['protectedDigest'],
+    privateModuleImports:['./private/engine.mjs'],
+    privateModuleSources:[engine,leaf],endpoint:'/private/rpc'
+  });
+  for(const inherited of [true,false]){
+    let routeReads=0;
+    const options={authorizeRpc:()=>true};
+    const owner=inherited?Object.create(null):options;
+    Object.defineProperty(owner,'routePrefix',{
+      enumerable:false,configurable:true,
+      get(){routeReads++;return '/private/';}
+    });
+    if(inherited)Object.setPrototypeOf(options,owner);
+    const handler=createScoSelectedHandler(partition,{
+      protectedDigest:async (/** @type {number} */ value)=>value+41
+    },options);
+    assert.equal(routeReads,1);
+    const server=http.createServer(handler);
+    try{
+      await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const origin='http://127.0.0.1:'+address.port;
+      assert.equal((await fetch(origin+'/private/mixed.mjs')).status,200);
+      assert.equal((await fetch(origin+'/obfs/mixed.mjs')).status,404);
+      const response=await fetch(origin+'/private/rpc',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({method:partition.methodNames.protectedDigest,args:[1]})
+      });
+      assert.equal(response.status,200);
+      assert.deepEqual(await response.json(),{ok:true,value:42});
+      assert.equal(routeReads,1);
+    }finally{
+      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    }
+  }
+});
