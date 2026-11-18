@@ -16,7 +16,7 @@ async function main(){
   const recordCount=Number(process.argv[3]);
   const records=recordsFor(recordCount);
   const seed=-817;
-  const repetitions=recordCount===1?10000:recordCount===50?600:
+  const repetitions=recordCount===1?50000:recordCount===50?600:
     recordCount===1000?50:5;
   /** @param {bigint} start @returns {number} */
   const wallMs=start=>Number(process.hrtime.bigint()-start)/1e6;
