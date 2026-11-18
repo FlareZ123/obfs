@@ -13,7 +13,9 @@ function main(){
   const [databasePath,principal,startArg,inputsJson]=process.argv.slice(2);
   assert.ok(databasePath&&principal&&startArg&&inputsJson);
   const rootHex=process.env.SCO_RATCHET_TEST_ROOT;
-  assert.match(rootHex??'',/^[a-f0-9]{64}$/u);
+  if(!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)){
+    throw new TypeError('Trusted worker requires a 256-bit root');
+  }
   const inputs=/** @type {string[]} */(JSON.parse(inputsJson));
   const ratchet=new TransactionalRatchet(databasePath,Buffer.from(rootHex,'hex'));
   try{
