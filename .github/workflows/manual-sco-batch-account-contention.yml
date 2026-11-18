@@ -29,9 +29,17 @@ jobs:
         env:
           OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-contention-${{ runner.os }}.json
         run: node sims/sco-batch-cross-account-contention.js
-      - name: Retain exact two-account timing and monotonic overlap evidence
+      - name: Verify Node cooperative batch ordered semantics and validation
+        run: node --test test/rpc-batch-yield.test.js
+      - name: Compare 64-item cooperative yielding against identical A/B workload
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --cooperative
+      - name: Retain exact two-account control and cooperative timing evidence
         uses: actions/upload-artifact@v4
         with:
           name: sco-batch-contention-${{ runner.os }}
-          path: sco-batch-contention-${{ runner.os }}.json
+          path: |
+            sco-batch-contention-${{ runner.os }}.json
+            sco-batch-cooperative-${{ runner.os }}.json
           if-no-files-found: error
