@@ -18,9 +18,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '22.23.4'
       - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Record exact resolved dependency tree for reproducibility
         run: npm ls --all
       - name: Strict JSDoc check of SNO and cross-mode release evidence
