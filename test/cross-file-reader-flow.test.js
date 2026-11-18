@@ -288,3 +288,83 @@ test('arrow reader called with an unrelated shape disables the proof',async()=>{
   await check(exposed+'export const peek=x=>x.secretField;',
     'import {state,peek} from "./state.mjs";console.log(peek(state),peek({secretField:77}));',0);
 });
+
+
+test('named reader re-export preserves cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay.mjs";'+
+      'console.log(inspect(state));'}
+  ],1);
+});
+
+
+test('named reader re-export chain preserves cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay-a.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'relay-b.mjs',sourceType:'module',code:
+      'export {inspect as observe} from "./relay-a.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {observe} from "./relay-b.mjs";'+
+      'console.log(observe(state));'}
+  ],1);
+});
+
+test('named owner re-export still refuses cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {state as publicState,peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {publicState,inspect} from "./relay.mjs";'+
+      'console.log(inspect(publicState),Object.keys(publicState));'}
+  ],0);
+});
+
+test('export-star relay still refuses cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:'export * from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state,peek} from "./relay.mjs";console.log(peek(state),Object.keys(state));'}
+  ],0);
+});
+
+test('relayed reader called with a foreign owner refuses cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay.mjs";'+
+      'console.log(inspect(state),inspect({secretField:99}));'}
+  ],0);
+});
+
+
+test('relayed reader source observation refuses cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay.mjs";'+
+      'console.log(inspect.toString(),inspect(state));'}
+  ],0);
+});
+
+test('relayed reader value escape refuses cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay.mjs";'+
+      'const escaped=inspect;console.log(escaped(state));'}
+  ],0);
+});

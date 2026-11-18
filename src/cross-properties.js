@@ -2269,6 +2269,45 @@ function renameCrossFileProperties(files,seed) {
         }
         const readers=new Map([.../** @type {Map<string,{member:AstNode,property:string,argIndex:number}>} */ (exportedReaders.get(exporterName)??new Map())]
           .filter(([,reader])=>names.includes(reader.property)));
+        // Carry only these already-proved reader signatures through explicit
+        // named ESM reexports. The tracked value is the original reader name,
+        // so the single member edit remains anchored in the owner module.
+        // Export-star stays outside this proof because it would also expose the
+        // candidate owner binding. Import-then-export aliases remain outside
+        // this narrow lane and are checked as ordinary reader uses instead.
+        /** @type {Map<string,Map<string,string>>} */
+        const readerExportsByFile=new Map([[exporterName,
+          new Map([...readers.keys()].map(name=>[name,name]))]]);
+        let readerForwarded;
+        do {
+          readerForwarded=false;
+          for(const [relayName,relay] of modules) {
+            let exposed=readerExportsByFile.get(relayName);
+            if(!exposed) {
+              exposed=new Map();
+              readerExportsByFile.set(relayName,exposed);
+            }
+            for(const statement of relay.ast.body) {
+              if(statement.type!=='ExportNamedDeclaration'||!statement.source||
+                 statement.source.type!=='Literal'||
+                 typeof statement.source.value!=='string')continue;
+              const origin=resolveImport(relayName,statement.source.value);
+              const available=origin?readerExportsByFile.get(origin):null;
+              if(!available)continue;
+              for(const spec of statement.specifiers) {
+                if(spec.type!=='ExportSpecifier')continue;
+                const sourceName=spec.local.name??spec.local.value;
+                const publicName=spec.exported.name??spec.exported.value;
+                if(typeof sourceName!=='string'||typeof publicName!=='string')continue;
+                const original=available.get(sourceName);
+                if(original!==undefined&&!exposed.has(publicName)) {
+                  exposed.set(publicName,original);
+                  readerForwarded=true;
+                }
+              }
+            }
+          }
+        } while(readerForwarded);
         /** @type {Set<string>} */
         const usedReaders=new Set();
         const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,importedIdentities.get(exporterName));
@@ -2298,6 +2337,16 @@ function renameCrossFileProperties(files,seed) {
                   if(key!==undefined && names.includes(key))importedKeys.set(spec.local.name,key);
                 }
               }
+              const availableReaders=origin?readerExportsByFile.get(origin):null;
+              if(availableReaders) {
+                for(const spec of statement.specifiers) {
+                  if(spec.type!=='ImportSpecifier'||
+                     importer.bindings.get(spec.local.name)!==1)continue;
+                  const exposedName=spec.imported.name??spec.imported.value;
+                  const original=availableReaders.get(exposedName);
+                  if(original!==undefined)readerAliases.set(spec.local.name,original);
+                }
+              }
             }
             if (statement.type==='ImportDeclaration' && resolveImport(importerName,statement.source.value)===exporterName) {
               for(const spec of statement.specifiers) {
@@ -2309,11 +2358,23 @@ function renameCrossFileProperties(files,seed) {
                 if(key!==undefined&&importer.bindings.get(spec.local.name)===1) {
                   importedKeys.set(spec.local.name,key);
                 }
-                if(readers.has(exportedName))readerAliases.set(spec.local.name,exportedName);
               }
             }
-            if ((statement.type==='ExportAllDeclaration'||(statement.type==='ExportNamedDeclaration'&&statement.source)) &&
-                resolveImport(importerName,statement.source.value)===exporterName) failed=true;
+            if(statement.type==='ExportAllDeclaration'&&statement.source &&
+               resolveImport(importerName,statement.source.value)===exporterName) {
+              failed=true;
+            }
+            if(statement.type==='ExportNamedDeclaration'&&statement.source &&
+               resolveImport(importerName,statement.source.value)===exporterName) {
+              // A named relay of the owner itself exposes its shape to an
+              // additional public binding. Relaying other exports, including
+              // a proved reader, does not create another owner reference.
+              for(const spec of statement.specifiers) {
+                if(spec.type!=='ExportSpecifier')continue;
+                const sourceName=spec.local.name??spec.local.value;
+                if(sourceName===exportName){failed=true;break;}
+              }
+            }
           }
           if (failed) break;
           let hasDynamic=false;
