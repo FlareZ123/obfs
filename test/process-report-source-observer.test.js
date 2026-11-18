@@ -78,6 +78,13 @@ test('bound process.report method preserves source coordinates',()=>{
   );
 });
 
+test('Reflect.apply process.report method preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    'Reflect.apply(process.report.getReport,null,[])',
+    'agent1-process-report-reflect-apply'
+  );
+});
+
 test('CommonJS process module namespace preserves source coordinates',()=>{
   mustPreserveProcessReport(
     "(()=>{const proc=require('node:process');return proc.report.getReport();})()",
