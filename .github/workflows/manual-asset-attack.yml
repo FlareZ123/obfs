@@ -110,6 +110,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/css-c0-url-browser.js
+      - name: Chromium CSS grammar matrix and inert declaration source parity
+        if: runner.os == 'Linux'
+        working-directory: protected
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/css-atrule-browser-matrix.js
       - name: Strict JSDoc preflight checks
         working-directory: protected
         run: npm run typecheck
