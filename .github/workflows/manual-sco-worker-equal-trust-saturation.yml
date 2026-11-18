@@ -1,0 +1,29 @@
+name: Manual SCO equal-trust worker multi-principal saturation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matched-saturation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check strict main and external JSDoc
+        run: |
+          npm run typecheck
+          npm run typecheck:external
+      - name: Compare equally trusted generated and ordinary resident-worker saturation
+        run: node sims/sco-worker-equal-trust-saturation.js
