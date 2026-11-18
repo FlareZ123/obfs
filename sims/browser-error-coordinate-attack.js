@@ -12,18 +12,14 @@ const specimens=[
   {
     name:'global-onerror',
     source:[
-      'globalThis.onerror=(message,source,line,column)=>{',
-      '  globalThis.captured=line+":"+column;return true;',
-      '};',
+      'globalThis.onerror=globalThis.hostOnError;',
       'null.value;'
     ].join('\n')
   },
   {
     name:'global-error-event',
     source:[
-      'globalThis.addEventListener("error",event=>{',
-      '  globalThis.captured=event.lineno+":"+event.colno;',
-      '});',
+      'globalThis.addEventListener("error",globalThis.hostErrorEvent);',
       'null.value;'
     ].join('\n')
   }
@@ -93,7 +89,10 @@ async function run(guarded){
     const route=(req.url??'/').split('?')[0];
     const code=pages.get(route);
     if(code===undefined){res.writeHead(404).end();return;}
-    const html='<!doctype html><html><body><script>\n'+code+
+    const hostPrelude='<script>globalThis.hostOnError=(message,source,line,column)=>{'+
+      'globalThis.captured=line+":"+column;return true;};'+
+      'globalThis.hostErrorEvent=event=>{globalThis.captured=event.lineno+":"+event.colno;};<\\/script>';
+    const html='<!doctype html><html><body>'+hostPrelude+'<script>\n'+code+
       '\n</script><script>setTimeout(()=>{const pre=document.createElement("pre");'+
       'pre.id="result";pre.textContent=btoa(String(globalThis.captured));'+
       'document.body.append(pre);},0);<\/script></body></html>';
