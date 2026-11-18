@@ -28,17 +28,26 @@ function assertReviewedOpaqueAssets(files,approved) {
   }
   /** @type {Map<string,{path:string,sha256:string}>} */
   const expected=new Map();
-  for(const record of approved){
-    if(!record||typeof record!=='object'||Array.isArray(record)||
-        typeof record.path!=='string'||!record.path||
-        typeof record.sha256!=='string'||!/^[0-9a-f]{64}$/u.test(record.sha256)){
+  // The approval authority is the indexed array of reviewed records, not
+  // caller-defined iteration or accessors that can change between checks.
+  // Capture the initial length and each record's fields exactly once.
+  const length=approved.length;
+  for(let index=0;index<length;index++){
+    const record=approved[index];
+    if(!record||typeof record!=='object'||Array.isArray(record)){
       throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
-    const identity=record.path.toLowerCase();
-    if(expected.has(identity)){
-      throw new TypeError('Duplicate reviewedOpaqueAssets path: '+record.path);
+    const path=record.path;
+    const sha256=record.sha256;
+    if(typeof path!=='string'||!path||
+        typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256)){
+      throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
-    expected.set(identity,{path:record.path,sha256:record.sha256});
+    const identity=path.toLowerCase();
+    if(expected.has(identity)){
+      throw new TypeError('Duplicate reviewedOpaqueAssets path: '+path);
+    }
+    expected.set(identity,{path,sha256});
   }
 
   let matched=0;

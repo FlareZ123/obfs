@@ -1,0 +1,28 @@
+name: Manual reviewed opaque manifest snapshot
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  approval:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Reviewed manifest snapshot and existing publication regression
+        run: node --test test/reviewed-opaque-manifest-snapshot.test.js test/reviewed-opaque-assets.test.js
+      - name: Strict compiler type checking
+        run: npm run typecheck
+      - name: Strict external test JSDoc
+        run: npm run typecheck:external
