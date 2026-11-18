@@ -130,7 +130,14 @@ Source-byte reads are a separate semantic compatibility hazard from the familiar
 `node:fs/promises.readFile` to inspect the exact source bytes of a module in
 the declared build group. The reader can compare a private property spelling
 without obtaining or calling the exported object. Browser `fetch` and
-`XMLHttpRequest` can likewise request deployed module source.
+`XMLHttpRequest` can likewise request deployed module source. Browser
+`CacheStorage` adds another source-observation path: `Cache.add()` implicitly
+requests a module URL and `Cache.match().text()` exposes its delivered bytes,
+even when the application's AST has no explicit `fetch` call. The bounded
+ordinary source-byte preflight now recognizes the named `caches` and
+`CacheStorage` roots, and the opt-in ESM source-island proof separately
+refuses them. Both checks are conservative and admit finite evidence only;
+a host can provide unmodeled source-reading capabilities.
 
 The bounded `observesDistributedSource` AST preflight now declines ordinary
 identifier, property and string transformations across a supplied group when
