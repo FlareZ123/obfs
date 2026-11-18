@@ -340,3 +340,30 @@ test('SNO release population admission rejects silently diluted protected work',
   const unchanged=summarizeEvidence(...inputs,source);
   assert.equal(unchanged.performance.computeBoundaryFamilywise?.comparisons,12);
 });
+
+test('Cross-mode evidence rejects shorter and relabeled declared populations',()=>{
+  const [coo,sno,snoProfile,sco]=examples();
+  assert.throws(()=>summarizeEvidence({
+    ...coo,rows:coo.rows.map((row,i)=>i===3?{...row,events:1}:row)
+  },sno,snoProfile,sco),/COO application workloads changed/u);
+  assert.throws(()=>summarizeEvidence(coo,sno,
+    snoProfile.map((row,i)=>i===1?{...row,events:2}:row),sco),
+  /SNO cold-session workloads changed/u);
+  assert.throws(()=>summarizeEvidence(coo,sno,snoProfile,{
+    ...sco,heavy:{...sco.heavy,count:1}
+  }),/SCO heavy workload changed/u);
+  assert.throws(()=>summarizeEvidence({
+    ...coo,rows:coo.rows.map((row,i)=>i===0?{
+      ...row,rawSamples:{...row.rawSamples,published:row.rawSamples.published.slice(1)}
+    }:row)
+  },sno,snoProfile,sco),/COO protected trial count changed/u);
+  assert.throws(()=>summarizeEvidence(coo,sno,
+    snoProfile.map((row,i)=>i===0?{
+      ...row,rawTimingMs:{...row.rawTimingMs,sno:row.rawTimingMs.sno.slice(1)}
+    }:row),sco),/SNO cold protected trials changed/u);
+  assert.throws(()=>summarizeEvidence(coo,sno,snoProfile,{
+    ...sco,light:{
+      ...sco.light,samples:{...sco.light.samples,native:sco.light.samples.native.slice(1)}
+    }
+  }),/SCO native trial count changed/u);
+});
