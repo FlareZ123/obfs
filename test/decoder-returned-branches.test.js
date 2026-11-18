@@ -89,9 +89,9 @@ const harmless=[
   ['arrow if only Number prototype returns',
     "const factory=()=>{if(true)return Number.prototype;return String};factory().unrelated=1;"],
   ['nested function return must not taint outer',
-    "function factory(){function inner(){return String.prototype}return Number.prototype}factory().unrelated=1;"],
+    "function factory(){function inner(){return String.prototype}return Number.prototype}factory().charCodeAt=()=>0;"],
   ['nested class method return must not taint outer',
-    "function factory(){class Inner{value(){return String.prototype}}return Number.prototype}factory().unrelated=1;"]
+    "function factory(){class Inner{value(){return String.prototype}}return Number.prototype}factory().charCodeAt=()=>0;"]
 ];
 for(const [name,mutator] of harmless) {
   for(const mode of /** @type {const} */ (['sno','coo'])) {
