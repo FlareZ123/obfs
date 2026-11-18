@@ -240,7 +240,10 @@ test('CacheStorage implicit requests and response-body readers cannot bypass sou
       }),/Source observer island/,
       'Must refuse the undeclared implicit browser source reader in '+mode);
     }
-    const control=obfuscateFiles([watched,independent,entry(normalEntry)],{
+    const simpleEntry='import {watched} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(watched.toString(),unrelated());';
+    const control=obfuscateFiles([watched,independent,entry(simpleEntry)],{
       mode,closedWorld:true,strings:false,identifiers:false,
       experimentalSourceObserverIslands:['independent.mjs']
     });
