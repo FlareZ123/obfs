@@ -61,6 +61,9 @@ jobs:
       - name: Container-stored intrinsic field alias red and positive-yield gate
         run: node --test test/decoder-container-alias.test.js
 
+      - name: Container destructuring intrinsic provenance red and positive-yield gate
+        run: node --test test/decoder-container-destructure.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
