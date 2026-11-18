@@ -487,4 +487,4 @@ if(require.main===module){
   compare().then(result=>process.stdout.write('SCO_WORKER_HTTP_CONTENTION '+JSON.stringify(result)+'\n'),
     error=>{process.stderr.write(String(error.stack||error)+'\n');process.exitCode=1;});
 }
-module.exports={compare,experiment,makeWorkerServer};
+module.exports={compare,experiment,makeWorkerServer,prepareVictim,post};
