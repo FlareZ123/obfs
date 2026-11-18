@@ -524,6 +524,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'TextDecoder','TextDecoderStream','CompressionStream','DecompressionStream']);
   const webScalars=new Set(webScalarNames);
   const webDictionaries=new Set(webDictionaryNames);
+  // Blob's second constructor argument is a Web IDL options dictionary.
+  const blobNames=new Set(['Blob']);
+  const blobConstructors=new Set(blobNames);
   const webRecords=new Set(webRecordNames);
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
@@ -877,6 +880,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
+        if(isWebConstructor(value,blobConstructors,blobNames)) {
+          changed=add(blobConstructors,name)||changed;
+        }
         if(isWebConstructor(value,webRecords,webRecordNames)) {
           changed=add(webRecords,name)||changed;
         }
@@ -1191,6 +1197,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           }
           if(name!==null&&webDictionaryNames.has(name)) {
             changed=add(webDictionaries,property.value.name)||changed;
+          }
+          if(name==='Blob') {
+            changed=add(blobConstructors,property.value.name)||changed;
           }
           if(name!==null&&webRecordNames.has(name)) {
             changed=add(webRecords,property.value.name)||changed;
@@ -1589,13 +1598,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const nativeStringCoercer=isCoercer(target);
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
+    const blobOptions=isWebConstructor(target,blobConstructors,blobNames);
     const webRecord=isWebConstructor(target,webRecords,webRecordNames);
     if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord)return false;
     if(passed?.type==='ArrayExpression') {
       const values=nativeStringCoercer ?
         (isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
           passed.elements.slice(0,2):passed.elements.slice(0,1)) :
-        webDictionary?passed.elements.slice(0,1):passed.elements;
+        webDictionary?passed.elements.slice(0,blobOptions?2:1):passed.elements;
       return values.some((/** @type {AstNode|null} */ value)=>
         Boolean(value && (webDictionary||webRecord ?
           mayCoerceSourceWithinWebRecord(value):!isDefinitelyPrimitive(value))));
@@ -2228,6 +2238,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(isWebConstructor(callee,webDictionaries,webDictionaryNames) &&
           node.arguments[0] &&
           mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
+      // Blob options.type and options.endings convert values with ToString.
+      // The second argument can retain a function's exact native source.
+      if(isWebConstructor(callee,blobConstructors,blobNames) &&
+          node.arguments[1] &&
+          mayCoerceSourceWithinWebRecord(node.arguments[1]))observed=true;
       // Request/Response/File expose function source through BodyInit, URL,
       // BlobPart sequences, filenames, headers and string-valued init fields.
       // Preserve constant primitive records and sequences as positive controls.
