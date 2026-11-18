@@ -131,7 +131,16 @@ function mutatesDecoderIntrinsic(ast) {
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
   const globalNames=new Set(['globalThis','window','self','global']);
+  // Imports and CommonJS require results have unknown value provenance.
+  // Any such binding may be a Document, so a later .defaultView.String
+  // mutation must disable the ambient decoder even across file boundaries.
   const documentNames=new Set(['document']);
+  for(const statement of ast.body??[]) {
+    if(statement.type!=='ImportDeclaration')continue;
+    for(const specifier of statement.specifiers??[]) {
+      if(specifier.local?.type==='Identifier')documentNames.add(specifier.local.name);
+    }
+  }
   const stringNames=new Set(['String']);
   /** @type {Set<string>} */
   const stringInstances=new Set();
@@ -485,7 +494,11 @@ function mutatesDecoderIntrinsic(ast) {
         recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
-          if(isDocumentValue(node.init))add(documentNames,node.id.name);
+          if(isDocumentValue(node.init) ||
+              node.init.type==='CallExpression' &&
+                node.init.callee.type==='Identifier' &&
+                node.init.callee.name==='require')
+            add(documentNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
           if(isStringInstance(node.init))add(stringInstances,node.id.name);
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
@@ -525,7 +538,11 @@ function mutatesDecoderIntrinsic(ast) {
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
-        if(isDocumentValue(node.right))add(documentNames,node.left.name);
+        if(isDocumentValue(node.right) ||
+            node.right.type==='CallExpression' &&
+              node.right.callee.type==='Identifier' &&
+              node.right.callee.name==='require')
+          add(documentNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
         if(isStringInstance(node.right))add(stringInstances,node.left.name);
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
