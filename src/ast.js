@@ -2067,6 +2067,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         return;
       }
+      if(id.type==='ObjectPattern'&&isReflectiveReceiver(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const binding=unwrapAssignmentPattern(property.value);
+          if(binding.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(['set','assign'].includes(name??'')&&
+             processReportMutators.get(binding.name)!==name) {
+            processReportMutators.set(binding.name,name);
+            changedProcessReportAliases=true;
+          }
+        }
+        return;
+      }
       if(id.type!=='Identifier')return;
       if(isProcessReportNamespace(value)&&!processReportNamespaces.has(id.name)) {
         processReportNamespaces.add(id.name);
