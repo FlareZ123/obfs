@@ -55,6 +55,14 @@ const specimens=[
     ].join('\n')
   },
   {
+    name:'reflect-get-global-error-event',
+    source:[
+      'Reflect.apply(Reflect.get(globalThis,"addEventListener"),globalThis,'+
+        '["error",globalThis.hostErrorEvent]);',
+      'null.value;'
+    ].join('\n')
+  },
+  {
     name:'reflect-set-global-onerror',
     source:[
       'Reflect.set(globalThis,"onerror",globalThis.hostOnError);',
