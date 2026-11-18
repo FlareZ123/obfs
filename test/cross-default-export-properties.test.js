@@ -84,11 +84,11 @@ test('closed-world ESM rewrites every direct default importer',async()=>{
   const files=[
     {path:'state.mjs',sourceType:'module',code:'export default {secretField:17};'},
     {path:'left.mjs',sourceType:'module',
-      code:'import state from "./state.mjs";export const left=state.secretField+1;'},
+      code:'import state from "./state.mjs";console.log("left",state.secretField);'},
     {path:'right.mjs',sourceType:'module',
-      code:'import state from "./state.mjs";export const right=state.secretField+2;'},
+      code:'import state from "./state.mjs";console.log("right",state.secretField);'},
     {path:'main.mjs',sourceType:'module',
-      code:'import {left} from "./left.mjs";import {right} from "./right.mjs";console.log(left+right);'}
+      code:'import "./left.mjs";import "./right.mjs";'}
   ];
   await compileAndCompare(files,1);
 });
