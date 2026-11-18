@@ -257,7 +257,9 @@ test('source-observer islands refuse undeclared same-origin Window.frames source
   const badEntries=[
     'const view=frames["sourceView"];console.log(view["doc"+"ument"].body.textContent);',
     'const host=window;const view=host["frames"]["sourceView"];console.log(view.document.body.textContent);',
-    'const view=globalThis["frames"]["sourceView"];console.log(view.document.body.textContent);'
+    'const view=globalThis["frames"]["sourceView"];console.log(view.document.body.textContent);',
+    'export function inspectFrame(frame){return frame.contentDocument.body.textContent.includes("privateB");}',
+    'export function inspectFrameWindow(frame){return frame["contentWindow"].document.body.textContent.includes("privateB");}'
   ];
   for(const source of badEntries) {
     for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
