@@ -32,10 +32,9 @@ function challenge(label,index){
  * @param {number} [bucketCount] Trusted fixed root-keyed account bucket count.
  * @param {boolean} [nestedAccountQuota] Trust verified principal capacity separately from SQLite writer queue.
  * @param {number} [firstAGateMs] Trusted test-only asynchronous first A delay.
- * @param {{token:string,principal:string}[]} [extraSessions] Additional trusted probe-account session credentials.
  * @returns {Promise<Worker>}
  */
-async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLock=false,journalModeRetries=4,accountShards=false,privateAMarker='',bucketCount=0,nestedAccountQuota=false,firstAGateMs=0,extraSessions=[]){
+async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLock=false,journalModeRetries=4,accountShards=false,privateAMarker='',bucketCount=0,nestedAccountQuota=false,firstAGateMs=0){
   const child=spawn(process.execPath,[require.resolve('./sco-ratchet-transactional-http-child')],{
     env:{...process.env,SCO_TEST_DB:databasePath,SCO_TEST_ROOT:root.toString('hex'),
       SCO_TEST_TOKEN_A:tokenA,SCO_TEST_TOKEN_B:tokenB,SCO_TEST_CONTROL:control,
@@ -45,8 +44,7 @@ async function launch(databasePath,root,tokenA,tokenB,control,legacyAnonymousLoc
       SCO_TEST_A_WORK_MARKER:privateAMarker,
       SCO_TEST_ACCOUNT_BUCKETS:String(bucketCount),
       SCO_TEST_NESTED_ACCOUNT_QUOTA:nestedAccountQuota?'1':'0',
-      SCO_TEST_FIRST_A_GATE_MS:String(firstAGateMs),
-      SCO_TEST_EXTRA_AUTH_JSON:JSON.stringify(extraSessions)},
+      SCO_TEST_FIRST_A_GATE_MS:String(firstAGateMs)},
     stdio:['ignore','pipe','pipe']
   });
   if(!child.stdout||!child.stderr)throw new TypeError('Missing child output streams');
