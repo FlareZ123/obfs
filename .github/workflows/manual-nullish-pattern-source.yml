@@ -36,5 +36,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/property-nullish-destructure-chromium.js
+      - name: Real Chromium host-lock stack-coordinate guard
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/host-lock-stack-chromium.js --expect-guarded
       - name: Validate compiler JSDoc types
         run: npm run typecheck
