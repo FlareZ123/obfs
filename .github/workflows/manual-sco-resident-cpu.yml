@@ -27,3 +27,5 @@ jobs:
         run: node --test test/sco-json-shape-contract.test.js
       - name: Compare initialized SCO native compute and authenticated facade CPU
         run: node sims/sco-resident-cpu.js
+      - name: Amplify short SCO native work to resolve Windows CPU clock
+        run: node sims/sco-resident-cpu.js --amplify-short
