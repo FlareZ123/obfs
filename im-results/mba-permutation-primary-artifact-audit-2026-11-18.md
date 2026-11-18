@@ -93,6 +93,38 @@ The public target therefore reveals the protected separator immediately under th
 
 This is a concrete 1:1 behavior-preservation failure in the public real-world artifact, independent of solver difficulty. It also demonstrates that the component inverse applies directly to a shipped application example rather than only to synthetic held-out chains.
 
+## Finding 5: a frozen minified-source extractor recovers held-out repeated-round variants
+
+The minified-source attacker was frozen at commit `14e580917902b747f416d773e0583f3410cbea17` before its held-out seed was chosen. The reusable extractor in `sims/mba-permutation-minified-static-recovery.js` identifies the loop bound, public polynomial constants, xor-right-shift distances, cyclic rotation distances and public comparison target from the minified AST. It ignores local variable names.
+
+The post-freeze corpus in `sims/mba-permutation-minified-heldout-recovery.js` uses seed `heldout-after-14e580:2026-11-18:agent9:mba-minified-extractor:v1`. It generates twenty fresh degree-1 repeated-round predicates with independent odd multipliers, constants, one or two xor-shift distances, three or five cyclic terms, round counts selected from 1 through 48, full-width secrets and two source spellings. Each source is minified with the repository's esbuild before the frozen extractor receives it.
+
+Actions run `44415405659` recovered **20/20 exact parameter sets and 20/20 exact preimages on both Ubuntu and Windows**. The isolated strict JSDoc step also passed on both runners. The workflow's later shared external typecheck remains red because of existing implicit-`any` diagnostics in `sims/compatible-permutation-linear-sandwich-blackbox.js`, outside this branch's MBA files.
+
+The earlier fixed author-style example also survives ordinary minification: esbuild reduced it to 351 bytes, after which the extractor recovered all 48-round parameters and the protected slash preimage.
+
+### Scope
+
+This extractor covers the repeated degree-1 JavaScript shape used in the public coreutils-style artifact plus the held-out syntax variants above. The evidence does not cover every possible unrolled, independently randomized-per-round or custom AST-mixed encoding. It does show that ordinary minification and identifier renaming do not create a meaningful barrier for this source shape.
+
+## Finding 6: the faithful JavaScript BigInt lane breaches the 2.5x hot-work budget at every tested depth
+
+`sims/mba-permutation-js-budget.js` transcribes the same unsigned 64-bit round into JavaScript BigInt operations. It compares a one-target slash predicate against `code===47` in optimized repeated hot loops. The 48-round target is checked against the exact public coreutils constant before timing. Seven medians are measured at round counts 1, 2, 4, 8, 16, 32 and 48.
+
+In Actions run `44415405659`, every tested depth exceeded the strict 2.5x limit:
+
+| Rounds | Ubuntu ratio | Windows ratio |
+| ---: | ---: | ---: |
+| 1 | 442.87x | 951.53x |
+| 2 | 779.21x | 1844.95x |
+| 4 | 1518.57x | 3644.51x |
+| 8 | 2946.06x | 7227.01x |
+| 16 | 5888.20x | 14454.29x |
+| 32 | 11492.56x | 28743.64x |
+| 48 | 17454.83x | 42646.15x |
+
+The native comparator is an exceptionally small JIT-optimized operation, so these ratios are workload-specific and should not be generalized to a larger application whose protected predicate is a negligible fraction of total work. They are still a direct veto for substituting this faithful BigInt construction into the measured hot predicate under the project's strict budget rule. Even the one-round variant misses the allowed ratio by more than two orders of magnitude on both runners.
+
 ## Current decision for obfs
 
 Do not adopt the construction as a security primitive on the strength of symbolic-execution timeout claims alone.
