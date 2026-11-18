@@ -1889,6 +1889,79 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='MemberExpression'&&isGlobal(node.object)&&
         memberName(node)==='process'));
   }
+  // Node diagnostic reports embed the live JavaScript call stack. Reading a
+  // report object or writing one to disk therefore exposes generated source
+  // coordinates even without a syntactic .stack access.
+  const processReportNamespaces=new Set();
+  const processReportMethods=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isProcessReportNamespace(node) {
+    return Boolean(node && (node.type==='Identifier'&&
+      processReportNamespaces.has(node.name) ||
+      node.type==='MemberExpression'&&memberName(node)==='report'&&
+        isProcessReceiver(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
+  function isProcessReportMethod(node,depth=0) {
+    if(!node||depth>16)return false;
+    if(node.type==='Identifier')return processReportMethods.has(node.name);
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(['getReport','writeReport'].includes(name??'')&&
+         isProcessReportNamespace(node.object))return true;
+      if(['call','apply'].includes(name??''))
+        return isProcessReportMethod(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isProcessReportMethod(node.callee.object,depth+1);
+    return false;
+  }
+  let changedProcessReportAliases;
+  do {
+    changedProcessReportAliases=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(!id||!value)return;
+      if(id.type==='ObjectPattern'&&isProcessReceiver(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='report'&&!processReportNamespaces.has(property.value.name)) {
+            processReportNamespaces.add(property.value.name);
+            changedProcessReportAliases=true;
+          }
+        }
+        return;
+      }
+      if(id.type==='ObjectPattern'&&isProcessReportNamespace(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(['getReport','writeReport'].includes(name??'')&&
+             !processReportMethods.has(property.value.name)) {
+            processReportMethods.add(property.value.name);
+            changedProcessReportAliases=true;
+          }
+        }
+        return;
+      }
+      if(id.type!=='Identifier')return;
+      if(isProcessReportNamespace(value)&&!processReportNamespaces.has(id.name)) {
+        processReportNamespaces.add(id.name);
+        changedProcessReportAliases=true;
+      }
+      if(isProcessReportMethod(value)&&!processReportMethods.has(id.name)) {
+        processReportMethods.add(id.name);
+        changedProcessReportAliases=true;
+      }
+    });
+  }while(changedProcessReportAliases);
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function isWarningMethod(node,depth=0) {
     if(!node||depth>16)return false;
@@ -2137,6 +2210,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          !isDefinitelyPrimitive(value)))observed=true;
     if(node.type==='CallExpression') {
       const callee=node.callee;
+      // process.report.getReport() returns the current JavaScript stack and
+      // writeReport() persists it. Either operation observes source locations.
+      if(isProcessReportMethod(callee))observed=true;
       // With Node --trace-warnings, a literal-string warning reveals its
       // callsite even through extracted, bound, or .call/.apply aliases.
       if(isWarningMethod(callee))observed=true;
