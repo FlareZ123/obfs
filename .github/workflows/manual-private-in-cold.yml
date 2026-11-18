@@ -1,0 +1,28 @@
+name: Manual private in cold-session budget
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  private-in-cold:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Measure cold and short-session COO private-in CPU
+        run: node sims/private-in-cold-budget.js
+      - name: Check external JSDoc
+        if: ${{ always() }}
+        run: npm run typecheck:external
