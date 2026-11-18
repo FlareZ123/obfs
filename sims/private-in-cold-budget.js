@@ -98,16 +98,15 @@ function sampleArm(code,calls,trial){
  * @param {number} calls
  * @returns {void}
  */
-function profile(count,calls){
-  const bundle=buildBundle(count);
+function profile(count,calls,bundle){
   assert.equal(bundle.properties,count);
   for(const n of [0,1,4,13]){
     assert.equal(execute(bundle.native,n,1),execute(bundle.emitted,n,1),
       'Native/emitted session mismatch, count '+count+' calls '+n);
   }
   for(let i=0;i<3;i++){
-    sampleArm(bundle.native,calls,-i);
-    sampleArm(bundle.emitted,calls,-i);
+    sampleArm(bundle.native,calls,1000+i);
+    sampleArm(bundle.emitted,calls,1000+i);
   }
   /** @type {number[]} */
   const nativeCpu=[],emittedCpu=[],nativeWall=[],emittedWall=[],pairedCpu=[];
@@ -152,5 +151,6 @@ function profile(count,calls){
 }
 
 for(const count of [64,256,1024,4096]){
-  for(const calls of [0,1,64])profile(count,calls);
+  const bundle=buildBundle(count);
+  for(const calls of [0,1,64])profile(count,calls,bundle);
 }
