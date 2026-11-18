@@ -27,3 +27,5 @@ jobs:
         run: npm run typecheck:external
       - name: Profile authenticated SCO private-graph 1024-call batches
         run: node sims/sco-batch-resident-cpu.js
+      - name: Falsify strict CPU overhead under 51 longer selected-work pairs
+        run: node sims/sco-batch-resident-cpu.js --stability
