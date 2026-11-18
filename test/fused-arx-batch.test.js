@@ -22,8 +22,10 @@ function equalState(a,b,reason){
 
 test('fused four-word i32 and UTF-16 block exactly match native across memory growth',()=>{
   const bytes=buildArxModuleBytes();
-  assert.ok(WebAssembly.validate(bytes));
-  const module=new WebAssembly.Module(bytes);
+  const source=new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(source).set(bytes);
+  assert.ok(WebAssembly.validate(source));
+  const module=new WebAssembly.Module(source);
   assert.deepEqual(WebAssembly.Module.exports(module),[
     {name:'mix',kind:'function'},{name:'memory',kind:'memory'}
   ]);
