@@ -47,8 +47,6 @@ function digest(value) {
 }
 
 const unsafe=[
-  ['tagged template substitution',
-    "function poison(strings,p){p.charCodeAt=()=>0;}poison\`input\${String.prototype}\`;"],
   ['array literal spread',
     "function poison(p){p.charCodeAt=()=>0;}poison(...[String.prototype]);"],
   ['nested object property',
@@ -81,8 +79,6 @@ for(const [name,mutator] of unsafe) {
 }
 
 const harmless=[
-  ['tagged Number prototype',
-    "function tag(strings,p){return typeof p}tag\`input\${Number.prototype}\`;"],
   ['array spread Number prototype',
     "function read(p){return p.unrelated}read(...[Number.prototype]);"],
   ['nested object Number prototype',
@@ -107,4 +103,20 @@ for(const [name,mutator] of harmless) {
       }finally{await fs.rm(root,{recursive:true,force:true});}
     });
   }
+}
+
+for(const mode of /** @type {const} */ (['sno','coo'])) {
+  test('existing tagged-template source guard declines encoding: '+mode,async()=>{
+    const input=graph("function tag(strings,p){return typeof p}tag\`input\${Number.prototype}\`;");
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'decoder-tagged-template-existing-guard/'+mode
+    });
+    assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-decoder-tagged-'));
+    try{
+      assert.deepEqual(await execute(path.join(root,'native'),input),
+        await execute(path.join(root,'emitted'),output.files));
+    }finally{await fs.rm(root,{recursive:true,force:true});}
+  });
 }
