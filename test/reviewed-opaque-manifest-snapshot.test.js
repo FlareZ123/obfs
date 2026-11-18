@@ -150,3 +150,27 @@ test('duplicate approved asset copies cannot hide a missing reviewed path',()=>{
     /Duplicate published opaque asset path/);
   assert.doesNotThrow(()=>assertReviewedOpaqueAssets([safeFile,otherFile],reviewed));
 });
+
+test('reviewed policy adds no emitted JavaScript work for the same seeded three-mode compile',()=>{
+  const files=[
+    {path:'entry.cjs',sourceType:/** @type {const} */('commonjs'),
+      code:'module.exports=require("./worker.cjs")(7);'},
+    {path:'worker.cjs',sourceType:/** @type {const} */('commonjs'),
+      code:'module.exports=function(x){let y=x+7;return y*3;};'},
+    {path:'theme.css',sourceType:/** @type {const} */('asset'),code:safe}
+  ];
+  const reviewed=[{path:'theme.css',sha256:digest(safe)}];
+  /** @param {ReturnType<typeof obfuscateFiles>} result */
+  const emitted=result=>result.files.map(file=>({
+    path:file.path,sourceType:file.sourceType,code:Buffer.isBuffer(file.code)?
+      file.code.toString('base64'):file.code,metrics:file.metrics
+  }));
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    for(let seed=0;seed<12;seed++){
+      const opts={mode,seed:'reviewed-emission-'+seed,closedWorld:true};
+      const native=obfuscateFiles(files,opts);
+      const approved=obfuscateFiles(files,{...opts,reviewedOpaqueAssets:reviewed});
+      assert.deepEqual(emitted(approved),emitted(native),mode+' seed '+seed);
+    }
+  }
+});
