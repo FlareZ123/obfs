@@ -283,6 +283,7 @@ test('Selected-function hot-path overhead vetoes SNO compute despite green appli
     ...original,leafRows:[leaf,original.leafRows[1]]
   });
   const p=result.performance;
+  assert.ok(p.computeBoundaryFamilywise);
   assert.equal(p.snoPostInit.applicationVerdict,'sample-supported');
   assert.equal(p.snoPostInit.selectedLeafVerdict,'sample-exceeded');
   assert.equal(p.snoPostInit.verdict,'sample-exceeded');
