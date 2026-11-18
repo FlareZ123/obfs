@@ -88,3 +88,48 @@ for(const mode of /** @type {const} */ (['sno','coo','sco'])) {
     assert.equal(execute(String(output.code)),execute(source));
   });
 }
+
+/**
+ * The global object supplied to a non-strict `with` block is an opaque
+ * environment record. A method named "get" can dynamically shadow an
+ * otherwise proven top-level `const get=Reflect.get` binding. Treating its
+ * invocation as a native intrinsic read can expose a changed function source
+ * after eager string encoding.
+ *
+ * @param {string} source
+ * @returns {string}
+ */
+function executeWithOpaqueGetter(source) {
+  const context=vm.createContext({module:{exports:null}});
+  context.opaqueScope={
+    get() {
+      return context.observed.toString();
+    }
+  };
+  vm.runInContext(source,context,{timeout:2500});
+  return String(context.module.exports);
+}
+
+test('dynamic with environment cannot prove detached native Reflect.get',()=>{
+  assert.equal(safeCount(
+    "const get=Reflect.get;with(globalThis.opaqueScope){module.exports=get({known:2},'known');}"
+  ),0);
+});
+
+for(const mode of /** @type {const} */ (['sno','coo','sco'])) {
+  test('opaque with-shadowed getter preserves observed function source in '+mode,()=>{
+    const source=
+      "function observed(){return 'reflection-opaque-function-source';}"+
+      "const get=Reflect.get;"+
+      "with(globalThis.opaqueScope){module.exports=get({known:2},'known');}";
+    const output=obfuscateFiles(
+      [{path:'with-shadow.cjs',sourceType:'commonjs',code:source}],
+      {mode,seed:'dynamic-with-reflect/'+mode,strings:true,
+       identifiers:false,properties:false}
+    ).files[0];
+    assert.equal(output.metrics.literals,0,
+      'A dynamic with object can redirect native-appearing captured calls');
+    assert.equal(executeWithOpaqueGetter(String(output.code)),
+      executeWithOpaqueGetter(source));
+  });
+}
