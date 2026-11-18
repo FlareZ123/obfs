@@ -200,6 +200,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
   const returnedSensitiveFunctions=new Set();
   /** @type {Map<string,Set<string>>} */
   const returnedSensitiveFields=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const returnedSensitivePaths=new Map();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -392,16 +394,29 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
    */
   function isReturnedSensitiveField(node) {
     if(node.type!=='MemberExpression')return false;
+    /** @type {(string|null)[]} */
+    const parts=[];
+    let cursor=node;
+    while(cursor.type==='MemberExpression') {
+      parts.unshift(memberName(cursor));
+      cursor=cursor.object;
+    }
     let ownerName=null;
-    if(node.object.type==='CallExpression'&&node.object.callee.type==='Identifier') {
-      ownerName=node.object.callee.name;
-    } else if(node.object.type==='Identifier') {
-      ownerName=node.object.name;
+    if(cursor.type==='CallExpression'&&cursor.callee.type==='Identifier') {
+      ownerName=cursor.callee.name;
+    } else if(cursor.type==='Identifier') {
+      ownerName=cursor.name;
     }
     if(ownerName===null)return false;
-    const fields=returnedSensitiveFields.get(ownerName);
-    const key=memberName(node);
-    return Boolean(fields && (key===null||fields.has(key)));
+    const paths=returnedSensitivePaths.get(ownerName);
+    if(!paths?.size)return false;
+    const unknown=parts.indexOf(null);
+    if(unknown<0) {
+      return paths.has(sensitivePathKey(/** @type {string[]} */ (parts)));
+    }
+    const prefix=/** @type {string[]} */ (parts.slice(0,unknown));
+    const prefixKey=sensitivePathKey(prefix);
+    return [...paths].some(pathKey=>pathKey.startsWith(prefixKey));
   }
   /**
    * A dynamically supplied receiver can resolve to a decoder-sensitive
@@ -525,6 +540,36 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
        * @param {string} name
        * @param {string} key
        */
+      /**
+       * @param {string[]} parts
+       * @returns {string}
+       */
+      function sensitivePathKey(parts) {
+        return parts.map(part=>part.length+':'+part+';').join('');
+      }
+      /**
+       * @param {string} name
+       * @param {string} pathKey
+       */
+      function addReturnedPathKey(name,pathKey) {
+        let paths=returnedSensitivePaths.get(name);
+        if(!paths) {
+          paths=new Set();
+          returnedSensitivePaths.set(name,paths);
+        }
+        if(!paths.has(pathKey)){paths.add(pathKey);discovered=true;}
+      }
+      /**
+       * @param {string} name
+       * @param {string[]} parts
+       */
+      function addReturnedPath(name,parts) {
+        addReturnedPathKey(name,sensitivePathKey(parts));
+      }
+      /**
+       * @param {string} name
+       * @param {string} key
+       */
       function addReturnedField(name,key) {
         let fields=returnedSensitiveFields.get(name);
         if(!fields) {
@@ -532,31 +577,57 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
           returnedSensitiveFields.set(name,fields);
         }
         if(!fields.has(key)){fields.add(key);discovered=true;}
+        addReturnedPath(name,[key]);
       }
       /**
-       * Finite object/array literals can preserve a decoder-sensitive reference
-       * behind a local field. Record only statically named slots so unrelated
-       * fields and Number-only containers retain positive decoder yield.
+       * Record exact sensitive descendant paths in finite object/array
+       * literals. Parent containers remain untainted so a safe sibling can
+       * retain decoder yield.
        * @param {string} name
        * @param {import('./ast').AstNode} value
+       * @param {string[]} [prefix]
        */
-      function recordLiteralSensitiveFields(name,value) {
+      function recordLiteralSensitivePaths(name,value,prefix=[]) {
         if(value.type==='ObjectExpression') {
           for(const property of value.properties) {
             if(property.type!=='Property')continue;
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
-            if(key!==null&&sensitiveReturnValue(property.value))addReturnedField(name,key);
+            if(key===null)continue;
+            const pathParts=[...prefix,key];
+            if(sensitiveReturnValue(property.value)) {
+              addReturnedPath(name,pathParts);
+              if(prefix.length===0)addReturnedField(name,key);
+            }
+            if(property.value.type==='ObjectExpression'||property.value.type==='ArrayExpression') {
+              recordLiteralSensitivePaths(name,property.value,pathParts);
+            }
           }
           return;
         }
         if(value.type!=='ArrayExpression')return;
         for(let index=0;index<value.elements.length;index++) {
           const element=value.elements[index];
-          if(element&&element.type!=='SpreadElement'&&sensitiveReturnValue(element)) {
-            addReturnedField(name,String(index));
+          if(!element||element.type==='SpreadElement')continue;
+          const key=String(index);
+          const pathParts=[...prefix,key];
+          if(sensitiveReturnValue(element)) {
+            addReturnedPath(name,pathParts);
+            if(prefix.length===0)addReturnedField(name,key);
+          }
+          if(element.type==='ObjectExpression'||element.type==='ArrayExpression') {
+            recordLiteralSensitivePaths(name,element,pathParts);
           }
         }
+      }
+      /**
+       * Finite object/array literals can preserve a decoder-sensitive reference
+       * behind a local field. Record only exact static paths.
+       * @param {string} name
+       * @param {import('./ast').AstNode} value
+       */
+      function recordLiteralSensitiveFields(name,value) {
+        recordLiteralSensitivePaths(name,value);
       }
       /**
        * @param {import('./ast').AstNode} owner
@@ -641,12 +712,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
         } else returned.push(fn.body);
         for(const value of returned) {
           if(sensitiveReturnValue(value))add(returnedSensitiveFunctions,name);
-          if(value.type!=='ObjectExpression')continue;
-          for(const property of value.properties) {
-            if(property.type!=='Property')continue;
-            const key=property.computed?staticString(property.key):
-              property.key.type==='Identifier'?property.key.name:staticString(property.key);
-            if(key!==null&&sensitiveReturnValue(property.value))addReturnedField(name,key);
+          if(value.type==='ObjectExpression'||value.type==='ArrayExpression') {
+            recordLiteralSensitiveFields(name,value);
           }
         }
       }
@@ -735,6 +802,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
             for(const key of returnedSensitiveFields.get(node.init.name)??[]) {
               addReturnedField(node.id.name,key);
             }
+            for(const pathKey of returnedSensitivePaths.get(node.init.name)??[]) {
+              addReturnedPathKey(node.id.name,pathKey);
+            }
           }
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isDocumentValue(node.init) ||
@@ -789,6 +859,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
           for(const key of returnedSensitiveFields.get(node.right.name)??[]) {
             addReturnedField(node.left.name,key);
           }
+          for(const pathKey of returnedSensitivePaths.get(node.right.name)??[]) {
+            addReturnedPathKey(node.left.name,pathKey);
+          }
         }
         if(isGlobal(node.right))add(globalNames,node.left.name);
         if(isDocumentValue(node.right) ||
@@ -820,6 +893,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     if(touchesString(expression)||isArrayPrototype(expression)||
        isObjectPrototype(expression)||isPossiblePrototype(expression)||
        isPossibleConstructor(expression))return true;
+    if(expression.type==='Identifier'&&returnedSensitivePaths.get(expression.name)?.size)return true;
+    if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'&&
+       returnedSensitivePaths.get(expression.callee.name)?.size)return true;
     if(expression.type==='SpreadElement')return containsDecoderIntrinsic(expression.argument);
     if(expression.type==='SequenceExpression')return expression.expressions.some(
       (/** @type {import('./ast').AstNode} */ part)=>containsDecoderIntrinsic(part));
