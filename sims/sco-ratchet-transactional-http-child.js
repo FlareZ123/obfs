@@ -34,21 +34,6 @@ async function main(){
   const privateAMarker=process.env.SCO_TEST_A_WORK_MARKER;
   const nestedAccountQuota=process.env.SCO_TEST_NESTED_ACCOUNT_QUOTA==='1';
   const firstAGateMs=Number(process.env.SCO_TEST_FIRST_A_GATE_MS??'0');
-  /** @type {{token:string,principal:string}[]} */
-  const extraSessions=JSON.parse(process.env.SCO_TEST_EXTRA_AUTH_JSON??'[]');
-  if(!Array.isArray(extraSessions)||extraSessions.length>32)
-    throw new TypeError('Invalid trusted extra-session set');
-  const extraTokenPrincipals=new Map();
-  const trustedPrincipals=new Set(['verified-A','verified-B']);
-  for(const entry of extraSessions){
-    if(!entry||typeof entry!=='object'||
-       typeof entry.token!=='string'||!/^[a-f0-9]{64}$/u.test(entry.token)||
-       typeof entry.principal!=='string'||!/^verified-probe-\d{2}$/u.test(entry.principal)||
-       extraTokenPrincipals.has(entry.token)||trustedPrincipals.has(entry.principal))
-      throw new TypeError('Invalid or duplicate trusted account');
-    extraTokenPrincipals.set(entry.token,entry.principal);
-    trustedPrincipals.add(entry.principal);
-  }
   if(!Number.isSafeInteger(firstAGateMs)||firstAGateMs<0||firstAGateMs>5000)
     throw new TypeError('Trusted test delay must be an integer from 0 to 5000');
   const journalModeRetries=process.env.SCO_TEST_NO_JOURNAL_RETRY==='1'?0:4;
@@ -69,7 +54,7 @@ async function main(){
    * @returns {string}
    */
   function storageKey(principal){
-    if(!trustedPrincipals.has(principal))
+    if(principal!=='verified-A'&&principal!=='verified-B')
       throw new TypeError('Unverified storage principal');
     if(bucketCount>0)return 'bucket-'+bucketOf(trustedRoot,principal,bucketCount);
     return accountShards?principal:'shared';
@@ -111,8 +96,7 @@ async function main(){
     const cookie=req.headers.cookie;
     if(cookie==='session='+tokenA)return 'verified-A';
     if(cookie==='session='+tokenB)return 'verified-B';
-    return typeof cookie==='string'&&cookie.startsWith('session=')?
-      extraTokenPrincipals.get(cookie.slice('session='.length))??null:null;
+    return null;
   }
   let recordedAAdmissions=0;
   let firstAGateApplied=false;
