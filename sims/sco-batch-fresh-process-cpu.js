@@ -72,11 +72,14 @@ async function observeChild(mode,iterationsPerCall,totalCalls,origin,bearer,publ
  * stays initialized; total CPU counts both processes for each observation.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,sourceSha256:string,ordinarySourceSha256:string,totalCalls:number,serverInitializationExcluded:boolean,freshClientProcessIncluded:boolean,cpuScope:string,rows:Row[]}>}
+ * @param {boolean} [immutableBatchArgs] Opt-in shared, frozen JSON batch arguments
+ * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,sourceSha256:string,ordinarySourceSha256:string,totalCalls:number,serverInitializationExcluded:boolean,freshClientProcessIncluded:boolean,immutableBatchArgs:boolean,cpuScope:string,rows:Row[]}>}
  */
-async function run(rounds=9){
+async function run(rounds=9,immutableBatchArgs=false){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>30)
     throw new RangeError('Expected 9 through 30 paired fresh-process trials');
+  if(typeof immutableBatchArgs!=='boolean')
+    throw new TypeError('immutableBatchArgs must be a boolean');
   const previousWindow=globalThis.window;
   /** @type {http.Server|undefined} */
   let server;
@@ -116,6 +119,7 @@ async function run(rounds=9){
     ],{
       publicPaths:[EXPOSED,ORDINARY_PATH],remoteMethods:registry,maxRpcBytes:262144,
       authorizeRead:authorized,authorizeRpc:authorized,
+      immutableBatchArgs,
       authorizeOperation:(request,method,args)=>{
         if(!authorized(request))return false;
         if(method===batchMethod){
@@ -235,6 +239,7 @@ async function run(rounds=9){
       source:'sims/sco-batch-fresh-process-cpu.js',platform:process.platform,
       node:process.version,sourceSha256,ordinarySourceSha256:ordinarySha256,totalCalls,
       serverInitializationExcluded:true,freshClientProcessIncluded:true,
+      immutableBatchArgs,
       cpuScope:'Parent trusted-server CPU plus whole fresh child-process CPU from launch. Original ESM, generated HTTP ESM and ordinary esbuild-minified HTTP ESM each compile in a fresh child against the same trusted server original. Loopback only; no browser, cross-network RTT, TLS or raw non-JSON value equivalence.',
       rows
     };
@@ -249,7 +254,7 @@ async function run(rounds=9){
   }
 }
 
-if(require.main===module)run().then(async report=>{
+if(require.main===module)run(9,process.env.OBFS_SCO_BATCH_IMMUTABLE_ARGS==='1').then(async report=>{
   if(process.env.OBFS_SCO_BATCH_PROCESS_AUDIT_FILE)
     await atomicWrite(process.env.OBFS_SCO_BATCH_PROCESS_AUDIT_FILE,
       JSON.stringify(report,null,2)+'\n');
