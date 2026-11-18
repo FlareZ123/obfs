@@ -34,6 +34,30 @@ scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
 `test/sco-malformed-utf8-rpc.test.js`.
 
+## JSON protocol envelope serialization
+
+The response serializer constructs a null-prototype copy of its **own**
+`{ok,...}` protocol envelope before calling `JSON.stringify`. An unrelated
+trusted Node dependency can add `Object.prototype.toJSON`, which native
+`JSON.stringify` otherwise invokes on every ordinary response object.
+That inherited callback must not replace the handler's success, denial or
+malformed-request envelope. The protected method's `value` is still
+serialized using ordinary JavaScript `JSON.stringify` behavior, including
+any explicit or inherited `toJSON` on nested application values. Thus this
+guard preserves the handler-owned wire envelope without imposing a new
+application-value serialization contract.
+
+The real HTTP regression
+[`test/sco-response-envelope-prototype.test.js`](../test/sco-response-envelope-prototype.test.js)
+checks the exact response bytes under a temporary inherited `toJSON`
+hook for a successful primitive-valued operation and generic denial cases.
+This protects against accidental ambient prototype interference inside the
+trusted server. It does not defend against an attacker able to monkeypatch
+the server's `JSON.stringify`, compromise the Node runtime, or obtain
+private results through legitimate authorized requests. The per-response
+wrapper copy has not been independently profiled for a universal 2.5×
+compute guarantee.
+
 ## Explicit own JSON operation keys
 
 SCO RPC requires `method` and `args` to be **own properties** of the
