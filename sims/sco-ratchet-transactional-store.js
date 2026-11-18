@@ -14,6 +14,20 @@ const WORK=Buffer.alloc(8*1024*1024,0x5b);
  * @typedef {{root_hash:string}} ConfigurationRow
  */
 
+/**
+ * @param {string} principal
+ * @param {number} start
+ * @param {string[]} inputs
+ * @returns {boolean}
+ */
+function validBatch(principal,start,inputs){
+  return typeof principal==='string'&&principal.length>0&&
+    Number.isSafeInteger(start)&&start>=0&&Array.isArray(inputs)&&
+    inputs.length>=1&&inputs.length<=64&&
+    start+inputs.length<=Number.MAX_SAFE_INTEGER&&
+    inputs.every(value=>typeof value==='string'&&/^[a-f0-9]{64}$/u.test(value));
+}
+
 /** @param {string[]} inputs @returns {string} */
 function fingerprint(inputs){
   return createHash('sha256').update(JSON.stringify(inputs)).digest('hex');
@@ -87,21 +101,53 @@ class TransactionalRatchet{
   }
 
   /**
+   * Enter shared SQLite writer admission before inspecting mutable policy
+   * state. HTTP adapters must hold their own handler-level isolation scope
+   * across all awaits until this transaction commits or rolls back.
+   * @returns {void}
+   */
+  begin(){
+    if(this.db.isTransaction)throw new TypeError('Ratchet transaction already active');
+    this.db.exec('BEGIN IMMEDIATE');
+  }
+
+  /** @returns {void} */
+  rollback(){
+    if(this.db.isTransaction)this.db.exec('ROLLBACK');
+  }
+
+  /**
+   * Evaluate the exact admission policy under a previously acquired write
+   * transaction. This method performs no HMAC work or state mutation.
+   * @param {string} principal
+   * @param {number} start
+   * @param {string[]} inputs
+   * @returns {boolean}
+   */
+  admissible(principal,start,inputs){
+    if(!this.db.isTransaction)throw new TypeError('Ratchet policy requires writer transaction');
+    if(!validBatch(principal,start,inputs))return false;
+    const row=/** @type {StoredRow|undefined} */(/** @type {unknown} */(
+      this.readState.get(principal)));
+    const matchingCache=row!==undefined&&row.last_start===start&&
+      row.last_fingerprint===fingerprint(inputs);
+    return (row?.seq??0)===start||matchingCache;
+  }
+
+  /**
+   * Execute and commit a batch after admitted state has been serialized.
+   * Callers may begin before policy validation; batch commits before returning.
    * @param {string} principal Verified by the caller; this class is not auth.
    * @param {number} start
    * @param {string[]} inputs
    * @returns {BatchDecision}
    */
   batch(principal,start,inputs){
-    if(typeof principal!=='string'||!principal.length||
-       !Number.isSafeInteger(start)||start<0||
-       !Array.isArray(inputs)||inputs.length<1||inputs.length>64||
-       start+inputs.length>Number.MAX_SAFE_INTEGER||
-       !inputs.every(value=>typeof value==='string'&&/^[a-f0-9]{64}$/u.test(value))){
+    if(!validBatch(principal,start,inputs)){
       return {kind:'denied',outputs:[],privateExecutions:0};
     }
     const digest=fingerprint(inputs);
-    this.db.exec('BEGIN IMMEDIATE');
+    if(!this.db.isTransaction)this.begin();
     try{
       const row=/** @type {StoredRow|undefined} */(/** @type {unknown} */(
         this.readState.get(principal)));
@@ -130,7 +176,7 @@ class TransactionalRatchet{
       this.db.exec('COMMIT');
       return {kind:'fresh',outputs,privateExecutions:inputs.length};
     }catch(error){
-      if(this.db.isTransaction)this.db.exec('ROLLBACK');
+      this.rollback();
       throw error;
     }
   }
