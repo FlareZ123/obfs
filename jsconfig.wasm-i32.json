@@ -39,7 +39,9 @@
     "examples/wasm-i32-multi/build.cjs",
     "examples/wasm-i32-conditional/build.cjs",
     "examples/wasm-i32-lazy/build.cjs",
-    "sims/wasm-i32-strategy-grid.js"
+    "sims/wasm-i32-strategy-grid.js",
+    "sims/fused-arx-batch.js",
+    "test/fused-arx-batch.test.js"
   ],
   "exclude": [
     "node_modules"
