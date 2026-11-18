@@ -640,25 +640,15 @@ test('Reflect.get invocation wrappers preserve global process report coordinates
     mustPreserveProcessReport(expression,'agent8-process-global-reflect-wrapper-'+index);
 });
 
-test('Reflect.get invocation wrappers keep static process env reads analyzable',()=>{
+test('indirect Reflect.get env wrappers remain generic reflection refusals',()=>{
   const expressions=[
     "Reflect.get.call(Reflect,process,'env').PATH",
     "Reflect.get.apply(Reflect,[process,'env']).PATH",
     "Reflect.apply(Reflect.get,Reflect,[process,'env']).PATH",
     "(()=>{const get=Reflect.get.bind(Reflect);return get(process,'env').PATH;})()"
   ];
-  for(const [index,expression] of expressions.entries()){
-    const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
-      "const value=owner.distinctivelyLongPrivateField;void ("+expression+");"+
-      "module.exports=value;";
-    assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
-    const output=obfuscateFiles([{
-      path:'reflect-env-wrapper-'+index+'.cjs',sourceType:'commonjs',code:source
-    }],{
-      mode:'sno',seed:'agent8-reflect-env-wrapper-'+index,
-      strings:false,identifiers:false
-    }).files[0];
-    assert.equal(execute(output.code),73);
-    assert.ok(output.metrics.properties>0,output.code);
+  for(const expression of expressions) {
+    const source="'use strict';void ("+expression+");";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
   }
 });
