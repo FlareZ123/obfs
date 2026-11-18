@@ -55,3 +55,6 @@ jobs:
 
       - name: Return-alias intrinsic parity and read-only positive decoder yield
         run: node --test test/decoder-returned-alias.test.js
+
+      - name: Branch-nested local function return alias red and positive gate
+        run: node --test test/decoder-returned-branches.test.js
