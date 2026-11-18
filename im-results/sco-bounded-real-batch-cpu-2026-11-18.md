@@ -43,3 +43,26 @@ The corresponding short 13-pair populations in the same workflow still had **13/
 The authenticated batch benchmark also now performs three explicit **real HTTP security controls before timing**: an unauthenticated source read must return 403, an unauthenticated batch RPC must return 403, and an authenticated outer batch with an invalid inner count (150001, beyond the declared maximum) must return 403 before private work. Both CI platforms passed these controls. This validates the tested policy enforcement path, without proving that arbitrary identity replay, source reconstruction or compromised client attacks are prevented.
 
 The 51-pair evidence provides a stronger *sampled resident CPU feasibility signal* for this concrete large-batch workload. It **does not prove a universal worst-case 2.5x cap**: the distribution-free one-sided statistic concerns the population median and its assumption of independent representative trial pairs. Zero strict observed breaches leaves a nonzero statistical upper bound on future violation frequency; fixed-input, fixed-runner evidence cannot bound every browser, Node runtime, hardware or hostile deployment. The normal 13-pair/12,288-call Windows failure must remain visible as a separate workload observation. No new resistance to authorized functional relaying follows from the performance improvement.
+
+
+## Closed-graph source and bounded aggregate batch work: final dual-platform replication
+
+A further [strict-JSDoc, real-HTTP and CPU workflow 44223019270](https://github.com/FlareZ123/obfs/actions/runs/44223019270) succeeded on both OSes at exact main SHA **`1af22c99748dcf5575a513eba7a2f8e84c16c801`**. This source adds two independently relevant safeguards to the experimental deployment:
+
+1. Before serving, it audits the complete original six-file ESM graph using the existing `build()` admission, and attaches every original source SHA-256 digest and private module path to the generated batch facade's publication manifest. That ties source withholding to the actual graph proof and the handler's byte/content checks rather than an experimenter's hard-coded path list.
+2. In the trusted handler's outer batch authorization, it caps the **sum of all requested private engine iterations per batch at 1,024,000**, in addition to the existing 1,024-call ceiling and independent per-call argument checks. A genuine authenticated HTTP request attempting a 1,024-operation batch with 150,000 private iterations per operation received HTTP 403. Separate unauthorized public-source, unauthorized RPC and invalid-inner-count denials also passed. The workload under test (1,024 × 1,000) lies exactly on the declared admitted total-work boundary.
+
+This adds a real resource-limiting example for a legitimate caller able to submit arbitrarily expensive batches; **it is only a per-request bound**, and cannot replace principal-level rate limiting, cross-account scheduling, burst/CPU quotas or data-transfer control. It must not be mistaken for hostile client tamper resistance.
+
+The final two-platform sampled profile still found every 51-pair **24,576-call, 1,000-iteration** stability observation below 2.5× whole-process CPU and below 2.5× wall elapsed:
+
+| OS | CPU ratio of medians, 51 pairs | One-sided upper median bound | Strict CPU >2.5× | Wall ratio of medians | Strict wall >2.5× |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Ubuntu | **1.2085×** | 1.2195× | **0/51** | 1.1943× | **0/51** |
+| Windows | **1.3168×** | 1.3823× | **0/51** | 1.3107× | **0/51** |
+
+The 13-pair 12,288-call 1,000-iteration control gave 1.2493× Ubuntu and 1.2811× Windows CPU ratios with zero strict over-budget CPU observations. In the same run, one-iteration calls remained over budget: Ubuntu 4.1582× CPU median and 13/13 strict breaches, while Windows had 10 strict breaches and one CPU-unresolved trial, plus all 13 wall breaches. These ratio changes from earlier runs reflect separate runner/time samples and are **not a measured causal speedup attributable to the new admission policy**.
+
+All four full paired-timing JSON files are retained as successful run artifacts named `sco-batch-Linux` and `sco-batch-Windows`, each containing the ordinary 13-pair and amplified 51-pair observations with all raw CPU and wall durations. Dependency versions were recorded by `npm ls --all`. The source-pinned report is reproducible by rerunning the manual workflow, but the files are host-generated empirical observations, not immutable forecasts for all runtimes.
+
+**Overall:** the most defensible deployment direction from this experiment is a *selective*, resource-admitted, coarse SCO server-private batch for applications whose authorized operation semantics make grouping correct. Exact raw JavaScript own-field semantics, tiny calls, unlimited legitimate online relay and arbitrary malicious client emulation remain independent unsolved goals. Security dimensions should not be inferred from a successful CPU benchmark.
