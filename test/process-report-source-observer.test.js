@@ -82,6 +82,13 @@ test('escaped process.report namespaces preserve source coordinates',()=>{
     mustPreserveProcessReport(expression,'agent1-process-report-escape-'+index);
 });
 
+test('dynamic process.report member access preserves source',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='getReport';return process.report[key]();})()",
+    'agent1-process-report-dynamic-member'
+  );
+});
+
 test('copied process.report methods preserve source coordinates',()=>{
   const expressions=[
     '(()=>{const {...copy}=process.report;return copy.getReport();})()',
@@ -355,7 +362,8 @@ test('harmless process.report metadata writes retain property-renaming yield',()
   const variants=[
     "process.report.filename='';",
     "const report=process.report;report.filename='';",
-    "const {report}=process;report.filename='';"
+    "const {report}=process;report.filename='';",
+    "process.report['filename']='';"
   ];
   for(const [index,metadata] of variants.entries()) {
     const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
