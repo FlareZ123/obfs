@@ -7,6 +7,10 @@ on:
         description: 'Run source-paired direct-alias compiler performance experiment'
         type: boolean
         default: false
+      alias_owners:
+        description: 'Number of direct-alias owners for opt-in paired A/B'
+        type: number
+        default: 384
 
 permissions:
   contents: read
@@ -35,6 +39,7 @@ jobs:
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
           OBFS_PROOF_CONTROL_SHA: 841807ff1e37c237da347d2b70053d059bf6271f
+          OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:
