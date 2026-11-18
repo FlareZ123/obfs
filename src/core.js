@@ -566,6 +566,30 @@ function mutatesDecoderIntrinsic(ast) {
       }
     });
   } while(discovered);
+  /**
+   * An intrinsic can escape through a nested array/object literal or argument
+   * spread even when the argument's top-level expression has no intrinsic
+   * provenance. These finite containers are traversed without executing code.
+   * @param {import('./ast').AstNode} expression
+   * @returns {boolean}
+   */
+  function containsDecoderIntrinsic(expression) {
+    if(touchesString(expression)||isArrayPrototype(expression)||
+       isObjectPrototype(expression)||isPossiblePrototype(expression)||
+       isPossibleConstructor(expression))return true;
+    if(expression.type==='SpreadElement')return containsDecoderIntrinsic(expression.argument);
+    if(expression.type==='ArrayExpression')return expression.elements.some(
+      (/** @type {import('./ast').AstNode|null} */ element)=>
+        element!==null&&containsDecoderIntrinsic(element));
+    if(expression.type==='ObjectExpression')return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement')return containsDecoderIntrinsic(property.argument);
+        return property.type==='Property' &&
+          (containsDecoderIntrinsic(property.value)||
+           property.computed&&containsDecoderIntrinsic(property.key));
+      });
+    return false;
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
     if(isStringValue(node)||isStringPrototype(node))return true;
@@ -667,11 +691,15 @@ function mutatesDecoderIntrinsic(ast) {
     // a parameter and patch it before a later module initializes its decoder.
     // Without interprocedural effect proof, passing that reference is an escape.
     // Direct, known reflection reads are handled by the existing alias scanner.
+    if(node.type==='TaggedTemplateExpression' &&
+       node.quasi.expressions.some((/** @type {import('./ast').AstNode} */ expression)=>
+         containsDecoderIntrinsic(expression))) {
+      mutated=true;
+      return;
+    }
     if((node.type==='CallExpression'||node.type==='NewExpression') &&
        node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
-         touchesString(argument)||isArrayPrototype(argument)||
-         isObjectPrototype(argument)||isPossiblePrototype(argument)||
-         isPossibleConstructor(argument))) {
+         containsDecoderIntrinsic(argument))) {
       const callee=node.callee;
       const method=callee.type==='MemberExpression'?memberName(callee):null;
       const modeledIntrinsicCall=callee.type==='MemberExpression' &&
