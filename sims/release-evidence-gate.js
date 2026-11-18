@@ -273,7 +273,9 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
       boundary:'Repeated in-worker business compute after startup, checksum and import. CPU includes only executed application work; symmetric native comparison; original artifact behavior and selected transforms verified.',
       coldSource:'performance.sno',
       note:'The two selected-leaf stress populations are included in the strict compute verdict and the twelve-workload familywise comparison. Application-level dilution of hot-leaf overhead cannot satisfy a universal 2.5x requirement; individual sampled breaches remain separately visible.'
-    }:{verdict:'unmeasured',rows:[],leafRows:[],
+    }:{verdict:'unmeasured',applicationVerdict:'unmeasured',
+      selectedLeafVerdict:'unmeasured',strictObservedVerdict:'not-measured',
+      rows:[],leafRows:[],
       boundary:'SNO post-initialization process CPU not supplied to this summary'},
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
