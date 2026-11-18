@@ -503,10 +503,10 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     if (parent?.type === 'VariableDeclarator' && key === 'id' &&
         parent.init===functions.get(node.name)?.node) {
-      // Exported zero-argument getters disclose the entire owner to unknown
-      // external callers, even when their local call sites are all proven.
-      if(functions.get(node.name)?.returnsRoot &&
-          ancestors.some(a=>/^Export/.test(a.type)))unusableFunctions.add(node.name);
+      // Any directly exported callable can be invoked by an undeclared host
+      // with a foreign record, or inspected through Function#toString.
+      // A local owner proof cannot establish its external call contract.
+      if(ancestors.some(a=>/^Export/.test(a.type)))unusableFunctions.add(node.name);
       continue;
     }
     if (functions.get(node.name)?.external && /^Import(?:Default|Namespace)?Specifier$/.test(parent?.type??'')) continue;
