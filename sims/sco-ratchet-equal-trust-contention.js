@@ -171,7 +171,6 @@ function makeConventionalServer(root,_delayMs,_facade,onStart,onEnd){
  * and principals remain distinct. The child process starts B while trusted
  * Node is synchronously processing A's private HMAC batch.
  * @param {'generated'|'conventional'} mode
- * @returns {Promise<object>}
  */
 async function experiment(mode){
   const root=randomBytes(32);
