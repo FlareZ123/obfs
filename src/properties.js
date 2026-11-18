@@ -148,6 +148,11 @@ function isDirectParameterValue(value,ancestors,bindings) {
     param.type==='Identifier'&&param.name===value.name));
 }
 
+/** @type {WeakMap<AstNode,Map<string,AstNode>>} */
+const bindingScopeCache=new WeakMap();
+/** @type {WeakMap<AstNode,AstNode[]>} */
+const constantDeclaratorsCache=new WeakMap();
+
 /**
  * Each simple binding's visible lexical region. A unique name alone cannot
  * prove that a same-spelled free reference outside the region is the binding.
@@ -156,6 +161,8 @@ function isDirectParameterValue(value,ancestors,bindings) {
  * @returns {Map<string,AstNode>}
  */
 function collectBindingScopes(ast) {
+  const cached=bindingScopeCache.get(ast);
+  if(cached)return cached;
   /** @type {Map<string,AstNode>} */
   const scopes=new Map();
   const lexical=new Set(['Program','BlockStatement','StaticBlock','SwitchStatement',
@@ -176,6 +183,8 @@ function collectBindingScopes(ast) {
       scopes.set(node.local.name,ast);
     }
   });
+  // Proofs share this immutable parsed AST during one transformation pass.
+  bindingScopeCache.set(ast,scopes);
   return scopes;
 }
 
@@ -198,22 +207,33 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
   /** @type {Map<string,string>} */
   const keys=new Map();
   if(!ownerScope||!['Program','BlockStatement'].includes(ownerScope.type))return keys;
+  let declarations=constantDeclaratorsCache.get(ast);
+  if(!declarations){
+    declarations=[];
+    walk(ast,(node,parent)=>{
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+          parent?.type==='VariableDeclaration' && parent.kind==='const'){
+        /** @type {AstNode[]} */ (declarations).push(node);
+      }
+    });
+    constantDeclaratorsCache.set(ast,declarations);
+  }
+  // The unique-binding guard makes this lookup equivalent to the original
+  // complete AST scan, including nested declarations and shadowing cases.
   /** @type {AstNode|null} */
   let owner=null;
-  walk(ast,(node,parent)=>{
-    if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
-        node.id.name===rootName && parent?.type==='VariableDeclaration' &&
-        parent.kind==='const' && bindings.get(rootName)===1)owner=node;
-  });
+  if(bindings.get(rootName)===1){
+    for(const node of declarations){
+      if(node.id.name===rootName)owner=node;
+    }
+  }
   if(!owner)return keys;
-  walk(ast,(node,parent)=>{
-    if(node.type!=='VariableDeclarator'||node.id.type!=='Identifier'||
-       parent?.type!=='VariableDeclaration'||parent.kind!=='const'||
-       bindings.get(node.id.name)!==1||scopes.get(node.id.name)!==ownerScope||
-       node.start>=/** @type {AstNode} */ (owner).start||!node.init)return;
+  for(const node of declarations){
+    if(bindings.get(node.id.name)!==1||scopes.get(node.id.name)!==ownerScope||
+       node.start>=owner.start||!node.init)continue;
     const value=staticString(node.init);
     if(value!==null)keys.set(node.id.name,value);
-  });
+  }
   return keys;
 }
 
