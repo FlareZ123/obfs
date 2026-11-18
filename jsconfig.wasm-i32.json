@@ -13,6 +13,7 @@
     "sims/wasm-runtime-capture.js",
     "sims/wasm-captured-clone.js",
     "sims/fused-arx-runtime-clone.js",
+    "sims/fused-arx-session-crossover.js",
     "test/fused-arx-runtime-extraction.test.js",
     "test/fused-arx-browser-runtime-clone.js",
     "test/wasm-runtime-capture.test.js",
