@@ -71,6 +71,20 @@ function mixedSource(){
 }
 
 /**
+ * Dense independent owner-to-alias-to-alias chains exercise the direct edge
+ * fixed-point, while preserving the original generated output byte-for-byte.
+ * @returns {string}
+ */
+function aliasSource(){
+  let code="'use strict';let total=0;\n";
+  for(let i=0;i<384;i++)
+    code+='const bag'+i+'={secret:'+(i%31)+'};'+
+      'const alias'+i+'=bag'+i+';const final'+i+'=alias'+i+';'+
+      'total=(total+final'+i+'.secret)|0;\n';
+  return code+'module.exports=total;\n';
+}
+
+/**
  * Stress cases with almost no private owners among numerous ordinary bindings.
  * A global AST index can lose to a smaller local scan on sparse inputs.
  * @returns {string}
@@ -91,13 +105,13 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'} objects
+ * @param {number|'mixed'|'sparse'|'aliases'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
   const input=objects==='mixed'?mixedSource():
-    objects==='sparse'?sparseSource():original(objects);
+    objects==='sparse'?sparseSource():objects==='aliases'?aliasSource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -107,6 +121,7 @@ function sample(objects){
   const cpu=process.cpuUsage(cpuStart);
   assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
     objects==='sparse'?emitted.files[0].metrics.properties===2:
+    objects==='aliases'?emitted.files[0].metrics.properties===384:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -134,8 +149,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'aliases'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -151,8 +166,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','aliases'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'aliases'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -175,7 +190,8 @@ if(process.argv[2]==='sample'){
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
       /** @type {[number,('control'|'candidate')[]]} */ ([2048,largeArms]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
-      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
+      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']]),
+      /** @type {['aliases',('control'|'candidate')[]]} */ (['aliases',['candidate','control','control','candidate']])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -183,7 +199,7 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed','sparse']){
+    for(const objects of [512,2048,'mixed','sparse','aliases']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
