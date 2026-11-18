@@ -5,7 +5,7 @@ const {createHash}=require('node:crypto');
 const {createScoKeyedIsolation}=require('../src/rpc-keyed-isolation');
 
 /** @typedef {{cpuMs:number,wallMs:number,effects:number}} Sample */
-/** @typedef {{cpu:number,wall:number}} Pair */
+/** @typedef {{cpu:number|null,wall:number}} Pair */
 /** @param {number[]} values @returns {number} */
 function median(values){
   const ordered=[...values].sort((a,b)=>a-b);
@@ -23,7 +23,7 @@ function median(values){
  * @param {number} trials
  * @returns {Promise<{resolverKind:string,workBytes:number,iterations:number,
  *   trials:number,pairs:Pair[],strictCpuBreaches:number,strictWallBreaches:number,
- *   medianCpuRatio:number,medianWallRatio:number}>}
+ *   unresolvedCpuPairs:number,medianCpuRatio:number|null,medianWallRatio:number}>}
  */
 async function experiment(resolverKind,workBytes,iterations=10000,trials=7){
   const resolvePrincipal=resolverKind==='sync'?
@@ -78,13 +78,19 @@ async function experiment(resolverKind,workBytes,iterations=10000,trials=7){
       direct=await run(baseline,iterations);
     }
     assert.equal(direct.effects,guarded.effects,'Protected method effects must match');
-    assert.ok(direct.cpuMs>0&&direct.wallMs>0&&guarded.cpuMs>0&&guarded.wallMs>0);
-    pairs.push({cpu:guarded.cpuMs/direct.cpuMs,wall:guarded.wallMs/direct.wallMs});
+    assert.ok(direct.wallMs>0&&guarded.wallMs>0);
+    // Windows process.cpuUsage can quantize a short session to zero ticks.
+    // Retain that pair as unresolved rather than divide by zero or invent CPU.
+    const cpu=direct.cpuMs>0&&guarded.cpuMs>0?
+      guarded.cpuMs/direct.cpuMs:null;
+    pairs.push({cpu,wall:guarded.wallMs/direct.wallMs});
   }
+  const resolvedCpu=pairs.flatMap(x=>x.cpu===null?[]:[x.cpu]);
   return {resolverKind,workBytes,iterations,trials,pairs,
-    strictCpuBreaches:pairs.filter(x=>x.cpu>2.5).length,
+    strictCpuBreaches:resolvedCpu.filter(value=>value>2.5).length,
     strictWallBreaches:pairs.filter(x=>x.wall>2.5).length,
-    medianCpuRatio:median(pairs.map(x=>x.cpu)),
+    unresolvedCpuPairs:trials-resolvedCpu.length,
+    medianCpuRatio:resolvedCpu.length?median(resolvedCpu):null,
     medianWallRatio:median(pairs.map(x=>x.wall))};
 }
 
@@ -94,7 +100,7 @@ if(require.main===module){
     const results=[];
     for(const resolverKind of /** @type {const} */ (['sync','async'])){
       for(const bytes of [0,8192])results.push(
-        await experiment(resolverKind,bytes));
+        await experiment(resolverKind,bytes,bytes?25000:250000));
     }
     process.stdout.write('OBFS_SCO_PRINCIPAL_DEADLINE_COST '+JSON.stringify({
       node:process.version,platform:process.platform,results
