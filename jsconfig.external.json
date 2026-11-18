@@ -166,7 +166,8 @@
     "sims/private-in-immediate-cold.js",
     "sims/private-in-onefile-cold.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "sims/polynomial-permutation-static-inverse.js"
   ],
   "exclude": [
     "node_modules"
