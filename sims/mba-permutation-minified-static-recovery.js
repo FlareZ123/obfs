@@ -180,55 +180,61 @@ function recover(source){
   return {rounds,coefficients,xorShifts:rightShifts,cyclicShifts:rotations,target};
 }
 
-const source=[
-  "'use strict';",
-  "function rol64(x,s){",
-  "  x=BigInt.asUintN(64,x);",
-  "  return BigInt.asUintN(64,(x<<s)|(x>>(64n-s)));",
-  "}",
-  "module.exports=function protectedSlash(c){",
-  "  let x=BigInt.asUintN(64,BigInt(c));",
-  "  for(let i=0;i<48;i++){",
-  "    x=BigInt.asUintN(64,8099674395506127609n^(8077374509611717913n*x));",
-  "    x=BigInt.asUintN(64,x^(x>>22n));",
-  "    x=rol64(x,3n)^rol64(x,20n)^rol64(x,30n)^rol64(x,32n)^rol64(x,29n);",
-  "  }",
-  "  return x===14887200154472500695n;",
-  "};"
-].join('\n');
+function selfTest(){
+  const source=[
+    "'use strict';",
+    "function rol64(x,s){",
+    "  x=BigInt.asUintN(64,x);",
+    "  return BigInt.asUintN(64,(x<<s)|(x>>(64n-s)));",
+    "}",
+    "module.exports=function protectedSlash(c){",
+    "  let x=BigInt.asUintN(64,BigInt(c));",
+    "  for(let i=0;i<48;i++){",
+    "    x=BigInt.asUintN(64,8099674395506127609n^(8077374509611717913n*x));",
+    "    x=BigInt.asUintN(64,x^(x>>22n));",
+    "    x=rol64(x,3n)^rol64(x,20n)^rol64(x,30n)^rol64(x,32n)^rol64(x,29n);",
+    "  }",
+    "  return x===14887200154472500695n;",
+    "};"
+  ].join('\n');
 
-const minified=transformSync(source,{
-  loader:'js',
-  format:'cjs',
-  target:'es2022',
-  minify:true,
-  legalComments:'none'
-}).code;
-const recovered=recover(minified);
-const round={
-  coefficients:recovered.coefficients,
-  xorShifts:recovered.xorShifts,
-  cyclicShifts:recovered.cyclicShifts
-};
-const input=inverseChain(recovered.target,Array.from({length:recovered.rounds},()=>round));
+  const minified=transformSync(source,{
+    loader:'js',
+    format:'cjs',
+    target:'es2022',
+    minify:true,
+    legalComments:'none'
+  }).code;
+  const recovered=recover(minified);
+  const round={
+    coefficients:recovered.coefficients,
+    xorShifts:recovered.xorShifts,
+    cyclicShifts:recovered.cyclicShifts
+  };
+  const input=inverseChain(recovered.target,Array.from({length:recovered.rounds},()=>round));
 
-assert.equal(recovered.rounds,48);
-assert.deepEqual(recovered.coefficients,[
-  8099674395506127609n,
-  8077374509611717913n
-]);
-assert.deepEqual(recovered.xorShifts,[22]);
-assert.deepEqual(recovered.cyclicShifts,[3,20,30,32,29]);
-assert.equal(recovered.target,14887200154472500695n);
-assert.equal(input,47n);
+  assert.equal(recovered.rounds,48);
+  assert.deepEqual(recovered.coefficients,[
+    8099674395506127609n,
+    8077374509611717913n
+  ]);
+  assert.deepEqual(recovered.xorShifts,[22]);
+  assert.deepEqual(recovered.cyclicShifts,[3,20,30,32,29]);
+  assert.equal(recovered.target,14887200154472500695n);
+  assert.equal(input,47n);
 
-console.log(JSON.stringify({
-  minifiedBytes:Buffer.byteLength(minified),
-  rounds:recovered.rounds,
-  coefficients:recovered.coefficients.map(String),
-  xorShifts:recovered.xorShifts,
-  cyclicShifts:recovered.cyclicShifts,
-  target:'0x'+recovered.target.toString(16).padStart(16,'0'),
-  recoveredInput:Number(input),
-  recoveredCharacter:String.fromCharCode(Number(input))
-},null,2));
+  console.log(JSON.stringify({
+    minifiedBytes:Buffer.byteLength(minified),
+    rounds:recovered.rounds,
+    coefficients:recovered.coefficients.map(String),
+    xorShifts:recovered.xorShifts,
+    cyclicShifts:recovered.cyclicShifts,
+    target:'0x'+recovered.target.toString(16).padStart(16,'0'),
+    recoveredInput:Number(input),
+    recoveredCharacter:String.fromCharCode(Number(input))
+  },null,2));
+}
+
+if(require.main===module)selfTest();
+
+module.exports={recover};
