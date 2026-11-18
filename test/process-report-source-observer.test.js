@@ -334,7 +334,7 @@ test('automatic report configuration aliases conservatively preserve source',()=
   for(const [index,mutation] of mutations.entries()) {
     const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
       "const value=owner.distinctivelyLongPrivateField;"+mutation+
-      "module.exports=value;";
+      ";module.exports=value;";
     assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
     const output=obfuscateFiles([{
       path:'automatic-report-config.cjs',
