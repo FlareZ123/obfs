@@ -672,6 +672,40 @@ function collectVerifiedImportedUrlStaticAliases(files) {
     }
     exportedByFile.set(filename,exported);
   }
+  // ESM forwarding exports can hide native-parser provenance across multiple
+  // files. Compute a monotone fixed point over exact local named/star exports.
+  let forwarded;
+  do {
+    forwarded=false;
+    for(const [filename,module] of modules) {
+      const publicNames=/** @type {Set<string>} */ (exportedByFile.get(filename));
+      for(const statement of module.ast.body) {
+        if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)||
+           statement.source?.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/u.test(statement.source.value))continue;
+        const origin=resolveImport(filename,statement.source.value);
+        const candidates=origin?exportedByFile.get(origin):null;
+        if(!candidates)continue;
+        if(statement.type==='ExportAllDeclaration') {
+          if(statement.exported)continue;
+          for(const name of candidates) {
+            if(name==='default'||publicNames.has(name))continue;
+            publicNames.add(name);forwarded=true;
+          }
+        } else {
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const sourceName=spec.local.name??spec.local.value;
+            const publicName=spec.exported.name??spec.exported.value;
+            if(typeof sourceName!=='string'||typeof publicName!=='string'||
+               !candidates.has(sourceName)||publicNames.has(publicName))continue;
+            publicNames.add(publicName);forwarded=true;
+          }
+        }
+      }
+    }
+  }while(forwarded);
   /** @type {Map<string,Set<string>>} */
   const imported=new Map();
   for(const [filename,module] of modules) {
