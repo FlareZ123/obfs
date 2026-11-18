@@ -18,12 +18,15 @@ const {createHash}=require('node:crypto');
       JSON.parse(line));
     let emitted=0;
     let value='';
+    const cpuBefore=process.cpuUsage();
     const begin=process.hrtime.bigint();
     for(let i=0;i<request.repeat;i++){
       value=runScenario(request.seed,request.records,{emit(){emitted++;}});
     }
     const ms=Number(process.hrtime.bigint()-begin)/1e6;
+    const used=process.cpuUsage(cpuBefore);
+    const cpuMs=(used.user+used.system)/1000;
     const digest=createHash('sha256').update(value).digest('hex');
-    process.stdout.write(JSON.stringify({id:request.id,emitted,ms,digest})+'\n');
+    process.stdout.write(JSON.stringify({id:request.id,emitted,ms,cpuMs,digest})+'\n');
   }
 })().catch(error=>{console.error(error);process.exitCode=1;});
