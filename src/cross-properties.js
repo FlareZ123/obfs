@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -2334,7 +2334,8 @@ function renameCrossFileProperties(files,seed) {
         const ownNames=new Set(names);
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))) continue;
+          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
@@ -2369,6 +2370,9 @@ function renameCrossFileProperties(files,seed) {
               text:member.computed ? JSON.stringify(mapping.get(old)) : mapping.get(old)});
           }
           for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
+            add(user.file,edit);
+          }
+          for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
             add(user.file,edit);
           }
         }

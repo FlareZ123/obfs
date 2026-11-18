@@ -155,7 +155,12 @@
     "sims/sco-batch-equal-trust-attacker.js",
     "sims/sco-batch-contention-worker.cjs",
     "sims/sco-batch-cross-account-contention.js",
-    "sims/sco-policy-args-paired.js"
+    "sims/sco-policy-args-paired.js",
+    "test/property-in-operator.test.js",
+    "test/property-in-adversarial.test.js",
+    "test/property-in-browser.js",
+    "sims/property-in-operator-profile.js",
+    "sims/property-in-operator-static-recover.js"
   ],
   "exclude": [
     "node_modules"
