@@ -269,7 +269,7 @@ if(process.argv[2]==='sample'){
   // isolated CI checkout with no concurrent compiler clients.
   assert.equal(process.env.CI,'true','Paired source swap requires an isolated CI job');
   originalCompiler=readFileSync(PROPERTY_FILE,'utf8');
-  control=execFileSync('git',['show',CONTROL_SHA+':src/properties.js'],{
+  control=execFileSync('git',['show',CONTROL_SHA+':src/cross-properties.js'],{
     cwd:REPO,encoding:'utf8',maxBuffer:1024*1024
   });
   assert.notEqual(sha256(originalCompiler),sha256(control));
