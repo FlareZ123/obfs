@@ -17,6 +17,18 @@ The new `src/ast.js::observesFunctionSource` handling conservatively declines so
 
 The test's `replaceAll('secretField','renamedField')` counterfactual is essential: it demonstrates an actual native output change before measuring scanner behavior. This is stronger evidence than a textual API classification alone.
 
+## Cross-module source observation and selected Wasm counterexample
+
+The original nonselected three-module ESM fixtures passed because the directly exported function was left unchanged for existing export-boundary reasons. A deliberately added test asserting this fixture must transform failed identically on both OS ([run 44258714068](https://github.com/FlareZ123/obfs/actions/runs/44258714068)); **that was a poor positive fixture**, not a compiler defect. It was replaced with a stronger selected-backend falsification rather than weakening a source guard.
+
+A three-file static ESM graph now explicitly selects `inspect(a){return a^17;}` for Wasm lowering in `logic.mjs`, exports `URL.parse` through immutable aliases in `parser.mjs`, and imports both functions in `observer.mjs`. An actual standalone `lowerWasmI32Functions` counterfactual emits one Wasm function and changes the observed native URL string; the selected `obfuscateFiles` previously *accepted* the same input. Pinned [red 44258973320](https://github.com/FlareZ123/obfs/actions/runs/44258973320) at `c00c28ab98cdab0e992f3f4756d0c95cd60fe8eb` reproduced both unsafe selected-admission cases on **both OS**.
+
+The repair adds `collectVerifiedImportedUrlStaticAliases` in `src/cross-properties.js`, a finite monotone alias collector restricted to exact named/default ESM imports from files in the supplied group, uniquely bound immutable exported constructors and native parser aliases. `observesFunctionSource` now accepts this proof as an optional sixth argument and bypasses cached opaque-import decisions when proof exists. `src/core.js`, `src/sco.js`, and the closed-world property pass all feed native-parser import proof into group-wide source observation *before* emitted code changes.
+
+Pinned [green 44259457333](https://github.com/FlareZ123/obfs/actions/runs/44259457333) at `be42fbf36f9a300e5fa10a414148166aa8941519` passed the two targeted Wasm-refusal cases on both OS, together with the primitive-URL selected-Wasm positive, 16 local native URL observers, 13 local primitive positive controls, strict JSDoc, and the existing two Chromium regression steps. The exact red→green source interval comprises commits `0071417`, `bc7ae3b`, `ed53936`, `77b20bb`, and `be42fbf`.
+
+**Scope:** direct ESM exports and simple immutable aliases with canonical local imports, plus existing same-module URL aliases. Dynamic import specifiers, runtime-computed reexports, opaque external library methods, hostile URL monkey patches and arbitrary interprocedural return flows are not analyzed. The repaired backend *refuses* selected Wasm rather than silently publishing output with a changed source-observation contract. It does not make the WASM backend more confidential or satisfy a workload-wide performance budget.
+
 ## Tradeoff and limitations
 
 - **Semantic preservation:** verified for enumerated source-bearing and primitive fixtures on the pinned OS/Node combination; not a proof for arbitrary reflective, distributed or hostile-host programs.
