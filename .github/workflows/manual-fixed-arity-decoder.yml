@@ -49,3 +49,6 @@ jobs:
 
       - name: Tagged and wrapped opaque intrinsic argument differential
         run: node --test test/decoder-wrapped-escape.test.js
+
+      - name: Expression-wrapper intrinsic argument parity and positive yield
+        run: node --test test/decoder-expression-wrapper.test.js
