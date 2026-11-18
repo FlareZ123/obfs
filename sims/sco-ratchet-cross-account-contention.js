@@ -126,18 +126,22 @@ async function experiment(){
   assert.ok(address&&typeof address!=='string');
   const base='http://127.0.0.1:'+address.port;
   const folder=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-sco-contention-'));
-  /** @type {Array<{nativeBMs:number,quietBMs:number,loadedBMs:number,
-   * quietRatio:number,loadedRatio:number,aBusyMs:number,overlap:true}>} */
+  /** @type {Array<{nativeBMs:number,quietBMs:number,matchedQuietBMs:number,
+   * loadedBMs:number,quietRatio:number,matchedQuietRatio:number,
+   * loadedRatio:number,aBusyMs:number,overlap:true}>} */
   const samples=[];
   try{
     for(let trial=0;trial<7;trial++){
       const quietPrincipal='quiet-B/'+trial;
+      const matchedQuietPrincipal='quiet-child-B/'+trial;
       const bPrincipal='victim-B/'+trial;
       const aPrincipal='attacker-A/'+trial;
       const quietToken=randomBytes(32).toString('hex');
+      const matchedQuietToken=randomBytes(32).toString('hex');
       const bToken=randomBytes(32).toString('hex');
       const aToken=randomBytes(32).toString('hex');
       backend.grant(quietToken,quietPrincipal);
+      backend.grant(matchedQuietToken,matchedQuietPrincipal);
       backend.grant(bToken,bPrincipal);
       backend.grant(aToken,aPrincipal);
       const bInputs=Array.from({length:16},(_,i)=>challenge(i));
@@ -153,6 +157,25 @@ async function experiment(){
       assert.equal(quiet.status,200);
       assert.deepEqual(quiet.value,bInputs.map((value,i)=>
         native.advance(quietPrincipal,i,value)));
+      // Matched control: a separate cold HTTP client process with exactly
+      // the same fetch path as the loaded B process, but no A contention.
+      const quietSignalPath=path.join(folder,'quiet-'+trial+'.ready');
+      const matched=prepareVictim(base,matchedQuietToken,quietSignalPath,bInputs);
+      /** @type {number} */
+      let matchedQuietBMs;
+      try{
+        await matched.ready;
+        fs.writeFileSync(quietSignalPath+'.tmp','go');
+        fs.renameSync(quietSignalPath+'.tmp',quietSignalPath);
+        const response=await matched.result;
+        assert.equal(response.status,200);
+        assert.ok(response.elapsedMs!==undefined);
+        assert.deepEqual(response.outputs,bInputs.map((value,i)=>
+          native.advance(matchedQuietPrincipal,i,value)));
+        matchedQuietBMs=response.elapsedMs;
+      }finally{
+        matched.child.kill();
+      }
       const signalPath=path.join(folder,'a-'+trial+'.ready');
       current={aPrincipal,signalPath,aStartNs:null,aEndNs:null};
       const child=prepareVictim(base,bToken,signalPath,bInputs);
@@ -175,8 +198,10 @@ async function experiment(){
           'Account B client did not attempt HTTP while private A CPU was executing');
         const aBusyMs=Number(aEnd-aStart)/1e6;
         samples.push({
-          nativeBMs,quietBMs,loadedBMs:b.elapsedMs,
-          quietRatio:quietBMs/nativeBMs,loadedRatio:b.elapsedMs/nativeBMs,
+          nativeBMs,quietBMs,matchedQuietBMs,loadedBMs:b.elapsedMs,
+          quietRatio:quietBMs/nativeBMs,
+          matchedQuietRatio:matchedQuietBMs/nativeBMs,
+          loadedRatio:b.elapsedMs/nativeBMs,
           aBusyMs,overlap:true
         });
       }finally{
@@ -185,9 +210,10 @@ async function experiment(){
       }
     }
     assert.equal(samples.length,7);
-    assert.equal(backend.calls(),7*(16+64+16));
+    assert.equal(backend.calls(),7*(16+16+64+16));
     const loadedOverBudget=samples.filter(s=>s.loadedRatio>2.5).length;
     const quietOverBudget=samples.filter(s=>s.quietRatio>2.5).length;
+    const matchedQuietOverBudget=samples.filter(s=>s.matchedQuietRatio>2.5).length;
     return {
       experiment:'Authorized A 64-event synchronous HMAC burst blocks unrelated B 16-event SCO RPC',
       platform:process.platform,node:process.version,
@@ -196,15 +222,18 @@ async function experiment(){
       statusCodesAll200:true,independentChildProcess:true,
       overlappingBSubmissions:samples.filter(s=>s.overlap).length,
       totalActualPrivateEvents:backend.calls(),
-      quietOverBudget,loadedOverBudget,
+      quietOverBudget,matchedQuietOverBudget,loadedOverBudget,
       medianQuietRatio:median(samples.map(s=>s.quietRatio)),
+      medianMatchedQuietRatio:median(samples.map(s=>s.matchedQuietRatio)),
       medianLoadedRatio:median(samples.map(s=>s.loadedRatio)),
       maximumLoadedRatio:Math.max(...samples.map(s=>s.loadedRatio)),
       samples:samples.map(s=>({
         nativeBMs:Number(s.nativeBMs.toFixed(5)),
         quietBMs:Number(s.quietBMs.toFixed(5)),
+        matchedQuietBMs:Number(s.matchedQuietBMs.toFixed(5)),
         loadedBMs:Number(s.loadedBMs.toFixed(5)),
         quietRatio:Number(s.quietRatio.toFixed(5)),
+        matchedQuietRatio:Number(s.matchedQuietRatio.toFixed(5)),
         loadedRatio:Number(s.loadedRatio.toFixed(5)),
         aBusyMs:Number(s.aBusyMs.toFixed(5)),
         overlappingBSubmission:s.overlap
