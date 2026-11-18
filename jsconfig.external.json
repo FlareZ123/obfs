@@ -130,6 +130,8 @@
     "sims/sco-ratchet-transactional-repair.js",
     "sims/sco-ratchet-transactional-http-child.js",
     "sims/sco-ratchet-transactional-http.js",
+    "sims/sco-ratchet-transactional-crash-child.js",
+    "sims/sco-ratchet-transactional-crash.js",
     "test/sco-ratchet-browser-attacker.js",
     "test/sco-ratchet-browser-equal-trust.js",
     "sims/semantic-sketch-esm.js",
