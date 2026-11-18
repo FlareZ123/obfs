@@ -29,8 +29,6 @@ jobs:
         run: node sims/exported-reader-host-argument-attack.js --expect-guarded
       - name: Post-initialization strict paired hot CPU for newly admitted helper
         run: node sims/straightline-reader-profile.js
-      - name: COO fresh-process CPU inclusive of module startup
-        run: node sims/straightline-reader-cold-profile.js
       - name: Execute exact native/generated source-read differential
         run: node sims/source-island-indirect-loader-attack.js
       - name: Attempt constructor escape via native object destructuring
@@ -76,3 +74,5 @@ jobs:
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
         run: npm run typecheck:external
+      - name: COO strict fresh-process CPU budget after behavioral and JSDoc checks
+        run: node sims/straightline-reader-cold-profile.js
