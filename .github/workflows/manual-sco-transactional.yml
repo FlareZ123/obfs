@@ -1,0 +1,35 @@
+name: Manual SCO transactional state boundary and recovery
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transactional:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install exact repository declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict main implementation JSDoc
+        run: npm run typecheck
+      - name: Strict external experiment JSDoc
+        run: npm run typecheck:external
+      - name: Actual HTTP split-brain for independent in-memory replicas
+        run: node sims/sco-ratchet-replica-splitbrain.js
+      - name: Shared SQLite state engine process contention and budget
+        run: node sims/sco-ratchet-transactional-repair.js
+      - name: Two independent SCO HTTP replicas with shared SQLite state
+        run: node sims/sco-ratchet-transactional-http.js
+      - name: Killed-worker recovery before and after commit
+        run: node sims/sco-ratchet-transactional-crash.js
