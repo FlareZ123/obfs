@@ -40,33 +40,43 @@ function page(){
  * @returns {Promise<void>}
  */
 async function main(){
+  // --default removes the unrelated function observer and tests the ordinary
+  // distributed-source scanner, independently of the opt-in island exception.
+  const defaultOnly=process.argv.includes('--default');
+  const examined=defaultOnly?sources.map(file=>file.path==='entry.mjs'?
+    {...file,code:String(file.code).split('\n').filter(line=>!line.includes('watched')).join('\n')}:
+    file):sources;
   const options={
     mode:/** @type {const} */ ('coo'),
     closedWorld:true,seed:'island-cache-source-20261117',
     strings:false,identifiers:false
   };
-  const baseline=obfuscateFiles(sources,options);
-  assert.equal(baseline.files.reduce((n,file)=>n+file.metrics.properties,0),0,
-    'The default source-observer policy must preserve the entire graph');
+  if(!defaultOnly){
+    const baseline=obfuscateFiles(examined,options);
+    assert.equal(baseline.files.reduce((n,file)=>n+file.metrics.properties,0),0,
+      'The default source-observer policy must preserve the entire graph');
+  }
   let protectedGraph;
   try{
-    protectedGraph=obfuscateFiles(sources,{
+    protectedGraph=obfuscateFiles(examined,defaultOnly ? options : {
       ...options,experimentalSourceObserverIslands:['independent.mjs']
     });
   }catch(error){
-    console.log('SOURCE_ISLAND_CACHE '+JSON.stringify({
+    console.log((defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
       status:'rejected',reason:String(error)
     }));
     return;
   }
   const modified=protectedGraph.files.find(file=>file.path==='independent.mjs');
   assert.ok(modified && typeof modified.code==='string');
-  assert.ok(modified.metrics.properties>0,'Red control must genuinely rewrite a field');
+  if(!defaultOnly) {
+    assert.ok(modified.metrics.properties>0,'Red control must genuinely rewrite a field');
+  }
 
   /** @type {Map<string,string>} */
   const assets=new Map();
   for(const [variant,files] of /** @type {Array<[string,SourceFile[]]>} */
-      ([['native',sources],['emitted',protectedGraph.files]])){
+      ([['native',examined],['emitted',protectedGraph.files]])){
     for(const file of files)assets.set('/'+variant+'/'+file.path,String(file.code));
     assets.set('/'+variant+'/index.html',page());
   }
@@ -124,10 +134,11 @@ async function main(){
       }
     }
     assert.deepEqual(observations.native,{visible:true,value:23});
-    assert.deepEqual(observations.emitted,{visible:false,value:23},
-      'Current proof must be falsified by actual browser source bytes');
-    console.log('SOURCE_ISLAND_CACHE '+JSON.stringify({
-      status:'source-observation-changed',
+    assert.deepEqual(observations.emitted,
+      {visible:modified.metrics.properties===0,value:23},
+      'Observed source spelling must match the actual transformation count');
+    console.log((defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
+      status:modified.metrics.properties>0?'source-observation-changed':'source-preserved',
       observations,renamed:modified.metrics.properties,
       chromium:await browser.version()
     }));
