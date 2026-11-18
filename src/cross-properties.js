@@ -1256,22 +1256,47 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               }
             });
           }while(aliasesChanged);
-          /** @param {AstNode} expression @returns {boolean} */
+          /**
+           * Return-value flow only. A nested host call inside a returned
+           * function body, method, or arithmetic expression is an effect,
+           * not a returned capability. Treating every nested call as a
+           * returned callable would erase genuine six-module private work.
+           * @param {AstNode} expression
+           * @returns {boolean}
+           */
           function forwardsFactory(expression) {
-            let forwarded=false;
-            walk(expression,node=>{
-              if(node.type!=='CallExpression')return;
-              if(node.callee.type==='Identifier' &&
-                 producers.has(node.callee.name))forwarded=true;
-              if(node.callee.type==='MemberExpression' &&
-                 node.callee.object.type==='Identifier' &&
-                 namespaces.has(node.callee.object.name)) {
-                const selected=node.callee.computed?staticString(node.callee.property):
-                  staticName(node.callee.property);
-                if(propagatedFactories.has(selected??''))forwarded=true;
-              }
-            });
-            return forwarded;
+            if(expression.type==='AwaitExpression' ||
+               expression.type==='ChainExpression')
+              return forwardsFactory(expression.argument);
+            if(expression.type==='CallExpression') {
+              const callee=expression.callee;
+              if(callee.type==='Identifier')return producers.has(callee.name);
+              if(callee.type!=='MemberExpression' ||
+                 callee.object.type!=='Identifier' ||
+                 !namespaces.has(callee.object.name))return false;
+              const selected=callee.computed?staticString(callee.property):
+                staticName(callee.property);
+              return propagatedFactories.has(selected??'');
+            }
+            if(expression.type==='MemberExpression')
+              return forwardsFactory(expression.object);
+            if(expression.type==='SequenceExpression')
+              return expression.expressions.length>0 &&
+                forwardsFactory(expression.expressions.at(-1));
+            if(expression.type==='ConditionalExpression')
+              return forwardsFactory(expression.consequent) ||
+                forwardsFactory(expression.alternate);
+            if(expression.type==='LogicalExpression')
+              return forwardsFactory(expression.left) ||
+                forwardsFactory(expression.right);
+            if(expression.type==='ObjectExpression')
+              return expression.properties.some((/** @type {AstNode} */ property)=>
+                property.type==='Property' && !property.method &&
+                forwardsFactory(property.value));
+            if(expression.type==='ArrayExpression')
+              return expression.elements.some((/** @type {AstNode|null} */ element)=>
+                element!==null && forwardsFactory(element));
+            return false;
           }
           walk(wrapper.ast,node=>{
             /** @type {string|null} */
