@@ -157,6 +157,12 @@ function mutatesDecoderIntrinsic(ast) {
   // Track uncertain results separately to keep harmless unrelated key writes eligible.
   const possiblePrototypes=new Set();
   const possibleConstructors=new Set();
+  // Summarize local synchronous function returns and plain returned object
+  // fields. Reassigned aliases are joined monotonically; unknown source paths
+  // remain outside this bounded, conservative closed-input proof.
+  const returnedSensitiveFunctions=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const returnedSensitiveFields=new Map();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -344,6 +350,17 @@ function mutatesDecoderIntrinsic(ast) {
     return Number.isSafeInteger(index) && index<4096;
   }
   /**
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isReturnedSensitiveField(node) {
+    if(node.type!=='MemberExpression'||node.object.type!=='CallExpression'||
+       node.object.callee.type!=='Identifier')return false;
+    const fields=returnedSensitiveFields.get(node.object.callee.name);
+    const key=memberName(node);
+    return Boolean(fields && (key===null||fields.has(key)));
+  }
+  /**
    * A dynamically supplied receiver can resolve to a decoder-sensitive
    * prototype even if no local literal, array or constructor proves its type.
    * Known nonstring primitive literals are a safe precision exception.
@@ -352,6 +369,9 @@ function mutatesDecoderIntrinsic(ast) {
    */
   function isPossiblePrototype(node) {
     if(node.type==='Identifier')return possiblePrototypes.has(node.name);
+    if(isReturnedSensitiveField(node))return true;
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       returnedSensitiveFunctions.has(node.callee.name))return true;
     if(node.type==='MemberExpression')return (
       memberName(node)==='__proto__' && isPossiblePrototype(node.object) ||
       (memberName(node)==='prototype'||memberName(node)===null) &&
@@ -376,6 +396,9 @@ function mutatesDecoderIntrinsic(ast) {
    */
   function isPossibleConstructor(node) {
     if(node.type==='Identifier')return possibleConstructors.has(node.name);
+    if(isReturnedSensitiveField(node))return true;
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       returnedSensitiveFunctions.has(node.callee.name))return true;
     if(node.type==='MemberExpression') {
       if(isPossiblePrototype(node.object) &&
          (memberName(node)==='constructor'||memberName(node)===null))return true;
