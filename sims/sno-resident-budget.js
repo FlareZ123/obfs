@@ -13,8 +13,9 @@ const {pairedBudgetBound}=require('./paired-budget-bound');
 const {emitSno}=require('./polyvariant-app-sno');
 
 /** @typedef {{kind:string,payload:string}[]} Records */
-/** @typedef {{id:number,seed:number,records:Records,repeat:number}} Request */
+/** @typedef {{id:number,seed:number,records:Records,repeat:number,mode?:'application'|'leaves'}} Request */
 /** @typedef {{id:number,emitted:number,ms:number,cpuMs:number,digest:string}} Reply */
+/** @typedef {{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}} ResidentRow */
 /** @typedef {{child:import('node:child_process').ChildProcessWithoutNullStreams,lines:readline.Interface,iterator:AsyncIterableIterator<string>,stderr:string}} ResidentWorker */
 
 /**
@@ -126,7 +127,7 @@ async function closeResident(worker){
  * are scoped SNO *post-init repeated-compute* measurements.
  *
  * @param {number} [rounds]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>}>}
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,rows:ResidentRow[],leafRows:ResidentRow[]}>}
  */
 async function run(rounds=13){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
@@ -141,7 +142,7 @@ async function run(rounds=13){
     workers.push(native);
     const sno=await startResident(snoEntry);
     workers.push(sno);
-    /** @type {Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>} */
+    /** @type {ResidentRow[]} */
     const rows=[];
     let id=0;
     for(const [count,repeat] of [[1,50000],[50,2500],[1000,80],[10000,5]]){
@@ -191,8 +192,56 @@ async function run(rounds=13){
         allOutputsEquivalent:true
       });
     }
+    // Direct selected-function stress detects overhead diluted by the
+    // surrounding stateful session and JSON work in the main application.
+    /** @type {ResidentRow[]} */
+    const leafRows=[];
+    for(const repeat of [8000000,16000000]){
+      const base=/** @type {Request} */ ({
+        id:0,seed:0x4137109d,records:[],mode:'leaves',repeat
+      });
+      for(let i=0;i<3;i++){
+        const request={...base,id:++id};
+        const original=await submit(native,request);
+        const published=await submit(sno,request);
+        assert.equal(published.digest,original.digest);
+      }
+      /** @type {number[]} */
+      const nativeMs=[];
+      /** @type {number[]} */
+      const snoMs=[];
+      /** @type {number[]} */
+      const nativeCpuMs=[];
+      /** @type {number[]} */
+      const snoCpuMs=[];
+      for(let trial=0;trial<rounds;trial++){
+        const request={...base,id:++id};
+        /** @type {Reply} */
+        let original,published;
+        if(trial%2===0){
+          original=await submit(native,request);
+          published=await submit(sno,request);
+        }else{
+          published=await submit(sno,request);
+          original=await submit(native,request);
+        }
+        assert.equal(published.digest,original.digest,'Hot selected arithmetic changed');
+        nativeMs.push(original.ms);
+        snoMs.push(published.ms);
+        nativeCpuMs.push(original.cpuMs);
+        snoCpuMs.push(published.cpuMs);
+      }
+      leafRows.push({
+        events:0,repetitions:repeat,nativeMs,snoMs,nativeCpuMs,snoCpuMs,
+        budget:pairedBudgetBound(nativeMs,snoMs),
+        cpuBudget:pairedBudgetBound(nativeCpuMs,snoCpuMs),
+        strictOverBudgetPairs:nativeMs.filter((ms,index)=>snoMs[index]>2.5*ms).length,
+        strictCpuOverBudgetPairs:nativeCpuMs.filter((ms,index)=>snoCpuMs[index]>2.5*ms).length,
+        allOutputsEquivalent:true
+      });
+    }
     return {source:'sims/sno-resident-budget.js',node:process.version,
-      platform:process.platform,initializationExcluded:true,rows};
+      platform:process.platform,initializationExcluded:true,rows,leafRows};
   }finally{
     await Promise.allSettled(workers.map(closeResident));
     await fs.rm(root,{recursive:true,force:true});
