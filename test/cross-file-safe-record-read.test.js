@@ -363,7 +363,16 @@ for(const [label,setup] of /** @type {[string,string][]} */ ([
     'const bound=getFactory.bind(null);const ctor=bound();'],
   ['aliased call adapter',
     'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
-    'const factory=getFactory;const ctor=factory.call(null);']
+    'const factory=getFactory;const ctor=factory.call(null);'],
+  ['direct bound invocation',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=getFactory.bind(null)();'],
+  ['new factory invocation',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=new getFactory();'],
+  ['Reflect construct factory',
+    'function getFactory(){return globalThis.RUNTIME_FACTORY;}'+
+    'const ctor=Reflect.construct(getFactory,[]);']
 ])) {
   test('host factory '+label+' preserves native published owner keys',async()=>{
     const files=graph([
@@ -382,3 +391,19 @@ for(const [label,setup] of /** @type {[string,string][]} */ ([
     assert.equal(compiled.crossFile.properties,0,label);
   });
 }
+
+test('non-host primitive adapter preserves proven private-field rewrite',async()=>{
+  const files=graph([
+    'function primitive(){return 7;}',
+    'const value=primitive.call(null);',
+    "const result=[inspectRecord('externalFormat').value,value];"
+  ].join('\n'));
+  const native=await execute(files);
+  const compiled=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'primitive-adapter-positive',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Benign primitive return must not globally disable private-property renaming');
+  assert.equal(await execute(compiled.files),native);
+});
