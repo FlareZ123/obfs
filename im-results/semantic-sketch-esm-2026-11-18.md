@@ -110,10 +110,16 @@ The real Chromium step from the same successful workflow loaded **64**
 native/emitted sketch pairs as actual independently hosted ESM graphs,
 with **8** verified private-field rewrites in four positive graph
 controls. All 64 Chromium result/trace comparisons matched, and strict
-JSDoc passed on both Node platforms. A subsequent extension also serves
-a third, source-only recovered ESM module for each of those four
-browser-positive cases; its source-pinned three-way result requires
-independent CI confirmation before any claim is added.
+JSDoc passed on both Node platforms. The subsequent independently pinned
+[full Ubuntu/Windows semantics run 44215116463](https://github.com/FlareZ123/obfs/actions/runs/44215116463)
+passed at exact source `d25908fd29bba7d48ef29f806abfab3468b98987`.
+Its Ubuntu real Chromium step loaded a **third, source-only recovered ESM**
+module for each of the four browser-positive cases and verified all four
+against both native and protected outputs in the same tab:
+`cases:64, positiveRewrites:8, recoveredClones:4`.
+This confirms the narrowly declared no-input public-state reconstruction
+also executes correctly as real browser modules, without acquiring
+original private key names. It is not an arbitrary-program attack.
 
 ## Security and cost boundaries
 
