@@ -127,6 +127,10 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
  */
 function mutatesDecoderIntrinsic(ast) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
+  // A supplied binding named Object, Reflect or Array may replace the
+  // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
+  // An unrelated field write remains eligible after may-alias key filtering.
+  const locallyBoundIntrinsics=collectBindings(ast);
   // Find immutable-looking and reassigned aliases before checking writes.
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
@@ -348,13 +352,19 @@ function mutatesDecoderIntrinsic(ast) {
    */
   function isPossiblePrototype(node) {
     if(node.type==='Identifier')return possiblePrototypes.has(node.name);
-    if(node.type==='MemberExpression')return memberName(node)==='__proto__' &&
-      isPossiblePrototype(node.object);
+    if(node.type==='MemberExpression')return (
+      memberName(node)==='__proto__' && isPossiblePrototype(node.object) ||
+      (memberName(node)==='prototype'||memberName(node)===null) &&
+        (locallyBoundIntrinsics.has('Array')&&isArrayValue(node.object) ||
+         locallyBoundIntrinsics.has('Object')&&isObjectIntrinsic(node.object) ||
+         locallyBoundIntrinsics.has('Reflect')&&isReflectIntrinsic(node.object)));
     if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression'||
        memberName(node.callee)!=='getPrototypeOf'||
        !(isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)))return false;
     const argument=node.arguments[0];
     if(!argument)return false;
+    if(isObjectIntrinsic(node.callee.object)&&locallyBoundIntrinsics.has('Object') ||
+       isReflectIntrinsic(node.callee.object)&&locallyBoundIntrinsics.has('Reflect'))return true;
     return !(argument.type==='Literal'&&argument.regex===undefined&&
       argument.value!==null&&typeof argument.value!=='string');
   }
