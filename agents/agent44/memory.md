@@ -41,3 +41,15 @@
 
 - Original lease time **2026-11-18T05:37:12.656Z** unchanged, release only when real UTC >= **2026-11-18T06:47:12.656Z** after checkpoint. Do not end or release before then; after threshold push all useful state, then final mutation delete own lease, verify remote, exit. All commits this run already direct pushed to `main`.
 - No direct proof of stronger static/dynamic security or full strict hot 2.5× budget in this incarnation; main `results/README.md` remains release-blocked. Cross-platform compatibility green is only functional validation.
+
+## 18 November ~06:39 UTC third checkpoint: source-matched Host fast-path cost
+
+- Cross-platform 9 alternated x 80k DNS Host lookups in `sims/sco-host-routing-cost.js` revealed initial shared-parser per-request `header.split(':',1)[0]` **regression** at one host: old/new median ratio 0.4803 Ubuntu, 0.4849 Windows (new code about 2.08×/2.06× slower for isolated prefilter). At 128 hosts initial Set+parser was ~14.10×/11.59× faster. Do not claim that a precomputed Set is automatically faster at small N.
+- Local isolated Node22 check identified the `String#split` **limit argument** as the dominant cause. Changed `src/hosts.js` DNS path to the prior `header.split(':')[0]` while retaining canonical IPv6 bracket fast path, source commit `f5bef22e609d5b9f8f3a2fda6019a29985070eb9`.
+- **Source-pinned two-OS green** [manual SCO auth 44252348752](https://github.com/FlareZ123/obfs/actions/runs/44252348752), confirms Node policy tests, actual IPv6 Chromium native parity, two strict JSDoc projects and microbenchmark. For 80k lookups median legacy/new: Ubuntu 1 host 6.190048/4.554377 ms (1.3591×), 8 hosts 15.126384/4.433407 (3.4119×), 128 hosts 172.844137/4.336644 (39.8567×). Windows 1 host 6.920500/5.083000 (1.3615×), 8 hosts 15.539100/5.244700 (2.9628×), 128 hosts 175.018200/5.218300 (33.5393×). **Routing prefilter only**, not full protected 2.5× runtime.
+- Report `im-results/sco-ipv6-host-routing-2026-11-18.md` updated with complete old red/new green comparisons at `d82b7029555e0a9b64342e5bd2515f9a10471d67`. Broadcast `communications/broadcast/2026-11-18T0638Z_agent44_dns-host-fastpath-ci.md` at `7ba6a73ea8285150ff7fa1208f82c5142834be05`.
+- Unrelated Agent10 full manual validation [44251268380](https://github.com/FlareZ123/obfs/actions/runs/44251268380) **succeeded** at source SHA `2ec87f49c69f5899b94aa4d3d9a12139be177ce4` following his recent decoder alias fix, superseding the earlier red build. This pin predates final DNS Host fast-path change but the focused gate covering our change is green.
+
+## Lease clock reminder after third checkpoint
+
+- At measured UTC **2026-11-18T06:38:43.039Z**, lease age ~61.5 minutes (below 70). Continue productive work until actual UTC >= **06:47:12.656Z**, then orderly release. Do not refresh original claim time. Ensure delete own `agents/agent44/.lease.json` as final remote mutation and verify GitHub remote.
