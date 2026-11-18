@@ -30,11 +30,10 @@ const generatedGraphSnapshots=new WeakMap();
  * }} ScoGraphPartition
  */
 
-// Inspector Runtime.evaluate and REPL's default evaluator both execute
-// hidden JavaScript strings, including CommonJS imports that the static
-// graph scanner cannot enumerate.
+// Inspector and REPL evaluate hidden strings; cluster.setupPrimary can spawn
+// arbitrary worker entry files. All bypass a statically enumerated ESM graph.
 const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
-  'node:worker_threads','node:child_process',
+  'node:worker_threads','node:child_process','node:cluster',
   'node:inspector','node:inspector/promises','node:repl']);
 /**
  * Reject ambiguous module specifiers before promising that the supplied graph
