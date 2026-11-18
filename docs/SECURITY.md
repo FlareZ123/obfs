@@ -232,6 +232,15 @@ the already validated output. SCO handler startup already snapshots its
 source buffers. The reviewed-asset option adds no emitted JavaScript runtime
 instructions; it adds compile or SCO handler setup hashing work.
 
+The reviewed-manifest checker now reads the initial **indexed** array inventory
+and snapshots each entry's path and digest once. The public final-output
+recheck uses indexed file records and one-read asset metadata, avoiding
+caller-provided iterators and getter drift during validation. This remains a
+build-time contract: publishing mutated files *after* verification invalidates
+the evidence. An [exact pre-fix adversarial replay](../im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md)
+reproduced three historical bypasses and their refusal by the changed
+checker on Ubuntu and Windows, with strict JSDoc and 17 regression tests.
+
 See `test/reviewed-opaque-assets.test.js` and
 `workplace/asset-publication-trust-contract-2026-11-17.md` for a
 source-only encoded canary, manifest refusal, positive safe fixtures, and
