@@ -131,7 +131,8 @@
     "test/sco-json-shape-contract.test.js",
     "sims/sco-batch-resident-cpu.js",
     "sims/sco-batch-process-client.cjs",
-    "sims/sco-batch-fresh-process-cpu.js"
+    "sims/sco-batch-fresh-process-cpu.js",
+    "sims/sco-batch-equal-trust-attacker.js"
   ],
   "exclude": [
     "node_modules"
