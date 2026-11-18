@@ -582,6 +582,121 @@ function collectVerifiedImportedCloneAliases(files) {
 }
 
 /**
+ * Find exact named ESM imports of immutable native URL.parse/canParse aliases.
+ * These methods coerce arguments through Web IDL and can reveal a producer
+ * module's original Function#toString even when the consumer has no direct
+ * syntactic URL reference. Aliasing is monotone; false positives only reduce
+ * obfuscation eligibility.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedUrlStaticAliases(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    }
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exportedByFile=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,AstNode>} */
+    const candidates=new Map();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations) {
+        if(item.id.type==='Identifier'&&item.init&&
+           module.bindings.get(item.id.name)===1)candidates.set(item.id.name,item.init);
+      }
+    }
+    const urls=new Set(['URL']);
+    const methods=new Set();
+    /** @param {AstNode|null|undefined} node @returns {string|null} */
+    function property(node) {
+      if(!node||node.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isUrl(node) {
+      return Boolean(node&&(node.type==='Identifier'&&urls.has(node.name) ||
+        node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+        ['globalThis','window','self','global'].includes(node.object.name)&&
+        property(node)==='URL'));
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isNativeParser(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return methods.has(node.name);
+      if(node.type!=='MemberExpression')return false;
+      const name=property(node);
+      return isUrl(node.object)&&
+        (['parse','canParse'].includes(name??'')||node.computed&&name===null);
+    }
+    let progress;
+    do {
+      progress=false;
+      for(const [name,value] of candidates) {
+        if(!urls.has(name)&&isUrl(value)) {
+          urls.add(name);progress=true;
+        }
+        if(!methods.has(name)&&isNativeParser(value)) {
+          methods.add(name);progress=true;
+        }
+      }
+    }while(progress);
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration' &&
+         isNativeParser(statement.declaration))exported.add('default');
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const entry of statement.declaration.declarations) {
+          if(entry.id.type==='Identifier'&&methods.has(entry.id.name))
+            exported.add(entry.id.name);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !methods.has(spec.local.name))continue;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof publicName==='string')exported.add(publicName);
+        }
+      }
+    }
+    exportedByFile.set(filename,exported);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const aliases=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string'||
+         /[?#%\\]/u.test(statement.source.value))continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const exported=origin?exportedByFile.get(origin):null;
+      if(!exported)continue;
+      for(const spec of statement.specifiers) {
+        const publicName=spec.type==='ImportSpecifier'?
+          spec.imported.name??spec.imported.value:
+          spec.type==='ImportDefaultSpecifier'?'default':null;
+        if(publicName!==null&&exported.has(publicName)&&
+           module.bindings.get(spec.local.name)===1)aliases.add(spec.local.name);
+      }
+    }
+    imported.set(filename,aliases);
+  }
+  return imported;
+}
+
+/**
  * Require an acyclic static ESM graph before replacing a read of an imported
  * key from a different module with a literal. In a cycle, a reentrant importer
  * function can run before a sibling key module initializes, and the original
@@ -2215,4 +2330,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};
