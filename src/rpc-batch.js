@@ -83,6 +83,17 @@ function createScoBatchMethod(methods,options={}) {
 }
 
 /**
+ * Test whether a function is the exact helper returned by this module.
+ * Wrappers deliberately do not inherit recognition: callers that require
+ * automatic inner authorization must register the direct helper.
+ * @param {unknown} task
+ * @returns {boolean}
+ */
+function isScoBatchMethod(task) {
+  return typeof task==='function'&&recognizedBatches.has(task);
+}
+
+/**
  * Inspect a recognized batch's requested operations before it executes.
  * A null result means the function is not a batch helper from this module.
  * Invalid batch shapes are excluded from costly inner authorizer calls,
@@ -100,4 +111,4 @@ function getScoBatchCalls(task,args) {
     /** @type {RpcBatchCall[]} */ (args[0]) : [];
 }
 
-module.exports={createScoBatchMethod,getScoBatchCalls};
+module.exports={createScoBatchMethod,getScoBatchCalls,isScoBatchMethod};

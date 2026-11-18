@@ -31,7 +31,7 @@ const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
-const {getScoBatchCalls} = require('./rpc-batch');
+const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
 const {canonicalAllowedHosts,routingHostname}=require('./hosts');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
@@ -50,6 +50,11 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * @property {import('./reviewed-assets').ReviewedOpaqueAsset[]} [reviewedOpaqueAssets] Exact reviewed path+digest manifest for all opaque public assets; caller must approve bytes independently.
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
+ * @property {string[]} [batchPreflightRoutes] Exact remote method names whose
+ *   one-level automatic call-list authorization preflight is security-required.
+ *   Each name must resolve directly to a createScoBatchMethod helper at
+ *   construction. Composite work hidden inside a leaf method remains that
+ *   method's application-level policy responsibility.
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
@@ -80,7 +85,7 @@ function respondJson(response,status,payload) {
  * because network overhead can exceed the 2.5x runtime budget for tiny calls.
  * @param {import('node:http').IncomingMessage} request
  * @param {import('node:http').ServerResponse} response
- * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'>} options
+ * @param {Required<Pick<ScoOptions,'remoteMethods'|'authorizeRpc'>> & Pick<ScoOptions,'maxRpcBytes'|'authorizeOperation'|'runRpcIsolated'> & {batchPreflightRoutes?:ReadonlySet<string>}} options
  * @returns {Promise<void>}
  */
 async function handleRpc(request,response,options) {
@@ -142,6 +147,13 @@ async function handleRpc(request,response,options) {
       respondJson(response,400,{ok:false,error:'Unknown method'});
       return;
     }
+    const protectedBatch=options.batchPreflightRoutes?.has(method)===true;
+    // Construction already proves this invariant against the snapshotted
+    // registry. Retain a request-time assertion so a future refactor cannot
+    // silently downgrade a declared protected route to ordinary RPC.
+    if(protectedBatch&&!isScoBatchMethod(task)) {
+      throw new TypeError('Protected batch route lost recognized batch identity');
+    }
     // Run the coarse gate, all inner policy checks and the actual task under
     // the same application-supplied isolation scope. A server-supplied mutex
     // or transaction can then serialize state-changing RPCs for one identity.
@@ -167,8 +179,12 @@ async function handleRpc(request,response,options) {
     // outer-policy mutation cannot redirect their checked operations.
     // Native JSON.parse preserves deep values, -0 and own "__proto__" keys.
     // Without an argument-aware policy, no additional parsing is required.
+    const executionBatchCalls=getScoBatchCalls(task,args);
+    if(protectedBatch&&executionBatchCalls===null) {
+      throw new TypeError('Protected batch route lost recognized batch identity');
+    }
     const needsBatchViews=options.authorizeOperation &&
-      getScoBatchCalls(task,args)!==null;
+      executionBatchCalls!==null;
     const policyArgs=options.authorizeOperation ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     const innerPolicyArgs=needsBatchViews ?
@@ -186,6 +202,9 @@ async function handleRpc(request,response,options) {
       // operations. Check every registered inner method before the batch
       // executes, including later items after an otherwise permitted item.
       const batchCalls=getScoBatchCalls(task,innerPolicyArgs??args);
+      if(protectedBatch&&batchCalls===null) {
+        throw new TypeError('Protected batch route lost recognized batch identity');
+      }
       if (batchCalls) {
         for (const call of batchCalls) {
           // The batch helper independently rejects malformed calls before
@@ -351,6 +370,7 @@ function createScoHandler(sourceFiles,options={}) {
   const authorizeRpc=options.authorizeRpc;
   const authorizeRead=options.authorizeRead;
   const authorizeOperation=options.authorizeOperation;
+  const suppliedBatchPreflight=options.batchPreflightRoutes;
   const runRpcIsolated=options.runRpcIsolated;
   const maxRpcBytes=options.maxRpcBytes;
   const closedWorld=options.closedWorld;
@@ -375,6 +395,31 @@ function createScoHandler(sourceFiles,options={}) {
   }
   if (authorizeOperation !== undefined && typeof authorizeOperation!=='function') {
     throw new TypeError('authorizeOperation must be a function');
+  }
+  /** @type {Set<string>|undefined} */
+  let batchPreflightRoutes;
+  if(suppliedBatchPreflight!==undefined){
+    if(!Array.isArray(suppliedBatchPreflight)){
+      throw new TypeError('batchPreflightRoutes must be an array');
+    }
+    const required=snapshotMetadataEntries(suppliedBatchPreflight);
+    if(required.length&&typeof authorizeOperation!=='function'){
+      throw new TypeError('batchPreflightRoutes requires authorizeOperation');
+    }
+    batchPreflightRoutes=new Set();
+    for(const name of required){
+      if(typeof name!=='string'||name.length===0){
+        throw new TypeError('batchPreflightRoutes must contain nonempty strings');
+      }
+      if(batchPreflightRoutes.has(name)){
+        throw new TypeError('Duplicate batchPreflightRoutes method: '+name);
+      }
+      batchPreflightRoutes.add(name);
+      const task=remoteMethods&&Object.hasOwn(remoteMethods,name)?remoteMethods[name]:undefined;
+      if(!isScoBatchMethod(task)){
+        throw new TypeError('batchPreflightRoutes method must be a direct createScoBatchMethod helper: '+name);
+      }
+    }
   }
   if (runRpcIsolated !== undefined && typeof runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');
@@ -522,7 +567,7 @@ function createScoHandler(sourceFiles,options={}) {
   // caller's options, host array or operation registry cannot silently change
   // which requests and server-resident functions the handler authorizes.
   // Callbacks themselves remain live functions for normal credential rotation.
-  /** @type {ScoOptions} */
+  /** @type {Omit<ScoOptions,'batchPreflightRoutes'> & {batchPreflightRoutes?:ReadonlySet<string>}} */
   const policy={
     // Copy only the request-time policy fields. Spreading the original
     // options would re-read unrelated publication getters such as publicPaths
@@ -532,6 +577,7 @@ function createScoHandler(sourceFiles,options={}) {
     // WeakMap on original function objects; binding/wrapping a method loses
     // its verified transitive operation metadata and is unsafe.
     remoteMethods,
+    batchPreflightRoutes,
     authorizeRpc,
     authorizeOperation,
     runRpcIsolated,
@@ -564,6 +610,7 @@ function createScoHandler(sourceFiles,options={}) {
     if (url.pathname===`${prefix}rpc` && request.method==='POST' && policy.remoteMethods && policy.authorizeRpc) {
       void handleRpc(request,response,{
         remoteMethods:policy.remoteMethods,
+        batchPreflightRoutes:policy.batchPreflightRoutes,
         authorizeRpc:policy.authorizeRpc,
         authorizeOperation:policy.authorizeOperation,
         runRpcIsolated:policy.runRpcIsolated,
