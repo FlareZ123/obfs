@@ -84,6 +84,8 @@ jobs:
         run: node sims/semantic-sketch-esm.js
       - name: Source-only static reconstruction against ordinary minified positive controls
         run: node sims/semantic-sketch-static-control.js
+      - name: COO SNO SCO cross-mode seeded ESM semantic equivalence
+        run: node sims/semantic-sketch-crossmode.js
       - name: Real Chromium seeded ESM semantic sketch differential
         if: runner.os == 'Linux'
         env:
