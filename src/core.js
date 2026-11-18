@@ -156,7 +156,22 @@ function mutatesDecoderIntrinsic(ast) {
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isGlobal(node) {
-    return node.type==='Identifier' && globalNames.has(node.name);
+    if(node.type==='Identifier')return globalNames.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    const field=memberName(node);
+    // The active document's defaultView is its WindowProxy. Earlier browser
+    // dependencies can therefore replace String.fromCharCode through this
+    // path, corrupting a later module's otherwise inert literal decoder.
+    // A shadowed/detached document may over-refuse, which is conservative.
+    if(field==='defaultView') {
+      const documentRoot=node.object;
+      return documentRoot.type==='Identifier' && documentRoot.name==='document' ||
+        documentRoot.type==='MemberExpression' &&
+          memberName(documentRoot)==='document' &&
+          isGlobal(documentRoot.object);
+    }
+    return ['window','self','globalThis'].includes(field??'') &&
+      isGlobal(node.object);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isObjectIntrinsic(node) {
