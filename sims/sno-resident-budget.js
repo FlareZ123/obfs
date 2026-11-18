@@ -40,7 +40,7 @@ function records(count){
 async function buildResident(root,protectedGraph){
   const built=await emitSno(root,!protectedGraph);
   assert.equal(built.selectedFunctions,3);
-  assert.equal(built.changedFiles,1);
+  assert.equal(built.changedFiles,protectedGraph?1:0);
   const bridge=await fs.readFile(path.join(__dirname,'sno-resident-entry.cjs'),'utf8');
   await atomicWrite(path.join(root,'entry.cjs'),bridge);
   if(!protectedGraph)return path.join(root,'entry.cjs');
