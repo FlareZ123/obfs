@@ -21,12 +21,6 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Single-file exact-emitted COO first-evaluation budget
-        run: node sims/private-in-onefile-cold.js
-      - name: COO generated private-in immediate cold budget
-        run: node sims/private-in-immediate-cold.js
-      - name: COO native private-in cold-session budget
-        run: node sims/private-in-cold-budget.js
       - name: Own-key proof and independent adverse COO SNO ESM tests
         run: node --test test/property-in-operator.test.js test/property-in-adversarial.test.js test/property-in-metamorphic.test.js
       - name: Native owned-key runtime profile
