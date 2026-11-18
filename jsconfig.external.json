@@ -121,7 +121,8 @@
     "sims/sco-ratchet-online-relay.js",
     "sims/sco-ratchet-retry-candidate.js",
     "test/sco-ratchet-browser-attacker.js",
-    "test/sco-ratchet-browser-equal-trust.js"
+    "test/sco-ratchet-browser-equal-trust.js",
+    "sims/semantic-sketch-esm.js"
   ],
   "exclude": [
     "node_modules"
