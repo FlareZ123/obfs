@@ -14,7 +14,7 @@ const {obfuscateFiles}=require('../src');
 async function main() {
   const input=[
     {path:'private.mjs',sourceType:/** @type {const} */ ('module'),
-      code:'const local={pulse:5,mask:3};'+
+      code:'const local={pulse:(2*3)-1,mask:(9-6)};'+
         'export function update(n){local.pulse+=n;return local.pulse^local.mask;}'},
     {path:'entry.mjs',sourceType:/** @type {const} */ ('module'),
       code:'import {update} from "./private.mjs";'+
@@ -25,6 +25,8 @@ async function main() {
   const emitted=obfuscateFiles(input,{mode:'coo',seed:'symbol-browser-positive',
     strings:false,identifiers:false,experimentalSymbolKeys:true});
   assert.equal(emitted.files[0].metrics.symbolKeys,2);
+  assert.match(/** @type {string} */ (emitted.files[0].code),/\(2\*3\)-1/u);
+  assert.match(/** @type {string} */ (emitted.files[0].code),/\(9-6\)/u);
   assert.equal(emitted.files[1].metrics.symbolKeys,0);
   assert.match(/** @type {string} */ (emitted.files[0].code),/=Symbol\(\)/u);
   assert.match(/** @type {string} */ (emitted.files[1].code),/window\.externalBridge\.accept/u);

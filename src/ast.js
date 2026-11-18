@@ -183,13 +183,15 @@ function collectDirectCarrierFactories(ast) {
  * @param {Set<string>} [importedCloneFunctions] Proven native-clone ESM imports.
  * @param {Set<string>} [importedFunctionArrays] Function-bearing named ESM arrays.
  * @param {Set<string>} [importedPrimitives] Proven immutable ESM primitive imports.
+ * @param {Set<string>} [importedUrlStaticMethods] Proven native URL parser ESM imports.
  * @returns {boolean}
  */
-function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set()) {
+function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunctions=new Set(),importedFunctionArrays=new Set(),importedPrimitives=new Set(),importedUrlStaticMethods=new Set()) {
   // A cached opaque-import result does not apply when imported keys have
   // been independently verified against the supplied ESM files.
   if(!importedStrings.size&&!importedCloneFunctions.size&&
-     !importedFunctionArrays.size&&!importedPrimitives.size) {
+     !importedFunctionArrays.size&&!importedPrimitives.size&&
+     !importedUrlStaticMethods.size) {
     const cached=sourceObservationCache.get(ast);
     if(cached!==undefined)return cached;
   }
@@ -508,6 +510,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const jsonNamespaces=new Set(['JSON']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
+  const boundRegExpConstructors=new Set();
+  const boundStringConstructors=new Set();
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
   const cloneFunctions=new Set(['structuredClone',...importedCloneFunctions]);
@@ -523,7 +527,47 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'Event','CustomEvent','MessageEvent','BroadcastChannel',
     'TextDecoder','TextDecoderStream','CompressionStream','DecompressionStream']);
   const webScalars=new Set(webScalarNames);
+  // URL.parse and URL.canParse convert operands to USVString.
+  const urlNativeNames=new Set(['URL']);
+  const urlConstructors=new Set(urlNativeNames);
+  const urlNodeModules=new Set();
+  const urlStaticNames=new Set(['parse','canParse']);
+  const urlStaticAliases=new Set(importedUrlStaticMethods);
+  /** @type {Map<string,Set<string>>} */
+  const urlStaticObjectKeys=new Map();
+  // A proven ESM namespace import is an immutable record of exported
+  // methods; dotted proof keys retain the namespace owner and export name.
+  for(const alias of importedUrlStaticMethods) {
+    const dot=alias.indexOf('.');
+    if(dot<=0||dot===alias.length-1)continue;
+    const receiver=alias.slice(0,dot),method=alias.slice(dot+1);
+    let methods=urlStaticObjectKeys.get(receiver);
+    if(!methods){methods=new Set();urlStaticObjectKeys.set(receiver,methods);}
+    methods.add(method);
+  }
+  /** @type {Map<string,Set<string>>} */
+  const urlConstructorObjectKeys=new Map();
+  // Node's ESM URL exports are the WHATWG URL intrinsic, including through
+  // named constructor aliases and namespace/default module objects.
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration'||node.source.type!=='Literal'||
+       !['url','node:url'].includes(String(node.source.value)))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier' &&
+         (spec.imported.name??spec.imported.value)==='URL') {
+        urlConstructors.add(spec.local.name);
+      }
+      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier') {
+        urlNodeModules.add(spec.local.name);
+        urlConstructorObjectKeys.set(spec.local.name,new Set(['URL']));
+      }
+    }
+  });
   const webDictionaries=new Set(webDictionaryNames);
+  // Blob's second constructor argument is a Web IDL options dictionary.
+  const blobNames=new Set(['Blob']);
+  const blobConstructors=new Set(blobNames);
+  const boundBlobConstructors=new Set();
   const webRecords=new Set(webRecordNames);
   const webStringNames=new Set(['Headers','URLSearchParams']);
   const webStringConstructors=new Set(webStringNames);
@@ -544,6 +588,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const responseObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const webStringObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const blobObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const boundBlobObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const boundRegExpObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const boundStringObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
@@ -665,6 +717,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='MemberExpression' && isGlobal(node.object) &&
         memberName(node)==='AggregateError'));
   }
+  /**
+   * Recognize the immutable Node builtin URL module, directly from require()
+   * or via local aliases and named/default ESM imports.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isNodeUrlModule(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return urlNodeModules.has(node.name);
+    return node.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require'&&
+      node.arguments.length===1&&
+      ['node:url','url'].includes(staticString(node.arguments[0])??'');
+  }
   /** @param {AstNode|null|undefined} node @param {Set<string>} aliases
    *  @param {Set<string>} builtins @returns {boolean} */
   function isWebConstructor(node,aliases,builtins) {
@@ -673,13 +739,70 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     if(isGlobal(node.object) && builtins.has(name??''))return true;
+    if(aliases===urlConstructors && name==='URL'&&isNodeUrlModule(node.object))
+      return true;
     if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys :
-      aliases===webStringConstructors ? webStringObjectKeys : null;
+      aliases===webStringConstructors ? webStringObjectKeys :
+      aliases===blobConstructors ? blobObjectKeys :
+      aliases===urlConstructors ? urlConstructorObjectKeys : null;
     const keys=properties?.get(node.object.name);
     // A runtime-computed key could select any recorded native method.
     return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
+  }
+  /**
+   * A native RegExp or String constructor remains source-coercing when bound.
+   * Capture aliases conservatively, including owners' property reads.
+   * @param {AstNode|null|undefined} node
+   * @param {Set<string>} aliases
+   * @param {Map<string,Set<string>>} objectKeys
+   * @param {Set<string>} nativeAliases
+   * @param {string} builtin
+   * @returns {boolean}
+   */
+  function isBoundNativeConstructor(node,aliases,objectKeys,nativeAliases,builtin) {
+    if(!node)return false;
+    if(node.type==='Identifier')return aliases.has(node.name);
+    if(node.type==='MemberExpression'&&node.object.type==='Identifier') {
+      const keys=objectKeys.get(node.object.name);
+      const key=memberName(node);
+      return key!==null ? keys?.has(key)??false : Boolean(node.computed&&keys?.size);
+    }
+    return node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+      memberName(node.callee)==='bind'&&
+      isNativeConstructor(node.callee.object,nativeAliases,builtin);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundRegExpConstructor(node) {
+    return isBoundNativeConstructor(node,boundRegExpConstructors,
+      boundRegExpObjectKeys,nativeRegExpConstructors,'RegExp');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundStringConstructor(node) {
+    return isBoundNativeConstructor(node,boundStringConstructors,
+      boundStringObjectKeys,nativeStringConstructors,'String');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBlobConstructor(node) {
+    if(node?.type==='SequenceExpression') {
+      return isBlobConstructor(node.expressions[node.expressions.length-1]);
+    }
+    return isWebConstructor(node,blobConstructors,blobNames);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundBlobConstructor(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return boundBlobConstructors.has(node.name);
+    if(node.type==='MemberExpression' && node.object.type==='Identifier') {
+      const keys=boundBlobObjectKeys.get(node.object.name);
+      const name=memberName(node);
+      return name!==null ? keys?.has(name)??false :
+        Boolean(node.computed&&keys?.size);
+    }
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      memberName(node.callee)==='bind' && isBlobConstructor(node.callee.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isResponseRedirect(node) {
@@ -691,6 +814,27 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        (memberName(node)!==null ?
          redirectObjectKeys.get(node.object.name)?.has(memberName(node)??'') :
          node.computed && Boolean(redirectObjectKeys.get(node.object.name)?.size)))));
+  }
+  /**
+   * Recognize native URL static parsing methods and bounded local aliases.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isUrlStaticMethod(node) {
+    if(!node)return false;
+    if(node.type==='SequenceExpression')
+      return isUrlStaticMethod(node.expressions[node.expressions.length-1]);
+    if(node.type==='Identifier')return urlStaticAliases.has(node.name);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return isUrlStaticMethod(node.callee.object);
+    if(node.type!=='MemberExpression')return false;
+    const name=memberName(node);
+    if(isWebConstructor(node.object,urlConstructors,urlNativeNames))
+      return urlStaticNames.has(name??'')||Boolean(node.computed&&name===null);
+    if(node.object.type!=='Identifier')return false;
+    const keys=urlStaticObjectKeys.get(node.object.name);
+    return name!==null?keys?.has(name)??false:Boolean(node.computed&&keys?.size);
   }
   /** @param {AstNode|null|undefined} node @param {Set<string>} instances
    *  @param {Set<string>} constructors @param {Set<string>} names @returns {boolean} */
@@ -788,8 +932,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(responseObjectKeys,receiver,key);
     if(isWebConstructor(expression,webStringConstructors,webStringNames))
       addWebObjectKey(webStringObjectKeys,receiver,key);
+    if(isBlobConstructor(expression))
+      addWebObjectKey(blobObjectKeys,receiver,key);
+    if(isBoundBlobConstructor(expression))
+      addWebObjectKey(boundBlobObjectKeys,receiver,key);
+    if(isBoundRegExpConstructor(expression))
+      addWebObjectKey(boundRegExpObjectKeys,receiver,key);
+    if(isBoundStringConstructor(expression))
+      addWebObjectKey(boundStringObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
+    if(isUrlStaticMethod(expression))
+      addWebObjectKey(urlStaticObjectKeys,receiver,key);
+    if(isWebConstructor(expression,urlConstructors,urlNativeNames))
+      addWebObjectKey(urlConstructorObjectKeys,receiver,key);
   }
   do {
     changed=false;
@@ -810,6 +966,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(nativeStringConstructors,name)||changed;
         if(isNativeConstructor(value,nativeRegExpConstructors,'RegExp'))
           changed=add(nativeRegExpConstructors,name)||changed;
+        if(isBoundRegExpConstructor(value))
+          changed=add(boundRegExpConstructors,name)||changed;
+        if(isBoundStringConstructor(value))
+          changed=add(boundStringConstructors,name)||changed;
         if(isV8Module(value))changed=add(v8Modules,name)||changed;
         if(isV8SerializerConstructor(value))changed=add(v8SerializerConstructors,name)||changed;
         if(isV8SerializerInstance(value))changed=add(v8SerializerInstances,name)||changed;
@@ -874,8 +1034,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isWebConstructor(value,webScalars,webScalarNames)) {
           changed=add(webScalars,name)||changed;
         }
+        if(isWebConstructor(value,urlConstructors,urlNativeNames))
+          changed=add(urlConstructors,name)||changed;
+        if(isNodeUrlModule(value))
+          changed=add(urlNodeModules,name)||changed;
+        if(isUrlStaticMethod(value))
+          changed=add(urlStaticAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
+        }
+        if(isBlobConstructor(value)) {
+          changed=add(blobConstructors,name)||changed;
+        }
+        if(isBoundBlobConstructor(value)) {
+          changed=add(boundBlobConstructors,name)||changed;
         }
         if(isWebConstructor(value,webRecords,webRecordNames)) {
           changed=add(webRecords,name)||changed;
@@ -970,7 +1142,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           for(const key of objectFunctionKeys.get(value.name)??[]) {
             addObjectFunctionKey(name,key);
           }
-          for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,redirectObjectKeys]) {
+          for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
+            blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
+            boundStringObjectKeys,redirectObjectKeys,urlStaticObjectKeys,
+            urlConstructorObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1066,8 +1241,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(responseConstructors,property.value.name)||changed;
           if(webStringObjectKeys.get(node.init.name)?.has(key))
             changed=add(webStringConstructors,property.value.name)||changed;
+          if(blobObjectKeys.get(node.init.name)?.has(key))
+            changed=add(blobConstructors,property.value.name)||changed;
+          if(boundBlobObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundBlobConstructors,property.value.name)||changed;
+          if(boundRegExpObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundRegExpConstructors,property.value.name)||changed;
+          if(boundStringObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundStringConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
+          if(urlStaticObjectKeys.get(node.init.name)?.has(key))
+            changed=add(urlStaticAliases,property.value.name)||changed;
+          if(urlConstructorObjectKeys.get(node.init.name)?.has(key))
+            changed=add(urlConstructors,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -1104,6 +1291,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(fromHeaders&&(name==='headers'||name===null&&property.computed) ||
              fromSearch&&(name==='searchParams'||name===null&&property.computed))
             changed=add(webStringInstances,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isNodeUrlModule(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='URL'||property.computed&&name===null)
+            changed=add(urlConstructors,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isWebConstructor(node.init,urlConstructors,urlNativeNames)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(urlStaticNames.has(name??'')||property.computed&&name===null)
+            changed=add(urlStaticAliases,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
@@ -1189,8 +1396,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(name!==null&&webScalarNames.has(name)) {
             changed=add(webScalars,property.value.name)||changed;
           }
+          if(name==='URL')changed=add(urlConstructors,property.value.name)||changed;
           if(name!==null&&webDictionaryNames.has(name)) {
             changed=add(webDictionaries,property.value.name)||changed;
+          }
+          if(name==='Blob') {
+            changed=add(blobConstructors,property.value.name)||changed;
           }
           if(name!==null&&webRecordNames.has(name)) {
             changed=add(webRecords,property.value.name)||changed;
@@ -1219,6 +1430,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const bindingCounts=new Map();
   /** @type {Map<string,AstNode>} */
   const primitiveCandidates=new Map();
+  /** @type {Map<string,number>} */
+  const topLevelConstEnds=new Map();
   /** @param {AstNode|null|undefined} pattern @returns {void} */
   function recordPattern(pattern) {
     if(!pattern)return;
@@ -1235,7 +1448,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
   }
   let dynamicScope=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
     if(node.type==='WithStatement' ||
        node.type==='Identifier' && node.name==='eval')dynamicScope=true;
     if(node.type==='VariableDeclarator')recordPattern(node.id);
@@ -1252,6 +1465,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       for(const declaration of node.declarations) {
         if(declaration.id.type==='Identifier'&&declaration.init) {
           primitiveCandidates.set(declaration.id.name,declaration.init);
+          if(parent?.type==='Program')
+            topLevelConstEnds.set(declaration.id.name,declaration.end);
         }
       }
     }
@@ -1307,9 +1522,27 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='LogicalExpression')return isDefinitelyPrimitive(node.left,depth+1)&&
       isDefinitelyPrimitive(node.right,depth+1);
     if(node.type==='ConditionalExpression') {
-      return isDefinitelyPrimitive(node.test,depth+1)&&
-        isDefinitelyPrimitive(node.consequent,depth+1)&&
-        isDefinitelyPrimitive(node.alternate,depth+1);
+      if(!isDefinitelyPrimitive(node.test,depth+1)||
+         !isDefinitelyPrimitive(node.alternate,depth+1))return false;
+      if(isDefinitelyPrimitive(node.consequent,depth+1))return true;
+      // typeof only narrows a captured, unique, top-level const binding:
+      // a second read of process.argv[2] could return a different value
+      // (e.g. a function from a hostile getter), so it is NOT equivalent.
+      const value=node.consequent;
+      const guard=node.test;
+      if(dynamicScope||value.type!=='Identifier'||
+         bindingCounts.get(value.name)!==1||
+         (topLevelConstEnds.get(value.name)??Infinity)>=guard.start||
+         guard.type!=='BinaryExpression'||guard.operator!=='===')return false;
+      /** @param {AstNode} expression @returns {boolean} */
+      const isTypeofValue=expression=>expression.type==='UnaryExpression'&&
+        expression.operator==='typeof'&&expression.argument.type==='Identifier'&&
+        expression.argument.name===value.name;
+      /** @param {AstNode} expression @returns {boolean} */
+      const isString=expression=>expression.type==='Literal'&&
+        expression.value==='string';
+      return isTypeofValue(guard.left)&&isString(guard.right)||
+        isTypeofValue(guard.right)&&isString(guard.left);
     }
     if(node.type==='SequenceExpression')return node.expressions.every(
       (/** @type {AstNode} */ value)=>isDefinitelyPrimitive(value,depth+1));
@@ -1564,18 +1797,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function constructObservesSource(target,passed) {
-    const nativeStringCoercer=isCoercer(target);
+    const boundRegExp=isBoundRegExpConstructor(target);
+    const boundString=isBoundStringConstructor(target);
+    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString;
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
+    const blobOptions=isBlobConstructor(target);
+    const boundBlob=isBoundBlobConstructor(target);
     const webRecord=isWebConstructor(target,webRecords,webRecordNames);
-    if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord)return false;
+    if(!nativeStringCoercer&&!webScalar&&!webDictionary&&!webRecord&&
+       !blobOptions&&!boundBlob)return false;
     if(passed?.type==='ArrayExpression') {
       const values=nativeStringCoercer ?
-        (isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
+        (boundRegExp||boundString ? passed.elements :
+          isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
           passed.elements.slice(0,2):passed.elements.slice(0,1)) :
-        webDictionary?passed.elements.slice(0,1):passed.elements;
+        boundBlob?passed.elements:
+        webDictionary||blobOptions?passed.elements.slice(0,blobOptions?2:1):passed.elements;
       return values.some((/** @type {AstNode|null} */ value)=>
-        Boolean(value && (webDictionary||webRecord ?
+        Boolean(value && (webDictionary||webRecord||blobOptions||boundBlob ?
           mayCoerceSourceWithinWebRecord(value):!isDefinitelyPrimitive(value))));
     }
     return Boolean(passed);
@@ -2200,12 +2440,51 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      // URL.parse can expose the original Function#toString in its encoded URL.
+      if(isUrlStaticMethod(callee) &&
+          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+      if(callee.type==='MemberExpression'&&isUrlStaticMethod(callee.object)) {
+        const method=memberName(callee);
+        if((method==='call'||method==='bind') &&
+           node.arguments.slice(1,3).some((/** @type {AstNode} */ value)=>
+             !isDefinitelyPrimitive(value)))observed=true;
+        if(method==='apply') {
+          const args=node.arguments[1];
+          if(args?.type==='ArrayExpression') {
+            if(args.elements.slice(0,2).some((/** @type {AstNode|null} */ value)=>
+              Boolean(value&&!isDefinitelyPrimitive(value))))observed=true;
+          } else if(args)observed=true;
+        }
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isUrlStaticMethod(node.arguments[0])) {
+        const args=node.arguments[2];
+        if(args?.type==='ArrayExpression') {
+          if(args.elements.slice(0,2).some((/** @type {AstNode|null} */ value)=>
+            Boolean(value&&!isDefinitelyPrimitive(value))))observed=true;
+        } else if(args)observed=true;
+      }
       if(isWebConstructor(callee,webScalars,webScalarNames) &&
           node.arguments.some((/** @type {AstNode} */ value)=>
             !isDefinitelyPrimitive(value)))observed=true;
       if(isWebConstructor(callee,webDictionaries,webDictionaryNames) &&
           node.arguments[0] &&
           mayCoerceSourceWithinWebRecord(node.arguments[0]))observed=true;
+      // Blob's first argument and its second options dictionary may both
+      // coerce function values. Bound constructors can shift those offsets.
+      if(isBlobConstructor(callee) &&
+          node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
+      if(isBoundBlobConstructor(callee) &&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
+      // Bound Blob arguments are captured now and may be converted at a
+      // later invocation, including through an exported constructor wrapper.
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+          memberName(callee)==='bind' && isBlobConstructor(callee.object) &&
+          node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+            mayCoerceSourceWithinWebRecord(value)))observed=true;
       // Request/Response/File expose function source through BodyInit, URL,
       // BlobPart sequences, filenames, headers and string-valued init fields.
       // Preserve constant primitive records and sequences as positive controls.
@@ -2395,6 +2674,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
+      // Bound native constructors may shift their source-coercing operands
+      // through captured arguments. A function in any forwarded position
+      // is conservatively observable without a complete bind arity proof.
+      if((isBoundRegExpConstructor(callee)||isBoundStringConstructor(callee))&&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+      if(callee.type==='MemberExpression'&&memberName(callee)==='bind'&&
+          (isNativeConstructor(callee.object,nativeRegExpConstructors,'RegExp')||
+           isNativeConstructor(callee.object,nativeStringConstructors,'String'))&&
+          node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
       // Native RegExp constructors stringify an explicit flags operand too.
       if(isNativeConstructor(callee,nativeRegExpConstructors,'RegExp') &&
          node.arguments[1] && !isDefinitelyPrimitive(node.arguments[1]))
@@ -2451,7 +2741,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     }
   });
   if(!importedStrings.size&&!importedCloneFunctions.size&&
-     !importedFunctionArrays.size&&!importedPrimitives.size)
+     !importedFunctionArrays.size&&!importedPrimitives.size&&
+     !importedUrlStaticMethods.size)
     sourceObservationCache.set(ast,observed);
   return observed;
 }
@@ -2478,7 +2769,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   // without using fs, module loaders, or a browser source-fetch API.
   const loaderModules=new Set(['module','node:module','vm','node:vm',
     'inspector','node:inspector','node:inspector/promises']);
-  const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync']);
+  // CacheStorage.add performs an implicit fetch; Cache.match().text()
+  // exposes distributed JavaScript bytes to the caller.
+  const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderSync',
+    'caches','CacheStorage',
+    // Same-origin host HTML can preload a module as text/plain in a named
+    // iframe; Window.frames exposes that child Document's exact source body.
+    // Declared ESM can also create an iframe and read its Document through
+    // HTMLIFrameElement.contentDocument or .contentWindow.
+    'frames','contentDocument','contentWindow']);
   const globals=new Set(['globalThis','window','self','global']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.

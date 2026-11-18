@@ -30,8 +30,11 @@ const generatedGraphSnapshots=new WeakMap();
  * }} ScoGraphPartition
  */
 
+// Inspector and REPL evaluate hidden strings; cluster.setupPrimary can spawn
+// arbitrary worker entry files. All bypass a statically enumerated ESM graph.
 const dynamicLoaderBuiltins=new Set(['node:module','node:vm',
-  'node:worker_threads','node:child_process']);
+  'node:worker_threads','node:child_process','node:cluster',
+  'node:inspector','node:inspector/promises','node:repl']);
 /**
  * Reject ambiguous module specifiers before promising that the supplied graph
  * is closed over its relative imports. Native Node resolution must still load
@@ -130,19 +133,42 @@ function isDirectDynamicEvaluator(node,parent,childKey){
  * @returns {ScoGraphPartition}
  */
 function partitionScoAsyncGraph(files,options) {
-  if(!Array.isArray(files)||!files.length||!options||
-      !Array.isArray(options.exposedPaths)||!options.exposedPaths.length ||
-      options.exposedPaths.some(name=>typeof name!=='string')||
-      options.seed!==undefined && (typeof options.seed!=='string'||!options.seed)) {
+  if(!Array.isArray(files)||!options) {
     throw new TypeError('Expected a private ESM graph and explicit exposedPaths');
+  }
+  const fileCount=files.length;
+  // Keep the exact reviewed exposure list and compilation settings throughout
+  // this invocation. Caller accessors and custom array iterators may change.
+  const suppliedPaths=options.exposedPaths;
+  const suppliedSeed=options.seed;
+  const suppliedEndpoint=options.endpoint;
+  if(!Array.isArray(suppliedPaths)) {
+    throw new TypeError('Expected a private ESM graph and explicit exposedPaths');
+  }
+  const pathCount=suppliedPaths.length;
+  if(fileCount===0||pathCount===0||
+      suppliedSeed!==undefined && (typeof suppliedSeed!=='string'||!suppliedSeed)) {
+    throw new TypeError('Expected a private ESM graph and explicit exposedPaths');
+  }
+  /** @type {string[]} */
+  const approvedPaths=[];
+  for(let index=0;index<pathCount;index++){
+    const name=suppliedPaths[index];
+    if(typeof name!=='string'){
+      throw new TypeError('Expected a private ESM graph and explicit exposedPaths');
+    }
+    approvedPaths.push(name);
   }
   /** @type {Map<string,ScoPrivateModule>} */
   const modules=new Map();
   /** @type {Set<string>} */
   const folded=new Set();
-  for(const file of files){
-    if(!file||typeof file.code!=='string'||
-        file.sourceType!==undefined&&file.sourceType!=='module') {
+  for(let index=0;index<fileCount;index++){
+    const file=files[index];
+    const code=file?.code;
+    const sourceType=file?.sourceType;
+    if(!file||typeof code!=='string'||
+        sourceType!==undefined&&sourceType!=='module') {
       throw new TypeError('Private SCO graph requires ESM text files');
     }
     const filename=safePath(file.path);
@@ -150,7 +176,7 @@ function partitionScoAsyncGraph(files,options) {
     const lower=filename.toLowerCase();
     if(folded.has(lower))throw new TypeError('Duplicate private graph path: '+filename);
     folded.add(lower);
-    modules.set(filename,{path:filename,code:file.code,sourceType:'module'});
+    modules.set(filename,{path:filename,code,sourceType:'module'});
   }
   const names=new Set(modules.keys());
   for(const [filename,file] of modules) {
@@ -171,14 +197,14 @@ function partitionScoAsyncGraph(files,options) {
     });
   }
   const selected=new Set();
-  for(const entry of options.exposedPaths) {
+  for(const entry of approvedPaths) {
     const filename=safePath(entry);
     if(!modules.has(filename)||selected.has(filename)) {
       throw new TypeError('Missing or duplicate exposed private graph entry: '+filename);
     }
     selected.add(filename);
   }
-  const seed=options.seed??randomBytes(32).toString('hex');
+  const seed=suppliedSeed??randomBytes(32).toString('hex');
   /** @type {Record<string,ScoModulePartition>} */
   const partitions=Object.create(null);
   /** @type {ScoModulePartition['clientFile'][]} */
@@ -189,7 +215,7 @@ function partitionScoAsyncGraph(files,options) {
     const source=modules.get(filename);
     if(!source)throw new Error('Expected selected private source');
     const partition=partitionScoAsyncModule(source,{
-      seed,endpoint:options.endpoint,serverOnlyInitialization:true
+      seed,endpoint:suppliedEndpoint,serverOnlyInitialization:true
     });
     for(const name of partition.names){
       const id=partition.methodNames[name];
@@ -289,7 +315,12 @@ function createScoGraphHandler(graph,namespaces,options){
   // again after validation: a getter could return benign code during a check
   // and private source to the eventual HTTP handler.
   const trusted=/** @type {ScoGraphPartition} */ (JSON.parse(snapshot));
-  const expectedEndpoint=(options.routePrefix??'/obfs/')+'rpc';
+  // Capture routePrefix exactly once, including inherited and non-enumerable
+  // getters that an ordinary spread would discard. Endpoint validation and
+  // the HTTP handler must receive the same authoritative route.
+  const {routePrefix,...remainingOptions}=options;
+  const stableOptions={...remainingOptions,routePrefix};
+  const expectedEndpoint=(routePrefix??'/obfs/')+'rpc';
   for(const filename of trusted.exposedPaths){
     if(trusted.partitions[filename]?.endpoint!==expectedEndpoint){
       throw new TypeError('SCO graph RPC endpoint does not match routePrefix: '+filename);
@@ -297,7 +328,7 @@ function createScoGraphHandler(graph,namespaces,options){
   }
   const remoteMethods=bindScoGraphExports(trusted,namespaces);
   return createScoHandler(trusted.clientFiles,{
-    ...options,
+    ...stableOptions,
     publicPaths:[...trusted.exposedPaths],
     remoteMethods
   });

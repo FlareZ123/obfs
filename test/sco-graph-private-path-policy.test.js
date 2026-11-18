@@ -132,6 +132,103 @@ test('SCO graph fingerprints block exact original source copies and original exp
 });
 
 
+test('SCO graph snapshots the approved exposedPaths getter before facade selection',async()=>{
+  const files=[
+    {path:'public.mjs',code:'export async function allowed(){return 7;}'},
+    {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'}
+  ];
+  let reads=0;
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-exposure-options-20261118',
+    get exposedPaths(){
+      reads++;
+      return reads<=3?['public.mjs']:['admin.mjs'];
+    }
+  });
+  assert.equal(reads,1,'The public export authorization list must be captured once');
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,['admin.mjs']);
+  const server=http.createServer(createScoGraphHandler(graph,{
+    'public.mjs':{allowed:async()=>7},
+    'admin.mjs':{adminOnly:async()=>31337}
+  },{authorizeRpc:()=>true}));
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/public.mjs')).status,200);
+    assert.equal((await fetch(origin+'/obfs/admin.mjs')).status,404);
+    const rpc=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:graph.partitions['public.mjs'].methodNames.allowed,args:[]})
+    });
+    assert.equal(rpc.status,200);
+    assert.deepEqual(await rpc.json(),{ok:true,value:7});
+    assert.equal(reads,1,'Serving requests must not revisit caller-owned publication getters');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+test('SCO graph ignores a caller-owned exposedPaths iterator that changes authorized modules',()=>{
+  const files=[
+    {path:'public.mjs',code:'export async function allowed(){return 7;}'},
+    {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'}
+  ];
+  const exposedPaths=['public.mjs'];
+  exposedPaths[Symbol.iterator]=function*(){yield 'admin.mjs';};
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-exposure-iterator-20261118',exposedPaths
+  });
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,['admin.mjs']);
+});
+
+test('SCO graph ignores a forged file-array iterator and captures source once',()=>{
+  let sourceReads=0;
+  const approved={
+    path:'public.mjs',
+    get code(){
+      sourceReads++;
+      return sourceReads===1?
+        'export async function allowed(){return 7;}':
+        'export async function replaced(){return 31337;}';
+    }
+  };
+  const files=[approved];
+  files[Symbol.iterator]=function*(){
+    yield {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'};
+  };
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-file-inventory-20261118',exposedPaths:['public.mjs']
+  });
+  assert.equal(sourceReads,1,'Compiler must use the same source bytes it validated');
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,[]);
+  assert.ok(Object.hasOwn(graph.partitions['public.mjs'].methodNames,'allowed'));
+});
+
+test('SCO graph captures seed and endpoint accessor configuration once',()=>{
+  let seedReads=0;
+  let endpointReads=0;
+  const graph=partitionScoAsyncGraph([
+    {path:'first.mjs',code:'export async function first(){return 1;}'},
+    {path:'second.mjs',code:'export async function second(){return 2;}'}
+  ],{
+    exposedPaths:['first.mjs','second.mjs'],
+    get seed(){seedReads++;return seedReads===1?'graph-seed-20261118':'changed-seed';},
+    get endpoint(){
+      endpointReads++;
+      return endpointReads===1?'/private/rpc':'/moved/rpc';
+    }
+  });
+  assert.equal(seedReads,1);
+  assert.equal(endpointReads,1);
+  assert.equal(graph.partitions['first.mjs'].endpoint,'/private/rpc');
+  assert.equal(graph.partitions['second.mjs'].endpoint,'/private/rpc');
+});
+
 test('composed SCO graph handler binds only original exports and permits only generated facades',async()=>{
   const graph=partitionScoAsyncGraph(originals,{
     seed:'sco-graph-composed-handler-20261116',exposedPaths:['api.mjs','audit.mjs']
@@ -265,6 +362,90 @@ test('SCO graph helper accepts matching custom RPC route and denies default rout
   }
 });
 
+
+test('composed SCO graph snapshots an accessor-backed route prefix for HTTP routing',async()=>{
+  const graph=partitionScoAsyncGraph([{
+    path:'remote.mjs',code:'export async function evaluate(x){return x+5;}'
+  }],{
+    seed:'sco-graph-routeprefix-options-20261118',
+    exposedPaths:['remote.mjs']
+  });
+  let reads=0;
+  const options={
+    authorizeRpc:()=>true,
+    get routePrefix(){
+      reads++;
+      return reads===1?'/obfs/':'/moved/';
+    }
+  };
+  const handler=createScoGraphHandler(graph,{
+    'remote.mjs':{evaluate:async (/** @type {number} */ x)=>x+5}
+  },options);
+  assert.equal(reads,1,'Endpoint admission and handler routing must share one option snapshot');
+  const server=http.createServer(handler);
+  try{
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address==='object');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/remote.mjs')).status,200);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        method:graph.partitions['remote.mjs'].methodNames.evaluate,args:[7]
+      })
+    });
+    assert.equal(response.status,200);
+    assert.deepEqual(await response.json(),{ok:true,value:12});
+    assert.equal(reads,1,'Runtime requests must not re-read untrusted options');
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+test('SCO graph handler inherits a non-enumerable custom route prefix consistently',async()=>{
+  const graph=partitionScoAsyncGraph([{
+    path:'remote.mjs',code:'export async function evaluate(x){return x+5;}'
+  }],{
+    seed:'sco-graph-nonenumerable-routeprefix-20261118',
+    exposedPaths:['remote.mjs'],
+    endpoint:'/private/rpc'
+  });
+  for(const inherited of [false,true]){
+    let reads=0;
+    const options={authorizeRpc:()=>true};
+    const holder=inherited?Object.create(null):options;
+    Object.defineProperty(holder,'routePrefix',{
+      configurable:true,enumerable:false,
+      get(){reads++;return '/private/';}
+    });
+    if(inherited)Object.setPrototypeOf(options,holder);
+    const handler=createScoGraphHandler(graph,{
+      'remote.mjs':{evaluate:async (/** @type {number} */ x)=>x+5}
+    },options);
+    assert.equal(reads,1,'One route-prefix read is required for each option shape');
+    const server=http.createServer(handler);
+    try{
+      await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+      const address=server.address();
+      assert.ok(address&&typeof address==='object');
+      const origin='http://127.0.0.1:'+address.port;
+      assert.equal((await fetch(origin+'/private/remote.mjs')).status,200);
+      assert.equal((await fetch(origin+'/obfs/remote.mjs')).status,404);
+      const response=await fetch(origin+'/private/rpc',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          method:graph.partitions['remote.mjs'].methodNames.evaluate,args:[7]
+        })
+      });
+      assert.equal(response.status,200);
+      assert.deepEqual(await response.json(),{ok:true,value:12});
+      assert.equal(reads,1);
+    }finally{
+      await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    }
+  }
+});
 
 test('composed SCO graph seals facades and method metadata against post-partition mutation',async()=>{
   const make=()=>partitionScoAsyncGraph(originals,{
@@ -415,6 +596,107 @@ test('real Node ESM dynamic code evaluators can reach imports omitted from a sta
         seed:'sco-graph-hidden-native-loader-20261116',exposedPaths:[file.path]
       }),/Private SCO graph cannot prove imports through eval or Function/u);
     }
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO graph refuses inspector protocol evaluation that loads undeclared server modules',async()=>{
+  const inspectorSource=[
+    "import inspector from \"node:inspector\";",
+    "export async function inspect(){",
+    "  const session=new inspector.Session();",
+    "  session.connect();",
+    "  const expression='process.getBuiltinModule(\"module\").createRequire('+JSON.stringify(import.meta.url)+')(\"./hidden.cjs\").secret';",
+    "  return await new Promise((resolve,reject)=>{",
+    "    session.post(\"Runtime.evaluate\",{expression,returnByValue:true},(error,result)=>{",
+    "      session.disconnect();",
+    "      if(error||result.exceptionDetails){reject(error??new Error(\"Inspector evaluation failed\"));return;}",
+    "      resolve(result.result.value);",
+    "    });",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-inspector-loader-'));
+  try{
+    await atomicWrite(path.join(root,'inspector.mjs'),inspectorSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),'module.exports={secret:137};');
+    const original=await import(pathToFileURL(path.join(root,'inspector.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native Inspector can execute hidden CommonJS loader code');
+    for(const specifier of ['node:inspector','node:inspector/promises']){
+      const candidate=inspectorSource.replace('node:inspector',specifier);
+      assert.throws(()=>partitionScoAsyncGraph([{
+        path:'inspector.mjs',code:candidate
+      }],{seed:'sco-inspector-dynamic-loader-20261118',
+        exposedPaths:['inspector.mjs']}),
+      /Private SCO graph cannot certify imports from runtime loader builtin/u);
+    }
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO graph refuses default REPL evaluation that loads undeclared server modules',async()=>{
+  const replSource=[
+    "import repl from \"node:repl\";",
+    "import {PassThrough} from \"node:stream\";",
+    "export async function inspect(){",
+    "  const shell=repl.start({prompt:\"\",input:new PassThrough(),output:new PassThrough(),terminal:false});",
+    "  const command='process.getBuiltinModule(\"module\").createRequire('+JSON.stringify(import.meta.url)+')(\"./hidden.cjs\").secret';",
+    "  return await new Promise((resolve,reject)=>{",
+    "    shell.eval(command,shell.context,\"repl\",(error,value)=>{",
+    "      shell.close();",
+    "      if(error)reject(error);else resolve(value);",
+    "    });",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-repl-loader-'));
+  try{
+    await atomicWrite(path.join(root,'repl.mjs'),replSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),'module.exports={secret:137};');
+    const original=await import(pathToFileURL(path.join(root,'repl.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native REPL evaluates the hidden CommonJS loader');
+    assert.throws(()=>partitionScoAsyncGraph([{
+      path:'repl.mjs',code:replSource
+    }],{seed:'sco-repl-dynamic-loader-20261118',
+      exposedPaths:['repl.mjs']}),
+    /Private SCO graph cannot certify imports from runtime loader builtin/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('SCO graph refuses cluster workers that launch undeclared Node entry modules',{
+  timeout:15000
+},async()=>{
+  const clusterSource=[
+    "import cluster from \"node:cluster\";",
+    "import {fileURLToPath} from \"node:url\";",
+    "export async function inspect(){",
+    "  cluster.setupPrimary({exec:fileURLToPath(new URL(\"./hidden.cjs\",import.meta.url)),silent:true});",
+    "  return await new Promise((resolve,reject)=>{",
+    "    const worker=cluster.fork();",
+    "    worker.once(\"message\",value=>resolve(value));",
+    "    worker.once(\"error\",reject);",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-cluster-loader-'));
+  try{
+    await atomicWrite(path.join(root,'cluster.mjs'),clusterSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),
+      'if(process.send){process.send(137);process.disconnect();}');
+    const original=await import(pathToFileURL(path.join(root,'cluster.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native cluster loaded an undeclared worker entry');
+    assert.throws(()=>partitionScoAsyncGraph([{
+      path:'cluster.mjs',code:clusterSource
+    }],{seed:'sco-cluster-dynamic-loader-20261118',
+      exposedPaths:['cluster.mjs']}),
+    /Private SCO graph cannot certify imports from runtime loader builtin/u);
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }

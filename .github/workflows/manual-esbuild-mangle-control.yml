@@ -1,0 +1,27 @@
+name: Manual source-only esbuild property-mangling control
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matched-source-control:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc external simulator checking
+        run: npm run typecheck:external
+      - name: Matched source-only recovery versus standard property mangling
+        run: node sims/semantic-sketch-esbuild-mangle-control.js

@@ -62,6 +62,7 @@ function preflightScoBatchState(calls,initialState,policy) {
   let state=initialState;
   for(const call of calls) {
     if(!call || typeof call!=='object' ||
+        !Object.hasOwn(call,'method') || !Object.hasOwn(call,'args') ||
         typeof call.method!=='string' || !Array.isArray(call.args))return false;
     const permitted=policy.authorize(state,call.method,call.args);
     if(typeof permitted!=='boolean') {

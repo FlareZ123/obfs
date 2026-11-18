@@ -125,3 +125,48 @@ test('SCO authorizer can inspect all nested batch calls before side effects',asy
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+test('SCO ordinary RPC policy cannot alter already authorized execution arguments',async()=>{
+  /** @type {string[]} */
+  const effects=[];
+  const server=http.createServer(createScoHandler([],{
+    remoteMethods:{
+      /** @param {number} amount */
+      charge:amount=>{effects.push('charge:'+amount);return amount*10;},
+      /** @param {{nested:{amount:number}}} record */
+      nested:record=>{effects.push('nested:'+record.nested.amount);return record.nested.amount;}
+    },
+    authorizeRpc:()=>true,
+    authorizeOperation:(_request,method,args)=>{
+      if(method==='charge'){
+        if(args[0]!==1)return false;
+        // An application authorizer accidentally modifies the very array it
+        // just authorized. The private method must receive the wire input.
+        args[0]=99;
+        return true;
+      }
+      if(method==='nested'){
+        const record=/** @type {{nested:{amount:number}}} */ (args[0]);
+        if(record.nested.amount!==7)return false;
+        record.nested.amount=99;
+        return true;
+      }
+      return false;
+    }
+  }));
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try{
+    const address=server.address();
+    if(!address||typeof address==='string')throw Error('Expected listener');
+    const port=address.port;
+    assert.deepEqual(await rpc(port,'accepted',{method:'charge',args:[1]}),{
+      status:200,payload:{ok:true,value:10}
+    });
+    assert.deepEqual(await rpc(port,'accepted',{method:'nested',args:[{nested:{amount:7}}]}),{
+      status:200,payload:{ok:true,value:7}
+    });
+    assert.deepEqual(effects,['charge:1','nested:7']);
+  }finally{
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});

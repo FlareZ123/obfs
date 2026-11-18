@@ -4,6 +4,14 @@
 
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
+## SCO JSON-wire semantics and bounded batch work
+
+The current generated server-controlled async RPC facades use `JSON.stringify` for arguments and `response.json()` for returned values. An RPC boundary therefore proves at most **JSON-wire-value equality** unless the integrator separately restricts every input and output to a verified JSON-compatible domain. JSON may omit own `undefined` fields, replace nonfinite numbers, change negative zero, lose object reference identity and prototypes, and fail on BigInt or cyclic data. The [real HTTP negative witness](../test/sco-json-shape-contract.test.js) finds that the private application returns an own `value:undefined` field that disappears from the published facade's object even while serialized outputs match. This is a scoped semantic limitation, not a server authorization bypass. A caller relying on `Reflect.ownKeys`, property ownership, special numeric values or aliasing must demand a different admitted boundary or an explicitly specified richer transport; do not label arbitrary remote JavaScript return values 1:1 compatible.
+
+The same private ESM application's [source-pinned resident CPU comparison](../im-results/sco-resident-process-cpu-2026-11-18.md) found severe 2.5× CPU violations for small separately authenticated operations, including 13/13 strict breaches at 1,000 private iterations per call on both platforms in a 12,288-call sample. The [actual compiler-generated bounded batch experiment](../im-results/sco-bounded-real-batch-cpu-2026-11-18.md) instead uses 1,024-call batches with sequential per-item authorization, and found zero strict CPU breaches over 51 paired observations per OS for the 24,576-call/1,000-iteration workload. One-iteration calls remained over budget. These **resident-compute experiments exclude both client facade import and trusted server setup** in order to isolate recurring work, and use a shared-process loopback CPU scope. Under the project's 2.5× rule, only eligible trusted-server initialization may be amortized; a supported resident median alone therefore cannot certify end-to-end SCO budget compliance. They support a **workload-specific opt-in partition**, without proving a universal worst-case compute bound or host-environment integrity.
+
+Batch admission must bound both **number of calls and total authorized private work per request**. The demonstrated handler refuses a 1,024-item batch of 150,000-iteration operations by aggregating declared work before evaluation; it also rejects unauthorized source reads and unauthenticated RPCs, and invokes independent per-item policy. This cap is application-specific: a caller may still consume service resources through repeated legal requests. Production SCO deployments require authentication, rate limiting, principal quotas, contention control, input-size limits, and a reviewed invariant for each batch's state/ordering semantics. Batching does not prevent a legitimate credential-holder from relaying outputs through the original trusted service.
+
 ## SCO per-response literal spelling: only 32 selector bits
 
 The SCO handler obtains a fresh 24-byte random nonce for each published JavaScript response, but its **literal-spelling** transformation consults only the low bit of each of the 32 bytes of `SHA256(nonce)`, indexed by a code-unit position and the original literal offset. Consequently a fixed pre-variation source has at most **2^32** distinct spelling-choice masks from this pass, independent of the broader nonce's 192-bit size. A printable ASCII literal of 32 code units reveals the mask from raw character-versus-`\\uXXXX` spellings. This is a bound on one formatting layer, with no corresponding claim about complete output entropy, hashed identifiers, server-private code, or authentication.
@@ -51,6 +59,32 @@ function reached **2.781× Windows** after this backend, failing the hard
 project budget, in the [CPU-only profile gate](https://github.com/FlareZ123/obfs/actions/runs/43804836672).
 The mechanism cannot be presented as generally runtime-safe or as a
 trusted confidentiality/integrity boundary in COO or SNO.
+
+## Explicit selected-function build admission
+
+An opt-in function backend is an explicit protection request to the compiler.
+The `obfuscateFiles` admission pass now rejects nonempty selections targeting
+absent or non-JavaScript files, and snapshots accepted selected-function arrays
+before emission. For the seven supported function backends, a missing,
+ineligible, duplicated or source-observed selected function causes a build-time
+error whenever its underlying lowerer reports a decline. The older register-VM,
+expression-VM, native-graph and branch-block lowerers previously returned their
+decline counts without the enclosing compiler enforcing them. A successful
+build can no longer silently omit those requested transformations.
+
+This is a **non-vacuity check** on the trusted build's explicitly selected
+work. It does not strengthen the generated JavaScript against static
+reconstruction, browser/Node instrumentation, host imitation, authorized
+server queries or runtime modification. Eligibility proofs remain
+backend-specific and incomplete for arbitrary JavaScript. It introduces no
+additional runtime checks into an accepted, unmodified protected program.
+
+The [reproducible admission audit](../im-results/experimental-function-selection-coverage-2026-11-17.md)
+and [full Linux/Windows validation 44197962949](https://github.com/FlareZ123/obfs/actions/runs/44197962949)
+at exact source `22e0188999a1e14d40bd2c3efafb47a1ab93d95c`
+cover seven missing-file and function-name selectors, legacy refusals,
+configuration getter/mutation controls, an actual transformed-function
+differential, and real Chromium integration.
 
 ## Expression-graph backends and hot-path safety
 
@@ -104,7 +138,23 @@ Source-byte reads are a separate semantic compatibility hazard from the familiar
 `node:fs/promises.readFile` to inspect the exact source bytes of a module in
 the declared build group. The reader can compare a private property spelling
 without obtaining or calling the exported object. Browser `fetch` and
-`XMLHttpRequest` can likewise request deployed module source.
+`XMLHttpRequest` can likewise request deployed module source. Browser
+`CacheStorage` adds another source-observation path: `Cache.add()` implicitly
+requests a module URL and `Cache.match().text()` exposes its delivered bytes,
+even when the application's AST has no explicit `fetch` call. The bounded
+ordinary source-byte preflight now recognizes the named `caches` and
+`CacheStorage` roots, and the opt-in ESM source-island proof separately
+refuses them. Both checks are conservative and admit finite evidence only;
+a host can provide unmodeled source-reading capabilities. In a same-origin
+browser document, `Window.frames` can expose an iframe that loads a JavaScript
+file as text, allowing declared ESM to inspect `frame.document.body.textContent`
+without a direct network reader call. Declared ESM can also create its own
+iframe and inspect `HTMLIFrameElement.contentDocument` or `contentWindow`.
+The scanner conservatively vetoes these named frame roots and members while
+retaining the eligible no-reader property-renaming positive control. This is
+only a recognized capability family, since arbitrary same-origin host markup
+or runtime-injected objects cannot be fully inferred from the declared file
+list.
 
 The bounded `observesDistributedSource` AST preflight now declines ordinary
 identifier, property and string transformations across a supplied group when
@@ -182,6 +232,33 @@ the already validated output. SCO handler startup already snapshots its
 source buffers. The reviewed-asset option adds no emitted JavaScript runtime
 instructions; it adds compile or SCO handler setup hashing work.
 
+The reviewed-manifest checker now reads the initial **indexed** array inventory
+and snapshots each entry's path and digest once. The public final-output
+recheck uses indexed file records and one-read asset metadata, avoiding
+caller-provided iterators and getter drift during validation. This remains a
+build-time contract: publishing mutated files *after* verification invalidates
+the evidence. An [exact pre-fix adversarial replay](../im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md)
+reproduced three historical bypasses and their refusal by the changed
+checker on Ubuntu and Windows, with strict JSDoc and 17 regression tests.
+
+The three CLI entrypoints accept `--reviewed-assets <manifest.json>` with an
+independently prepared JSON array of the same records. The file must resolve
+**outside** `--root`, preventing the COO/SNO recursive file scan from
+inadvertently republishing the review manifest itself. COO and SNO validate
+every copied asset; SCO validates the specifically selected public `--asset`
+entries. The CLI reads the approval once at startup and passes it to the same
+programmatic validator. This option is deliberately opt-in, and a publisher
+must independently maintain its review and final deployment byte identity.
+See `test/cli-reviewed-opaque-assets.test.js` for real COO/SNO subprocesses,
+an actual SCO HTTP asset response, stale-hash refusals and bad manifest
+preflight. A targeted Ubuntu/Windows test at
+[commit `035a2db`](https://github.com/FlareZ123/obfs/commit/035a2dbf00e677d27c54864ffb036a29b913bc75)
+passed all CLI and manifest tests and compiler typechecking
+([run 44286470985](https://github.com/FlareZ123/obfs/actions/runs/44286470985));
+its full external JSDoc gate was red from unrelated concurrently modified
+`test/sco-selected-graph.test.js` and `test/sco-selected-handler.test.js`.
+Do not call that run a complete green release gate.
+
 See `test/reviewed-opaque-assets.test.js` and
 `workplace/asset-publication-trust-contract-2026-11-17.md` for a
 source-only encoded canary, manifest refusal, positive safe fixtures, and
@@ -191,7 +268,7 @@ the explicit review assumption.
 
 A source map can contain `sourcesContent` with the original untransformed JavaScript, along with original symbol names and source paths. All three programmatic modes now reject supplied assets whose filenames end in `.map` (case-insensitive), reject structurally recognized version-3 source-map JSON (including indexed maps renamed to `.json`, `.txt`, or arbitrary asset extensions), and reject actual `//#`, `//@`, or `/*#` `sourceMappingURL` comments in JavaScript before any transformation. They also reject assets with source-like suffixes (`.js`, `.mjs`, `.cjs`, `.jsx`, `.ts`, `.mts`, `.cts`, `.tsx`, `.vue`, `.svelte`, `.astro`, `.mdx`, `.coffee`, `.litcoffee`) when marked as opaque files; otherwise a transformed distribution could contain a direct copy of its original JavaScript or transpiler inputs. SCO's static-serving handler performs the same preflight, including assets explicitly selected by `--asset`. Remove source-map comments and exclude map sidecars in the source build before obfuscating. Refusal is intentional because copying the map would undermine the intended confidentiality, while silently removing runtime-loaded assets could alter behavior.
 
-The published HTML asset preflight uses the pinned `parse5@7.3.0` HTML5 parser. It rejects inline `<script>` content, inline event-handler attributes, `iframe srcdoc`, `javascript:` links, executable `data:` URLs (including XHTML and common XML document media types), and executable URL targets of `meta http-equiv="refresh"` redirects. External `<script src>` URLs remain syntactically permitted, but those scripts must be transformed and distributed separately by the integrator. The parser also inspects CSS source-map comments inside HTML `<style>` elements, including those nested in `<template>`, with the same CSS comment-aware scanner as standalone stylesheets and SVG `<style>` elements. This refuses embedded inline base64 source maps before the HTML is published. A separate conservative guard now refuses `data:` URLs on HTML `<link rel="stylesheet">` elements, including tokenized `alternate stylesheet` forms and entity-decoded or ASCII-control-obscured schemes: such links can embed a second CSS document with a nested `sourceMappingURL` and unmodified `sourcesContent`, beyond the normal standalone `.css` scan. The [public-HTML-only extractor and previous-compiler comparison](../sims/html-data-stylesheet-attack.js) and [intermediate report](../im-results/html-data-stylesheet-source-leak-2026-11-17.md) document the narrow refusal and its remaining gaps. This intentionally declines benign inline data stylesheets; use separately audited CSS assets for accepted builds. CSS assets and inline HTML/SVG `<style>` content now also refuse embedded `data:` stylesheet `@import` URLs (quoted and `url()` forms, including escaped CSS scheme spellings and WHATWG ASCII tab/newline URL normalization). Such imports can contain an entire second stylesheet plus an original-source map. Ordinary relative or remote imports remain unchanged. See the [paired source-only CSS extractor](../sims/css-nested-data-import-attack.js) and [bounded report](../im-results/css-data-import-disclosure-2026-11-17.md). The parser never rewrites HTML bytes. It strictly decodes HTML assets as UTF-8 and refuses malformed byte sequences and NUL code units, including UTF-16-like padding that could disguise executable markup from a UTF-8 parser. An HTML page containing inline JavaScript or inline JSON inside a `<script>` block is deliberately refused rather than silently modified, because original program text could escape as an asset. The preflight also handles HTML character references and nested template content.
+The published HTML asset preflight uses the pinned `parse5@7.3.0` HTML5 parser. It rejects inline `<script>` content, inline event-handler attributes, `iframe srcdoc`, `javascript:` links, executable `data:` URLs (including XHTML and common XML document media types), and executable URL targets of `meta http-equiv="refresh"` redirects. External `<script src>` URLs remain syntactically permitted, but those scripts must be transformed and distributed separately by the integrator. The parser also inspects CSS source-map comments inside HTML `<style>` elements, including those nested in `<template>`, with the same CSS comment-aware scanner as standalone stylesheets and SVG `<style>` elements. This refuses embedded inline base64 source maps before the HTML is published. A separate conservative guard now refuses `data:` URLs on HTML `<link rel="stylesheet">` elements, including tokenized `alternate stylesheet` forms and entity-decoded or ASCII-control-obscured schemes: such links can embed a second CSS document with a nested `sourceMappingURL` and unmodified `sourcesContent`, beyond the normal standalone `.css` scan. The [public-HTML-only extractor and previous-compiler comparison](../sims/html-data-stylesheet-attack.js) and [intermediate report](../im-results/html-data-stylesheet-source-leak-2026-11-17.md) document the narrow refusal and its remaining gaps. This intentionally declines benign inline data stylesheets; use separately audited CSS assets for accepted builds. CSS assets and inline HTML/SVG `<style>` content now also refuse embedded `data:` stylesheet `@import` URLs (quoted and `url()` forms, including escaped CSS scheme spellings and WHATWG ASCII tab/newline URL normalization). Such imports can contain an entire second stylesheet plus an original-source map. Ordinary relative or remote imports remain unchanged. See the [paired source-only CSS extractor](../sims/css-nested-data-import-attack.js) and [bounded report](../im-results/css-data-import-disclosure-2026-11-17.md). The asset scanner now uses pinned `css-tree@3.2.1` to distinguish actual import at-rules from inert `@import` tokens inside CSS custom-property declaration values. The [historical red control and Chromium grammar result](../im-results/css-rule-context-compatibility-2026-11-18.md) confirm a bounded reduction in false refusals while preserving recognized data import denial. This is compile-time asset validation, not a runtime anti-debugging or tamper-resistance claim. A further [CSS URL normalization regression](../im-results/css-leading-c0-data-import-2026-11-18.md) shows that decoded import URLs with a CSS-escaped leading ASCII C0 control (for example U+0001) are normalized to `data:` by WHATWG URL parsing. The data-import guard now strips leading U+0000–U+0020 after removing embedded ASCII tab/newline characters and refuses these imports. An artifact-only prepatch extractor and a raw Chromium CSS import control independently confirm the bounded source-publication leak; interior controls that do not normalize to a data scheme remain accepted. The parser never rewrites HTML bytes. It strictly decodes HTML assets as UTF-8 and refuses malformed byte sequences and NUL code units, including UTF-16-like padding that could disguise executable markup from a UTF-8 parser. An HTML page containing inline JavaScript or inline JSON inside a `<script>` block is deliberately refused rather than silently modified, because original program text could escape as an asset. The preflight also handles HTML character references and nested template content.
 
 SVG assets have a separate XML-conformant, namespace-aware preflight using pinned `saxes@6.0.0`. It refuses SVG `<script>` elements, inline event handlers, executable URLs (including animation-driven URL changes and XHTML `meta` refresh redirects), `srcdoc` attributes within SVG/XHTML foreign content, DTD/entity declarations, malformed XML, and ambiguous byte encodings, while preserving verified safe SVG geometry and image references byte-for-byte. It refuses entire ambiguous SVG documents without changing them. The scanner checks each semicolon-delimited SVG animation `values` candidate separately, since one later animation state can carry an executable URL even when the first state is benign. The scanner also passes SVG `<style>` element character data and CDATA through the shared CSS source-map annotation check, refusing a sourceMappingURL comment containing an inline original-source map or a link to one. It concatenates parser text segments before scanning so XML character references or CDATA boundaries cannot split an annotation. A CSS source-map annotation embedded in an SVG can disclose source text when delivered as an unchanged asset. This is a conservative static preflight and does not establish whether a particular browser executes that animation under its deployment context. SVG XML `<?xml-stylesheet ...?>` processing instructions now refuse embedded `data:` stylesheet URLs as well, including numeric character references in pseudoattributes. Otherwise a stylesheet with embedded original-source `sourcesContent` can be shipped inside unmodified SVG bytes without appearing as an XML `<style>` element. Ordinary external stylesheet processing instructions remain accepted. The scanner does not inspect compressed `.svgz` archives or external SVG dependencies.
 

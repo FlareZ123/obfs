@@ -36,6 +36,22 @@ const cases=[
     'const Native=String;Native.fromCharCode=()=>"?";'],
   ['globalThis alias',
     'const Root=globalThis;Root.String=undefined;'],
+  ['browser document.defaultView intrinsic alias',
+    'globalThis.document={defaultView:globalThis};document.defaultView.String.fromCharCode=()=>"?";'],
+  ['browser globalThis.document.defaultView intrinsic alias',
+    'globalThis.document={defaultView:globalThis};globalThis.document.defaultView.String.fromCharCode=()=>"?";'],
+  ['browser window.document.defaultView intrinsic alias',
+    'globalThis.window=globalThis;globalThis.document={defaultView:globalThis};window.document.defaultView.String.fromCharCode=()=>"?";'],
+  ['browser document binding alias to defaultView',
+    'globalThis.document={defaultView:globalThis};const Doc=document;Doc.defaultView.String.fromCharCode=()=>"?";'],
+  ['browser global document member alias to defaultView',
+    'globalThis.document={defaultView:globalThis};const Doc=globalThis.document;Doc.defaultView.String.fromCharCode=()=>"?";'],
+  ['browser destructured defaultView binding',
+    'globalThis.document={defaultView:globalThis};const {defaultView:View}=document;View.String.fromCharCode=()=>"?";'],
+  ['browser assigned destructured defaultView binding',
+    'globalThis.document={defaultView:globalThis};let View;({defaultView:View}=document);View.String.fromCharCode=()=>"?";'],
+  ['browser assigned destructured document binding',
+    'globalThis.document={defaultView:globalThis};let Doc;({document:Doc}=globalThis);Doc.defaultView.String.fromCharCode=()=>"?";'],
   ['transitive global and String aliases',
     'const Root=globalThis;const Native=Root.String;Native.fromCharCode=()=>"?";'],
   ['destructured String alias',
@@ -50,6 +66,20 @@ const cases=[
     'const {prototype:P}=String;P.charCodeAt=()=>0;'],
   ['Object.getPrototypeOf string alias',
     'const P=Object.getPrototypeOf("");P.charCodeAt=()=>0;'],
+  ['aliased Object.getPrototypeOf string alias',
+    'const O=Object;const P=O.getPrototypeOf("");P.charCodeAt=()=>0;'],
+  ['local string primitive value alias',
+    'const text="";const P=Object.getPrototypeOf(text);P.charCodeAt=()=>0;'],
+  ['transitive string primitive value alias',
+    'const first="";const text=first;const P=Object.getPrototypeOf(text);P.charCodeAt=()=>0;'],
+  ['local String wrapper object alias',
+    'const text=new String("");const P=Reflect.getPrototypeOf(text);P.charCodeAt=()=>0;'],
+  ['aliased Reflect.getPrototypeOf string alias',
+    'const R=Reflect;const P=R.getPrototypeOf(new String(""));P.charCodeAt=()=>0;'],
+  ['global Object.getPrototypeOf string alias',
+    'const P=globalThis.Object.getPrototypeOf("");P.charCodeAt=()=>0;'],
+  ['global Reflect.getPrototypeOf string alias',
+    'const P=globalThis.Reflect.getPrototypeOf(new String(""));P.charCodeAt=()=>0;'],
   ['string literal __proto__ alias',
     'const P="".__proto__;P.charCodeAt=()=>0;'],
   ['string literal constructor alias',
@@ -87,12 +117,12 @@ for(const [title,side] of cases) {
         seed:'ambient-string-alias/'+title
       });
       const target=output.files.find(file=>file.path==='target.cjs');
-      assert.equal(target?.metrics.literals,0,
-        mode+' inserted a decoder after a potentially unsafe intrinsic mutation');
       const observed=await execute(output.files);
       assert.equal(observed.status,0,mode+': '+observed.stderr);
       assert.equal(observed.stdout,expected.stdout,
         mode+' changed the behavior of a valid preloaded CJS graph');
+      assert.equal(target?.metrics.literals,0,
+        mode+' inserted a decoder after a potentially unsafe intrinsic mutation');
     }
   });
 }
@@ -125,6 +155,21 @@ test('read-only String prototype alias keeps encoding enabled',()=>{
     seed:'ambient-string-alias/read-only-prototype'
   });
   assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
+});
+
+test('unrelated browser Document.defaultView numeric global write retains string encoding',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'globalThis.document={defaultView:globalThis};document.defaultView.Number=()=>7;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/unrelated-document-default-view'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
 });
 
 test('unrelated Number prototype mutation keeps String decoder enabled',()=>{
@@ -182,3 +227,60 @@ for(const [title,side] of [
     }
   });
 }
+
+test('local Number value alias does not disable unrelated String decoding',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const value=7;const alias=value;const P=Object.getPrototypeOf(alias);P.toString=()=>"unrelated";'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/aliased-unrelated-number'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+});
+
+test('read-only local String instance prototype alias preserves decoder coverage',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'const value=new String("");const P=Reflect.getPrototypeOf(value);const safe=P.charCodeAt;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/readonly-aliased-string-instance'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+});
+
+test('CJS imported Document alias cannot mutate decoder intrinsic before target',async()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'entry.cjs',sourceType:'commonjs',code:
+      'globalThis.document={defaultView:globalThis};'+
+      "require('./side.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'owner.cjs',sourceType:'commonjs',code:'module.exports=globalThis.document;'},
+    {path:'side.cjs',sourceType:'commonjs',code:
+      "const Doc=require('./owner.cjs');Doc.defaultView.String.fromCharCode=()=>'?';"},
+    {path:'target.cjs',sourceType:'commonjs',code:
+      "module.exports='protected-literal-value';"}
+  ];
+  const expected=await execute(input);
+  assert.equal(expected.status,0,expected.stderr);
+  assert.equal(expected.stdout,'protected-literal-value');
+  for(const mode of /** @type {const} */(['sno','coo'])){
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'ambient-string-alias/imported-document-'+mode
+    });
+    const observed=await execute(output.files);
+    assert.equal(observed.status,0,observed.stderr);
+    assert.equal(observed.stdout,expected.stdout);
+    assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,0);
+  }
+});

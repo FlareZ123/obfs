@@ -1,0 +1,29 @@
+name: Manual SCO worker whole-process CPU original-workload comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matched-process-cpu:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check strict main and external JSDoc
+        run: |
+          npm run typecheck
+          npm run typecheck:external
+      - name: Compare process CPU original versus generated synchronous, worker and ordinary equal-trust worker
+        run: node sims/sco-ratchet-worker-process-cpu.js

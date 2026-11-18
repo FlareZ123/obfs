@@ -3,7 +3,8 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -108,10 +109,11 @@ function collectVerifiedImportedStrings(files) {
 
 /**
  * Prove direct ESM imports whose originating module exports a unique,
- * immutable primitive literal or proven pure primitive-only expression.
+ * immutable primitive literal, or a strictly verified immutable primitive
+ * field returned by a direct imported reader in an acyclic closed ESM graph.
  * This carries only a boolean kind of proof: unlike
  * collectVerifiedImportedStrings, no value is propagated for key folding.
- * Reexports, opaque computed initializers and mutable exports are unproved.
+ * Reexports, opaque calls and mutable exports remain unproved.
  * @param {SourceFile[]} files
  * @returns {Map<string,Set<string>>}
  */
@@ -123,10 +125,15 @@ function collectVerifiedImportedPrimitives(files) {
     const ast=parse(file.code,'module');
     modules.set(file.path,{ast,bindings:collectBindings(ast)});
   }
+  // Only the caller's closed-world ESM path reaches this proof. A mixed
+  // group cannot establish complete provenance for an imported value.
+  /** @type {Map<string,Set<string>>} */
+  const derived=modules.size===files.length ?
+    proveDirectReaderPrimitives(modules,resolveImport) : new Map();
   /** @type {Map<string,Set<string>>} */
   const exported=new Map();
   for(const [filename,module] of modules) {
-    const ownPrimitives=new Set();
+    const ownPrimitives=new Set(derived.get(filename)||[]);
     for(const statement of module.ast.body) {
       const declaration=statement.type==='VariableDeclaration'?statement:
         statement.type==='ExportNamedDeclaration'&&!statement.source?
@@ -134,13 +141,14 @@ function collectVerifiedImportedPrimitives(files) {
       if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
       for(const entry of declaration.declarations) {
         const init=entry.init;
-        if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||!init)continue;
-        // Primitive expressions cannot carry a Function value into native
-        // string coercion in a consumer. Preserve the existing direct BigInt
-        // literal proof, but decline potentially throwing composed BigInt ops.
-        if(init.type==='Literal' && init.regex===undefined &&
-             (init.value===null||
-               ['string','number','boolean','bigint'].includes(typeof init.value)) ||
+        if(entry.id.type!=='Identifier'||module.bindings.get(entry.id.name)!==1||
+           !init)continue;
+        // The existing pure-expression grammar excludes function references,
+        // ambient reads and arbitrary user code. Its output is primitive.
+        // Preserve direct BigInt literals, but decline composed BigInt ops.
+        if((init.type==='Literal' && init.regex===undefined &&
+            (init.value===null||
+             ['string','number','boolean','bigint'].includes(typeof init.value))) ||
            isPrimitiveConstantExpression(init))ownPrimitives.add(entry.id.name);
       }
     }
@@ -579,6 +587,175 @@ function collectVerifiedImportedCloneAliases(files) {
 }
 
 /**
+ * Find exact named ESM imports of immutable native URL.parse/canParse aliases.
+ * These methods coerce arguments through Web IDL and can reveal a producer
+ * module's original Function#toString even when the consumer has no direct
+ * syntactic URL reference. Aliasing is monotone; false positives only reduce
+ * obfuscation eligibility.
+ *
+ * @param {SourceFile[]} files
+ * @returns {Map<string,Set<string>>}
+ */
+function collectVerifiedImportedUrlStaticAliases(files) {
+  /** @type {Map<string,{ast:AstNode,bindings:Map<string,number>}>} */
+  const modules=new Map();
+  for(const file of files) {
+    if(file.sourceType==='module'&&typeof file.code==='string') {
+      const ast=parse(file.code,'module');
+      modules.set(file.path,{ast,bindings:collectBindings(ast)});
+    }
+  }
+  /** @type {Map<string,Set<string>>} */
+  const exportedByFile=new Map();
+  for(const [filename,module] of modules) {
+    /** @type {Map<string,AstNode>} */
+    const candidates=new Map();
+    for(const statement of module.ast.body) {
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'&&!statement.source?
+          statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations) {
+        if(item.id.type==='Identifier'&&item.init&&
+           module.bindings.get(item.id.name)===1)candidates.set(item.id.name,item.init);
+      }
+    }
+    const urls=new Set(['URL']);
+    const urlModules=new Set();
+    // Node's named URL import and namespace/default exports refer to the
+    // same intrinsic class as globalThis.URL, per the Node URL API contract.
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         !['node:url','url'].includes(String(statement.source.value)))continue;
+      for(const spec of statement.specifiers) {
+        if(spec.type==='ImportSpecifier' &&
+           (spec.imported.name??spec.imported.value)==='URL')urls.add(spec.local.name);
+        if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+          urlModules.add(spec.local.name);
+      }
+    }
+    const methods=new Set();
+    /** @param {AstNode|null|undefined} node @returns {string|null} */
+    function property(node) {
+      if(!node||node.type!=='MemberExpression')return null;
+      return node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isUrl(node) {
+      return Boolean(node&&(node.type==='Identifier'&&urls.has(node.name) ||
+        node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+        (['globalThis','window','self','global'].includes(node.object.name)||
+         urlModules.has(node.object.name))&&property(node)==='URL'));
+    }
+    /** @param {AstNode|null|undefined} node @returns {boolean} */
+    function isNativeParser(node) {
+      if(!node)return false;
+      if(node.type==='Identifier')return methods.has(node.name);
+      if(node.type!=='MemberExpression')return false;
+      const name=property(node);
+      return isUrl(node.object)&&
+        (['parse','canParse'].includes(name??'')||node.computed&&name===null);
+    }
+    let progress;
+    do {
+      progress=false;
+      for(const [name,value] of candidates) {
+        if(!urls.has(name)&&isUrl(value)) {
+          urls.add(name);progress=true;
+        }
+        if(!methods.has(name)&&isNativeParser(value)) {
+          methods.add(name);progress=true;
+        }
+      }
+    }while(progress);
+    const exported=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type==='ExportDefaultDeclaration' &&
+         isNativeParser(statement.declaration))exported.add('default');
+      if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
+      if(statement.declaration?.type==='VariableDeclaration') {
+        for(const entry of statement.declaration.declarations) {
+          if(entry.id.type==='Identifier'&&methods.has(entry.id.name))
+            exported.add(entry.id.name);
+        }
+      } else if(!statement.declaration) {
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier'||spec.local.type!=='Identifier'||
+             !methods.has(spec.local.name))continue;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof publicName==='string')exported.add(publicName);
+        }
+      }
+    }
+    exportedByFile.set(filename,exported);
+  }
+  // ESM forwarding exports can hide native-parser provenance across multiple
+  // files. Compute a monotone fixed point over exact local named/star exports.
+  let forwarded;
+  do {
+    forwarded=false;
+    for(const [filename,module] of modules) {
+      const publicNames=/** @type {Set<string>} */ (exportedByFile.get(filename));
+      for(const statement of module.ast.body) {
+        if(!['ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)||
+           statement.source?.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\]/u.test(statement.source.value))continue;
+        const origin=resolveImport(filename,statement.source.value);
+        const candidates=origin?exportedByFile.get(origin):null;
+        if(!candidates)continue;
+        if(statement.type==='ExportAllDeclaration') {
+          if(statement.exported)continue;
+          for(const name of candidates) {
+            if(name==='default'||publicNames.has(name))continue;
+            publicNames.add(name);forwarded=true;
+          }
+        } else {
+          for(const spec of statement.specifiers) {
+            if(spec.type!=='ExportSpecifier')continue;
+            const sourceName=spec.local.name??spec.local.value;
+            const publicName=spec.exported.name??spec.exported.value;
+            if(typeof sourceName!=='string'||typeof publicName!=='string'||
+               !candidates.has(sourceName)||publicNames.has(publicName))continue;
+            publicNames.add(publicName);forwarded=true;
+          }
+        }
+      }
+    }
+  }while(forwarded);
+  /** @type {Map<string,Set<string>>} */
+  const imported=new Map();
+  for(const [filename,module] of modules) {
+    const aliases=new Set();
+    for(const statement of module.ast.body) {
+      if(statement.type!=='ImportDeclaration'||statement.source.type!=='Literal'||
+         typeof statement.source.value!=='string'||
+         /[?#%\\]/u.test(statement.source.value))continue;
+      const origin=resolveImport(filename,statement.source.value);
+      const exported=origin?exportedByFile.get(origin):null;
+      if(!exported)continue;
+      for(const spec of statement.specifiers) {
+        if(module.bindings.get(spec.local.name)!==1)continue;
+        if(spec.type==='ImportNamespaceSpecifier') {
+          // Dotted keys are internal proof tokens for owned namespace methods;
+          // each is installed into the AST method-record map before scanning.
+          for(const publicName of exported)
+            aliases.add(spec.local.name+'.'+publicName);
+          continue;
+        }
+        const publicName=spec.type==='ImportSpecifier'?
+          spec.imported.name??spec.imported.value:
+          spec.type==='ImportDefaultSpecifier'?'default':null;
+        if(publicName!==null&&exported.has(publicName))aliases.add(spec.local.name);
+      }
+    }
+    imported.set(filename,aliases);
+  }
+  return imported;
+}
+
+/**
  * Require an acyclic static ESM graph before replacing a read of an imported
  * key from a different module with a literal. In a cycle, a reentrant importer
  * function can run before a sibling key module initializes, and the original
@@ -713,6 +890,33 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     // considered a complete effect proof.
     /** @type {Map<string,AstNode[][]>} */
     const localCallFormals=new Map();
+    // A source-visible rest array or the ordinary function arguments object
+    // can forward ambient capabilities through indexed access, which is not
+    // covered by the named-formal provenance transfer below.
+    /** @type {Set<string>} */
+    const implicitArgumentReaders=new Set();
+    walk(source.ast,node=>{
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|null} */
+      let body=null;
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+        name=node.id.name;
+        body=node.body;
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         (node.init?.type==='FunctionExpression'||
+          node.init?.type==='ArrowFunctionExpression')) {
+        name=node.id.name;
+        body=node.init.body;
+      }
+      if(name===null||body===null)return;
+      let usesArguments=false;
+      walk(body,inner=>{
+        if(inner.type==='Identifier'&&inner.name==='arguments')usesArguments=true;
+      });
+      if(usesArguments)implicitArgumentReaders.add(name);
+    });
     /** @param {string} name @param {AstNode[]} params */
     function recordFormals(name,params) {
       const definitions=localCallFormals.get(name)??[];
@@ -783,6 +987,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     do {
       callableChanged=false;
       for(const [alias,origin] of aliasEdges) {
+        if(implicitArgumentReaders.has(origin)&&!implicitArgumentReaders.has(alias)){
+          implicitArgumentReaders.add(alias);
+          callableChanged=true;
+        }
         const originFormals=localCallFormals.get(origin);
         if(!originFormals)continue;
         const aliasFormals=localCallFormals.get(alias)??[];
@@ -799,6 +1007,11 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
       for(const site of boundCallables) {
+        if(implicitArgumentReaders.has(site.origin)&&
+           !implicitArgumentReaders.has(site.name)) {
+          implicitArgumentReaders.add(site.name);
+          callableChanged=true;
+        }
         const original=localCallFormals.get(site.origin);
         if(!original)continue;
         const target=localCallFormals.get(site.name)??[];
@@ -818,6 +1031,8 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /** @type {(AstNode|null)[][]} */
+    const unresolvedArgumentVectors=[];
     /**
      * Native invocation adapters can call a locally known function without
      * spelling that function as the direct CallExpression callee. Join their
@@ -868,6 +1083,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       const invocation=localInvocation(node);
       if(!invocation)return;
       const definitions=localCallFormals.get(invocation.name)??[];
+      if(definitions.some(params=>params.some(formal=>formal.type==='RestElement'))||
+         implicitArgumentReaders.has(invocation.name)) {
+        unresolvedArgumentVectors.push(invocation.args);
+      }
       if(definitions.length && invocation.args.some(
         argument=>argument?.type==='SpreadElement'))changedIntrinsic=true;
       for(const params of definitions) {
@@ -939,6 +1158,68 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
+    /**
+     * A literal-only zero-argument function in a unique top-level const
+     * binding returns a primitive without reading any ambient host state.
+     * Preserve this narrow, useful case through the rest/arguments guard.
+     *
+     * The source-order check and top-level callsite restriction keep a call
+     * from being admitted before its lexical const has initialized (TDZ).
+     * @param {AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function provenPrimitive(node) {
+      return Boolean(node&&isLiteralValue(node)&&
+        node.type!=='ArrayExpression'&&node.type!=='ObjectExpression'&&
+        (node.type!=='Literal'||node.value===null||
+         ['number','string','boolean','bigint'].includes(typeof node.value)));
+    }
+    /** @type {Map<string,number>} */
+    const primitiveFactories=new Map();
+    for(const statement of source.ast.body) {
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const entry of statement.declarations) {
+        if(entry.id.type!=='Identifier'||source.bindings.get(entry.id.name)!==1||
+           !entry.init||!['ArrowFunctionExpression','FunctionExpression'].includes(entry.init.type)||
+           entry.init.async||entry.init.generator||entry.init.params.length!==0)continue;
+        const body=entry.init.body;
+        const returned=body.type==='BlockStatement'?
+          body.body.length===1&&body.body[0].type==='ReturnStatement'?
+            body.body[0].argument:null:body;
+        if(provenPrimitive(returned))primitiveFactories.set(entry.id.name,statement.end);
+      }
+    }
+    /** @type {WeakSet<AstNode>} */
+    const topLevelActuals=new WeakSet();
+    for(const statement of source.ast.body) {
+      if(statement.type!=='ExpressionStatement')continue;
+      const expression=statement.expression.type==='UnaryExpression'&&
+        statement.expression.operator==='void'?statement.expression.argument:
+        statement.expression;
+      if(expression.type!=='CallExpression')continue;
+      const invocation=localInvocation(expression);
+      if(!invocation)continue;
+      for(const actual of invocation.args)if(actual)topLevelActuals.add(actual);
+    }
+    /**
+     * @param {AstNode|null} actual
+     * @returns {boolean}
+     */
+    function provenPureActual(actual) {
+      if(!actual)return false;
+      if(provenPrimitive(actual))return true;
+      if(actual.type!=='CallExpression'||actual.optional||
+         actual.arguments.length!==0||actual.callee.type!=='Identifier'||
+         !topLevelActuals.has(actual))return false;
+      const initializedAt=primitiveFactories.get(actual.callee.name);
+      return initializedAt!==undefined&&initializedAt<actual.start;
+    }
+    // A rest/arguments vector can receive an ambient root through an opaque
+    // factory, getter or mutable alias. Any unproved actual is declined.
+    for(const actuals of unresolvedArgumentVectors) {
+      if(actuals.some(actual=>!provenPureActual(actual)))
+        changedIntrinsic=true;
+    }
     /**
      * Recognize a source of an opaque host callable, including a descriptor
      * value and a Reflect.get result. Decline only if it is later called.
@@ -1015,6 +1296,185 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         return captured;
       }
       return false;
+    }
+    /**
+     * Source-visible function returns are a capability transfer edge. Only
+     * decline the private-record proof when a returned host capability is
+     * subsequently invoked or forwarded to a call in the declared graph.
+     * This keeps benign primitive-return helpers transformable. The name
+     * analysis is deliberately conservative, and is not complete module
+     * scope resolution or a proof about unlisted dynamic imports.
+     *
+     * @param {AstNode} expression
+     * @returns {boolean}
+     */
+    function containsHostCapability(expression) {
+      let exposed=false;
+      walk(expression,child=>{
+        if(readsHostCallable(child) ||
+           child.type==='Identifier' &&
+           (hostCallAliases.has(child.name)||hostContainers.has(child.name))) {
+          exposed=true;
+        }
+      });
+      return exposed;
+    }
+    /** @type {Map<string,AstNode[]>} */
+    const factoryReturnExpressions=new Map();
+    walk(source.ast,node=>{
+      /** @type {string|null} */
+      let name=null;
+      /** @type {AstNode|null} */
+      let body=null;
+      if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier'){
+        name=node.id.name;
+        body=node.body;
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+         (node.init?.type==='FunctionExpression' ||
+          node.init?.type==='ArrowFunctionExpression')) {
+        name=node.id.name;
+        body=node.init.body;
+      }
+      if(name===null||body===null)return;
+      const expressions=factoryReturnExpressions.get(name)??[];
+      if(body.type==='BlockStatement') {
+        walk(body,inner=>{
+          if(inner.type==='ReturnStatement' && inner.argument)
+            expressions.push(inner.argument);
+        });
+      }else expressions.push(body);
+      factoryReturnExpressions.set(name,expressions);
+    });
+    // A host-bearing factory may be forwarded through a second local return
+    // without spelling the ambient property at that wrapper's callsite.
+    // Names join conservatively across the supplied source, to a fixed point.
+    /** @type {Set<string>} */
+    const returnedHostFactories=new Set();
+    let returnChanged;
+    do {
+      returnChanged=false;
+      for(const [name,expressions] of factoryReturnExpressions) {
+        if(returnedHostFactories.has(name))continue;
+        const exposed=expressions.some(expression=>{
+          if(containsHostCapability(expression))return true;
+          let forwarded=false;
+          walk(expression,node=>{
+            if(node.type==='CallExpression' &&
+               node.callee.type==='Identifier' &&
+               returnedHostFactories.has(node.callee.name))forwarded=true;
+          });
+          return forwarded;
+        });
+        if(exposed){
+          returnedHostFactories.add(name);
+          returnChanged=true;
+        }
+      }
+    }while(returnChanged);
+    /**
+     * A call-result alias can be used directly as a constructor or callable,
+     * via its member, or as an opaque callback argument. A named import of
+     * the factory is recognized across declared ESM module boundaries.
+     * @param {string} factory
+     * @returns {boolean}
+     */
+    function invokesFactoryResult(factory) {
+      for(const caller of modules.values()) {
+        const callableNames=new Set([factory]);
+        /** @type {Set<string>} */
+        const namespaceNames=new Set();
+        walk(caller.ast,node=>{
+          if(node.type==='ImportSpecifier' &&
+             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.local.type==='Identifier')callableNames.add(node.local.name);
+          if(node.type==='ImportNamespaceSpecifier' &&
+             node.local.type==='Identifier')namespaceNames.add(node.local.name);
+        });
+        let aliasChanged;
+        do {
+          aliasChanged=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+               callableNames.has(value.name) && !callableNames.has(binding.name)) {
+              callableNames.add(binding.name);
+              aliasChanged=true;
+            }
+          });
+        }while(aliasChanged);
+        /** @param {AstNode|null|undefined} expression @returns {boolean} */
+        function isFactoryCall(expression) {
+          let candidate=expression;
+          while(candidate?.type==='AwaitExpression')candidate=candidate.argument;
+          if(candidate?.type!=='CallExpression')return false;
+          const callee=candidate.callee;
+          if(callee.type==='Identifier')return callableNames.has(callee.name);
+          if(callee.type!=='MemberExpression' ||
+             callee.object.type!=='Identifier' ||
+             !namespaceNames.has(callee.object.name))return false;
+          const selected=callee.computed?staticString(callee.property):
+            staticName(callee.property);
+          return selected===factory;
+        }
+        /** @type {Set<string>} */
+        const returnedNames=new Set();
+        let advanced;
+        do {
+          advanced=false;
+          walk(caller.ast,node=>{
+            const binding=node.type==='VariableDeclarator'?node.id:
+              node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+            const value=node.type==='VariableDeclarator'?node.init:
+              node.type==='AssignmentExpression'?node.right:null;
+            if(!binding||!value)return;
+            const fromFactory=isFactoryCall(value) ||
+              value.type==='MemberExpression' && isFactoryCall(value.object);
+            const fromReturn=value.type==='Identifier' && returnedNames.has(value.name) ||
+              value.type==='MemberExpression' &&
+              value.object.type==='Identifier' &&
+              returnedNames.has(value.object.name);
+            if(binding.type==='Identifier' && (fromFactory||fromReturn) &&
+               !returnedNames.has(binding.name)) {
+              returnedNames.add(binding.name);
+              advanced=true;
+            }
+            if(binding.type==='ObjectPattern' && (fromFactory||fromReturn)){
+              for(const property of binding.properties){
+                if(property.type==='Property' &&
+                   property.value.type==='Identifier' &&
+                   !returnedNames.has(property.value.name)) {
+                  returnedNames.add(property.value.name);
+                  advanced=true;
+                }
+              }
+            }
+          });
+        }while(advanced);
+        let invoked=false;
+        walk(caller.ast,node=>{
+          if(node.type!=='CallExpression'&&node.type!=='NewExpression')return;
+          if(node.callee.type==='Identifier' &&
+             returnedNames.has(node.callee.name) ||
+             node.callee.type==='MemberExpression' &&
+             (node.callee.object.type==='Identifier' &&
+              returnedNames.has(node.callee.object.name) ||
+              isFactoryCall(node.callee.object)) ||
+             isFactoryCall(node.callee) ||
+             node.arguments.some((/** @type {AstNode} */ argument)=>
+               argument?.type==='Identifier' && returnedNames.has(argument.name))) {
+            invoked=true;
+          }
+        });
+        if(invoked)return true;
+      }
+      return false;
+    }
+    for(const factory of returnedHostFactories) {
+      if(invokesFactoryResult(factory))changedIntrinsic=true;
     }
     walk(source.ast,(node,parent)=>{
       // Proxy descriptor traps may call opaque host accessors without spelling
@@ -1371,6 +1831,8 @@ function renameCrossFileProperties(files,seed) {
   const knownFiles=new Set(files.map(file=>file.path));
   const verifiedStrings=collectVerifiedImportedStrings(files);
   const verifiedClones=collectVerifiedImportedCloneAliases(files);
+  const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
+  const verifiedPrimitives=collectVerifiedImportedPrimitives(files);
   const acyclicImports=hasAcyclicStaticImports(modules);
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
@@ -1390,7 +1852,8 @@ function renameCrossFileProperties(files,seed) {
     // imports the object whose field is being renamed. Check the whole graph,
     // rather than relying on object-alias consumers alone.
     if(observesFunctionSource(module.ast,verifiedStrings.get(module.file.path),
-       verifiedClones.get(module.file.path)) ||
+       verifiedClones.get(module.file.path),new Set(),
+       verifiedPrimitives.get(module.file.path),verifiedUrlStatics.get(module.file.path)) ||
        observesDistributedSource(module.ast,verifiedStrings.get(module.file.path)))return {files,objects:0,properties:0};
     // An unknown key on a global object may resolve to Function, Worker,
     // importScripts or another untracked module loader. Track direct global
@@ -1845,7 +2308,7 @@ function renameCrossFileProperties(files,seed) {
             // were initialized before the owner and match its own fields.
             const proof=proveLocalObject(importer.ast,alias,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
-              verifiedStrings.get(importerName));
+              verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size)readerProof=proof;
@@ -1876,7 +2339,8 @@ function renameCrossFileProperties(files,seed) {
         const ownNames=new Set(names);
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))))) continue;
+          user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
@@ -1913,6 +2377,9 @@ function renameCrossFileProperties(files,seed) {
           for (const edit of patternPropertyEdits(user.source,user.proof.patterns,mapping)) {
             add(user.file,edit);
           }
+          for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
+            add(user.file,edit);
+          }
         }
         objects++;
         properties+=mapping.size;
@@ -1927,4 +2394,4 @@ function renameCrossFileProperties(files,seed) {
   }),objects,properties};
 }
 
-module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays};
+module.exports={renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays};

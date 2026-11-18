@@ -21,6 +21,12 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Own-key proof and independent adverse COO SNO ESM tests
+        run: node --test test/property-in-operator.test.js test/property-in-adversarial.test.js
+      - name: Native owned-key runtime profile
+        run: node sims/property-in-operator-profile.js
+      - name: Public-only key reconstruction against published output
+        run: node sims/property-in-operator-static-recover.js
       - name: Native and attacker differential tests
         run: node --test test/symbol-keys.test.js test/symbol-key-static-recovery.test.js
       - name: Measure steady-state hot-key performance
@@ -32,6 +38,14 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/symbol-keys-browser.js
+      - name: Real Chromium own-key membership with external page API
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/property-in-browser.js
+      - name: Strict external JSDoc typecheck
+        if: ${{ always() }}
+        run: npm run typecheck:external
       - name: Strict JSDoc typecheck
         if: ${{ always() }}
         run: npm run typecheck

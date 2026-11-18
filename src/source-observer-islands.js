@@ -74,6 +74,77 @@ function purePrimitiveLeafExports(ast) {
 }
 
 /**
+ * An exported snapshot whose values are either static primitives or reads
+ * from exactly proven primitive-returning imported leaves. This permits
+ * browser entry modules to expose a one-time result object without exposing
+ * a callable through which an unknown host can inject a source reader.
+ * Importing functions that return objects, or exporting function-valued
+ * fields, retains the conservative refusal.
+ *
+ * @param {AstNode} ast
+ * @param {string} filename
+ * @param {Map<string,{ast:AstNode,bindings:Map<string,number>}>} modules
+ * @param {Set<string>} known
+ * @returns {boolean}
+ */
+function purePrimitiveSnapshotExports(ast,filename,modules,known){
+  /** @type {Set<string>} */
+  const importedPrimitives=new Set();
+  for(const statement of ast.body){
+    if(statement.type!=='ImportDeclaration')continue;
+    const origin=typeof statement.source.value==='string' ?
+      resolveKnownImport(filename,statement.source.value,known):null;
+    const imported=origin?modules.get(origin):null;
+    const leaves=imported?purePrimitiveLeafExports(imported.ast):null;
+    if(!leaves)return false;
+    for(const spec of statement.specifiers){
+      const name=spec.type==='ImportSpecifier'?
+        (spec.imported.name??spec.imported.value):null;
+      if(typeof name!=='string'||!leaves.has(name)||
+         spec.local.type!=='Identifier'||
+         modules.get(filename)?.bindings.get(spec.local.name)!==1)return false;
+      importedPrimitives.add(spec.local.name);
+    }
+  }
+  let snapshots=0;
+  for(const statement of ast.body){
+    if(statement.type==='ImportDeclaration')continue;
+    if(statement.type!=='ExportNamedDeclaration'||statement.source||
+       statement.specifiers?.length||statement.declaration?.type!=='VariableDeclaration'||
+       statement.declaration.kind!=='const')return false;
+    for(const declaration of statement.declaration.declarations){
+      if(declaration.id.type!=='Identifier'||
+         declaration.init?.type!=='ObjectExpression'||
+         !declaration.init.properties.length)return false;
+      const keys=new Set();
+      for(const property of declaration.init.properties){
+        const key=property.type==='Property' && !property.computed &&
+          !property.method && !property.shorthand && property.kind==='init' ?
+          staticName(property.key):null;
+        if(key===null||keys.has(key)||['__proto__','constructor','prototype'].includes(key))
+          return false;
+        keys.add(key);
+        const value=property.value;
+        if(value.type==='Literal'&&!value.regex &&
+           (value.value===null||
+            ['string','number','boolean','bigint'].includes(typeof value.value)))continue;
+        if(value.type!=='CallExpression'||value.optional||value.arguments.length)return false;
+        if(value.callee.type==='Identifier' &&
+           importedPrimitives.has(value.callee.name))continue;
+        if(value.callee.type==='MemberExpression'&&!value.callee.computed &&
+           !value.callee.optional&&value.callee.object.type==='Identifier'&&
+           importedPrimitives.has(value.callee.object.name) &&
+           value.callee.property.type==='Identifier' &&
+           value.callee.property.name==='toString')continue;
+        return false;
+      }
+      snapshots++;
+    }
+  }
+  return snapshots>0;
+}
+
+/**
  * Exact, declared relative ESM imports only. Refuse URL/query aliases,
  * external packages, reexports, and any unlisted dependency.
  * @param {string} origin
@@ -135,14 +206,36 @@ function proveSourceObserverIslands(files,selections) {
     'setTimeout','setInterval',
     'GeneratorFunction','AsyncGeneratorFunction','Worker','SharedWorker',
     'importScripts','fetch','XMLHttpRequest','FileReader','Request','Response',
+    // CacheStorage exposes fetched module bytes without an explicit fetch().
+    // Cache.add() performs a request, then Cache.match().text() reveals it.
+    'caches','CacheStorage',
+    // A same-origin host iframe may expose selected .mjs source text to a
+    // declared module through the ambient Window.frames collection.
+    'frames',
     'URL','Blob','WebSocket','readFile','readFileSync','createRequire',
     'getBuiltinModule'
   ]);
   const forbiddenMembers=new Set([
     'constructor','__proto__','require','createRequire','getBuiltinModule',
-    'readFile','readFileSync','fetch','importScripts'
+    'readFile','readFileSync','fetch','importScripts',
+    // An externally supplied HTMLIFrameElement can expose hosted source even
+    // when this ESM graph never spells a Window or Document global.
+    'contentDocument','contentWindow'
   ]);
+  const selectionSet=new Set(selections);
   for(const [filename,module] of modules) {
+    // An unselected module is retained byte-for-byte, but exporting an
+    // arbitrary callable lets an embedding host supply a callback that reads
+    // the selected module's on-disk or served source. That callback is outside
+    // this declared ESM graph and cannot be recognized by a source-reader
+    // identifier blacklist. Only the inert primitive-returning envelope
+    // already accepted for selected leaves is admitted for other exports.
+    if(!selectionSet.has(filename) &&
+       module.ast.body.some((/** @type {AstNode} */ statement)=>statement.type.startsWith('Export')) &&
+       !purePrimitiveLeafExports(module.ast) &&
+       !purePrimitiveSnapshotExports(module.ast,filename,modules,known)) {
+      throw new TypeError('Source observer islands refuse unreviewed host-callable exports');
+    }
     for(const statement of module.ast.body) {
       if(statement.type==='ExportAllDeclaration' ||
          statement.type==='ExportNamedDeclaration' && statement.source) {

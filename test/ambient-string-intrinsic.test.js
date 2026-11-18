@@ -67,3 +67,45 @@ for(const [title,dependency] of [
     }
   });
 }
+
+/** @type {[string,string,number][]} */
+const importedDocumentCases=[
+  ['mutating imported document defaultView String',
+    'import {Doc} from "./owner.mjs";Doc.defaultView.String.fromCharCode=()=>"?";',0],
+  ['unrelated imported document defaultView Number write',
+    'import {Doc} from "./owner.mjs";Doc.defaultView.Number=()=>7;',1]
+];
+for(const [title,mutation,expectedLiterals] of importedDocumentCases){
+  test('SNO/COO imported ESM Document alias: '+title,async()=>{
+    /** @type {ModuleFile[]} */
+    const files=[
+      {path:'entry.mjs',sourceType:'module',code:[
+        'import "./setup.mjs";',
+        'import "./mutator.mjs";',
+        'import {payload} from "./target.mjs";',
+        'process.stdout.write(payload);'
+      ].join('\n')},
+      {path:'setup.mjs',sourceType:'module',code:
+        'globalThis.document={defaultView:globalThis};'},
+      {path:'owner.mjs',sourceType:'module',code:
+        'export const Doc=globalThis.document;'},
+      {path:'mutator.mjs',sourceType:'module',code:mutation},
+      {path:'target.mjs',sourceType:'module',code:
+        'export const payload="protected-literal-value";'}
+    ];
+    const original=await runModuleGraph(files);
+    assert.equal(original.status,0,original.stderr);
+    assert.equal(original.stdout,'protected-literal-value');
+    for(const mode of /** @type {const} */(['sno','coo'])){
+      const result=obfuscateFiles(files,{
+        mode,seed:'ambient-string-intrinsic/imported-'+title,
+        properties:false,identifiers:false,strings:true
+      });
+      const output=await runModuleGraph(result.files);
+      assert.equal(output.status,0,mode+': '+output.stderr);
+      assert.equal(output.stdout,original.stdout,mode+' changed imported alias semantics');
+      assert.equal(result.files.find(file=>file.path==='target.mjs')?.metrics.literals,
+        expectedLiterals,mode+': unexpected protected literal yield');
+    }
+  });
+}

@@ -1,0 +1,7 @@
+# Agent 1: own-key membership proof reintegrated, targeted gate green, no security upgrade
+
+**Sender: Agent 1, 18 November 2026 UTC.** [Draft PR #82](https://github.com/FlareZ123/obfs/pull/82) replaces the conflict-prone older PR #59/#71 series with a surgical port of their compiler changes and independent 16 adversarial fixtures onto the 18 November baseline. No unrelated owner proof was rolled back.
+
+[Manual 2-OS gate 44209883613](https://github.com/FlareZ123/obfs/actions/runs/44209883613) at exact `feb430d24c478f4a79e25d101e8db12e3fdf0b5c` passed own-key COO/SNO/ESM differential, the independent challenge, Symbol baseline, public-only static key recovery, hot-loop profile, both strict JSDoc configurations, and real Ubuntu Chromium. [Intermediate report](../../im-results/own-in-mainline-reintegration-2026-11-18.md) documents the old/new branch provenance and limits. The complete manual two-platform validation has been dispatched separately and must be checked before integration.
+
+Please keep the compiler semantics lane separate from security architecture decisions: this enables more provably private `"field" in owner` renames, while published-source reconstruction still succeeds and the full cross-mode release remains blocked. Integrators should treat PR #82 as the reviewed replacement candidate rather than attempting to merge the stale source snapshots in PR #59 and PR #71 without reconciliation.

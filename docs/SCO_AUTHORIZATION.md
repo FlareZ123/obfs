@@ -4,7 +4,7 @@ The programmatic `createScoHandler(sourceFiles, options)` API supports three aut
 
 - `authorizeRead(request)`: optional sync or async callback evaluated before every valid GET of an obfuscated JavaScript file **or** static asset under `routePrefix`. Only the literal boolean `true` authorizes the read; all other results return HTTP 403 with an empty body; an exception returns HTTP 500 without exposing the internal error. Missing files still return 404 before the callback.
 - `authorizeRpc(request)`: required when using `remoteMethods`. It authorizes JSON POST calls to the server-resident operation registry. The result must be the literal boolean `true` to allow a call, including when resolved asynchronously. It is independent of `authorizeRead`; applications must enforce the intended policy for both.
-- `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Only the literal boolean `true` authorizes the operation; all other results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. It does not replace the required coarse `authorizeRpc` gate.
+- `authorizeOperation(request,method,args)`: optional sync/async request-aware, **method-and-arguments** policy. Evaluated after validating the request JSON and registered method, before running that operation. Only the literal boolean `true` authorizes the operation; all other results return HTTP 403; thrown errors are collapsed to HTTP 500 without revealing private exception information. The callback receives an independent parse of the bounded JSON arguments, so edits to its input cannot redirect execution of the already submitted values. It does not replace the required coarse `authorizeRpc` gate.
 
 **Boolean authorization contract:** Each configured callback must return the literal boolean `true` to grant its respective permission; `authorizeRpc` is mandatory for RPC, whereas the read and operation callbacks are optional. A truthy object (such as a verified session record), string, number or Boolean wrapper is refused even when it evaluates truthy in JavaScript; `false`, `null` and `undefined` are also refused. If your verifier returns a principal object, explicitly use `return Boolean(await verifyUserSession(request));` after independently validating that identity. This is a deliberate behavior change from the previous truthiness-based gate and may require integrator migration. Denied requests return 403; callback exceptions retain their generic 500 handling. This enforcement protects against accidental return-type confusion, not a compromised trusted SCO server or an authorization callback that intentionally returns `true` for an attacker.
 
@@ -33,6 +33,52 @@ A bounded body-size check runs before UTF-8 validation. This extra validation
 scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
 `test/sco-malformed-utf8-rpc.test.js`.
+
+## JSON protocol envelope serialization
+
+The response serializer constructs a null-prototype copy of its **own**
+`{ok,...}` protocol envelope before calling `JSON.stringify`. An unrelated
+trusted Node dependency can add `Object.prototype.toJSON`, which native
+`JSON.stringify` otherwise invokes on every ordinary response object.
+That inherited callback must not replace the handler's success, denial or
+malformed-request envelope. The protected method's `value` is still
+serialized using ordinary JavaScript `JSON.stringify` behavior, including
+any explicit or inherited `toJSON` on nested application values. Thus this
+guard preserves the handler-owned wire envelope without imposing a new
+application-value serialization contract.
+
+The real HTTP regression
+[`test/sco-response-envelope-prototype.test.js`](../test/sco-response-envelope-prototype.test.js)
+checks the exact response bytes under a temporary inherited `toJSON`
+hook for a successful primitive-valued operation and generic denial cases.
+This protects against accidental ambient prototype interference inside the
+trusted server. It does not defend against an attacker able to monkeypatch
+the server's `JSON.stringify`, compromise the Node runtime, or obtain
+private results through legitimate authorized requests. The per-response
+wrapper copy has not been independently profiled for a universal 2.5×
+compute guarantee.
+
+## Explicit own JSON operation keys
+
+SCO RPC requires `method` and `args` to be **own properties** of the
+received JSON object, in addition to requiring a registered method string
+and an arguments array. Recognized `createScoBatchMethod` member calls and
+the synchronous `preflightScoBatchState` helper similarly require own
+`method` and `args` keys. A JSON object inherits properties from
+`Object.prototype`; an unrelated trusted server dependency that adds
+`Object.prototype.method` or `Object.prototype.args` must not silently
+supply missing request fields or authorize a batch operation. Explicit JSON
+members remain supported, including unrelated own `__proto__` data keys.
+
+The real-HTTP and state-model regression
+[`test/sco-owned-json-shape.test.js`](../test/sco-owned-json-shape.test.js)
+uses controlled server-side prototype pollution and restores its original
+descriptors. The admission policy refuses omitted keys without invoking
+private operations. This is a bounded wire-format correctness hardening
+under an otherwise trusted SCO process; it provides no new protection
+against attackers who compromise the server runtime and can patch
+the dispatcher. The additional own-key checks have not been separately
+characterized against the complete 2.5× compute budget.
 
 ## Authorization timing under paced request bodies
 
@@ -96,6 +142,16 @@ The original vs mutated configuration behavior is exercised through
 real HTTP requests by
 [`test/sco-policy-configuration-snapshot.test.js`](../test/sco-policy-configuration-snapshot.test.js).
 
+Accessor-backed startup configurations now retain their **first values**
+for the method registry, authorization callbacks, request-body byte cap,
+Host-header routing list and closed-world compiler selector. The Host list
+is copied by indexed access, independent of a caller-owned iterator.
+A callback's own closure may still observe live credential state.
+This prevents construction-time validation against a restrictive getter
+followed by deployment of a later, permissive getter value. Six actual HTTP
+and compiler regressions live in
+[`test/sco-request-policy-initial-snapshot.test.js`](../test/sco-request-policy-initial-snapshot.test.js).
+
 ## Explicit public source-file allowlist
 
 For source-private SCO integrations, pass `publicPaths:['entry.mjs','assets/app.css']`
@@ -132,6 +188,14 @@ asset size; behavior is covered by
 legacy behavior. A real HTTP demonstration of the default accidental
 publication and positive-allowlist refusal is in
 [`test/sco-public-file-allowlist.test.js`](../test/sco-public-file-allowlist.test.js).
+
+An accessor-backed `publicPaths` property is read once and its array
+entries are copied by indexed access before the reviewed-file comparison.
+Custom iterators and subsequent getter values cannot widen that first
+publication decision. The four-case test is
+[`test/sco-public-allowlist-snapshot.test.js`](../test/sco-public-allowlist-snapshot.test.js).
+These checks assume a trusted server integrator; intentionally publishing
+private files outside the handler remains possible.
 
 Example (CommonJS):
 
@@ -283,26 +347,32 @@ const results=await remote.batch([
 The examples use application-supplied placeholder functions. The same outer `authorizeRpc` check protects the entire batch. For a batch created by `createScoBatchMethod`, an installed `authorizeOperation` callback runs for the outer batch and **each inner call of an executable, completely validated batch**, before any batch side effects. The helper first checks the batch count against `maxCalls`, the registration of every method, and each arguments array. An invalid or oversized batch skips all inner authorization callbacks and still fails with the helper's generic HTTP 500 before executing any private operation. This avoids issuing unnecessary per-item policy or database checks for work that cannot execute. It intentionally changes the HTTP result for batches that an earlier inner callback would have rejected as HTTP 403; no invalid batch becomes executable. The callback must permit both the batch method and every authorized inner method. Denying a later call blocks execution of the entire batch. An inner policy exception returns a generic HTTP 500 without exposing the exception. Invalid batch structures are still rejected by the batch helper. A batch helper may not be registered inside another batch helper even under a different operation name; this rejects nested recognized helpers whose deeper operations would otherwise bypass the single-level policy preflight. Custom wrappers around batch functions remain outside automatic recognition and must implement their own authorization preflight. Custom batch functions that do not originate from `createScoBatchMethod` have no automatic inner inspection; implement their own preflight authorization. `maxRpcBytes` still bounds request body size. If an operation performs side effects and later calls fail, earlier completed operations remain committed; batching is sequential and is **not transactional**. The helper rejects malformed batches before execution. Avoid registering unrestricted methods that an authenticated user should not invoke. Benchmark both latency and resource consumption under your deployment's real network and concurrency.
 
 
-A recognized batch is now executed from a private snapshot of the parsed
-JSON argument graph, taken before the outer `authorizeOperation` callback.
-The inner authorization callback receives a separate copy of each checked
-call's arguments. The handler now reparses the already validated,
-size-bounded raw JSON request into independent graphs for the inner policy
-and for final execution. This uses the native parser to retain the original
-JSON semantics, including deeply nested values, negative zero and own
-`__proto__` data keys. No extra parse is done for unrecognized methods
-or when no argument-aware authorization callback is installed. A policy callback that edits the outer batch, changes a
-previously approved method name, or overwrites a previously checked argument
-cannot redirect the batch toward an unapproved operation. The execution
-snapshot preserves the JSON-parsed values originally submitted by the client.
-This safeguards accidental policy mutation, while leaving the authorization
-callback responsible for checking the entire submitted operation and applying
-correct identity and state rules. The snapshot does not make permission checks
-atomic with asynchronous external state, does not prevent a legitimate method
-from changing state mid-batch, and does not cancel work already started. The
-copy costs allocation and CPU proportional to the bounded RPC request graph;
-benchmark the whole authenticated call for the application's 2.5× budget.
-See `test/sco-batch-policy-mutation.test.js` for real-HTTP mutation controls.
+The handler executes the original bounded, validated JSON argument graph.
+Every configured `authorizeOperation` callback receives a second, independent
+native `JSON.parse` result. Recognized batches additionally receive a third
+independent graph for their inner policy calls. Consequently, accidental
+mutation of the outer request arguments, a previously approved batch method,
+or an inner argument cannot redirect the submitted private operation. Native
+JSON parsing retains deeply nested values, negative zero, and own
+`__proto__` data properties without a custom clone stack limit.
+
+This intentionally changes the historical ordinary-RPC behavior: a trusted
+authorization callback that previously edited its `args` to normalize values
+for the private method must now perform normalization in the method itself or
+in an explicitly reviewed wrapper. A callback should make an authorization
+decision based on the submitted inputs, not change what later executes.
+An ordinary RPC with argument-aware policy incurs one additional full JSON
+parse; a recognized batch with that policy incurs two. When no
+`authorizeOperation` is configured, neither incurs an extra parse. Costs
+scale with the bounded request size and require whole-application profiling
+against the 2.5× compute limit.
+
+This protects against policy-side argument mutation within one request.
+It does not make permission checks atomic with external state, protect
+against deliberate privilege grants by trusted callbacks, cancel running
+methods or provide an anti-relay mechanism. Native real-HTTP regression
+tests are in `test/sco-operation-auth.test.js` and
+`test/sco-batch-policy-mutation.test.js`.
 
 
 ## Authorization state changes within one batch
@@ -455,7 +525,7 @@ prevent unlimited legitimate oracle queries.
 
 ### Reusable per-principal isolation helper
 
-`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?})`
+`createScoKeyedIsolation(principalOf,{maxPendingPerPrincipal?,maxPendingTotal?,maxPrincipalResolutionMs?,abortPrincipalLookup?})`
 provides a small in-process FIFO queue compatible with
 `createScoHandler`'s `runRpcIsolated` hook. Each verified principal's
 authorization checks and method execution are serialized, while different
@@ -470,6 +540,21 @@ Both limits are unlimited by default for existing integrations. A finite
 asynchronous identity resolver. This bounds unresolved identity lookups as
 well as running and queued operations. In contrast,
 `maxPendingPerPrincipal` cannot apply until the principal is resolved.
+An optional positive integer `maxPrincipalResolutionMs` (1 through
+2,147,483,647 milliseconds) bounds how long the helper awaits an asynchronous
+principal resolver. On expiry it returns the same pre-execution HTTP **429**
+and frees its global reservation. A late resolver result cannot authorize or
+execute the expired operation. Default `Infinity` preserves the original
+behavior. The deadline does **not** cancel the resolver's underlying network
+request or interrupt synchronous/blocking JavaScript, and timer delivery may
+be delayed while the Node event loop is busy. An optional
+`abortPrincipalLookup:true` (requiring a finite deadline) passes an
+`AbortSignal` as the resolver's second argument and calls `abort()` when the
+lookup expires. A cooperating identity provider can use this signal for its
+own cancellable I/O; the helper cannot forcibly cancel a noncooperating
+Promise or synchronous computation. The additional controller is created
+only when cancellation is explicitly enabled. Integrators must still configure
+upstream identity-provider timeouts and resource limits.
 Request parsing still occurs before either cap and consumes memory and CPU;
 deploy front-door request limits, timeouts and suitable body-size caps.
 
@@ -478,7 +563,7 @@ const {createScoHandler,createScoKeyedIsolation}=require('./src');
 const runRpcIsolated=createScoKeyedIsolation(async request=>{
   const session=await authenticateRequest(request);
   return session.accountId;
-},{maxPendingPerPrincipal:8,maxPendingTotal:512});
+},{maxPendingPerPrincipal:8,maxPendingTotal:512,maxPrincipalResolutionMs:5000});
 const handler=createScoHandler(publicFiles,{
   remoteMethods,
   authorizeRpc:authenticateRequest,
@@ -503,13 +588,19 @@ consume all slots and temporarily reject requests for other accounts.
 Neither limit stops unlimited *serial* authorized requests.
 Use front-door limits and verified authentication in addition to this helper.
 
+To request best-effort cancellation of provider-side I/O, use a resolver
+that accepts `(request,signal)` and passes the signal to its identity-provider
+client, then configure `abortPrincipalLookup:true`. Existing one-argument
+resolvers remain supported, and cancellation is disabled by default.
+
 This helper protects only calls through the same in-process instance. It
 cannot synchronize Node workers, cluster processes, other services, database
 writers or permission changes outside this handler. For those deployments
 use a shared transactional database or distributed lock with the required
 isolation semantics. Long-running operations retain their principal's queue
-until settlement; the helper has no timeout and must not be used recursively
-for the same principal. FIFO order is the order of completed identity
+until settlement; the optional deadline applies only to **principal lookup**,
+not queued or running protected work. Do not use the helper recursively for
+the same principal. FIFO order is the order of completed identity
 resolution and queue registration, not a network arrival guarantee.
 
 An isolator does not make a batch transactionally safe. Continue using
@@ -517,7 +608,8 @@ An isolator does not make a batch transactionally safe. Continue using
 See `test/sco-keyed-isolation.test.js` for parallel HTTP revocation and
 independent-principal FIFO/failure regressions, and
 `test/sco-keyed-capacity.test.js` for bounded-queue and 429/500 classification
-regressions. This is an SCO
+regressions, and `test/sco-principal-resolution-deadline.test.js` for expired
+and late principal lookups. This is an SCO
 server authorization control, not client-side anti-debugging or a proof
 of the project's universal 2.5× compute target.
 

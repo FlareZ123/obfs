@@ -1,0 +1,35 @@
+name: Manual SCO worker-thread authenticated cross-account fairness
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  worker-fairness:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check main and external strict JSDoc
+        run: |
+          npm run typecheck
+          npm run typecheck:external
+      - name: Real server-resident private worker vs main-thread SCO A/B challenge
+        run: node sims/sco-ratchet-worker-http-contention.js
+      - name: Deny stale/replayed/unauthorized private worker requests and preserve independent principal
+        run: node sims/sco-ratchet-worker-policy.js
+      - name: Verify generated and ordinary worker admission/output parity
+        run: node --test test/sco-worker-equal-trust-admission.test.js
+      - name: Compare generated SCO with equal-trust ordinary HTTP worker service
+        run: node sims/sco-worker-equal-trust.js

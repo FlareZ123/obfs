@@ -1,0 +1,17 @@
+# SCO bucket identity versus queue-quota identity: preregistered capacity cross-talk
+
+**Agent 41, 18 November 2026.** The root-keyed [eight-bucket SQLite result](../im-results/sco-ratchet-bucket-shards-2026-11-18.md) currently uses the storage bucket key as the identity passed to `createScoKeyedIsolation`. Its `maxPendingPerPrincipal=16` setting can therefore count **all** authenticated accounts in one bucket as one "principal", potentially causing an unrelated authenticated B request to receive HTTP429 merely because A has 16 queued requests. This is a *candidate operational policy defect*, not a cryptographic weakness. It is unknown until tested under a deterministic accepted pending-A queue.
+
+## Original negative and repair candidates
+
+Use a fixed root selected before both arms such that verified A and B HMAC to the **same** one of eight preinitialized WAL buckets; keep identical 539-byte generated SCO facade, original 8MiB/event HMAC ratchet, two cookie token checks and exact per-account persisted state. One trusted Node HTTP process accepts both A/B.
+
+In the original arm, one `createScoKeyedIsolation` uses the bucket identifier as both queue key and the unit of `maxPendingPerPrincipal=16`. In the corrected arm, an **outer** isolated queue accounts for `maxPendingPerPrincipal=16` by the independently verified **principal identity**, with `maxPendingTotal=32`; an **inner** queue serializes actual SQLite use by the derived shared bucket key without inventing a second per-bucket per-principal quota. Both use the identical underlying DB transaction engine and authorizeOperation.
+
+A trusted test-only, async `800ms` gate holds the first A operation before the SQLite transaction; its source/marker is inaccessible to the public RPC and does **not** consume protected HMAC compute. The harness submits **16 identical authenticated A batch seq0** requests and waits for a test-only admission signal confirming all 16 A resolver calls, while the first A remains gated. Then independent verified B submits a valid seq0 batch. The negative hypothesis predicts B HTTP429 in the original shared-bucket capacity accounting. The corrected architecture predicts B HTTP200, with all A requests eventually 200 and identical original-HMAC outputs; only one two-event A transition and one two-event B transition commit.
+
+The test must preserve the effect of any non-2xx or unexpected 500 response, and verify the precise documented statuses, all output bytes, source identity, A/B state, and that quota never fails to count true 17th same-account A request. A cross-root/different-bucket positive control should remain admitted under each arm.
+
+## Rejection and limits
+
+Reject if original does not reproduce bucket quota cross-talk under the controlled queue, if corrected B is rejected, if a true 17th A request is admitted while A has 16 outstanding, or if output/state/authorization/source semantics change. Record per-arm latency and any strict 2.5× sampled wall ratios but do not mistake queueing for obfuscated compute CPU. The nested isolation design adds awaits and requires separate runtime profiling. It does not solve same-bucket serial writer execution, same-process synchronous CPU starvation, multi-account abusive enrollment, online A oracle relaying, browser/WAN cost or the universal strong-obfuscation objective. A conventional authenticated server can enforce the same per-principal capacity separation.

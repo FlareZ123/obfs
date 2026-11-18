@@ -1,0 +1,56 @@
+name: Manual SCO ordinary policy argument isolation paired cost
+
+on:
+  workflow_dispatch:
+    inputs:
+      old_ref:
+        description: Pinned original source commit
+        required: false
+        type: string
+        default: 51b64ee3b5516e8d70dd5f16eafdbb1da398c243
+      fixed_ref:
+        description: Pinned repaired source commit
+        required: false
+        type: string
+        default: c66f47bcb61893374bb76ab7db510fee935ddf8b
+
+permissions:
+  contents: read
+
+jobs:
+  paired:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: harness
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.old_ref }}
+          path: old
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.fixed_ref }}
+          path: fixed
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install harness dependencies
+        working-directory: harness
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Validate external JSDoc
+        working-directory: harness
+        run: npm run typecheck:external
+      - name: Install pre-fix dependencies
+        working-directory: old
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Install fixed dependencies
+        working-directory: fixed
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Compare actual authenticated HTTP and parser-only policy isolation cost
+        run: node harness/sims/sco-policy-args-paired.js old fixed

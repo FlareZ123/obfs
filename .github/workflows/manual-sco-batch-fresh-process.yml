@@ -1,0 +1,37 @@
+name: Manual SCO fresh-process batch end-to-end CPU comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  client-and-trusted-server:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved dependency tree
+        run: npm ls --all
+      - name: Strict JSDoc for separate-process and authenticated browser-facing clients
+        run: npm run typecheck:external
+      - name: Measure paired startup-inclusive original and authenticated SCO sessions
+        env:
+          OBFS_SCO_BATCH_PROCESS_AUDIT_FILE: sco-batch-process-${{ runner.os }}.json
+        run: node sims/sco-batch-fresh-process-cpu.js
+      - name: Preserve full exact paired process-CPU samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-batch-process-${{ runner.os }}
+          path: sco-batch-process-${{ runner.os }}.json
+          if-no-files-found: error

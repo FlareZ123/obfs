@@ -1,0 +1,48 @@
+name: Manual SCO trusted-graph batch CPU comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-authenticated-batch:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved dependency tree
+        run: npm ls --all
+      - name: Strict JSDoc on separate native vs published batch profiler
+        run: npm run typecheck:external
+      - name: Profile authenticated SCO private-graph 1024-call batches
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-${{ runner.os }}.json
+        run: node sims/sco-batch-resident-cpu.js
+      - name: Falsify strict CPU overhead under 51 longer selected-work pairs
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-stability-${{ runner.os }}.json
+        run: node sims/sco-batch-resident-cpu.js --stability
+      - name: Include actual client download and fresh ESM compilation per trial
+        env:
+          OBFS_SCO_BATCH_AUDIT_FILE: sco-batch-fresh-client-${{ runner.os }}.json
+        run: node sims/sco-batch-resident-cpu.js --fresh-client-module
+      - name: Retain full authenticated SCO batch, fresh client, and stability timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-batch-${{ runner.os }}
+          path: |
+            sco-batch-${{ runner.os }}.json
+            sco-batch-stability-${{ runner.os }}.json
+            sco-batch-fresh-client-${{ runner.os }}.json
+          if-no-files-found: error

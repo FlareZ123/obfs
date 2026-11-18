@@ -7,7 +7,7 @@ const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectImportedFunctionArrays} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
 const {virtualizeExpressionGraphs} = require('./expression-vm');
@@ -18,13 +18,14 @@ const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
+const {canonicalAllowedHosts}=require('./hosts');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -101,10 +102,7 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
       statement.type === 'ExportNamedDeclaration' && statement.source)) {
     throw new TypeError('Host locking ESM static imports or reexports requires a complete closed-world module group');
   }
-  const allowed = [...new Set(hosts.map(host => host.toLowerCase()))];
-  if (!allowed.length || allowed.some(host => !/^[a-z0-9.-]+$/.test(host))) {
-    throw new TypeError('allowedHosts must contain valid lowercase DNS hostnames');
-  }
+  const allowed=canonicalAllowedHosts(hosts);
   const snippet = `;(()=>{const h=globalThis.location?.hostname?.toLowerCase();if(!${JSON.stringify(allowed)}.includes(h))throw Error('Unauthorized execution host')})();\n`;
   let offset = 0;
   if (source.startsWith('#!')) {
@@ -129,16 +127,42 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
  */
 function mutatesDecoderIntrinsic(ast) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
+  // A supplied binding named Object, Reflect or Array may replace the
+  // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
+  // An unrelated field write remains eligible after may-alias key filtering.
+  const locallyBoundIntrinsics=collectBindings(ast);
   // Find immutable-looking and reassigned aliases before checking writes.
   // A dependency can mutate String through one of these names before another
   // file's eager decoder initializes; the whole group must then opt out.
-  const globalNames=new Set(['globalThis','window','self','global']);
+  const globalNames=new Set(['globalThis','window','self','global','top','parent','frames','opener']);
+  // Imports and CommonJS require results have unknown value provenance.
+  // Any such binding may be a Document, so a later .defaultView.String
+  // mutation must disable the ambient decoder even across file boundaries.
+  const documentNames=new Set(['document']);
+  for(const statement of ast.body??[]) {
+    if(statement.type!=='ImportDeclaration')continue;
+    for(const specifier of statement.specifiers??[]) {
+      if(specifier.local?.type==='Identifier')documentNames.add(specifier.local.name);
+    }
+  }
   const stringNames=new Set(['String']);
+  /** @type {Set<string>} */
+  const stringInstances=new Set();
   const prototypeNames=new Set();
   const arrayNames=new Set(['Array']);
   const arrayPrototypes=new Set();
   const objectNames=new Set(['Object']);
   const objectPrototypes=new Set();
+  // A runtime getPrototypeOf argument may be a String, Array or Object.
+  // Track uncertain results separately to keep harmless unrelated key writes eligible.
+  const possiblePrototypes=new Set();
+  const possibleConstructors=new Set();
+  // Summarize local synchronous function returns and plain returned object
+  // fields. Reassigned aliases are joined monotonically; unknown source paths
+  // remain outside this bounded, conservative closed-input proof.
+  const returnedSensitiveFunctions=new Set();
+  /** @type {Map<string,Set<string>>} */
+  const returnedSensitiveFields=new Map();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -151,8 +175,25 @@ function mutatesDecoderIntrinsic(ast) {
       node.property.type==='Identifier' ? node.property.name : null;
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function isDocumentValue(node) {
+    return node.type==='Identifier' && documentNames.has(node.name) ||
+      node.type==='MemberExpression' && memberName(node)==='document' &&
+        isGlobal(node.object);
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isGlobal(node) {
-    return node.type==='Identifier' && globalNames.has(node.name);
+    if(node.type==='Identifier')return globalNames.has(node.name);
+    if(node.type!=='MemberExpression')return false;
+    const field=memberName(node);
+    // The active document's defaultView is its WindowProxy. Earlier browser
+    // dependencies can therefore replace String.fromCharCode through this
+    // path, corrupting a later module's otherwise inert literal decoder.
+    // A shadowed/detached document may over-refuse, which is conservative.
+    if(field==='defaultView') {
+      return isDocumentValue(node.object);
+    }
+    return ['window','self','globalThis','top','parent','frames','opener'].includes(field??'') &&
+      isGlobal(node.object);
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isObjectIntrinsic(node) {
@@ -168,7 +209,8 @@ function mutatesDecoderIntrinsic(ast) {
   }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function isStringInstance(node) {
-    return node.type==='Literal' && typeof node.value==='string' ||
+    return node.type==='Identifier' && stringInstances.has(node.name) ||
+      node.type==='Literal' && typeof node.value==='string' ||
       node.type==='TemplateLiteral' && node.expressions.length===0 ||
       node.type==='NewExpression' && isStringValue(node.callee);
   }
@@ -198,8 +240,7 @@ function mutatesDecoderIntrinsic(ast) {
         (memberName(node)==='prototype'||memberName(node)===null);
     }
     if(node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-       node.callee.object.type==='Identifier' &&
-       ['Object','Reflect'].includes(node.callee.object.name) &&
+       (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)) &&
        memberName(node.callee)==='getPrototypeOf' &&
        node.arguments[0] && isStringInstance(node.arguments[0]))return true;
     return false;
@@ -308,6 +349,109 @@ function mutatesDecoderIntrinsic(ast) {
     const index=Number(name);
     return Number.isSafeInteger(index) && index<4096;
   }
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isReturnedSensitiveField(node) {
+    if(node.type!=='MemberExpression'||node.object.type!=='CallExpression'||
+       node.object.callee.type!=='Identifier')return false;
+    const fields=returnedSensitiveFields.get(node.object.callee.name);
+    const key=memberName(node);
+    return Boolean(fields && (key===null||fields.has(key)));
+  }
+  /**
+   * A dynamically supplied receiver can resolve to a decoder-sensitive
+   * prototype even if no local literal, array or constructor proves its type.
+   * Known nonstring primitive literals are a safe precision exception.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isPossiblePrototype(node) {
+    if(node.type==='Identifier')return possiblePrototypes.has(node.name);
+    if(isReturnedSensitiveField(node))return true;
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       returnedSensitiveFunctions.has(node.callee.name))return true;
+    if(node.type==='MemberExpression')return (
+      memberName(node)==='__proto__' && isPossiblePrototype(node.object) ||
+      (memberName(node)==='prototype'||memberName(node)===null) &&
+        (locallyBoundIntrinsics.has('Array')&&isArrayValue(node.object) ||
+         locallyBoundIntrinsics.has('Object')&&isObjectIntrinsic(node.object) ||
+         locallyBoundIntrinsics.has('Reflect')&&isReflectIntrinsic(node.object)));
+    if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression'||
+       memberName(node.callee)!=='getPrototypeOf'||
+       !(isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)))return false;
+    const argument=node.arguments[0];
+    if(!argument)return false;
+    if(isObjectIntrinsic(node.callee.object)&&locallyBoundIntrinsics.has('Object') ||
+       isReflectIntrinsic(node.callee.object)&&locallyBoundIntrinsics.has('Reflect'))return true;
+    return !(argument.type==='Literal'&&argument.regex===undefined&&
+      argument.value!==null&&typeof argument.value!=='string');
+  }
+  /**
+   * The constructor property on an uncertain prototype may expose String,
+   * allowing callers to overwrite the decoder's String.fromCharCode.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isPossibleConstructor(node) {
+    if(node.type==='Identifier')return possibleConstructors.has(node.name);
+    if(isReturnedSensitiveField(node))return true;
+    if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+       returnedSensitiveFunctions.has(node.callee.name))return true;
+    if(node.type==='MemberExpression') {
+      if(isPossiblePrototype(node.object) &&
+         (memberName(node)==='constructor'||memberName(node)===null))return true;
+      // A descriptor's value exposes the same constructor without
+      // spelling P.constructor in the source.
+      const descriptor=node.object;
+      return memberName(node)==='value' &&
+        descriptor.type==='CallExpression' &&
+        descriptor.callee.type==='MemberExpression' &&
+        isObjectIntrinsic(descriptor.callee.object) &&
+        memberName(descriptor.callee)==='getOwnPropertyDescriptor' &&
+        Boolean(descriptor.arguments[0]&&
+          isPossiblePrototype(descriptor.arguments[0])&&
+          (!descriptor.arguments[1]||
+           staticString(descriptor.arguments[1])===null||
+           staticString(descriptor.arguments[1])==='constructor'));
+    }
+    // A reflective read of an opaque prototype's constructor can yield the
+    // native String constructor and permit String.fromCharCode replacement.
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      isReflectIntrinsic(node.callee.object) &&
+      memberName(node.callee)==='get' &&
+      Boolean(node.arguments[0]&&isPossiblePrototype(node.arguments[0])&&
+        (!node.arguments[1]||staticString(node.arguments[1])===null||
+         staticString(node.arguments[1])==='constructor'));
+  }
+  /**
+   * A computed unknown key might be Symbol.iterator, charCodeAt or an index
+   * inherited by the decoder's fresh temporary array.
+   * @param {import('./ast').AstNode|null|undefined} key
+   * @returns {boolean}
+   */
+  function mayTouchDecoderKey(key) {
+    if(!key)return true;
+    const name=key.type==='Literal'&&key.regex===undefined&&
+      ['number','bigint','boolean'].includes(typeof key.value)?
+      String(key.value):staticString(key);
+    if(name===null||['charCodeAt','fromCharCode','__proto__','constructor'].includes(name))return true;
+    if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
+    const index=Number(name);
+    return Number.isSafeInteger(index)&&index<4096;
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function writesPossibleDecoderIntrinsic(node) {
+    if(node.type!=='MemberExpression')return false;
+    if(isPossibleConstructor(node.object))return mayTouchDecoderKey(node.property);
+    if(!isPossiblePrototype(node.object))return false;
+    const name=memberName(node);
+    if(name===null||['charCodeAt','__proto__','constructor'].includes(name))return true;
+    if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
+    return Number(name)<4096;
+  }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
   // positive, which is safer than assuming a potentially mutable alias is pure.
@@ -318,6 +462,77 @@ function mutatesDecoderIntrinsic(ast) {
       /** @param {Set<string>} set @param {string} name */
       function add(set,name) {
         if(!set.has(name)){set.add(name);discovered=true;}
+      }
+      /**
+       * Local synchronous functions may return an intrinsic through a direct
+       * return value or a named field of an object literal. Summaries are
+       * monotonic over aliases and declaration order; unresolved calls remain
+       * outside this deliberately limited interprocedural proof.
+       * @param {import('./ast').AstNode} value
+       * @returns {boolean}
+       */
+      function sensitiveReturnValue(value) {
+        return isStringPrototype(value)||isStringValue(value)||
+          isArrayPrototype(value)||isArrayValue(value)||
+          isObjectPrototype(value)||isObjectIntrinsic(value)||
+          isReflectIntrinsic(value)||isPossiblePrototype(value)||
+          isPossibleConstructor(value);
+      }
+      /**
+       * @param {string} name
+       * @param {string} key
+       */
+      function addReturnedField(name,key) {
+        let fields=returnedSensitiveFields.get(name);
+        if(!fields) {
+          fields=new Set();
+          returnedSensitiveFields.set(name,fields);
+        }
+        if(!fields.has(key)){fields.add(key);discovered=true;}
+      }
+      /**
+       * @param {string} name
+       * @param {import('./ast').AstNode} fn
+       */
+      function recordLocalReturns(name,fn) {
+        if(fn.async||fn.generator)return;
+        /** @type {import('./ast').AstNode[]} */
+        const returned=[];
+        if(fn.body.type==='BlockStatement') {
+          walk(fn.body,(innerNode,_parent,_key,ancestors)=>{
+            if(innerNode.type!=='ReturnStatement'||!innerNode.argument)return;
+            // A declaration or class inside this function has an independent
+            // return boundary. Its returned intrinsic does not escape this
+            // outer function merely by appearing in a nested body.
+            if(ancestors.some((/** @type {import('./ast').AstNode} */ parent)=>
+              ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+               'ClassDeclaration','ClassExpression'].includes(parent.type)))return;
+            returned.push(innerNode.argument);
+          });
+        } else returned.push(fn.body);
+        for(const value of returned) {
+          if(sensitiveReturnValue(value))add(returnedSensitiveFunctions,name);
+          if(value.type!=='ObjectExpression')continue;
+          for(const property of value.properties) {
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key!==null&&sensitiveReturnValue(property.value))addReturnedField(name,key);
+          }
+        }
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
+        recordLocalReturns(node.id.name,node);
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init&&(node.init.type==='FunctionExpression'||
+           node.init.type==='ArrowFunctionExpression')) {
+        recordLocalReturns(node.id.name,node.init);
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='Identifier'&&
+         (node.right.type==='FunctionExpression'||node.right.type==='ArrowFunctionExpression')) {
+        recordLocalReturns(node.left.name,node.right);
       }
       /**
        * A destructuring pattern can read Array.prototype's inherited
@@ -339,25 +554,84 @@ function mutatesDecoderIntrinsic(ast) {
           if(target.type==='Identifier')add(objectPrototypes,target.name);
         }
       }
+      /**
+       * A constructor destructured from an opaque runtime prototype may be
+       * String, whose fromCharCode method the eager decoder invokes.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordPossibleConstructorPattern(pattern,owner) {
+        if(pattern.type!=='ObjectPattern'||!isPossiblePrototype(owner))return;
+        for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key!==null&&key!=='constructor')continue;
+          const target=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(target.type==='Identifier')add(possibleConstructors,target.name);
+        }
+      }
+      /**
+       * Assignment destructuring can expose the same ambient WindowProxy as
+       * declaration destructuring. Propagate both paths to the existing
+       * monotonic intrinsic alias sets before deciding decoder safety.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordDocumentPattern(pattern,owner) {
+        if(pattern.type!=='ObjectPattern')return;
+        for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const target=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(target.type!=='Identifier')continue;
+          if(key==='document'&&isGlobal(owner))add(documentNames,target.name);
+          if(key==='defaultView'&&isDocumentValue(owner))add(globalNames,target.name);
+        }
+      }
       if(node.type==='VariableDeclarator' && node.init) {
         recordArrayParentPattern(node.id,node.init);
+        recordPossibleConstructorPattern(node.id,node.init);
+        recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
+          if(node.init.type==='Identifier') {
+            if(returnedSensitiveFunctions.has(node.init.name)) {
+              add(returnedSensitiveFunctions,node.id.name);
+            }
+            for(const key of returnedSensitiveFields.get(node.init.name)??[]) {
+              addReturnedField(node.id.name,key);
+            }
+          }
           if(isGlobal(node.init))add(globalNames,node.id.name);
+          if(isDocumentValue(node.init) ||
+              node.init.type==='CallExpression' &&
+                node.init.callee.type==='Identifier' &&
+                node.init.callee.name==='require')
+            add(documentNames,node.id.name);
           if(isStringValue(node.init))add(stringNames,node.id.name);
+          if(isStringInstance(node.init))add(stringInstances,node.id.name);
           if(isStringPrototype(node.init))add(prototypeNames,node.id.name);
           if(isArrayValue(node.init))add(arrayNames,node.id.name);
           if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
           if(isObjectIntrinsic(node.init))add(objectNames,node.id.name);
           if(isObjectPrototype(node.init))add(objectPrototypes,node.id.name);
+          if(isPossiblePrototype(node.init))add(possiblePrototypes,node.id.name);
+          if(isPossibleConstructor(node.init))add(possibleConstructors,node.id.name);
           if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
-                  (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init)||
+                  (isGlobal(node.init)||isDocumentValue(node.init)||
+                   isStringValue(node.init)||isArrayValue(node.init)||
                    isArrayPrototype(node.init)||isObjectIntrinsic(node.init))) {
           for(const property of node.id.properties) {
             if(property.type!=='Property' || property.computed ||
                property.value.type!=='Identifier')continue;
             const name=property.key.type==='Identifier' ? property.key.name :
               property.key.type==='Literal' ? property.key.value : null;
+            if(name==='document'&&isGlobal(node.init))add(documentNames,property.value.name);
+            if(name==='defaultView'&&isDocumentValue(node.init))add(globalNames,property.value.name);
             if(name==='String'&&isGlobal(node.init))add(stringNames,property.value.name);
             if(name==='prototype'&&isStringValue(node.init))add(prototypeNames,property.value.name);
             if(name==='Array'&&isGlobal(node.init))add(arrayNames,property.value.name);
@@ -371,19 +645,71 @@ function mutatesDecoderIntrinsic(ast) {
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='ObjectPattern') {
         recordArrayParentPattern(node.left,node.right);
+        recordPossibleConstructorPattern(node.left,node.right);
+        recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
+        if(node.right.type==='Identifier') {
+          if(returnedSensitiveFunctions.has(node.right.name)) {
+            add(returnedSensitiveFunctions,node.left.name);
+          }
+          for(const key of returnedSensitiveFields.get(node.right.name)??[]) {
+            addReturnedField(node.left.name,key);
+          }
+        }
         if(isGlobal(node.right))add(globalNames,node.left.name);
+        if(isDocumentValue(node.right) ||
+            node.right.type==='CallExpression' &&
+              node.right.callee.type==='Identifier' &&
+              node.right.callee.name==='require')
+          add(documentNames,node.left.name);
         if(isStringValue(node.right))add(stringNames,node.left.name);
+        if(isStringInstance(node.right))add(stringInstances,node.left.name);
         if(isStringPrototype(node.right))add(prototypeNames,node.left.name);
         if(isArrayValue(node.right))add(arrayNames,node.left.name);
         if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
         if(isObjectIntrinsic(node.right))add(objectNames,node.left.name);
         if(isObjectPrototype(node.right))add(objectPrototypes,node.left.name);
+        if(isPossiblePrototype(node.right))add(possiblePrototypes,node.left.name);
+        if(isPossibleConstructor(node.right))add(possibleConstructors,node.left.name);
         if(isReflectIntrinsic(node.right))add(reflectNames,node.left.name);
       }
     });
   } while(discovered);
+  /**
+   * An intrinsic can escape through a nested array/object literal or argument
+   * spread even when the argument's top-level expression has no intrinsic
+   * provenance. These finite containers are traversed without executing code.
+   * @param {import('./ast').AstNode} expression
+   * @returns {boolean}
+   */
+  function containsDecoderIntrinsic(expression) {
+    if(touchesString(expression)||isArrayPrototype(expression)||
+       isObjectPrototype(expression)||isPossiblePrototype(expression)||
+       isPossibleConstructor(expression))return true;
+    if(expression.type==='SpreadElement')return containsDecoderIntrinsic(expression.argument);
+    if(expression.type==='SequenceExpression')return expression.expressions.some(
+      (/** @type {import('./ast').AstNode} */ part)=>containsDecoderIntrinsic(part));
+    if(expression.type==='ConditionalExpression')return (
+      containsDecoderIntrinsic(expression.test)||
+      containsDecoderIntrinsic(expression.consequent)||
+      containsDecoderIntrinsic(expression.alternate));
+    if(expression.type==='LogicalExpression')return (
+      containsDecoderIntrinsic(expression.left)||
+      containsDecoderIntrinsic(expression.right));
+    if(expression.type==='ChainExpression')return containsDecoderIntrinsic(expression.expression);
+    if(expression.type==='ArrayExpression')return expression.elements.some(
+      (/** @type {import('./ast').AstNode|null} */ element)=>
+        element!==null&&containsDecoderIntrinsic(element));
+    if(expression.type==='ObjectExpression')return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement')return containsDecoderIntrinsic(property.argument);
+        return property.type==='Property' &&
+          (containsDecoderIntrinsic(property.value)||
+           property.computed&&containsDecoderIntrinsic(property.key));
+      });
+    return false;
+  }
   /** @param {import('./ast').AstNode} node @returns {boolean} */
   function touchesString(node) {
     if(isStringValue(node)||isStringPrototype(node))return true;
@@ -429,9 +755,11 @@ function mutatesDecoderIntrinsic(ast) {
       // later with an arbitrary receiver, so only an immediate, statically
       // unrelated key invocation can retain the decoder.
       if(['__defineGetter__','__defineSetter__'].includes(method??'') &&
-         (isArrayPrototype(receiver)||isObjectPrototype(receiver)) &&
+         (isArrayPrototype(receiver)||isObjectPrototype(receiver)||
+          isPossiblePrototype(receiver)) &&
          !(parent?.type==='CallExpression' && parent.callee===node &&
-           !mayInterceptChunkIndex(parent.arguments[0]))) {
+           !(isPossiblePrototype(receiver)?mayTouchDecoderKey(parent.arguments[0]):
+             mayInterceptChunkIndex(parent.arguments[0])))) {
         mutated=true;
         return;
       }
@@ -469,15 +797,40 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(node.type==='AssignmentExpression' &&
          (touchesString(node.left)||isArrayIteratorProperty(node.left)||
-          isArrayPrototypeChainWrite(node.left)) ||
+          isArrayPrototypeChainWrite(node.left)||writesPossibleDecoderIntrinsic(node.left)) ||
        node.type==='UpdateExpression' &&
          (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
-          isArrayPrototypeChainWrite(node.argument)) ||
+          isArrayPrototypeChainWrite(node.argument)||writesPossibleDecoderIntrinsic(node.argument)) ||
        node.type==='UnaryExpression' && node.operator==='delete' &&
          (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
-          isArrayPrototypeChainWrite(node.argument))) {
+          isArrayPrototypeChainWrite(node.argument)||writesPossibleDecoderIntrinsic(node.argument))) {
       mutated=true;
       return;
+    }
+    // An opaque call can forward a mutable String/Array/Object intrinsic into
+    // a parameter and patch it before a later module initializes its decoder.
+    // Without interprocedural effect proof, passing that reference is an escape.
+    // Direct, known reflection reads are handled by the existing alias scanner.
+    if(node.type==='TaggedTemplateExpression' &&
+       node.quasi.expressions.some((/** @type {import('./ast').AstNode} */ expression)=>
+         containsDecoderIntrinsic(expression))) {
+      mutated=true;
+      return;
+    }
+    if((node.type==='CallExpression'||node.type==='NewExpression') &&
+       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
+         containsDecoderIntrinsic(argument))) {
+      const callee=node.callee;
+      const method=callee.type==='MemberExpression'?memberName(callee):null;
+      const modeledIntrinsicCall=callee.type==='MemberExpression' &&
+        (isObjectIntrinsic(callee.object) &&
+          (mutatorsObject.has(method??'')||sensitiveReadsObject.has(method??'')) ||
+         isReflectIntrinsic(callee.object) &&
+          (mutatorsReflect.has(method??'')||sensitiveReadsReflect.has(method??'')));
+      if(!modeledIntrinsicCall) {
+        mutated=true;
+        return;
+      }
     }
     if(node.type!=='CallExpression' || node.callee.type!=='MemberExpression')return;
     const receiver=node.callee.object;
@@ -485,7 +838,8 @@ function mutatesDecoderIntrinsic(ast) {
     const first=node.arguments[0];
     if(!first)return;
     if(method===null && (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver)) &&
-       (touchesString(first)||isArrayPrototype(first)||isGlobal(first))) {
+       (touchesString(first)||isArrayPrototype(first)||isGlobal(first)||
+        isPossiblePrototype(first)||isPossibleConstructor(first))) {
       mutated=true;
       return;
     }
@@ -493,6 +847,20 @@ function mutatesDecoderIntrinsic(ast) {
     // can return mutable references or descriptors. An alias held by another
     // function can mutate them after this syntax-only analysis.
     const name=node.arguments[1];
+    // Source-visible mutation of a reflective lookup breaks any native
+    // prototype/constructor inference that depends on that method. A caller
+    // can then get String from an otherwise provably unrelated Number value.
+    const modifiedIntrinsicName=name?staticString(name):null;
+    if((isObjectIntrinsic(first)||isReflectIntrinsic(first)) &&
+       (isObjectIntrinsic(receiver)&&mutatorsObject.has(method??'') ||
+        isReflectIntrinsic(receiver)&&mutatorsReflect.has(method??'')) &&
+       (method!=='defineProperty'&&method!=='set'&&method!=='deleteProperty' ||
+        modifiedIntrinsicName===null ||
+        (isObjectIntrinsic(first)?sensitiveReadsObject:sensitiveReadsReflect)
+          .has(modifiedIntrinsicName))) {
+      mutated=true;
+      return;
+    }
     const mayReadString=!name||name.type!=='Literal'||name.value==='String';
     const mayReadArray=!name||name.type!=='Literal'||name.value==='Array';
     const mayReadPrototype=!name||name.type!=='Literal'||name.value==='prototype';
@@ -515,6 +883,9 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
       if(touchesString(first))mutated=true;
+      if(isPossiblePrototype(first)||isPossibleConstructor(first)) {
+        if(method!=='defineProperty'||mayTouchDecoderKey(node.arguments[1]))mutated=true;
+      }
       // Object.assign/defineProperties can change String through a dynamic
       // property bag whose keys are not statically provable here.
       if(isGlobal(first) && (method==='assign'||method==='defineProperties'))mutated=true;
@@ -535,6 +906,9 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
       if(touchesString(first))mutated=true;
+      if(isPossiblePrototype(first)||isPossibleConstructor(first)) {
+        if(method==='setPrototypeOf'||mayTouchDecoderKey(node.arguments[1]))mutated=true;
+      }
       if(isGlobal(first) && (method==='setPrototypeOf' ||
           node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
     }
@@ -574,6 +948,41 @@ function obfuscateFiles(files, options = {}) {
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
     return {path:filename,code,sourceType};
   });
+  // A requested backend is an explicit protection requirement. Silently
+  // ignoring a misspelled filename would publish untransformed code even
+  // though the caller selected a protected function in that file.
+  const knownJavaScript=new Set(prepared.filter(file=>file.sourceType!=='asset')
+    .map(file=>file.path));
+  /** @type {Array<[string,Record<string,string[]>|undefined]>} */
+  const selectedFunctionBackends=[
+    ['Register VM',options.experimentalRegisterVm],
+    ['Expression VM',options.experimentalExpressionVm],
+    ['Native graph',options.experimentalNativeGraph],
+    ['Branch blocks',options.experimentalBranchBlocks],
+    ['Statement flow',options.experimentalStatementFlow],
+    ['Wasm i32',options.experimentalWasmI32],
+    ['Polyvariant affine',options.experimentalPolyvariantAffine]
+  ];
+  // Keep the validated selection arrays for code generation. This also
+  // prevents a lazy options getter or mutable caller-owned array from
+  // silently dropping the required transformation on a later read.
+  /** @type {Map<string,Map<string,string[]>>} */
+  const selectedFunctionNames=new Map();
+  for(const [backend,selections] of selectedFunctionBackends){
+    /** @type {Map<string,string[]>} */
+    const byPath=new Map();
+    selectedFunctionNames.set(backend,byPath);
+    if(!selections)continue;
+    for(const [selectedPath,names] of Object.entries(selections)){
+      if(!Array.isArray(names)){
+        throw new TypeError(backend+' selected function names must be an array in '+selectedPath);
+      }
+      if(names.length && !knownJavaScript.has(selectedPath)){
+        throw new TypeError(backend+' selects missing or non-JavaScript input '+selectedPath);
+      }
+      byPath.set(selectedPath,names.slice());
+    }
+  }
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
   const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
@@ -591,6 +1000,8 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedPrimitives(prepared) : new Map();
   const importedCloneProof=prepared.length>1 ?
     collectVerifiedImportedCloneAliases(prepared) : new Map();
+  const importedUrlStaticProof=prepared.length>1 ?
+    collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
   const remoteSourceObserver=prepared.some(file=>
@@ -598,7 +1009,8 @@ function obfuscateFiles(files, options = {}) {
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
-        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path))));
+        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+        importedUrlStaticProof.get(file.path))));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
@@ -655,31 +1067,39 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const vmNames=options.experimentalRegisterVm?.[filename]??[];
+    const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
         throw new TypeError('Register VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeRegisterChains(code,sourceType,{seed:salt,names:vmNames});
+      if(virtualized.declined){
+        throw new TypeError('Register VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       vmFunctions=virtualized.functions;
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const expressionNames=options.experimentalExpressionVm?.[filename]??[];
+    const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
         throw new TypeError('Expression VM requires a module/CommonJS without cross-file source observation');
       }
       const virtualized=virtualizeExpressionGraphs(code,sourceType,{seed:salt,names:expressionNames});
+      if(virtualized.declined){
+        throw new TypeError('Expression VM declined '+virtualized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=virtualized.code;
       expressionVmFunctions=virtualized.functions;
       expressionVmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const nativeNames=options.experimentalNativeGraph?.[filename]??[];
+    const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -691,12 +1111,16 @@ function obfuscateFiles(files, options = {}) {
       const optimized=virtualizeExpressionGraphs(code,sourceType,{
         seed:salt,names:nativeNames,backend:'native'
       });
+      if(optimized.declined){
+        throw new TypeError('Native graph declined '+optimized.declined+
+          ' selected function(s) in '+filename);
+      }
       code=optimized.code;
       nativeGraphFunctions=optimized.functions;
       nativeGraphInstructions=optimized.instructions;
       ast=parse(code,sourceType);
     }
-    const branchNames=options.experimentalBranchBlocks?.[filename]??[];
+    const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -704,12 +1128,16 @@ function obfuscateFiles(files, options = {}) {
       }
       const flattened=flattenBranchBlocks(code,sourceType,{seed:salt,names:branchNames,
         stateBlinding:options.experimentalBranchStateBlinding===true});
+      if(flattened.declined){
+        throw new TypeError('Branch blocks declined '+flattened.declined+
+          ' selected function(s) in '+filename);
+      }
       code=flattened.code;
       branchFunctions=flattened.functions;
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
-    const statementNames=options.experimentalStatementFlow?.[filename]??[];
+    const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
       if(sourceType==='script'||remoteSourceObserver){
@@ -731,7 +1159,7 @@ function obfuscateFiles(files, options = {}) {
       statementFlowBlocks=transformed.blocks;
       ast=parse(code,sourceType);
     }
-    const wasmNames=options.experimentalWasmI32?.[filename]??[];
+    const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -755,7 +1183,7 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
-    const polyvariantNames=options.experimentalPolyvariantAffine?.[filename]??[];
+    const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -767,7 +1195,8 @@ function obfuscateFiles(files, options = {}) {
         throw new TypeError('Do not select the same function for multiple experimental backends');
       }
       const transformed=lowerPolyvariantAffine(code,sourceType,{
-        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??(mode==='coo'?2:4)
+        seed:salt,names:polyvariantNames,variants:options.experimentalPolyvariantCount??(mode==='coo'?2:4),
+        compact:options.experimentalPolyvariantCompact===true
       });
       if(transformed.declined) {
         throw new TypeError('Polyvariant affine declined '+transformed.declined+

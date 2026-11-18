@@ -26,10 +26,15 @@ function median(times){
 /**
  * @param {Buffer} key
  * @param {number} delayMs
+ * @param {string} [publicFacadeSource] Optional equal-trust public-facade control.
+ * @param {(principal:string,start:number,inputs:string[])=>void} [onBatchStart] Test-only
+ *   observation hook before synchronous private work; cannot authorize work.
+ * @param {(principal:string,start:number,inputs:string[])=>void} [onBatchEnd] Test-only
+ *   observation hook after synchronous private work; cannot authorize work.
  * @returns {{handler:http.RequestListener,grant:(token:string,principal:string)=>void,
  *    calls:()=>number}}
  */
-function makeServer(key,delayMs){
+function makeServer(key,delayMs,publicFacadeSource,onBatchStart,onBatchEnd){
   const sessions=new Map();
   const machine=createPrivateMachine(key);
   const context=new AsyncLocalStorage();
@@ -45,7 +50,7 @@ function makeServer(key,delayMs){
   });
   const handler=createScoHandler([{
     path:'batch.mjs',sourceType:'module',
-    code:createScoRpcClientSource(['batch'])
+    code:publicFacadeSource??createScoRpcClientSource(['batch'])
   }],{
     publicPaths:['batch.mjs'],
     authorizeRead:request=>principalOf(request)!==null,
@@ -75,6 +80,7 @@ function makeServer(key,delayMs){
       batch:async(start,inputs)=>{
         const principal=context.getStore();
         if(typeof principal!=='string')throw new TypeError('Missing authenticated principal');
+        onBatchStart?.(principal,start,inputs);
         /** @type {string[]} */
         const outputs=[];
         for(let i=0;i<inputs.length;i++){
@@ -83,6 +89,7 @@ function makeServer(key,delayMs){
           outputs.push(value);
           executed++;
         }
+        onBatchEnd?.(principal,start,inputs);
         return outputs;
       }
     }

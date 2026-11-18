@@ -1,0 +1,31 @@
+name: Manual SCO multi-principal worker CPU contention challenge
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  conditional-multi-account-saturation:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc main and external
+        run: |
+          npm run typecheck
+          npm run typecheck:external
+      - name: Measure original-equivalent independent B under 1 4 8 authorized attacker principals
+        run: node sims/sco-ratchet-worker-multi-principal.js
+      - name: Compare generated and ordinary equal-trust workers under the same A-principal saturation
+        run: node sims/sco-worker-equal-trust-saturation.js

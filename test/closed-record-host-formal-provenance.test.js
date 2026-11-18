@@ -275,3 +275,173 @@ test('partially bound local non-host callable keeps real owner-key rename',async
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+/**
+ * Research-only adversarial probes for argument-array and rest-parameter
+ * transport. A direct local function's source-visible rest array can contain
+ * globalThis even when no normal Identifier or ObjectPattern formal exists.
+ */
+for(const [name,code] of [
+  ['rest parameter first argument',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(globalThis);"],
+  ['implicit arguments first argument',
+    "function rewire(){const {['Ref'+'lect']:cap}=arguments[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(globalThis);"],
+  ['rest parameter via Function.prototype.call',
+    "const rewire=(...roots)=>{const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;};rewire.call(null,globalThis);"],
+  ['rest parameter second argument',
+    "function rewire(first,...roots){void first;const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(7,globalThis);"]
+]) {
+  test('unresolved rest/arguments ambient effects: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-arguments/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected,
+      'Argument-array transport may mutate the shared ambient Reflect method');
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('unrelated rest-parameter call retains genuinely safe owner-key rename',async()=>{
+  const original=graph(
+    "function size(...items){return items.length;}void size(7);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-rest-arguments/benign',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'A benign rest-array helper should retain a real owner rewrite');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
+
+/**
+ * An argument vector can receive the ambient root through an expression
+ * without a direct Identifier argument. These source-visible carriers test
+ * whether the proof follows the actual value into rest/arguments elements.
+ */
+for(const [name,code] of [
+  ['sequence-wrapped ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire((0,globalThis));"],
+  ['inline array element ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire([globalThis][0]);"],
+  ['inline record field ambient root',
+    "function rewire(...roots){const {['Ref'+'lect']:cap}=roots[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(({root:globalThis}).root);"],
+  ['aliased container ambient root',
+    "const roots=[globalThis];function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(roots[0]);"]
+]) {
+  test('nested ambient rest vector: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-nested-rest/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+/**
+ * A call result can be the ambient root even if the argument expression
+ * contains no syntactic globalThis identifier. These cases challenge the
+ * bounded source-visible producer-to-rest argument origin proof.
+ */
+for(const [name,code] of [
+  ['local function returns ambient root',
+    "function root(){return globalThis;}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['arrow function returns ambient root',
+    "const root=()=>globalThis;function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['local function returns a capability container',
+    "const capsule={root:globalThis};function root(){return capsule.root;}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['imported callback passed into a rest vector',
+    "function root(){return globalThis;}function forward(fn){return fn();}function rewire(...items){const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}rewire(forward(root));"]
+]) {
+  test('unknown rest call-result provenance: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-factory/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
+
+test('unrelated rest helper with static primitive expressions retains a real key rewrite',async()=>{
+  const original=graph('function count(...items){return items.length;}'+
+    'void count((2*3)-1,1<<3,typeof 7);');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-rest-factory/pure-actuals',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Source-proven inert primitive arguments preserve a useful private rewrite');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
+
+/**
+ * Proven immutable zero-argument local functions returning inert primitive
+ * expressions are safe rest-vector inputs. This positive tests that the
+ * conservative ambient refusal does not sacrifice all such owned work.
+ */
+for(const [name,source] of [
+  ['zero-argument const arrow',
+    'const scalar=()=>7;function count(...items){return items.length;}'+
+      'void count(scalar());'],
+  ['arithmetic const arrow',
+    'const scalar=()=>(21-14);function count(...items){return items.length;}'+
+      'void count(scalar());'],
+  ['zero-argument const function expression',
+    'const scalar=function(){return 7;};function count(...items){return items.length;}'+
+      'void count(scalar());']
+]){
+  test('safe local pure-result rest factory: '+name,async()=>{
+    const original=graph(source);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-pure-factory/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(compiled.crossFile.properties,1,
+      'A proven pure scalar factory should retain one real private key rewrite');
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',null]);
+    assert.deepEqual(await execute(compiled.files),expected);
+  });
+}
+
+for(const [name,source] of [
+  ['mutable local factory',
+    'let scalar=()=>7;scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());'],
+  ['const factory returns ambient global',
+    'const scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());'],
+  ['shadowed pure factory',
+    'const scalar=()=>7;{const scalar=()=>globalThis;function rewire(...items){'+
+      "const {['Ref'+'lect']:cap}=items[0];cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      'rewire(scalar());}']
+]){
+  test('unsafe local factory must still decline: '+name,async()=>{
+    const original=graph(source);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-rest-pure-factory-negative/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(compiled.crossFile.properties,0);
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+  });
+}

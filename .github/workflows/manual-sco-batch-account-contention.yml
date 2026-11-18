@@ -1,0 +1,55 @@
+name: Manual authorized SCO real batch cross-account contention
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  independent-victim-process:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved dependency tree
+        run: npm ls --all
+      - name: Strict external JSDoc on two-account fairness experiment
+        run: npm run typecheck:external
+      - name: Compare independent quiet versus A-contended B authenticated RPC
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-contention-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js
+      - name: Verify Node cooperative batch ordered semantics and validation
+        run: node --test test/rpc-batch-yield.test.js
+      - name: Compare 64-item cooperative yielding against identical A/B workload
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --cooperative
+      - name: Sweep 8-item cooperative server yields under identical account load
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative8-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --yield-every=8
+      - name: Sweep 1-item cooperative server yields under identical account load
+        env:
+          OBFS_SCO_BATCH_CONTENTION_AUDIT_FILE: sco-batch-cooperative1-${{ runner.os }}.json
+        run: node sims/sco-batch-cross-account-contention.js --yield-every=1
+      - name: Retain exact two-account control and cooperative timing evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-batch-contention-${{ runner.os }}
+          path: |
+            sco-batch-contention-${{ runner.os }}.json
+            sco-batch-cooperative-${{ runner.os }}.json
+            sco-batch-cooperative8-${{ runner.os }}.json
+            sco-batch-cooperative1-${{ runner.os }}.json
+          if-no-files-found: error

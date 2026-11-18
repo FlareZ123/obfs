@@ -7,4 +7,4 @@ import {_pb_043f4a6ce10c_mask} from "./constants.mjs";
 export function message(){return _pb_043f4a6ce10c_cached===void 0?(_pb_043f4a6ce10c_cached=_pb_043f4a6ce10c_decode()):_pb_043f4a6ce10c_cached;}
 export function render(value){return message()+'|'+String(value*factor);}
 
-function _pb_043f4a6ce10c_decode(){const units=[];for(let i=0;i<52;i++){const at=(i*31+18)%52;units[i]=(_pb_043f4a6ce10c_payload[at]^_pb_043f4a6ce10c_mask[at]^((i*24593+21333)&65535))&65535;}return String.fromCharCode(...units);}
+function _pb_043f4a6ce10c_decode(){let decoded="";for(let i=0;i<52;i++){const at=(i*31+18)%52;decoded+=String.fromCharCode((_pb_043f4a6ce10c_payload[at]^_pb_043f4a6ce10c_mask[at]^((i*24593+21333)&65535))&65535);}return decoded;}

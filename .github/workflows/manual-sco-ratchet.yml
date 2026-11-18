@@ -1,0 +1,66 @@
+name: Manual SCO stateful-ratchet architecture evaluation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ratchet:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Check main implementation JSDoc
+        run: npm run typecheck
+      - name: Check external experiment JSDoc
+        run: npm run typecheck:external
+      - name: Real SCO per-account ratchet and independent public client
+        run: node sims/sco-ratchet-boundary.js
+      - name: Actual generated batch facade vs independent attacker and 25ms budget
+        run: node sims/sco-ratchet-batch-candidate.js
+      - name: Equal-trust esbuild-minified and generated client attacker and 2.5x control
+        run: node sims/sco-ratchet-minifier-control.js
+      - name: Anonymous downstream uses authorized A proxy to clone live state
+        run: node sims/sco-ratchet-online-relay.js
+      - name: Lost-response strict failure vs idempotent last-result recovery
+        run: node sims/sco-ratchet-retry-candidate.js
+      - name: Same-root multi-replica ratchet and idempotent-cache split-brain
+        run: node sims/sco-ratchet-replica-splitbrain.js
+      - name: SQLite transactional ratchet repair and independent child races
+        run: node sims/sco-ratchet-transactional-repair.js
+      - name: Two independent actual SCO HTTP replicas with local SQLite admission
+        run: node sims/sco-ratchet-transactional-http.js
+      - name: Killed independent worker at SQLite pre/post commit boundaries
+        run: node sims/sco-ratchet-transactional-crash.js
+      - name: Authorized A CPU flood cross-account B 2.5x contention witness
+        run: node sims/sco-ratchet-cross-account-contention.js
+      - name: Per-principal resident worker isolation performance pilot
+        run: node sims/sco-ratchet-worker-isolation-pilot.js
+      - name: Certificate-validated reused vs fresh TLS 1.3 budget
+        run: node sims/sco-ratchet-tls-cost.js
+      - name: Real Chromium HttpOnly session CSP and native output parity
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-batch-browser.js
+      - name: Hostile Chromium fetch instrumentation with HttpOnly session
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-browser-attacker.js
+      - name: Matched generated and minified facade hostile Chromium A-only interception
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-ratchet-browser-equal-trust.js

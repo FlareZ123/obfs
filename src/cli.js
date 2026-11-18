@@ -12,10 +12,10 @@ const {parse,walk}=require('./ast');
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[],experimentalSymbolKeys:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
@@ -32,6 +32,7 @@ function readArgs(argv) {
     else if (option === '--host') opts.hosts.push(value);
     else if (option === '--seed') opts.seed=value;
     else if (option === '--asset') opts.publicAssets.push(value);
+    else if (option === '--reviewed-assets') opts.reviewedAssetsPath=value;
     else if (option === '--client') opts.publicScripts.push(value);
     else if (option === '--register-vm') {
       const index=value.lastIndexOf(':');
@@ -310,12 +311,39 @@ function selectScoPublicFiles(files,entry,publicScripts,publicAssets) {
   return files.filter(file=>included.has(file.path)||assets.has(file.path));
 }
 
+/**
+ * Read a separately approved opaque-asset manifest. It must live outside
+ * the source tree, otherwise COO/SNO would also package the review document.
+ * The compiler performs exact path and SHA-256 validation after selecting
+ * the public file set.
+ *
+ * @param {string} sourceRoot
+ * @param {string|undefined} filename
+ * @returns {Promise<import('./reviewed-assets').ReviewedOpaqueAsset[]|undefined>}
+ */
+async function readReviewedAssets(sourceRoot,filename) {
+  if(filename===undefined)return undefined;
+  const manifest=await fs.realpath(path.resolve(filename));
+  const source=await fs.realpath(sourceRoot);
+  const relative=path.relative(source,manifest);
+  if(relative==='' || relative!=='..' && !relative.startsWith('..'+path.sep) && !path.isAbsolute(relative)) {
+    throw new TypeError('--reviewed-assets manifest must be outside --root');
+  }
+  /** @type {unknown} */
+  const parsed=JSON.parse(await fs.readFile(manifest,'utf8'));
+  if(!Array.isArray(parsed)) {
+    throw new TypeError('--reviewed-assets requires a JSON array of {path,sha256} records');
+  }
+  return /** @type {import('./reviewed-assets').ReviewedOpaqueAsset[]} */ (parsed);
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
   if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalStatementFlow||experimentalStatementFlowCompact||experimentalPolyvariantAffine||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
   const absRoot = path.resolve(root);
+  const reviewedOpaqueAssets=await readReviewedAssets(absRoot,reviewedAssetsPath);
   const sourceTree = await readSourceTree(absRoot);
   // A .js dependency inside a nested {"type":"module"} package is ESM,
   // even when SNO starts from a CommonJS .cjs entry. Preserve Node's
@@ -327,7 +355,7 @@ async function main(mode,argv) {
   if (mode === 'sco') {
     // Server-only .js/.mjs/.cjs files under --root are private by default.
     const clientFiles=selectScoPublicFiles(source,entry,publicScripts,publicAssets);
-    const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts,closedWorld}));
+    const server = http.createServer(createScoHandler(clientFiles,{allowedHosts:hosts,closedWorld,reviewedOpaqueAssets}));
     /** @type {Promise<void>} */
     const listening=new Promise(resolve=>server.listen(port,()=>resolve()));
     await listening;
@@ -341,7 +369,7 @@ async function main(mode,argv) {
   if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher filename collides with an input file');
   }
-  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
+  const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
   /** @type {string|undefined} */
   let launcher;
   if (mode === 'sno') {

@@ -38,5 +38,34 @@ jobs:
         run: npm run typecheck
       - name: Strict fixed-arity research JSDoc
         run: npx tsc -p jsconfig.fixed-arity.json
-      - name: Separate inherited Array mutation safety neighbor
-        run: node --test test/decoder-array-prototype-chain.test.js
+      - name: Source-visible String and Array prototype parity with positive decoder yield
+        run: node --test test/decoder-array-prototype-chain.test.js test/decoder-opaque-prototype-source.test.js
+
+      - name: Interprocedural alias red proof
+        run: node --test test/decoder-interprocedural-alias.test.js
+
+      - name: Shadowed intrinsic exact output and positive-yield matrix
+        run: node --test test/decoder-shadowed-intrinsic.test.js
+
+      - name: Tagged and wrapped opaque intrinsic argument differential
+        run: node --test test/decoder-wrapped-escape.test.js
+
+      - name: Expression-wrapper intrinsic argument parity and positive yield
+        run: node --test test/decoder-expression-wrapper.test.js
+
+      - name: Returned function intrinsic and read-only positive coverage
+        run: node --test test/decoder-returned-alias.test.js
+      - name: Nested if try switch return and scoped alias proof
+        run: node --test test/decoder-returned-branches.test.js
+
+      - name: Browser WindowProxy decoder-alias differential and positive-yield control
+        run: node --test test/decoder-browser-window-alias.test.js
+
+      - name: Real Chromium WindowProxy intrinsic alias and protected-work parity
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-browser-window-alias-browser.js
+
+      - name: WindowProxy-mediated long-string String and Array mutation differential
+        run: node --test test/decoder-windowproxy-chunked.test.js

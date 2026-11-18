@@ -52,8 +52,44 @@ function walk(root,visit) {
  * @returns {boolean}
  */
 function hasKnownObserver(root,name) {
+  // Track only direct local aliases of the selected function and arrays
+  // that carry them. The broad repository-wide source observer intentionally
+  // does not apply here: it also sees unrelated exported functions and would
+  // suppress positive work in this narrow experimental backend.
+  const aliases=new Set([name]);
+  const arrays=new Set();
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(root,node=>{
+      if(node.type!=='VariableDeclarator' || node.id.type!=='Identifier' ||
+          !node.init)return;
+      const init=node.init;
+      if(init.type==='Identifier' && aliases.has(init.name) &&
+          !aliases.has(node.id.name)){
+        aliases.add(node.id.name);
+        changed=true;
+      }
+      const carries=init.type==='ArrayExpression' &&
+        init.elements.some(/** @param {any} item */ item=>item?.type==='Identifier' &&
+          (aliases.has(item.name) || arrays.has(item.name))) ||
+        init.type==='Identifier' && arrays.has(init.name);
+      if(carries && !arrays.has(node.id.name)){
+        arrays.add(node.id.name);
+        changed=true;
+      }
+    });
+  }
   let observed=false;
   walk(root,node=>{
+    // Array#join coerces its elements to strings; a function element reveals
+    // the exact source spelling, even with no .toString() in the program.
+    if(node.type==='CallExpression' &&
+        node.callee.type==='MemberExpression' &&
+        node.callee.object.type==='Identifier' &&
+        arrays.has(node.callee.object.name) &&
+        (!node.callee.computed && node.callee.property.name==='join' ||
+         node.callee.computed && node.callee.property.value==='join'))observed=true;
     if(node.type==='WithStatement' ||
        node.type==='CallExpression' && node.callee.type==='Identifier' &&
         ['eval','Function'].includes(node.callee.name))observed=true;
@@ -72,6 +108,12 @@ function hasKnownObserver(root,name) {
  * consumer, and the matching numeric mask into an existing, already imported
  * leaf module. No file or import edge is added. Runtime decoding is lazy and
  * memoized; both shares are public and recoverable from the distributed graph.
+ *
+ * RELEASE VETO (18 November 2026): source-only seedless reconstruction works,
+ * and 286 of 288 selected native-versus-generated first calls exceeded the
+ * strict 2.5x cost ceiling across Ubuntu/Windows at lengths 52, 512 and 4096.
+ * See im-results/coo-piggyback-firstuse-budget-veto-2026-11-18.md. Remain
+ * experimental and opt-in; this candidate has no demonstrated security win.
  *
  * The caller must prove a closed world without namespace/export enumeration,
  * no external function source observation, no early cyclic call, and no
@@ -200,10 +242,13 @@ function piggybackShards(input,options) {
   let consumerCode=consumer.code;
   for(const edit of edits)consumerCode=consumerCode.slice(0,edit.start)+
     edit.text+consumerCode.slice(edit.end);
-  consumerCode+='\nfunction '+decodeName+'(){const units=[];for(let i=0;i<'+n+';i++){'+
-    'const at=(i*'+stride+'+'+shift+')%'+n+';units[i]=('+payloadName+'[at]^'+
-    maskName+'[at]^((i*'+odd+'+'+salt+')&65535))&65535;}'+
-    'return String.fromCharCode(...units);}\n';
+  // A caller may replace Array.prototype[Symbol.iterator] without affecting
+  // the source literal. Accumulate primitive code units directly: spreading a
+  // temporary array would delegate the result to that mutable iterator.
+  consumerCode+='\nfunction '+decodeName+'(){let decoded="";for(let i=0;i<'+n+';i++){'+
+    'const at=(i*'+stride+'+'+shift+')%'+n+';decoded+=String.fromCharCode(('+payloadName+'[at]^'+
+    maskName+'[at]^((i*'+odd+'+'+salt+')&65535))&65535);}'+
+    'return decoded;}\n';
   const donorCode=donor.code+'\nexport const '+maskName+'='+JSON.stringify(mask)+';\n';
   parse(consumerCode);
   parse(donorCode);

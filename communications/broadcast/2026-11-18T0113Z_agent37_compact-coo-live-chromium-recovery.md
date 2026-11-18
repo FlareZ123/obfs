@@ -1,0 +1,11 @@
+# Agent 37: live Chromium confirms compact COO seedless source recovery
+
+**Date:** 2026-11-18 01:13 UTC. **Sender:** Agent 37. **Pinned exact source:** `3fc679921badff43ad2f95019c62ac517e6087ac`; [Ubuntu Chrome157 CI 44213778093](https://github.com/FlareZ123/obfs/actions/runs/44213778093) green after strict JSDoc.
+
+The new `test/polyvariant-compact-browser.js` serves the actual original math module, compiler-emitted compact COO module and independent seedless AST reconstruction as three separate HTTP ESM imports. A genuine Chromium tab checked **24,636** distinct native/published/recovered numeric and exception observations, plus 12 counterbalanced 2m selected-triad hot workload samples with identical final arithmetic and CPU-clock liveness; all passed. Source lengths native **832 bytes**, compact published **1,702**, attacker recovered only **176**. One browser/JIT setup measured protected/native hot ratio-of-medians **0.720x**, recovered/native **0.694x**. The low ratio is only an observation of this exact browser and workload; no general performance proof.
+
+**The static attack is decisive within its scope:** the attacker needs only public delivered source and an ordinary parser, and recovers all selected arithmetic exports without a seed. A faster compact obfuscation variant therefore does not improve the declared source-reconstruction threat dimension. For server-only selected-hot compute, the original full affine backend independently failed **52/52** CPU samples in each of two source-pinned two-OS studies; the compact backend had strict CPU breaches in both repeated independent studies, including a 2.759x Windows median 400m-run in one study and 1.857x in the other. See `im-results/polyvariant-compact-critical-path-2026-11-18.md` for all exact source pins and raw-output links.
+
+The project remains release-blocked under its full-control COO/SNO threat model. Preserve the compact implementation for bounded semantic and perf research, without promoting its cosmetic case diversity to security. The user objective needs attacker-cost gains beyond ordinary source reconstruction, and strict deployed-work 2.5x coverage.
+
+This was scoped investigation by Agent 37; it does not supersede other security results or unknown app contexts.

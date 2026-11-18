@@ -1,12 +1,39 @@
 'use strict';
 
 const {randomBytes,createHash} = require('node:crypto');
+const path=require('node:path');
+
+/**
+ * Serve already-reviewed static assets under their standard browser media types.
+ * The source-disclosure preflight runs independently before this lookup.
+ * Unknown extensions retain the conservative octet-stream fallback.
+ * @type {Map<string,string>}
+ */
+const assetMediaTypes=new Map([
+  ['.html','text/html; charset=utf-8'],
+  ['.htm','text/html; charset=utf-8'],
+  ['.css','text/css; charset=utf-8'],
+  ['.json','application/json'],
+  ['.svg','image/svg+xml'],
+  ['.wasm','application/wasm'],
+  ['.png','image/png'],
+  ['.jpg','image/jpeg'],
+  ['.jpeg','image/jpeg'],
+  ['.gif','image/gif'],
+  ['.webp','image/webp'],
+  ['.ico','image/vnd.microsoft.icon'],
+  ['.woff','font/woff'],
+  ['.woff2','font/woff2'],
+  ['.ttf','font/ttf'],
+  ['.otf','font/otf']
+]);
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
-const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases} = require('./cross-properties');
+const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
+const {canonicalAllowedHosts,routingHostname}=require('./hosts');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 
@@ -34,12 +61,15 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * HTTP JSON helper that suppresses internal exception information.
  * @param {import('node:http').ServerResponse} response
  * @param {number} status
- * @param {unknown} payload
+ * @param {Record<string,unknown>} payload
  * @returns {void}
  */
 function respondJson(response,status,payload) {
-  // Serialize before committing the HTTP status. BigInt and cycles can throw.
-  const body=JSON.stringify(payload);
+  // The protocol-owned wrapper must not inherit a host-installed toJSON
+  // method from Object.prototype. Keep application return-value serialization
+  // unchanged, including explicit toJSON methods on nested result objects.
+  // Serialize before committing the HTTP status: BigInt/cycles can throw.
+  const body=JSON.stringify(Object.assign(Object.create(null),payload));
   response.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
   response.end(body);
 }
@@ -97,7 +127,9 @@ async function handleRpc(request,response,options) {
       respondJson(response,400,{ok:false,error:'Malformed JSON'});
       return;
     }
-    if (!query || typeof query !== 'object' || typeof query.method!=='string' ||
+    if (!query || typeof query !== 'object' ||
+        !Object.hasOwn(query,'method') || !Object.hasOwn(query,'args') ||
+        typeof query.method!=='string' ||
         !Object.hasOwn(options.remoteMethods,query.method) || !Array.isArray(query.args)) {
       respondJson(response,400,{ok:false,error:'Unknown method or invalid arguments'});
       return;
@@ -128,21 +160,23 @@ async function handleRpc(request,response,options) {
         return;
       }
     }
-    // Registered batches with an argument-aware policy require three
-    // independent views of the exact validated JSON text: outer policy,
-    // inner policy, and execution. Native JSON.parse preserves deep nesting
-    // and parsed numeric values without custom recursive clone machinery.
-    // No extra parsing happens for unrecognized methods or absent policy.
+    // The policy receives its own parsed JSON argument graph. A trusted
+    // authorizer may accidentally mutate its inputs; the private method
+    // must still execute the values admitted from the wire. Recognized
+    // batches additionally require a separate inner-policy graph so an
+    // outer-policy mutation cannot redirect their checked operations.
+    // Native JSON.parse preserves deep values, -0 and own "__proto__" keys.
+    // Without an argument-aware policy, no additional parsing is required.
     const needsBatchViews=options.authorizeOperation &&
       getScoBatchCalls(task,args)!==null;
-    const checkedBatchArgs=needsBatchViews ?
+    const policyArgs=options.authorizeOperation ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     const innerPolicyArgs=needsBatchViews ?
       /** @type {unknown[]} */ (JSON.parse(jsonText).args):null;
     // Route-aware, argument-aware authorization is an independent gate after
     // strict JSON and method validation and before any protected side effects.
     if (options.authorizeOperation) {
-      const operationAllowed=await options.authorizeOperation(request,method,args);
+      const operationAllowed=await options.authorizeOperation(request,method,policyArgs??args);
       ensureScopeOpen();
       if(operationAllowed!==true) {
         respondJson(response,403,{ok:false,error:'Forbidden'});
@@ -170,7 +204,7 @@ async function handleRpc(request,response,options) {
       }
     }
     ensureScopeOpen();
-    const result=await task(...(checkedBatchArgs??args));
+    const result=await task(...args);
     ensureScopeOpen();
     respondJson(response,200,{ok:true,value:result});
     };
@@ -309,20 +343,43 @@ function snapshotMetadataEntries(declared) {
  */
 function createScoHandler(sourceFiles,options={}) {
   const prefix = options.routePrefix ?? '/obfs/';
+  // Retain the first configured policy values, including the original
+  // callbacks and registered methods. Caller-managed accessors may yield
+  // different authorities on a later read during initialization.
+  const suppliedMethods=options.remoteMethods;
+  const remoteMethods=suppliedMethods?{...suppliedMethods}:undefined;
+  const authorizeRpc=options.authorizeRpc;
+  const authorizeRead=options.authorizeRead;
+  const authorizeOperation=options.authorizeOperation;
+  const runRpcIsolated=options.runRpcIsolated;
+  const maxRpcBytes=options.maxRpcBytes;
+  const closedWorld=options.closedWorld;
+  const suppliedHosts=options.allowedHosts;
+  if(suppliedHosts!==undefined&&!Array.isArray(suppliedHosts)){
+    throw new TypeError('SCO allowedHosts must be an array');
+  }
+  const allowedHosts=suppliedHosts===undefined?undefined:
+    snapshotMetadataEntries(suppliedHosts);
+  if(allowedHosts?.some(value=>typeof value!=='string')){
+    throw new TypeError('SCO allowedHosts must contain strings');
+  }
+  // Compile an immutable routing lookup at server initialization rather than
+  // allocating and lowercasing a complete allowlist on every HTTP request.
+  const routingHostnames=allowedHosts?.length ? new Set(canonicalAllowedHosts(allowedHosts)) : null;
   if (!prefix.startsWith('/') || !prefix.endsWith('/')) throw new TypeError('routePrefix must start and end with /');
-  if (options.remoteMethods && typeof options.authorizeRpc!=='function') {
+  if (remoteMethods && typeof authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
   }
-  if (options.authorizeRead !== undefined && typeof options.authorizeRead!=='function') {
+  if (authorizeRead !== undefined && typeof authorizeRead!=='function') {
     throw new TypeError('authorizeRead must be a function');
   }
-  if (options.authorizeOperation !== undefined && typeof options.authorizeOperation!=='function') {
+  if (authorizeOperation !== undefined && typeof authorizeOperation!=='function') {
     throw new TypeError('authorizeOperation must be a function');
   }
-  if (options.runRpcIsolated !== undefined && typeof options.runRpcIsolated!=='function') {
+  if (runRpcIsolated !== undefined && typeof runRpcIsolated!=='function') {
     throw new TypeError('runRpcIsolated must be a function');
   }
-  if (options.maxRpcBytes !== undefined && (!Number.isSafeInteger(options.maxRpcBytes) || options.maxRpcBytes<1)) {
+  if (maxRpcBytes !== undefined && (!Number.isSafeInteger(maxRpcBytes) || maxRpcBytes<1)) {
     throw new TypeError('maxRpcBytes must be a positive integer');
   }
   if(!Array.isArray(sourceFiles))throw new TypeError('SCO sourceFiles must be an array');
@@ -334,14 +391,18 @@ function createScoHandler(sourceFiles,options={}) {
   // no static private dependency audit could discover. Build the allowlist
   // from independently reviewed public entrypoints and assets, not from
   // whatever sourceFiles happened to be supplied to this handler.
+  // A positive publication allowlist is authoritative at first read.
+  // Copy indexed entries once so subsequent caller getters, custom array
+  // iterators or changing element getters cannot expand its permissions.
+  const declaredPublicPaths=options.publicPaths;
   /** @type {Set<string>|null} */
-  const publicAllowlist=options.publicPaths===undefined?null:new Set();
+  const publicAllowlist=declaredPublicPaths===undefined?null:new Set();
   if(publicAllowlist){
-    if(!Array.isArray(options.publicPaths)){
+    if(!Array.isArray(declaredPublicPaths)){
       throw new TypeError('SCO publicPaths must be an array');
     }
     const seenPublic=new Set();
-    for(const item of options.publicPaths){
+    for(const item of snapshotMetadataEntries(declaredPublicPaths)){
       const filename=safePath(item);
       if(seenPublic.has(filename.toLowerCase())){
         throw new TypeError('Duplicate SCO publicPaths entry: '+filename);
@@ -439,19 +500,22 @@ function createScoHandler(sourceFiles,options={}) {
   // Another served module can inspect an exported function's exact source.
   // A per-file request cannot see that observer, so suppress source-spelling
   // transformations for the whole published group when one is present.
-  const importedKeyProof=options.closedWorld ?
+  const importedKeyProof=closedWorld ?
     collectVerifiedImportedStrings(normalized) : new Map();
   const importedCloneProof=normalized.length>1 ?
     collectVerifiedImportedCloneAliases(normalized) : new Map();
+  const importedUrlStaticProof=normalized.length>1 ?
+    collectVerifiedImportedUrlStaticAliases(normalized) : new Map();
   const interfileSourceObserver=normalized.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedKeyProof.get(file.path)) ||
       normalized.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
-        importedKeyProof.get(file.path),importedCloneProof.get(file.path))));
-  if(interfileSourceObserver && options.allowedHosts?.length) {
+        importedKeyProof.get(file.path),importedCloneProof.get(file.path),
+        new Set(),new Set(),importedUrlStaticProof.get(file.path))));
+  if(interfileSourceObserver && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
-  const prepared = options.closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
+  const prepared = closedWorld ? renameCrossFileProperties(normalized,randomBytes(24).toString('hex')).files : normalized;
   const inputs = new Map(prepared.map(f=>[f.path,f]));
   // The server's admission and authorization configuration belongs to this
   // handler instance. Keep an owned startup snapshot so later mutations of a
@@ -459,12 +523,21 @@ function createScoHandler(sourceFiles,options={}) {
   // which requests and server-resident functions the handler authorizes.
   // Callbacks themselves remain live functions for normal credential rotation.
   /** @type {ScoOptions} */
-  const policy={...options,
-    allowedHosts:options.allowedHosts?[...options.allowedHosts]:undefined,
+  const policy={
+    // Copy only the request-time policy fields. Spreading the original
+    // options would re-read unrelated publication getters such as publicPaths
+    // after their authoritative startup snapshots had been validated.
+    allowedHosts,
     // Preserve exact method identity. Batch policy preflight uses a private
     // WeakMap on original function objects; binding/wrapping a method loses
     // its verified transitive operation metadata and is unsafe.
-    remoteMethods:options.remoteMethods?{...options.remoteMethods}:undefined};
+    remoteMethods,
+    authorizeRpc,
+    authorizeOperation,
+    runRpcIsolated,
+    maxRpcBytes,
+    authorizeRead
+  };
   return (request,response) => {
     // Node's HTTP parser accepts some malformed absolute-form request targets.
     // WHATWG URL parsing may throw; treat the target as a bad request instead
@@ -481,9 +554,9 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    if (policy.allowedHosts?.length) {
-      const hostname = (request.headers.host ?? '').split(':')[0].toLowerCase();
-      if (!policy.allowedHosts.map(h=>h.toLowerCase()).includes(hostname)) {
+    if (routingHostnames) {
+      const hostname=routingHostname(request.headers.host??'');
+      if(hostname===null || !routingHostnames.has(hostname)) {
         response.writeHead(403).end();
         return;
       }
@@ -515,9 +588,8 @@ function createScoHandler(sourceFiles,options={}) {
     /** @param {NonNullable<typeof file>} confirmedFile */
     function serve(confirmedFile) {
       if (confirmedFile.sourceType === 'asset') {
-        const contentType = confirmedFile.path.endsWith('.json') ? 'application/json' :
-          confirmedFile.path.endsWith('.css') ? 'text/css' :
-            confirmedFile.path.endsWith('.html') ? 'text/html' : 'application/octet-stream';
+        const extension=path.posix.extname(confirmedFile.path).toLowerCase();
+        const contentType=assetMediaTypes.get(extension)??'application/octet-stream';
         response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
         response.end(confirmedFile.code);
         return;

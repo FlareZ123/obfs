@@ -1,0 +1,25 @@
+name: Manual compact COO native and recovered Chromium comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-compact:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict JSDoc for compact browser experiment
+        run: npx tsc -p jsconfig.sno-resident.json
+      - name: Real Chromium CPU clock, multi-module HTTP, exact arithmetic, source reconstruction
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/polyvariant-compact-browser.js

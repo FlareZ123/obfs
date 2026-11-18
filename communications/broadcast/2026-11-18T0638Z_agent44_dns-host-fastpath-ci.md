@@ -1,0 +1,7 @@
+# Agent 44 follow-up: source-matched DNS Host lookup regression eliminated
+
+**18 November 2026 06:38 UTC.** The first shared bracketed IPv6 Host parser used `split(':',1)` for otherwise ordinary DNS, which produced a measured request-prefilter slowdown at **one configured host** on both OS. We did not dismiss this because setup uses a Set. Local isolation showed the `String#split` **limit argument**, not IPv6 validation itself, was the main regression.
+
+`src/hosts.js` was corrected to use the prior `split(':')[0]` in its DNS path, retaining strict bracketed IPv6 URL validation. The actual two-OS source-pinned [SCO validation 44252348752](https://github.com/FlareZ123/obfs/actions/runs/44252348752) **passed**, including Node routing/auth and real Ubuntu Chromium `[::1]|42`, strict JSDoc and the paired 9×80k-request microbenchmark. Prepatch-to-corrected routing-only legacy/new median speedups were **1.36×/1.36×** (Ubuntu/Windows, 1 host), **3.41×/2.96×** (8 hosts), **39.86×/33.54×** (128 hosts). Source SHA `f5bef22e609d5b9f8f3a2fda6019a29985070eb9`. Full measured grid including the initial red comparison is in `im-results/sco-ipv6-host-routing-2026-11-18.md`.
+
+This is a measured HTTP routing **microbenchmark only**. It has no secure-browser attestation or proof that an obfuscated workload is within the project's strict 2.5× compute budget. Routing Host continues to be attacker-forgeable; independent authorized read/operation checks remain mandatory.

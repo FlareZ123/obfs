@@ -28,33 +28,61 @@ function assertReviewedOpaqueAssets(files,approved) {
   }
   /** @type {Map<string,{path:string,sha256:string}>} */
   const expected=new Map();
-  for(const record of approved){
-    if(!record||typeof record!=='object'||Array.isArray(record)||
-        typeof record.path!=='string'||!record.path||
-        typeof record.sha256!=='string'||!/^[0-9a-f]{64}$/u.test(record.sha256)){
+  // The approval authority is the indexed array of reviewed records, not
+  // caller-defined iteration or accessors that can change between checks.
+  // Capture the initial length and each record's fields exactly once.
+  const length=approved.length;
+  for(let index=0;index<length;index++){
+    const record=approved[index];
+    if(!record||typeof record!=='object'||Array.isArray(record)){
       throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
-    const identity=record.path.toLowerCase();
-    if(expected.has(identity)){
-      throw new TypeError('Duplicate reviewedOpaqueAssets path: '+record.path);
+    const path=record.path;
+    const sha256=record.sha256;
+    if(typeof path!=='string'||!path||
+        typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256)){
+      throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
-    expected.set(identity,{path:record.path,sha256:record.sha256});
+    const identity=path.toLowerCase();
+    if(expected.has(identity)){
+      throw new TypeError('Duplicate reviewedOpaqueAssets path: '+path);
+    }
+    expected.set(identity,{path,sha256});
   }
 
-  let matched=0;
-  for(const file of files){
-    if(file.sourceType!=='asset')continue;
-    const entry=expected.get(file.path.toLowerCase());
-    if(!entry||entry.path!==file.path){
-      throw new TypeError('Opaque asset not in reviewedOpaqueAssets: '+file.path);
-    }
-    const observed=createHash('sha256').update(file.code).digest('hex');
-    if(observed!==entry.sha256){
-      throw new TypeError('Opaque asset differs from reviewed bytes: '+file.path);
-    }
-    matched++;
+  if(!Array.isArray(files)){
+    throw new TypeError('Published files must be an array');
   }
-  if(matched!==expected.size){
+  // A final-distribution recheck must inspect the caller's indexed output,
+  // even when its Array iterator has been replaced. File metadata and bytes
+  // are sampled once per entry; the publisher must emit those same bytes.
+  /** @type {Set<string>} */
+  const matched=new Set();
+  const fileCount=files.length;
+  for(let index=0;index<fileCount;index++){
+    const file=files[index];
+    if(!file||typeof file!=='object'){
+      throw new TypeError('Published files must contain indexed file records');
+    }
+    const sourceType=file.sourceType;
+    if(sourceType!=='asset')continue;
+    const path=file.path;
+    const code=file.code;
+    const identity=path.toLowerCase();
+    if(matched.has(identity)){
+      throw new TypeError('Duplicate published opaque asset path: '+path);
+    }
+    const entry=expected.get(identity);
+    if(!entry||entry.path!==path){
+      throw new TypeError('Opaque asset not in reviewedOpaqueAssets: '+path);
+    }
+    const observed=createHash('sha256').update(code).digest('hex');
+    if(observed!==entry.sha256){
+      throw new TypeError('Opaque asset differs from reviewed bytes: '+path);
+    }
+    matched.add(identity);
+  }
+  if(matched.size!==expected.size){
     throw new TypeError('reviewedOpaqueAssets contains unused or missing published asset paths');
   }
 }

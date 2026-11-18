@@ -21,6 +21,11 @@ jobs:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
       - name: Captured getter source-observation precision with negative controls
-        run: node --test test/decoder-safe-captured-read.test.js test/ambient-string-reflective-alias.test.js test/string-method-source-observation.test.js
+        run: node --test test/decoder-safe-captured-read.test.js test/ambient-string-reflective-alias.test.js test/ambient-string-alias.test.js test/ambient-string-intrinsic.test.js test/string-method-source-observation.test.js
+      - name: Real Chromium ambient Array and Document.defaultView intrinsic semantics
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-array-prototype-browser.js
       - name: Strict production JSDoc types
         run: npm run typecheck
