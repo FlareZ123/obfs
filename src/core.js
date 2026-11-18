@@ -389,6 +389,14 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
     return Number.isSafeInteger(index) && index<4096;
   }
   /**
+   * Encode a static member path without delimiter collisions.
+   * @param {string[]} parts
+   * @returns {string}
+   */
+  function sensitivePathKey(parts) {
+    return parts.map(part=>part.length+':'+part+';').join('');
+  }
+  /**
    * @param {import('./ast').AstNode} node
    * @returns {boolean}
    */
@@ -540,13 +548,6 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false) {
        * @param {string} name
        * @param {string} key
        */
-      /**
-       * @param {string[]} parts
-       * @returns {string}
-       */
-      function sensitivePathKey(parts) {
-        return parts.map(part=>part.length+':'+part+';').join('');
-      }
       /**
        * @param {string} name
        * @param {string} pathKey
