@@ -66,13 +66,14 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
         mode,seed:'with-opaque-function-source/'+mode+'/'+fixture.kind,
         strings:true,properties:false,identifiers:false
       }).files[0];
+      assert.equal(execute(String(output.code)),execute(source),
+        'Host-owned with getter observed changed function/class source bytes');
       assert.equal(output.metrics.literals,1,
         'Only outside-function, outside-with primitive literal is admissible');
       assert.ok(String(output.code).includes(fixture.sourceMarker),
         'Function/class source visible to an opaque host must not change');
       assert.ok(!String(output.code).includes('top-level-encoded-payload'),
         'Unrelated top-level literal should retain genuine positive encoding');
-      assert.equal(execute(String(output.code)),execute(source));
     });
   }
 }
