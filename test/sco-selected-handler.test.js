@@ -374,3 +374,54 @@ test('selected SCO handler preserves inherited and non-enumerable route prefix',
     }
   }
 });
+
+test('selected SCO module honors inherited nonenumerable read and operation deny gates',{
+  timeout:15000
+},async()=>{
+  const partition=partitionScoSelectedAsyncExports({
+    path:'mixed.mjs',code:mixed,sourceType:'module'
+  },{
+    seed:'selected-module-prototype-auth-20261118',
+    privateNames:['protectedDigest'],
+    privateModuleImports:['./private/engine.mjs'],
+    privateModuleSources:[engine,leaf]
+  });
+  let readGetterCalls=0,operationGetterCalls=0,effects=0;
+  const inherited=Object.create(null);
+  Object.defineProperty(inherited,'authorizeRead',{
+    enumerable:false,get(){readGetterCalls++;return ()=>false;}
+  });
+  Object.defineProperty(inherited,'authorizeOperation',{
+    enumerable:false,get(){operationGetterCalls++;return ()=>false;}
+  });
+  const options={authorizeRpc:()=>true};
+  Object.setPrototypeOf(options,inherited);
+  const handler=createScoSelectedHandler(partition,{
+    protectedDigest:async(/** @type {number} */ x)=>{effects++;return x+41;}
+  },options);
+  assert.equal(readGetterCalls,1);
+  assert.equal(operationGetterCalls,1);
+  const server=http.createServer(handler);
+  /** @type {Promise<void>} */
+  const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await listening;
+  try{
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    assert.equal((await fetch(origin+'/obfs/mixed.mjs')).status,403);
+    const response=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method:partition.methodNames.protectedDigest,args:[7]})
+    });
+    assert.equal(response.status,403);
+    assert.equal(effects,0);
+    assert.equal(readGetterCalls,1);
+    assert.equal(operationGetterCalls,1);
+  }finally{
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve()));
+    await closed;
+  }
+});
