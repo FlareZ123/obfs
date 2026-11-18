@@ -44,7 +44,8 @@
     "sims/wasm-i32-strategy-grid.js",
     "sims/fused-arx-batch.js",
     "test/fused-arx-batch.test.js",
-    "test/fused-arx-batch-browser.js"
+    "test/fused-arx-batch-browser.js",
+    "test/fused-arx-runtime-capture.test.js"
   ],
   "exclude": [
     "node_modules"
