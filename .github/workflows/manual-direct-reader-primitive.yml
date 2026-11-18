@@ -20,7 +20,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Prove field-reader positive, hostile cases and function-observer negatives
         run: node --test test/direct-reader-primitive-proof.test.js test/typeof-guarded-json-source.test.js test/guarded-json-application-positive.test.js test/cross-file-reader-flow.test.js test/implicit-console-stack-source.test.js test/implicit-source-mode-matrix.test.js
       - name: Reconcile three historical modified-application positives and public-only attackers
@@ -33,9 +33,3 @@ jobs:
         run: npm run typecheck
       - name: Strict external JSDoc
         run: npm run typecheck:external
-      - name: Generate and clean-install dependency lockfile on Linux
-        if: ${{ runner.os == 'Linux' }}
-        run: |
-          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-          npm ci --ignore-scripts --no-audit --no-fund
-          node -e "const fs=require('node:fs');const crypto=require('node:crypto');const body=fs.readFileSync('package-lock.json','utf8');const chunks=body.match(/[\\s\\S]{1,1200}/g)||[];console.log('LOCK_PART_COUNT='+chunks.length);for(let i=0;i<chunks.length;i++)console.log('LOCK_PART:'+i+':'+JSON.stringify(chunks[i]));console.log('LOCK_SHA256='+crypto.createHash('sha256').update(body).digest('hex'));console.log('LOCK_DONE')"
