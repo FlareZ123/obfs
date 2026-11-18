@@ -476,22 +476,22 @@ test('selected SCO graph honors inherited nonenumerable read and operation deny 
       secret:async(/** @type {number} */ x)=>{effects++;return x+5;}
     }
   },options);
-  assert.equal(readGetterCalls,1);
-  assert.equal(operationGetterCalls,1);
   const server=http.createServer(handler);
   try{
     const origin=await listen(server);
-    assert.equal((await fetch(origin+'/obfs/restricted.mjs')).status,403);
+    const sourceResponse=await fetch(origin+'/obfs/restricted.mjs');
+    await sourceResponse.arrayBuffer();
     const response=await fetch(origin+'/obfs/rpc',{
       method:'POST',headers:{'content-type':'application/json'},
       body:JSON.stringify({
         method:graph.partitions['restricted.mjs'].methodNames.secret,args:[7]
       })
     });
-    assert.equal(response.status,403);
-    assert.equal(effects,0);
-    assert.equal(readGetterCalls,1);
-    assert.equal(operationGetterCalls,1);
+    await response.arrayBuffer();
+    assert.deepEqual({sourceStatus:sourceResponse.status,rpcStatus:response.status,
+      effects,readGetterCalls,operationGetterCalls},
+    {sourceStatus:403,rpcStatus:403,effects:0,
+      readGetterCalls:1,operationGetterCalls:1});
   }finally{
     await close(server);
   }
