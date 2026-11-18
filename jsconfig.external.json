@@ -124,7 +124,8 @@
     "test/sco-ratchet-browser-equal-trust.js",
     "sims/semantic-sketch-esm.js",
     "test/semantic-sketch-browser.js",
-    "sims/semantic-sketch-static-control.js"
+    "sims/semantic-sketch-static-control.js",
+    "sims/semantic-sketch-crossmode.js"
   ],
   "exclude": [
     "node_modules"
