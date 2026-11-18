@@ -658,7 +658,7 @@ function mutatesDecoderIntrinsic(ast) {
     // Without interprocedural effect proof, passing that reference is an escape.
     // Direct, known reflection reads are handled by the existing alias scanner.
     if((node.type==='CallExpression'||node.type==='NewExpression') &&
-       node.arguments.some(argument=>
+       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
          touchesString(argument)||isArrayPrototype(argument)||
          isObjectPrototype(argument)||isPossiblePrototype(argument)||
          isPossibleConstructor(argument))) {
