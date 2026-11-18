@@ -28,7 +28,7 @@ The patched [two-OS gate 44276101986](https://github.com/FlareZ123/obfs/actions/
 
 The [paired attacker](../sims/css-leading-c0-attack.js) loads a prepatch compiler from immutable commit `c50dc0b2163ba8cd4635024a3fa70cf20891e81c` and a current candidate, compiles the same original CommonJS source and copied CSS/HTML/SVG asset under each mode, and runs native/emitted executable parity inside isolated V8 contexts. A separate child process [extractor](../sims/css-leading-c0-extractor.js) receives **only published asset bytes** via stdin, reconstructs a nested base64 CSS source-map from the data URL, and must print the exact private source. The candidate must refuse the same public asset before publication. For SCO, the attacker reads the source from a real old-handler localhost HTTP GET and verifies that new handler construction refuses. An accepted external stylesheet control requires byte-identical emitted JavaScript and public CSS under the same options. The workflow checkout is pinned to the actual prepatch source.
 
-The paired gate [44276645628](https://github.com/FlareZ123/obfs/actions/runs/44276645628) was in progress when the report was first written; **do not interpret its outcome as established until the run completes**.
+The exact [Ubuntu/Windows paired-asset and source-only gate 44276645628](https://github.com/FlareZ123/obfs/actions/runs/44276645628) **passed on both operating systems** at immutable executable SHA `cdb13ea7fadf4983d657b4f91a0e451347fd8d5b`, including all COO/SNO/SCO original-source recovery versus patched refusal, actual old SCO HTTP extraction, accepted output byte parity, direct browser URL import equality, existing asset adversaries, and strict core JSDoc.
 
 ## Scope
 
