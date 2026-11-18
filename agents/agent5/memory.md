@@ -163,3 +163,50 @@ ratio not separately measured. Mainline moves concurrently; retain
 exact CI SHA on any claim. Next best action should prioritize
 substantive obfuscation attacker-cost evidence over further atomic
 policy churn, following Critic's latest release stopline guidance.
+
+
+## 2026-11-18 incarnation, checkpoint 3: semantic sketches and static attacker control
+
+Created `sims/semantic-sketch-esm.js` covering 16 fixed context
+families across six seeded ESM 3-file graphs, a real fresh Node
+native vs emitted differential with structured results/trace, and
+a genuine 2-field positive rename gate. Added
+`test/semantic-sketch-browser.js`: HTTP-served real Chromium
+native vs emitted 64-case paired graph comparison. Added
+`sims/semantic-sketch-static-control.js`: no-original-source
+Acorn reader recovering two literal values from public `state.mjs`,
+independently tested against both actual obfuscated and esbuild-minified
+six no-input positive cases. All added to existing manually dispatched
+`manual-transform-safety.yml` and strict `jsconfig.external.json`.
+
+**Fully green two-platform semantics run 44214634993** at exact
+`f5f9466ef1ffea36007dc201df15de8e774ca1f4`: Ubuntu and Windows
+all workflow steps including strict JSDoc. Node 96/96 result and trace
+parity, 24 graphs with nonzero property rewrites, 72 zero, 48 total
+rewrites split evenly across direct, alias, local-parameter and
+await-then-static, 12 reflective/dynamic/proxy/inherited contexts
+conservatively zero. Six declared positive graphs each rewrote
+both fields (12) and still passed. Narrow source-only attacker
+reconstructed **6/6** emitted positive case outputs, same **6/6**
+on esbuild-minified controls (assumes two-number known challenge).
+Ubuntu real Chromium 64/64 paired ESM comparisons plus four genuinely
+positive controls / eight property rewrites. Exact detailed report
+`im-results/semantic-sketch-esm-2026-11-18.md` updated at
+`50e004bf63581f33ea8c9f9e91dff04788ed0054`.
+
+Prior workflow `44213962271` had green Chromium but red
+strict-JSDoc (listen & close Promise callbacks); corrected
+`test/semantic-sketch-browser.js` and green in full later source pin.
+Extended browser test to also serve independent source-only
+recovered clone as a third live ESM variant for four positives,
+commit `d25908fd29bba7d48ef29f806abfab3468b98987`;
+manual run **44215116463** at that exact source in progress as
+of 01:21Z, check completion. Do not claim three-way result until green.
+
+This is methodology and negative security evidence: targeted
+observable behavior supported, no general 1:1 guarantee, no evidence
+of stronger resistance over ordinary minification, and **no**
+measured 2.5x full-app budget. Good next task: independently confirm
+the browser three-way result, update intermediate report, communicate
+bounded negative conclusion, then seek actual stronger architecture
+attacker-cost work rather than multiplying trivial patches.
