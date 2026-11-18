@@ -99,7 +99,24 @@ async function run(rounds=13,stability=false){
       authorizeRpc:authorized,
       authorizeOperation:(request,name,args)=>{
         if(!authorized(request))return false;
-        if(name===batchMethod)return args.length===1&&Array.isArray(args[0]);
+        if(name===batchMethod){
+          const calls=args[0];
+          if(args.length!==1||!Array.isArray(calls)||!calls.length||
+              calls.length>1024)return false;
+          // An authenticated caller must not multiply a valid 150k-work
+          // operation by the entire maximum batch size in one request.
+          // This is a per-request bound; real services also need principal
+          // quotas and cross-account scheduling controls.
+          let totalWork=0;
+          for(const call of calls){
+            if(!call||typeof call!=='object'||!Array.isArray(call.args)||
+                call.args.length!==2||typeof call.args[1]!=='number'||
+                !Number.isSafeInteger(call.args[1])||call.args[1]<0)return false;
+            totalWork+=call.args[1];
+            if(totalWork>1024*1000)return false;
+          }
+          return true;
+        }
         return name===method&&args.length===2&&
           typeof args[0]==='number'&&Number.isInteger(args[0])&&
           args[0]>=0&&args[0]<=0xffffffff&&
@@ -128,6 +145,14 @@ async function run(rounds=13,stability=false){
     });
     assert.equal(deniedInner.status,403,
       'Authenticated outer batch must not bypass an invalid inner argument');
+    const deniedLargeBatch=await originalFetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json',
+        'x-batch-token':bearer},
+      body:JSON.stringify({method:batchMethod,args:[
+        Array.from({length:1024},()=>({method,args:[0,150000]}))]})
+    });
+    assert.equal(deniedLargeBatch.status,403,
+      'Authenticated caller must not multiply maximum per-call work into a costly batch');
     globalThis.fetch=(input,init)=>{
       const headers=new Headers(init?.headers);
       headers.set('x-batch-token',bearer);
