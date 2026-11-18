@@ -14,6 +14,7 @@
     "sims/wasm-captured-clone.js",
     "sims/fused-arx-runtime-clone.js",
     "test/fused-arx-runtime-extraction.test.js",
+    "test/fused-arx-browser-runtime-clone.js",
     "test/wasm-runtime-capture.test.js",
     "test/wasm-i32.test.js",
     "test/wasm-i32-commonjs-lazy.test.js",
