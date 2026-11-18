@@ -131,11 +131,13 @@ async function experiment(){
     try{return store.snapshot(principal);}finally{store.close();}
   }
   try{
-    const [left,right]=await Promise.all([
-      launch(dbPath,root,tokenA,tokenB,control),
-      launch(dbPath,root,tokenA,tokenB,control)
-    ]);
-    workers.push(left,right);
+    // Startup initialization and WAL-mode selection are deliberately
+    // serialized. Only HTTP transaction admission is tested concurrently;
+    // SQLite's database creation path is not a distributed startup barrier.
+    const left=await launch(dbPath,root,tokenA,tokenB,control);
+    workers.push(left);
+    const right=await launch(dbPath,root,tokenA,tokenB,control);
+    workers.push(right);
     const sources=[];
     for(const worker of [left,right]){
       const anonymous=await fetch(worker.base+'/obfs/batch.mjs');
