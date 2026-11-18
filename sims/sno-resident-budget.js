@@ -144,7 +144,9 @@ async function run(rounds=13){
     /** @type {Array<{events:number,repetitions:number,nativeMs:number[],snoMs:number[],nativeCpuMs:number[],snoCpuMs:number[],budget:ReturnType<typeof pairedBudgetBound>,cpuBudget:ReturnType<typeof pairedBudgetBound>,strictOverBudgetPairs:number,strictCpuOverBudgetPairs:number,allOutputsEquivalent:boolean}>} */
     const rows=[];
     let id=0;
-    for(const [count,repeat] of [[1,2000],[50,100],[1000,8],[10000,1]]){
+    for(const [count,repeat] of [[1,50000],[50,2500],[1000,80],[10000,5]]){
+      // Duration-amplify true application calls: Windows process.cpuUsage()
+      // may report zero for millisecond-scale request batches.
       const input=records(count);
       const base={seed:0x4137109d,records:input,repeat};
       // Warm both engines on the same exact workload before collecting pairs.
