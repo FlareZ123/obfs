@@ -183,7 +183,8 @@ function invertLinearSandwich(oracle,target,seed){
   const next=makeRng(seed);
   /** @type {Map<number,number>} */
   const cache=new Map();
-  const query=(input)=>{
+  /** @param {number} input @returns {number} */
+  const query=input=>{
     const key=input>>>0;const prior=cache.get(key);if(prior!==undefined)return prior;
     const value=oracle(key)>>>0;cache.set(key,value);return value;
   };
@@ -251,6 +252,7 @@ function invertLinearSandwich(oracle,target,seed){
 }
 
 function main(){
+  /** @type {{name:string,make:(seed:number)=>(input:number)=>number}[]} */
   const families=[
     {name:'nonlinear-triangular',make:(seed)=>makeTriangularCompatiblePermutation(seed)},
     {name:'rivest-degree-3',make:(seed)=>makeRivestPermutation(3,seed)},
