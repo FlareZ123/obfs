@@ -171,9 +171,11 @@ function makeConventionalServer(root,_delayMs,_facade,onStart,onEnd){
  * and principals remain distinct. The child process starts B while trusted
  * Node is synchronously processing A's private HMAC batch.
  * @param {'generated'|'conventional'} mode
+ * @param {number} [trials]
+ * @param {number} [firstTrial]
+ * @param {Buffer} [root]
  */
-async function experiment(mode){
-  const root=randomBytes(32);
+async function experiment(mode,trials=7,firstTrial=0,root=randomBytes(32)){
   /** @type {Trial|null} */
   let current=null;
   const makeBackend=mode==='generated'?makeServer:makeConventionalServer;
@@ -203,7 +205,7 @@ async function experiment(mode){
    * loadedRatio:number,aBusyMs:number,overlap:true}>} */
   const samples=[];
   try{
-    for(let trial=0;trial<7;trial++){
+    for(let trial=firstTrial;trial<firstTrial+trials;trial++){
       const quietPrincipal='quiet-B/'+trial;
       const matchedQuietPrincipal='quiet-child-B/'+trial;
       const bPrincipal='victim-B/'+trial;
@@ -281,8 +283,8 @@ async function experiment(mode){
         current=null;
       }
     }
-    assert.equal(samples.length,7);
-    assert.equal(backend.calls(),7*(16+16+64+16));
+    assert.equal(samples.length,trials);
+    assert.equal(backend.calls(),trials*(16+16+64+16));
     const loadedOverBudget=samples.filter(s=>s.loadedRatio>2.5).length;
     const quietOverBudget=samples.filter(s=>s.quietRatio>2.5).length;
     const matchedQuietOverBudget=samples.filter(s=>s.matchedQuietRatio>2.5).length;
@@ -330,28 +332,76 @@ async function experiment(mode){
  * overhead of the protected handler under the same original A/B work.
  * @returns {Promise<object>}
  */
-async function compare(){
-  const conventional=await experiment('conventional');
-  const generated=await experiment('generated');
-  const conventionalRows=/** @type {Array<{loadedBMs:number,matchedQuietBMs:number,loadedRatio:number}>} */(conventional.samples);
-  const generatedRows=/** @type {Array<{loadedBMs:number,matchedQuietBMs:number,loadedRatio:number}>} */(generated.samples);
-  assert.equal(conventionalRows.length,7);
-  assert.equal(generatedRows.length,7);
-  const pairs=conventionalRows.map((row,index)=>({
-    trial:index+1,conventionalLoadedBMs:row.loadedBMs,
-    generatedLoadedBMs:generatedRows[index].loadedBMs,
-    loadedGeneratedVsConventional:generatedRows[index].loadedBMs/row.loadedBMs,
-    quietGeneratedVsConventional:generatedRows[index].matchedQuietBMs/row.matchedQuietBMs
-  }));
+
+/**
+ * Combine exact independent one-trial server results without inventing
+ * arbitrary performance ratios from an unloaded original.
+ * @param {Array<Awaited<ReturnType<typeof experiment>>>} runs
+ * @param {'generated'|'conventional'} mode
+ */
+function aggregate(runs,mode){
+  const samples=runs.flatMap(row=>row.samples);
+  assert.equal(samples.length,7);
   return {
-    experiment:'Equal-trust conventional versus generated SCO A-contended B HTTP',
-    platform:process.platform,node:process.version,
-    conventional,generated,matchedLoadedPairs:pairs,
-    medianLoadedGeneratedVsConventional:median(pairs.map(row=>row.loadedGeneratedVsConventional)),
-    strictIncrementalOverBudget:pairs.filter(row=>row.loadedGeneratedVsConventional>2.5).length,
-    scope:'7 sequential pairs per arm, same original private machine, batch, authorization, independent cold B client and verified A/B timing. 7 conventional trials precede 7 generated; order drift, framework overhead, WAN/TLS, worker isolation and universal performance bounds are unmeasured. An absolute B/native breach in either arm is not evidence of incremental obfuscation overhead.'
+    mode,platform:process.platform,node:process.version,
+    hashRootBytes:32,privateWorkBytesPerEvent:8388608,
+    attackerEventsPerTrial:64,victimEventsPerTrial:16,quietEventsPerTrial:16,
+    independentChildProcess:true,statusCodesAll200:true,
+    totalActualPrivateEvents:runs.reduce((count,row)=>count+row.totalActualPrivateEvents,0),
+    overlappingBSubmissions:runs.reduce((count,row)=>count+row.overlappingBSubmissions,0),
+    quietOverBudget:samples.filter(row=>row.quietRatio>2.5).length,
+    matchedQuietOverBudget:samples.filter(row=>row.matchedQuietRatio>2.5).length,
+    loadedOverBudget:samples.filter(row=>row.loadedRatio>2.5).length,
+    medianQuietRatio:median(samples.map(row=>row.quietRatio)),
+    medianMatchedQuietRatio:median(samples.map(row=>row.matchedQuietRatio)),
+    medianLoadedRatio:median(samples.map(row=>row.loadedRatio)),
+    maximumLoadedRatio:Math.max(...samples.map(row=>row.loadedRatio)),
+    samples
   };
 }
+
+/**
+ * Alternating crossover arms, with a separate one-trial server for each
+ * arm and the same fresh private root for a trial's pair. Preserve exact
+ * A/B session state and independent B timing proofs in both arms.
+ * @returns {Promise<object>}
+ */
+async function compare(){
+  /** @type {Array<Awaited<ReturnType<typeof experiment>>>} */
+  const conventionalRuns=[],generatedRuns=[];
+  for(let trial=0;trial<7;trial++){
+    const root=randomBytes(32);
+    if(trial%2===0){
+      conventionalRuns.push(await experiment('conventional',1,trial,root));
+      generatedRuns.push(await experiment('generated',1,trial,root));
+    }else{
+      generatedRuns.push(await experiment('generated',1,trial,root));
+      conventionalRuns.push(await experiment('conventional',1,trial,root));
+    }
+  }
+  const conventional=aggregate(conventionalRuns,'conventional');
+  const generated=aggregate(generatedRuns,'generated');
+  assert.equal(conventional.totalActualPrivateEvents,784);
+  assert.equal(generated.totalActualPrivateEvents,784);
+  assert.equal(conventional.overlappingBSubmissions,7);
+  assert.equal(generated.overlappingBSubmissions,7);
+  const paired=conventional.samples.map((row,index)=>({
+    trial:index+1,conventionalLoadedBMs:row.loadedBMs,
+    generatedLoadedBMs:generated.samples[index].loadedBMs,
+    loadedGeneratedVsConventional:generated.samples[index].loadedBMs/row.loadedBMs,
+    quietGeneratedVsConventional:generated.samples[index].matchedQuietBMs/row.matchedQuietBMs
+  }));
+  return {
+    experiment:'Alternating same-root equal-trust conventional versus generated SCO A-contended B HTTP',
+    platform:process.platform,node:process.version,
+    conventional,generated,matchedLoadedPairs:paired,
+    medianLoadedGeneratedVsConventional:median(paired.map(row=>row.loadedGeneratedVsConventional)),
+    strictIncrementalOverBudget:paired.filter(row=>row.loadedGeneratedVsConventional>2.5).length,
+    armOrder:'conventional-generated,generated-conventional (repeated), same root per trial',
+    scope:'7 alternating crossover pairs on fresh conventional and generated trusted HTTP servers. Same original HMAC, private root per pair, authorization, independent cold B and real A/B overlap. No TLS/WAN, worker scheduling, or universal latency/compute claim.'
+  };
+}
+
 if(require.main===module){
   compare().then(result=>process.stdout.write('SCO_EQUAL_TRUST_CONTENTION '+JSON.stringify(result)+'\n'),
     error=>{process.stderr.write(String(error.stack||error)+'\n');process.exitCode=1;});
