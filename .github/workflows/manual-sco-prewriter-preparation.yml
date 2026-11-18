@@ -1,0 +1,27 @@
+name: Manual SCO state-independent pre-writer async preparation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prewriter:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Strict main and external JSDoc
+        run: npm run typecheck:external
+      - name: Writer-held versus earlier trusted async A preparation
+        run: node sims/sco-ratchet-bucket-quota-identity.js
