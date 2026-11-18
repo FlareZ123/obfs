@@ -133,6 +133,15 @@ function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
       'SNO resident comparison must preserve four application workloads');
     assert.equal(snoResident.leafRows.length,2,
       'SNO resident comparison must retain two selected-function stress controls');
+    // Pin the actual protected-work populations, not merely their count.
+    // A changed resident producer must receive an explicit audit update
+    // before its timings can be called the same twelve-workload experiment.
+    assert.deepEqual(snoResident.rows.map(row=>[row.events,row.repetitions]),[
+      [1,50000],[50,2500],[1000,80],[10000,5]
+    ],'SNO resident application workloads changed');
+    assert.deepEqual(snoResident.leafRows.map(row=>[row.events,row.repetitions]),[
+      [0,40000000],[0,80000000]
+    ],'SNO selected-function stress workloads changed');
     // Both series contain ResidentRow values. Concatenating them before
     // mapping avoids mixing resident inputs with summarized output types.
     for(const [index,row] of snoResident.rows.concat(snoResident.leafRows).entries()){
