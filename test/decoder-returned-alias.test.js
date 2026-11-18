@@ -111,3 +111,30 @@ for(const [name,mutator] of harmless) {
   }
 }
 
+
+for(const [name,source] of [
+  ['read-only returned String prototype',
+    "function factory(){return String.prototype}const P=factory();const f=P.charCodeAt;"],
+  ['read-only returned String constructor',
+    "const factory=()=>String;const C=factory();const f=C.fromCharCode;"],
+  ['read-only named field on returned object',
+    "function factory(){return {slot:String.prototype}}const P=factory().slot;const f=P.charCodeAt;"],
+  ['read-only aliased local function',
+    "function factory(){return String.prototype}const alias=factory;const P=alias();const f=P.charCodeAt;"]
+]) {
+  for(const mode of /** @type {const} */ (['sno','coo'])) {
+    test('read-only String return alias retains encoded target: '+name+'/'+mode,async()=>{
+      const input=graph(source);
+      const output=obfuscateFiles(input,{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'decoder-returned-alias/read-only/'+name+'/'+mode
+      });
+      assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-returned-readonly-'));
+      try{
+        assert.deepEqual(await execute(path.join(root,'native'),input),
+          await execute(path.join(root,'emitted'),output.files));
+      }finally{await fs.rm(root,{recursive:true,force:true});}
+    });
+  }
+}
