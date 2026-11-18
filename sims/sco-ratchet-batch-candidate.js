@@ -27,10 +27,12 @@ function median(times){
  * @param {Buffer} key
  * @param {number} delayMs
  * @param {string} [publicFacadeSource] Optional equal-trust public-facade control.
+ * @param {(principal:string,start:number,inputs:string[])=>void} [onBatchStart] Test-only
+ *   observation hook before synchronous private work; cannot authorize work.
  * @returns {{handler:http.RequestListener,grant:(token:string,principal:string)=>void,
  *    calls:()=>number}}
  */
-function makeServer(key,delayMs,publicFacadeSource){
+function makeServer(key,delayMs,publicFacadeSource,onBatchStart){
   const sessions=new Map();
   const machine=createPrivateMachine(key);
   const context=new AsyncLocalStorage();
@@ -76,6 +78,7 @@ function makeServer(key,delayMs,publicFacadeSource){
       batch:async(start,inputs)=>{
         const principal=context.getStore();
         if(typeof principal!=='string')throw new TypeError('Missing authenticated principal');
+        onBatchStart?.(principal,start,inputs);
         /** @type {string[]} */
         const outputs=[];
         for(let i=0;i<inputs.length;i++){
