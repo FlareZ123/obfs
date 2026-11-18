@@ -23,17 +23,19 @@ const files=[
     '<svg xmlns="http://www.w3.org/2000/svg" width="9" height="7">',
     '<rect width="9" height="7" fill="green"/></svg>'
   ].join('')},
+  {path:'answer.wasm',sourceType:'asset',code:Buffer.from([0,97,115,109,1,0,0,0,1,5,1,96,0,1,127,3,2,1,0,7,8,1,4,112,105,110,103,0,0,10,6,1,4,0,65,42,11])},
   {path:'boot.mjs',sourceType:'module',code:[
     'const icon=document.getElementById("icon");',
     'if(!icon.complete)await new Promise(resolve=>{icon.onload=resolve;icon.onerror=resolve});',
     'const color=getComputedStyle(document.getElementById("marker")).color;',
-    'document.getElementById("out").textContent=color+"|"+icon.naturalWidth+"|"+icon.naturalHeight;'
+    'const wasm=await WebAssembly.instantiateStreaming(fetch("./answer.wasm"),{});',
+    'document.getElementById("out").textContent=color+"|"+icon.naturalWidth+"|"+icon.naturalHeight+"|"+wasm.instance.exports.ping();'
   ].join('\n')}
 ];
 
 /**
- * A real browser must apply a served stylesheet, render a served SVG and run
- * the generated ESM. Fetch-only header checks cannot prove these operations.
+ * A real browser must apply a served stylesheet, render a served SVG,
+ * instantiate a streamed Wasm module and run the generated ESM. Fetch-only header checks cannot prove these operations.
  * @returns {Promise<void>}
  */
 async function main(){
@@ -51,9 +53,9 @@ async function main(){
       '--no-first-run','--virtual-time-budget=7000','--dump-dom',url
     ],{timeout:45000,maxBuffer:4*1024*1024,encoding:'utf8'});
     const observed=stdout.match(/<pre id="out">([^<]+)<\/pre>/u)?.[1];
-    assert.equal(observed,'rgb(0, 128, 0)|9|7',
-      'Chromium SCO CSS/SVG/ESM parity: '+stdout.slice(0,1200));
-    process.stdout.write('Chromium SCO validated CSS, SVG and generated ESM rendering: '+observed+'\n');
+    assert.equal(observed,'rgb(0, 128, 0)|9|7|42',
+      'Chromium SCO CSS/SVG/Wasm/ESM parity: '+stdout.slice(0,1200));
+    process.stdout.write('Chromium SCO validated CSS, SVG, streaming Wasm and generated ESM: '+observed+'\n');
   }finally{
     /** @type {Promise<void>} */
     const closed=new Promise((resolve,reject)=>
