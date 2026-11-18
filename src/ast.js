@@ -530,6 +530,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // URL.parse and URL.canParse convert operands to USVString.
   const urlNativeNames=new Set(['URL']);
   const urlConstructors=new Set(urlNativeNames);
+  const urlNodeModules=new Set();
   const urlStaticNames=new Set(['parse','canParse']);
   const urlStaticAliases=new Set(importedUrlStaticMethods);
   /** @type {Map<string,Set<string>>} */
@@ -556,8 +557,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          (spec.imported.name??spec.imported.value)==='URL') {
         urlConstructors.add(spec.local.name);
       }
-      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier') {
+        urlNodeModules.add(spec.local.name);
         urlConstructorObjectKeys.set(spec.local.name,new Set(['URL']));
+      }
     }
   });
   const webDictionaries=new Set(webDictionaryNames);
@@ -716,12 +719,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @param {Set<string>} aliases
    *  @param {Set<string>} builtins @returns {boolean} */
+  /**
+   * Recognize the immutable Node builtin URL module, directly from require()
+   * or via local aliases and named/default ESM imports.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isNodeUrlModule(node) {
+    if(!node)return false;
+    if(node.type==='Identifier')return urlNodeModules.has(node.name);
+    return node.type==='CallExpression' &&
+      node.callee.type==='Identifier'&&node.callee.name==='require'&&
+      node.arguments.length===1&&
+      ['node:url','url'].includes(staticString(node.arguments[0])??'');
+  }
   function isWebConstructor(node,aliases,builtins) {
     if(!node)return false;
     if(node.type==='Identifier')return aliases.has(node.name);
     if(node.type!=='MemberExpression')return false;
     const name=memberName(node);
     if(isGlobal(node.object) && builtins.has(name??''))return true;
+    if(aliases===urlConstructors && name==='URL'&&isNodeUrlModule(node.object))
+      return true;
     if(node.object.type!=='Identifier')return false;
     const properties=aliases===webRecords ? webRecordObjectKeys :
       aliases===responseConstructors ? responseObjectKeys :
@@ -1017,6 +1036,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isWebConstructor(value,urlConstructors,urlNativeNames))
           changed=add(urlConstructors,name)||changed;
+        if(isNodeUrlModule(value))
+          changed=add(urlNodeModules,name)||changed;
         if(isUrlStaticMethod(value))
           changed=add(urlStaticAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
@@ -1270,6 +1291,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(fromHeaders&&(name==='headers'||name===null&&property.computed) ||
              fromSearch&&(name==='searchParams'||name===null&&property.computed))
             changed=add(webStringInstances,property.value.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         isNodeUrlModule(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='URL'||property.computed&&name===null)
+            changed=add(urlConstructors,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
