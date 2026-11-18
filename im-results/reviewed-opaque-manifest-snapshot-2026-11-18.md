@@ -208,6 +208,26 @@ in publisher-side consistency and developer access to that check.
 It cannot be promoted to strong obfuscation or whole-runtime integrity
 under the COO/SNO/SCO full-control threat assumptions.
 
+## Final trusted-build boundary control at exact source
+
+The last narrowed
+[Ubuntu/Windows gate 44291670683](https://github.com/FlareZ123/obfs/actions/runs/44291670683)
+at `bb52438a76f8b60c35892335e5deb97158e2bef4`
+passed **all steps** on both platforms, including all prior approved
+manifest, CLI, seeded-fuzz, historical negative-control, reproducible
+example, emitted-code equivalence and strict compiler/external
+JSDoc checks.
+
+The additional explicit `approval is not an override` test signs off
+two important refusal precedences: even with a correct independently
+approved SHA-256 for the whole published bytes, a `.map` asset
+containing source-map `sourcesContent` and an HTML asset carrying
+inline JavaScript still fail in COO, SNO, SCO compiler mode, and
+direct SCO serving. A reviewed manifest can admit otherwise opaque
+assets only within the already existing source-disclosure preflight.
+This avoids interpreting the new CLI feature as a bypass switch for
+specific prohibited source-bearing formats.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
