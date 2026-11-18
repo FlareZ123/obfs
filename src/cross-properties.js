@@ -1265,9 +1265,10 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
            * @returns {boolean}
            */
           function forwardsFactory(expression) {
-            if(expression.type==='AwaitExpression' ||
-               expression.type==='ChainExpression')
+            if(expression.type==='AwaitExpression')
               return forwardsFactory(expression.argument);
+            if(expression.type==='ChainExpression')
+              return forwardsFactory(expression.expression);
             if(expression.type==='CallExpression') {
               const callee=expression.callee;
               if(callee.type==='Identifier')return producers.has(callee.name);
