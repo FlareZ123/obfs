@@ -21,16 +21,17 @@ function median(values){
  * @param {number} workBytes
  * @param {number} iterations
  * @param {number} trials
- * @returns {Promise<{resolverKind:string,workBytes:number,iterations:number,
+ * @param {boolean} [abortPrincipalLookup]
+ * @returns {Promise<{resolverKind:string,abortPrincipalLookup:boolean,workBytes:number,iterations:number,
  *   trials:number,pairs:Pair[],strictCpuBreaches:number,strictWallBreaches:number,
  *   unresolvedCpuPairs:number,medianCpuRatio:number|null,medianWallRatio:number}>}
  */
-async function experiment(resolverKind,workBytes,iterations=10000,trials=7){
+async function experiment(resolverKind,workBytes,iterations=10000,trials=7,abortPrincipalLookup=false){
   const resolvePrincipal=resolverKind==='sync'?
     ()=> 'verified' : async()=> 'verified';
   const baseline=createScoKeyedIsolation(resolvePrincipal,{maxPendingTotal:2});
   const deadline=createScoKeyedIsolation(resolvePrincipal,{
-    maxPendingTotal:2,maxPrincipalResolutionMs:10000
+    maxPendingTotal:2,maxPrincipalResolutionMs:10000,abortPrincipalLookup
   });
   const request=/** @type {import('node:http').IncomingMessage} */ (
     /** @type {unknown} */ ({}));
@@ -86,7 +87,7 @@ async function experiment(resolverKind,workBytes,iterations=10000,trials=7){
     pairs.push({cpu,wall:guarded.wallMs/direct.wallMs});
   }
   const resolvedCpu=pairs.flatMap(x=>x.cpu===null?[]:[x.cpu]);
-  return {resolverKind,workBytes,iterations,trials,pairs,
+  return {resolverKind,abortPrincipalLookup,workBytes,iterations,trials,pairs,
     strictCpuBreaches:resolvedCpu.filter(value=>value>2.5).length,
     strictWallBreaches:pairs.filter(x=>x.wall>2.5).length,
     unresolvedCpuPairs:trials-resolvedCpu.length,
@@ -99,8 +100,11 @@ if(require.main===module){
     /** @type {Awaited<ReturnType<typeof experiment>>[]} */
     const results=[];
     for(const resolverKind of /** @type {const} */ (['sync','async'])){
-      for(const bytes of [0,8192])results.push(
-        await experiment(resolverKind,bytes,bytes?25000:250000));
+      for(const bytes of [0,8192]){
+        results.push(await experiment(resolverKind,bytes,bytes?25000:250000));
+        if(resolverKind==='async')results.push(
+          await experiment(resolverKind,bytes,bytes?25000:250000,7,true));
+      }
     }
     process.stdout.write('OBFS_SCO_PRINCIPAL_DEADLINE_COST '+JSON.stringify({
       node:process.version,platform:process.platform,results
