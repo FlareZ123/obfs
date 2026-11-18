@@ -30,6 +30,18 @@ const specimens=[
     'try {const {value}=root.secretAlpha??null;}',
     'catch(error){observed=error.message;}',
     'module.exports=observed;'
+  ].join('\n')},
+  {name:'nested-array-default-object-pattern',source:[
+    'const root={secretAlpha:null};let observed="none";',
+    'try {const [{value}=root.secretAlpha]=[undefined];}',
+    'catch(error){observed=error.message;}',
+    'module.exports=observed;'
+  ].join('\n')},
+  {name:'nested-object-default-object-pattern',source:[
+    'const root={secretAlpha:null};let observed="none";',
+    'try {const {nested:{value}=root.secretAlpha}={nested:undefined};}',
+    'catch(error){observed=error.message;}',
+    'module.exports=observed;'
   ].join('\n')}
 ];
 
@@ -38,9 +50,10 @@ const specimens=[
  * The pre-guard mode is a narrow, source-pinned counterexample assertion;
  * the guarded mode becomes the durable conservative semantic regression.
  * @param {boolean} guarded
+ * @param {boolean} [partial] Whether nested default patterns remain unguarded.
  * @returns {void}
  */
-function run(guarded) {
+function run(guarded,partial=false) {
   for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     for(const specimen of specimens) {
       const source=specimen.source;
@@ -56,7 +69,7 @@ function run(guarded) {
         native,transformed,parity:native===transformed
       };
       process.stdout.write('NULLISH_PATTERN_OPERAND '+JSON.stringify(observed)+'\n');
-      if(guarded) {
+      if(guarded || partial && !specimen.name.startsWith('nested-')) {
         assert.equal(emitted.metrics.properties,0,'Unsafe caught operand must retain its key');
         assert.equal(transformed,native,'Guarded generated error.message must be identical');
       } else {
@@ -74,5 +87,5 @@ function run(guarded) {
   }
 }
 
-if(require.main===module)run(process.argv.includes('--expect-guarded'));
+if(require.main===module)run(process.argv.includes('--expect-guarded'),process.argv.includes('--expect-partial'));
 module.exports={run};
