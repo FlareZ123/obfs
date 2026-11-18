@@ -8,7 +8,8 @@ const {sample}=require('./sco-ratchet-worker-multi-principal');
 /** @param {number[]} values @returns {number} */
 function median(values){
   const copy=[...values].sort((a,b)=>a-b);
-  return copy[Math.floor(copy.length/2)];
+  const middle=Math.floor(copy.length/2);
+  return copy.length%2?copy[middle]:(copy[middle-1]+copy[middle])/2;
 }
 
 /**
