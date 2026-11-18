@@ -46,3 +46,6 @@ jobs:
 
       - name: Shadowed intrinsic exact output and positive-yield matrix
         run: node --test test/decoder-shadowed-intrinsic.test.js
+
+      - name: Tagged and wrapped opaque intrinsic argument red proof
+        run: node --test test/decoder-wrapped-escape.test.js
