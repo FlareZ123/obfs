@@ -68,7 +68,13 @@ const unsafe=[
   ['aliased Object.getPrototypeOf overwrite',
     "const O=Object;const old=O.getPrototypeOf;O.getPrototypeOf=(x)=>x===7?String.prototype:old(x);const P=O.getPrototypeOf(7);P.charCodeAt=()=>0;"],
   ['Object.defineProperty changes getPrototypeOf',
-    "Object.defineProperty(Object,'getPrototypeOf',{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
+    "Object.defineProperty(Object,'getPrototypeOf',{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['Reflect.set changes getPrototypeOf',
+    "Reflect.set(Reflect,'getPrototypeOf',(x)=>x===7?String.prototype:Object.getPrototypeOf(x));const P=Reflect.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['Object.assign changes getPrototypeOf',
+    "Object.assign(Object,{getPrototypeOf:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x)});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"],
+  ['Object.defineProperties changes getPrototypeOf',
+    "Object.defineProperties(Object,{getPrototypeOf:{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true}});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -98,6 +104,21 @@ for(const [name,mutator] of unsafe) {
 }
 
 for(const mode of /** @type {const} */ (['sno','coo'])) {
+  for(const [name,side] of [
+    ['unrelated Object helper field',
+      "Object.defineProperty(Object,'unrelatedAppField',{value:7,configurable:true});"],
+    ['unrelated Reflect helper field',
+      "Reflect.set(Reflect,'unrelatedAppField',7);"]
+  ]) {
+    test('non-decoder intrinsic helper mutation retains transformed literal: '+name+'/'+mode,()=>{
+      const output=obfuscateFiles(files(side),{
+        mode,strings:true,properties:false,identifiers:false,
+        seed:'opaque-prototype-safety/unrelated-helper/'+name+'/'+mode
+      });
+      assert.equal(output.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+    });
+  }
+
   test('obviously unrelated Number prototype keeps encoded work: '+mode,async()=>{
     const input=files("const P=Object.getPrototypeOf(7);P.toString=()=> 'unrelated';");
     const output=obfuscateFiles(input,{
