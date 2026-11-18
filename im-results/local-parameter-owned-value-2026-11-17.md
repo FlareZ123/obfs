@@ -51,3 +51,46 @@ Shorthand and explicit grammar potential are counted separately in `sims/local-p
 ## Important limits
 
 This is a strictly bounded *positive compiler transformation yield* improvement. The general cross-file owner proof still requires literal field values, arbitrary JavaScript is not covered, source bytes and Error stack observers can force conservative declines, and full attacker runtime access can read delivered source. Nothing here establishes a meaningful security gap against a capable static normalizer, debugger or source-only copier; all three mode threat models still need separate adversarial measurement. The later goal remains true 1:1 semantics and increased protected-work attack cost at a measured sustained session budget.
+
+## 18 November 2026 continuation: a private ESM wrapper and honest zero-yield finding
+
+This section supersedes the pending cross-module positive statements above.
+A directly exported `compute(payload)` function was rejected by the
+existing conservative owner proof, so the earlier full
+[run 44239941819](https://github.com/FlareZ123/obfs/actions/runs/44239941819)
+at `9a6582d` failed three-file positive and browser expectations. The
+independent temporary graph-admission probe pinned the cause: owners
+inside directly exported functions remain source-observable, and a repeated
+formal spelling `payload` in wrapper and callee violates the global
+unique-binding proof. With a private callee
+`function compute(payload){...}` and exported
+`function publicCompute(input){return compute(input)}`, the compiler
+renames the private field without mutating public interface spellings.
+
+[Two-platform Node 22 focused run 44242310490](https://github.com/FlareZ123/obfs/actions/runs/44242310490)
+at `57f67cf0087fb098b454815a41f71b7c5329796c`
+passed **75/75** tests per OS, including the real three-file Node ESM
+host callback, a directly-exported-owner refusal, 512 generated
+value-type cases, 20 opaque-flow/escape/reflection refusals,
+public-only key recovery and arithmetic tampering, two strict JSDoc
+configurations, fresh whole-process cost and Ubuntu Chromium DOM
+positive/refusal fixtures. Native and obfuscated three-file output
+was `{"result":84,"events":[42]}`. Source-only normalized output
+was identical. Source-only tampered output was
+`{"result":72,"events":[36]}` without changing the external host API.
+
+Nine-pair fresh-process elapsed-time ratios for explicit and shorthand
+owners, respectively, at 1/100,000/1,000,000 rounds:
+Ubuntu explicit 0.9846/0.9785/0.9853 and shorthand
+0.9836/0.9901/1.0262. Windows explicit
+0.9781/0.9788/1.0301 and shorthand
+0.9980/0.9995/1.0089. Every observed median was below 2.5x
+on these fixtures, without certifying general performance.
+
+The deterministic example scan processed **53 native/original JavaScript
+files** and found **zero** syntactic parameter-value cases and
+**zero** direct-const owner candidates. The evidence is positive
+only for constructed safe application shapes and demonstrates no natural
+corpus yield or additional security against source-only tampering.
+These tests preserve semantic correctness while retaining the overall
+release-blocked verdict for strong obfuscation.
