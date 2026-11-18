@@ -20,10 +20,98 @@ function execute(code) {
   return context.module.exports;
 }
 
-test('process.report.getReport currently exposes a transformed source coordinate',()=>{
+/**
+ * Process diagnostic reports contain the live JavaScript call stack. Any
+ * source rewrite ahead of getReport() on the same line can change its column.
+ * @param {string} reportExpression
+ * @param {string} seed
+ */
+function mustPreserveProcessReport(reportExpression,seed) {
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "module.exports=JSON.stringify("+reportExpression+".javascriptStack);";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'process-report-observer.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed,
+    strings:false,
+    identifiers:false
+  }).files[0];
+  const native=execute(source);
+  const transformed=execute(output.code);
+  assert.equal(typeof native,'string');
+  assert.match(native,/process-report-observer\\.cjs:1:\\d+/);
+  assert.equal(transformed,native,output.code);
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+}
+
+test('process.report.getReport preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    'process.report.getReport()',
+    'agent1-process-report-direct'
+  );
+});
+
+test('aliased process.report namespace preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    '(()=>{const report=process.report;return report.getReport();})()',
+    'agent1-process-report-namespace-alias'
+  );
+});
+
+test('destructured process.report method preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    '(()=>{const {getReport}=process.report;return getReport();})()',
+    'agent1-process-report-method-alias'
+  );
+});
+
+test('bound process.report method preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    '(()=>{const getReport=process.report.getReport.bind(process.report);return getReport();})()',
+    'agent1-process-report-bound'
+  );
+});
+
+test('process.report.writeReport is admitted as a source observer without executing it',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report.writeReport();module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'process-report-observer.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed:'agent1-process-report-write',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+});
+
+test('unsafe private-property rewrite changes process.report stack coordinates',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
     "const value=owner.distinctivelyLongPrivateField;"+
     "module.exports=JSON.stringify(process.report.getReport().javascriptStack);";
+  const unsafe=source.replaceAll('distinctivelyLongPrivateField','x');
+  const native=execute(source);
+  const renamed=execute(unsafe);
+  assert.notEqual(renamed,native);
+  assert.match(String(renamed),/process-report-observer\\.cjs:1:\\d+/);
+});
+
+test('ordinary process metadata remains eligible for property renaming',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "module.exports=value+(process.pid>0?0:1);";
   assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
   const output=obfuscateFiles([{
     path:'process-report-observer.cjs',
@@ -31,16 +119,10 @@ test('process.report.getReport currently exposes a transformed source coordinate
     code:source
   }],{
     mode:'sno',
-    seed:'agent1-process-report-negative',
+    seed:'agent1-process-report-positive',
     strings:false,
     identifiers:false
   }).files[0];
-  const native=execute(source);
-  const transformed=execute(output.code);
-  assert.equal(typeof native,'string');
-  assert.equal(typeof transformed,'string');
-  assert.match(native,/process-report-observer\\.cjs:1:\\d+/);
-  assert.match(transformed,/process-report-observer\\.cjs:1:\\d+/);
   assert.ok(output.metrics.properties>0,output.code);
-  assert.notEqual(transformed,native,output.code);
+  assert.equal(execute(output.code),execute(source));
 });
