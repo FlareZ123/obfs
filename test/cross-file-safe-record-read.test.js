@@ -377,7 +377,8 @@ for(const [label,setup] of /** @type {[string,string][]} */ ([
       mode:'coo',closedWorld:true,seed:'host-factory-adapter-'+label,
       identifiers:false,strings:false,properties:true
     });
+    const delivered=await execute(compiled.files,true);
+    assert.equal(delivered,native,label);
     assert.equal(compiled.crossFile.properties,0,label);
-    assert.equal(await execute(compiled.files,true),native,label);
   });
 }
