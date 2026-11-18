@@ -34,7 +34,7 @@ test('resident SNO loader checks files before handing control to the entry',asyn
   }
 });
 
-test('resident SNO profile executes real protected work and verifies every output',async()=>{
+test('resident SNO profile executes real protected work and verifies every output', {timeout:120000},async()=>{
   await assert.rejects(run(4),/5 through 100 trials/u);
   const result=await run(5);
   assert.equal(result.initializationExcluded,true);
@@ -51,4 +51,4 @@ test('resident SNO profile executes real protected work and verifies every outpu
     assert.ok(row.nativeMs.every(ms=>ms>0));
     assert.ok(row.snoMs.every(ms=>ms>0));
   }
-},{timeout:120000});
+});
