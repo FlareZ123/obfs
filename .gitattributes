@@ -29,3 +29,6 @@ examples/reviewed-assets-cli/source/theme.css text eol=lf
 # Freeze npm manifest and resolved lock bytes across Windows and Linux.
 package.json text eol=lf
 package-lock.json text eol=lf
+
+# Frozen full native/minified/candidate/reconstruction public artifact transcript.
+im-results/frozen-four-way-artifacts-2026-11-18.json text eol=lf
