@@ -2122,6 +2122,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedStackAliases);
   walk(ast,(node,parent,key)=>{
+    // Window/Worker runtime error delivery exposes source coordinates without
+    // requiring a .stack read in the compiled program. The historical onerror
+    // callback receives line/column arguments directly; ErrorEvent listeners
+    // can read lineno/colno. A later source prefix such as the host-lock guard
+    // therefore has to fail closed around these registrations/reads too.
+    if(node.type==='AssignmentExpression' && node.operator==='=' &&
+       (node.left.type==='MemberExpression' &&
+          isGlobal(node.left.object) && memberName(node.left)==='onerror' ||
+        node.left.type==='Identifier' && node.left.name==='onerror' &&
+          !bindingCounts.has('onerror'))) observed=true;
+    if(node.type==='CallExpression' && node.arguments[0] &&
+       staticString(node.arguments[0])==='error' &&
+       (node.callee.type==='MemberExpression' &&
+          isGlobal(node.callee.object) && memberName(node.callee)==='addEventListener' ||
+        node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
+          !bindingCounts.has('addEventListener'))) observed=true;
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
     // pathname/search/hash/credentials observable after assignment.
@@ -2263,7 +2279,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(node.type==='Property' && parent?.type==='ObjectPattern') {
       const property=node.computed ? staticString(node.key) :
         node.key.type==='Identifier' ? node.key.name : staticString(node.key);
-      if(property==='stack') observed=true;
+      if(['stack','lineno','colno'].includes(property??'')) observed=true;
     }
     if(node.type==='MemberExpression') {
       const name=node.computed ? sourceStringKey(node.property) :
@@ -2273,7 +2289,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // refuse rewrites for syntactic stack observers. This deliberately also
       // declines ambiguous user-defined .stack properties rather than guessing
       // whether their values represent a runtime Error.
-      if (['stack','captureStackTrace','prepareStackTrace','stackTraceLimit'].includes(name??'')) observed=true;
+      if (['stack','captureStackTrace','prepareStackTrace','stackTraceLimit',
+           'lineno','colno'].includes(name??'')) observed=true;
       // A function's unknown computed key might evaluate to toString.
       if(node.computed && name===null && isFunctionValue(node.object)) observed=true;
       // A plain assignment overwrites the property without reading or
