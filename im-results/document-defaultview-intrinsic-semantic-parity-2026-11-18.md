@@ -192,3 +192,66 @@ encoded literal and the independent static-recovery canary.
 These checks establish the named source-visible patterns only.
 A dynamic property bag, arbitrary factory, external preloaded scripts
 and a fully hostile runtime remain outside this compiler proof.
+
+## Follow-up: cross-module imported Document identity
+
+The preceding alias scanner tracked only direct file-local
+bindings. A `require('./owner.cjs')` call can return a document-like
+object from a separate supplied module. A consumer can then mutate
+`Doc.defaultView.String.fromCharCode`, where `Doc` is the opaque
+`require()` result. The scanner previously treated that identifier
+as unrelated to the document and emitted a corruptible decoder in
+the target module.
+
+A new four-file CommonJS regression imports the document from an
+owner module after the entry initializes `document.defaultView`,
+modifies the constructor in the mutator module and loads the
+unchanged native target literal last. The
+[red two-platform run 44255769510](https://github.com/FlareZ123/obfs/actions/runs/44255769510)
+at SHA `9cb319e9684014f260f84360e2390ffe35f8e79f`
+recorded **119/120 tests passed, one failed** on both Ubuntu and
+Windows. The failing *actual emitted process output* was 23 question
+marks rather than native `protected-literal-value`.
+
+The repair conservatively adds opaque values from a source-visible
+`require(...)` assignment and all local ESM import bindings to
+the possible-Document alias set. Their actual identity is unproven,
+so an eventual `.defaultView.String` mutation can disable eager
+decoding. Unlike a blanket imported-module rejection, unrelated
+`Doc.defaultView.Number=()=>7` writes retain positive string
+encoding. Other unproved module-return patterns remain outside this
+bounded syntactic admission logic.
+
+The initial CommonJS fix passed the targeted cross-platform
+[run 44255905123](https://github.com/FlareZ123/obfs/actions/runs/44255905123)
+at `d9843b79c620372f052009ed0d4512d35c42b274`.
+A separate two-case real **ESM** fixture uses
+`import {Doc} from './owner.mjs'`: the hostile String mutation
+is refused and unrelated imported Number mutation continues to
+encode a literal. Both execute the full graph in a fresh Node child
+process. The
+[green run 44256040665](https://github.com/FlareZ123/obfs/actions/runs/44256040665)
+at `40966c4af2f462b016d8d1110f5d2958bcaf8abc`
+passed **132/132 Node semantic tests per OS**, production JSDoc,
+and its prior 19 real Chromium source-/output-parity fixtures.
+
+Finally, the same two imported-Document variants were appended to
+`test/decoder-array-prototype-browser.js`, whose graph now contains
+a fourth `owner.mjs` file. The final
+[green targeted two-platform run 44256257798](https://github.com/FlareZ123/obfs/actions/runs/44256257798)
+at `9142e64bdd9de4f0c2ae5318b026d37100c75668`
+passed **132/132 Node tests each OS**, production JSDoc, and
+**21 actual Chromium native/emitted/recovered module-graph fixtures**.
+For the imported-Document String patch it emitted zero decoder
+literals and matched native output, while the unrelated Number
+import retained one encoded literal and the source-only attacker
+recovered it. Exact first/last/length values remained
+`{first:65,last:90,length:2049}`.
+
+The scope remains finite: opaque imported constructors might expose
+other intrinsic mutation paths, module loaders may execute external
+code, and arbitrary runtime instrumentation remains available to
+the COO/SNO attacker. The fix does not establish security against
+public-source reconstruction, dynamic extraction or universal CPU
+admission. All observed new checks were build-time source analysis,
+with no added emitted runtime work.
