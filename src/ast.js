@@ -1258,7 +1258,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const known=objectFunctionKeys.get(node.init.name);
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const key=property.computed?sourceStringKey(property.key):
+          const key=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(key===null)continue;
           if(known?.has(key))changed=add(functions,property.value.name)||changed;
@@ -1288,7 +1288,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isV8Module(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='serialize')changed=add(v8Serializers,property.value.name)||changed;
           if(name==='Serializer'||name==='DefaultSerializer') {
@@ -1313,7 +1313,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const fromSearch=isWebInstance(value,webScalarInstances,webScalars,webScalarNames);
         if(fromHeaders||fromSearch)for(const property of pattern.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(fromHeaders&&(name==='headers'||name===null&&property.computed) ||
              fromSearch&&(name==='searchParams'||name===null&&property.computed))
@@ -1324,7 +1324,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isNodeUrlModule(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='URL'||property.computed&&name===null)
             changed=add(urlConstructors,property.value.name)||changed;
@@ -1334,7 +1334,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isWebConstructor(node.init,urlConstructors,urlNativeNames)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(urlStaticNames.has(name??'')||property.computed&&name===null)
             changed=add(urlStaticAliases,property.value.name)||changed;
@@ -1344,7 +1344,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isWebConstructor(node.init,responseConstructors,responseNames)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='redirect')changed=add(responseRedirects,property.value.name)||changed;
         }
@@ -1353,7 +1353,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isIntlNamespace(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           const kind=intlKinds.find(item=>item.name===name);
           if(kind)changed=add(kind.constructors,property.value.name)||changed;
@@ -1377,7 +1377,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const stringSymbols=new Set(['iterator']);
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(regexpProto &&
              (sourceCoercingRegExpMethods.has(name??'') ||
@@ -1397,7 +1397,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isJsonNamespace(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name===null || name==='parse'||name==='rawJSON')
             changed=add(coercers,property.value.name)||changed;
@@ -1407,7 +1407,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          isGlobal(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property' || property.value.type!=='Identifier')continue;
-          const name=property.computed?sourceStringKey(property.key):
+          const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name==='Intl')changed=add(intlNamespaces,property.value.name)||changed;
           if(name==='JSON')changed=add(jsonNamespaces,property.value.name)||changed;
@@ -2491,7 +2491,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['Identifier','ObjectPattern'].includes(parent.left.type);
     const benignProcessEnvironmentRead=parent?.type==='CallExpression'&&
       parent.arguments[0]===node&&parent.arguments[1]&&
-      staticString(parent.arguments[1])==='env'&&
+      sourceStringKey(parent.arguments[1])==='env'&&
       (parent.callee.type==='Identifier'&&reflectiveReaders.has(parent.callee.name) ||
        parent.callee.type==='MemberExpression'&&
          isReflectiveReceiver(parent.callee.object)&&
@@ -2525,9 +2525,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           !bindingCounts.has('addEventListener') &&
           globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
     if(node.type==='MemberExpression'&&isProcessReceiver(node.object)&&
-       memberName(node)===null)observed=true;
+       processReportMemberName(node)===null)observed=true;
     if(node.type==='MemberExpression'&&
-       isProcessReportNamespace(node.object)&&memberName(node)===null)
+       isProcessReportNamespace(node.object)&&processReportMemberName(node)===null)
       observed=true;
     // Acquiring a live reporting method can move it through arbitrary user
     // containers before invocation. Preserve source at capability acquisition.
