@@ -38,7 +38,7 @@ function recoverCompact(source,names){
   /** @type {Recovery[]} */
   const recovered=[];
   for(const name of names){
-    const declaration=ast.body.find((statement)=>
+    const declaration=ast.body.find((/** @type {AstNode} */ statement)=>
       statement.type==='ExportNamedDeclaration'&&
       statement.declaration?.type==='FunctionDeclaration'&&
       statement.declaration.id?.name===name)?.declaration;
