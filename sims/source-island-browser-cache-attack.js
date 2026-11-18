@@ -165,7 +165,8 @@ async function main(){
     assert.deepEqual(observations.emitted,
       {visible:modified.metrics.properties===0,value:23},
       'Observed source spelling must match the actual transformation count');
-    console.log((defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
+    console.log((minimal?'SOURCE_CACHE_MINIMAL ':
+      defaultOnly?'SOURCE_CACHE_DEFAULT ':'SOURCE_ISLAND_CACHE ')+JSON.stringify({
       status:modified.metrics.properties>0?'source-observation-changed':'source-preserved',
       observations,renamed:modified.metrics.properties,
       chromium:await browser.version()
