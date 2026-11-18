@@ -45,3 +45,12 @@ test('reflection of one owner retains its key while a distinct alias rewrites',(
   assert.equal(result.renames,1,result.code);
   assert.deepEqual(execute(result.code),execute(source));
 });
+
+test('256 transitive alias hops terminate with the same private field rewrite',()=>{
+  let source="'use strict';const owner={secret:83};const alias0=owner;\n";
+  for(let i=1;i<256;i++)source+='const alias'+i+'=alias'+(i-1)+';\n';
+  source+='module.exports=alias255.secret;';
+  const result=compile(source);
+  assert.equal(result.renames,1,result.code);
+  assert.equal(execute(result.code),execute(source));
+});
