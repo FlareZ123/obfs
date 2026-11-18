@@ -29,3 +29,5 @@ jobs:
         run: node sims/sco-ratchet-worker-http-contention.js
       - name: Deny stale/replayed/unauthorized private worker requests and preserve independent principal
         run: node sims/sco-ratchet-worker-policy.js
+      - name: Compare generated SCO with equal-trust ordinary HTTP worker service
+        run: node sims/sco-worker-equal-trust.js
