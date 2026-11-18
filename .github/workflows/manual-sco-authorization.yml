@@ -72,6 +72,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-selected-graph-browser.js
+      - name: Real IPv6 Chromium native versus SCO guarded browser script
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-host-ipv6-browser.js
       - name: Strict JSDoc type checking
         run: npm run typecheck
       - name: Strict JSDoc of external research scripts
