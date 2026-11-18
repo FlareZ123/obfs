@@ -39,3 +39,24 @@ The evidence establishes rejection of specific changing-configuration attacks on
 The work occurs at server-controlled graph initialization and should be evaluated under the prompt's SCO initialization allowance. No measured universal 2.5× performance claim is made. A full repository integration gate is separate from the targeted pin.
 
 Independent future checks should examine similar array iterator assumptions in adjacent selected-SCO graph compilation, and verify package-level publication authorization independently of dynamically supplied compiler configuration.
+
+## Extension: selected-SCO unit inventory
+
+The adjacent `src/sco-selected-graph.js::partitionScoSelectedGraph(units)`
+had a homologous admission mismatch. Its caller-supplied `units` array was
+validated by `Array.isArray` and `.length`, then consumed through
+`for(const unit of units)`. A caller-supplied `Symbol.iterator` could
+instead yield an unapproved module and generate its public facade, despite the
+indexed array specifying an approved module.
+
+The new test in `test/sco-selected-graph.test.js` supplies an indexed
+`approved.mjs` containing a protected `secret` operation and overrides the
+array iterator to produce an `admin.mjs` module instead. Its post-fix real
+HTTP assertions require a successful GET of `approved.mjs`, `404` for
+`admin.mjs`, and parity of an authorized RPC call.
+
+- **Pre-fix red:** [workflow 44284255249](https://github.com/FlareZ123/obfs/actions/runs/44284255249) at [commit 4de129f](https://github.com/FlareZ123/obfs/commit/4de129f83aadc37e1d2290790ccd6e84fdff231d) failed only the new selected-graph public-inventory regression on both operating systems, due to `graph.exposedPaths` containing the iterator-supplied module rather than the reviewed array member.
+- **Post-fix green:** [workflow 44284423649](https://github.com/FlareZ123/obfs/actions/runs/44284423649) at exact [commit 3d20f30](https://github.com/FlareZ123/obfs/commit/3d20f3057b1eecfba92a5404c46068c24f92b454) succeeded on both OSes. The patch snapshots the `units.length` count once and reads numeric indexes, avoiding custom iterators.
+- Targeted `manual-sco-graph.yml` now includes `test/sco-selected-graph.test.js` in its Linux/Windows test command, so future graph regressions exercise both compilers.
+
+The selected graph's one-read file/source fields and strict original digest provenance remain governed by their prior tests. This correction addresses only the direct unit-array iterator boundary, without pretending to authenticate the integrator's own choice of modules.
