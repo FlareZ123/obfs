@@ -49,7 +49,22 @@ const cases=[
     expression:'new registry.Make([],{type:protectedLabel}).type'},
   {name:'Blob constructor sequence expression alias',
     declarations:'const make=(0,Blob);',
-    expression:'new make([],{type:protectedLabel}).type'}
+    expression:'new make([],{type:protectedLabel}).type'},
+  {name:'bound Blob constructor in object property',
+    declarations:'const registry={Make:Blob.bind(null)};',
+    expression:'new registry.Make([],{type:protectedLabel}).type'},
+  {name:'bound Blob constructor object destructuring',
+    declarations:'const registry={Make:Blob.bind(null)};const {Make:make}=registry;',
+    expression:'new make([],{type:protectedLabel}).type'},
+  {name:'bound Blob constructor object owner alias',
+    declarations:'const registry={Make:Blob.bind(null)};const later=registry;',
+    expression:'new later.Make([],{type:protectedLabel}).type'},
+  {name:'bound Blob constructor post-declaration member assignment',
+    declarations:'const registry={};registry.Make=Blob.bind(null);',
+    expression:'new registry.Make([],{type:protectedLabel}).type'},
+  {name:'bound Blob constructor through independent identifier',
+    declarations:'const make=Blob.bind(null);const registry={Make:make};',
+    expression:'new registry.Make([],{type:protectedLabel}).type'}
 ];
 
 test('bound and owned Blob constructors natively expose the same function source',()=>{
