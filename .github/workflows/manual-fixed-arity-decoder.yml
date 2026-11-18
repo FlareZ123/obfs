@@ -49,3 +49,6 @@ jobs:
 
       - name: Tagged and wrapped opaque intrinsic argument differential
         run: node --test test/decoder-wrapped-escape.test.js
+
+      - name: Returned ambient decoder intrinsic alias red proof
+        run: node --test test/decoder-returned-alias.test.js
