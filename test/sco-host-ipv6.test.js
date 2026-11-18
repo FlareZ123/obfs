@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const http=require('node:http');
 const vm=require('node:vm');
-const {createScoHandler}=require('../src');
+const {createScoHandler,obfuscateFiles}=require('../src');
 
 /** @param {number} port @param {string} host @param {boolean} [rpc] @param {string} [resource] @returns {Promise<{status:number,body:string}>} */
 function request(port,host,rpc=false,resource='data.json') {
@@ -68,5 +68,34 @@ test('SCO IPv6 Host-header routing recognizes bracketed addresses and denies mal
     }
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
+
+
+test('COO and SCO share strict canonical browser-host admission',()=>{
+  const code='globalThis.ipv6Accepted=73;';
+  const inputs=[{path:'client.js',sourceType:/** @type {const} */('script'),code}];
+  const result=obfuscateFiles(inputs,{
+    mode:'coo',seed:'ipv6-execution-guard',
+    allowedHosts:['[0:0:0:0:0:0:0:1]','[::1]']
+  });
+  const compiled=String(result.files[0].code);
+  const authorized={location:{hostname:'[::1]'}};
+  vm.runInNewContext(compiled,authorized,{timeout:1000});
+  assert.equal(/** @type {{ipv6Accepted?:number}} */(authorized).ipv6Accepted,73);
+  for(const hostname of ['[::2]','evil.example','127.0.0.1']){
+    const denied={location:{hostname}};
+    assert.throws(()=>vm.runInNewContext(compiled,denied,{timeout:1000}),
+      /Unauthorized execution host/,hostname);
+    assert.equal(/** @type {{ipv6Accepted?:number}} */(denied).ipv6Accepted,undefined);
+  }
+  for(const invalid of ['[::::]','[::1]:8080','[::1]@evil.example',
+    'https://[::1]','[2001:db8::zz]']){
+    assert.throws(()=>obfuscateFiles(inputs,{mode:'coo',allowedHosts:[invalid]}),
+      /allowedHosts must contain valid DNS names or bracketed IPv6 literals/,invalid);
+    assert.throws(()=>createScoHandler([
+      {path:'data.json',sourceType:'asset',code:'{}'}
+    ],{allowedHosts:[invalid]}),
+    /allowedHosts must contain valid DNS names or bracketed IPv6 literals/,invalid);
   }
 });
