@@ -86,7 +86,7 @@ function sampleArm(code,calls,trial){
   const wallStart=performance.now();
   let checksum=0;
   for(let repetition=0;repetition<12;repetition++){
-    checksum^=execute(code,calls,10000+trial*32+repetition);
+    checksum=(checksum+execute(code,calls,10000+trial*32+repetition)*(repetition+1))|0;
   }
   const wallMs=performance.now()-wallStart;
   const usage=process.cpuUsage(cpuStart);
