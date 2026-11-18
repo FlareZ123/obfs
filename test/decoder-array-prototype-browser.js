@@ -162,6 +162,15 @@ async function main() {
       expectEncoded:false},
     {name:'destructuring-assignment-unrelated-Number',
       mutation:'let View;({defaultView:View}=document);View.Number=()=>7;',
+      expectEncoded:true},
+    {name:'opaque-reflected-String-constructor-write',
+      mutation:"function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';",
+      expectEncoded:false},
+    {name:'opaque-destructured-String-constructor-write',
+      mutation:"function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const {constructor:C}=P;C.fromCharCode=()=>'?';",
+      expectEncoded:false},
+    {name:'read-only-opaque-reflected-String-constructor',
+      mutation:"function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Reflect.get(P,'constructor');const harmless=C.fromCharCode;",
       expectEncoded:true}
   ];
   const observations=[];
