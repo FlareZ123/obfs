@@ -1892,6 +1892,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const processReportTriggers=new Set([
     'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
   ]);
+  /** @param {AstNode} property @returns {boolean} */
+  function processReportPropertyMayEnable(property) {
+    if(property.type!=='Property')return true;
+    const name=property.computed?staticString(property.key):
+      property.key.type==='Identifier'?property.key.name:staticString(property.key);
+    return processReportTriggers.has(name??'');
+  }
+  /** @param {AstNode} source @returns {boolean} */
+  function processReportAssignmentSourceMayEnable(source) {
+    return source.type!=='ObjectExpression' ||
+      /** @type {AstNode[]} */ (source.properties).some(processReportPropertyMayEnable);
+  }
   walk(ast,node=>{
     if(node.type!=='ImportDeclaration' ||
        !['process','node:process'].includes(String(node.source?.value??'')))return;
@@ -2275,12 +2287,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isReflectiveReceiver(node.callee.object)&&method==='assign'&&
          isProcessReportNamespace(node.arguments[0])&&
-         node.arguments.slice(1).some(source=>source.type!=='ObjectExpression'||
-           source.properties.some(property=>property.type!=='Property'||
-             processReportTriggers.has(property.computed?
-               staticString(property.key)??'':
-               property.key.type==='Identifier'?property.key.name:
-                 staticString(property.key)??'')))) {
+         /** @type {AstNode[]} */ (node.arguments.slice(1))
+           .some(processReportAssignmentSourceMayEnable)) {
         observed=true;
       }
     }
