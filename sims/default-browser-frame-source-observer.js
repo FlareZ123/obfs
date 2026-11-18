@@ -71,9 +71,9 @@ async function main(){
 
   /** @type {Map<string,string>} */
   const resources=new Map();
-  for(const [variant,graph] of /** @type {Array<[string,SourceFile[]]>} */
+  for(const [variant,sourceSet] of /** @type {Array<[string,SourceFile[]]>} */
       ([['native',graph],['emitted',output.files]])){
-    for(const file of graph)resources.set('/'+variant+'/'+file.path,String(file.code));
+    for(const file of sourceSet)resources.set('/'+variant+'/'+file.path,String(file.code));
     resources.set('/'+variant+'/index.html',html(declaredFrame));
   }
   const server=http.createServer((request,response)=>{
