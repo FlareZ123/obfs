@@ -147,6 +147,21 @@ test('read-only String prototype alias keeps encoding enabled',()=>{
   assert.ok(result.files.find(file=>file.path==='target.cjs')?.metrics.literals);
 });
 
+test('unrelated browser Document.defaultView numeric global write retains string encoding',()=>{
+  /** @type {CommonJsFile[]} */
+  const input=[
+    {path:'side.cjs',sourceType:'commonjs',
+      code:'globalThis.document={defaultView:globalThis};document.defaultView.Number=()=>7;'},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:"module.exports='protected-literal-value';"}
+  ];
+  const result=obfuscateFiles(input,{
+    mode:'sno',strings:true,properties:false,identifiers:false,
+    seed:'ambient-string-alias/unrelated-document-default-view'
+  });
+  assert.equal(result.files.find(file=>file.path==='target.cjs')?.metrics.literals,1);
+});
+
 test('unrelated Number prototype mutation keeps String decoder enabled',()=>{
   /** @type {CommonJsFile[]} */
   const input=[
