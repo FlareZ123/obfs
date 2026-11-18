@@ -30,6 +30,13 @@ test('SCO principal lookup deadline has a valid Node timer range',()=>{
   assert.doesNotThrow(()=>createScoKeyedIsolation(principalOf,{
     maxPrincipalResolutionMs:2147483647
   }));
+  assert.throws(()=>createScoKeyedIsolation(principalOf,{
+    abortPrincipalLookup:true
+  }),/abortPrincipalLookup/);
+  assert.throws(()=>createScoKeyedIsolation(principalOf,{
+    maxPrincipalResolutionMs:10,abortPrincipalLookup:'yes'
+  }),/abortPrincipalLookup/);
+
 });
 
 test('SCO deadline releases reservation and never runs a late principal result',{
@@ -82,6 +89,41 @@ test('SCO cached asynchronous principals settle without deadline expiration',asy
   delayed.resolve();
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(effects,1);
+});
+
+test('SCO aborts a cooperating identity provider on lookup deadline',async()=>{
+  /** @type {AbortSignal|undefined} */
+  let exposedSignal;
+  let externalReservations=0;
+  let privateEffects=0;
+  const isolate=createScoKeyedIsolation((_request,signal)=>{
+    exposedSignal=signal;
+    externalReservations++;
+    return new Promise((_resolve,reject)=>{
+      signal?.addEventListener('abort',()=>{
+        externalReservations--;
+        reject(Error('identity-fetch-aborted'));
+      },{once:true});
+    });
+  },{maxPendingTotal:1,maxPrincipalResolutionMs:20,abortPrincipalLookup:true});
+  await assert.rejects(isolate(requestFor(),async()=>{privateEffects++;}),
+    ScoIsolationBusyError);
+  assert.equal(exposedSignal?.aborted,true);
+  assert.equal(externalReservations,0,'Cooperating resolver freed external reservation');
+  assert.equal(privateEffects,0,'Aborted resolver cannot enter protected method');
+});
+
+test('SCO abort flag never cancels a successfully resolved async session',async()=>{
+  /** @type {AbortSignal|undefined} */
+  let signal;
+  let effects=0;
+  const isolate=createScoKeyedIsolation((_request,provided)=>{
+    signal=provided;
+    return Promise.resolve('verified');
+  },{maxPendingTotal:1,maxPrincipalResolutionMs:1,abortPrincipalLookup:true});
+  await isolate(requestFor(),async()=>{effects++;});
+  assert.equal(effects,1);
+  assert.equal(signal?.aborted,false);
 });
 
 test('SCO deadline covers principal resolution only, not protected execution',{
