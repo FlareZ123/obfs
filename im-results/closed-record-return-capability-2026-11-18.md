@@ -23,6 +23,38 @@ The exact regression file is `test/cross-file-safe-record-read.test.js`. Its ori
 3. Strict-JSDoc follow-up at SHA `b1729e1d9ce6ade6f9e1460f49045c9acd5b08cf`: [CI 44237910073](https://github.com/FlareZ123/obfs/actions/runs/44237910073) **passed on Ubuntu and Windows**, including imported function-array/source observers and the compiler typecheck. The only functional edit since the 299-case run was adding a missing JSDoc argument annotation.
 4. A comprehensive Node 22 Linux/Windows and Chromium `manual-validation.yml` run was dispatched on the same typed source. Its status must be separately verified and recorded before merging or claiming a full integration pass.
 
+## Held-out path challenge and expanded repair
+
+Six further native ESM adversarial return paths were committed **as tests only**
+at `a9ae68e5a82c885f836f42bb97f9a8b5519f8201`. The
+[source-pinned two-platform red run 44238351932](https://github.com/FlareZ123/obfs/actions/runs/44238351932)
+confirmed the first-step **299 passes / six expected failures**: awaited factory
+results, destructured holders, namespace imports, local wrapper returns,
+factory aliases, and member extraction from a separately held object all
+revealed renamed distributed `secretField` where the original key was required.
+Each changed original application behavior. These are evidence of unsoundness
+in the first narrow iteration, not merely additional compiler warnings.
+
+At `82407bf1bae72885887bcf1c795682f655f2a0f3`, the source analysis
+was extended to join returned host-capability forwarding factories to a
+fixed point; detect simple factory aliases and namespace member calls; and
+propagate awaited, destructured and member-read call results. The
+[re-test 44238744702](https://github.com/FlareZ123/obfs/actions/runs/44238744702)
+then executed **305/305 successful native-vs-generated Node regression cases
+on each OS**, preserving the three previously lost benign nonvacuous
+transformations. The workflow still failed at the historical, now-impossible
+ablation anchor described earlier; all preceding functional steps completed.
+
+At `bff380435b5a0f87e7b269ab8c9e0819c4189d42`, the obsolete
+source-text-anchored ablation was removed from the live manual reader-workflow
+sequence. Its historical simulator and earlier evidence are retained for
+archaeology. The manually dispatched reader and full-integration workflows
+at this exact source must be separately checked. The initial 299-case
+candidate, before the six challenge cases, passed full Linux/Windows
+Node 22 and real Ubuntu Chromium integration in
+[run 44238067798](https://github.com/FlareZ123/obfs/actions/runs/44238067798);
+that fact does **not** certify the later six-case revision.
+
 ## Unresolved questions
 
 The current name-level guard is deliberately narrower than a complete returning-capability dataflow analysis. Cases such as await-wrapped calls, destructured call results, namespace imports, higher-order wrapper returns and hostile callbacks outside the supplied graph need specific soundness evidence; they must not be silently assumed safe. The guard changes compiler admission and emitted identifier spelling, so target-program CPU effects require representative paired measurement, separate from compiler analysis time. Independent static/dynamic recovery and tamper/host bypass tests remain necessary for any claim stronger than compatibility preservation.
