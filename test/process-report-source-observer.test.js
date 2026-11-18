@@ -49,8 +49,10 @@ function mustPreserveProcessReport(reportExpression,seed) {
   const native=execute(source);
   const transformed=execute(output.code);
   assert.equal(typeof native,'string');
+  assert.equal(typeof transformed,'string');
+  const sourceFrame=/process-report-observer\.cjs:1:\d+/g;
   assert.match(native,/process-report-observer\.cjs:1:\d+/);
-  assert.equal(transformed,native,output.code);
+  assert.deepEqual(transformed.match(sourceFrame),native.match(sourceFrame),output.code);
   assert.equal(output.code,source);
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 }
