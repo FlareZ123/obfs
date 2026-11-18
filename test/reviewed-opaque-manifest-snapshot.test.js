@@ -174,3 +174,28 @@ test('reviewed policy adds no emitted JavaScript work for the same seeded three-
     }
   }
 });
+
+test('approval is not an override for independently forbidden source-bearing asset formats',()=>{
+  const items=[
+    {path:'archive.map',sourceType:/** @type {const} */('asset'),
+      code:Buffer.from(JSON.stringify({
+        version:3,file:'bundle.js',sources:['src/original.js'],
+        sourcesContent:['function originalSecret(){return 31337;}'],names:[],mappings:'AAAA'
+      }))},
+    {path:'page.html',sourceType:/** @type {const} */('asset'),
+      code:Buffer.from('<html><body><script>globalThis.originalSecret=31337</script></body></html>')}
+  ];
+  const entry={path:'entry.cjs',sourceType:/** @type {const} */('commonjs'),
+    code:'module.exports=17;'};
+  for(const asset of items){
+    const reviewedOpaqueAssets=[{path:asset.path,sha256:digest(asset.code)}];
+    for(const mode of /** @type {const} */(['coo','sno','sco'])){
+      assert.throws(()=>obfuscateFiles([entry,asset],{
+        mode,reviewedOpaqueAssets,seed:'approval-is-not-a-security-bypass'
+      }),/source.map|inline script/i,mode+' '+asset.path);
+    }
+    assert.throws(()=>createScoHandler([asset],{
+      reviewedOpaqueAssets
+    }),/source.map|inline script/i,'SCO handler '+asset.path);
+  }
+});
