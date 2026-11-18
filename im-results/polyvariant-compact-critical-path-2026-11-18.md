@@ -55,3 +55,18 @@ The corpus created **384** independent integer-normalized return-only JS source 
 `108fb0f7d3fe00bb8faaf23cdcdbf455efbb47aa5878d0c57f01c00a31544d50`.
 
 No semantic mismatch was observed in that bounded corpus. These compatibility observations strengthen confidence in exact arithmetic behavior of this constrained compiler grammar; they do not improve source secrecy, prove arbitrary JavaScript compatibility, or cancel the 13/52 measured long-duration strict hot CPU breaches.
+
+## Independent repeated source pin with OS variability (18 November 2026 ~01:07 UTC)
+
+The complete independent [Linux/Windows targeted run 44212698981](https://github.com/FlareZ123/obfs/actions/runs/44212698981) at exact checkout `9d8e0e0cafa526be1209519de58a0f97d8e8fc19` **passed both jobs**. The compact and original compiler implementations and 200m/400m sample protocol are unchanged from the earlier `c9ba9eaa...` run. The repository did gain unrelated SCO policy changes and documentation. The new machine-readable producer explicitly distinguishes `cpuSampleVerdict` from statistical median decisions.
+
+| Measured boundary | Earlier Ubuntu CPU median | Later Ubuntu CPU median | Earlier Windows CPU median | Later Windows CPU median |
+| --- | ---: | ---: | ---: | ---: |
+| Compact 200m selected chains | 1.9999x | **2.3218x** | 2.2936x | **1.8917x** |
+| Compact 400m selected chains | 1.9944x | **1.8948x** | 2.7594x | **1.8567x** |
+
+The later compact **hot-only** 52 CPU pairs produced **1/52 strict breaches** on Ubuntu (at 400m, maximum pair **4.0600x**) and **0/52** on Windows. Additional compact **complete-application** pairs produced 0 Ubuntu and **2 Windows** strict breaches in the 10,000-event group. Consequently both compact OS jobs' **combined six-population CPU verdicts were `sample-breached`** (Ubuntu 1 strict, Windows 2 strict), even though their selected-function medians were under 2.5x. These observations supersede any suggestion that the compact 2.7594x Windows median is reproducibly fixed on every run. The source code and JIT optimization state may create variable profiles across independent runner instances; no causal attribution has been measured.
+
+The original full-affine same-source control again produced **52/52 strictly overbudget selected-leaf CPU pairs** across both platforms (26/26 per platform); Ubuntu median hot CPU slowdown 26.651x/40.040x and Windows 22.161x/22.177x for 40m/80m. This replicates the original catastrophic selected-hot finding with stronger across-run consistency.
+
+**Updated selection:** The original polyvariant backend has repeated independently verified massive hot-path CPU violations and remains rejected under the ceiling. The compact backend has much lower typical hot CPU overhead but has **observed strict pair breaches in two separate runs**, and one run had a 2.7594x Windows median. It therefore cannot pass the project's strict no-observed-breach gate or claim a general hard ceiling; any claim of a stable median violation must be qualified by this later run. Its public symbolic recovery remains straightforward. Neither backend qualifies as the strongest security-performance choice on the measured evidence.
