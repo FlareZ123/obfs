@@ -168,3 +168,13 @@ test('source-visible Array iterator replacement does not alter lazy decoded outp
     fs.rmSync(dir,{recursive:true,force:true});
   }
 });
+
+test('declines implicit function-source reads through an array carrier',()=>{
+  const app="import {factor} from './constants.mjs';\n"+
+    "export function message(){return 'private';}\n"+
+    "const alias=message;const carrier=[alias];\n"+
+    "export const sourceText=carrier.join('|');\n";
+  const result=transform(app,'export const factor=4;');
+  assert.equal(result.transformed,false);
+  assert.match(result.reason,/source-observation proof declined/);
+});
