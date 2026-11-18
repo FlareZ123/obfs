@@ -29,3 +29,7 @@ examples/reviewed-assets-cli/source/theme.css text eol=lf
 # Freeze npm manifest and resolved lock bytes across Windows and Linux.
 package.json text eol=lf
 package-lock.json text eol=lf
+
+# Frozen Agent38 stateful ARX native and generated candidate source bytes.
+examples/stateful-arx-app/native/*.mjs text eol=lf
+examples/stateful-arx-app/candidate/*.mjs text eol=lf
