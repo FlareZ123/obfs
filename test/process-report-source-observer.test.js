@@ -529,3 +529,48 @@ test('const-computed Reflect.get globalThis process preserves diagnostic report 
     'agent8-process-global-reflect-computed-key'
   );
 });
+
+
+test('const-computed process report namespace preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='report';return process[key].getReport();})()",
+    'agent8-process-report-computed-namespace'
+  );
+});
+
+test('const-computed process report method preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='getReport';return process.report[key]();})()",
+    'agent8-process-report-computed-method'
+  );
+});
+
+test('const-computed automatic report trigger preserves source',()=>{
+  const source="'use strict';const key='reportOnUncaughtException';"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report[key]=true;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'computed-report-trigger.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-computed-report-trigger',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+});
+
+test('const-computed harmless report metadata retains property yield',()=>{
+  const source="'use strict';const key='filename';process.report[key]='';"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'computed-report-metadata.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-computed-report-metadata',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),73);
+  assert.ok(output.metrics.properties>0,output.code);
+});
