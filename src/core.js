@@ -653,6 +653,28 @@ function mutatesDecoderIntrinsic(ast) {
       mutated=true;
       return;
     }
+    // An opaque call can forward a mutable String/Array/Object intrinsic into
+    // a parameter and patch it before a later module initializes its decoder.
+    // Without interprocedural effect proof, passing that reference is an escape.
+    // Direct, known reflection reads are handled by the existing alias scanner.
+    if((node.type==='CallExpression'||node.type==='NewExpression') &&
+       node.arguments.some(argument=>
+         touchesString(argument)||isArrayPrototype(argument)||
+         isObjectPrototype(argument)||isPossiblePrototype(argument)||
+         isPossibleConstructor(argument))) {
+      const callee=node.callee;
+      const method=callee.type==='MemberExpression'?memberName(callee):null;
+      const recognizedRead=callee.type==='MemberExpression' &&
+        (isObjectIntrinsic(callee.object) &&
+          ['getPrototypeOf','getOwnPropertyDescriptor','getOwnPropertyDescriptors']
+            .includes(method??'') ||
+         isReflectIntrinsic(callee.object) &&
+          ['get','getPrototypeOf'].includes(method??''));
+      if(!recognizedRead) {
+        mutated=true;
+        return;
+      }
+    }
     if(node.type!=='CallExpression' || node.callee.type!=='MemberExpression')return;
     const receiver=node.callee.object;
     const method=memberName(node.callee);
