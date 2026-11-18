@@ -29,3 +29,11 @@ jobs:
         run: node sims/coo-shard-profile.js
       - name: Strict JSDoc typecheck for experimental source and tests
         run: npx tsc -p jsconfig.coo-shards.json
+      - name: Existing-edge piggyback ESM semantic regressions
+        run: node --test test/coo-piggyback-shards.test.js
+      - name: Verify checked-in piggyback output matches current compiler
+        run: node examples/coo-piggyback/build.cjs
+      - name: Strict JSDoc for existing-edge piggyback backend
+        run: npx tsc -p jsconfig.piggyback.json
+      - name: Existing-edge piggyback cold and hot cost sample
+        run: node sims/coo-piggyback-profile.js
