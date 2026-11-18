@@ -2127,6 +2127,37 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const globalErrorEventNames=new Set([
     'error','unhandledrejection','rejectionhandled'
   ]);
+  const workerInstances=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWorkerConstructor(node) {
+    return Boolean(node && (
+      node.type==='Identifier' && ['Worker','SharedWorker'].includes(node.name) ||
+      node.type==='MemberExpression' && isGlobal(node.object) &&
+        ['Worker','SharedWorker'].includes(memberName(node)??'')
+    ));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isWorkerInstance(node) {
+    return Boolean(node && (
+      node.type==='Identifier' && workerInstances.has(node.name) ||
+      node.type==='NewExpression' && isWorkerConstructor(node.callee)
+    ));
+  }
+  let changedWorkerInstances;
+  do {
+    changedWorkerInstances=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression' && node.operator==='='?node.right:null;
+      if(id?.type==='Identifier' && isWorkerInstance(value) &&
+         !workerInstances.has(id.name)) {
+        workerInstances.add(id.name);
+        changedWorkerInstances=true;
+      }
+    });
+  }while(changedWorkerInstances);
   walk(ast,(node,parent,key)=>{
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
@@ -2134,16 +2165,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // can read lineno/colno. A later source prefix such as the host-lock guard
     // therefore has to fail closed around these registrations/reads too.
     if(node.type==='AssignmentExpression' && node.operator==='=' &&
-       (node.left.type==='MemberExpression' && isGlobal(node.left.object) &&
-          globalErrorHandlerNames.has(memberName(node.left)??'') ||
+       (node.left.type==='MemberExpression' &&
+          (isGlobal(node.left.object) &&
+             globalErrorHandlerNames.has(memberName(node.left)??'') ||
+           isWorkerInstance(node.left.object) && memberName(node.left)==='onerror') ||
         node.left.type==='Identifier' && globalErrorHandlerNames.has(node.left.name) &&
           !bindingCounts.has(node.left.name))) observed=true;
     if(node.type==='CallExpression' && node.arguments[0] &&
-       globalErrorEventNames.has(staticString(node.arguments[0])??'') &&
        (node.callee.type==='MemberExpression' &&
-          isGlobal(node.callee.object) && memberName(node.callee)==='addEventListener' ||
+          memberName(node.callee)==='addEventListener' &&
+          (isGlobal(node.callee.object) &&
+             globalErrorEventNames.has(staticString(node.arguments[0])??'') ||
+           isWorkerInstance(node.callee.object) &&
+             staticString(node.arguments[0])==='error') ||
         node.callee.type==='Identifier' && node.callee.name==='addEventListener' &&
-          !bindingCounts.has('addEventListener'))) observed=true;
+          !bindingCounts.has('addEventListener') &&
+          globalErrorEventNames.has(staticString(node.arguments[0])??''))) observed=true;
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
     // pathname/search/hash/credentials observable after assignment.
