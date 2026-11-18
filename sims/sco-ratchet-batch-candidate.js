@@ -29,10 +29,12 @@ function median(times){
  * @param {string} [publicFacadeSource] Optional equal-trust public-facade control.
  * @param {(principal:string,start:number,inputs:string[])=>void} [onBatchStart] Test-only
  *   observation hook before synchronous private work; cannot authorize work.
+ * @param {(principal:string,start:number,inputs:string[])=>void} [onBatchEnd] Test-only
+ *   observation hook after synchronous private work; cannot authorize work.
  * @returns {{handler:http.RequestListener,grant:(token:string,principal:string)=>void,
  *    calls:()=>number}}
  */
-function makeServer(key,delayMs,publicFacadeSource,onBatchStart){
+function makeServer(key,delayMs,publicFacadeSource,onBatchStart,onBatchEnd){
   const sessions=new Map();
   const machine=createPrivateMachine(key);
   const context=new AsyncLocalStorage();
@@ -87,6 +89,7 @@ function makeServer(key,delayMs,publicFacadeSource,onBatchStart){
           outputs.push(value);
           executed++;
         }
+        onBatchEnd?.(principal,start,inputs);
         return outputs;
       }
     }
