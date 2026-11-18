@@ -49,13 +49,19 @@ test('source islands refuse unreviewed exported host callbacks across all modes'
 });
 
 test('source islands admit primitive snapshot exports while refusing callable-valued snapshots',()=>{
+  /** @param {string} statement @returns {SourceFile} */
+  const snapshotEntry=statement=>({path:'entry.mjs',sourceType:'module',code:[
+    'import {watched} from "./watched.mjs";',
+    'import {unrelated} from "./independent.mjs";',
+    statement
+  ].join('\n')});
   const snapshots=[
     'export const answer={source:watched.toString(),value:unrelated()};',
     'export const answer={source:watched.toString(),value:unrelated(),fixed:17};'
   ];
   for(const mode of /** @type {const} */ (['coo','sno','sco'])){
     for(const statement of snapshots){
-      const entry=importer(statement);
+      const entry=snapshotEntry(statement);
       const result=obfuscateFiles([watched,independent,entry],options(mode));
       const selected=result.files.find(file=>file.path==='independent.mjs');
       assert.ok(selected&&selected.metrics.properties>=1,mode+': selected own key rewritten');
@@ -67,7 +73,7 @@ test('source islands admit primitive snapshot exports while refusing callable-va
       'export const answer={value:unknownReader("independent.mjs")};',
       'export const answer={value:{get callback(){return unrelated;}}};'
     ]){
-      assert.throws(()=>obfuscateFiles([watched,independent,importer(expression)],
+      assert.throws(()=>obfuscateFiles([watched,independent,snapshotEntry(expression)],
         options(mode)),/Source observer islands refuse unreviewed host-callable exports/);
     }
   }
