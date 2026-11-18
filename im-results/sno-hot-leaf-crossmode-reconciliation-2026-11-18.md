@@ -365,3 +365,34 @@ Raw data, same trial order:
 Use exactly SHA `aff2728c7c77ebad7856303cf62554bebb1ce832` with Node 22 and the manual-only workflow `.github/workflows/manual-release-evidence.yml`. Both report types and raw series are in the retained `release-evidence-${{ runner.os }}` GitHub Actions artifacts; the cross-mode CLI produces `CROSS_MODE_RELEASE_EVIDENCE` followed by the complete machine-readable JSON.
 
 **Decision: RELEASE-BLOCKED** for the measured selected affine/polyvariant SNO backend under the demanded 2.5× repeated-compute ceiling. The four application aggregates pass their finite scoped measurements, but the actual protected selected arithmetic violates with large margin. Do not promote a performance admission solely from application-level dilution, cold-start ratios or median-supported diagnostics. The result is not a formal impossibility proof for other obfuscator designs or different application workload distributions.
+
+## Provenance strengthening: resolved npm tree (same implementation, 18 November ~01:15 UTC)
+
+The manual-only workflow gained an `npm ls --all` step to log the
+**actually installed** transitive npm dependency tree, because checkout SHA
+alone cannot fix caret ranges in `package.json` while the job uses
+`npm install --no-package-lock --ignore-scripts`. The
+[follow-up Ubuntu+Windows successful run 44214285338](https://github.com/FlareZ123/obfs/actions/runs/44214285338)
+used SHA `a9c5163cf8f424e3630806ceca5a9336e8fb44da`. Between
+`aff2728c7` and `a9c5163c`, the only executable change was the
+workflow's version-listing step, with the earlier report source/bench
+script untouched. Both CI jobs passed strict JSDoc, unit regression
+and complete live adversarial release evidence, returning
+`RELEASE-BLOCKED` with twelve compute populations and the same
+52/52 selected-leaf strict CPU breach classification.
+
+The actual resolved direct versions on **both** Ubuntu and Windows were
+`@types/node@22.20.5`, `acorn-walk@8.3.5`, `acorn@8.19.0`,
+`esbuild@0.28.2`, `parse5@7.3.0`,
+`puppeteer-core@25.16.0`, `saxes@6.0.0`, and
+`typescript@5.9.3`; the full transitive trees, including the
+installed platform-specific esbuild binary and optional uninstalled
+other-platform binaries, are recorded in each exact job log.
+Node was `v22.23.4` in both cases.
+The observed later source's selected SNO CPU medians were
+Ubuntu `20.58850×` and `31.33804×`, Windows
+`24.87500×` and `25.30159×`; the whole-application
+samples remained 0/104 strict CPU breaches. Exact numeric
+ratios can fluctuate between matched OS runner sessions, so the
+original raw data above remain pinned to their own `aff2728c7` run
+rather than silently overwritten or averaged with this new population.
