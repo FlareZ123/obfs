@@ -1699,12 +1699,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const reflectiveBulkReaders=new Set();
   const reflectiveApplyMethods=new Set();
   const reflectiveConstructMethods=new Set();
+  const reflectGetReceivers=new Set(['Reflect']);
+  const reflectGetMethods=new Set();
   /** @param {AstNode|null|undefined} expression @returns {boolean} */
   function isReflectiveReceiver(expression) {
     return Boolean(expression && (expression.type==='Identifier' &&
       reflectiveReceivers.has(expression.name) ||
       expression.type==='MemberExpression' && isGlobal(expression.object) &&
       ['Reflect','Object'].includes(memberName(expression)??'')));
+  }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isReflectGetReceiver(expression) {
+    return Boolean(expression && (
+      expression.type==='Identifier' && reflectGetReceivers.has(expression.name) ||
+      expression.type==='MemberExpression' && isGlobal(expression.object) &&
+        memberName(expression)==='Reflect'
+    ));
+  }
+  /** @param {AstNode|null|undefined} expression @returns {boolean} */
+  function isReflectGetMethod(expression) {
+    return Boolean(expression && (
+      expression.type==='Identifier' && reflectGetMethods.has(expression.name) ||
+      expression.type==='MemberExpression' && isReflectGetReceiver(expression.object) &&
+        (expression.computed?sourceStringKey(expression.property):memberName(expression))==='get'
+    ));
   }
   let reflectiveChanged;
   do {
@@ -1721,6 +1739,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         const name=pattern.name;
         if(isReflectiveReceiver(value) && !reflectiveReceivers.has(name)) {
           reflectiveReceivers.add(name);
+          reflectiveChanged=true;
+        }
+        if(isReflectGetReceiver(value) && !reflectGetReceivers.has(name)) {
+          reflectGetReceivers.add(name);
+          reflectiveChanged=true;
+        }
+        if(value.type==='Identifier' && reflectGetMethods.has(value.name) &&
+           !reflectGetMethods.has(name)) {
+          reflectGetMethods.add(name);
           reflectiveChanged=true;
         }
         if(value.type==='Identifier' && reflectiveApplyMethods.has(value.name) &&
@@ -1768,6 +1795,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             reflectiveReaders.add(name);
             reflectiveChanged=true;
           }
+          if(isReflectGetReceiver(value.object) && method==='get' &&
+             !reflectGetMethods.has(name)) {
+            reflectGetMethods.add(name);
+            reflectiveChanged=true;
+          }
           if(method==='getOwnPropertyDescriptors'&&!reflectiveBulkReaders.has(name)) {
             reflectiveBulkReaders.add(name);
             reflectiveChanged=true;
@@ -1791,6 +1823,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if((method===null || ['get','getOwnPropertyDescriptor'].includes(method)) &&
              !reflectiveReaders.has(property.value.name)) {
             reflectiveReaders.add(property.value.name);
+            reflectiveChanged=true;
+          }
+          if(isReflectGetReceiver(value) && method==='get' &&
+             !reflectGetMethods.has(property.value.name)) {
+            reflectGetMethods.add(property.value.name);
             reflectiveChanged=true;
           }
           if((method===null || method==='getOwnPropertyDescriptors') &&
@@ -1895,6 +1932,34 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const processReportMethods=new Set();
   /** @type {Map<string,string>} */
   const processReportMutators=new Map();
+  const processParameterScopes=new Set();
+  const shadowedProcessIdentifiers=new Set();
+  /** @param {AstNode|null|undefined} pattern @returns {boolean} */
+  function patternContainsProcess(pattern) {
+    if(!pattern)return false;
+    if(pattern.type==='Identifier')return pattern.name==='process';
+    if(pattern.type==='RestElement'||pattern.type==='AssignmentPattern')
+      return patternContainsProcess(pattern.argument??pattern.left);
+    if(pattern.type==='ArrayPattern')
+      return pattern.elements.some((/** @type {AstNode|null} */ value)=>
+        patternContainsProcess(value));
+    if(pattern.type==='ObjectPattern')
+      return pattern.properties.some((/** @type {AstNode} */ property)=>
+        patternContainsProcess(property.type==='RestElement'?
+          property.argument:property.value));
+    return false;
+  }
+  walk(ast,node=>{
+    if((node.type==='FunctionDeclaration'||node.type==='FunctionExpression'||
+        node.type==='ArrowFunctionExpression') &&
+       node.params.some((/** @type {AstNode} */ param)=>patternContainsProcess(param)))
+      processParameterScopes.add(node);
+  });
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(node.type==='Identifier'&&node.name==='process'&&!bindingNodes.has(node)&&
+       ancestors.some(ancestor=>processParameterScopes.has(ancestor)))
+      shadowedProcessIdentifiers.add(node);
+  });
   const processReportTriggers=new Set([
     'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
   ]);
@@ -1934,14 +1999,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReceiver(node) {
-    return Boolean(node && (node.type==='Identifier'&&
-      (node.name==='process'||processModuleNamespaces.has(node.name)) ||
+    return Boolean(node && (
+      node.type==='Identifier'&&
+        (node.name==='process'&&!shadowedProcessIdentifiers.has(node) ||
+         processModuleNamespaces.has(node.name)) ||
       node.type==='MemberExpression'&&isGlobal(node.object)&&
-        memberName(node)==='process' ||
-      node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-        isReflectiveReceiver(node.callee.object)&&memberName(node.callee)==='get'&&
-        isGlobal(node.arguments[0])&&staticString(node.arguments[1])==='process' ||
-      isProcessModuleRequire(node)));
+        (node.computed?sourceStringKey(node.property):memberName(node))==='process' ||
+      node.type==='CallExpression'&&isReflectGetMethod(node.callee)&&
+        isGlobal(node.arguments[0])&&sourceStringKey(node.arguments[1])==='process' ||
+      isProcessModuleRequire(node)
+    ));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isProcessReportNamespace(node) {
