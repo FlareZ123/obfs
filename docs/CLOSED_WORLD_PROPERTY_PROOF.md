@@ -1,6 +1,6 @@
 # Closed-world property transformation: proof envelope and release lanes
 
-**Research state: 16 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
+**Research state: through 18 November 2026.** This document describes what the experimental property compiler has checked and what remains unproved. It is an engineering acceptance contract, not a theorem of soundness or obfuscation security. See [threat-model boundaries](SECURITY.md), the [research index](../results/README.md), and the executable source under `src/cross-properties.js`, `src/properties.js`.
 
 ## 1. Scope of the declared program
 
@@ -40,6 +40,8 @@ The same reflected capability may travel through direct descriptors, captured me
 | C: inherited dynamic loader | Missing record field resolves to inherited host Function constructor | Refusal where native parity cannot be proven | Retained in `test/cross-file-safe-record-read.test.js` and the application gate |
 | D: hostile runtime | Outside-declared preloader, custom import map, instrumentation, source-only copy attack | Attack success scored separately from compiler semantic correctness | Public COO fields are recoverable; the frozen source-observing six-module original remains **0/2** renamed |
 | E: cost and compatibility | Node22 Ubuntu/Windows, Chromium, startup and sustained workload | Pinned original/generated output parity, measured protected work and runtime ratios | Selected full gates [43862920232](https://github.com/FlareZ123/obfs/actions/runs/43862920232), [43865027728](https://github.com/FlareZ123/obfs/actions/runs/43865027728), [43866546917](https://github.com/FlareZ123/obfs/actions/runs/43866546917) and [43868632802](https://github.com/FlareZ123/obfs/actions/runs/43868632802) passed; no universal 2.5× guarantee |
+
+| F: caught nullish object-pattern spelling | Caught V8 `TypeError.message` names an own-field read used as direct or nested object destructuring operand | Original/generated exact message parity, zero unsafe rewrites, and a separate genuine safe-field positive | [Pre-guard 9/9 each OS](https://github.com/FlareZ123/obfs/actions/runs/44363109129), [nested pre-guard 6/6 each OS](https://github.com/FlareZ123/obfs/actions/runs/44364110315), [fixed 15/15 each OS](https://github.com/FlareZ123/obfs/actions/runs/44364454538), [Chromium check](https://github.com/FlareZ123/obfs/actions/runs/44365401668), [intermediate evidence](../im-results/property-nullish-object-pattern-typeerror-2026-11-18.md) |
 
 **Reproducibility:** the protected-work regression source is `test/closed-record-visible-reflect-overwrite.test.js` and the distinct intact/modified application probes are under `test/application-challenge.test.js`, `test/cross-file-safe-record-read.test.js`, `test/verified-record-browser.js` and `sims/application-challenge-refusal-yield.js`. The manual source-pinned workflows are `.github/workflows/manual-application-challenge.yml` and `.github/workflows/manual-validation.yml`. They do not trigger per commit.
 
