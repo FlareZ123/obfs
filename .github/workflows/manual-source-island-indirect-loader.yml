@@ -25,6 +25,8 @@ jobs:
         run: node --test test/source-observer-islands.test.js test/source-observer-islands-host-argument.test.js test/source-observer-islands-reflection-gate.test.js test/cross-file-source-byte-reader.test.js
       - name: Native interprocedural helper ownership and ESM differential
         run: node --test test/function-declaration-reader-proof.test.js
+      - name: Independent ESM host invokes exported immutable reader with foreign record
+        run: node sims/exported-reader-host-argument-attack.js
       - name: Post-initialization strict paired hot CPU for newly admitted helper
         run: node sims/straightline-reader-profile.js
       - name: COO fresh-process CPU inclusive of module startup
