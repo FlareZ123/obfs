@@ -110,6 +110,13 @@ function renameLocalIdentifiers(source,ast,options) {
         (node.id.type==='ArrayPattern'||node.id.type==='ObjectPattern') &&
         !(node.id.type==='ObjectPattern' && node.init?.type==='Identifier' &&
           knownNonNullObjects.has(node.init.name)))markErrorRoot(node.init);
+    // A nested destructuring default can fail before coercion and V8 may
+    // spell the default operand in caught TypeError.message. Keep binding
+    // names inside that operand unless its source spelling is proven inert.
+    if(node.type==='AssignmentPattern' &&
+        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern')) {
+      markErrorRoot(node.right);
+    }
     if(node.type==='AssignmentExpression' &&
         (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern') &&
         !(node.left.type==='ObjectPattern' && node.right.type==='Identifier' &&
