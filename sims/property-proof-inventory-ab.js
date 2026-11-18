@@ -102,6 +102,21 @@ function esmSource(){
 }
 
 /**
+ * An imported immutable computed key whose owner is in another module.
+ * This exercises lazy key resolution in the closed-world ESM proof.
+ * @returns {{path:string,sourceType:'module',code:string}[]}
+ */
+function esmKeySource(){
+  return [
+    {path:'state.mjs',sourceType:'module',code:'export const bag={secretField:8};'},
+    {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {bag} from "./state.mjs";'+
+      'import {key} from "./key.mjs";console.log(bag[key]);'}
+  ];
+}
+
+/**
  * Native ESM loader comparison uses a fresh isolated directory per sample.
  * This is deliberately excluded from the measured compiler build window.
  * @param {{path:string,code:string}[]} native
@@ -139,13 +154,13 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'|'esm'} objects
+ * @param {number|'mixed'|'sparse'|'esm'|'esmkey'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
-  if(objects==='esm'){
-    const native=esmSource();
+  if(objects==='esm'||objects==='esmkey'){
+    const native=objects==='esm'?esmSource():esmKeySource();
     const cpuStart=process.cpuUsage();
     const wallStart=performance.now();
     const generated=obfuscateFiles(native,{
@@ -153,8 +168,8 @@ function sample(objects){
     });
     const wallMs=performance.now()-wallStart;
     const cpu=process.cpuUsage(cpuStart);
-    assert.equal(generated.crossFile.properties,2,
-      'ESM cross-graph proof did not rename two known own properties');
+    assert.equal(generated.crossFile.properties,objects==='esm'?2:1,
+      'ESM cross-graph proof did not rename expected own properties');
     const output=generated.files.map(file=>({path:file.path,code:file.code}));
     const checksum=compareEsmExecution(native,output);
     console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
@@ -204,8 +219,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'|'esm'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse'|'esm',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number|string}}
+ * @param {number|'mixed'|'sparse'|'esm'|'esmkey'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'esm'|'esmkey',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number|string}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -221,8 +236,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse','esm'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'|'esm'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','esm','esmkey'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'esm'|'esmkey'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -242,7 +257,8 @@ if(process.argv[2]==='sample'){
       /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
       /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']]),
-      /** @type {['esm',('control'|'candidate')[]]} */ (['esm',['control','candidate']])
+      /** @type {['esm',('control'|'candidate')[]]} */ (['esm',['control','candidate']]),
+      /** @type {['esmkey',('control'|'candidate')[]]} */ (['esmkey',['candidate','control']])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -250,7 +266,7 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed','sparse','esm']){
+    for(const objects of [512,2048,'mixed','sparse','esm','esmkey']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
