@@ -11,6 +11,9 @@ const REPO=join(__dirname,'..');
 const PROPERTY_FILE=join(REPO,'src','properties.js');
 const DEFAULT_CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
 const CONTROL_SHA=process.env.OBFS_PROOF_CONTROL_SHA||DEFAULT_CONTROL_SHA;
+const ALIAS_OWNERS=Number(process.env.OBFS_PROOF_ALIAS_OWNERS||384);
+assert.ok(Number.isSafeInteger(ALIAS_OWNERS)&&ALIAS_OWNERS>=1&&ALIAS_OWNERS<=4096,
+  'Alias owner count must be an integer from 1 to 4096');
 assert.match(CONTROL_SHA,/^[a-f0-9]{40}$/,
   'A/B control ref must be a fully specified immutable commit SHA');
 /** @type {string} */
@@ -77,7 +80,7 @@ function mixedSource(){
  */
 function aliasSource(){
   let code="'use strict';let total=0;\n";
-  for(let i=0;i<384;i++)
+  for(let i=0;i<ALIAS_OWNERS;i++)
     code+='const bag'+i+'={secret:'+(i%31)+'};'+
       'const alias'+i+'=bag'+i+';const final'+i+'=alias'+i+';'+
       'total=(total+final'+i+'.secret)|0;\n';
@@ -121,7 +124,7 @@ function sample(objects){
   const cpu=process.cpuUsage(cpuStart);
   assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
     objects==='sparse'?emitted.files[0].metrics.properties===2:
-    objects==='aliases'?emitted.files[0].metrics.properties===384:
+    objects==='aliases'?emitted.files[0].metrics.properties===ALIAS_OWNERS:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -132,7 +135,8 @@ function sample(objects){
   new Function('module',input)(native);
   assert.equal(module.exports,native.exports);
   console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
-    objects,platform:process.platform,node:process.version,
+    objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+    platform:process.platform,node:process.version,
     cpuMs:(cpu.user+cpu.system)/1000,wallMs,
     properties:emitted.files[0].metrics.properties,
     sourceHash:sha256(output),sourceBytes:Buffer.byteLength(output),
@@ -205,7 +209,8 @@ if(process.argv[2]==='sample'){
       const candidateRuns=group.filter(record=>record.arm==='candidate');
       const average=(/** @type {number[]} */ samples)=>samples.reduce((a,b)=>a+b,0)/samples.length;
       console.log('PROOF_INDEX_AB '+JSON.stringify({
-        baseline:CONTROL_SHA,objects,platform:process.platform,node:process.version,
+        baseline:CONTROL_SHA,objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+        platform:process.platform,node:process.version,
         controlCpuMs:controlRuns.map(x=>x.cpuMs),
         candidateCpuMs:candidateRuns.map(x=>x.cpuMs),
         controlWallMs:controlRuns.map(x=>x.wallMs),
