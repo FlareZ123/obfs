@@ -551,6 +551,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,Set<string>>} */
   const blobObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
+  const boundBlobObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
   const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
   const formNames=new Set(['FormData']);
@@ -697,10 +699,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isBoundBlobConstructor(node) {
-    return Boolean(node && (node.type==='Identifier' &&
-      boundBlobConstructors.has(node.name) ||
-      node.type==='CallExpression' && node.callee.type==='MemberExpression' &&
-      memberName(node.callee)==='bind' && isBlobConstructor(node.callee.object)));
+    if(!node)return false;
+    if(node.type==='Identifier')return boundBlobConstructors.has(node.name);
+    if(node.type==='MemberExpression' && node.object.type==='Identifier') {
+      const keys=boundBlobObjectKeys.get(node.object.name);
+      const name=memberName(node);
+      return name!==null ? keys?.has(name)??false :
+        Boolean(node.computed&&keys?.size);
+    }
+    return node.type==='CallExpression' &&
+      node.callee.type==='MemberExpression' &&
+      memberName(node.callee)==='bind' && isBlobConstructor(node.callee.object);
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isResponseRedirect(node) {
@@ -811,6 +820,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(webStringObjectKeys,receiver,key);
     if(isBlobConstructor(expression))
       addWebObjectKey(blobObjectKeys,receiver,key);
+    if(isBoundBlobConstructor(expression))
+      addWebObjectKey(boundBlobObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
   }
@@ -1000,7 +1011,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             addObjectFunctionKey(name,key);
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
-            blobObjectKeys,redirectObjectKeys]) {
+            blobObjectKeys,boundBlobObjectKeys,redirectObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1098,6 +1109,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(webStringConstructors,property.value.name)||changed;
           if(blobObjectKeys.get(node.init.name)?.has(key))
             changed=add(blobConstructors,property.value.name)||changed;
+          if(boundBlobObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundBlobConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
         }
