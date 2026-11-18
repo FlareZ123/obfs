@@ -233,10 +233,17 @@ function makeWorkerServer(root,activeTrial,conventional=false){
     /** @type {Buffer[]} */
     const chunks=[];
     let bytes=0;
-    for await(const chunk of request){
-      bytes+=chunk.length;
-      if(bytes>65536){reply(413,{ok:false});return;}
-      chunks.push(chunk);
+    try{
+      for await(const chunk of request){
+        bytes+=chunk.length;
+        if(bytes>65536){reply(413,{ok:false});return;}
+        chunks.push(chunk);
+      }
+    }catch{
+      // A disconnected or malformed request stream must not create an
+      // unobserved rejection from an async Node RequestListener.
+      if(!response.headersSent&&!response.destroyed)reply(400,{ok:false});
+      return;
     }
     /** @type {{method?:unknown,args?:unknown}|null} */
     let body=null;
