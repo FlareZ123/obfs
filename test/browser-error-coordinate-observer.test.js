@@ -50,12 +50,12 @@ test('browser error-coordinate aliases decline local property rewrites',()=>{
       specimen.name);
   }
 
-  const safe='const owner={distinctivelyLongPrivateField:73};'+
-    'globalThis.answer=owner.distinctivelyLongPrivateField;';
+  const safe="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    'module.exports=owner.distinctivelyLongPrivateField;';
   const output=obfuscateFiles([{
-    path:'safe-listener.js',sourceType:'script',code:safe
+    path:'safe-owner.cjs',sourceType:'commonjs',code:safe
   }],{
-    mode:'coo',seed:'browser-error-coordinate-safe-listener',
+    mode:'coo',seed:'browser-error-coordinate-safe-owner',
     strings:false,identifiers:false,properties:true
   }).files[0];
   assert.ok(output.metrics.properties>0,output.code);
