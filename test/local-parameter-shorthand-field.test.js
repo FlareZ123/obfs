@@ -58,7 +58,7 @@ const scenarios=[
     objects:0}
 ];
 
-for(const mode of /** @type {const} */ (['coo','sno'])) {
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   for(const identifiers of [false,true]) {
     for(const scenario of scenarios) {
       test(mode+' shorthand/private/formal '+identifiers+': '+scenario.name,()=>{
