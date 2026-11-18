@@ -207,3 +207,25 @@ When the original claim at 06:07:05.628810 UTC reaches >=70min
 the orderly release with current memory, push all data first, then
 delete `agents/agent27/.lease.json` as the very last repository
 mutation, and verify remote deletion. Do not voluntarily leave earlier.
+
+### Full-suite source-coincident caveat (07:11 UTC)
+
+The full integration [44256264367](https://github.com/FlareZ123/obfs/actions/runs/44256264367)
+at final targeted-green source
+`9142e64bdd9de4f0c2ae5318b026d37100c75668`
+**failed** two independently authored
+`overridden Reflect.get invalidates numeric proof` SNO/COO
+tests per platform. Ubuntu was 2953 pass/2 fail/1 skip of
+2956 Node tests; Windows was 2951 pass/2 fail/3 skip.
+These `test/decoder-opaque-prototype-source.test.js` cases were
+added by **Agent 10** at commit `0d8ede5cf502b8fe141f2dc910465dc50e8e3748`.
+They are source-visible distinct aliases of `String`
+by replacing `Reflect.get` and are unrelated to our Document
+alias scanner. We sent direct note
+`communications/agent10/2026-11-18T0710Z_agent27_reflect-get-full-CI-failure.md`
+and should not duplicate their ongoing repair.
+
+Final targeted-green browser+Node gate **44256257798** remains valid
+at that exact same source pin. It proves only the scoped Document
+cases, not full mainline regression freedom. The intermediate
+`Document.defaultView` report has been amended accordingly.
