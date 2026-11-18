@@ -92,6 +92,13 @@ test('CommonJS destructured report export preserves source coordinates',()=>{
   );
 });
 
+test('nested CommonJS process report destructuring preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const {report:{getReport}}=require('node:process');return getReport();})()",
+    'agent1-process-report-cjs-nested'
+  );
+});
+
 test('ESM named report import refuses source rewrites',()=>{
   const source="import {report as diagnosticReport} from 'node:process';"+
     "const owner={distinctivelyLongPrivateField:73};"+
