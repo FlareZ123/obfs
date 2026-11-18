@@ -53,7 +53,9 @@
     "test/fused-arx-batch.test.js",
     "test/fused-arx-batch-browser.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "sims/stateful-arx-minifier-control.js",
+    "test/stateful-arx-minifier-control.test.js"
   ],
   "exclude": [
     "node_modules"
