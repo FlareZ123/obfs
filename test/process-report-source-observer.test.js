@@ -12,7 +12,7 @@ const {parse,observesFunctionSource}=require('../src/ast');
  * @returns {unknown}
  */
 function execute(code) {
-  const context={process,JSON,module:{exports:null}};
+  const context={process,JSON,require,module:{exports:null}};
   vm.runInNewContext(code,context,{
     filename:'process-report-observer.cjs',
     timeout:2000
@@ -76,6 +76,41 @@ test('bound process.report method preserves source coordinates',()=>{
     '(()=>{const getReport=process.report.getReport.bind(process.report);return getReport();})()',
     'agent1-process-report-bound'
   );
+});
+
+test('CommonJS process module namespace preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const proc=require('node:process');return proc.report.getReport();})()",
+    'agent1-process-report-cjs-namespace'
+  );
+});
+
+test('CommonJS destructured report export preserves source coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const {report}=require('node:process');return report.getReport();})()",
+    'agent1-process-report-cjs-report'
+  );
+});
+
+test('ESM named report import refuses source rewrites',()=>{
+  const source="import {report as diagnosticReport} from 'node:process';"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "export const observed=diagnosticReport.getReport().javascriptStack;"+
+    "export const result=value;";
+  assert.equal(observesFunctionSource(parse(source,'module')),true,source);
+  const output=obfuscateFiles([{
+    path:'process-report-observer.mjs',
+    sourceType:'module',
+    code:source
+  }],{
+    mode:'coo',
+    seed:'agent1-process-report-esm-report',
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 });
 
 test('process.report.writeReport is admitted as a source observer without executing it',()=>{
