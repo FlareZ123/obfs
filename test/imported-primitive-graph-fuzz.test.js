@@ -26,7 +26,8 @@ function expressions() {
   /** @param {number} bound */
   function next(bound) {
     seed=(Math.imul(seed,1664525)+1013904223)>>>0;
-    return seed%bound;
+    // Use high bits: low-bit LCG residues under-sample operator families.
+    return Math.floor(seed*bound/4294967296);
   }
   /** @param {number} depth @returns {string} */
   function make(depth) {
