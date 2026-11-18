@@ -40,8 +40,10 @@ test('resident SNO profile executes real protected work and verifies every outpu
   assert.equal(result.initializationExcluded,true);
   assert.equal(result.rows.length,4);
   assert.deepEqual(result.rows.map(row=>row.events),[1,50,1000,10000]);
-  for(const row of result.rows){
+  assert.deepEqual(result.leafRows.map(row=>row.repetitions),[8000000,16000000]);
+  for(const row of [...result.rows,...result.leafRows]){
     assert.equal(row.allOutputsEquivalent,true);
+    if(row.events===0)assert.ok(row.repetitions>=8000000);
     assert.equal(row.nativeMs.length,5);
     assert.equal(row.snoMs.length,5);
     assert.equal(row.nativeCpuMs.length,5);
