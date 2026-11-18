@@ -197,6 +197,42 @@ async function automaticReportFrame(code) {
   }
 }
 
+test('diagnostic report legacy setter lookup preserves source coordinates',async()=>{
+  const lookups=[
+    "const setter=process.report.__lookupSetter__('reportOnUncaughtException');",
+    "const setter=Object.prototype.__lookupSetter__.call("+
+      "process.report,'reportOnUncaughtException');"
+  ];
+  for(const [index,lookup] of lookups.entries()) {
+    const source="'use strict';process.report.directory=__dirname;"+
+      "process.report.filename='report.json';"+lookup+
+      "setter.call(process.report,true);"+
+      "const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;"+
+      "throw new Error(String(value));";
+    assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+    const output=obfuscateFiles([{
+      path:'automatic-report-observer.cjs',
+      sourceType:'commonjs',
+      code:source
+    }],{
+      mode:'sno',
+      seed:'agent1-process-report-lookup-setter-'+index,
+      strings:false,
+      identifiers:false
+    }).files[0];
+    assert.equal(output.code,source);
+    assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+    const nativeFrame=await automaticReportFrame(source);
+    const unsafeFrame=await automaticReportFrame(
+      source.replaceAll('distinctivelyLongPrivateField','x')
+    );
+    assert.match(nativeFrame,/automatic-report-observer\.cjs:1:\d+/);
+    assert.match(unsafeFrame,/automatic-report-observer\.cjs:1:\d+/);
+    assert.notEqual(unsafeFrame,nativeFrame);
+  }
+});
+
 test('diagnostic report trigger descriptor setters preserve source coordinates',async()=>{
   const source="'use strict';process.report.directory=__dirname;"+
     "process.report.filename='report.json';"+
