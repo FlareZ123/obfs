@@ -546,6 +546,20 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   }
   /** @type {Map<string,Set<string>>} */
   const urlConstructorObjectKeys=new Map();
+  // Node's ESM URL exports are the WHATWG URL intrinsic, including through
+  // named constructor aliases and namespace/default module objects.
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration'||node.source.type!=='Literal'||
+       !['url','node:url'].includes(String(node.source.value)))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier' &&
+         (spec.imported.name??spec.imported.value)==='URL') {
+        urlConstructors.add(spec.local.name);
+      }
+      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+        urlConstructorObjectKeys.set(spec.local.name,new Set(['URL']));
+    }
+  });
   const webDictionaries=new Set(webDictionaryNames);
   // Blob's second constructor argument is a Web IDL options dictionary.
   const blobNames=new Set(['Blob']);
