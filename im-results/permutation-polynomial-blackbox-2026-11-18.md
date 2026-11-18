@@ -84,34 +84,37 @@ Keep the planned generator-aware AST lane, but add this **source-blind chosen-qu
 
 The next useful discriminator is the exact composite construction: either it prevents practical isolation/learning of the polynomial stage while staying within the strict `2.5x` JavaScript budget, or it needs a different security rationale.
 
-## Synthetic xor-shift and rotation shell
+## Synthetic exact-three-stage family in any order
 
-The abstract-level paper description says the scheme combines polynomial, xor-shift and cyclic-shift permutations. The publisher page is restricted and the exact full construction has not been recovered in this investigation, so the following experiment is deliberately a **synthetic bounded family**, not a paper reproduction.
+The abstract-level paper description says the scheme combines polynomial, xor-shift and cyclic-shift permutations. The publisher page is restricted and the exact expanded construction has not been recovered in this investigation, so this experiment remains a **synthetic bounded family** rather than a reproduction of Wang et al.
 
-`sims/permutation-polynomial-linear-shell-blackbox.js` generates maps of either:
+`sims/permutation-polynomial-linear-shell-blackbox.js` now covers exactly one stage of each type:
 
 ```text
-R(X(P(x)))
-X(R(P(x)))
+P = a Rivest-family permutation polynomial
+X = one unknown left/right xor-shift, shift 1..31
+R = one unknown nonzero 32-bit rotation, amount 1..31
 ```
 
-Here `P` is a random Rivest-family permutation polynomial of known degree bound, `X` is one unknown left or right xor-shift with unknown shift 1..31, and `R` is one unknown 32-bit rotation 0..31. The attacker receives only chosen outputs of the final composite map.
+The three stages may appear in **any of the six orders**: `P-X-R`, `P-R-X`, `X-P-R`, `R-P-X`, `X-R-P`, or `R-X-P`. The attacker knows this family and the degree bound and receives only chosen outputs of the final composite map.
 
-There are `2 * 2 * 31 * 32 = 3,968` possible outer shells. For each shell, the attacker inverts the candidate xor-shift/rotation on the observed outputs, fits a Newton polynomial from the first `d+1` values, and rejects the shell if five further chosen values disagree. The surviving shell gives the polynomial target needed by the bit-lift inverse.
+For every candidate order, xor direction, shift and rotation, the attacker splits the candidate around `P`. If the candidate has linear stages before `P`, it queries the inverse prefix so that the hypothesized polynomial sees a chosen coordinate `t`. It then inverses the hypothesized linear suffix on the returned value. A correct candidate therefore exposes chosen pairs `(t,P(t))` even when the polynomial is the middle or final stage.
 
-Local Node `v22.16.0` validation used simulator SHA-256 `4f45f59357ceaf827679dd220a43cfc21caa96f58dc2843490b83a561dcd0756`. Across eight randomized instances at each degree:
+The search contains `6 * 2 * 31 * 31 = 11,532` candidate decompositions. The learner fits the polynomial from coordinates `0..d`, then tests 32 deterministic large 32-bit coordinates. Oracle responses are cached by actual queried input across all candidate decompositions. Surviving decompositions are verified by held-out full-map evaluation and published-target inversion.
 
-| Degree | Queries | Outer candidates | Randomized cases | Held-out checks | Target inversions | Median local case ms |
-|---:|---:|---:|---:|---:|---:|---:|
-| 3 | 9 | 3,968 | 8 | 8,192 | 256 | 15.080 |
-| 7 | 13 | 3,968 | 8 | 8,192 | 256 | 20.130 |
-| 15 | 21 | 3,968 | 8 | 8,192 | 256 | 66.835 |
+Local validation used Node `v22.16.0` and simulator SHA-256 `5555ba950e470468bbdc01cf1ef61e501d6f176141fea6e7c908d97961365ece`. It exercised three deterministic randomized instances for every order at degrees 3, 7 and 15: **54 total composites**.
 
-All **24** generated outer parameter sets were uniquely recovered. All **24,576** held-out final-map evaluations and **768/768** published-target inversions matched.
+| Degree | Cached chosen queries | Candidates tested | Randomized cases | Held-out checks | Target inversions | Median local attack ms | Equivalent survivors |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 3 | 6,355-6,360 | 11,532 | 18 | 9,216 | 288 | 17.760 | 1 |
+| 7 | 9,261-9,271 | 11,532 | 18 | 9,216 | 288 | 41.815 | 1 |
+| 15 | 15,206-15,209 | 11,532 | 18 | 9,216 | 288 | 142.089 | 1-2 |
 
-This establishes a useful negative control: a simple sequential composition of one polynomial, one xor-shift and one rotation does not automatically defeat source-blind chosen-query recovery merely because the final function is no longer itself an obvious low-degree integer polynomial.
+All **27,648** held-out final-map evaluations and **864/864** published-target inversions matched. One degree-15 case admitted two algebraically equivalent surviving descriptions. Exact parameter identity is unnecessary for the attacker: the first survivor still predicted the full function on held-out inputs and inverted the published targets exactly.
 
-The scope remains narrow. Multiple interleaved nonlinear layers, expanded MBA identities that do not expose this small outer-family decomposition, or a different exact construction can defeat this enumerator. Those possibilities must be tested against the actual published construction once the full algorithm or author artifact is available.
+This rules out a broad naive interpretation of the abstract-level component list: simply composing one low-degree polynomial, one xor-shift and one rotation in a randomized order does not by itself defeat a source-blind chosen-query attacker under this 32-bit family. The degree-7 attack needed roughly 9.3 thousand distinct oracle evaluations, which is practical for a local COO/SNO runtime and may also matter to SCO interfaces that expose an equivalent unlimited chosen-input oracle.
+
+The result remains bounded. It does not cover multiple interleaved nonlinear layers, MBA identity expansion that destroys this three-stage decomposition, hidden state, query-dependent mutation, or any other exact mechanism in the unavailable full construction. Those possibilities require the actual emitted candidate or author artifact.
 
 ## Independent structural lane status
 
