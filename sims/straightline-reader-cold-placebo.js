@@ -40,7 +40,7 @@ function sample(runnerPath, modulePath, calls) {
   });
   assert.equal(child.status, 0, child.stderr || child.error?.message);
   const result = /** @type {{digest:number,cpuMs:number}} */ (JSON.parse(child.stdout));
-  assert.ok(Number.isFinite(result.cpuMs) && result.cpuMs > 0);
+  assert.ok(Number.isFinite(result.cpuMs) && result.cpuMs >= 0);
   return result;
 }
 
@@ -65,7 +65,8 @@ async function run(samePath = false) {
       'Placebo A and B must have byte-identical module contents');
 
     /** @type {Array<{calls:number,pairs:number,firstCpuMs:number[],secondCpuMs:number[],
-     * pairedRatios:number[],ratioOfMedians:number,maxPairedRatio:number,
+     * pairedRatios:(number|null)[],ratioOfMedians:number|null,maxPairedRatio:number|null,
+     * unresolvedZeroPairs:number,
      * strictOverBudgetPairs:number}>} */
     const rows = [];
     for (const calls of [1, 10000, 8000000, 128000000]) {
@@ -84,12 +85,21 @@ async function run(samePath = false) {
         firstCpuMs.push(actualFirst.cpuMs);
         secondCpuMs.push(second.cpuMs);
       }
-      const pairedRatios = firstCpuMs.map((ms, i) => secondCpuMs[i] / ms);
+      // An independent short Windows process can report zero CPU ticks.
+      // Do not retry, replace, or silently divide such a pair: preserve the
+      // raw zeros and mark their ratios unresolved rather than inventing data.
+      const pairedRatios = firstCpuMs.map((ms, i) =>
+        ms > 0 && secondCpuMs[i] > 0 ? secondCpuMs[i] / ms : null);
+      const resolvedRatios = pairedRatios.filter(ratio => ratio !== null);
+      const firstMedian = median(firstCpuMs);
+      const secondMedian = median(secondCpuMs);
       rows.push({
         calls, pairs: 9, firstCpuMs, secondCpuMs, pairedRatios,
-        ratioOfMedians: median(secondCpuMs) / median(firstCpuMs),
-        maxPairedRatio: Math.max(...pairedRatios),
-        strictOverBudgetPairs: pairedRatios.filter(ratio => ratio > 2.5).length
+        ratioOfMedians: firstMedian > 0 && secondMedian > 0
+          ? secondMedian / firstMedian : null,
+        maxPairedRatio: resolvedRatios.length ? Math.max(...resolvedRatios) : null,
+        strictOverBudgetPairs: resolvedRatios.filter(ratio => ratio > 2.5).length,
+        unresolvedZeroPairs: pairedRatios.length - resolvedRatios.length
       });
     }
     const result = {
