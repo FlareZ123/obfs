@@ -1011,6 +1011,17 @@ function obfuscateFiles(files, options = {}) {
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
         importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
         importedUrlStaticProof.get(file.path))));
+  // A single-file host lock is still a source-coordinate rewrite. Local AST
+  // transforms can independently decline Function/source observers, but the
+  // wrapper itself has no later per-transform guard. Reuse the same broad
+  // source-observer proof used for multi-file publication so Error.stack,
+  // console/native stack formatting and related observers fail closed.
+  const hostLockSourceObserver=Boolean(options.allowedHosts?.length) &&
+    prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
+      observesFunctionSource(parse(file.code,file.sourceType),
+        importedStringProof.get(file.path),importedCloneProof.get(file.path),
+        importedFunctionArrays.get(file.path),importedPrimitiveProof.get(file.path),
+        importedUrlStaticProof.get(file.path)));
   // Only explicitly selected, proved primitive-returning ESM leaves can
   // retain local property renaming despite a separate source observer.
   // No other backend is enabled by this exception, and it is opt-in.
@@ -1025,10 +1036,10 @@ function obfuscateFiles(files, options = {}) {
   }
   const sourceObserverIslands=options.experimentalSourceObserverIslands?.length ?
     proveSourceObserverIslands(prepared,options.experimentalSourceObserverIslands) : new Set();
-  // A hostname wrapper prepends source bytes. Code that can read its own
-  // distributed script would observe the wrapper and violate the original
-  // source-byte contract, so an explicit host lock must fail closed.
-  if(remoteSourceObserver && options.allowedHosts?.length) {
+  // A hostname wrapper prepends source bytes and source coordinates. Code
+  // that observes either must reject the explicit host lock rather than
+  // publishing a semantically different stack/source view.
+  if((remoteSourceObserver||hostLockSourceObserver) && options.allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
