@@ -1930,6 +1930,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         isProcessReceiver(node.arguments[0])&&
         staticString(node.arguments[1])==='report'));
   }
+  /** @param {AstNode} node @returns {AstNode} */
+  function unwrapAssignmentPattern(node) {
+    return node.type==='AssignmentPattern'?node.left:node;
+  }
   /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {boolean} */
   function isProcessReportMethod(node,depth=0) {
     if(!node||depth>16)return false;
@@ -1972,21 +1976,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name!=='report')continue;
-          if(property.value.type==='Identifier' &&
-             !processReportNamespaces.has(property.value.name)) {
-            processReportNamespaces.add(property.value.name);
+          const reportBinding=unwrapAssignmentPattern(property.value);
+          if(reportBinding.type==='Identifier' &&
+             !processReportNamespaces.has(reportBinding.name)) {
+            processReportNamespaces.add(reportBinding.name);
             changedProcessReportAliases=true;
           }
-          if(property.value.type==='ObjectPattern') {
-            for(const methodProperty of property.value.properties) {
-              if(methodProperty.type!=='Property' ||
-                 methodProperty.value.type!=='Identifier')continue;
+          if(reportBinding.type==='ObjectPattern') {
+            for(const methodProperty of reportBinding.properties) {
+              if(methodProperty.type!=='Property')continue;
+              const methodBinding=unwrapAssignmentPattern(methodProperty.value);
+              if(methodBinding.type!=='Identifier')continue;
               const method=methodProperty.computed?staticString(methodProperty.key):
                 methodProperty.key.type==='Identifier'?methodProperty.key.name:
                   staticString(methodProperty.key);
               if(['getReport','writeReport'].includes(method??'') &&
-                 !processReportMethods.has(methodProperty.value.name)) {
-                processReportMethods.add(methodProperty.value.name);
+                 !processReportMethods.has(methodBinding.name)) {
+                processReportMethods.add(methodBinding.name);
                 changedProcessReportAliases=true;
               }
             }
@@ -1996,12 +2002,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(id.type==='ObjectPattern'&&isProcessReportNamespace(value)) {
         for(const property of id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          if(property.type!=='Property')continue;
+          const methodBinding=unwrapAssignmentPattern(property.value);
+          if(methodBinding.type!=='Identifier')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(['getReport','writeReport'].includes(name??'')&&
-             !processReportMethods.has(property.value.name)) {
-            processReportMethods.add(property.value.name);
+             !processReportMethods.has(methodBinding.name)) {
+            processReportMethods.add(methodBinding.name);
             changedProcessReportAliases=true;
           }
         }
