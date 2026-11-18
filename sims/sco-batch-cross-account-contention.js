@@ -15,7 +15,7 @@ const {externalValue}=require('../examples/application-challenge/sco-server.cjs'
 const {atomicWrite}=require('../src/atomic');
 
 const A_SEED=0xa1a1a1a1,B_SEED=0xb2b2b2b2;
-const A_COUNT=1000,B_COUNT=1,BATCH_SIZE=1024;
+const A_COUNT=1000,B_COUNT=1,BATCH_SIZE=1024,A_BATCHES=8;
 
 /** @typedef {{phase:'ready'|'result'|'error',submittedNs?:string,
  * elapsedMs?:number,status?:number,output?:unknown,error?:string}} ChildReply */
@@ -94,8 +94,10 @@ function signal(filename){
 }
 
 /**
- * Under a single trusted Node event loop, a fully authorized A submits a
- * 1024-call original private SCO batch (1000 iterations/call). A separate
+ * Under a single trusted Node event loop, a fully authorized A submits eight
+ * concurrent 1024-call original private SCO batches (1000 iterations/call).
+ * Each independent request is within the same 1,024,000-iteration admission
+ * cap. A separate
  * legitimate B child sends one 1-iteration call as a 1-item real batch while
  * the original private implementation is running for A. A matched separate
  * child/HTTP/service idle B control runs in each trial. The experiment keeps
@@ -104,7 +106,8 @@ function signal(filename){
  * @param {number} [rounds]
  * @returns {Promise<{
  *  source:string,platform:NodeJS.Platform,node:string,
- *  attackerOperations:number,attackerIterationsPerCall:number,
+ *  attackerOperations:number,attackerBatches:number,
+ *  attackerIterationsPerCall:number,
  *  victimOperations:number,victimIterationsPerCall:number,
  *  distinctAccountBearers:boolean,clientFetchPrewarmed:boolean,
  *  overlapCount:number,overTwoPointFiveLoadedVsQuiet:number,
@@ -145,13 +148,14 @@ async function run(rounds=9){
       async evaluateRemote(seed,count){
         const current=active;
         if(current&&seed===A_SEED&&count===A_COUNT){
-          if(current.seen===0){
+          if(current.firstNs===null){
             current.firstNs=process.hrtime.bigint();
             signal(current.signalPath);
           }
           const result=await original.evaluateRemote(seed,count);
           current.seen++;
-          if(current.seen===BATCH_SIZE)current.lastNs=process.hrtime.bigint();
+          if(current.seen===BATCH_SIZE*A_BATCHES)
+            current.lastNs=process.hrtime.bigint();
           return result;
         }
         return original.evaluateRemote(seed,count);
@@ -264,13 +268,14 @@ async function run(rounds=9){
         origin,bBearer,signalPath,batchMethod,directMethod);
       try{
         await contended.ready;
-        const attacker=attackerBatch();
+        const attacker=Promise.all(Array.from(
+          {length:A_BATCHES},()=>attackerBatch()));
         const b=await contended.result;
         await attacker;
         assert.equal(b.status,200);
         assert.equal(JSON.stringify(b.output),nativeB);
         assert.ok(b.submittedNs&&b.elapsedMs!==undefined&&b.elapsedMs>0);
-        assert.equal(active.seen,BATCH_SIZE);
+        assert.equal(active.seen,BATCH_SIZE*A_BATCHES);
         const first=active.firstNs,last=active.lastNs;
         assert.ok(first!==null&&last!==null);
         const submitted=BigInt(b.submittedNs);
@@ -290,13 +295,14 @@ async function run(rounds=9){
     return {
       source:'sims/sco-batch-cross-account-contention.js',
       platform:process.platform,node:process.version,
-      attackerOperations:BATCH_SIZE,attackerIterationsPerCall:A_COUNT,
+      attackerOperations:BATCH_SIZE*A_BATCHES,attackerBatches:A_BATCHES,
+      attackerIterationsPerCall:A_COUNT,
       victimOperations:1,victimIterationsPerCall:B_COUNT,
       distinctAccountBearers:true,clientFetchPrewarmed:true,overlapCount:rows.length,
       overTwoPointFiveLoadedVsQuiet:rows.filter(s=>s.ratio>2.5).length,
       medianLoadedOverQuiet:median(rows.map(s=>s.ratio)),
       maximumLoadedOverQuiet:Math.max(...rows.map(s=>s.ratio)),
-      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; authenticated A burst at aggregate cap, one prewarmed B request measured from a separate process against matched prewarmed quiet B control. Relative quiet B latency is a queue-fairness metric, not a direct original-to-obfuscated CPU bound.'
+      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; eight concurrently issued legitimate A batches each at the individual per-request aggregate cap, one prewarmed B request from an independent process versus matched prewarmed quiet B control. Relative quiet B latency isolates service queue fairness, not an original-to-obfuscated CPU budget.'
     };
   }finally{
     if(server){
