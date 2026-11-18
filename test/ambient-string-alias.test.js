@@ -101,12 +101,12 @@ for(const [title,side] of cases) {
         seed:'ambient-string-alias/'+title
       });
       const target=output.files.find(file=>file.path==='target.cjs');
-      assert.equal(target?.metrics.literals,0,
-        mode+' inserted a decoder after a potentially unsafe intrinsic mutation');
       const observed=await execute(output.files);
       assert.equal(observed.status,0,mode+': '+observed.stderr);
       assert.equal(observed.stdout,expected.stdout,
         mode+' changed the behavior of a valid preloaded CJS graph');
+      assert.equal(target?.metrics.literals,0,
+        mode+' inserted a decoder after a potentially unsafe intrinsic mutation');
     }
   });
 }
