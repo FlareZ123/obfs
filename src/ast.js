@@ -508,6 +508,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const jsonNamespaces=new Set(['JSON']);
   const nativeStringConstructors=new Set(['String']);
   const nativeRegExpConstructors=new Set(['RegExp']);
+  const boundRegExpConstructors=new Set();
+  const boundStringConstructors=new Set();
   // Failed structured cloning can expose a function's exact source spelling
   // in DataCloneError.message, including functions nested in clone inputs.
   const cloneFunctions=new Set(['structuredClone',...importedCloneFunctions]);
@@ -552,6 +554,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const blobObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const boundBlobObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const boundRegExpObjectKeys=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const boundStringObjectKeys=new Map();
   /** @type {Map<string,Set<string>>} */
   const redirectObjectKeys=new Map();
   const encoderNames=new Set(['TextEncoder']);
@@ -690,6 +696,38 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // A runtime-computed key could select any recorded native method.
     return name!==null ? keys?.has(name)??false : Boolean(node.computed&&keys?.size);
   }
+  /**
+   * A native RegExp or String constructor remains source-coercing when bound.
+   * Capture aliases conservatively, including owners' property reads.
+   * @param {AstNode|null|undefined} node
+   * @param {Set<string>} aliases
+   * @param {Map<string,Set<string>>} objectKeys
+   * @param {Set<string>} nativeAliases
+   * @param {string} builtin
+   * @returns {boolean}
+   */
+  function isBoundNativeConstructor(node,aliases,objectKeys,nativeAliases,builtin) {
+    if(!node)return false;
+    if(node.type==='Identifier')return aliases.has(node.name);
+    if(node.type==='MemberExpression'&&node.object.type==='Identifier') {
+      const keys=objectKeys.get(node.object.name);
+      const key=memberName(node);
+      return key!==null ? keys?.has(key)??false : Boolean(node.computed&&keys?.size);
+    }
+    return node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+      memberName(node.callee)==='bind'&&
+      isNativeConstructor(node.callee.object,nativeAliases,builtin);
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundRegExpConstructor(node) {
+    return isBoundNativeConstructor(node,boundRegExpConstructors,
+      boundRegExpObjectKeys,nativeRegExpConstructors,'RegExp');
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isBoundStringConstructor(node) {
+    return isBoundNativeConstructor(node,boundStringConstructors,
+      boundStringObjectKeys,nativeStringConstructors,'String');
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isBlobConstructor(node) {
     if(node?.type==='SequenceExpression') {
@@ -822,6 +860,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       addWebObjectKey(blobObjectKeys,receiver,key);
     if(isBoundBlobConstructor(expression))
       addWebObjectKey(boundBlobObjectKeys,receiver,key);
+    if(isBoundRegExpConstructor(expression))
+      addWebObjectKey(boundRegExpObjectKeys,receiver,key);
+    if(isBoundStringConstructor(expression))
+      addWebObjectKey(boundStringObjectKeys,receiver,key);
     if(isResponseRedirect(expression))
       addWebObjectKey(redirectObjectKeys,receiver,key);
   }
@@ -844,6 +886,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(nativeStringConstructors,name)||changed;
         if(isNativeConstructor(value,nativeRegExpConstructors,'RegExp'))
           changed=add(nativeRegExpConstructors,name)||changed;
+        if(isBoundRegExpConstructor(value))
+          changed=add(boundRegExpConstructors,name)||changed;
+        if(isBoundStringConstructor(value))
+          changed=add(boundStringConstructors,name)||changed;
         if(isV8Module(value))changed=add(v8Modules,name)||changed;
         if(isV8SerializerConstructor(value))changed=add(v8SerializerConstructors,name)||changed;
         if(isV8SerializerInstance(value))changed=add(v8SerializerInstances,name)||changed;
@@ -1011,7 +1057,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             addObjectFunctionKey(name,key);
           }
           for(const map of [webRecordObjectKeys,responseObjectKeys,webStringObjectKeys,
-            blobObjectKeys,boundBlobObjectKeys,redirectObjectKeys]) {
+            blobObjectKeys,boundBlobObjectKeys,boundRegExpObjectKeys,
+            boundStringObjectKeys,redirectObjectKeys]) {
             // A direct object alias shares the original mutable record.
             // May-flow is bidirectional so later property writes through
             // either binding remain visible in every fixed-point iteration.
@@ -1111,6 +1158,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             changed=add(blobConstructors,property.value.name)||changed;
           if(boundBlobObjectKeys.get(node.init.name)?.has(key))
             changed=add(boundBlobConstructors,property.value.name)||changed;
+          if(boundRegExpObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundRegExpConstructors,property.value.name)||changed;
+          if(boundStringObjectKeys.get(node.init.name)?.has(key))
+            changed=add(boundStringConstructors,property.value.name)||changed;
           if(redirectObjectKeys.get(node.init.name)?.has(key))
             changed=add(responseRedirects,property.value.name)||changed;
         }
@@ -1634,7 +1685,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @returns {boolean}
    */
   function constructObservesSource(target,passed) {
-    const nativeStringCoercer=isCoercer(target);
+    const boundRegExp=isBoundRegExpConstructor(target);
+    const boundString=isBoundStringConstructor(target);
+    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString;
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
     const blobOptions=isBlobConstructor(target);
@@ -1644,7 +1697,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        !blobOptions&&!boundBlob)return false;
     if(passed?.type==='ArrayExpression') {
       const values=nativeStringCoercer ?
-        (isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
+        (boundRegExp||boundString ? passed.elements :
+          isNativeConstructor(target,nativeRegExpConstructors,'RegExp') ?
           passed.elements.slice(0,2):passed.elements.slice(0,1)) :
         boundBlob?passed.elements:
         webDictionary||blobOptions?passed.elements.slice(0,blobOptions?2:1):passed.elements;
@@ -2483,6 +2537,17 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       /** @type {AstNode|null|undefined} */
       let argument=null;
       if(isCoercer(callee))argument=node.arguments[0];
+      // Bound native constructors may shift their source-coercing operands
+      // through captured arguments. A function in any forwarded position
+      // is conservatively observable without a complete bind arity proof.
+      if((isBoundRegExpConstructor(callee)||isBoundStringConstructor(callee))&&
+          node.arguments.some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
+      if(callee.type==='MemberExpression'&&memberName(callee)==='bind'&&
+          (isNativeConstructor(callee.object,nativeRegExpConstructors,'RegExp')||
+           isNativeConstructor(callee.object,nativeStringConstructors,'String'))&&
+          node.arguments.slice(1).some((/** @type {AstNode} */ value)=>
+            !isDefinitelyPrimitive(value)))observed=true;
       // Native RegExp constructors stringify an explicit flags operand too.
       if(isNativeConstructor(callee,nativeRegExpConstructors,'RegExp') &&
          node.arguments[1] && !isDefinitelyPrimitive(node.arguments[1]))
