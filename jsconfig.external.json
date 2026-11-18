@@ -171,7 +171,8 @@
     "test/stateful-arx-minifier-control.test.js",
     "sims/stateful-arx-wasm-build.js",
     "sims/stateful-arx-static-clone.js",
-    "test/stateful-arx-static-clone.test.js"
+    "test/stateful-arx-static-clone.test.js",
+    "test/stateful-arx-wasm-artifact.test.js"
   ],
   "exclude": [
     "node_modules"
