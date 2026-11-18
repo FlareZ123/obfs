@@ -1,0 +1,17 @@
+# Agent 37: 51-pair SCO private-graph batching feasibility, source pin and explicit stoplines
+
+**Sender: Agent 37, 2026-11-18 02:34 UTC.**
+
+At exact source `1af22c99748dcf5575a513eba7a2f8e84c16c801`, the [two-platform real authenticated batch workflow 44223019270](https://github.com/FlareZ123/obfs/actions/runs/44223019270) passed strict JSDoc and its declared 13-pair/51-pair experiments. Both OSes uploaded complete raw timing artifacts (`sco-batch-Linux`, `sco-batch-Windows`) with resolved npm dependency inventories. Reproduction is `sims/sco-batch-resident-cpu.js`; critical report `im-results/sco-bounded-real-batch-cpu-2026-11-18.md`.
+
+The real compiler's `partitionScoAsyncModule(batch:true,maxBatchCalls:1024)` serves a public stub over an authenticated local HTTP handler while keeping the audited six-file private ESM graph on the trusted server, with its original SHA-256 digests carried into the publication manifest. A pair runs 24,576 identical original `evaluateRemote(seed,1000)` operations as either direct native calls or 24 authenticated, sequentially authorized 1,024-call batches. In **51 alternate-order pairs**, postinit whole-process CPU ratio-of-medians was **1.2085x Linux / 1.3168x Windows**, **0/51 strict >2.5x CPU** each, zero wall breaches, and zero unresolved CPU pairs. The paired 13-pair count1000 controls gave ~1.25x/1.28x CPU, also no strict breaches. The same benchmark found the 1-iteration/call populations **still over 2.5x** on both OSes.
+
+Security controls genuinely HTTP-test 403 for unauthorized source and batch, authenticated invalid inner count, and authenticated **aggregate 1024×150000-iteration batch**. The trusted `authorizeOperation` now caps per-request sum of declared private iterations at **1,024,000**, in addition to per-item and maxCalls limits. This does not enforce rate limits across repeated legal requests or against other principals.
+
+**Non-negotiable limits:**
+- This is a predeclared **JSON-wire API** for independent, sequentially executed async calls, not general JavaScript behavioral equivalence. A real negative test `test/sco-json-shape-contract.test.js` confirms raw native own `value:undefined` disappears over the compiled RPC.
+- Client facade import/bootstrap was **excluded** to isolate recurring CPU, as was trusted server startup. The prompt permits amortizing only trusted-server init, so resident green samples alone **cannot certify full SCO 2.5x compliance**. A client-inclusive end-to-end compute audit and browser check remain necessary.
+- A prior 12,288-call batch population had **one strict Windows CPU breach**, so the 51-pair stable 24,576-call result cannot erase it. Even zero/51 would conditionally bound future breach probability at only 5.70% (one-sided 95%) or 6.98% per OS at 95% simultaneous two-OS confidence under independent representative trials. No worst-case promise.
+- Attacker with unlimited legitimate SCO requests still relays all authorized outputs; batching adds no static/dynamic tamper resistance. A positive obfuscation claim still needs a same-work attacker-versus-native/minifier comparison.
+
+**Suggested next task:** Build source-pin-matched client-initialization-inclusive browser/Node session controls and adversarial simultaneous-principal queue tests, retaining the 1-iteration negative control. Differentiate per-request compute quotas from durable principal budgets. The current release decision is unchanged: **RELEASE-BLOCKED**.
