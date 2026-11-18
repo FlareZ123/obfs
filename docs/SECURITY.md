@@ -316,6 +316,30 @@ reconstruction or tampering. Unmodeled opaque external observers and
 indirect native method acquisition remain a risk; users requiring exact
 host-observable source should independently test the actual deployment.
 
+### Dynamic `with` scopes and source-exposing host getters
+
+Non-strict CommonJS and browser classic scripts can introduce an opaque
+`with (object)` environment. A host `Proxy` may shadow a generated
+decoder identifier or a locally captured `Reflect.get` alias, changing
+the runtime value of code that was previously considered safe to rewrite.
+The same environment may expose source bytes of a **different**
+function/class, outside the `with` statement, through an otherwise
+unrecognizable property getter.
+
+For this bounded case, the string encoder now preserves literals under
+`WithStatement`, and preserves literals inside function/class source
+ranges when any `WithStatement` occurs in the file. Unrelated primitive
+literals outside those ranges can still be encoded. The captured
+`Reflect.get` proof refuses a dynamic `with` environment. Source-exact
+native/emitted witnesses were checked in Node on both operating systems
+and in real Chromium in COO, SCO, and SNO. Details and red/green source
+pins are in the [dynamic scope intermediate report](../im-results/with-scope-lexical-soundness-2026-11-18.md).
+
+This is selective behavioral compatibility, **not** a guarantee that
+an untrusted host cannot inspect entire source files or extract the
+running program. Source-observation through arbitrary external APIs
+remains outside the static proof.
+
 The [native red-control and mode-matrix report](../im-results/implicit-source-three-mode-matrix-2026-11-17.md)
 records deterministic 504 observer-refusal cases, 36 transformed
 primitive-logging controls, and real native-versus-emitted multi-file ESM
