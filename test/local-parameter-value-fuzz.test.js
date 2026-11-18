@@ -57,7 +57,7 @@ function positive(iteration) {
   ].join('\n');
 }
 
-/** @typedef {'coo'|'sno'} Mode */
+/** @typedef {'coo'|'sno'|'sco'} Mode */
 /**
  * @param {string} source
  * @param {Mode} mode
@@ -76,10 +76,10 @@ function preserve(source,mode,expectedObjects,index) {
     'Behavior mismatch for '+mode+' case '+index+': '+output.code);
 }
 
-test('512 deterministic lexical-formal value types preserve exact COO/SNO output with real owner rewrites',()=>{
+test('512 deterministic lexical-formal value types preserve exact SCO/COO/SNO output with real owner rewrites',()=>{
   for(let index=0;index<512;index++) {
     const source=positive(index);
-    const mode=/** @type {Mode} */ (index%2===0?'coo':'sno');
+    const mode=/** @type {Mode} */ (/** @type {Mode[]} */ (['coo','sno','sco'])[index%3]);
     preserve(source,mode,1,index);
   }
 });
@@ -97,10 +97,10 @@ const negative=[
   'function run(payload){const owner={secretField:payload};owner.secretField=function(){return Object.keys(this)};return owner.secretField();}module.exports=run(17);'
 ];
 
-test('bounded identifier-value candidate still refuses 20 reflected, escaped and opaque-flow cases',()=>{
+test('bounded identifier-value candidate still refuses 30 reflected, escaped and opaque-flow cases',()=>{
   for(let index=0;index<negative.length;index++) {
-    for(const mode of /** @type {const} */ (['sno','coo'])) {
-      preserve(negative[index],mode,0,1000+index*2+(mode==='coo'?1:0));
+    for(const mode of /** @type {const} */ (['sno','coo','sco'])) {
+      preserve(negative[index],mode,0,1000+index*3+(['sno','coo','sco'].indexOf(mode)));
     }
   }
 });
