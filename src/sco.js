@@ -51,8 +51,10 @@ const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
  * @property {boolean} [closedWorld]
  * @property {Record<string,(...args:any[])=>unknown|Promise<unknown>>} [remoteMethods]
  * @property {string[]} [batchPreflightRoutes] Exact remote method names whose
- *   automatic inner authorization preflight is security-required. Each name
- *   must resolve directly to a createScoBatchMethod helper at construction.
+ *   one-level automatic call-list authorization preflight is security-required.
+ *   Each name must resolve directly to a createScoBatchMethod helper at
+ *   construction. Composite work hidden inside a leaf method remains that
+ *   method's application-level policy responsibility.
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRpc]
  * @property {(request:import('node:http').IncomingMessage,method:string,args:unknown[])=>boolean|Promise<boolean>} [authorizeOperation]
  * @property {(request:import('node:http').IncomingMessage)=>boolean|Promise<boolean>} [authorizeRead]
