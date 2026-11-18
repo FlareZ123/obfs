@@ -4,14 +4,14 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
-const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /**
- * Run one CommonJS source under Node's external uncaught-exception report flag.
+ * Run one CommonJS source under Node's externally supplied uncaught-exception
+ * diagnostic-report flag.
  * @param {string} code
  * @param {string} label
- * @returns {Promise<{label:string,status:number|null,message:string,frame:string}>}
+ * @returns {Promise<{label:string,status:number|null,message:string,frame:string,line:number,column:number}>}
  */
 async function runReportedVariant(code,label) {
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-process-report-'));
@@ -24,55 +24,49 @@ async function runReportedVariant(code,label) {
       '--report-filename=report.json',
       `--report-directory=${directory}`,
       entry
-    ],{
-      encoding:'utf8'
-    });
+    ],{encoding:'utf8'});
     const data=JSON.parse(await fs.readFile(report,'utf8'));
     const stack=/** @type {{message:string,stack:string[]}} */ (data.javascriptStack);
-    const frame=stack.stack.find(value=>/entry\.cjs:1:\d+/.test(value));
+    const frame=stack.stack.find(value=>/entry\.cjs:\d+:\d+/.test(value));
     if(frame===undefined)throw new Error('Diagnostic report omitted the entry source frame');
-    return {label,status:child.status,message:stack.message,frame};
+    const match=/entry\.cjs:(\d+):(\d+)/.exec(frame);
+    if(match===null)throw new Error('Diagnostic report entry frame has no source coordinates');
+    return {
+      label,
+      status:child.status,
+      message:stack.message,
+      frame,
+      line:Number(match[1]),
+      column:Number(match[2])
+    };
   } finally {
     await fs.rm(directory,{recursive:true,force:true});
   }
 }
 
 /**
- * Demonstrate that an external Node diagnostic-report flag can observe source
- * coordinate changes even when the input program never references process.report.
+ * Demonstrate that an external Node diagnostic-report flag can observe a
+ * length-changing source rewrite even when the program never references
+ * process.report.
  * @returns {Promise<{
  *   node:string,
- *   properties:number,
- *   bindings:number,
- *   native:{label:string,status:number|null,message:string,frame:string},
- *   emitted:{label:string,status:number|null,message:string,frame:string},
- *   framesEqual:boolean
+ *   native:{label:string,status:number|null,message:string,frame:string,line:number,column:number},
+ *   shortened:{label:string,status:number|null,message:string,frame:string,line:number,column:number},
+ *   coordinatesEqual:boolean
  * }>}
  */
 async function runExperiment() {
-  const source="'use strict';const distinctivelyLongBindingNameThatForcesCoordinateShift=73;"+
-    "throw new Error(String(distinctivelyLongBindingNameThatForcesCoordinateShift));";
-  const emitted=obfuscateFiles([{
-    path:'entry.cjs',
-    sourceType:'commonjs',
-    code:source
-  }],{
-    mode:'sno',
-    seed:'process-report-cli-source-observer',
-    strings:false,
-    identifiers:true,
-    properties:false
-  }).files[0];
-
+  const field='distinctivelyLongPrivateFieldThatForcesCoordinateShift';
+  const source="'use strict';const owner={"+field+":73};"+
+    "const value=owner."+field+";throw new Error(String(value));";
+  const shortened=source.replaceAll(field,'x');
   const native=await runReportedVariant(source,'native');
-  const transformed=await runReportedVariant(emitted.code,'emitted');
+  const rewritten=await runReportedVariant(shortened,'shortened');
   return {
     node:process.version,
-    properties:emitted.metrics.properties,
-    bindings:emitted.metrics.bindings,
     native,
-    emitted:transformed,
-    framesEqual:native.frame===transformed.frame
+    shortened:rewritten,
+    coordinatesEqual:native.line===rewritten.line&&native.column===rewritten.column
   };
 }
 
