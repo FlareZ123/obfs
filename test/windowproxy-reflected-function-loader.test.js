@@ -19,7 +19,8 @@ async function execute(files){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-windowproxy-loader-'));
   try{
     for(const file of files)await atomicWrite(path.join(root,file.path),file.code);
-    const child=spawnSync(process.execPath,[path.join(root,'entry.mjs')],{
+    await atomicWrite(path.join(root,'preload.cjs'),'globalThis.top=globalThis;');
+    const child=spawnSync(process.execPath,['--require',path.join(root,'preload.cjs'),path.join(root,'entry.mjs')],{
       encoding:'utf8',windowsHide:true,timeout:10000,maxBuffer:1024*1024
     });
     if(child.error)throw child.error;
@@ -36,20 +37,19 @@ async function execute(files){
 function graph(hiddenLoader){
   const code=[
     "import {record} from './owner.mjs';",
-    "globalThis.top=globalThis;",
     hiddenLoader?[
       "const values=Object.values(Object.getOwnPropertyDescriptors(top));",
       "const found=values.find(d=>typeof d.value==='function'&&d.value.name==='Function');",
       "const constructor=found.value;",
       "const uri=new URL('./owner.mjs',import.meta.url).href;",
       "const imported=await constructor('u','return import(u)')(uri);",
-      "process.stdout.write(JSON.stringify({direct:record.secret,keys:Object.keys(imported.record)}));"
+      "process.stdout.write(JSON.stringify({direct:record.secretField,keys:Object.keys(imported.record)}));"
     ].join('\n'):
-      "process.stdout.write(JSON.stringify({direct:record.secret}));"
+      "console.log(record.secretField+globalThis.Math.max(1,2));"
   ].join('\n');
   return [
     {path:'owner.mjs',sourceType:'module',
-      code:'export const record={secret:13,number:9};'},
+      code:'export const record={secretField:13};'},
     {path:'entry.mjs',sourceType:'module',code}
   ];
 }
@@ -67,8 +67,9 @@ test('ordinary static ESM consumer retains non-vacuous cross-file property-renam
   const native=await execute(input);
   const generated=await execute(compiled.files);
   assert.equal(native.status,0,native.stderr);
+  assert.equal(native.stdout,'15\n');
   assert.deepEqual(generated,native);
-  assert.ok(compiled.files.some(file=>file.metrics.properties>0),
+  assert.ok(compiled.crossFile.properties>0,
     'The baseline must actually rename an exported owner property');
 });
 
@@ -78,7 +79,7 @@ test('reflected Function constructor through top must not hide a runtime ESM con
   const native=await execute(input);
   const generated=await execute(compiled.files);
   assert.equal(native.status,0,native.stderr);
-  assert.equal(native.stdout,'{"direct":13,"keys":["secret","number"]}');
+  assert.equal(native.stdout,'{"direct":13,"keys":["secretField"]}');
   assert.deepEqual(generated,native,
     'Runtime Function/ESM clone can inspect original exported object keys');
 });
