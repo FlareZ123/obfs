@@ -127,10 +127,12 @@ document.querySelector('#result').textContent='pass:'+JSON.stringify({
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
   try{
-    await new Promise((resolve,reject)=>{
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
       server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+      server.listen(0,'127.0.0.1',()=>resolve());
     });
+    await listening;
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     browser=await puppeteer.launch({
@@ -170,8 +172,10 @@ document.querySelector('#result').textContent='pass:'+JSON.stringify({
     }));
   }finally{
     if(browser)await browser.close();
-    await new Promise((resolve,reject)=>server.close(error=>
+    /** @type {Promise<void>} */
+    const closing=new Promise((resolve,reject)=>server.close(error=>
       error?reject(error):resolve()));
+    await closing;
   }
 }
 
