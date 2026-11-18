@@ -14,6 +14,7 @@
     "workplace/coo-piggyback-shards.js",
     "sims/coo-piggyback-recover.js",
     "sims/coo-piggyback-profile.js",
+    "sims/coo-piggyback-firstuse-curve.js",
     "examples/coo-piggyback/build.cjs",
     "test/coo-piggyback-shards.test.js",
     "test/coo-piggyback-browser.js"
