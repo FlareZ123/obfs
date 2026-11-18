@@ -1,6 +1,7 @@
 'use strict';
 
 const http=require('node:http');
+const fs=require('node:fs');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const {AsyncLocalStorage}=require('node:async_hooks');
@@ -24,6 +25,7 @@ async function main(){
   const control=process.env.SCO_TEST_CONTROL;
   const legacyAnonymousLock=process.env.SCO_TEST_LEGACY_UNAUTH_LOCK==='1';
   const accountShards=process.env.SCO_TEST_ACCOUNT_SHARDS==='1';
+  const privateAMarker=process.env.SCO_TEST_A_WORK_MARKER;
   const journalModeRetries=process.env.SCO_TEST_NO_JOURNAL_RETRY==='1'?0:4;
   if(!databasePath||!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)||
     !tokenA||!/^[a-f0-9]{64}$/u.test(tokenA)||
@@ -119,6 +121,13 @@ async function main(){
       batch:(start,inputs)=>{
         const principal=contexts.getStore();
         if(typeof principal!=='string')throw new TypeError('Missing trusted account');
+        // Trusted test-only marker: record the exact entry to long A work
+        // for a separate independent B latency experiment. No RPC argument
+        // can select this path or cause a B marker.
+        if(privateAMarker&&principal==='verified-A'&&inputs.length===64){
+          fs.writeFileSync(privateAMarker+'.new',String(process.hrtime.bigint()));
+          fs.renameSync(privateAMarker+'.new',privateAMarker);
+        }
         const decision=storeOf(principal).batch(principal,start,inputs);
         if(decision.kind==='denied')throw new TypeError('State changed after admission');
         return decision.outputs;
