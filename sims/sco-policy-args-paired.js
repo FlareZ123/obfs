@@ -24,7 +24,9 @@ async function start(api) {
       args.length===1&&args[0]!==null&&typeof args[0]==='object'&&
       typeof /** @type {{text?:unknown}} */ (args[0]).text==='string'
   }));
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const started=new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  await started;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Expected TCP address');
   return {server,port:address.port};
@@ -32,7 +34,10 @@ async function start(api) {
 
 /** @param {RunningServer} running @returns {Promise<void>} */
 async function stop(running) {
-  await new Promise((resolve,reject)=>running.server.close(error=>error?reject(error):resolve()));
+  /** @type {Promise<void>} */
+  const closed=new Promise((resolve,reject)=>
+    running.server.close(error=>error?reject(error):resolve()));
+  await closed;
 }
 
 /** @param {number} port @param {string} body @param {number} expected @returns {Promise<void>} */
