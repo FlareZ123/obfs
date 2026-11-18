@@ -310,6 +310,28 @@ function decodePublicName(encodedName) {
 }
 
 /**
+ * Read the Host header's *hostname* while respecting RFC-style bracketed
+ * IPv6 literals. Unbracketed DNS/routing names retain their legacy matching
+ * behavior. A bracketed literal can have only an optional numeric port; URL
+ * parsing then validates and canonicalizes its IPv6 address.
+ *
+ * This is just HTTP routing. The requester can forge Host, so independent
+ * SCO read and operation authorization remains mandatory where required.
+ * @param {string} header
+ * @returns {string|null}
+ */
+function routingHostname(header) {
+  if(!header.startsWith('['))return header.split(':',1)[0].toLowerCase();
+  const closing=header.indexOf(']');
+  if(closing<2 || !/^(?::[0-9]+)?$/u.test(header.slice(closing+1)))return null;
+  try {
+    return new URL('http://'+header).hostname.toLowerCase();
+  }catch(error){
+    return null;
+  }
+}
+
+/**
  * Copy private source-manifest entries by their indexed values once.
  * User-owned array methods, iterators and species constructors are not
  * publication-policy authorities; each listed element is copied as data.
@@ -355,6 +377,10 @@ function createScoHandler(sourceFiles,options={}) {
   if(allowedHosts?.some(value=>typeof value!=='string')){
     throw new TypeError('SCO allowedHosts must contain strings');
   }
+  // Compile an immutable routing lookup at server initialization rather than
+  // allocating and lowercasing a complete allowlist on every HTTP request.
+  const routingHostnames=allowedHosts?.length ? new Set(allowedHosts.map(host=>
+    host.startsWith('[') ? routingHostname(host)??host.toLowerCase() : host.toLowerCase())) : null;
   if (!prefix.startsWith('/') || !prefix.endsWith('/')) throw new TypeError('routePrefix must start and end with /');
   if (remoteMethods && typeof authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
@@ -540,9 +566,9 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    if (policy.allowedHosts?.length) {
-      const hostname = (request.headers.host ?? '').split(':')[0].toLowerCase();
-      if (!policy.allowedHosts.map(h=>h.toLowerCase()).includes(hostname)) {
+    if (routingHostnames) {
+      const hostname=routingHostname(request.headers.host??'');
+      if(hostname===null || !routingHostnames.has(hostname)) {
         response.writeHead(403).end();
         return;
       }
