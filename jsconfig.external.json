@@ -169,7 +169,9 @@
     "sims/fused-arx-static-lift.js",
     "test/fused-arx-static-lift.test.js",
     "sims/compatible-permutation-linear-wrapper-exhaustive-small.js",
-    "sims/compatible-permutation-linear-sandwich-blackbox.js"
+    "sims/compatible-permutation-linear-sandwich-blackbox.js",
+    "sims/compatible-permutation-linear-sandwich-sparse-counterexample.js",
+    "test/compatible-permutation-linear-sandwich-counterexample.test.js"
   ],
   "exclude": [
     "node_modules"
