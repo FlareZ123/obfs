@@ -694,6 +694,81 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(parts.length===1)addReturnedField(cursor.name,parts[0]);
       }
       /**
+       * @param {import('./ast').AstNode} expression
+       * @returns {string|null}
+       */
+      function staticContainerKey(expression) {
+        const text=staticString(expression);
+        if(text!==null)return text;
+        if(expression.type==='Literal'&&expression.regex===undefined&&
+           ['string','number','bigint','boolean'].includes(typeof expression.value)) {
+          return String(expression.value);
+        }
+        return null;
+      }
+      /**
+       * @param {import('./ast').AstNode} descriptor
+       * @returns {import('./ast').AstNode|null}
+       */
+      function descriptorValue(descriptor) {
+        if(descriptor.type!=='ObjectExpression')return null;
+        for(const property of descriptor.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticContainerKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticContainerKey(property.key);
+          if(key==='value')return property.value;
+        }
+        return null;
+      }
+      /**
+       * Track bounded reflective writes into a local container without
+       * tainting unrelated fields.
+       * @param {import('./ast').AstNode} node
+       */
+      function recordReflectiveContainerWrite(node) {
+        if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
+        const method=memberName(node.callee);
+        const receiver=node.callee.object;
+        const target=node.arguments[0];
+        if(!target||target.type!=='Identifier')return;
+        if(method==='assign'&&isObjectIntrinsic(receiver)) {
+          for(const source of node.arguments.slice(1)) {
+            if(source.type==='ObjectExpression')recordLiteralSensitiveFields(target.name,source);
+          }
+          return;
+        }
+        if(method==='set'&&isReflectIntrinsic(receiver)) {
+          const keyNode=node.arguments[1];
+          const value=node.arguments[2];
+          if(!keyNode||!value)return;
+          const key=staticContainerKey(keyNode);
+          if(key===null||!sensitiveReturnValue(value))return;
+          addReturnedField(target.name,key);
+          return;
+        }
+        if(method==='defineProperty'&&
+           (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver))) {
+          const keyNode=node.arguments[1];
+          const descriptor=node.arguments[2];
+          if(!keyNode||!descriptor)return;
+          const key=staticContainerKey(keyNode);
+          const value=descriptorValue(descriptor);
+          if(key===null||!value||!sensitiveReturnValue(value))return;
+          addReturnedField(target.name,key);
+          return;
+        }
+        if(method!=='defineProperties'||!isObjectIntrinsic(receiver))return;
+        const descriptors=node.arguments[1];
+        if(!descriptors||descriptors.type!=='ObjectExpression')return;
+        for(const property of descriptors.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticContainerKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticContainerKey(property.key);
+          const value=descriptorValue(property.value);
+          if(key!==null&&value&&sensitiveReturnValue(value))addReturnedField(target.name,key);
+        }
+      }
+      /**
        * @param {import('./ast').AstNode} owner
        * @param {string|null} key
        * @returns {boolean}
@@ -784,6 +859,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(node.type==='AssignmentExpression'&&node.operator==='=') {
         recordSensitiveMemberWrite(node.left,node.right);
       }
+      if(node.type==='CallExpression')recordReflectiveContainerWrite(node);
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
         recordLocalReturns(node.id.name,node);
       }
