@@ -18,6 +18,7 @@ const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
+const {canonicalAllowedHosts}=require('./hosts');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
 /** @typedef {'module'|'script'|'commonjs'|'asset'} SourceType */
@@ -101,10 +102,7 @@ function injectHostLock(source, ast, hosts, completeStaticGraph=false) {
       statement.type === 'ExportNamedDeclaration' && statement.source)) {
     throw new TypeError('Host locking ESM static imports or reexports requires a complete closed-world module group');
   }
-  const allowed = [...new Set(hosts.map(host => host.toLowerCase()))];
-  if (!allowed.length || allowed.some(host => !/^[a-z0-9.-]+$/.test(host))) {
-    throw new TypeError('allowedHosts must contain valid lowercase DNS hostnames');
-  }
+  const allowed=canonicalAllowedHosts(hosts);
   const snippet = `;(()=>{const h=globalThis.location?.hostname?.toLowerCase();if(!${JSON.stringify(allowed)}.includes(h))throw Error('Unauthorized execution host')})();\n`;
   let offset = 0;
   if (source.startsWith('#!')) {
