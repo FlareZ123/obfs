@@ -13,7 +13,7 @@ const {prepare,digest}=require('./polyvariant-app-four-way-control');
  * sourceCommit:string|null,
  * engine:{node:string,v8:string,platform:string,arch:string},
  * dependencies:{packageJsonSha256:string,lockSha256:string},
- * settings:{candidate:{mode:string,seed:string,selectedFunctions:string[]},minifier:{name:string,version:string,bundled:boolean,format:string,target:string,minify:boolean}},
+ * settings:{candidate:{mode:string,seed:string,closedWorld:boolean,strings:boolean,experimentalPolyvariantCount:number,selectedFunctions:string[]},minifier:{name:string,version:string,bundled:boolean,format:string,target:string,minify:boolean,legalComments:string,sourcefilePerModule:boolean}},
  * graphs:FrozenGraphs,
  * graphDigests:{native:string,minified:string,published:string,reconstructed:string},
  * staticAttack:{minifiedRecovered:number,publishedRecovered:number}
@@ -55,9 +55,11 @@ async function createReceipt() {
     dependencies:{packageJsonSha256:hash(manifest),lockSha256:hash(lock)},
     settings:{
       candidate:{mode:'coo',seed:'multi-file-attacker-challenge-20261116',
+        closedWorld:false,strings:false,experimentalPolyvariantCount:2,
         selectedFunctions:['round1','round2','round3']},
       minifier:{name:'esbuild',version:esbuild.version,bundled:false,
-        format:'esm',target:'es2022',minify:true}
+        format:'esm',target:'es2022',minify:true,
+        legalComments:'none',sourcefilePerModule:true}
     },
     graphs:{
       native:freeze(graphs.native),
