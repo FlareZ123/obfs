@@ -20,6 +20,7 @@ async function main(){
   const tokenA=process.env.SCO_TEST_TOKEN_A;
   const tokenB=process.env.SCO_TEST_TOKEN_B;
   const control=process.env.SCO_TEST_CONTROL;
+  const legacyAnonymousLock=process.env.SCO_TEST_LEGACY_UNAUTH_LOCK==='1';
   if(!databasePath||!rootHex||!/^[a-f0-9]{64}$/u.test(rootHex)||
     !tokenA||!/^[a-f0-9]{64}$/u.test(tokenA)||
     !tokenB||!/^[a-f0-9]{64}$/u.test(tokenB)||
@@ -55,14 +56,21 @@ async function main(){
         /** @type {number} */(args[0]),
         /** @type {string[]} */(args[1]));
     },
-    runRpcIsolated:(req,execute)=>isolate(req,async()=>{
-      store.begin();
-      try{
-        await contexts.run(principalOf(req),execute);
-      }finally{
-        store.rollback();
-      }
-    }),
+    runRpcIsolated:(req,execute)=>{
+      // A request without the verified test cookie must still pass through
+      // the core authorizeRpc check, but must never acquire a SQLite writer
+      // transaction merely to receive its expected 403 denial. The legacy
+      // mode reproduces the old global-lock path for a matched experiment.
+      if(!legacyAnonymousLock&&principalOf(req)===null)return execute();
+      return isolate(req,async()=>{
+        store.begin();
+        try{
+          await contexts.run(principalOf(req),execute);
+        }finally{
+          store.rollback();
+        }
+      });
+    },
     remoteMethods:{
       /**
        * @param {number} start
@@ -80,6 +88,14 @@ async function main(){
   });
 
   const server=http.createServer((req,res)=>{
+    if(req.url==='/__test__/hold'&&req.method==='POST'&&
+       req.headers['x-test-control']===control){
+      // Trusted test-only lock-control route, never part of public SCO API.
+      store.begin();
+      res.writeHead(200,{'cache-control':'no-store'}).end('HELD');
+      setTimeout(()=>store.rollback(),1500);
+      return;
+    }
     if(req.url==='/__test__/stop'&&req.method==='POST'&&
        req.headers['x-test-control']===control){
       res.writeHead(204).end();
