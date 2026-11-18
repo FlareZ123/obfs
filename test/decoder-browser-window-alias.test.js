@@ -51,7 +51,7 @@ const unsafe=[
   ['top global','globalThis.top=globalThis;','top.String.fromCharCode=()=>"?";'],
   ['globalThis.top','globalThis.top=globalThis;','globalThis.top.String.fromCharCode=()=>"?";'],
   ['parent global','globalThis.parent=globalThis;','parent.String.fromCharCode=()=>"?";'],
-  ['window parent','globalThis.window=globalThis;','window.parent.String.fromCharCode=()=>"?";'],
+  ['window parent','globalThis.window=globalThis;globalThis.parent=globalThis;','window.parent.String.fromCharCode=()=>"?";'],
   ['frames global','globalThis.frames=globalThis;','frames.String.fromCharCode=()=>"?";'],
   ['opener alias','globalThis.opener=globalThis;','opener.String.fromCharCode=()=>"?";']
 ];
