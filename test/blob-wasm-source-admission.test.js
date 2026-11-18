@@ -59,7 +59,7 @@ for(const [name,expression] of observers) {
 test('primitive Blob options retain selected Wasm i32 conversion',()=>{
   const original=functionSource+
     'const type=new Blob([],{type:"text/plain",endings:"transparent"}).type;'+
-    'module.exports=()=>f(37)+":"+type;';
+    'module.exports=f(37)+":"+type;';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   const output=obfuscateFiles([{
     path:'entry.cjs',sourceType:'commonjs',code:original
