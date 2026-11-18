@@ -139,6 +139,10 @@ function mutatesDecoderIntrinsic(ast) {
   const arrayPrototypes=new Set();
   const objectNames=new Set(['Object']);
   const objectPrototypes=new Set();
+  // A runtime getPrototypeOf argument may be a String, Array or Object.
+  // Track uncertain results separately to keep harmless unrelated key writes eligible.
+  const possiblePrototypes=new Set();
+  const possibleConstructors=new Set();
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -308,6 +312,62 @@ function mutatesDecoderIntrinsic(ast) {
     const index=Number(name);
     return Number.isSafeInteger(index) && index<4096;
   }
+  /**
+   * A dynamically supplied receiver can resolve to a decoder-sensitive
+   * prototype even if no local literal, array or constructor proves its type.
+   * Known nonstring primitive literals are a safe precision exception.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isPossiblePrototype(node) {
+    if(node.type==='Identifier')return possiblePrototypes.has(node.name);
+    if(node.type==='MemberExpression')return memberName(node)==='__proto__' &&
+      isPossiblePrototype(node.object);
+    if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression'||
+       memberName(node.callee)!=='getPrototypeOf'||
+       !(isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object)))return false;
+    const argument=node.arguments[0];
+    if(!argument)return false;
+    return !(argument.type==='Literal'&&argument.regex===undefined&&
+      argument.value!==null&&typeof argument.value!=='string');
+  }
+  /**
+   * The constructor property on an uncertain prototype may expose String,
+   * allowing callers to overwrite the decoder's String.fromCharCode.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isPossibleConstructor(node) {
+    return node.type==='Identifier'&&possibleConstructors.has(node.name)||
+      node.type==='MemberExpression'&&isPossiblePrototype(node.object)&&
+        (memberName(node)==='constructor'||memberName(node)===null);
+  }
+  /**
+   * A computed unknown key might be Symbol.iterator, charCodeAt or an index
+   * inherited by the decoder's fresh temporary array.
+   * @param {import('./ast').AstNode|null|undefined} key
+   * @returns {boolean}
+   */
+  function mayTouchDecoderKey(key) {
+    if(!key)return true;
+    const name=key.type==='Literal'&&key.regex===undefined&&
+      ['number','bigint','boolean'].includes(typeof key.value)?
+      String(key.value):staticString(key);
+    if(name===null||['charCodeAt','fromCharCode','__proto__','constructor'].includes(name))return true;
+    if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
+    const index=Number(name);
+    return Number.isSafeInteger(index)&&index<4096;
+  }
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function writesPossibleDecoderIntrinsic(node) {
+    if(node.type!=='MemberExpression')return false;
+    if(isPossibleConstructor(node.object))return mayTouchDecoderKey(node.property);
+    if(!isPossiblePrototype(node.object))return false;
+    const name=memberName(node);
+    if(name===null||['charCodeAt','__proto__','constructor'].includes(name))return true;
+    if(!/^(?:0|[1-9][0-9]*)$/u.test(name))return false;
+    return Number(name)<4096;
+  }
   // Iterate to a fixed point to see through e.g. G=globalThis; S=G.String,
   // independent of declaration order. A later reassignment may yield a false
   // positive, which is safer than assuming a potentially mutable alias is pure.
@@ -350,6 +410,8 @@ function mutatesDecoderIntrinsic(ast) {
           if(isArrayPrototype(node.init))add(arrayPrototypes,node.id.name);
           if(isObjectIntrinsic(node.init))add(objectNames,node.id.name);
           if(isObjectPrototype(node.init))add(objectPrototypes,node.id.name);
+          if(isPossiblePrototype(node.init))add(possiblePrototypes,node.id.name);
+          if(isPossibleConstructor(node.init))add(possibleConstructors,node.id.name);
           if(isReflectIntrinsic(node.init))add(reflectNames,node.id.name);
         } else if(node.id.type==='ObjectPattern' &&
                   (isGlobal(node.init)||isStringValue(node.init)||isArrayValue(node.init)||
@@ -382,6 +444,8 @@ function mutatesDecoderIntrinsic(ast) {
         if(isArrayPrototype(node.right))add(arrayPrototypes,node.left.name);
         if(isObjectIntrinsic(node.right))add(objectNames,node.left.name);
         if(isObjectPrototype(node.right))add(objectPrototypes,node.left.name);
+        if(isPossiblePrototype(node.right))add(possiblePrototypes,node.left.name);
+        if(isPossibleConstructor(node.right))add(possibleConstructors,node.left.name);
         if(isReflectIntrinsic(node.right))add(reflectNames,node.left.name);
       }
     });
@@ -431,9 +495,11 @@ function mutatesDecoderIntrinsic(ast) {
       // later with an arbitrary receiver, so only an immediate, statically
       // unrelated key invocation can retain the decoder.
       if(['__defineGetter__','__defineSetter__'].includes(method??'') &&
-         (isArrayPrototype(receiver)||isObjectPrototype(receiver)) &&
+         (isArrayPrototype(receiver)||isObjectPrototype(receiver)||
+          isPossiblePrototype(receiver)) &&
          !(parent?.type==='CallExpression' && parent.callee===node &&
-           !mayInterceptChunkIndex(parent.arguments[0]))) {
+           !(isPossiblePrototype(receiver)?mayTouchDecoderKey(parent.arguments[0]):
+             mayInterceptChunkIndex(parent.arguments[0])))) {
         mutated=true;
         return;
       }
@@ -471,13 +537,13 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(node.type==='AssignmentExpression' &&
          (touchesString(node.left)||isArrayIteratorProperty(node.left)||
-          isArrayPrototypeChainWrite(node.left)) ||
+          isArrayPrototypeChainWrite(node.left)||writesPossibleDecoderIntrinsic(node.left)) ||
        node.type==='UpdateExpression' &&
          (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
-          isArrayPrototypeChainWrite(node.argument)) ||
+          isArrayPrototypeChainWrite(node.argument)||writesPossibleDecoderIntrinsic(node.argument)) ||
        node.type==='UnaryExpression' && node.operator==='delete' &&
          (touchesString(node.argument)||isArrayIteratorProperty(node.argument)||
-          isArrayPrototypeChainWrite(node.argument))) {
+          isArrayPrototypeChainWrite(node.argument)||writesPossibleDecoderIntrinsic(node.argument))) {
       mutated=true;
       return;
     }
@@ -487,7 +553,8 @@ function mutatesDecoderIntrinsic(ast) {
     const first=node.arguments[0];
     if(!first)return;
     if(method===null && (isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver)) &&
-       (touchesString(first)||isArrayPrototype(first)||isGlobal(first))) {
+       (touchesString(first)||isArrayPrototype(first)||isGlobal(first)||
+        isPossiblePrototype(first)||isPossibleConstructor(first))) {
       mutated=true;
       return;
     }
@@ -517,6 +584,9 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(isObjectIntrinsic(receiver) && mutatorsObject.has(method??'')) {
       if(touchesString(first))mutated=true;
+      if(isPossiblePrototype(first)||isPossibleConstructor(first)) {
+        if(method!=='defineProperty'||mayTouchDecoderKey(node.arguments[1]))mutated=true;
+      }
       // Object.assign/defineProperties can change String through a dynamic
       // property bag whose keys are not statically provable here.
       if(isGlobal(first) && (method==='assign'||method==='defineProperties'))mutated=true;
@@ -537,6 +607,9 @@ function mutatesDecoderIntrinsic(ast) {
     }
     if(isReflectIntrinsic(receiver) && mutatorsReflect.has(method??'')) {
       if(touchesString(first))mutated=true;
+      if(isPossiblePrototype(first)||isPossibleConstructor(first)) {
+        if(method==='setPrototypeOf'||mayTouchDecoderKey(node.arguments[1]))mutated=true;
+      }
       if(isGlobal(first) && (method==='setPrototypeOf' ||
           node.arguments[1]?.type!=='Literal' || node.arguments[1].value==='String'))mutated=true;
     }
