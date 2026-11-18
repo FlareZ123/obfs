@@ -14,6 +14,7 @@
     "sims/wasm-captured-clone.js",
     "sims/fused-arx-runtime-clone.js",
     "sims/fused-arx-session-crossover.js",
+    "sims/fused-arx-fresh-process-cold.js",
     "test/fused-arx-runtime-extraction.test.js",
     "test/fused-arx-browser-runtime-clone.js",
     "test/wasm-runtime-capture.test.js",
