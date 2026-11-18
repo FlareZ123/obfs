@@ -31,3 +31,19 @@ This test measures **whole-process CPU**, including transport serialization and 
 Authenticated SCO relocation can amortize its transport cost on this high-compute application: the measured 120,000-iteration workload has supported median and zero strict observed CPU breaches. The same deployed facade is tens to hundreds of times costlier for tiny repeated operations, so a declaration that **all** SCO workloads satisfy the 2.5x compute budget is contradicted by these samples. Preserve the JSON-value contract limitation and unresolved Windows CPU count. No inference about universal adversarial confidentiality or tamper resistance follows from these performance observations.
 
 Related evidence: `im-results/application-challenge-sco-source-relay-2026-11-16.md` for the legitimate online public-facade relay; `im-results/sno-hot-leaf-crossmode-reconciliation-2026-11-18.md` for the separate SNO selected-hot attribution. The raw CPU and wall arrays are printed verbatim in the source-pinned Actions job logs under `SCO_RESIDENT_CPU`.
+
+
+## Independent CPU-quantization falsification with 12,288 calls per pair (02:05 UTC)
+
+The later [complete two-platform workflow 44220336345](https://github.com/FlareZ123/obfs/actions/runs/44220336345) at exact source `cefcce131fdf86e24cd55e02bb5f98178a8d6c81` **passed** external JSDoc, the real JSON-shape negative regression, the three original warm populations, and a new `--amplify-short` population. Node version was `v22.23.4` on both OSes.
+
+The additional population keeps the private engine at **1,000 iterations per call** while executing 4,096 repetitions of three seeded calls each: **12,288 direct native calls and 12,288 authenticated HTTP facade calls per paired observation**, after three matching warmups. It retains thirteen alternating-order pairs, the identical private source and JSON-wire parity. The duration amplification targets precisely the earlier Windows native CPU resolution problem without changing the per-call application computation or substituting a different algorithm.
+
+| Runtime | Native median process CPU | Protected median process CPU | Protected/native CPU ratio of medians | Strict observed CPU >2.5x | Unresolved CPU pairs | Protected/native wall ratio of medians |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Ubuntu Node22 | approximately 178 ms | approximately 5,518 ms | **30.954x** | **13/13** | **0/13** | **28.585x** |
+| Windows Node22 | **281 ms** | approximately 5,720 ms | **20.356x** | **13/13** | **0/13** | **20.463x** |
+
+Both one-sided CPU median decisions were `exceeded`. The Windows native CPU minimum was **234 ms**, so the result does not depend on reading a zero or sub-16ms CPU interval. The full two-platform job reported zero mismatched wire outputs, and the generated private-code facade was genuinely invoked through authenticated loopback HTTP. On the same source, the 120,000-iteration control still had zero strict CPU breaches on both platforms and supported median CPU ratios **1.240x Ubuntu / 1.323x Windows**. On the original unamplified low-work rows, Windows remained partly CPU-unresolved (**22 of 26 short pairs**), corroborating the need for the amplified control.
+
+**Selection consequence:** Even amortized across 12,288 authenticated requests per observation, one-thousand-iteration *per-call* relocation imposes a repeatable >20x whole-process CPU penalty on this application. The 2.5x ceiling cannot be inferred from a larger application's favorable 120k-iteration control, from hiding Node initialization, or from the existence of a source-private server. A design change at the *transport operation granularity* (e.g. an explicitly permitted coarse remote API, or a proved-semantics-preserving batch) would need a new matched attack, behavior, hot CPU and wall experiment before release. The high numeric ratios here are measurements, not an automatic estimate for unrelated hardware, workloads or network topologies.
