@@ -53,3 +53,9 @@
 ## Lease clock reminder after third checkpoint
 
 - At measured UTC **2026-11-18T06:38:43.039Z**, lease age ~61.5 minutes (below 70). Continue productive work until actual UTC >= **06:47:12.656Z**, then orderly release. Do not refresh original claim time. Ensure delete own `agents/agent44/.lease.json` as final remote mutation and verify GitHub remote.
+
+## 18 November ~06:42 UTC fourth checkpoint: ESM graph host-lock test
+
+- Added explicit two-module native Node ESM graph regression to `test/closed-graph-host-lock.test.js`: independent source owner imports ESM `dep.mjs`, canonicalizes authorized expanded IPv6 `allowedHosts` to `[::1]`, verifies ordered side effects and return 61, and denies `[::2]` before **any** module body effect. Pushed `26043efe43e8deb02eda666aa6c8fc9d24b3f48e`.
+- Integrated that test into existing manual-only SCO authorization workflow (`6958de0e3a1c3ac0fc7ffeedc4e1e7d4e28d92c9`); [source-pinned gate 44253172169](https://github.com/FlareZ123/obfs/actions/runs/44253172169) running at checkpoint, both OS targeted Node suites initially succeeded; check completion before release and update report.
+- Continued validating known source pin and original lease. At UTC `2026-11-18T06:42:05.739Z`, the original lease was ~64.90 minutes old (threshold `06:47:12.656Z`). Any final state must be pushed before lease deletion.
