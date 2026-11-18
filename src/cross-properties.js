@@ -857,6 +857,41 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /**
+     * A direct inline record actual can be proven non-ambient for a named
+     * destructuring formal only when every destructured property is supplied
+     * as an own inert primitive field. No prototype fallback, getter, magic
+     * __proto__ creation, dynamic key or nested receiver is accepted.
+     *
+     * @param {AstNode} formal
+     * @param {AstNode|null|undefined} actual
+     * @returns {boolean}
+     */
+    function closedLiteralFormalActual(formal,actual) {
+      if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
+         !isLiteralValue(actual))return false;
+      /** @type {Map<string,AstNode>} */
+      const fields=new Map();
+      for(const property of actual.properties) {
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.method||property.shorthand)return false;
+        const name=ownPropertyName(property);
+        if(name===null||name==='__proto__'||fields.has(name))return false;
+        fields.set(name,property.value);
+      }
+      for(const property of formal.properties) {
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.value.type!=='Identifier')return false;
+        const name=ownPropertyName(property);
+        const value=name!==null?fields.get(name):undefined;
+        if(!value||!isLiteralValue(value)||
+           value.type==='ObjectExpression'||value.type==='ArrayExpression'||
+           value.type==='Literal'&&value.value!==null&&
+           !['number','string','boolean','bigint'].includes(typeof value.value))
+          return false;
+      }
+      return true;
+    }
     /** @type {(AstNode|null)[][]} */
     const unresolvedArgumentVectors=[];
     /**
@@ -922,6 +957,13 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(formal.type==='AssignmentPattern') {
             actual??=formal.right;
             formal=formal.left;
+          }
+          if(formal.type==='ObjectPattern'&&actual?.type!=='Identifier') {
+            // A function result or computed expression can be globalThis
+            // without spelling an ambient root in the formal invocation.
+            if(!closedLiteralFormalActual(formal,actual))
+              changedIntrinsic=true;
+            continue;
           }
           if(actual?.type!=='Identifier')continue;
           if(formal.type==='Identifier')aliasEdges.push([formal.name,actual.name]);
