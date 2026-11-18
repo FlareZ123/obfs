@@ -64,3 +64,22 @@ The corrected `sims/sno-resident-budget.js` prolongs actual `runScenario` calls 
 **Observed CPU result:** **0/104** strict >2.5x paired CPU observations across eight OS/workload groups; every one-sided paired-median CPU diagnostic returned `supported`. The corresponding internal worker elapsed-wall result also had zero strict breaches, with Ubuntu wall median ratios 1.2162/1.4614/1.4821/1.6046 and Windows 1.1371/1.2621/1.3372/1.4098. This is a materially more suitable *compute*-time sample than the earlier millisecond-scale CPU attempt, with persistent limitations from shared-process JIT history, GC, measurement granularity, correlated repeated inputs, finite trial count and lack of adversarial authorization.
 
 **Decision:** retain the two exact-source runs separately. The old wall-only run is reproducible historical context, the failed short CPU run is negative methodological evidence, and the latest amplified CPU+wall run is the strongest current SNO post-init performance evidence. None cancels the demonstrated full-control SNO clone or upgrades the overall release from blocked.
+
+## Same-source independent cold versus resident observation (18 November 2026 00:29 UTC)
+
+The expanded [Linux/Windows workflow 44207885859](https://github.com/FlareZ123/obfs/actions/runs/44207885859) at exact source `bf8099aaf49d89de74436f4fc023f3a2df0c9f60` **passed both operating systems**, running the original 13-pair *fresh-process* `sims/polyvariant-app-sno.js --profile` immediately after the resident 13-pair CPU+wall probe. The SNO manifest integrity checker, graph, source, and select-three-functions compilation were common to both at the same source revision. Per-pair workload size and timing boundaries intentionally differed, so their ratios must not be subtracted to infer a numeric initialization cost.
+
+| Boundary / workload events | Ubuntu native/obfuscated ratio | Windows native/obfuscated ratio |
+| --- | ---: | ---: |
+| Resident CPU: 1 × 50,000 | 1.1696x | 1.2051x |
+| Resident CPU: 50 × 2,500 | 1.3467x | 1.3974x |
+| Resident CPU: 1,000 × 80 | 1.5130x | 1.4762x |
+| Resident CPU: 10,000 × 5 | 1.5605x | 1.9375x |
+| Fresh Node process: 1 | 1.1280x | 1.0983x |
+| Fresh Node process: 50 | 1.1444x | 1.0828x |
+| Fresh Node process: 1,000 | 1.1927x | 1.1220x |
+| Fresh Node process: 10,000 | 1.1153x | 1.0686x |
+
+All eight resident CPU groups had zero strict >2.5x pairs out of 104 CPU samples and all four cold groups per OS had one-sided median `supported` decisions. **The cold-start ratios happen to be lower than hot-work ratios in this particular CPU-bound fixture**: native and obfuscated startup share Node initialization and ESM import, which dilute per-call transformation overhead. This is a measured fixture observation, not evidence that startup is inherently cheaper. A general obfuscator requires both explicit budgets with their individual denominators and threat contracts.
+
+Keep fresh-process latency as an operational metric. Reserve the prompt's SNO 2.5x compute test for the post-init repeated-work boundary. Do not claim that a statistical `supported` median eliminates every future strict violation.
