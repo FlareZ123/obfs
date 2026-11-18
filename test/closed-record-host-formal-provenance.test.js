@@ -374,3 +374,17 @@ for(const [name,code] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+test('unrelated rest helper with static primitive expressions retains a real key rewrite',async()=>{
+  const original=graph('function count(...items){return items.length;}'+
+    'void count((2*3)-1,1<<3,typeof 7);');
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-rest-factory/pure-actuals',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Source-proven inert primitive arguments preserve a useful private rewrite');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
