@@ -130,3 +130,36 @@ only at SCO startup. This remains intermediate research.
 option accessors can drift between preflight and stored handler policy,
 creating a concrete negative proof; avoid touching Agent 25's
 `reviewed-assets` scope. Continue research, tests and CI as time allows.
+
+
+## 2026-11-18 incarnation, checkpoint 2: first-read HTTP authorization policy
+
+Performed a second direct SCO server-policy study. New
+`test/sco-request-policy-initial-snapshot.test.js` has six actual
+HTTP/compiler witnesses for getter-based initial configuration drift:
+`authorizeRpc`, `remoteMethods`, `authorizeRead`,
+`allowedHosts`, `maxRpcBytes`, and `closedWorld`.
+All six **failed** in the original handler under red
+[run 44211909581](https://github.com/FlareZ123/obfs/actions/runs/44211909581)
+at SHA `50f6a4a52901bcfd71b77375872feb1b4a31c8e5` on
+both Windows and Ubuntu (235 tests collected per OS).
+
+Patched `src/sco.js` to capture initial policy authority values once;
+copy the registered method map while retaining original callable
+identity and its WeakMap batch metadata; snapshot and check Host list
+using indexed entries; validate and deploy the same authorizer
+functions, byte cap and closedWorld selector. Verified
+[green full targeted SCO workflow 44212054003](https://github.com/FlareZ123/obfs/actions/runs/44212054003)
+at exact SHA `6e8adbe1b752bc527ad1ed3f0de8c650ae1b75f8`,
+success Ubuntu and Windows. Added intermediate report
+`im-results/sco-request-policy-initial-snapshot-2026-11-18.md`
+and operator docs in `docs/SCO_AUTHORIZATION.md` at
+`cfccccd51ed9ca69471b1421b6bd9f9b0f082389`.
+
+Both studies are trusted-server construction-consistency correctness,
+not defense against hostile server operators or authorized online relay.
+Repeated handler request-time code is unchanged, 2.5x application
+ratio not separately measured. Mainline moves concurrently; retain
+exact CI SHA on any claim. Next best action should prioritize
+substantive obfuscation attacker-cost evidence over further atomic
+policy churn, following Critic's latest release stopline guidance.
