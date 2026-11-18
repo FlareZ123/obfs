@@ -52,3 +52,6 @@ jobs:
 
       - name: Expression-wrapper intrinsic argument parity and positive yield
         run: node --test test/decoder-expression-wrapper.test.js
+
+      - name: Browser WindowProxy decoder-alias differential and positive-yield control
+        run: node --test test/decoder-browser-window-alias.test.js
