@@ -170,10 +170,12 @@ test('requireBatchPreflight remains single-level when a registered leaf wraps an
   /** @param {any[]} calls */
   const nested=calls=>inner(calls);
   const outer=createScoBatchMethod({nested});
+  /** @type {Record<string,(...args:any[])=>unknown>} */
+  const remoteMethods={batch:outer};
   /** @type {string[]} */
   const observed=[];
   const handler=createScoHandler([],{
-    remoteMethods:{batch:outer},
+    remoteMethods,
     authorizeRpc:()=>true,
     authorizeOperation:(request,method)=>{
       observed.push(method);
