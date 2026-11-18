@@ -161,7 +161,10 @@
     "test/property-in-metamorphic.test.js",
     "test/property-in-browser.js",
     "sims/property-in-operator-profile.js",
-    "sims/property-in-operator-static-recover.js"
+    "sims/property-in-operator-static-recover.js",
+    "sims/private-in-cold-budget.js",
+    "sims/private-in-immediate-cold.js",
+    "sims/private-in-onefile-cold.js"
   ],
   "exclude": [
     "node_modules"
