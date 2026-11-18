@@ -32,14 +32,14 @@ async function post(handler,payload){
   }
 }
 
-test('requireBatchPreflight rejects ambiguous wrapped or missing batch registrations',()=>{
+test('batchPreflightRoutes rejects ambiguous wrapped or missing batch registrations',()=>{
   const batch=createScoBatchMethod({privateOp:()=>17});
   /** @param {any[]} calls */
   const forwarder=calls=>batch(calls);
   const common={
     authorizeRpc:()=>true,
     authorizeOperation:()=>true,
-    requireBatchPreflight:['batch']
+    batchPreflightRoutes:['batch']
   };
   assert.doesNotThrow(()=>createScoHandler([],{
     ...common,
@@ -57,31 +57,43 @@ test('requireBatchPreflight rejects ambiguous wrapped or missing batch registrat
   }),/direct createScoBatchMethod helper/);
 });
 
-test('requireBatchPreflight validates its explicit security contract',()=>{
+test('batchPreflightRoutes validates its explicit security contract',()=>{
   const batch=createScoBatchMethod({privateOp:()=>17});
   assert.throws(()=>createScoHandler([],{
     remoteMethods:{batch},
     authorizeRpc:()=>true,
-    requireBatchPreflight:['batch']
+    batchPreflightRoutes:['batch']
   }),/requires authorizeOperation/);
   assert.throws(()=>createScoHandler([],{
     remoteMethods:{batch},
     authorizeRpc:()=>true,
     authorizeOperation:()=>true,
-    requireBatchPreflight:/** @type {any} */ ('batch')
+    batchPreflightRoutes:/** @type {any} */ ('batch')
   }),/must be an array/);
   assert.throws(()=>createScoHandler([],{
     remoteMethods:{batch},
     authorizeRpc:()=>true,
     authorizeOperation:()=>true,
-    requireBatchPreflight:['batch','batch']
-  }),/Duplicate requireBatchPreflight/);
+    batchPreflightRoutes:['batch','batch']
+  }),/Duplicate batchPreflightRoutes/);
   assert.throws(()=>createScoHandler([],{
     remoteMethods:{batch},
     authorizeRpc:()=>true,
     authorizeOperation:()=>true,
-    requireBatchPreflight:['']
+    batchPreflightRoutes:['']
   }),/nonempty strings/);
+  assert.throws(()=>createScoHandler([],{
+    remoteMethods:{batch},
+    authorizeRpc:()=>true,
+    authorizeOperation:()=>true,
+    batchPreflightRoutes:[/** @type {any} */ (17)]
+  }),/nonempty strings/);
+  assert.throws(()=>createScoHandler([],{
+    remoteMethods:/** @type {any} */ ({batch:17}),
+    authorizeRpc:()=>true,
+    authorizeOperation:()=>true,
+    batchPreflightRoutes:['batch']
+  }),/direct createScoBatchMethod helper/);
 });
 
 test('declared direct batch keeps inner authorization fail-closed over HTTP',async()=>{
@@ -98,7 +110,7 @@ test('declared direct batch keeps inner authorization fail-closed over HTTP',asy
       observed.push(method);
       return method==='batch';
     },
-    requireBatchPreflight:['batch']
+    batchPreflightRoutes:['batch']
   });
   const result=await post(handler,{
     method:'batch',
@@ -110,7 +122,7 @@ test('declared direct batch keeps inner authorization fail-closed over HTTP',asy
   assert.deepEqual(result.body,{ok:false,error:'Forbidden'});
 });
 
-test('requireBatchPreflight snapshots route names and registered task identity once',async()=>{
+test('batchPreflightRoutes snapshots route names and registered task identity once',async()=>{
   let effects=0;
   let methodReads=0;
   let routeReads=0;
@@ -145,7 +157,7 @@ test('requireBatchPreflight snapshots route names and registered task identity o
       observed.push(method);
       return method==='batch';
     },
-    requireBatchPreflight:required
+    batchPreflightRoutes:required
   });
   assert.equal(methodReads,1);
   assert.equal(routeReads,1);
