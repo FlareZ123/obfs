@@ -29,3 +29,8 @@ examples/reviewed-assets-cli/source/theme.css text eol=lf
 # Freeze npm manifest and resolved lock bytes across Windows and Linux.
 package.json text eol=lf
 package-lock.json text eol=lf
+
+# Frozen stateful ARX three-arm source artifacts and byte-exact ESBuild baseline.
+examples/stateful-arx-app/native/*.mjs text eol=lf
+examples/stateful-arx-app/minified/*.mjs text eol=lf
+examples/stateful-arx-app/wasm/*.mjs text eol=lf
