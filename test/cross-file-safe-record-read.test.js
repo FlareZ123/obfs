@@ -395,3 +395,31 @@ test('cross-module primitive forwarding preserves genuinely rewritten own record
   assert.equal(compiled.crossFile.properties,1);
   assert.equal(await execute(compiled.files),original);
 });
+
+for(const [label,bridge,wrapper] of [
+  ['direct renamed ESM re-export',null,
+    "export {getFactory as forward} from './factory.mjs';"],
+  ['transitive renamed ESM re-exports',
+    "export {getFactory as middle} from './factory.mjs';",
+    "export {middle as forward} from './bridge.mjs';"]
+]) {
+  test('re-exported host-return capability: '+label,async()=>{
+    const files=graph([
+      "import {forward} from './wrapper.mjs';const ctor=forward();",
+      'const remote=await ctor("return import(\'./state.mjs\')")();',
+      "const result=[inspectRecord('auditCount').value,Object.keys(remote.state),remote.state.secretField];"
+    ].join('\n'));
+    files.push({path:'factory.mjs',sourceType:'module',
+      code:'export function getFactory(){return globalThis.RUNTIME_FACTORY;}'});
+    if(bridge)files.push({path:'bridge.mjs',sourceType:'module',code:bridge});
+    files.push({path:'wrapper.mjs',sourceType:'module',code:wrapper});
+    const native=await execute(files,true);
+    assert.equal(native,'[41,[3,["secretField"],41]]\n',label);
+    const compiled=obfuscateFiles(files,{
+      mode:'coo',closedWorld:true,seed:'return-reexport/'+label,
+      identifiers:false,strings:false,properties:true
+    });
+    assert.equal(await execute(compiled.files,true),native,label);
+    assert.equal(compiled.crossFile.properties,0,label);
+  });
+}
