@@ -24,6 +24,49 @@ function original(objects){
   return code+'module.exports=total;\n';
 }
 
+/**
+ * Held-out mixed owner flows, including immutable computed keys, aliases,
+ * local readers, identity forwarding, private tuples/records, and one
+ * reflective refusal. All emitted candidate bytes must match the control.
+ * @returns {string}
+ */
+function mixedSource(){
+  let code="'use strict';let total=0;\\n";
+  for(let i=0;i<48;i++){
+    const n=String(i),v=i%29;
+    switch(i%7){
+      case 0:
+        code+='const key'+n+'="secret";const bag'+n+'={secret:'+v+'};'+
+          'total=(total+bag'+n+'[key'+n+'])|0;\\n';
+        break;
+      case 1:
+        code+='const bag'+n+'={secret:'+v+'};const alias'+n+'=bag'+n+';'+
+          'total=(total+alias'+n+'.secret)|0;\\n';
+        break;
+      case 2:
+        code+='const bag'+n+'={secret:'+v+'};const tuple'+n+'=[0,bag'+n+',3];'+
+          'const owned'+n+'=tuple'+n+'[1];total=(total+owned'+n+'.secret)|0;\\n';
+        break;
+      case 3:
+        code+='const bag'+n+'={secret:'+v+'};const holder'+n+'={tag:0,owned:bag'+n+'};'+
+          'const owned'+n+'=holder'+n+'.owned;total=(total+owned'+n+'.secret)|0;\\n';
+        break;
+      case 4:
+        code+='const bag'+n+'={secret:'+v+'};const reader'+n+'=(value)=>value.secret;'+
+          'total=(total+reader'+n+'(bag'+n+'))|0;\\n';
+        break;
+      case 5:
+        code+='const bag'+n+'={secret:'+v+'};function forward'+n+'(value){return value;}'+
+          'total=(total+forward'+n+'(bag'+n+').secret)|0;\\n';
+        break;
+      default:
+        code+='const bag'+n+'={secret:'+v+'};'+
+          'total=(total+Object.keys(bag'+n+').includes("secret"))|0;\\n';
+    }
+  }
+  return code+'module.exports=total;\\n';
+}
+
 /** @param {string} source @returns {string} */
 function sha256(source){
   return createHash('sha256').update(source).digest('hex');
@@ -37,7 +80,7 @@ function sha256(source){
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
-  const input=original(objects);
+  const input=objects==='mixed'?mixedSource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -45,7 +88,8 @@ function sample(objects){
   });
   const wallMs=performance.now()-wallStart;
   const cpu=process.cpuUsage(cpuStart);
-  assert.equal(emitted.files[0].metrics.properties,objects);
+  assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
+    emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
   const module={exports:null};
@@ -72,8 +116,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number} objects
- * @returns {{arm:string,objects:number,cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'} objects
+ * @returns {{arm:string,objects:number|'mixed',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -89,7 +133,7 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(Number(process.argv[3]));
+  sample(process.argv[3]==='mixed'?'mixed':Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -106,7 +150,8 @@ if(process.argv[2]==='sample'){
   try{
     for(const [objects,arms] of [
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
-      /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']])
+      /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
+      /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']])
     ]) {
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -114,7 +159,7 @@ if(process.argv[2]==='sample'){
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048]){
+    for(const objects of [512,2048,'mixed']){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
