@@ -240,9 +240,14 @@ async function run(rounds=13,stability=false){
 
 if(require.main===module){
   const stability=process.argv.includes('--stability');
-  run(stability?51:13,stability).then(report=>
-  process.stdout.write('SCO_BATCH_RESIDENT_CPU '+JSON.stringify(report)+'\n')
-).catch(error=>{
+  run(stability?51:13,stability).then(async report=>{
+    const serialized=JSON.stringify(report);
+    if(process.env.OBFS_SCO_BATCH_AUDIT_FILE){
+      await atomicWrite(process.env.OBFS_SCO_BATCH_AUDIT_FILE,
+        JSON.stringify(report,null,2)+'\n');
+    }
+    process.stdout.write('SCO_BATCH_RESIDENT_CPU '+serialized+'\n');
+  }).catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
   process.exitCode=1;
   });
