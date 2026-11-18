@@ -49,12 +49,15 @@ async function observe(work){
  *
  * @param {number} [rounds]
  * @param {boolean} [stability] Perform 51 longer 24,576-call paired trials of the selected 1,000-iteration operation only.
- * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,batchSize:number,perObservationCalls:number,initializationExcluded:boolean,stability:boolean,cpuScope:string,rows:Row[]}>}
+ * @param {boolean} [clientInitializationIncluded] Fetch and compile an uncached client ESM facade for every measured remote session.
+ * @returns {Promise<{source:string,platform:NodeJS.Platform,node:string,batchSize:number,perObservationCalls:number,initializationExcluded:boolean,serverInitializationExcluded:boolean,clientInitializationIncluded:boolean,stability:boolean,cpuScope:string,rows:Row[]}>}
  */
-async function run(rounds=13,stability=false){
+async function run(rounds=13,stability=false,clientInitializationIncluded=false){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>100)
     throw new RangeError('Expected 9 to 100 paired batches');
   if(typeof stability!=='boolean')throw new TypeError('Expected boolean stability selection');
+  if(typeof clientInitializationIncluded!=='boolean')
+    throw new TypeError('Expected boolean client initialization selection');
   const oldWindow=globalThis.window;
   const originalFetch=globalThis.fetch;
   const temp=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-batch-cpu-'));
@@ -163,11 +166,34 @@ async function run(rounds=13,stability=false){
     const publishedSource=await served.text();
     assert.ok(!publishedSource.includes('createEngine'),
       'No private engine source may appear in the served facade');
-    const sourcePath=path.join(temp,'facade.mjs');
-    await atomicWrite(sourcePath,publishedSource);
-    const published=/** @type {{batch:Batch}} */ (
-      await import(pathToFileURL(sourcePath).href));
-    assert.equal(typeof published.batch,'function');
+    /** @type {{batch:Batch}|null} */
+    let published=null;
+    if(!clientInitializationIncluded){
+      const sourcePath=path.join(temp,'facade.mjs');
+      await atomicWrite(sourcePath,publishedSource);
+      published=/** @type {{batch:Batch}} */ (
+        await import(pathToFileURL(sourcePath).href));
+      assert.equal(typeof published.batch,'function');
+    }
+    let freshModuleCounter=0;
+    /**
+     * Fetching an actual authenticated public source and compiling a unique
+     * Node ESM module occurs inside the observed client session. A new module
+     * URL prevents Node's module cache from erasing compilation cost. The
+     * trusted server's startup and private import remain outside this scope.
+     * @returns {Promise<Batch>}
+     */
+    async function fetchFreshBatch(){
+      const response=await globalThis.fetch('/obfs/'+EXPOSED);
+      assert.equal(response.status,200);
+      const source=await response.text();
+      assert.equal(source,publishedSource,'Served public source changed between sessions');
+      const url='data:text/javascript;base64,'+
+        Buffer.from(source,'utf8').toString('base64')+'#fresh-'+(++freshModuleCounter);
+      const module=/** @type {{batch:Batch}} */ (await import(url));
+      assert.equal(typeof module.batch,'function');
+      return module.batch;
+    }
 
     const batchSize=1024,totalCalls=(stability?24:12)*batchSize;
     /** @type {Row[]} */
@@ -183,15 +209,15 @@ async function run(rounds=13,stability=false){
         for(const [seed,count] of cases)values.push(await native(seed,count));
         return values;
       }
-      /** @returns {Promise<unknown[]>} */
-      async function batchedWork(){
+      /** @param {Batch} callBatch @returns {Promise<unknown[]>} */
+      async function executeBatches(callBatch){
         /** @type {unknown[]} */
         const values=[];
         for(let begin=0;begin<cases.length;begin+=batchSize){
           const calls=cases.slice(begin,begin+batchSize).map(([seed,count])=>({
             name:'evaluateRemote',args:[seed,count]
           }));
-          const returned=await published.batch(calls);
+          const returned=await callBatch(calls);
           assert.equal(returned.length,calls.length);
           for(const item of returned){
             assert.equal(item.ok,true,'Every inner authenticated method must succeed');
@@ -199,6 +225,15 @@ async function run(rounds=13,stability=false){
           }
         }
         return values;
+      }
+      /** @returns {Promise<unknown[]>} */
+      async function batchedWork(){
+        if(clientInitializationIncluded){
+          const freshBatch=await fetchFreshBatch();
+          return executeBatches(freshBatch);
+        }
+        assert.ok(published,'Expected resident public module');
+        return executeBatches(published.batch);
       }
       for(let warm=0;warm<3;warm++){
         const control=await observe(nativeWork);
@@ -246,8 +281,11 @@ async function run(rounds=13,stability=false){
     return {
       source:'sims/sco-batch-resident-cpu.js',platform:process.platform,
       node:process.version,batchSize,perObservationCalls:totalCalls,
-      initializationExcluded:true,stability,
-      cpuScope:'Whole-process CPU from direct native methods versus twelve actually authenticated, internally authorized JSON batches, each containing 1,024 original operations. Startup and import excluded. Raw JS object shape is outside JSON API.',
+      initializationExcluded:!clientInitializationIncluded,
+      serverInitializationExcluded:true,clientInitializationIncluded,stability,
+      cpuScope:clientInitializationIncluded?
+        'Each remote session includes authenticated HTTP download, a fresh uncached Node ESM facade compilation and its authenticated 1,024-call JSON batches. Whole-process CPU includes loopback client plus trusted server; server startup/private import and native-baseline import are excluded. Node process/browser boot and arbitrary JS object shape are outside scope.':
+        'Whole-process CPU from direct native methods versus authenticated, internally authorized JSON batches, each containing 1,024 original operations. Startup and import excluded. Raw JS object shape is outside JSON API.',
       rows
     };
   }finally{
@@ -265,7 +303,8 @@ async function run(rounds=13,stability=false){
 
 if(require.main===module){
   const stability=process.argv.includes('--stability');
-  run(stability?51:13,stability).then(async report=>{
+  const clientInitializationIncluded=process.argv.includes('--fresh-client-module');
+  run(stability?51:13,stability,clientInitializationIncluded).then(async report=>{
     const serialized=JSON.stringify(report);
     if(process.env.OBFS_SCO_BATCH_AUDIT_FILE){
       await atomicWrite(process.env.OBFS_SCO_BATCH_AUDIT_FILE,
