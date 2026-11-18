@@ -43,6 +43,25 @@ async function execute(destination,files){
   return {output:processResult.stdout.trim(),files:files.length};
 }
 
+test('direct exported owner remains protected from source-visible name mutation',()=>{
+  const exposed=native.map(file=>{
+    if(file.path==='private.mjs')return {...file,code:file.code
+      .replace('function compute(payload)','export function compute(payload)')
+      .replace('export function publicCompute(input){return compute(input);}','')};
+    if(file.path==='entry.mjs')return {...file,code:file.code
+      .replace('{publicCompute}', '{compute}')
+      .replace('result:publicCompute(39)', 'result:compute(39)')};
+    return file;
+  });
+  for(const mode of /** @type {const} */ (['coo','sno'])) {
+    const emitted=obfuscateFiles(exposed,{mode,closedWorld:false,
+      identifiers:false,strings:false,properties:true,seed:'public-owner-refusal'});
+    assert.equal(emitted.files.reduce((sum,file)=>sum+file.metrics.objects,0),0);
+    assert.equal(emitted.files.find(file=>file.path==='private.mjs')?.code,
+      exposed.find(file=>file.path==='private.mjs')?.code);
+  }
+});
+
 test('actual three-file ESM retains host callback and is source-only relabelable and tamperable',async()=>{
   const originalDir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-param-attack-native-'));
   const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-param-attack-'));
