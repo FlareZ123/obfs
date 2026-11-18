@@ -466,6 +466,111 @@ test('Reflect.get globalThis process preserves diagnostic report coordinates',()
   );
 });
 
+/**
+ * A lexically local process-like value must not be mistaken for Node's global
+ * diagnostic-report authority. The private owner gives the compiler a
+ * positive property-renaming yield to preserve.
+ * @param {string} source
+ * @param {string} seed
+ */
+function mustAllowLocalProcess(source,seed) {
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'lexically-shadowed-process.cjs',
+    sourceType:'commonjs',
+    code:source
+  }],{
+    mode:'sno',
+    seed,
+    strings:false,
+    identifiers:false
+  }).files[0];
+  assert.equal(execute(output.code),execute(source));
+  assert.ok(output.metrics.properties>0,output.code);
+}
+
+test('top-level lexical process binding retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';const process={report:{getReport:()=>0}};"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "module.exports=value+process.report.getReport();",
+    'agent1-process-top-level-shadow'
+  );
+});
+
+test('block lexical process binding retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';let result=0;{const process={report:{getReport:()=>0}};"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "result=owner.distinctivelyLongPrivateField+process.report.getReport();}"+
+    "module.exports=result;",
+    'agent1-process-block-shadow'
+  );
+});
+
+test('catch process binding retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';let result=0;try{throw {report:{getReport:()=>0}};}"+
+    "catch(process){const owner={distinctivelyLongPrivateField:73};"+
+    "result=owner.distinctivelyLongPrivateField+process.report.getReport();}"+
+    "module.exports=result;",
+    'agent1-process-catch-shadow'
+  );
+});
+
+test('function var process binding retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';function run(){var process={report:{getReport:()=>0}};"+
+    "const owner={distinctivelyLongPrivateField:73};"+
+    "return owner.distinctivelyLongPrivateField+process.report.getReport();}"+
+    "module.exports=run();",
+    'agent1-process-var-shadow'
+  );
+});
+
+test('shadowed Node process alias retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';const proc=require('node:process');"+
+    "function run(proc){const owner={distinctivelyLongPrivateField:73};"+
+    "return owner.distinctivelyLongPrivateField+proc.report.getReport();}"+
+    "module.exports=run({report:{getReport:()=>0}});",
+    'agent1-process-alias-shadow'
+  );
+});
+
+test('shadowed Node report alias retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';const {report}=require('node:process');"+
+    "function run(report){const owner={distinctivelyLongPrivateField:73};"+
+    "return owner.distinctivelyLongPrivateField+report.getReport();}"+
+    "module.exports=run({getReport:()=>0});",
+    'agent1-process-report-alias-shadow'
+  );
+});
+
+test('shadowed diagnostic report method alias retains safe property yield',()=>{
+  mustAllowLocalProcess(
+    "'use strict';const getReport=process.report.getReport;"+
+    "function run(getReport){const owner={distinctivelyLongPrivateField:73};"+
+    "return owner.distinctivelyLongPrivateField+getReport();}"+
+    "module.exports=run(()=>0);",
+    'agent1-process-method-alias-shadow'
+  );
+});
+
+test('function-body var does not shadow global process in parameter defaults',()=>{
+  const source="'use strict';function run(value=process.report.getReport()){"+
+    "var process={report:{getReport:()=>null}};return value;}module.exports=run();";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+});
+
+test('block-local process does not hide a later global process observer',()=>{
+  const source="'use strict';{const process={report:{getReport:()=>0}};"+
+    "process.report.getReport();}module.exports=process.report.getReport().javascriptStack;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+});
+
 test('shadowed process parameter does not suppress safe property renaming',()=>{
   const source="'use strict';function run(process){"+
     "const owner={distinctivelyLongPrivateField:73};"+
