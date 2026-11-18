@@ -1215,6 +1215,22 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
       do {
         propagatedChanged=false;
         for(const wrapper of modules.values()) {
+          // Named ESM export and re-export specifiers preserve a function's
+          // value while changing its public spelling. Carry return-capability
+          // provenance through each source-visible alias in the graph.
+          for(const statement of wrapper.ast.body) {
+            if(statement.type!=='ExportNamedDeclaration')continue;
+            for(const specifier of statement.specifiers) {
+              if(specifier.type!=='ExportSpecifier')continue;
+              const local=specifier.local.name??specifier.local.value;
+              const exposed=specifier.exported.name??specifier.exported.value;
+              if(typeof local==='string' && propagatedFactories.has(local) &&
+                 typeof exposed==='string' && !propagatedFactories.has(exposed)) {
+                propagatedFactories.add(exposed);
+                propagatedChanged=true;
+              }
+            }
+          }
           const producers=new Set(propagatedFactories);
           const namespaces=new Set();
           walk(wrapper.ast,node=>{
