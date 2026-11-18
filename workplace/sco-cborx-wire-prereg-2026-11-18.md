@@ -54,3 +54,10 @@ All checksums must match native. Report candidate/native, JSON/native, and candi
 This in-process pilot cannot establish full SCO budget compliance. It excludes HTTP, authentication, client module loading, browser parsing, network cost, and the production compiler.
 
 A useful result requires all semantic checks to pass and a materially better recurring-cost region than the prior devalue pilot. If short work remains far above 2.5x, keep cbor-x as a selective coarse-work candidate at most. If the Node result is promising, the next step is an exact-version real Chromium and loopback HTTP experiment before any production integration.
+
+
+## Protocol amendment after first red execution
+
+Actions run `44425096950` failed on both Ubuntu and Windows at the preregistered aggregate semantic assertion before any timing was emitted. The exact failing feature was therefore not observable from the first harness.
+
+Before receiving any performance result, the harness is amended only to expose the already-preregistered semantic booleans independently and to continue through the unchanged timing protocol. The acceptance rule is unchanged: `semanticContractMet` is true only when every original semantic observation is true. A failed required feature still rejects cbor-x as a general replacement. Unknown-tag behavior remains asserted. No workload, repetition count, sample order, threshold, or codec option is changed.

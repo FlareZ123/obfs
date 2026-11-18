@@ -171,7 +171,7 @@ function semanticProbe() {
     map: restored.map instanceof Map && restored.map.get('x') === 7,
     detachedFromOriginal: restored !== source && restored.left !== shared
   };
-  assert.ok(Object.values(observations).every(Boolean));
+  const semanticContractMet = Object.values(observations).every(Boolean);
 
   // CBOR tag 1000 followed by integer 1. The publisher documents unknown
   // tags as inert Tag values rather than ambient constructor lookups.
@@ -180,6 +180,7 @@ function semanticProbe() {
   assert.equal(unknown.value, 1);
   return {
     observations,
+    semanticContractMet,
     unknownTagConstructor: unknown.constructor.name,
     unknownTagValue: unknown.value
   };
