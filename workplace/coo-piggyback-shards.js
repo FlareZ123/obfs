@@ -109,6 +109,12 @@ function hasKnownObserver(root,name) {
  * leaf module. No file or import edge is added. Runtime decoding is lazy and
  * memoized; both shares are public and recoverable from the distributed graph.
  *
+ * RELEASE VETO (18 November 2026): source-only seedless reconstruction works,
+ * and 286 of 288 selected native-versus-generated first calls exceeded the
+ * strict 2.5x cost ceiling across Ubuntu/Windows at lengths 52, 512 and 4096.
+ * See im-results/coo-piggyback-firstuse-budget-veto-2026-11-18.md. Remain
+ * experimental and opt-in; this candidate has no demonstrated security win.
+ *
  * The caller must prove a closed world without namespace/export enumeration,
  * no external function source observation, no early cyclic call, and no
  * monkeypatch of String.fromCharCode. This experiment does not infer those
