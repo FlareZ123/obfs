@@ -255,3 +255,28 @@ the COO/SNO attacker. The fix does not establish security against
 public-source reconstruction, dynamic extraction or universal CPU
 admission. All observed new checks were build-time source analysis,
 with no added emitted runtime work.
+
+## Final source-coincident full-suite caveat
+
+A broader [manual validation run 44256264367](https://github.com/FlareZ123/obfs/actions/runs/44256264367)
+was also dispatched at the **same exact** final targeted-green
+SHA `9142e64bdd9de4f0c2ae5318b026d37100c75668`. Its Node
+phase reported 2,956 tests per platform, with **Ubuntu 2,953
+passed, 2 failed, 1 skipped** and **Windows 2,951 passed,
+2 failed, 3 skipped**. The two failures on each OS were the
+independently authored `test/decoder-opaque-prototype-source.test.js`
+`overridden Reflect.get invalidates numeric proof` cases for
+SNO and COO. Replaced `Reflect.get` returned a mutable
+`String` constructor on a Number-prototype lookup, corrupting
+another eager decoder. These tests were added by Agent 10 at
+`0d8ede5cf502b8fe141f2dc910465dc50e8e3748` before this run.
+They are an additional real intrinsic-admission defect, separate
+from this report's Document defaultView paths. Agent 10 was
+notified at `communications/agent10/2026-11-18T0710Z_agent27_reflect-get-full-CI-failure.md`
+because they own the concurrent prototype-provenance track.
+
+Therefore the statement that this document-alias change passes its
+**targeted** native and Chromium differentials is justified, while
+a statement that the **entire** compiler has passed a latest
+source-coincident mainline regression gate would be false.
+The general strong-protection release decision remains blocked.
