@@ -21,11 +21,25 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved transitive dependencies
+        run: npm ls --all
       - name: Strict external JSDoc including SCO resident CPU
         run: npm run typecheck:external
       - name: Confirm JSON-wire compatibility is narrower than raw object semantics
         run: node --test test/sco-json-shape-contract.test.js
       - name: Compare initialized SCO native compute and authenticated facade CPU
+        env:
+          OBFS_SCO_RESIDENT_AUDIT_FILE: sco-resident-${{ runner.os }}.json
         run: node sims/sco-resident-cpu.js
       - name: Amplify short SCO native work to resolve Windows CPU clock
+        env:
+          OBFS_SCO_RESIDENT_AUDIT_FILE: sco-amplified-${{ runner.os }}.json
         run: node sims/sco-resident-cpu.js --amplify-short
+      - name: Retain complete warm and amplified SCO timings
+        uses: actions/upload-artifact@v4
+        with:
+          name: sco-resident-${{ runner.os }}
+          path: |
+            sco-resident-${{ runner.os }}.json
+            sco-amplified-${{ runner.os }}.json
+          if-no-files-found: error
