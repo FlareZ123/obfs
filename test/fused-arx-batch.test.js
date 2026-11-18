@@ -22,6 +22,9 @@ function equalState(a,b,reason){
 
 test('fused four-word i32 and UTF-16 block exactly match native across memory growth',()=>{
   const bytes=buildArxModuleBytes();
+  assert.equal(createHash('sha256').update(bytes).digest('hex'),
+    'c2e9f1fbf85505a43681f0a09da9c0ebe9b7eeb9f067b69cd8320b703d8df88d',
+    'Wasm module artifact bytes differ from pinned Node/Chromium evidence');
   const source=new ArrayBuffer(bytes.byteLength);
   new Uint8Array(source).set(bytes);
   assert.ok(WebAssembly.validate(source));
