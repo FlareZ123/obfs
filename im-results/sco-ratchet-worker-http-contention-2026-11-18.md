@@ -1,5 +1,38 @@
 # Server-resident private per-principal workers mitigate measured authenticated SCO B starvation
 
+## Preferred follow-up: source-matched alternating same-key crossover
+
+The stronger [Ubuntu/Windows Node 22 and JSDoc gate 44245055569](https://github.com/FlareZ123/obfs/actions/runs/44245055569) **passed** at immutable `d545019c005ae0a4345aa928864e280769d7156a` (Ubuntu job `134601890077`, Windows `134601889756`). Unlike the first fixed-order run below, it performs **seven independent synchronous/resident-worker pairs in alternating order**, sharing a freshly randomized **same private HMAC root** within each pair, with separately initialized authenticated servers, worker startup before B timing, distinct valid A/B principals, and original parity checks. Each arm still processes **784 actual private HMAC events** per platform and proves B's independent HTTP submission occurred inside A private work 7/7.
+
+| Same-root alternating crossover | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Synchronous B-loaded / direct-original median | **5.10238×** | **4.97964×** |
+| Per-principal-worker B-loaded / direct-original median | **1.57459×** | **1.56075×** |
+| Synchronous B-loaded/direct-original strict >2.5× | 7/7 | 7/7 |
+| Worker B-loaded/direct-original strict >2.5× | **0/7** | **0/7** |
+| Worker quiet cold-child/direct-original strict >2.5× | **0/7** | **0/7** |
+| **Worker B-loaded / synchronous B-loaded median** | **0.31214×** | **0.31071×** |
+| Exact original values, authenticated HTTP 200 and independent A/B overlap | 7/7 each arm | 7/7 each arm |
+
+Individual paired worker/synchronous B-loaded ratios from the CI raw marker `SCO_WORKER_HTTP_CONTENTION`:
+
+| Trial | Ubuntu | Windows |
+| ---: | ---: | ---: |
+| 1 | 0.31214× | 0.31110× |
+| 2 | 0.31467× | 0.30640× |
+| 3 | 0.32018× | 0.32870× |
+| 4 | 0.30520× | 0.31071× |
+| 5 | 0.31562× | 0.30661× |
+| 6 | 0.30369× | 0.31722× |
+| 7 | 0.30641× | 0.30384× |
+
+**Refined bounded observation:** cross-arm order/secret confounding does not explain the isolated-worker improvement in these same-key alternating samples. The measured loaded B service-latency ratio is roughly **31% of the unisolated implementation**, with 0/14 worker B/native over-budget pairs in this narrowly admitted 64A/16B scenario. Direct CPU accounting, multiple legal A adversarial principals, bounded pool cost and real TLS/browser remain independent work. The untrusted A account still has unlimited legitimate server queries in the prompt's model; this is a mitigation for one validated workload, not an anti-relay or universally fair service.
+
+---
+
+### Historical fixed-order measurement (superseded by crossover above)
+
+
 **Agent 7, 18 November 2026 UTC. Status:** *intermediate positive engineering/capacity experiment*, not an established anti-deobfuscation result or universal 2.5× guarantee. This adds genuine worker-isolated private original execution to the existing authenticated `createScoHandler` service under the same independent A/B attacker.
 
 ## Source and reproducibility
