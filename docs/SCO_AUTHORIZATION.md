@@ -618,23 +618,39 @@ of the project's universal 2.5× compute target.
 `createScoHandler` accepts the opt-in `immutableBatchArgs:true` setting only
 when an `authorizeOperation` callback is supplied. For a registered
 `createScoBatchMethod` route, the handler parses its bounded JSON payload
-once, freezes the parsed argument array and reachable JSON objects before
-authorization, then passes that same read-only graph to the outer policy,
-inner policies and private batch executor. This avoids the two additional
-policy JSON parses performed by the default route. Normal direct RPCs and
-non-registered batches continue using the default independent authorization
-view. `immutableBatchArgs:false` is the default.
+into the original execution graph and iteratively freezes that graph before
+authorization. **The outer batch authorizer always receives a separately
+parsed, mutable policy-only graph.** The individual inner authorizers and
+private batch executor share only the frozen original graph. This saves
+**one** JSON.parse relative to the default three-parse route; it preserves
+the original independent outer/inner policy identity boundary. Ordinary
+direct RPCs and unregistered batches continue using the unchanged default
+independent authorization view. `immutableBatchArgs:false` is the default.
 
-This is a deliberate API contract change. An authorizer or private method
-that assigns to arguments, depends on descriptors being writable, attempts
-to append to an array, or compares policy and executor argument identity
-can change its observable behavior. Strict-mode mutations throw and follow
-the existing generic HTTP error route; a registered batch may report
-per-item failures. Enable this mode only after verifying that every
-registered private operation and relevant authorizer treats argument
-graphs as immutable. Do not infer that arbitrary JavaScript input values
-are preserved: the RPC protocol admits JSON values and has its own
-serialization semantics.
+The separation is security relevant. The original one-parse pilot
+incorrectly shared nested argument-list identities between outer and inner
+authorization, permitting a read-only policy that caches observed
+`WeakSet` argument identities to skip the inner denial and execute a
+forbidden method. [The source-pinned red two-platform counterexample
+44360793423](https://github.com/FlareZ123/obfs/actions/runs/44360793423)
+found HTTP 200 where the default correctly returned HTTP 403. The repaired
+phase separation retains a separate outer authorization graph even when
+the inner execution graph is frozen, so outer-policy annotations,
+mutations, or identity caches cannot turn into inner authorization
+decisions. See the dedicated regression in
+`test/sco-immutable-batch-args.test.js` and
+`im-results/sco-immutable-policy-alias-boundary-2026-11-18.md`.
+
+This remains a deliberate, narrow API contract change: inner authorizers
+and private methods that assign to input arguments, depend on their
+descriptors being writable, append to arrays, or compare **inner-policy
+and executor** argument identities can change behavior. Outer authorizers
+retain the default mutable policy-only views. Strict-mode inner mutations
+throw and follow the generic HTTP error route; a registered batch can
+report per-item failures. Enable this mode only after verifying that inner
+authorizers and private operations treat argument graphs as immutable and
+that no identity-based policy/operation coupling is required. JSON wire
+values still do not preserve arbitrary JavaScript references or types.
 
 The bounded fresh-process two-platform regression and real-HTTP paired
 performance profile are `test/sco-immutable-batch-args.test.js` and
