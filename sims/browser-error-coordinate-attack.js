@@ -24,56 +24,10 @@ const specimens=[
     ].join('\n')
   },
   {
-    name:'aliased-global-onerror',
+    name:'global-unhandled-rejection',
     source:[
-      'const errorScope=globalThis;',
-      'errorScope.onerror=globalThis.hostOnError;',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'bound-global-error-event',
-    source:[
-      'const listen=globalThis.addEventListener.bind(globalThis);',
-      'listen("error",globalThis.hostErrorEvent);',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'called-global-error-event',
-    source:[
-      'const listen=globalThis.addEventListener;',
-      'listen.call(globalThis,"error",globalThis.hostErrorEvent);',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'reflect-applied-global-error-event',
-    source:[
-      'Reflect.apply(globalThis.addEventListener,globalThis,["error",globalThis.hostErrorEvent]);',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'reflect-get-global-error-event',
-    source:[
-      'Reflect.apply(Reflect.get(globalThis,"addEventListener"),globalThis,'+
-        '["error",globalThis.hostErrorEvent]);',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'reflect-set-global-onerror',
-    source:[
-      'Reflect.set(globalThis,"onerror",globalThis.hostOnError);',
-      'null.value;'
-    ].join('\n')
-  },
-  {
-    name:'object-assign-global-onerror',
-    source:[
-      'Object.assign(globalThis,{onerror:globalThis.hostOnError});',
-      'null.value;'
+      'globalThis.addEventListener("unhandledrejection",globalThis.hostUnhandledRejection);',
+      'Promise.reject(new Error("boom"));'
     ].join('\n')
   }
 ];
@@ -144,7 +98,10 @@ async function run(guarded){
     if(code===undefined){res.writeHead(404).end();return;}
     const hostPrelude='<script>globalThis.hostOnError=(message,source,line,column)=>{'+
       'globalThis.captured=line+":"+column;return true;};'+
-      'globalThis.hostErrorEvent=event=>{globalThis.captured=event.lineno+":"+event.colno;};</script>';
+      'globalThis.hostErrorEvent=event=>{globalThis.captured=event.lineno+":"+event.colno;};'+
+      'globalThis.hostUnhandledRejection=event=>{const frame=String(event.reason.stack).split("\\n")[1];'+
+      'const match=frame.match(/:(\\d+):(\\d+)\\)?$/);globalThis.captured=match[1]+":"+match[2];'+
+      'event.preventDefault();};</script>';
     const html='<!doctype html><html><body>'+hostPrelude+'<script>\n'+code+
       '\n</script><script>setTimeout(()=>{const pre=document.createElement("pre");'+
       'pre.id="result";pre.textContent=btoa(String(globalThis.captured));'+
