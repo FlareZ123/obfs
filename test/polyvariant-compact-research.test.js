@@ -19,7 +19,7 @@ function load(source){
   const evaluated=source.replace(/^export /gmu,'');
   return /** @type {ReturnType<typeof load>} */ (
     new Function(evaluated+'\nreturn {round1,round2,round3,'+
-      '(typeof digest===\'function\'?digest:undefined)};')()
+      'digest:(typeof digest===\'function\'?digest:undefined)};')()
   );
 }
 
