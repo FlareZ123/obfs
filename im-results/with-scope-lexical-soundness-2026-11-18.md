@@ -174,3 +174,13 @@ source-secrecy or 2.5× universal claims. Source exactness can also depend
 on externally supplied code that inspects complete scripts; this bounded
 repair only proves parity in the pinned tests and preservation of these
 lexical source ranges.
+
+
+The pinned [full cross-platform Node/Chromium validation 44315081894](https://github.com/FlareZ123/obfs/actions/runs/44315081894)
+also **passed** at `4814207a8f46f215eafb0b5d34f5affd40a5d8ee`:
+Ubuntu **3,392 passed, 1 skipped, 0 failed** of 3,393 tests;
+Windows **3,389 passed, 4 skipped, 0 failed** of 3,393 tests.
+Both strict JSDoc passes, blind public recovery, performance/profile
+steps, and prescribed Ubuntu Chromium integrations succeeded. The later
+`ef2cbd8` browser-fixture extension modifies only the real-Chromium
+test file; its own two-platform focused gate separately passed.
