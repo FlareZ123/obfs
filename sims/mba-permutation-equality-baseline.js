@@ -14,6 +14,28 @@ function permuteInt32(value) {
   return (x+(Math.imul(x,x)<<1))|0;
 }
 
+
+/**
+ * Generator-aware source-only inverse for the baseline polynomial.
+ *
+ * The attacker lifts one output congruence bit at a time. Because the
+ * polynomial is a permutation modulo every power of two, exactly one choice
+ * of the next input bit remains consistent at each step.
+ *
+ * @param {number} encoded
+ * @returns {number}
+ */
+function invertPermutationInt32(encoded) {
+  const target=BigInt(encoded>>>0);
+  let value=target&1n;
+  for(let bit=1n;bit<32n;bit++){
+    const mask=(1n<<(bit+1n))-1n;
+    const projected=(value+2n*value*value)&mask;
+    if(projected!==(target&mask))value|=1n<<bit;
+  }
+  return Number(BigInt.asIntN(32,value));
+}
+
 /**
  * @param {number} size
  * @param {number} constant
@@ -163,4 +185,4 @@ if(require.main===module){
   console.log('MBA_PERM_EQUALITY_BASELINE '+JSON.stringify(benchmarkEquality()));
 }
 
-module.exports={benchmarkEquality,permuteInt32};
+module.exports={benchmarkEquality,invertPermutationInt32,permuteInt32};
