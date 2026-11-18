@@ -1963,6 +1963,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const processReportTriggers=new Set([
     'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
   ]);
+  /** @param {AstNode|null|undefined} value @returns {boolean} */
+  function isLiteralFalse(value) {
+    return Boolean(value?.type==='Literal'&&value.value===false);
+  }
   /** @param {AstNode} member @returns {string|null} */
   function processReportMemberName(member) {
     return member.computed?sourceStringKey(member.property):memberName(member);
@@ -1972,6 +1976,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     if(property.type!=='Property')return true;
     const name=property.computed?sourceStringKey(property.key):
       property.key.type==='Identifier'?property.key.name:staticString(property.key);
+    if(isLiteralFalse(property.value))return false;
     return name===null?property.computed:processReportTriggers.has(name);
   }
   /** @param {AstNode|null|undefined} source @returns {boolean} */
@@ -2553,12 +2558,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // preserve the source whenever code writes one of the enabling switches.
     if(node.type==='AssignmentExpression'&&
        node.left.type==='MemberExpression'&&
-       isProcessReportNamespace(node.left.object)&&
+       isProcessReportNamespace(node.left.object)&&!isLiteralFalse(node.right)&&
        (processReportTriggers.has(processReportMemberName(node.left)??'') ||
         node.left.computed&&processReportMemberName(node.left)===null))observed=true;
     if(node.type==='CallExpression') {
       const mutation=processReportMutatorInvocation(node);
-      if(mutation?.method==='set'&&mutation.args[1]&&
+      if(mutation?.method==='set'&&mutation.args[1]&&!isLiteralFalse(mutation.args[2])&&
          isProcessReportNamespace(mutation.args[0])&&
          (processReportTriggers.has(sourceStringKey(mutation.args[1])??'') ||
           sourceStringKey(mutation.args[1])===null))observed=true;
