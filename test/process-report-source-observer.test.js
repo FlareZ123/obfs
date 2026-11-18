@@ -574,3 +574,33 @@ test('const-computed harmless report metadata retains property yield',()=>{
   assert.equal(execute(output.code),73);
   assert.ok(output.metrics.properties>0,output.code);
 });
+
+
+test('opaque computed process report namespace preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "((key)=>process[key].getReport())('report')",
+    'agent8-process-report-opaque-namespace'
+  );
+});
+
+test('opaque computed process report method preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "((key)=>process.report[key]())('getReport')",
+    'agent8-process-report-opaque-method'
+  );
+});
+
+test('opaque computed automatic report write fails closed',()=>{
+  const source="'use strict';function choose(){return 'reportOnUncaughtException';}"+
+    "const key=choose();const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;"+
+    "process.report[key]=true;module.exports=value;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  const output=obfuscateFiles([{
+    path:'opaque-report-trigger.cjs',sourceType:'commonjs',code:source
+  }],{
+    mode:'sno',seed:'agent8-opaque-report-trigger',
+    strings:false,identifiers:false
+  }).files[0];
+  assert.equal(output.code,source);
+});
