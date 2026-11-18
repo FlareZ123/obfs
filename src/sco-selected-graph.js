@@ -3,6 +3,7 @@
 const {createHash}=require('node:crypto');
 const {safePath}=require('./core');
 const {createScoHandler}=require('./sco');
+const {snapshotSelectedOptions}=require('./sco-selected-options');
 const {parse,walk}=require('./ast');
 const {bindScoModuleExports}=require('./sco-partition');
 const {partitionScoSelectedAsyncExports}=require('./sco-selective-partition');
@@ -369,7 +370,7 @@ function createScoSelectedGraphHandler(graph,namespaces,options){
      Object.hasOwn(options,'remoteMethods')){
     throw new TypeError('Selected SCO graph handler requires authorized server options');
   }
-  const stableOptions={...options};
+  const stableOptions=snapshotSelectedOptions(options);
   const snapshot=generatedSnapshots.get(graph);
   if(snapshot===undefined){
     throw new TypeError('Selected SCO graph handler requires an in-process compiler graph');

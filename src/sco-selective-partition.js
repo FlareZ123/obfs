@@ -7,6 +7,7 @@ const path=require('node:path');
 const {safePath}=require('./core');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
+const {snapshotSelectedOptions}=require('./sco-selected-options');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
@@ -1671,7 +1672,7 @@ function createScoSelectedHandler(partition,serverExports,options) {
   // Capture caller option getters exactly once before comparing the RPC
   // endpoint. The transport must not see a different routePrefix during
   // handler construction from the value used for the endpoint check.
-  const stableOptions={...options};
+  const stableOptions=snapshotSelectedOptions(options);
   const snapshot=generatedSelectiveSnapshots.get(partition);
   if(snapshot===undefined){
     throw new TypeError('SCO selective handler requires a partition generated in this process');
