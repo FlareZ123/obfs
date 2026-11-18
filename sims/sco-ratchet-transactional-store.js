@@ -62,14 +62,32 @@ class TransactionalRatchet{
   /**
    * @param {string} databasePath
    * @param {Buffer} root
+   * @param {{journalModeRetries?:number}} [options] Testable bounded cold-WAL start policy.
    */
-  constructor(databasePath,root){
+  constructor(databasePath,root,options){
     assert.equal(root.length,32,'Root key must be 256 bits');
+    const retries=options?.journalModeRetries??4;
+    if(!Number.isSafeInteger(retries)||retries<0||retries>8)
+      throw new TypeError('Journal-mode retries must be an integer from 0 to 8');
     this.root=Buffer.from(root);
     this.db=new DatabaseSync(databasePath,{timeout:30000});
-    // WAL allows concurrent readers. FULL synchronizes WAL commits before
-    // reporting success under SQLite's documented filesystem assumptions.
-    this.db.exec('PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL;');
+    try{
+    // SQLite can return SQLITE_BUSY immediately while another trusted worker
+    // changes a fresh Windows database into WAL, regardless of busy_timeout.
+    // Retry this *specific* observed initialization race only. No request-time
+    // code, client script, HMAC or writer transaction is changed.
+    for(let attempt=0;;attempt++){
+      try{
+        this.db.exec('PRAGMA journal_mode=WAL;');
+        break;
+      }catch(error){
+        if(!(error instanceof Error&&error.message==='database is locked')||
+           attempt>=retries)throw error;
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0,25*(2**attempt));
+      }
+    }
+    // FULL synchronizes WAL commits under SQLite's documented storage model.
+    this.db.exec('PRAGMA synchronous=FULL;');
     this.db.exec(
       'CREATE TABLE IF NOT EXISTS ratchet_config ('+
       'id INTEGER PRIMARY KEY CHECK(id=1), root_hash TEXT NOT NULL);'+
@@ -83,7 +101,6 @@ class TransactionalRatchet{
     const config=/** @type {ConfigurationRow} */(/** @type {unknown} */(
       this.db.prepare('SELECT root_hash FROM ratchet_config WHERE id=1').get()));
     if(config.root_hash!==hash){
-      this.db.close();
       throw new TypeError('Ratchet root differs from the persisted source root');
     }
     this.readState=this.db.prepare(
@@ -98,6 +115,11 @@ class TransactionalRatchet{
       'last_fingerprint=excluded.last_fingerprint,last_outputs=excluded.last_outputs,'+
       'committed=excluded.committed'
     );
+    }catch(error){
+      this.db.close();
+      this.root.fill(0);
+      throw error;
+    }
   }
 
   /**
