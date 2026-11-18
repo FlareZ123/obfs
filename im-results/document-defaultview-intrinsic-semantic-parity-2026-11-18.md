@@ -102,3 +102,57 @@ returned through arbitrary function calls, browser realm crossings,
 and dynamic syntax remain beyond this syntactic scanner. Source
 visible cases are intentionally conservative; absence of a known
 mutation is not proof that the environment is immutable.
+
+## Follow-up: source-visible document bindings and destructured defaultView
+
+The first repair recognized only literal `document`,
+`globalThis.document`, and `window.document` receivers. It did
+not track the equivalent source-visible aliases
+`const Doc=document;Doc.defaultView.String.fromCharCode=...`,
+`const Doc=globalThis.document;Doc.defaultView.String.fromCharCode=...`,
+or `const {defaultView:View}=document;View.String.fromCharCode=...`.
+These are ordinary identity-preserving expressions and permit exactly
+the same earlier-dependency corruption.
+
+A three-graph test-only extension in
+`test/ambient-string-alias.test.js` produced a second paired
+[red Linux/Windows run 44254798329](https://github.com/FlareZ123/obfs/actions/runs/44254798329)
+at exact SHA `edc12bf16b62dd88926a593779671a341ba3a9fa`.
+Each OS ran 117 semantic tests, **114 passed, 3 failed**; the
+failures were the three new document-alias scenarios, with native
+string-literal output diverging from generated output. The test
+compares whole child-process strings before checking suppression,
+so the failure is a runtime parity witness.
+
+The second repair broadens the *existing fixed-point alias collector*
+in `src/core.js::mutatesDecoderIntrinsic`:
+
+- `documentNames` collects identifiers assigned from
+  `document`, `globalThis.document`, or another document alias;
+- a known `documentNames` member's `defaultView` enters the
+  preexisting global-realm alias set;
+- destructuring `{defaultView:View}` from a known document and
+  `{document:Doc}` from a known global propagate those sets;
+- direct identifier assignments and simple variable declarations
+  participate in the same monotonic fixed-point pass.
+
+The conservative source analyzer emits **no new runtime code**.
+Unrelated `const Doc=document;Doc.defaultView.Number=()=>7` remains a
+positive string-encoding control.
+
+The final [green run 44254995341](https://github.com/FlareZ123/obfs/actions/runs/44254995341)
+at SHA `58ebd17ed535a108b2d32889ab63ae6d5721fd35`
+passed **117/117 native-versus-emitted tests per Ubuntu and Windows**,
+production strict JSDoc, and **13** real Chromium native/emitted/
+source-recovered ESM fixtures (Ubuntu). Three newly added hostile
+browser alias routes each emitted zero unsafe decoder literals and
+preserved exact output; a new bound-document `Number` write retained
+one protectable literal, whose value was recovered by the independent
+static string attacker. All browser fixtures checked
+`{first:65,last:90,length:2049}` against native.
+
+No generalized alias or runtime immutability theorem follows from
+the finite set. Member reads through opaque functions, proxies,
+unknown module preloads, and mutation outside the supplied graph
+remain outside the admission proof. Strong-obfuscation release
+remains blocked independently by cost and attacker recovery.
