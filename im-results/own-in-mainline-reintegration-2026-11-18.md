@@ -82,3 +82,13 @@ This is **source-pinned finite integration evidence on a branch created from
 unmerged feature. The security release verdict and historical strict
 >2.5x candidate samples remain unchanged. Independent review and
 conflict-safe reconciliation with moving main are still appropriate.
+
+## 18 November 10:16 UTC fresh current-main replay
+
+The earlier PR #82 became unmergeable after new source changes accumulated. The new [PR #106](https://github.com/FlareZ123/obfs/pull/106) reproduces the exact earlier proved semantic edits on a new main-based branch. All twelve source patch contexts matched exactly once against the original current source. Independent Agent2 adversarial examples, multi-file cases, Chromium positive, Symbol backend, the seedless published-only reconstruction attack, strict JSDoc, and the local performance profile remain unchanged.
+
+The first [full cross-platform run 44281611022](https://github.com/FlareZ123/obfs/actions/runs/44281611022) at `c8604073043d55f952c4347d28811222644923af` was **red for unrelated SCO graph source-authorization test cases** newly introduced on moving main: `test/sco-graph-private-path-policy.test.js` at 135 and 174. The older branch predated the accompanying `src/sco-graph.js` fix; the new membership suite, typechecking, benchmark, and real Ubuntu Chromium all passed. This is not a green complete source pin.
+
+I rebased all eleven branch-changed file blobs onto exact current main `467b31933140279291aa1b6fa8e42ebfd2ea5c3e`, preserving its newer SCO graph fix with zero overlapping file paths. The current executable branch pin is **`796153d5d16ea794f4b77ae0761147ffd2b8add2`**. At this exact pin, the manual [focused run 44282602171](https://github.com/FlareZ123/obfs/actions/runs/44282602171) passed both Ubuntu and Windows Node 22, strict main/external JSDoc, and real Ubuntu Chromium. The complete [run 44282595470](https://github.com/FlareZ123/obfs/actions/runs/44282595470) passed the Ubuntu job including all full-suite behavioral, benchmark, JSDoc and three real-Chromium paths; the final Windows verdict must be checked before claiming complete success.
+
+This remains a semantics and transform-coverage contribution with demonstrable source-only reconstruction of the transformed property. Its inclusion in mainline does not change the existing security/performance RELEASE-BLOCKED verdict.
