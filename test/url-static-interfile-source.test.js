@@ -178,6 +178,62 @@ test('selected Wasm remains eligible with imported namespace parser literal inpu
   }))),await execute(before));
 });
 
+/**
+ * @param {string} importLine
+ * @param {string} expression
+ * @returns {ModuleFile[]}
+ */
+function directNodeUrlFiles(importLine,expression) {
+  return [
+    {path:'logic.mjs',sourceType:'module',
+      code:'export function inspect(a){return a^17;}'},
+    {path:'observer.mjs',sourceType:'module',code:
+      'import {inspect} from "./logic.mjs";'+importLine+
+      'export function observe(){return {text:'+expression+',value:inspect(31)};}'}
+  ];
+}
+
+for(const [name,importLine,expression] of [
+  ['named URL','import {URL as NativeURL} from "node:url";',
+    'NativeURL.parse(inspect,"https://example.test/").href'],
+  ['namespace URL','import * as URLLib from "node:url";',
+    'URLLib.URL.parse(inspect,"https://example.test/").href'],
+  ['default URL','import URLLib from "node:url";',
+    'URLLib.URL.parse(inspect,"https://example.test/").href']
+]) {
+  test('direct node:url static parser in observer refuses selected cross-file Wasm: '+name,
+    async()=>{
+      const before=directNodeUrlFiles(importLine,expression);
+      const original=await execute(before);
+      assert.match(original.text,/inspect/u);
+      const reduced=lowerWasmI32Functions(before[0].code,'module',{
+        seed:'url-direct-import-wasm-counterfactual',names:['inspect']
+      });
+      assert.equal(reduced.functions,1);
+      assert.notDeepEqual(await execute(before.map((file,i)=>
+        i===0?{...file,code:reduced.code}:file)),original,
+      'Real selected Wasm source changes the native URL observation');
+      assert.throws(()=>obfuscateFiles(before,{
+        mode:'coo',seed:'url-direct-node-import-observer/'+name,
+        closedWorld:true,strings:false,
+        experimentalWasmI32:{'logic.mjs':['inspect']}
+      }),/Wasm i32 requires|declined/i);
+    });
+}
+
+test('direct node:url parser with primitive input admits selected Wasm',async()=>{
+  const before=directNodeUrlFiles('import {URL as NativeURL} from "node:url";',
+    'NativeURL.parse("/fixed","https://example.test/").href');
+  const transformed=obfuscateFiles(before,{
+    mode:'coo',seed:'url-direct-node-literal',closedWorld:true,strings:false,
+    experimentalWasmI32:{'logic.mjs':['inspect']}
+  });
+  assert.equal(transformed.files[0].metrics.wasmI32Functions,1);
+  assert.deepEqual(await execute(transformed.files.map(file=>({
+    path:file.path,sourceType:'module',code:String(file.code)
+  }))),await execute(before));
+});
+
 test('selected Wasm remains available when imported URL parser receives literals',async()=>{
   const before=selectedFiles('export const parseUrl=URL.parse;',
     'parseUrl("/fixed","https://example.test/").href');
