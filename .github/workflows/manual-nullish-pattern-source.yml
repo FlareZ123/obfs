@@ -25,5 +25,10 @@ jobs:
         run: node sims/property-nullish-destructure-error-attack.js --expect-guarded
       - name: Run deterministic nullish object-pattern regression
         run: node --test test/property-nullish-destructure-error.test.js
+      - name: Real Chromium caught nullish object-pattern error parity
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/property-nullish-destructure-chromium.js
       - name: Validate compiler JSDoc types
         run: npm run typecheck
