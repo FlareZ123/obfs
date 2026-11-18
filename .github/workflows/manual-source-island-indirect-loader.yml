@@ -42,6 +42,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node sims/source-island-browser-cache-attack.js
+      - name: Real Chromium default compiler CacheStorage source reader control
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node sims/source-island-browser-cache-attack.js --default
       - name: Validate repository JSDoc types
         run: npm run typecheck
       - name: Validate external corpus JSDoc types
