@@ -30,15 +30,16 @@ function median(values){
  *
  * @param {number} aCount
  * @param {number} trial
+ * @param {boolean} [conventional] Use the equal-trust ordinary HTTP control.
+ * @param {Buffer} [root] Same-pair private original root.
  * @returns {Promise<{aCount:number,trial:number,nativeBMs:number,quietBMs:number,
  *  loadedBMs:number,quietRatio:number,loadedRatio:number,loadedVsQuiet:number,
  *  a0PrivateMs:number,a0Overlap:true,validAResponses:number,workerCount:number}>}
  */
-async function sample(aCount,trial){
-  const root=randomBytes(32);
+async function sample(aCount,trial,conventional=false,root=randomBytes(32)){
   /** @type {ActiveTrial|null} */
   let active=null;
-  const backend=makeWorkerServer(root,()=>active);
+  const backend=makeWorkerServer(root,()=>active,conventional);
   const principalB='B-victim/'+aCount+'/'+trial;
   const quietPrincipal='B-quiet/'+aCount+'/'+trial;
   const tokenB=randomBytes(32).toString('hex');
@@ -177,4 +178,4 @@ if(require.main===module){
   experiment().then(result=>process.stdout.write('SCO_WORKER_MULTI_PRINCIPAL '+JSON.stringify(result)+'\n'),
     err=>{process.stderr.write(String(err.stack||err)+'\n');process.exitCode=1;});
 }
-module.exports={experiment};
+module.exports={experiment,sample};
