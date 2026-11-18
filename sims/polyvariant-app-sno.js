@@ -66,9 +66,10 @@ function heldoutCases(){
  * The rest of the graph retains public host/reflection contracts unchanged.
  * @param {string} destination
  * @param {boolean} native
+ * @param {boolean} [compact]
  * @returns {Promise<{changedFiles:number,originalBytes:number,emittedBytes:number,emittedSha256:string,launcherSha256:string|null,selectedFunctions:number,selectedPaths:number,paths:string[]}>}
  */
-async function emitSno(destination,native=false){
+async function emitSno(destination,native=false,compact=false){
   const originals=await Promise.all(NAMES.map(async filename=>({
     path:filename,
     sourceType:/** @type {'module'} */('module'),
@@ -78,7 +79,8 @@ async function emitSno(destination,native=false){
     mode:'sno',seed:SEED,closedWorld:false,strings:false,
     properties:false,identifiers:false,
     experimentalPolyvariantAffine:{'math.mjs':['round1','round2','round3']},
-    experimentalPolyvariantCount:2
+    experimentalPolyvariantCount:2,
+    experimentalPolyvariantCompact:compact
   });
   assert.equal(math.files[0].metrics.polyvariantFunctions,3);
   assert.equal(math.files[0].metrics.polyvariantPaths,6);
