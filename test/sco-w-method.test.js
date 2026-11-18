@@ -103,6 +103,34 @@ test('complete W-method agrees with independent product-equivalence over 5376 tw
   console.log('W_METHOD_EXHAUSTIVE '+JSON.stringify({pairs,equivalent}));
 });
 
+test('one-state hypotheses are complete against all 256 possible two-state targets',async()=>{
+  const targets=allTwoStateModels();
+  let checked=0;
+  for(const first of [0,1])for(const second of [0,1]){
+    const hypothesis={next:[[0,0]],output:[[first,second]],access:[[]]};
+    for(const target of targets){
+      const conformance=await testWMethod(hypothesis,2,async word=>trace(target,word));
+      const equal=equivalentTwoState(hypothesis,target);
+      assert.equal(conformance.exhaustive,equal);
+      checked++;
+    }
+  }
+  assert.equal(checked,1024);
+});
+
+test('W-method preserves signed zero and NaN output distinctions',async()=>{
+  const hypothesis={next:[[0,0]],output:[[0,NaN]],access:[[]]};
+  const equivalent=await testWMethod(hypothesis,1,async word=>trace(hypothesis,word));
+  assert.equal(equivalent.exhaustive,true);
+  const changed={next:[[0,0]],output:[[-0,NaN]],access:[[]]};
+  const unequal=await testWMethod(hypothesis,1,async word=>trace(changed,word));
+  assert.equal(unequal.exhaustive,false);
+  assert.equal(unequal.passed,false);
+  assert.deepEqual(unequal.counterexample,[0]);
+  const invalidLength=await testWMethod(hypothesis,1,async()=>[]);
+  assert.equal(invalidLength.passed,false);
+});
+
 test('W-method rejects false confidence from delayed output and refuses certification at a strict cap',async()=>{
   const size=16;
   /** @type {Machine} */
