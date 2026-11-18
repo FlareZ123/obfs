@@ -27,7 +27,8 @@ test('real SCO JSON RPC loses native own undefined value while preserving JSON-w
     };
     const published=/** @type {{evaluateRemote:(seed:number,count:number)=>Promise<any>}} */(
       await import(pathToFileURL(path.join(ROOT,'sco-public',EXPOSED)).href));
-    const native=await hosted.native(0x12345678,1);
+    const native=/** @type {{missing:{keys:string[],value?:unknown,enumerable:boolean}}} */(
+      await hosted.native(0x12345678,1));
     const received=await published.evaluateRemote(0x12345678,1);
     assert.equal(Object.hasOwn(native.missing,'value'),true,
       'Native private reflection must retain own undefined field');
