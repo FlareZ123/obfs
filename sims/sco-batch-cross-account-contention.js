@@ -45,7 +45,7 @@ function median(numbers){
 function prepareVictim(origin,bearer,signalPath,batchMethod,directMethod){
   const child=fork(require.resolve('./sco-batch-contention-worker.cjs'),[
     origin,bearer,signalPath,batchMethod,directMethod,
-    String(B_SEED),String(B_COUNT)
+    String(B_SEED),String(B_COUNT),EXPOSED
   ],{silent:true});
   /** @type {(value:void)=>void} */
   let successReady=()=>{};
@@ -106,7 +106,7 @@ function signal(filename){
  *  source:string,platform:NodeJS.Platform,node:string,
  *  attackerOperations:number,attackerIterationsPerCall:number,
  *  victimOperations:number,victimIterationsPerCall:number,
- *  distinctAccountBearers:boolean,
+ *  distinctAccountBearers:boolean,clientFetchPrewarmed:boolean,
  *  overlapCount:number,overTwoPointFiveLoadedVsQuiet:number,
  *  medianLoadedOverQuiet:number,maximumLoadedOverQuiet:number,
  *  rows:Row[],limitation:string
@@ -292,11 +292,11 @@ async function run(rounds=9){
       platform:process.platform,node:process.version,
       attackerOperations:BATCH_SIZE,attackerIterationsPerCall:A_COUNT,
       victimOperations:1,victimIterationsPerCall:B_COUNT,
-      distinctAccountBearers:true,overlapCount:rows.length,
+      distinctAccountBearers:true,clientFetchPrewarmed:true,overlapCount:rows.length,
       overTwoPointFiveLoadedVsQuiet:rows.filter(s=>s.ratio>2.5).length,
       medianLoadedOverQuiet:median(rows.map(s=>s.ratio)),
       maximumLoadedOverQuiet:Math.max(...rows.map(s=>s.ratio)),
-      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; authenticated A burst at aggregate cap, one B request measured from a separate process, matched quiet control. Relative quiet B latency is a queue-fairness metric, not a direct original-to-obfuscated CPU bound.'
+      rows,limitation:'Single-event-loop, same-process trusted Node HTTP server; authenticated A burst at aggregate cap, one prewarmed B request measured from a separate process against matched prewarmed quiet B control. Relative quiet B latency is a queue-fairness metric, not a direct original-to-obfuscated CPU bound.'
     };
   }finally{
     if(server){
