@@ -152,7 +152,9 @@ async function run(rounds=13){
         assert.equal(published.digest,original.digest);
       }
       /** @type {number[]} */
-      const nativeMs=[],snoMs=[];
+      const nativeMs=[];
+      /** @type {number[]} */
+      const snoMs=[];
       for(let trial=0;trial<rounds;trial++){
         const request={...base,id:++id};
         /** @type {Reply|undefined} */
