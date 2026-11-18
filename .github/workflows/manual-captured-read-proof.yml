@@ -27,5 +27,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/decoder-array-prototype-browser.js
+      - name: Actual Chromium native-vs-emitted dynamic with environments across three modes
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/with-dynamic-scope-browser.js
       - name: Strict production JSDoc types
         run: npm run typecheck
