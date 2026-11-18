@@ -406,3 +406,45 @@ test('selected SCO graph refuses a caller-supplied unit iterator that expands pu
     await close(server);
   }
 });
+
+
+test('selected SCO graph handler preserves inherited custom RPC route',{
+  timeout:15000
+},async()=>{
+  const graph=partitionScoSelectedGraph([{
+    file:{path:'remote.mjs',sourceType:'module',
+      code:'export async function secret(x){return x+5;}export function local(){return 3;}'},
+    options:{seed:'selected-graph-route-prototype-20261118',
+      privateNames:['secret'],endpoint:'/private/rpc'}
+  }]);
+  for(const inherited of [true,false]){
+    let reads=0;
+    const options={authorizeRpc:()=>true};
+    const owner=inherited?Object.create(null):options;
+    Object.defineProperty(owner,'routePrefix',{
+      enumerable:false,configurable:true,get(){reads++;return '/private/';}
+    });
+    if(inherited)Object.setPrototypeOf(options,owner);
+    const handler=createScoSelectedGraphHandler(graph,{
+      'remote.mjs':{secret:async (/** @type {number} */ value)=>value+5}
+    },options);
+    assert.equal(reads,1);
+    const server=http.createServer(handler);
+    try{
+      const origin=await listen(server);
+      assert.equal((await fetch(origin+'/private/remote.mjs')).status,200);
+      assert.equal((await fetch(origin+'/obfs/remote.mjs')).status,404);
+      const response=await fetch(origin+'/private/rpc',{
+        method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({
+          method:graph.partitions['remote.mjs'].methodNames.secret,args:[7]
+        })
+      });
+      assert.equal(response.status,200);
+      assert.deepEqual(await response.json(),{ok:true,value:12});
+      assert.equal(reads,1);
+    }finally{
+      await close(server);
+    }
+  }
+});
