@@ -1,0 +1,29 @@
+name: Manual SCO trusted-graph batch CPU comparison
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-authenticated-batch:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved dependency tree
+        run: npm ls --all
+      - name: Strict JSDoc on separate native vs published batch profiler
+        run: npm run typecheck:external
+      - name: Profile authenticated SCO private-graph 1024-call batches
+        run: node sims/sco-batch-resident-cpu.js
