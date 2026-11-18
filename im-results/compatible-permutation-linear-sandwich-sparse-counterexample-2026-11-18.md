@@ -34,3 +34,10 @@ The sampled sandwich attack remains useful empirical evidence against the tested
 The counterexample also identifies the precise missing ingredient for a theorem: an exact or deterministically complete way to certify that an output mask annihilates all directional second derivatives on the current hidden input subspace. Random CEGAR validation cannot provide that guarantee for an adversarially sparse truth table.
 
 The one-sided linear-wrapper theorem is unaffected because its proof does not rely on sampled second-derivative certification.
+
+
+## Validation pin shared with the positive attack
+
+The sparse witness is included in the same source-pinned manual validation run **44413244729** at `692d979fdfa0392c2d1213feb7d181c15ac7ae08`. Ubuntu and Windows both passed the behavioral/adversarial suite, including the regression that requires the sampled learner's final equality guard to reject this sparse case, together with source and strict external JSDoc checks. Ubuntu also passed the Chromium integration lanes.
+
+The positive 192-target attack and this adversarial failure therefore share one validated source pin. Any future summary should cite both when discussing the sampled two-sided method.

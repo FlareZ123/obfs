@@ -56,3 +56,10 @@ All **192/192** targets recovered exactly. Each case needed at most two CEGAR co
 This materially weakens the idea that replacing the paper's xor/rotation layers with dense secret-looking linear maps on both sides automatically rescues a compatible permutation against a chosen-query attacker.
 
 The result remains empirical because 128 random validation pairs can miss a deliberately sparse defect. It does not prove a finite-query break for every adversarial compatible permutation, and it does not reproduce the unavailable Wang et al. expanded MBA construction. A useful next step is to seek either a bounded-degree exact guarantee for Rivest families or a compatible counterexample engineered to evade sampled defect discovery.
+
+
+## Two-platform validation pin
+
+Manual validation run **44413244729** at source `692d979fdfa0392c2d1213feb7d181c15ac7ae08` completed successfully on Ubuntu and Windows. Both jobs passed the full behavioral/adversarial suite, source JSDoc checking, and strict external-research JSDoc checking. Ubuntu also completed the repository's Chromium integration, verified-record parity, and cross-module owner-field observation checks. The Windows workflow intentionally skips the Chromium-only steps.
+
+This validation establishes that the committed reproducer is type-clean and does not regress the repository's tested behavior at that exact source pin. It does not strengthen the attack from empirical evidence into a theorem.
