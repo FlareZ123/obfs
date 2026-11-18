@@ -15,7 +15,7 @@ const {parse,observesFunctionSource}=require('../src/ast');
 function execute(source) {
   /** @type {{exports:{observed:string,value:number}|null}} */
   const module={exports:null};
-  vm.runInNewContext(source,{module,URL},{timeout:3000});
+  vm.runInNewContext(source,{module,URL,require},{timeout:3000});
   assert.ok(module.exports);
   return {observed:module.exports.observed,value:module.exports.value};
 }
@@ -39,7 +39,11 @@ const observedCases=[
   ['owned constructor alias','const box={Ctor:URL};const alias=box;','alias.Ctor.parse(inspect,"https://example.test/").href'],
   ['owned constructor destructuring','const box={Ctor:URL};const {Ctor:U}=box;','U.parse(inspect,"https://example.test/").href'],
   ['prebound source argument','const read=URL.parse.bind(URL,inspect);','read("https://example.test/").href'],
-  ['owned method destructuring','const box={read:URL.parse};const {read}=box;','read(inspect,"https://example.test/").href']
+  ['owned method destructuring','const box={read:URL.parse};const {read}=box;','read(inspect,"https://example.test/").href'],
+  ['node:url require member','','require("node:url").URL.parse(inspect,"https://example.test/").href'],
+  ['node:url require URL alias','const NativeURL=require("node:url").URL;','NativeURL.parse(inspect,"https://example.test/").href'],
+  ['node:url require destructuring','const {URL:NativeURL}=require("node:url");','NativeURL.parse(inspect,"https://example.test/").href'],
+  ['node:url require namespace','const urlModule=require("node:url");','urlModule.URL.parse(inspect,"https://example.test/").href']
 ];
 
 for(const [name,declarations,expression] of observedCases) {
@@ -79,6 +83,10 @@ const primitiveCases=[
   ['owned constructor alias','const box={Ctor:URL};const alias=box;','alias.Ctor.parse("/fixed","https://example.test/").href'],
   ['owned constructor destructuring','const box={Ctor:URL};const {Ctor:U}=box;','U.parse("/fixed","https://example.test/").href'],
   ['owned method destructuring','const box={read:URL.parse};const {read}=box;','read("/fixed","https://example.test/").href'],
+  ['node:url require member','','require("node:url").URL.parse("/fixed","https://example.test/").href'],
+  ['node:url require URL alias','const NativeURL=require("node:url").URL;','NativeURL.parse("/fixed","https://example.test/").href'],
+  ['node:url require destructuring','const {URL:NativeURL}=require("node:url");','NativeURL.parse("/fixed","https://example.test/").href'],
+  ['node:url require namespace','const urlModule=require("node:url");','urlModule.URL.parse("/fixed","https://example.test/").href'],
   ['URL.canParse','','URL.canParse("/fixed","https://example.test/")']
 ];
 
