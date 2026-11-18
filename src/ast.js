@@ -2329,9 +2329,14 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(['call','apply'].includes(name??''))
         return isBrowserErrorListenerMethod(node.object,depth+1);
     }
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       memberName(node.callee)==='bind')
-      return isBrowserErrorListenerMethod(node.callee.object,depth+1);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
+      if(memberName(node.callee)==='bind')
+        return isBrowserErrorListenerMethod(node.callee.object,depth+1);
+      if(isReflectiveReceiver(node.callee.object)&&
+         memberName(node.callee)==='get'&&node.arguments.length>1&&
+         isBrowserErrorTarget(node.arguments[0])&&
+         staticString(node.arguments[1])==='addEventListener')return true;
+    }
     return false;
   }
   /** @param {AstNode} property @returns {boolean} */
