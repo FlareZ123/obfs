@@ -167,7 +167,9 @@
     "sims/private-in-immediate-cold.js",
     "sims/private-in-onefile-cold.js",
     "sims/fused-arx-static-lift.js",
-    "test/fused-arx-static-lift.test.js"
+    "test/fused-arx-static-lift.test.js",
+    "sims/compatible-permutation-linear-wrapper-exhaustive-small.js",
+    "sims/compatible-permutation-linear-sandwich-blackbox.js"
   ],
   "exclude": [
     "node_modules"
