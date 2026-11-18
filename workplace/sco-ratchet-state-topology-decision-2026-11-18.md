@@ -41,6 +41,8 @@ A practical next stage is a **genuinely bounded, multi-account server** with an 
 This document makes no promotion into `results/` and preserves the primary [**RELEASE-BLOCKED** assessment](../results/README.md).
 
 
+**Final integrated validation:** The latest [Linux/Windows Node22 + strict JSDoc account-sharding gate 44284074523](https://github.com/FlareZ123/obfs/actions/runs/44284074523) completed **both platforms success** at source commit `156e3cfe72fa9861b2fadefbf5532ad67a1d8ac5`, running the original cross-process account-split correctness test, same-eventloop CPU negative, 1/8/64 cold cost, fixed eight-bucket collision/footprint, and three-arm original/nested/early-preparation quota test together. Separate independently source-pinned narrow CPU and actual process-crash trials are linked above. This passes only the specified bounded regressions and does not revise the release-blocked primary objective.
+
 ## Further independent cross-platform falsification/repair checks (source-pinned)
 
 **Crash durability of multiple writer files.** [Actual two-process-kill fault experiment](../im-results/sco-ratchet-bucket-crash-2026-11-18.md), green [Ubuntu/Windows run 44282872001](https://github.com/FlareZ123/obfs/actions/runs/44282872001), selected a root where two A test principals shared one bucket and B used another. SIGKILL after uncommitted A upsert rolled back A's row, while B's 2 committed events persisted. SIGKILL after A-post COMMIT preserved a cached A-post retry with **0** repeated HMAC events; modified replay was denied. This does **not** establish power-loss safety, hostile filesystem tamper resistance, or multi-host consensus.
