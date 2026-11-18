@@ -80,6 +80,8 @@ jobs:
         run: node examples/imported-constant-key/build-sample.cjs
       - name: Differential imported-key ESM fuzz and static reconstruction
         run: node sims/imported-constant-key-fuzz.js
+      - name: Seeded cross-file semantic sketch differential and proven private-property yield
+        run: node sims/semantic-sketch-esm.js
       - name: Third-module key DAG, cycle-TDZ and static-normalization differential
         run: node sims/third-module-key-fuzz.js
       - name: Verify exact computed-key sample and source-only attacker
