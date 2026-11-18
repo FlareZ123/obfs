@@ -10,7 +10,7 @@ const esbuild=require('esbuild');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {'native'|'minified'|'wasm'} Mode */
-/** @typedef {{importMs:number,workMs:number,totalMs:number,callbacks:number,outputSHA256:string}} Receipt */
+/** @typedef {{importWallMs:number,firstWorkWallMs:number,coldWallMs:number,repeatedCpuMs:number,repetitions:number,callbacks:number,warmCallbacks:number,outputSHA256:string}} Receipt */
 /** @typedef {{native:Receipt,minified:Receipt,wasm:Receipt}} Trial */
 
 /** @param {number[]} values @returns {number} */
@@ -69,22 +69,27 @@ async function runThreeWayColdBudget(trials=7){
         assert.ok(row.native&&row.minified&&row.wasm);
         assert.equal(row.minified.outputSHA256,row.native.outputSHA256);
         assert.equal(row.wasm.outputSHA256,row.native.outputSHA256);
+        for(const item of [row.native,row.minified,row.wasm]){
+          assert.ok(item.coldWallMs>0,'Cold real-clock elapsed time must advance');
+          assert.ok(item.repeatedCpuMs>0,'CPU work below platform clock resolution');
+          assert.equal(item.repetitions,row.native.repetitions);
+        }
         rows.push(/** @type {Trial} */(row));
       }
-      const wasmTotal=rows.map(row=>row.wasm.totalMs/row.native.totalMs);
-      const minifiedTotal=rows.map(row=>row.minified.totalMs/row.native.totalMs);
-      const wasmWork=rows.map(row=>row.wasm.workMs/row.native.workMs);
-      const minifiedWork=rows.map(row=>row.minified.workMs/row.native.workMs);
-      results.push({records:count,trials,
-        wasmTotalRatios:wasmTotal.map(digit),
-        minifiedTotalRatios:minifiedTotal.map(digit),
-        wasmWorkRatios:wasmWork.map(digit),
-        minifiedWorkRatios:minifiedWork.map(digit),
-        wasmTotalMedian:median(wasmTotal),minifiedTotalMedian:median(minifiedTotal),
-        wasmStrictTotalBreaches:wasmTotal.filter(x=>x>2.5).length,
-        minifiedStrictTotalBreaches:minifiedTotal.filter(x=>x>2.5).length,
-        wasmStrictWorkBreaches:wasmWork.filter(x=>x>2.5).length,
-        minifiedStrictWorkBreaches:minifiedWork.filter(x=>x>2.5).length,
+      const wasmTotal=rows.map(row=>row.wasm.coldWallMs/row.native.coldWallMs);
+      const minifiedTotal=rows.map(row=>row.minified.coldWallMs/row.native.coldWallMs);
+      const wasmWork=rows.map(row=>row.wasm.repeatedCpuMs/row.native.repeatedCpuMs);
+      const minifiedWork=rows.map(row=>row.minified.repeatedCpuMs/row.native.repeatedCpuMs);
+      results.push({records:count,trials,repetitions:rows[0].native.repetitions,
+        wasmColdWallRatios:wasmTotal.map(digit),
+        minifiedColdWallRatios:minifiedTotal.map(digit),
+        wasmRepeatedCpuRatios:wasmWork.map(digit),
+        minifiedRepeatedCpuRatios:minifiedWork.map(digit),
+        wasmColdWallMedian:median(wasmTotal),minifiedColdWallMedian:median(minifiedTotal),
+        wasmStrictColdWallBreaches:wasmTotal.filter(x=>x>2.5).length,
+        minifiedStrictColdWallBreaches:minifiedTotal.filter(x=>x>2.5).length,
+        wasmStrictRepeatedCpuBreaches:wasmWork.filter(x=>x>2.5).length,
+        minifiedStrictRepeatedCpuBreaches:minifiedWork.filter(x=>x>2.5).length,
         firstSHA256:rows[0].native.outputSHA256
       });
     }
