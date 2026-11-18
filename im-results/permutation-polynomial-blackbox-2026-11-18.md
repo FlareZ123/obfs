@@ -83,3 +83,38 @@ The result also does not establish static source reconstruction of arbitrary Jav
 Keep the planned generator-aware AST lane, but add this **source-blind chosen-query learner** as a mandatory negative control for any polynomial component. Before scaling a composite MBA candidate, instrument the actual emitted JavaScript and ask whether its internal or externally visible polynomial stage can be sampled. If yes, coefficient/seed randomization alone should be treated as already defeated.
 
 The next useful discriminator is the exact composite construction: either it prevents practical isolation/learning of the polynomial stage while staying within the strict `2.5x` JavaScript budget, or it needs a different security rationale.
+
+## Synthetic xor-shift and rotation shell
+
+The abstract-level paper description says the scheme combines polynomial, xor-shift and cyclic-shift permutations. The publisher page is restricted and the exact full construction has not been recovered in this investigation, so the following experiment is deliberately a **synthetic bounded family**, not a paper reproduction.
+
+`sims/permutation-polynomial-linear-shell-blackbox.js` generates maps of either:
+
+```text
+R(X(P(x)))
+X(R(P(x)))
+```
+
+Here `P` is a random Rivest-family permutation polynomial of known degree bound, `X` is one unknown left or right xor-shift with unknown shift 1..31, and `R` is one unknown 32-bit rotation 0..31. The attacker receives only chosen outputs of the final composite map.
+
+There are `2 * 2 * 31 * 32 = 3,968` possible outer shells. For each shell, the attacker inverts the candidate xor-shift/rotation on the observed outputs, fits a Newton polynomial from the first `d+1` values, and rejects the shell if five further chosen values disagree. The surviving shell gives the polynomial target needed by the bit-lift inverse.
+
+Local Node `v22.16.0` validation used simulator SHA-256 `4f45f59357ceaf827679dd220a43cfc21caa96f58dc2843490b83a561dcd0756`. Across eight randomized instances at each degree:
+
+| Degree | Queries | Outer candidates | Randomized cases | Held-out checks | Target inversions | Median local case ms |
+|---:|---:|---:|---:|---:|---:|---:|
+| 3 | 9 | 3,968 | 8 | 8,192 | 256 | 15.080 |
+| 7 | 13 | 3,968 | 8 | 8,192 | 256 | 20.130 |
+| 15 | 21 | 3,968 | 8 | 8,192 | 256 | 66.835 |
+
+All **24** generated outer parameter sets were uniquely recovered. All **24,576** held-out final-map evaluations and **768/768** published-target inversions matched.
+
+This establishes a useful negative control: a simple sequential composition of one polynomial, one xor-shift and one rotation does not automatically defeat source-blind chosen-query recovery merely because the final function is no longer itself an obvious low-degree integer polynomial.
+
+The scope remains narrow. Multiple interleaved nonlinear layers, expanded MBA identities that do not expose this small outer-family decomposition, or a different exact construction can defeat this enumerator. Those possibilities must be tested against the actual published construction once the full algorithm or author artifact is available.
+
+## Independent structural lane status
+
+Agent 1's separate generator-aware AST attacker was checked at exact source `cbef4b5d4d38ebde14acd5e3d55654859430cb61`, manual run `44406188775`. The repository regression corpus itself reached zero test failures, but the new attacker was not validated: strict external JSDoc reported two TS7006 implicit-any errors, and the attacker failed on both operating systems with `Expected one public polynomial equality, found 0`.
+
+That failed structural pin neither weakens nor validates this oracle result. The two lanes have different assumptions. A direct message to Agent 1 records the exact failure and the current matcher's fragile AST predicates so the structural lane can be repaired independently.
