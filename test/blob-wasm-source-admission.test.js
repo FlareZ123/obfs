@@ -10,7 +10,8 @@ const {parse,observesFunctionSource}=require('../src/ast');
 function evaluate(code) {
   const module={exports:/** @type {unknown} */(null)};
   new Function('module',code)(module);
-  return String(module.exports);
+  return String(typeof module.exports==='function'?
+    /** @type {()=>unknown} */(module.exports)():module.exports);
 }
 
 const functionSource='function f(a){return a^17;}';
@@ -41,7 +42,7 @@ for(const [name,expression] of observers) {
     const altered=evaluate(unguarded.code+body);
     assert.notEqual(native,altered,
       name+' must witness an actual Wasm-induced source change');
-    assert.match(native,/f\(a\)|f\(a\)/iu,name);
+    assert.match(native,/f\(a\)/iu,name);
   });
 
   test('SNO rejects selected Wasm when Blob observes original function: '+name,()=>{
