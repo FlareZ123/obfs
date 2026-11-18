@@ -100,7 +100,7 @@ function selectedFiles(parserSource,expression,baseSource=null,
     {path:'observer.mjs',sourceType:'module',code:
       'import {inspect} from "./logic.mjs";'+
       parserImport+
-      'export function observe(){return {text:'+expression+',value:inspect(31)};'}
+      'export function observe(){return {text:'+expression+',value:inspect(31)};}' }
   ];
 }
 
