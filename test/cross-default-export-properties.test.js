@@ -156,3 +156,40 @@ test('opaque imported consumer of direct default owner declines renaming',async(
   ];
   await compileAndCompare(files,0);
 });
+
+
+test('direct default owner supports an earlier immutable key export',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const KEY="secretField";export default {secretField:29};'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state,{KEY} from "./state.mjs";console.log(state[KEY]);'}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('acyclic default owner supports a verified immutable key from another module',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'key.mjs',sourceType:'module',code:'export const KEY="secretField";'},
+    {path:'state.mjs',sourceType:'module',code:'export default {secretField:37};'},
+    {path:'main.mjs',sourceType:'module',code:[
+      'import {KEY} from "./key.mjs";',
+      'import state from "./state.mjs";',
+      'console.log(state[KEY]);'
+    ].join('\n')}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('later same-producer key initialization is outside cyclic-safe default proof',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export default {secretField:43};export const KEY="secretField";'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state,{KEY} from "./state.mjs";console.log(state[KEY]);'}
+  ];
+  await compileAndCompare(files,0);
+});
