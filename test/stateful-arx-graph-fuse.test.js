@@ -10,11 +10,12 @@ const {createHash}=require('node:crypto');
 const {fuseStatefulArxGraph}=require('../sims/stateful-arx-graph-fuse');
 
 const root=path.join(__dirname,'..','examples','stateful-arx-app');
+const sourceNames=/** @type {('entry'|'state'|'kernel')[]} */(['entry','state','kernel']);
 
 /** @returns {Promise<import('../sims/stateful-arx-graph-fuse').NativeGraph>} */
 async function sourceGraph(){
   const native=path.join(root,'native');
-  const [entry,state,kernel]=await Promise.all(['entry','state','kernel'].map(name=>
+  const [entry,state,kernel]=await Promise.all(sourceNames.map(name=>
     fs.readFile(path.join(native,name+'.mjs'),'utf8')));
   return {entry,state,kernel};
 }
@@ -27,7 +28,7 @@ async function loadFresh(selection){
   const temp=await fs.mkdtemp(path.join(tmpdir(),'obfs-arx-graph-'));
   const sources=await sourceGraph();
   const graph=selection==='native'?sources:fuseStatefulArxGraph(sources);
-  await Promise.all(['entry','state','kernel'].map(name=>
+  await Promise.all(sourceNames.map(name=>
     fs.writeFile(path.join(temp,name+'.mjs'),graph[name])));
   const app=await import(pathToFileURL(path.join(temp,'entry.mjs')).href);
   return {
@@ -62,15 +63,15 @@ function observed(run,seed,input){
 test('source-pinned fusion produces byte-exact checked-in application and refuses changed sources',async()=>{
   const original=await sourceGraph();
   const fused=fuseStatefulArxGraph(original);
-  const expected=await Promise.all(['entry','state','kernel'].map(name=>
+  const expected=await Promise.all(sourceNames.map(name=>
     fs.readFile(path.join(root,'candidate',name+'.mjs'),'utf8')));
-  for(const [index,name] of ['entry','state','kernel'].entries()){
+  for(const [index,name] of sourceNames.entries()){
     assert.equal(fused[name],expected[index],name+' candidate artifact drift');
   }
   assert.equal(fused.entry,original.entry,'Source-observable entry is unchanged');
   assert.notEqual(fused.state,original.state);
   assert.notEqual(fused.kernel,original.kernel);
-  for(const name of /** @type {('entry'|'state'|'kernel')[]} */(['entry','state','kernel'])){
+  for(const name of /** @type {('entry'|'state'|'kernel')[]} */(sourceNames)){
     assert.throws(()=>fuseStatefulArxGraph({...original,[name]:original[name]+'\n'}),
       /Unproved source graph/u);
   }
