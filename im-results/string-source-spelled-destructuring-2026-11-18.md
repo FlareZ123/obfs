@@ -96,15 +96,24 @@ observation integrations.
 
 The defect came from three independent copies of the same engine-observable
 failed-operand grammar in the string encoder, property proof and identifier
-renamer. A follow-up refactor is being validated separately to move that
-classification into a shared AST helper. The intended invariant is that a new
-source-spelled V8 failure form is classified once, while individual
-transformers can retain their stronger local exemptions where separately
-proved safe.
+renamer. PR #135 moved that classification into
+`src/ast.js::sourceSpelledErrorOperand`, while the identifier renamer retains
+its separately proved object-spread and known-non-null exemptions.
 
-This refactor is maintenance for semantic soundness. Its validation and merge
-state should be recorded here only after the full cross-platform gate is
-complete.
+The refactor branch head
+`6a7ee64b526f50a4d1eaff1e6966fd593e761f26` passed focused Node/Chromium
+run
+[44379187332](https://github.com/FlareZ123/obfs/actions/runs/44379187332)
+and the full Ubuntu/Windows integration in
+[44379376492](https://github.com/FlareZ123/obfs/actions/runs/44379376492).
+It was squash-merged as
+`86cafa65fbce759cbd7845b347611e8a1c5c28d7`.
+The exact merged commit then passed focused run
+[44380309381](https://github.com/FlareZ123/obfs/actions/runs/44380309381).
+
+This refactor is maintenance for semantic soundness. It centralizes the
+classification so a future source-spelled V8 failure form has one shared
+admission point instead of three independently drifting copies.
 
 ## Interpretation and limits
 
