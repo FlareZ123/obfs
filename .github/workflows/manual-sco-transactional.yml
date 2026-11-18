@@ -33,5 +33,7 @@ jobs:
         run: node sims/sco-ratchet-transactional-http.js
       - name: Concurrent cold versus preinitialized trusted SQLite server startup
         run: node sims/sco-ratchet-transactional-cold-start.js
+      - name: Anonymous RPC global writer lock negative versus fast-deny control
+        run: node sims/sco-ratchet-anonymous-lock.js
       - name: Killed-worker recovery before and after commit
         run: node sims/sco-ratchet-transactional-crash.js
