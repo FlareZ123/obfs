@@ -35,6 +35,8 @@ jobs:
         run: node sims/sco-ratchet-online-relay.js
       - name: Lost-response strict failure vs idempotent last-result recovery
         run: node sims/sco-ratchet-retry-candidate.js
+      - name: Authorized A CPU flood cross-account B 2.5x contention witness
+        run: node sims/sco-ratchet-cross-account-contention.js
       - name: Certificate-validated reused vs fresh TLS 1.3 budget
         run: node sims/sco-ratchet-tls-cost.js
       - name: Real Chromium HttpOnly session CSP and native output parity
