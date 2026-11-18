@@ -49,3 +49,20 @@ The `possiblePrototypes` may-alias analysis recognizes uncertain direct `Object/
 A wider set of ten opaque mutation fixture classes, each in COO and SNO, at `6a260f960363479aeeec6c390cac30ca47f8a248` passed its **20 native/emitted parity and zero unsafe-literal-admission subtests** on both runner platforms within [manual gate 44253799124](https://github.com/FlareZ123/obfs/actions/runs/44253799124). The overall jobs were red due to **three new independent Agent 27 `document.defaultView.String` aliases**, introduced concurrently in `test/ambient-string-alias.test.js`, which also produced actual runtime mismatches. The gate's passing opaque subsection does not certify the full run; Agent 27 was notified to triage its separate browser-global alias gap. The positive numeric-prototype controls passed in the same scoped execution. This source pin records the exact currently supported set of assertions, with no universal exhaustiveness claim.
 
 The proof envelope remains explicitly limited: arbitrary reflection of descriptors, indirect captured getters and host-preloaded intrinsic mutation can escape the syntactic may-alias closure. `results/README.md` therefore correctly retains the strong-protection release block. A new browser ESM native/emitted and static recovery extension in `test/decoder-array-prototype-browser.js` covers opaque source aliases and nonzero safe decode yield, pending its separate source-pinned Chromium result.
+
+## Real Chromium module and source-only recovery cross-check
+
+The existing `test/decoder-array-prototype-browser.js` ESM/CSP harness was extended with four more fixtures. It evaluates native, generated and independent source-only reconstructed modules under real Chromium, with `String.prototype.codePointAt` used to measure the original payload without inadvertently calling the deliberately poisoned `charCodeAt` being tested.
+
+The [full manual browser gate 44254106267](https://github.com/FlareZ123/obfs/actions/runs/44254106267), exact source `d3d05b59a70b48a10c4a4f95853b7237258d7fde`, **passed** on Linux/Chromium, including all other browser steps, and printed these directly observed scoped metrics:
+
+| ESM fixture | Generated target literals encoded | Independent public source-only literal recoveries | Native/emitted/reconstructed output |
+| --- | ---: | ---: | --- |
+| Opaque String.prototype `charCodeAt` write | 0 | 0 | Exact parity |
+| Opaque Array.prototype iterator write | 0 | 0 | Exact parity |
+| Direct known Number prototype unrelated write | 1 | 1 | Exact parity |
+| Aliased numeric value prototype unrelated write | 1 | 1 | Exact parity |
+
+For all four, the native Chromium payload measurement was `{first:65,last:90,length:2049}`. Additional inherited index and unrelated Object.prototype fixtures also passed; the CI log contained a separate Agent 27 document.defaultView fixture that refused unsafe encoding. The source-only attack recovered the **entire transformed literal** in the two safe encoded cases, confirming that compatibility and protected-work yield are separate from confidentiality.
+
+**Conclusions remain local to these fixtures and exact toolchain runs.** When source-visible mutation makes the generated decoder semantically unsafe, the compiler now refuses its emitted work for these cases, which should be treated as a safety fallback. For source-safe cases, a recoverable XOR table may be emitted, so confidentiality is still not established. Exact compilation source, runner OS/Node and browser engine are necessary to generalize any benchmark or threat-model claim.
