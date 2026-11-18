@@ -34,6 +34,28 @@ scans the received bytes, and its effect on the 2.5× runtime budget requires
 application-specific profiling. The byte-exact Node HTTP regression is in
 `test/sco-malformed-utf8-rpc.test.js`.
 
+## Explicit own JSON operation keys
+
+SCO RPC requires `method` and `args` to be **own properties** of the
+received JSON object, in addition to requiring a registered method string
+and an arguments array. Recognized `createScoBatchMethod` member calls and
+the synchronous `preflightScoBatchState` helper similarly require own
+`method` and `args` keys. A JSON object inherits properties from
+`Object.prototype`; an unrelated trusted server dependency that adds
+`Object.prototype.method` or `Object.prototype.args` must not silently
+supply missing request fields or authorize a batch operation. Explicit JSON
+members remain supported, including unrelated own `__proto__` data keys.
+
+The real-HTTP and state-model regression
+[`test/sco-owned-json-shape.test.js`](../test/sco-owned-json-shape.test.js)
+uses controlled server-side prototype pollution and restores its original
+descriptors. The admission policy refuses omitted keys without invoking
+private operations. This is a bounded wire-format correctness hardening
+under an otherwise trusted SCO process; it provides no new protection
+against attackers who compromise the server runtime and can patch
+the dispatcher. The additional own-key checks have not been separately
+characterized against the complete 2.5× compute budget.
+
 ## Authorization timing under paced request bodies
 
 For a non-isolated RPC request, `authorizeRpc` runs immediately after the
