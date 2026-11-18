@@ -32,3 +32,12 @@ The change refuses two demonstrated alternate executable-code capabilities at co
 It is a deliberately limited whitelist/denylist repair, with no complete runtime import-closure proof. Other derived constructors, external host capabilities, package resolution escape hatches, and Node APIs could still evaluate code or load modules outside the supplied manifest. Server compromise, a trusted integrator intentionally bypassing the helper, and authorized client relays remain outside this guarantee.
 
 The new guard acts at trusted-server compilation and adds no code to the served client or per-request server RPC. The local and CI tests do not prove a universal 2.5× bound or protect the server against a filesystem owner.
+
+## Additional Node cluster entry execution
+
+The [Node 22 cluster API](https://nodejs.org/download/release/v22.23.3/docs/api/cluster.html) can select an arbitrary worker-entry file with `cluster.setupPrimary({exec:...})` and then launch it with `cluster.fork()`. The native ESM negative control configures an absolute `hidden.cjs` path derived from `import.meta.url`. Its worker sends 137 to the parent over the built-in IPC channel. No reference to `hidden.cjs` appears as a literal ES module import and no `node:child_process` import appears in the source.
+
+- **Cluster red:** [workflow 44283487203](https://github.com/FlareZ123/obfs/actions/runs/44283487203), pinned at [commit 84544c9](https://github.com/FlareZ123/obfs/commit/84544c9375112d09be2f9ca280824501a50565f1), reported `Missing expected exception.` only in the new cluster refusal case on both Linux and Windows; the native worker had executed and returned 137.
+- **Cluster green:** [workflow 44283652816](https://github.com/FlareZ123/obfs/actions/runs/44283652816) at [commit c0aad58](https://github.com/FlareZ123/obfs/commit/c0aad5843b7952fa056f042df51a6656c0a7f5b9) succeeded on both OSes after adding `node:cluster` to `dynamicLoaderBuiltins`. All other SCO graph tests, fixture regeneration check, and strict JSDoc passed.
+
+**Boundary:** This is one more documented path by which a statically complete import graph can omit executable private server source. The fail-closed guard excludes direct `node:cluster` imports; indirect acquisition of the capability through opaque host globals and external loaders remains outside the proof.
