@@ -88,4 +88,4 @@ function run(guarded,partial=false) {
 }
 
 if(require.main===module)run(process.argv.includes('--expect-guarded'),process.argv.includes('--expect-partial'));
-module.exports={run};
+module.exports={run,specimens};
