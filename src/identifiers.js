@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,observesFunctionSource} = require('./ast');
+const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -98,29 +98,16 @@ function renameLocalIdentifiers(source,ast,options) {
   let dynamic=false;
   walk(ast,(node,parent,key,ancestors)=>{
     if (node.type==='Identifier') identifiers.push({node,parent,key,ancestors});
-    if(node.type==='CallExpression'||node.type==='NewExpression')markErrorRoot(node.callee);
-    if(node.type==='TaggedTemplateExpression')markErrorRoot(node.tag);
+    const errorOperand=sourceSpelledErrorOperand(node);
     // Object spread accepts nullish sources and does not perform iteration.
-    if(node.type==='SpreadElement' && parent?.type!=='ObjectExpression')markErrorRoot(node.argument);
-    if(node.type==='ForOfStatement')markErrorRoot(node.right);
-    if(node.type==='YieldExpression' && node.delegate)markErrorRoot(node.argument);
-    // Object destructuring of nullish values may include the RHS binding
-    // spelling in a caught TypeError (including object-rest patterns).
-    if(node.type==='VariableDeclarator' &&
-        (node.id.type==='ArrayPattern'||node.id.type==='ObjectPattern') &&
-        !(node.id.type==='ObjectPattern' && node.init?.type==='Identifier' &&
-          knownNonNullObjects.has(node.init.name)))markErrorRoot(node.init);
-    // A nested destructuring default can fail before coercion and V8 may
-    // spell the default operand in caught TypeError.message. Keep binding
-    // names inside that operand unless its source spelling is proven inert.
-    if(node.type==='AssignmentPattern' &&
-        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern')) {
-      markErrorRoot(node.right);
-    }
-    if(node.type==='AssignmentExpression' &&
-        (node.left.type==='ArrayPattern'||node.left.type==='ObjectPattern') &&
-        !(node.left.type==='ObjectPattern' && node.right.type==='Identifier' &&
-          knownNonNullObjects.has(node.right.name)))markErrorRoot(node.right);
+    // Keep the existing proven-non-null object-pattern optimization too.
+    const sourceSpellingProvenInert=
+      node.type==='SpreadElement' && parent?.type==='ObjectExpression' ||
+      node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+        node.init?.type==='Identifier' && knownNonNullObjects.has(node.init.name) ||
+      node.type==='AssignmentExpression' && node.left.type==='ObjectPattern' &&
+        node.right.type==='Identifier' && knownNonNullObjects.has(node.right.name);
+    if(errorOperand && !sourceSpellingProvenInert)markErrorRoot(errorOperand);
     if (node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
         derivesBindingName(node.init)) inferredNames.add(node.id.name);
     if (node.type==='AssignmentExpression' && node.left.type==='Identifier' &&
