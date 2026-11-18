@@ -309,3 +309,41 @@ test('imported browser source-reader key retains whole-graph refusal',async()=>{
     'import {bag,key} from "./state.mjs";console.log(bag.secretField,typeof globalThis[key]);'
   ),0);
 });
+
+
+test('acyclic named string re-export preserves imported computed-key rewrite',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),1);
+});
+
+test('cyclic named string re-export preserves early TDZ access',async()=>{
+  await compare(graph(
+    'import {probe} from "./main.mjs";export const bag={secretField:8};'+
+      'try{console.log(probe());}catch(error){console.log(error.name);}',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'export function probe(){return bag[lookup];}console.log(bag[lookup]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('named string re-export retains function-source observer refusal',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import {lookup} from "./relay.mjs";'+
+      'function inspect(){return bag.secretField;}console.log(inspect[lookup]());',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="toString";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup} from "./key.mjs";'}
+    ]
+  ),0);
+});
