@@ -32,7 +32,12 @@ function readArgs(argv) {
     else if (option === '--host') opts.hosts.push(value);
     else if (option === '--seed') opts.seed=value;
     else if (option === '--asset') opts.publicAssets.push(value);
-    else if (option === '--reviewed-assets') opts.reviewedAssetsPath=value;
+    else if (option === '--reviewed-assets') {
+      if(opts.reviewedAssetsPath!==undefined) {
+        throw new TypeError('--reviewed-assets must be specified once');
+      }
+      opts.reviewedAssetsPath=value;
+    }
     else if (option === '--client') opts.publicScripts.push(value);
     else if (option === '--register-vm') {
       const index=value.lastIndexOf(':');

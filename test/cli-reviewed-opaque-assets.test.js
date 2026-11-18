@@ -154,3 +154,38 @@ test('SCO CLI rejects unapproved asset bytes during handler setup',async()=>{
     assert.doesNotMatch(result.stdout,/SCO listening/);
   }finally{await fs.rm(f.directory,{recursive:true,force:true});}
 });
+
+test('reviewed manifest policy cannot be overridden by a repeated CLI flag',async()=>{
+  const f=await fixture();
+  try{
+    await approve(f.manifest,[{path:'theme.css',sha256:digest(safeCss)}]);
+    const second=path.join(f.directory,'other-approved.json');
+    await approve(second,[{path:'theme.css',sha256:digest('untrusted')}]);
+    for(const mode of /** @type {const} */(['coo','sno'])){
+      const out=f.output+'-'+mode;
+      const response=cli(mode,['--root',f.input,'--entry','entry.cjs',
+        '--out',out,'--reviewed-assets',f.manifest,'--reviewed-assets',second]);
+      assert.notEqual(response.status,0);
+      assert.match(response.stderr,/reviewed-assets must be specified once/);
+      await assert.rejects(fs.stat(out),{code:'ENOENT'});
+    }
+  }finally{await fs.rm(f.directory,{recursive:true,force:true});}
+});
+
+test('SCO reviewed manifest cannot authorize an unselected private asset',async()=>{
+  const f=await fixture();
+  try{
+    await atomicWrite(path.join(f.input,'entry.mjs'),'globalThis.value=17;');
+    await approve(f.manifest,[
+      {path:'theme.css',sha256:digest(safeCss)},
+      {path:'private.txt',sha256:digest('not-served')}
+    ]);
+    await atomicWrite(path.join(f.input,'private.txt'),'not-served');
+    const response=spawnSync(process.execPath,[path.join(__dirname,'../bin/sco.js'),
+      '--root',f.input,'--entry','entry.mjs','--asset','theme.css',
+      '--port','43891','--reviewed-assets',f.manifest],{encoding:'utf8',timeout:10000});
+    assert.notEqual(response.status,0);
+    assert.match(response.stderr,/unused or missing published asset paths/);
+    assert.doesNotMatch(response.stdout,/SCO listening/);
+  }finally{await fs.rm(f.directory,{recursive:true,force:true});}
+});
