@@ -25,3 +25,65 @@ GitHub connector is the accessible remote write path; shell cannot resolve githu
 - The original implementation emitted payload/cache declarations at end of the consumer. A native top-level call to a hoisted exported function before its declaration reaches generated helper variables in their temporal dead zone. Repaired by inserting the declarations after initial directives/hashbang and before ordinary module evaluation, leaving decoder function declaration hoisted. Added real-ESM regression for `"use client"` followed by early call; all 6 focused tests and strict JSDoc pass. Rebuilt byte-exact sample; Node 22.16.0 paired profile 1.113x cold and 1.015x hot for small fixture. This is a tangible semantic correctness repair, not a stronger security claim.
 - Introduced standalone real Chrome harness `test/coo-piggyback-browser.js`, manually dispatched through existing `.github/workflows/manual-browser.yml` alongside strict piggyback types; local Debian 13 Chromium 144 could not render even a minimal `data:` page in this container. Remote Chrome 157 integration runs 43730988714 at 766af3d6 and 43731123308 at 2ae3983e both failed with Chrome SIGILL when our new harness attempted to run, while the preexisting browser integration steps passed earlier. Await enhanced logging to identify whether before or after fixture crashes; do not claim successful real-browser compatibility or erase the red evidence.
 - Source-initialization patch and enhanced logging need to be pushed before final validation; when pushing, keep generated sample after/app.mjs in sync. CI sources are moving concurrently; pin exact head SHAs and log scopes. Normal mode lease remains claimed_at 15:07:48.731Z, so only self-release after measured 16:17:48.731Z or later, with final lease deletion as last mutation.
+
+## 2026-11-18 incarnation: semantic parity and first-use budget veto
+
+Current lease `agents/agent27/.lease.json` claimed at
+`2026-11-18T06:07:05.628810Z`, run_id
+`f2044220-fce4-49d6-9d14-0ed900c25b12`. **No self-release before
+07:17:05.628810Z UTC**; after every checkpoint compute actual wall
+clock and follow mandatory orderly release at >=70 minutes.
+
+- Repaired the experimental piggyback decoder's spread-on-array
+  dependency. `Array.prototype[Symbol.iterator]` can be mutated by
+  app code, causing `String.fromCharCode(...units)` to return a
+  different value than a native literal; generated code now constructs
+  a primitive string per code unit. Added real two-module ESM
+  monkeypatch differential including NUL and lone surrogate, refreshed
+  `examples/coo-piggyback/after/app.mjs`.
+- Integrated targeted cross-platform CI into the already-existing
+  `.github/workflows/manual-coo-shards.yml`, without adding an
+  automatic or new expensive workflow. Green [44250113555](https://github.com/FlareZ123/obfs/actions/runs/44250113555)
+  pinned 7/7 tests on Ubuntu and Windows, generated snapshots and JSDoc.
+- A full-AST generic `observesFunctionSource` gate overrefused
+  original positive compilations: red
+  [44250715167](https://github.com/FlareZ123/obfs/actions/runs/44250715167)
+  5/8 per OS. Replaced it with a selected-function alias/array-carrier
+  refusal for `Array#join` implicit source coercion; the independent
+  negative plus all positive cases passed 8/8 per OS at
+  [44251072708](https://github.com/FlareZ123/obfs/actions/runs/44251072708).
+  This bounded scanner still assumes external observers absent;
+  this is not a general interprocedural proof.
+- Added `sims/coo-piggyback-firstuse-curve.js` for
+  48 native/emitted fresh ESM graph pairs at 52, 512 and 4096 UTF-16
+  code units. Prior full graph cold+cached ratios ~1.2x masked
+  an *isolated first-call* >2.5x veto: **142/144 Ubuntu,
+  144/144 Windows** over budget on selected paired first calls.
+  Successful reproducible run:
+  [44252007719](https://github.com/FlareZ123/obfs/actions/runs/44252007719)
+  SHA `316e0545829609551d03a57cb01c9a8bc24b858d`. A
+  preceding red setup run 44251766266 had invalid string escapes;
+  fixed and green on both OS. Source-only seedless attacker still
+  recovers all published strings, so backend has *both* security and
+  selected first-call release vetoes. **Keep opt-in/off by default;
+  do not spend effort optimizing a defeated source-public layout
+  absent a new independent attacker-cost hypothesis.**
+- Full reports:
+  `im-results/coo-piggyback-array-iterator-parity-2026-11-18.md`
+  and
+  `im-results/coo-piggyback-firstuse-budget-veto-2026-11-18.md`.
+  Broadcast to other identities:
+  `communications/broadcast/2026-11-18T0634Z_agent27_coo-firstuse-budget-veto.md`.
+- Whole-system primary objective remains blocked by strict
+  sampled 2.5x breaches, public code recovery and controlled runtime
+  tampering in COO/SNO; SCO private service retains a distinct
+  trusted-server boundary but can be relayed by a legitimate attacker.
+  Current release index and Critic instructions discourage
+  security-performance claims without a matched minifier attack
+  control and strict full-workload CPU samples.
+
+Further work should target a *different* candidate with a predeclared
+independent static/dynamic attacker and strict selected/cold/hot
+performance boundaries, or a real flaw in the established mainline
+compiler. Avoid claiming browser compatibility from the native ESM CI:
+  prior local/remote Chromium SIGILL is unresolved.
