@@ -23,7 +23,7 @@ function buildBundle(count){
     const size=Math.min(64,count-start);
     const native=chunkSource(start,size);
     const generated=obfuscateFiles([{
-      path:'chunk'+start+'.js',code:native,sourceType:'script'
+      path:'chunk'+start+'.cjs',code:native,sourceType:'commonjs'
     }],{
       mode:'coo',seed:'private-in-cold-'+start,
       strings:false,identifiers:false
@@ -35,7 +35,7 @@ function buildBundle(count){
     emittedParts.push(/** @type {string} */ (output.code));
     properties+=output.metrics.properties;
   }
-  // Deliberately package independently transformed classic-script chunks
+  // Deliberately package independently transformed CommonJS-scope chunks
   // into a single strict-mode function containing no identifier collisions.
   // The publisher could concatenate these exact generated source chunks.
   // This is a deployment-topology experiment, not a built-in bundle command.
