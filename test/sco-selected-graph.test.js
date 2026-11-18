@@ -374,16 +374,20 @@ test('composed selected SCO startup digest preflight rejects edited source and s
 test('selected SCO graph refuses a caller-supplied unit iterator that expands publication',{
   timeout:15000
 },async()=>{
+  /** @type {import('../src/sco-selected-graph').ScoSelectedGraphUnit} */
   const approved={file:{path:'approved.mjs',
     code:'export async function secret(x){return x+7;}export function local(){return 2;}',
     sourceType:'module'},
   options:{privateNames:['secret'],seed:'sco-selected-unit-inventory-20261118'}};
+  /** @type {import('../src/sco-selected-graph').ScoSelectedGraphUnit} */
   const unapproved={file:{path:'admin.mjs',
     code:'export async function secret(x){return x+31337;}export function local(){return 9;}',
     sourceType:'module'},
   options:{privateNames:['secret'],seed:'sco-selected-unit-inventory-20261118'}};
   const supplied=[approved];
-  supplied[Symbol.iterator]=function*(){yield unapproved;};
+  Object.defineProperty(supplied,Symbol.iterator,{
+    value:function*(){yield unapproved;}
+  });
   const graph=partitionScoSelectedGraph(supplied);
   assert.deepEqual(graph.exposedPaths,['approved.mjs']);
   assert.deepEqual(Object.keys(graph.partitions),['approved.mjs']);
