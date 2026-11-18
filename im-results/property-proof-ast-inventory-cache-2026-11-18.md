@@ -26,7 +26,17 @@ The optimization affects **build-time compiler research throughput**, which is d
 | 1,024 | 38.702 s | 19.609 s | 41.072 s | 22.536 s |
 | 2,048 | **154.130 s** | **80.434 s** | **163.332 s** | **91.492 s** |
 
-For 2,048 owners the Ubuntu control/candidate wall-time quotient is **1.916×**, CPU quotient **1.785×**. The performance gap scales with candidate count, consistent with eliminating repeated full-tree traversals; this remains a bounded empirical observation, since other proof operations may retain quadratic cost. The strict behavior and JSDoc suites remained green. The source snippets are artificial, heavily populated private-owner cases; generic runtime or compiler throughput guarantees are not established.
+Windows independently completed the same pinned control/candidate comparison:
+
+| Private owners | Windows control wall | Windows cached wall | Windows control CPU | Windows cached CPU |
+| ---: | ---: | ---: | ---: | ---: |
+| 64 | 0.323 s | 0.237 s | 0.468 s | 0.344 s |
+| 256 | 3.754 s | 1.951 s | 4.469 s | 2.282 s |
+| 512 | 14.709 s | 7.927 s | 16.078 s | 8.015 s |
+| 1,024 | 57.923 s | 31.409 s | 61.641 s | 35.562 s |
+| 2,048 | **236.533 s** | **130.552 s** | **250.452 s** | **146.360 s** |
+
+For 2,048 owners, the control/candidate compiler-build wall-time quotient was **1.916× Ubuntu / 1.812× Windows**; the corresponding CPU quotient was **1.785× Ubuntu / 1.711× Windows**. The performance gap scales with candidate count, consistent with eliminating repeated full-tree traversals; this remains a bounded empirical observation, since other proof operations may retain quadratic cost. The strict behavior and JSDoc suites remained green. The source snippets are artificial, heavily populated private-owner cases; generic runtime or compiler throughput guarantees are not established.
 
 ## Limitations and follow-up
 
