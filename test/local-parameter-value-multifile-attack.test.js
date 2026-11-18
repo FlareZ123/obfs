@@ -53,7 +53,7 @@ test('direct exported owner remains protected from source-visible name mutation'
       .replace('result:publicCompute(39)', 'result:compute(39)')};
     return file;
   });
-  for(const mode of /** @type {const} */ (['coo','sno'])) {
+  for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const emitted=obfuscateFiles(exposed,{mode,closedWorld:false,
       identifiers:false,strings:false,properties:true,seed:'public-owner-refusal'});
     assert.equal(emitted.files.reduce((sum,file)=>sum+file.metrics.objects,0),0);
@@ -68,7 +68,7 @@ test('actual three-file ESM retains host callback and is source-only relabelable
   try {
     const baseline=await execute(originalDir,native);
     assert.equal(baseline.output,'{"result":84,"events":[42]}');
-    for(const mode of /** @type {const} */ (['coo','sno'])) {
+    for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
       for(let seed=0;seed<4;seed++) {
         const output=obfuscateFiles(native,{
           mode,closedWorld:false,
