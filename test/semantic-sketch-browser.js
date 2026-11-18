@@ -6,18 +6,22 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 const {makeSketch}=require('../sims/semantic-sketch-esm');
+const {recoverPublicNumbers,reconstructedOutput}=require('../sims/semantic-sketch-static-control');
 
 /**
  * Compare the original and actual compiler-emitted closed ESM graphs inside
  * Chromium, preserving external JS observations and requiring genuine
  * private-field rewrites in the positive sketch of each seed.
- * @returns {Promise<{cases:number,positiveRewrites:number}>}
+ * @returns {Promise<{cases:number,positiveRewrites:number,recoveredClones:number}>}
  */
 async function runBrowserSketches(){
   const cases=[];
   /** @type {Map<string,string>} */
   const scripts=new Map();
   let positiveRewrites=0;
+  let recoveredClones=0;
+  /** @type {number[]} */
+  const positiveIds=[];
   for(let seed=1;seed<=4;seed++){
     for(let style=0;style<16;style++){
       const sketch=makeSketch(seed,style);
@@ -33,6 +37,16 @@ async function runBrowserSketches(){
         assert.ok(emitted.crossFile.properties>=2,
           'Browser proof needs real private-field lowering: '+sketch.id);
         positiveRewrites+=emitted.crossFile.properties;
+        positiveIds.push(sketch.id);
+        const publicState=emitted.files.find(file=>file.path==='state.mjs');
+        assert.ok(publicState&&typeof publicState.code==='string');
+        const output=reconstructedOutput(recoverPublicNumbers(publicState.code));
+        // This third module is constructed from only distributed source.
+        // Its constants and no-input output do not come from native source.
+        const recoveredBody='export async function exercise(){return '+
+          JSON.stringify({value:output,trace:[]})+';}';
+        scripts.set('/recovered/'+sketch.id+'/entry.mjs',recoveredBody);
+        recoveredClones++;
       }
       for(const file of emitted.files){
         assert.equal(typeof file.code,'string');
@@ -41,15 +55,20 @@ async function runBrowserSketches(){
       }
     }
   }
-  const expected='PASSED:'+cases.length+':'+positiveRewrites;
+  const expected='PASSED:'+cases.length+':'+positiveRewrites+':'+recoveredClones;
   const moduleRows=cases.map(item=>item.id);
   const script='const ids='+JSON.stringify(moduleRows)+';'+
+    'const positive=new Set('+JSON.stringify(positiveIds)+');'+
     'Promise.all(ids.map(async id=>{'+
     'const native=await import("/native/"+id+"/entry.mjs");'+
     'const emitted=await import("/emitted/"+id+"/entry.mjs");'+
-    'return [await native.exercise(),await emitted.exercise()];'+
+    'const recovered=positive.has(id)?await import("/recovered/"+id+"/entry.mjs"):null;'+
+    'return [await native.exercise(),await emitted.exercise(),'+
+    'recovered?await recovered.exercise():null];'+
     '})).then(pairs=>{'+
-    'const mismatch=pairs.findIndex(pair=>JSON.stringify(pair[0])!==JSON.stringify(pair[1]));'+
+    'const mismatch=pairs.findIndex(pair=>'+
+    'JSON.stringify(pair[0])!==JSON.stringify(pair[1]) ||'+
+    '(pair[2]!==null && JSON.stringify(pair[0])!==JSON.stringify(pair[2])));'+
     'document.getElementById("out").textContent=mismatch<0?'+JSON.stringify(expected)+
     ':"MISMATCH:"+ids[mismatch]+":"+JSON.stringify(pairs[mismatch]);'+
     '}).catch(error=>{document.getElementById("out").textContent="ERROR:"+error.message});';
@@ -83,7 +102,7 @@ async function runBrowserSketches(){
     ],{timeout:90000,maxBuffer:8*1024*1024,encoding:'utf8',windowsHide:true});
     assert.ok(stdout.includes('<pre id="out">'+expected+'</pre>'),
       'Browser semantic sketch mismatch or timeout: '+stdout.slice(0,1200));
-    return {cases:cases.length,positiveRewrites};
+    return {cases:cases.length,positiveRewrites,recoveredClones};
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>
       error?reject(error):resolve(undefined)));
