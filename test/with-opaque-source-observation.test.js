@@ -10,9 +10,10 @@ const {obfuscateFiles}=require('../src');
  * a function's own source, without any source-visible call to toString.
  *
  * @param {string} code
+ * @param {'commonjs'|'script'} sourceType
  * @returns {string}
  */
-function execute(code) {
+function execute(code,sourceType) {
   const context=vm.createContext({module:{exports:null}});
   context.opaqueScope=new Proxy(Object.create(null),{
     has(_target,key) {
@@ -26,7 +27,7 @@ function execute(code) {
     }
   });
   vm.runInContext(code,context,{timeout:2500});
-  return JSON.stringify(context.module.exports);
+  return JSON.stringify(sourceType==='script'?context.result:context.module.exports);
 }
 
 /** @type {{kind:string,definition:string,sourceMarker:string}[]} */
@@ -54,19 +55,21 @@ const fixtures=[
 ];
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
-  for(const fixture of fixtures) {
-    test(mode+' opaque with getter preserves '+fixture.kind+' source',()=>{
+  for(const sourceType of /** @type {const} */ (['commonjs','script'])) {
+    for(const fixture of fixtures) {
+      test(mode+' '+sourceType+' opaque with getter preserves '+fixture.kind+' source',()=>{
       const source=fixture.definition+
         "globalThis.outside='top-level-encoded-payload';"+
         "with(globalThis.opaqueScope){globalThis.captured=inspected;}"+
-        "module.exports={captured:globalThis.captured,outside:globalThis.outside};";
+        (sourceType==='script'?'globalThis.result':'module.exports')+
+        '={captured:globalThis.captured,outside:globalThis.outside};';
       const output=obfuscateFiles([{
-        path:'opaque.cjs',sourceType:'commonjs',code:source
+        path:sourceType==='script'?'opaque.js':'opaque.cjs',sourceType,code:source
       }],{
         mode,seed:'with-opaque-function-source/'+mode+'/'+fixture.kind,
         strings:true,properties:false,identifiers:false
       }).files[0];
-      assert.equal(execute(String(output.code)),execute(source),
+      assert.equal(execute(String(output.code),sourceType),execute(source,sourceType),
         'Host-owned with getter observed changed function/class source bytes');
       assert.equal(output.metrics.literals,1,
         'Only outside-function, outside-with primitive literal is admissible');
@@ -75,5 +78,6 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       assert.ok(!String(output.code).includes('top-level-encoded-payload'),
         'Unrelated top-level literal should retain genuine positive encoding');
     });
+    }
   }
 }
