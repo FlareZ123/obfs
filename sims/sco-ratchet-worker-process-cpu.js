@@ -88,7 +88,9 @@ async function sample(mode,root,trial){
 /** @returns {Promise<object>} */
 async function experiment(){
   /** @type {Array<Awaited<ReturnType<typeof sample>>>} */
-  const sync=[],worker=[];
+  const sync=[];
+  /** @type {Array<Awaited<ReturnType<typeof sample>>>} */
+  const worker=[];
   for(let trial=0;trial<7;trial++){
     const root=randomBytes(32);
     if(trial%2===0){
