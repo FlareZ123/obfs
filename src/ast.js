@@ -75,6 +75,33 @@ function applyEdits(source, edits) {
 }
 
 /**
+ * Return the expression whose source spelling V8 may embed in a runtime
+ * TypeError for a bounded set of syntax-directed failures. Consumers can
+ * conservatively preserve names, keys, or literals anywhere inside it.
+ *
+ * Object spread is included here for callers that already reject every
+ * spread operand. Callers that distinguish object spread can ignore it when
+ * the parent is an ObjectExpression.
+ *
+ * @param {AstNode} node
+ * @returns {AstNode|null}
+ */
+function sourceSpelledErrorOperand(node) {
+  if(node.type==='CallExpression'||node.type==='NewExpression')return node.callee;
+  if(node.type==='TaggedTemplateExpression')return node.tag;
+  if(node.type==='SpreadElement')return node.argument;
+  if(node.type==='ForOfStatement')return node.right;
+  if(node.type==='YieldExpression'&&node.delegate)return node.argument??null;
+  if(node.type==='AssignmentPattern' &&
+     ['ArrayPattern','ObjectPattern'].includes(node.left.type))return node.right;
+  if(node.type==='VariableDeclarator' &&
+     ['ArrayPattern','ObjectPattern'].includes(node.id.type))return node.init??null;
+  if(node.type==='AssignmentExpression' &&
+     ['ArrayPattern','ObjectPattern'].includes(node.left.type))return node.right;
+  return null;
+}
+
+/**
  * Resolve only bounded constant string spellings used as computed keys.
  * @param {AstNode} node
  * @param {number} [depth]
@@ -3141,4 +3168,4 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
   return observed;
 }
 
-module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories};
+module.exports = {parse, walk, applyEdits, observesFunctionSource, observesDistributedSource, staticString, collectDirectCarrierFactories, sourceSpelledErrorOperand};
