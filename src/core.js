@@ -417,8 +417,29 @@ function mutatesDecoderIntrinsic(ast) {
           if(target.type==='Identifier')add(objectPrototypes,target.name);
         }
       }
+      /**
+       * Assignment destructuring can expose the same ambient WindowProxy as
+       * declaration destructuring. Propagate both paths to the existing
+       * monotonic intrinsic alias sets before deciding decoder safety.
+       * @param {import('./ast').AstNode} pattern
+       * @param {import('./ast').AstNode} owner
+       */
+      function recordDocumentPattern(pattern,owner) {
+        if(pattern.type!=='ObjectPattern')return;
+        for(const property of pattern.properties) {
+          if(property.type!=='Property')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const target=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(target.type!=='Identifier')continue;
+          if(key==='document'&&isGlobal(owner))add(documentNames,target.name);
+          if(key==='defaultView'&&isDocumentValue(owner))add(globalNames,target.name);
+        }
+      }
       if(node.type==='VariableDeclarator' && node.init) {
         recordArrayParentPattern(node.id,node.init);
+        recordDocumentPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isDocumentValue(node.init))add(documentNames,node.id.name);
@@ -456,6 +477,7 @@ function mutatesDecoderIntrinsic(ast) {
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='ObjectPattern') {
         recordArrayParentPattern(node.left,node.right);
+        recordDocumentPattern(node.left,node.right);
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         if(isGlobal(node.right))add(globalNames,node.left.name);
