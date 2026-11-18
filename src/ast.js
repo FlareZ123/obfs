@@ -1888,6 +1888,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // report object or writing one to disk therefore exposes generated source
   // coordinates even without a syntactic .stack access.
   const processReportNamespaces=new Set();
+  const processReportBindingNodes=new Set();
   const processReportMethods=new Set();
   /** @type {Map<string,string>} */
   const processReportMutators=new Map();
@@ -1913,8 +1914,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(['ImportDefaultSpecifier','ImportNamespaceSpecifier'].includes(spec.type))
         processModuleNamespaces.add(spec.local.name);
       if(spec.type==='ImportSpecifier' &&
-         String(spec.imported.name??spec.imported.value)==='report')
+         String(spec.imported.name??spec.imported.value)==='report') {
         processReportNamespaces.add(spec.local.name);
+        processReportBindingNodes.add(spec.local);
+      }
     }
   });
   /** @param {AstNode|null|undefined} node @returns {boolean} */
@@ -2029,10 +2032,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(name!=='report')continue;
           const reportBinding=unwrapAssignmentPattern(property.value);
-          if(reportBinding.type==='Identifier' &&
-             !processReportNamespaces.has(reportBinding.name)) {
-            processReportNamespaces.add(reportBinding.name);
-            changedProcessReportAliases=true;
+          if(reportBinding.type==='Identifier') {
+            processReportBindingNodes.add(reportBinding);
+            if(!processReportNamespaces.has(reportBinding.name)) {
+              processReportNamespaces.add(reportBinding.name);
+              changedProcessReportAliases=true;
+            }
           }
           if(reportBinding.type==='ObjectPattern') {
             for(const methodProperty of reportBinding.properties) {
@@ -2083,9 +2088,12 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         return;
       }
       if(id.type!=='Identifier')return;
-      if(isProcessReportNamespace(value)&&!processReportNamespaces.has(id.name)) {
-        processReportNamespaces.add(id.name);
-        changedProcessReportAliases=true;
+      if(isProcessReportNamespace(value)) {
+        processReportBindingNodes.add(id);
+        if(!processReportNamespaces.has(id.name)) {
+          processReportNamespaces.add(id.name);
+          changedProcessReportAliases=true;
+        }
       }
       if(isProcessReportMethod(value)&&!processReportMethods.has(id.name)) {
         processReportMethods.add(id.name);
@@ -2370,7 +2378,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   walk(ast,(node,parent,key)=>{
     // Keep precise local aliases and direct member access analyzable, while
     // refusing opaque capability escapes that could invoke getReport later.
-    if(isProcessReportNamespace(node)&&parent) {
+    if(isProcessReportNamespace(node)&&parent&&
+       !processReportBindingNodes.has(node)) {
       const directMember=parent.type==='MemberExpression'&&key==='object';
       const localAlias=parent.type==='VariableDeclarator'&&key==='init'&&
         ['Identifier','ObjectPattern'].includes(parent.id.type);
