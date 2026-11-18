@@ -160,7 +160,7 @@ function proveSourceObserverIslands(files,selections) {
     // identifier blacklist. Only the inert primitive-returning envelope
     // already accepted for selected leaves is admitted for other exports.
     if(!selectionSet.has(filename) &&
-       module.ast.body.some(statement=>statement.type.startsWith('Export')) &&
+       module.ast.body.some((/** @type {AstNode} */ statement)=>statement.type.startsWith('Export')) &&
        !purePrimitiveLeafExports(module.ast)) {
       throw new TypeError('Source observer islands refuse unreviewed host-callable exports');
     }
