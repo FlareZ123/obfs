@@ -514,3 +514,18 @@ test('shadowed process value escape does not suppress safe property renaming',()
   assert.equal(execute(output.code),73);
   assert.ok(output.metrics.properties>0,output.code);
 });
+
+
+test('const-computed globalThis process preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='process';const proc=globalThis[key];return proc.report.getReport();})()",
+    'agent8-process-global-computed-key'
+  );
+});
+
+test('const-computed Reflect.get globalThis process preserves diagnostic report coordinates',()=>{
+  mustPreserveProcessReport(
+    "(()=>{const key='process';const proc=Reflect.get(globalThis,key);return proc.report.getReport();})()",
+    'agent8-process-global-reflect-computed-key'
+  );
+});
