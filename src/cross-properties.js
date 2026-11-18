@@ -1206,13 +1206,94 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
      * @returns {boolean}
      */
     function invokesFactoryResult(factory) {
+      // A helper in one ESM module may return the result of a host-bearing
+      // factory imported from another. Collect these forwarding wrappers to
+      // a fixed point before examining the final call-result consumers.
+      // This is intentionally conservative when two modules reuse a name.
+      const propagatedFactories=new Set([factory]);
+      let propagatedChanged;
+      do {
+        propagatedChanged=false;
+        for(const wrapper of modules.values()) {
+          const producers=new Set(propagatedFactories);
+          const namespaces=new Set();
+          walk(wrapper.ast,node=>{
+            if(node.type==='ImportSpecifier' &&
+               node.imported.type==='Identifier' &&
+               propagatedFactories.has(node.imported.name) &&
+               node.local.type==='Identifier')producers.add(node.local.name);
+            if(node.type==='ImportNamespaceSpecifier' &&
+               node.local.type==='Identifier')namespaces.add(node.local.name);
+          });
+          let aliasesChanged;
+          do {
+            aliasesChanged=false;
+            walk(wrapper.ast,node=>{
+              const binding=node.type==='VariableDeclarator'?node.id:
+                node.type==='AssignmentExpression' && node.operator==='='?node.left:null;
+              const value=node.type==='VariableDeclarator'?node.init:
+                node.type==='AssignmentExpression'?node.right:null;
+              if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+                 producers.has(value.name) && !producers.has(binding.name)) {
+                producers.add(binding.name);
+                aliasesChanged=true;
+              }
+            });
+          }while(aliasesChanged);
+          /** @param {AstNode} expression @returns {boolean} */
+          function forwardsFactory(expression) {
+            let forwarded=false;
+            walk(expression,node=>{
+              if(node.type!=='CallExpression')return;
+              if(node.callee.type==='Identifier' &&
+                 producers.has(node.callee.name))forwarded=true;
+              if(node.callee.type==='MemberExpression' &&
+                 node.callee.object.type==='Identifier' &&
+                 namespaces.has(node.callee.object.name)) {
+                const selected=node.callee.computed?staticString(node.callee.property):
+                  staticName(node.callee.property);
+                if(propagatedFactories.has(selected??''))forwarded=true;
+              }
+            });
+            return forwarded;
+          }
+          walk(wrapper.ast,node=>{
+            /** @type {string|null} */
+            let name=null;
+            /** @type {AstNode|null} */
+            let body=null;
+            if(node.type==='FunctionDeclaration' && node.id?.type==='Identifier') {
+              name=node.id.name;
+              body=node.body;
+            }
+            if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
+               (node.init?.type==='FunctionExpression' ||
+                node.init?.type==='ArrowFunctionExpression')) {
+              name=node.id.name;
+              body=node.init.body;
+            }
+            if(name===null||body===null||propagatedFactories.has(name))return;
+            let returnsFactory=false;
+            if(body.type==='BlockStatement') {
+              walk(body,inner=>{
+                if(inner.type==='ReturnStatement' && inner.argument &&
+                   forwardsFactory(inner.argument))returnsFactory=true;
+              });
+            }else returnsFactory=forwardsFactory(body);
+            if(returnsFactory) {
+              propagatedFactories.add(name);
+              propagatedChanged=true;
+            }
+          });
+        }
+      }while(propagatedChanged);
       for(const caller of modules.values()) {
-        const callableNames=new Set([factory]);
+        const callableNames=new Set(propagatedFactories);
         /** @type {Set<string>} */
         const namespaceNames=new Set();
         walk(caller.ast,node=>{
           if(node.type==='ImportSpecifier' &&
-             node.imported.type==='Identifier' && node.imported.name===factory &&
+             node.imported.type==='Identifier' && propagatedFactories.has(node.imported.name) &&
              node.local.type==='Identifier')callableNames.add(node.local.name);
           if(node.type==='ImportNamespaceSpecifier' &&
              node.local.type==='Identifier')namespaceNames.add(node.local.name);
@@ -1244,7 +1325,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
              !namespaceNames.has(callee.object.name))return false;
           const selected=callee.computed?staticString(callee.property):
             staticName(callee.property);
-          return selected===factory;
+          return propagatedFactories.has(selected??'');
         }
         /** @type {Set<string>} */
         const returnedNames=new Set();
