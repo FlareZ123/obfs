@@ -82,6 +82,8 @@ jobs:
         run: node sims/imported-constant-key-fuzz.js
       - name: Seeded cross-file semantic sketch differential and proven private-property yield
         run: node sims/semantic-sketch-esm.js
+      - name: Source-only static reconstruction against ordinary minified positive controls
+        run: node sims/semantic-sketch-static-control.js
       - name: Real Chromium seeded ESM semantic sketch differential
         if: runner.os == 'Linux'
         env:
