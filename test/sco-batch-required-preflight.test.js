@@ -12,7 +12,9 @@ const {createScoBatchMethod,createScoHandler}=require('../src');
  */
 async function post(handler,payload){
   const server=http.createServer(handler);
-  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  /** @type {Promise<void>} */
+  const listening=new Promise(resolve=>server.listen(0,'127.0.0.1',()=>resolve()));
+  await listening;
   const address=server.address();
   if(!address||typeof address==='string')throw new Error('Expected TCP server address');
   try{
@@ -23,8 +25,10 @@ async function post(handler,payload){
     });
     return {status:response.status,body:await response.json()};
   }finally{
-    await new Promise((resolve,reject)=>
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve()));
+    await closed;
   }
 }
 
@@ -64,7 +68,7 @@ test('requireBatchPreflight validates its explicit security contract',()=>{
     remoteMethods:{batch},
     authorizeRpc:()=>true,
     authorizeOperation:()=>true,
-    requireBatchPreflight:'batch'
+    requireBatchPreflight:/** @type {any} */ ('batch')
   }),/must be an array/);
   assert.throws(()=>createScoHandler([],{
     remoteMethods:{batch},
