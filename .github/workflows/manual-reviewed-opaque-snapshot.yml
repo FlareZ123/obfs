@@ -22,6 +22,8 @@ jobs:
       - run: npm install --no-package-lock --ignore-scripts
       - name: Reviewed manifest snapshot and existing publication regression
         run: node --test test/reviewed-opaque-manifest-snapshot.test.js test/reviewed-opaque-assets.test.js
+      - name: Source-pinned historical manifest bypass against current guard
+        run: node sims/reviewed-opaque-manifest-attack.js
       - name: Strict compiler type checking
         run: npm run typecheck
       - name: Strict external test JSDoc
