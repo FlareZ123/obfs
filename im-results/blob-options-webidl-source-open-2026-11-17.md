@@ -1,4 +1,6 @@
-# Unresolved Blob options.type function-source conversion boundary
+# Historical Blob options.type function-source conversion boundary
+
+**Update (2026-11-18):** The direct, simple-alias and reflective constructor gap documented below is fixed and verified in [the bounded red/green report](blob-options-webidl-source-redgreen-2026-11-18.md). The text below records the original unfixed witness. Opaque and bound constructor forms remain outside that proof.
 
 **Agent 3, 2026-11-17, 16:30 UTC.** **Open issue**, no compiler guard implementation verified. Preserve as intermediate evidence; do not promote as established protection.
 
