@@ -717,8 +717,6 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.type==='MemberExpression' && isGlobal(node.object) &&
         memberName(node)==='AggregateError'));
   }
-  /** @param {AstNode|null|undefined} node @param {Set<string>} aliases
-   *  @param {Set<string>} builtins @returns {boolean} */
   /**
    * Recognize the immutable Node builtin URL module, directly from require()
    * or via local aliases and named/default ESM imports.
@@ -733,6 +731,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       node.arguments.length===1&&
       ['node:url','url'].includes(staticString(node.arguments[0])??'');
   }
+  /** @param {AstNode|null|undefined} node @param {Set<string>} aliases
+   *  @param {Set<string>} builtins @returns {boolean} */
   function isWebConstructor(node,aliases,builtins) {
     if(!node)return false;
     if(node.type==='Identifier')return aliases.has(node.name);
