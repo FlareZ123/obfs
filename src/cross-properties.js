@@ -1223,7 +1223,7 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
               returnedNames.has(node.callee.object.name) ||
               isFactoryCall(node.callee.object)) ||
              isFactoryCall(node.callee) ||
-             node.arguments.some(argument=>
+             node.arguments.some((/** @type {AstNode} */ argument)=>
                argument?.type==='Identifier' && returnedNames.has(argument.name))) {
             invoked=true;
           }
