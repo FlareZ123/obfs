@@ -63,6 +63,8 @@ The independent `sims/straightline-reader-cold-profile.js` runs original and emi
 
 These strict observed violations **cannot be overwritten by the earlier clean run or passing medians**. Scheduling and CPU accounting jitter prevent attributing such short-startup ratios causally to the four-byte naming change, but the project does not possess a strict startup-inclusive 2.5x guarantee. The broader strong-protection release remains blocked.
 
+A source-pinned [byte-identical native/native fresh-process placebo](straightline-identical-cold-placebo-2026-11-18.md) subsequently observed **4/108 strict >2.5x Windows CPU ratios without any transform**, compared with **2/108** original/emitted ratios over the same three executions; both arms saw 0/108 on Ubuntu. Thus individual cold-process sampled threshold crossings are insufficient to attribute the slowdown to the four-byte key rewrite. This finding does not erase the candidate's recorded breaches or establish the universal performance budget.
+
 ### Equal-trust conventional minifier and public-source adversary
 
 The independently executed `public-only source normalization retains a functional clone beside an ordinary minifier` Node test uses esbuild minification as its conventional same-function control and `normalizePublicIsland` as a seedless attacker consuming only the published generated source. It finds the single hashed own-field label without knowing the original key or obfuscation seed and rewrites it consistently. All three functional variants (minified, generated, public-normalized) match the native reader over **513 inputs** on Ubuntu and Windows in [run 44246436097](https://github.com/FlareZ123/obfs/actions/runs/44246436097) despite a later independent cold-CPU test failure.
