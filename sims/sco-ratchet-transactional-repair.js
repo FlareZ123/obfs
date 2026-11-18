@@ -76,7 +76,7 @@ function median(nums){
 /** @param {Buffer} root @param {Store} store @returns {object} */
 function profile(root,store){
   /** @type {{count:number,trial:number,nativeCpuMs:number,storedCpuMs:number,
-   * nativeWallMs:number,storedWallMs:number,cpuRatio:number,wallRatio:number}[]} */
+   * nativeWallMs:number,storedWallMs:number,cpuRatio:number|null,wallRatio:number}[]} */
   const trials=[];
   for(const count of [1,16,64]){
     for(let trial=0;trial<7;trial++){
@@ -102,22 +102,29 @@ function profile(root,store){
       trials.push({
         count,trial,nativeCpuMs:nativeFinal.cpuMs,storedCpuMs:storedTimes.cpuMs,
         nativeWallMs:nativeFinal.wallMs,storedWallMs:storedTimes.wallMs,
-        cpuRatio:storedTimes.cpuMs/nativeFinal.cpuMs,
+        // Windows process.cpuUsage samples below the system clock tick can
+        // report zero for either completed HMAC call. Treat these pairs as
+        // unmeasured CPU ratios, never Infinity or a synthetic strict breach.
+        cpuRatio:nativeFinal.cpuMs>0&&storedTimes.cpuMs>0?
+          storedTimes.cpuMs/nativeFinal.cpuMs:null,
         wallRatio:storedTimes.wallMs/nativeFinal.wallMs
       });
     }
   }
   return [1,16,64].map(count=>{
     const rows=trials.filter(item=>item.count===count);
+    const validCpu=rows.filter(row=>row.cpuRatio!==null);
     return {
-      count,pairs:rows.length,medianCpuRatio:median(rows.map(row=>row.cpuRatio)),
+      count,pairs:rows.length,validCpuPairs:validCpu.length,
+      cpuBudgetEvaluable:validCpu.length===rows.length,
+      medianCpuRatio:validCpu.length?median(validCpu.map(row=>/** @type {number} */(row.cpuRatio))):null,
       medianWallRatio:median(rows.map(row=>row.wallRatio)),
-      strictCpuOverBudgetPairs:rows.filter(row=>row.cpuRatio>2.5).length,
+      strictCpuOverBudgetPairs:validCpu.filter(row=>row.cpuRatio!==null&&row.cpuRatio>2.5).length,
       strictWallOverBudgetPairs:rows.filter(row=>row.wallRatio>2.5).length,
       raw:rows.map(row=>({
         nativeCpuMs:row.nativeCpuMs,storedCpuMs:row.storedCpuMs,
         nativeWallMs:row.nativeWallMs,storedWallMs:row.storedWallMs,
-        cpuRatio:Number(row.cpuRatio.toFixed(5)),
+        cpuRatio:row.cpuRatio===null?null:Number(row.cpuRatio.toFixed(5)),
         wallRatio:Number(row.wallRatio.toFixed(5))
       }))
     };
