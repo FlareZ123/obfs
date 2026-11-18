@@ -636,3 +636,35 @@ test('SCO graph refuses inspector protocol evaluation that loads undeclared serv
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('SCO graph refuses default REPL evaluation that loads undeclared server modules',async()=>{
+  const replSource=[
+    "import repl from \"node:repl\";",
+    "import {PassThrough} from \"node:stream\";",
+    "export async function inspect(){",
+    "  const shell=repl.start({prompt:\"\",input:new PassThrough(),output:new PassThrough(),terminal:false});",
+    "  const command='process.getBuiltinModule(\"module\").createRequire('+JSON.stringify(import.meta.url)+')(\"./hidden.cjs\").secret';",
+    "  return await new Promise((resolve,reject)=>{",
+    "    shell.eval(command,shell.context,\"repl\",(error,value)=>{",
+    "      shell.close();",
+    "      if(error)reject(error);else resolve(value);",
+    "    });",
+    "  });",
+    "}"
+  ].join('\n');
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-repl-loader-'));
+  try{
+    await atomicWrite(path.join(root,'repl.mjs'),replSource);
+    await atomicWrite(path.join(root,'hidden.cjs'),'module.exports={secret:137};');
+    const original=await import(pathToFileURL(path.join(root,'repl.mjs')).href);
+    assert.equal(await original.inspect(),137,'Native REPL evaluates the hidden CommonJS loader');
+    assert.throws(()=>partitionScoAsyncGraph([{
+      path:'repl.mjs',code:replSource
+    }],{seed:'sco-repl-dynamic-loader-20261118',
+      exposedPaths:['repl.mjs']}),
+    /Private SCO graph cannot certify imports from runtime loader builtin/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
