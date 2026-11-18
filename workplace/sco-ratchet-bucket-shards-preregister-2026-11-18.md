@@ -1,0 +1,19 @@
+# Bounded keyed-bucket SCO SQLite WAL state: preregistration
+
+**Agent 41, 18 November 2026.** Follow-up to [per-account WAL service isolation](../im-results/sco-ratchet-account-shards-2026-11-18.md), [same-eventloop CPU negative](../im-results/sco-ratchet-shards-eventloop-2026-11-18.md), and [cold first-use/storage amplification](../im-results/sco-ratchet-shard-cold-admission-2026-11-18.md). This is an **equal-trust storage scheduling candidate** and makes no claim of incremental obfuscation security.
+
+## Hypothesis
+
+A fixed **eight** preinitialized SQLite WAL files, selected by `HMAC-SHA256(root, domain || verified-principal)[0] & 7`, can permit concurrent A/B writers **only when their trusted account identities land in different files**, while bounding the number of files and avoiding a new SQLite WAL creation for each account. A collision in one bucket must remain a blocking counterexample. In SCO the server verifies principal IDs and retains the root; clients cannot choose the storage path within a fixed verified identity. Legitimate multiple enrolled accounts can still probe for collisions or saturate service.
+
+## Fixed comparison
+
+1. Keep the existing original 8 MiB/event HMAC, root, 539-byte generated public `batch.mjs`, same cookie authorization, two separate Node HTTP processes, exact replay policy and original private result semantics.
+2. Compare (a) single global SQLite database, (b) eight preinitialized secret-root-keyed SQLite buckets, and (c) full verified A/B per-account SQLite shards. Use identical test RPC bytes and A/B cookies in each arm. The eight-bucket test intentionally picks **two distinct precommitted root conditions** before test execution: one where A and B hash into **different buckets**, one where they collide. Record the selected indices and number of root trials, never hide conditional selection.
+3. Hold A's writer transaction for 1500ms in a trusted independent process; send a verified B two-HMAC batch through another process. The noncollision bucket arm should complete in <500ms; the collision bucket arm and global control must wait >800ms; full per-principal arm should remain unblocked. Verify all accepted B original-HMAC outputs and no unauthorized A-to-B state accesses. Repeat exact replay/conflicting payload semantics in the noncollision bucket arm, and restart with same root to prove deterministic account mapping.
+4. Compute and report exact file number/bytes for **8 preinitialized buckets**, shared one file, and 64 preinitialized per-account shards. For 64 synthetic principal labels under a fixed independent random root, enumerate bucket occupancies and actual pairwise collisions; compare the observed collision count with the expected pairing estimate only as a bounded combinatorial observation. No statistical population-level anti-DoS claim from one seed.
+5. Record two-platform Node22/JSDoc, exact public SHA, all raw wall latencies, principal bucket IDs, and strict >2.5 wall/direct-native ratios. Correctness must be checked independently of performance. This is request wall latency, not process CPU-compute overhead.
+
+## Rejection and limits
+
+Reject if any 200/403, native-output, replay, persistence or account verification behavior changes, if colliding identities avoid the same SQL lock, or if different buckets still wait for A without another demonstrated bottleneck. Reject the storage-footprint assertion if file count exceeds configured bucket count. The new mapping must be based only on trusted identities; never take an RPC-provided storage path. This deliberately does not solve same-process synchronous CPU contention, multi-account authorized flooding, public-source recoverability, online A relaying, multi-host consensus or the universal 2.5× compute budget. Conventional HTTP servers could use the same bucket layout.
