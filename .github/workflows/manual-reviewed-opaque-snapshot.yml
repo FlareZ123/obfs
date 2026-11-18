@@ -26,6 +26,8 @@ jobs:
         run: node sims/reviewed-opaque-manifest-attack.js
       - name: CLI manifest parity across COO SNO SCO
         run: node --test test/cli-reviewed-opaque-assets.test.js
+      - name: Executable independent-review CLI sample with native output parity
+        run: node examples/reviewed-assets-cli/verify.cjs
       - name: Strict compiler type checking
         run: npm run typecheck
       - name: Strict external test JSDoc
