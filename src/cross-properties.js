@@ -984,20 +984,67 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
         }
       }
     } while(aliasChanged);
-    // An arbitrary rest/arguments element can obtain an ambient capability
-    // from a call result, a getter or an unproved alias even when globalThis
-    // does not appear in the actual expression. Only directly source-proved
-    // inert primitive results are admitted through these unresolved vectors.
-    // The original body and argument expression remain unchanged.
-    for(const actuals of unresolvedArgumentVectors) {
-      for(const actual of actuals) {
-        if(!actual || !isLiteralValue(actual) ||
-           actual.type==='ArrayExpression' || actual.type==='ObjectExpression' ||
-           actual.type==='Literal' && actual.value!==null &&
-           !['number','string','boolean','bigint'].includes(typeof actual.value)) {
-          changedIntrinsic=true;
-        }
+    /**
+     * A literal-only zero-argument function in a unique top-level const
+     * binding returns a primitive without reading any ambient host state.
+     * Preserve this narrow, useful case through the rest/arguments guard.
+     *
+     * The source-order check and top-level callsite restriction keep a call
+     * from being admitted before its lexical const has initialized (TDZ).
+     * @param {AstNode|null|undefined} node
+     * @returns {boolean}
+     */
+    function provenPrimitive(node) {
+      return Boolean(node&&isLiteralValue(node)&&
+        node.type!=='ArrayExpression'&&node.type!=='ObjectExpression'&&
+        (node.type!=='Literal'||node.value===null||
+         ['number','string','boolean','bigint'].includes(typeof node.value)));
+    }
+    /** @type {Map<string,number>} */
+    const primitiveFactories=new Map();
+    for(const statement of source.ast.body) {
+      if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+      for(const entry of statement.declarations) {
+        if(entry.id.type!=='Identifier'||source.bindings.get(entry.id.name)!==1||
+           !entry.init||!['ArrowFunctionExpression','FunctionExpression'].includes(entry.init.type)||
+           entry.init.async||entry.init.generator||entry.init.params.length!==0)continue;
+        const body=entry.init.body;
+        const returned=body.type==='BlockStatement'?
+          body.body.length===1&&body.body[0].type==='ReturnStatement'?
+            body.body[0].argument:null:body;
+        if(provenPrimitive(returned))primitiveFactories.set(entry.id.name,statement.end);
       }
+    }
+    /** @type {WeakSet<AstNode>} */
+    const topLevelActuals=new WeakSet();
+    for(const statement of source.ast.body) {
+      if(statement.type!=='ExpressionStatement')continue;
+      const expression=statement.expression.type==='UnaryExpression'&&
+        statement.expression.operator==='void'?statement.expression.argument:
+        statement.expression;
+      if(expression.type!=='CallExpression')continue;
+      const invocation=localInvocation(expression);
+      if(!invocation)continue;
+      for(const actual of invocation.args)if(actual)topLevelActuals.add(actual);
+    }
+    /**
+     * @param {AstNode|null} actual
+     * @returns {boolean}
+     */
+    function provenPureActual(actual) {
+      if(!actual)return false;
+      if(provenPrimitive(actual))return true;
+      if(actual.type!=='CallExpression'||actual.optional||
+         actual.arguments.length!==0||actual.callee.type!=='Identifier'||
+         !topLevelActuals.has(actual))return false;
+      const initializedAt=primitiveFactories.get(actual.callee.name);
+      return initializedAt!==undefined&&initializedAt<actual.start;
+    }
+    // A rest/arguments vector can receive an ambient root through an opaque
+    // factory, getter or mutable alias. Any unproved actual is declined.
+    for(const actuals of unresolvedArgumentVectors) {
+      if(actuals.some(actual=>!provenPureActual(actual)))
+        changedIntrinsic=true;
     }
     /**
      * Recognize a source of an opaque host callable, including a descriptor
