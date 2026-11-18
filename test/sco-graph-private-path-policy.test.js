@@ -185,6 +185,50 @@ test('SCO graph ignores a caller-owned exposedPaths iterator that changes author
   assert.deepEqual(graph.privatePaths,['admin.mjs']);
 });
 
+test('SCO graph ignores a forged file-array iterator and captures source once',()=>{
+  let sourceReads=0;
+  const approved={
+    path:'public.mjs',
+    get code(){
+      sourceReads++;
+      return sourceReads===1?
+        'export async function allowed(){return 7;}':
+        'export async function replaced(){return 31337;}';
+    }
+  };
+  const files=[approved];
+  files[Symbol.iterator]=function*(){
+    yield {path:'admin.mjs',code:'export async function adminOnly(){return 31337;}'};
+  };
+  const graph=partitionScoAsyncGraph(files,{
+    seed:'sco-graph-file-inventory-20261118',exposedPaths:['public.mjs']
+  });
+  assert.equal(sourceReads,1,'Compiler must use the same source bytes it validated');
+  assert.deepEqual(graph.exposedPaths,['public.mjs']);
+  assert.deepEqual(graph.privatePaths,[]);
+  assert.ok(Object.hasOwn(graph.partitions['public.mjs'].methodNames,'allowed'));
+});
+
+test('SCO graph captures seed and endpoint accessor configuration once',()=>{
+  let seedReads=0;
+  let endpointReads=0;
+  const graph=partitionScoAsyncGraph([
+    {path:'first.mjs',code:'export async function first(){return 1;}'},
+    {path:'second.mjs',code:'export async function second(){return 2;}'}
+  ],{
+    exposedPaths:['first.mjs','second.mjs'],
+    get seed(){seedReads++;return seedReads===1?'graph-seed-20261118':'changed-seed';},
+    get endpoint(){
+      endpointReads++;
+      return endpointReads===1?'/private/rpc':'/moved/rpc';
+    }
+  });
+  assert.equal(seedReads,1);
+  assert.equal(endpointReads,1);
+  assert.equal(graph.partitions['first.mjs'].endpoint,'/private/rpc');
+  assert.equal(graph.partitions['second.mjs'].endpoint,'/private/rpc');
+});
+
 test('composed SCO graph handler binds only original exports and permits only generated facades',async()=>{
   const graph=partitionScoAsyncGraph(originals,{
     seed:'sco-graph-composed-handler-20261116',exposedPaths:['api.mjs','audit.mjs']
