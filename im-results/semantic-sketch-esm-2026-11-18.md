@@ -64,17 +64,56 @@ and a computed `Object.keys` walk. Exact variations and seeds are
 in the committed generator. No random claims or hidden source mutation
 are used in these observations.
 
-The actual Chromium job at
-[run 44213962271](https://github.com/FlareZ123/obfs/actions/runs/44213962271)
-reported the **64-case ESM browser step successful**, including eight
-genuine positive private-field rewrites; the full multi-step workflow was
-still in progress at the time this report was first written, so this
-step-level observation must not be mistaken for a completed full gate.
+## Full cross-platform confirmation, style coverage and attack control
 
-An incremental follow-up adds per-style rename/yield counts to future
-script output. Existing aggregate data do not identify which of the
-remaining 15 styles account for the other twelve rewrites. No inference
-about those styles is made from the aggregate alone.
+The [complete manual transformation safety run
+44214634993](https://github.com/FlareZ123/obfs/actions/runs/44214634993)
+**passed both Ubuntu and Windows** at immutable checkout
+`f5f9466ef1ffea36007dc201df15de8e774ca1f4`,
+after correcting two strict JSDoc HTTP-harness callback annotations in a
+prior red CI. The complete run includes all existing transformation
+regressions and typechecks as well as the new studies.
+
+The expanded seeded Node output independently recorded this same
+per-style yield on both platforms:
+
+| Six graphs per context | Private-field renames | Graphs with any renaming |
+| --- | ---: | ---: |
+| Owned direct lookup | 12 | 6 |
+| Same-module alias | 12 | 6 |
+| Local parameter callback | 12 | 6 |
+| Await then static property | 12 | 6 |
+| All twelve reflective, dynamic-key, proxy, clone, descriptor, inherited and related contexts, combined | 0 | 0 |
+| **Total** | **48** | **24** |
+
+The direct-positive subset still accounts for twelve of the 48
+rewrites. All 96 native/emitted trace pairs matched. The zero-rename
+contexts represent conservative compiler behavior on this corpus; no
+claim that all are fundamentally unrenamable follows.
+
+The independently constructed source-only parser in
+[`sims/semantic-sketch-static-control.js`](../sims/semantic-sketch-static-control.js)
+was given **only the distributed state-module text** and the declared
+two-number/no-input challenge family, without original property names
+or a seed. Its Acorn AST pass reconstructed the complete return values
+for **6/6 actual compiler-emitted positive cases**, each with two
+verified private-property rewrites. The same reader reconstructed
+**6/6 ordinary esbuild-minified control cases**. The six emitted state
+modules totalled 367 bytes versus 391 for the minified state modules;
+these are partial module sizes, with no overall distribution-size or
+runtime conclusion. This demonstrates a precisely bounded static
+reconstruction failure of these protected positives relative to the
+minification control. The attack assumes advance knowledge of the
+two-number challenge family and does not recover an arbitrary program.
+
+The real Chromium step from the same successful workflow loaded **64**
+native/emitted sketch pairs as actual independently hosted ESM graphs,
+with **8** verified private-field rewrites in four positive graph
+controls. All 64 Chromium result/trace comparisons matched, and strict
+JSDoc passed on both Node platforms. A subsequent extension also serves
+a third, source-only recovered ESM module for each of those four
+browser-positive cases; its source-pinned three-way result requires
+independent CI confirmation before any claim is added.
 
 ## Security and cost boundaries
 
