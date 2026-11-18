@@ -2121,23 +2121,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(changedStackAliases);
+  const globalErrorHandlerNames=new Set([
+    'onerror','onunhandledrejection','onrejectionhandled'
+  ]);
+  const globalErrorEventNames=new Set([
+    'error','unhandledrejection','rejectionhandled'
+  ]);
   walk(ast,(node,parent,key)=>{
     // Window/Worker runtime error delivery exposes source coordinates without
     // requiring a .stack read in the compiled program. The historical onerror
     // callback receives line/column arguments directly; ErrorEvent listeners
     // can read lineno/colno. A later source prefix such as the host-lock guard
     // therefore has to fail closed around these registrations/reads too.
-    const globalErrorHandlerNames=new Set([
-      'onerror','onunhandledrejection','onrejectionhandled'
-    ]);
     if(node.type==='AssignmentExpression' && node.operator==='=' &&
        (node.left.type==='MemberExpression' && isGlobal(node.left.object) &&
           globalErrorHandlerNames.has(memberName(node.left)??'') ||
         node.left.type==='Identifier' && globalErrorHandlerNames.has(node.left.name) &&
           !bindingCounts.has(node.left.name))) observed=true;
-    const globalErrorEventNames=new Set([
-      'error','unhandledrejection','rejectionhandled'
-    ]);
     if(node.type==='CallExpression' && node.arguments[0] &&
        globalErrorEventNames.has(staticString(node.arguments[0])??'') &&
        (node.callee.type==='MemberExpression' &&
