@@ -122,7 +122,8 @@
     "sims/sco-ratchet-retry-candidate.js",
     "test/sco-ratchet-browser-attacker.js",
     "test/sco-ratchet-browser-equal-trust.js",
-    "sims/semantic-sketch-esm.js"
+    "sims/semantic-sketch-esm.js",
+    "test/semantic-sketch-browser.js"
   ],
   "exclude": [
     "node_modules"
