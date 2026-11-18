@@ -68,7 +68,7 @@ const unsafe=[
   ['aliased Object.getPrototypeOf overwrite',
     "const O=Object;const old=O.getPrototypeOf;O.getPrototypeOf=(x)=>x===7?String.prototype:old(x);const P=O.getPrototypeOf(7);P.charCodeAt=()=>0;"],
   ['Object.defineProperty changes getPrototypeOf',
-    "const old=Object.getPrototypeOf;Object.defineProperty(Object,'getPrototypeOf',{value:(x)=>x===7?String.prototype:old(x),configurable:true});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
+    "Object.defineProperty(Object,'getPrototypeOf',{value:(x)=>x===7?String.prototype:Reflect.getPrototypeOf(x),configurable:true});const P=Object.getPrototypeOf(7);P.charCodeAt=()=>0;"]
 ];
 
 for(const [name,mutator] of unsafe) {
