@@ -25,3 +25,7 @@ examples/closed-graph-host/after/*.mjs text eol=lf
 
 # A reviewed CSS asset must have identical bytes on Windows and Linux.
 examples/reviewed-assets-cli/source/theme.css text eol=lf
+
+# Freeze npm manifest and resolved lock bytes across Windows and Linux.
+package.json text eol=lf
+package-lock.json text eol=lf
