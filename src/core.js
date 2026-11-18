@@ -664,13 +664,12 @@ function mutatesDecoderIntrinsic(ast) {
          isPossibleConstructor(argument))) {
       const callee=node.callee;
       const method=callee.type==='MemberExpression'?memberName(callee):null;
-      const recognizedRead=callee.type==='MemberExpression' &&
+      const modeledIntrinsicCall=callee.type==='MemberExpression' &&
         (isObjectIntrinsic(callee.object) &&
-          ['getPrototypeOf','getOwnPropertyDescriptor','getOwnPropertyDescriptors']
-            .includes(method??'') ||
+          (mutatorsObject.has(method??'')||sensitiveReadsObject.has(method??'')) ||
          isReflectIntrinsic(callee.object) &&
-          ['get','getPrototypeOf'].includes(method??''));
-      if(!recognizedRead) {
+          (mutatorsReflect.has(method??'')||sensitiveReadsReflect.has(method??'')));
+      if(!modeledIntrinsicCall) {
         mutated=true;
         return;
       }
