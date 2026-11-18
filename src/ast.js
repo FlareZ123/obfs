@@ -1889,6 +1889,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // coordinates even without a syntactic .stack access.
   const processReportNamespaces=new Set();
   const processReportMethods=new Set();
+  /** @type {Map<string,string>} */
+  const processReportMutators=new Map();
   const processReportTriggers=new Set([
     'reportOnUncaughtException','reportOnFatalError','reportOnSignal'
   ]);
@@ -1899,9 +1901,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       property.key.type==='Identifier'?property.key.name:staticString(property.key);
     return processReportTriggers.has(name??'');
   }
-  /** @param {AstNode} source @returns {boolean} */
+  /** @param {AstNode|null|undefined} source @returns {boolean} */
   function processReportAssignmentSourceMayEnable(source) {
-    return source.type!=='ObjectExpression' ||
+    return !source||source.type!=='ObjectExpression' ||
       /** @type {AstNode[]} */ (source.properties).some(processReportPropertyMayEnable);
   }
   walk(ast,node=>{
@@ -1967,6 +1969,44 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         return true;
     }
     return false;
+  }
+  /** @param {AstNode|null|undefined} node @param {number} [depth] @returns {string|null} */
+  function processReportMutator(node,depth=0) {
+    if(!node||depth>16)return null;
+    if(node.type==='Identifier')return processReportMutators.get(node.name)??null;
+    if(node.type==='MemberExpression') {
+      const name=memberName(node);
+      if(['set','assign'].includes(name??'')&&isReflectiveReceiver(node.object))
+        return name;
+      if(['call','apply'].includes(name??''))
+        return processReportMutator(node.object,depth+1);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind')
+      return processReportMutator(node.callee.object,depth+1);
+    return null;
+  }
+  /**
+   * @param {AstNode} node
+   * @returns {{method:string,args:(AstNode|null)[]}|null}
+   */
+  function processReportMutatorInvocation(node) {
+    if(node.type!=='CallExpression')return null;
+    if(isReflectApplyMethod(node.callee)) {
+      const method=processReportMutator(node.arguments[0]);
+      if(!method)return null;
+      const list=node.arguments[2];
+      return {method,args:list?.type==='ArrayExpression'?list.elements:[null]};
+    }
+    const method=processReportMutator(node.callee);
+    if(!method)return null;
+    if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='call')
+      return {method,args:node.arguments.slice(1)};
+    if(node.callee.type==='MemberExpression'&&memberName(node.callee)==='apply') {
+      const list=node.arguments[1];
+      return {method,args:list?.type==='ArrayExpression'?list.elements:[null]};
+    }
+    return {method,args:node.arguments};
   }
   let changedProcessReportAliases;
   do {
@@ -2034,6 +2074,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
       if(isProcessReportMethod(value)&&!processReportMethods.has(id.name)) {
         processReportMethods.add(id.name);
+        changedProcessReportAliases=true;
+      }
+      const mutator=processReportMutator(value);
+      if(mutator&&processReportMutators.get(id.name)!==mutator) {
+        processReportMutators.set(id.name,mutator);
         changedProcessReportAliases=true;
       }
     });
@@ -2343,19 +2388,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
        node.left.type==='MemberExpression'&&
        isProcessReportNamespace(node.left.object)&&
        processReportTriggers.has(memberName(node.left)??''))observed=true;
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression') {
-      const method=memberName(node.callee);
-      if(isReflectiveReceiver(node.callee.object)&&method==='set'&&
-         isProcessReportNamespace(node.arguments[0])&&
-         processReportTriggers.has(staticString(node.arguments[1])??'')) {
+    if(node.type==='CallExpression') {
+      const mutation=processReportMutatorInvocation(node);
+      if(mutation?.method==='set'&&
+         isProcessReportNamespace(mutation.args[0])&&
+         processReportTriggers.has(staticString(mutation.args[1])??''))observed=true;
+      if(mutation?.method==='assign'&&
+         isProcessReportNamespace(mutation.args[0])&&
+         mutation.args.slice(1).some(processReportAssignmentSourceMayEnable))
         observed=true;
-      }
-      if(isReflectiveReceiver(node.callee.object)&&method==='assign'&&
-         isProcessReportNamespace(node.arguments[0])&&
-         /** @type {AstNode[]} */ (node.arguments.slice(1))
-           .some(processReportAssignmentSourceMayEnable)) {
-        observed=true;
-      }
     }
     // URL setters accept USVString values through the platform's native
     // conversion. Rewriting a function's body changes the percent-encoded
