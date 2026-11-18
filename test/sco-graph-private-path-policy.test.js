@@ -281,11 +281,12 @@ test('composed SCO graph snapshots an accessor-backed route prefix for HTTP rout
       return reads===1?'/obfs/':'/moved/';
     }
   };
-  const server=http.createServer(createScoGraphHandler(graph,{
+  const handler=createScoGraphHandler(graph,{
     'remote.mjs':{evaluate:async (/** @type {number} */ x)=>x+5}
-  },options));
+  },options);
+  assert.equal(reads,1,'Endpoint admission and handler routing must share one option snapshot');
+  const server=http.createServer(handler);
   try{
-    assert.equal(reads,1,'Endpoint admission and handler routing must share one option snapshot');
     await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
     const address=server.address();
     assert.ok(address&&typeof address==='object');
