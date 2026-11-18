@@ -66,7 +66,7 @@ function sample(code,trial){
   let output=0;
   for(let i=0;i<12;i++){
     const salted=code+'\n/*fresh-'+String(trial*32+i).padStart(8,'0')+'*/';
-    output^=/** @type {number} */ (new Function(salted)());
+    output=(output+/** @type {number} */ (new Function(salted)())*(i+1))|0;
   }
   const diff=process.cpuUsage(cpuStart);
   return {
