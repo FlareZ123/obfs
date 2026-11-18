@@ -209,7 +209,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedConstantKeys] Proven, unique named-import string values initialized before their exported owner.
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
- * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],forwardedCalls:Set<AstNode>}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set()) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
@@ -541,6 +541,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const memberNames=new Map();
   /** @type {AstNode[]} */
   const patterns = [];
+  /** @type {AstNode[]} */
+  const inChecks = [];
   for (const {node,parent,key,ancestors} of identifiers) {
     if (!aliases.has(node.name)) continue;
     // An ESTree Identifier used as a noncomputed property name is a grammar
@@ -558,6 +560,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (key === 'params' && /^Function/.test(parent.type)) continue;
     if (key === 'params' && parent.type === 'ArrowFunctionExpression') continue;
     if (/^Import(?:Default|Namespace)?Specifier$/.test(parent.type)) continue;
+    // Membership in a proven initial own field preserves the boolean result.
+    // Keep both operands evaluated in their original order.
+    if(parent.type==='BinaryExpression' && parent.operator==='in' &&
+       key==='right' && parent.left.type==='Literal' &&
+       typeof parent.left.value==='string') {
+      inChecks.push(parent);
+      continue;
+    }
     if (parent.type === 'MemberExpression' && key === 'object') {
       const property = parent.computed ?
         staticString(parent.property) ??
@@ -740,7 +750,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   walk(ast,node=>{
     if(node.type==='CallExpression' && resolves(node))forwardedCalls.add(node);
   });
-  return {aliases,members,memberNames,patterns,forwardedCalls};
+  return {aliases,members,memberNames,patterns,inChecks,forwardedCalls};
 }
 
 /**
@@ -765,6 +775,23 @@ function patternPropertyEdits(source,patterns,mapping) {
     } else {
       edits.push({start:property.key.start,end:property.key.end,text:JSON.stringify(replacement)});
     }
+  }
+  return edits;
+}
+
+/**
+ * Construct edits for original own-key membership checks, whose referenced
+ * keys have been checked against the original fields by the caller.
+ * @param {AstNode[]} inChecks
+ * @param {Map<string,string>} mapping
+ * @returns {import('./ast').Edit[]}
+ */
+function inOperatorPropertyEdits(inChecks,mapping) {
+  /** @type {import('./ast').Edit[]} */
+  const edits=[];
+  for(const check of inChecks){
+    const next=mapping.get(check.left.value);
+    if(next!==undefined)edits.push({start:check.left.start,end:check.left.end,text:JSON.stringify(next)});
   }
   return edits;
 }
@@ -872,12 +899,13 @@ function renameLocalProperties(source, ast, options) {
   let properties = 0;
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
-    if (!proof || (!proof.members.length && !proof.patterns.length)) continue;
+    if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))) continue;
+        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+        proof.inChecks.some(check=>!ownNames.has(check.left.value))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = ownPropertyName(prop);
@@ -894,10 +922,11 @@ function renameLocalProperties(source, ast, options) {
         text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
     edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
+    edits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
     objects++;
     properties += mapping.size;
   }
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,ownPropertyName,singleUseFactoryObject};
