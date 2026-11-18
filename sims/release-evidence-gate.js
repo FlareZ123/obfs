@@ -8,6 +8,7 @@ const {atomicWrite}=require('../src/atomic');
 const {familywiseBudgetBounds}=require('./familywise-budget-bound');
 const {runEvidence:runCooEvidence}=require('./polyvariant-app-three-way-budget');
 const {runEvidence:runSnoEvidence,profile:profileSno}=require('./polyvariant-app-sno');
+const {run:runSnoResidentEvidence}=require('./sno-resident-budget');
 
 const execFileAsync=promisify(execFile);
 
@@ -56,9 +57,10 @@ function sampleVerdict(samples){
  * @param {Awaited<ReturnType<typeof runSnoEvidence>>} sno
  * @param {Awaited<ReturnType<typeof profileSno>>} snoProfile
  * @param {ScoSessionEvidence} sco
+ * @param {Awaited<ReturnType<typeof runSnoResidentEvidence>>} [snoResident] Same-source SNO post-initialization CPU/wall evidence.
  * @returns {object}
  */
-function summarizeEvidence(coo,sno,snoProfile,sco){
+function summarizeEvidence(coo,sno,snoProfile,sco,snoResident){
   assert.equal(coo.functionRecovery,3,'COO control must exercise three protected functions');
   assert.equal(sno.selectedFunctions,3,'SNO control must exercise three protected functions');
   assert.equal(sno.staticComparisons,12288,'SNO held-out control must actually run');
@@ -105,6 +107,69 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     ...scoBudget.map(row=>({native:row.rawTimingMs.native,
       candidate:row.rawTimingMs.remote}))
   ]);
+  // SNO starts and verifies its manifest before READY. Only the resident
+  // worker's actual repeated application CPU is eligible for the prompt's
+  // post-initialization SNO 2.5x compute bound. Preserve the separately
+  // measured fresh-process latency as an operational, cold-start metric.
+  /** @type {Array<{
+   * events:number,repetitions:number,ratioOfMedians:number,
+   * wallRatioOfMedians:number,oneSidedMedianDecision:string,
+   * samplePairs:number,upperMedianBound:number,
+   * strictObservedCpuOverBudgetPairs:number,
+   * strictObservedWallOverBudgetPairs:number,
+   * rawCpuTimeMs:{native:number[],sno:number[]},
+   * rawWallTimeMs:{native:number[],sno:number[]}
+   * }>} */
+  const snoPostInitRows=[];
+  /** @type {typeof snoPostInitRows} */
+  const snoPostInitLeafRows=[];
+  if(snoResident){
+    assert.equal(snoResident.source,'sims/sno-resident-budget.js');
+    assert.equal(snoResident.initializationExcluded,true,
+      'SNO resident timing must exclude initialization for both variants');
+    assert.equal(snoResident.compact,false,
+      'SNO comparison must use the same noncompact selected backend');
+    assert.equal(snoResident.rows.length,4,
+      'SNO resident comparison must preserve four application workloads');
+    assert.equal(snoResident.leafRows.length,2,
+      'SNO resident comparison must retain two selected-function stress controls');
+    for(const [source,destination] of [
+      [snoResident.rows,snoPostInitRows],
+      [snoResident.leafRows,snoPostInitLeafRows]
+    ]){
+      for(const row of source){
+        assert.equal(row.allOutputsEquivalent,true,
+          'SNO post-initialization work must retain original output parity');
+        assert.equal(row.cpuBudget.samplePairs,row.nativeCpuMs.length);
+        assert.equal(row.nativeCpuMs.length,row.snoCpuMs.length);
+        assert.equal(row.nativeMs.length,row.snoMs.length);
+        assert.equal(row.nativeMs.length,row.nativeCpuMs.length);
+        destination.push({
+          events:row.events,repetitions:row.repetitions,
+          ratioOfMedians:row.cpuBudget.ratioOfMedians,
+          wallRatioOfMedians:row.budget.ratioOfMedians,
+          oneSidedMedianDecision:row.cpuBudget.decision,
+          samplePairs:row.cpuBudget.samplePairs,
+          upperMedianBound:row.cpuBudget.upperMedianBound,
+          strictObservedCpuOverBudgetPairs:row.strictCpuOverBudgetPairs,
+          strictObservedWallOverBudgetPairs:row.strictOverBudgetPairs,
+          rawCpuTimeMs:{native:row.nativeCpuMs,sno:row.snoCpuMs},
+          rawWallTimeMs:{native:row.nativeMs,sno:row.snoMs}
+        });
+      }
+    }
+  }
+  // The strict compute interpretation uses post-init SNO process CPU,
+  // whereas the historical ten-workload join above retains cold SNO startup
+  // latency. Only same-invocation, same-source measurements may be combined.
+  const computeFamilywise=snoResident?familywiseBudgetBounds([
+    ...cooBudget.map(row=>({native:row.rawTimingMs.native,
+      candidate:row.rawTimingMs.published})),
+    ...snoPostInitRows.map(row=>({native:row.rawCpuTimeMs.native,
+      candidate:row.rawCpuTimeMs.sno})),
+    ...scoBudget.map(row=>({native:row.rawTimingMs.native,
+      candidate:row.rawTimingMs.remote}))
+  ]):null;
   const attackEvidence={
     coo:{
       verdict:coo.functionRecovery===3?'demonstrated-functional-clone':'unmeasured',
@@ -157,6 +222,37 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
       })),
       boundary:'Ten sampled COO/SNO/SCO workloads. COO reuses a Node process, SNO includes fresh Node startup, SCO uses fresh localhost clients. Within-workload representative independent pairs remain an assumption.'
     },
+    computeBoundaryFamilywise:computeFamilywise?{
+      verdict:computeFamilywise.verdict,
+      comparisons:computeFamilywise.comparisons,
+      confidenceRequested:computeFamilywise.confidenceRequested,
+      confidenceAttainedAtLeast:computeFamilywise.familywiseCoverageAtLeast,
+      observedMaxPairedRatio:computeFamilywise.observedMaxPairedRatio,
+      observedOverBudgetPairs:computeFamilywise.observedOverBudgetPairs,
+      observedSampleHasOverBudgetPair:computeFamilywise.observedSampleHasOverBudgetPair,
+      strictTail:computeFamilywise.strictTail,
+      workloads:[
+        ...cooBudget.map(row=>({mode:'coo',events:row.events})),
+        ...snoPostInitRows.map(row=>({mode:'sno-postinit-cpu',events:row.events,
+          repetitions:row.repetitions})),
+        ...scoBudget.map(row=>({mode:'sco',events:row.events}))
+      ],
+      bounds:computeFamilywise.rows.map(row=>({
+        decision:row.decision,lowerMedianBound:row.lowerMedianBound,
+        upperMedianBound:row.upperMedianBound,
+        marginalOneSidedCoverage:row.confidenceAttained
+      })),
+      boundary:'Ten current-source COO/SNO/SCO populations. COO samples native-vs-published Node duration; SNO uses repeated-work process CPU from prestarted manifest-verified workers; SCO measures fresh localhost service latency. Distinct runtime boundaries are compared, not an equal-application security theorem.'
+    }:null,
+    snoPostInit:snoResident?{
+      verdict:sampleVerdict(snoPostInitRows.map(row=>({
+        decision:row.oneSidedMedianDecision}))),
+      rows:snoPostInitRows,leafRows:snoPostInitLeafRows,
+      boundary:'Repeated in-worker business compute after startup, checksum and import. CPU includes only executed application work; symmetric native comparison; original artifact behavior and selected transforms verified.',
+      coldSource:'performance.sno',
+      note:'Leaf stress rows remain separate from the four application populations. Individual sampled >2.5x observations must be examined even when a median diagnostic supports the population.'
+    }:{verdict:'unmeasured',rows:[],leafRows:[],
+      boundary:'SNO post-initialization process CPU not supplied to this summary'},
     coo:{verdict:sampleVerdict(cooBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:cooBudget,
       boundary:'module graph loaded anew per trial; Node process reused'},
@@ -165,7 +261,7 @@ function summarizeEvidence(coo,sno,snoProfile,sco){
     }))),rows:snoBudget,
       descriptiveOverBudgetEvents:snoBudget.filter(row=>
         row.ratioOfMedians>2.5).map(row=>row.events),
-      boundary:'fresh Node child process per pair; one-sided bounds on median paired ratios, not worst-case sessions'},
+      boundary:'Operational COLD end-to-end latency: fresh Node child process per pair, including manifest verification and module import. Excluded from the post-init strict compute interpretation; one-sided bounds cover median paired ratios, not worst-case sessions'},
     sco:{verdict:sampleVerdict(scoBudget.map(row=>({
       decision:row.oneSidedMedianDecision}))),rows:scoBudget,
       boundary:sco.measuredBoundary,caveat:sco.caveat}
@@ -230,7 +326,8 @@ async function run(){
   const line=stdout.split(/\r?\n/u).find(value=>value.startsWith(prefix));
   if(!line)throw new Error('SCO frozen-service evidence marker unavailable');
   const sco=JSON.parse(line.slice(prefix.length));
-  const summary=summarizeEvidence(coo,sno,snoProfile,sco);
+  const snoResident=await runSnoResidentEvidence(13);
+  const summary=summarizeEvidence(coo,sno,snoProfile,sco,snoResident);
   process.stdout.write('CROSS_MODE_RELEASE_EVIDENCE '+JSON.stringify({
     node:process.version,platform:process.platform,summary
   })+'\n');
