@@ -28,7 +28,7 @@ function seeded(initial){
   };
 }
 
-/** @param {()=>number} random @param {FileRecord[]} files @returns {FileRecord[]} */
+/** @template T @param {()=>number} random @param {T[]} files @returns {T[]} */
 function shuffled(random,files){
   const copy=files.slice();
   for(let index=copy.length-1;index>0;index--){
