@@ -37,6 +37,8 @@ jobs:
         run: node sims/sco-principal-resolution-cost.js
       - name: Parser-only SCO batch isolation snapshot cost
         run: node sims/sco-batch-json-parse-cost.js
+      - name: Paired host allowlist lookup CPU versus prepatch source behavior
+        run: node sims/sco-host-routing-cost.js
       - name: Compare permissive and strict UTF-8 JSON admission CPU cost
         run: node sims/sco-utf8-admission-profile.js
       - name: Compare fine and coarse authenticated SCO immutable async expression calls
