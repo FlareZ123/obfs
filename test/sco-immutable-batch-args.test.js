@@ -182,3 +182,41 @@ test('SCO read-only batch option is explicit and does not affect ordinary direct
   }));
   assert.deepEqual(output,{status:200,body:{ok:true,value:8}});
 });
+
+test('SCO read-only registered batch needs one request-body JSON.parse versus three default policy copies',async()=>{
+  const readOnlyMethods={batch:createScoBatchMethod({read:()=>37})};
+  const defaultHandler=createScoHandler([],{
+    remoteMethods:readOnlyMethods,
+    authorizeRpc:()=>true,
+    authorizeOperation:()=>true
+  });
+  const frozenHandler=createScoHandler([],{
+    immutableBatchArgs:true,
+    remoteMethods:readOnlyMethods,
+    authorizeRpc:()=>true,
+    authorizeOperation:()=>true
+  });
+  const body=payload([{method:'read',args:[5]}]);
+  const parse=JSON.parse;
+  let count=0;
+  try{
+    // Count exactly the admitted RPC body, excluding fetch's parsing of
+    // result JSON. The server receives the identical trusted request bytes
+    // in both arms. Restore the host primitive even if a request fails.
+    JSON.parse=(text,reviver)=>{
+      if(text===body)count++;
+      return parse(text,reviver);
+    };
+    assert.deepEqual(await request(defaultHandler,body),{
+      status:200,body:{ok:true,value:[{ok:true,value:37}]}
+    });
+    assert.equal(count,3,'Default body, outer-policy and inner-policy parses');
+    count=0;
+    assert.deepEqual(await request(frozenHandler,body),{
+      status:200,body:{ok:true,value:[{ok:true,value:37}]}
+    });
+    assert.equal(count,1,'Opt-in frozen sharing parses the body once');
+  }finally{
+    JSON.parse=parse;
+  }
+});
