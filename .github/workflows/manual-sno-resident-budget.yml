@@ -1,0 +1,29 @@
+name: Manual SNO post-init resident compute audit
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sno-resident:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Resident SNO strict JSDoc
+        run: npx tsc -p jsconfig.sno-resident.json
+      - name: Real transformed-work, digest refusal and resident differential
+        run: node --test test/sno-resident-budget.test.js
+      - name: Source-pinned 13-pair post-initialization work profile
+        run: node sims/sno-resident-budget.js 13

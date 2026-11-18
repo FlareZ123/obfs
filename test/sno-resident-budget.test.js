@@ -1,0 +1,54 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const {test}=require('node:test');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const {atomicWrite}=require('../src/atomic');
+const {buildResident,records,run}=require('../sims/sno-resident-budget');
+
+test('resident workload has deterministic host-facing Unicode records',()=>{
+  assert.deepEqual(records(0),[]);
+  assert.equal(records(3).length,3);
+  assert.deepEqual(records(2).map(record=>record.kind),['open','tick']);
+  assert.match(records(1)[0].payload,/β終/u);
+});
+
+test('resident SNO loader checks files before handing control to the entry',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-resident-tamper-'));
+  try{
+    const executable=await buildResident(root,true);
+    const target=path.join(root,'math.mjs');
+    await atomicWrite(target,(await fs.readFile(target,'utf8'))+'\n// changed after manifest\n');
+    const child=spawnSync(process.execPath,[executable],{
+      input:'',encoding:'utf8',timeout:15000
+    });
+    if(child.error)throw child.error;
+    assert.notEqual(child.status,0);
+    assert.match(child.stderr,/Integrity check failed: math\.mjs/u);
+    assert.doesNotMatch(child.stdout,/READY/u);
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+test('resident SNO profile executes real protected work and verifies every output',async()=>{
+  await assert.rejects(run(4),/5 through 100 trials/u);
+  const result=await run(5);
+  assert.equal(result.initializationExcluded,true);
+  assert.equal(result.rows.length,4);
+  assert.deepEqual(result.rows.map(row=>row.events),[1,50,1000,10000]);
+  for(const row of result.rows){
+    assert.equal(row.allOutputsEquivalent,true);
+    assert.equal(row.nativeMs.length,5);
+    assert.equal(row.snoMs.length,5);
+    assert.equal(row.budget.samplePairs,5);
+    assert.equal(row.strictOverBudgetPairs,
+      row.nativeMs.filter((ms,index)=>row.snoMs[index]>2.5*ms).length);
+    assert.ok(row.budget.observedPairsWithinBudget<=5);
+    assert.ok(row.nativeMs.every(ms=>ms>0));
+    assert.ok(row.snoMs.every(ms=>ms>0));
+  }
+},{timeout:120000});
