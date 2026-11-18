@@ -166,10 +166,14 @@ if(process.argv[2]==='sample'){
   const lockFd=openSync(lock,'wx');
   /** @type {ReturnType<typeof run>[]} */
   const records=[];
+  /** @type {('control'|'candidate')[]} */
+  const largeArms=process.env.OBFS_PROOF_REPEAT_LARGE==='true'?
+    ['candidate','control','control','candidate','candidate','control','control','candidate']:
+    ['candidate','control'];
   try{
     for(const [objects,arms] of [
       /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
-      /** @type {[number,('control'|'candidate')[]]} */ ([2048,['candidate','control']]),
+      /** @type {[number,('control'|'candidate')[]]} */ ([2048,largeArms]),
       /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
       /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']])
     ]) {
