@@ -1,6 +1,31 @@
 'use strict';
 
 const {randomBytes,createHash} = require('node:crypto');
+const path=require('node:path');
+
+/**
+ * Serve already-reviewed static assets under their standard browser media types.
+ * The source-disclosure preflight runs independently before this lookup.
+ * Unknown extensions retain the conservative octet-stream fallback.
+ * @type {Map<string,string>}
+ */
+const assetMediaTypes=new Map([
+  ['.html','text/html; charset=utf-8'],
+  ['.htm','text/html; charset=utf-8'],
+  ['.css','text/css; charset=utf-8'],
+  ['.json','application/json'],
+  ['.svg','image/svg+xml'],
+  ['.png','image/png'],
+  ['.jpg','image/jpeg'],
+  ['.jpeg','image/jpeg'],
+  ['.gif','image/gif'],
+  ['.webp','image/webp'],
+  ['.ico','image/vnd.microsoft.icon'],
+  ['.woff','font/woff'],
+  ['.woff2','font/woff2'],
+  ['.ttf','font/ttf'],
+  ['.otf','font/otf']
+]);
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
@@ -548,9 +573,8 @@ function createScoHandler(sourceFiles,options={}) {
     /** @param {NonNullable<typeof file>} confirmedFile */
     function serve(confirmedFile) {
       if (confirmedFile.sourceType === 'asset') {
-        const contentType = confirmedFile.path.endsWith('.json') ? 'application/json' :
-          confirmedFile.path.endsWith('.css') ? 'text/css' :
-            confirmedFile.path.endsWith('.html') ? 'text/html' : 'application/octet-stream';
+        const extension=path.posix.extname(confirmedFile.path).toLowerCase();
+        const contentType=assetMediaTypes.get(extension)??'application/octet-stream';
         response.writeHead(200,{'content-type':contentType,'cache-control':'no-store','x-content-type-options':'nosniff'});
         response.end(confirmedFile.code);
         return;
