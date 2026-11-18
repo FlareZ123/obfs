@@ -4,6 +4,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {testWMethod,characterizationSet,shortestSeparator}=require('../sims/sco-w-method');
 const {learnAdaptiveMealy}=require('../sims/sco-adaptive-mealy');
+const {scenario}=require('../sims/sco-stateful-oracle');
 
 /** @typedef {{next:number[][],output:number[][]}} Machine */
 /** @param {Machine} model @param {number[]} word */
@@ -174,6 +175,20 @@ test('opt-in full W-method certification recovers long-delay sixteen-state model
   assert.equal(found.machine.next.length,16);
   assert.deepEqual(trace(found.machine,Array(size+2).fill(0)),trace(hidden,Array(size+2).fill(0)));
   console.log('W_METHOD_CHAIN_CERTIFIED '+JSON.stringify({states:found.machine.next.length,calls:found.requests+found.steps,wMethodTests:found.wMethodTests}));
+});
+
+test('full W-method certification runs against compiler-generated authenticated SCO HTTP',async()=>{
+  const result=await scenario(13,true,true);
+  assert.equal(result.certifiedWithinBound,true);
+  assert.ok(result.wMethodTests>0);
+  assert.equal(result.learnedStates,4);
+  assert.equal(result.heldout,2046);
+  assert.equal(result.unauthorizedStatus,403);
+  assert.equal(result.sourceDisclosed,false);
+  console.log('W_METHOD_REAL_SCO '+JSON.stringify({
+    certifiedWithinBound:result.certifiedWithinBound,wMethodTests:result.wMethodTests,
+    publicRequests:result.requests,strictlyUnseen:result.strictlyUnseen
+  }));
 });
 
 test('strict W-method cap never returns certified true for incomplete conformance',async()=>{
