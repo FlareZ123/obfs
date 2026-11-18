@@ -1,0 +1,29 @@
+name: Manual SCO generated versus equal-trust minified batch relay
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  same-private-service-adversary:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install compiler and ordinary minifier
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Record resolved dependency graph
+        run: npm ls --all
+      - name: Strict JSDoc for exact public-frontend and hostile relay evaluator
+        run: npm run typecheck:external
+      - name: Compare one-trace authenticated relay against both served facades
+        run: node sims/sco-batch-equal-trust-attacker.js
