@@ -195,11 +195,13 @@ function learnedTrace(machine, word) {
  * The server's private module is never passed to learnMachine.
  * @param {number} index
  * @param {boolean} [adaptive] Use bounded adaptive active learning.
+ * @param {boolean} [certify] Require a complete W-method conformance suite within an upper bound.
  * @returns {Promise<{index:number,learnedStates:number,requests:number,experiments:number,
  *   heldout:number,strictlyUnseen:number,uniqueTrainingWords:number,
- *   sourceDisclosed:boolean,unauthorizedStatus:number,elapsedMs:number}>}
+ *   sourceDisclosed:boolean,unauthorizedStatus:number,elapsedMs:number,
+ *   certifiedWithinBound:boolean,wMethodTests:number}>}
  */
-async function scenario(index,adaptive=false) {
+async function scenario(index,adaptive=false,certify=false) {
   const secret = makeMachine((0x5f7a2b31 + Math.imul(index, 7919)) >>> 0);
   const canary = 'private-fsm-canary-' + index;
   const source = [
@@ -259,7 +261,9 @@ async function scenario(index,adaptive=false) {
     });
     const api = /** @type {StateOracle} */ (await import(pathToFileURL(publicFile).href));
     const sampled = adaptive ? await learnAdaptiveMealy(api,
-      {maxStates:4,alphabetSize:2,conformanceDepth:6,randomProbes:256}) : null;
+      {maxStates:4,alphabetSize:2,conformanceDepth:certify?4:6,
+        randomProbes:certify?32:256,certifyWithinBound:certify,
+        maxCertificateWords:20000}) : null;
     if(sampled)assert.equal(sampled.conformancePassed,true);
     const learned=sampled===null ? await learnMachine(api) : {
       machine:sampled.machine,requests:sampled.requests+sampled.steps,
@@ -289,7 +293,9 @@ async function scenario(index,adaptive=false) {
     return {index,learnedStates:learned.machine.access.length,requests:learned.requests,
       experiments:learned.experiments,heldout,strictlyUnseen,
       uniqueTrainingWords:trainingWords.size,sourceDisclosed:false,
-      unauthorizedStatus:unauthenticated.status,elapsedMs:learned.elapsedMs};
+      unauthorizedStatus:unauthenticated.status,elapsedMs:learned.elapsedMs,
+      certifiedWithinBound:sampled?.certifiedWithinBound??false,
+      wMethodTests:sampled?.wMethodTests??0};
   } finally {
     globalThis.fetch=nativeFetch;
     if (server) {
