@@ -23,7 +23,8 @@ async function main(){
   const workStart=process.cpuUsage();
   const value=app.runScenario(seed,records,{emit(){callbacks++;}});
   const worked=process.cpuUsage(workStart);
-  const cpu=/** @param {NodeJS.CpuUsage} usage */usage=>(usage.user+usage.system)/1000;
+  /** @param {NodeJS.CpuUsage} usage @returns {number} */
+  function cpu(usage){return (usage.user+usage.system)/1000;}
   if(callbacks!==recordCount)throw Error('Fresh-process callback count differs');
   console.log(JSON.stringify({
     importMs:cpu(imported),workMs:cpu(worked),
