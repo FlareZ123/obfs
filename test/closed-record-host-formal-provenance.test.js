@@ -388,3 +388,33 @@ test('unrelated rest helper with static primitive expressions retains a real key
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+/**
+ * Unlike rest vectors, a named destructured formal can also receive an
+ * ambient root through an expression whose AST is not an Identifier.
+ * These probes challenge argument-to-formal provenance independently.
+ */
+for(const [name,code] of [
+  ['sequence-wrapped named formal',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire((0,globalThis));"],
+  ['inline array named formal',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire([globalThis][0]);"],
+  ['inline record named formal',
+    "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire(({root:globalThis}).root);"],
+  ['local factory named formal',
+    "function root(){return globalThis;}function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire(root());"],
+  ['container alias named formal',
+    "const roots=[globalThis];function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}rewire(roots[0]);"]
+]) {
+  test('opaque named-formal ambient origin: '+name,async()=>{
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-formal-expression/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
