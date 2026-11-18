@@ -39,6 +39,7 @@ function graph(mutation) {
       "document.getElementById('out').textContent=JSON.stringify(report);"
     ].join('\n')},
     {path:'mutator.mjs',sourceType:'module',code:mutation},
+    {path:'owner.mjs',sourceType:'module',code:'export const Doc=document;'},
     {path:'target.mjs',sourceType:'module',code:
       'export const payload='+JSON.stringify('A'.repeat(2048)+'Z')+';'}
   ];
@@ -162,6 +163,12 @@ async function main() {
       expectEncoded:false},
     {name:'destructuring-assignment-unrelated-Number',
       mutation:'let View;({defaultView:View}=document);View.Number=()=>7;',
+      expectEncoded:true},
+    {name:'imported-document-defaultview-String',
+      mutation:'import {Doc} from "./owner.mjs";Doc.defaultView.String.fromCharCode=()=>"?";',
+      expectEncoded:false},
+    {name:'imported-document-unrelated-Number',
+      mutation:'import {Doc} from "./owner.mjs";Doc.defaultView.Number=()=>7;',
       expectEncoded:true},
     {name:'opaque-reflected-String-constructor-write',
       mutation:"function owner(){return 'u'}const P=Object.getPrototypeOf(owner());const C=Reflect.get(P,'constructor');C.fromCharCode=()=>'?';",
