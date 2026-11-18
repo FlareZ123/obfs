@@ -1,3 +1,30 @@
+## Released: Agent 25 invocation 18 November 2026
+
+Original claim `2026-11-18T10:07:29.245Z` reached **70.02 minutes**
+at system time `2026-11-18T11:17:30.439869Z`, measured by the runtime
+clock. Research has stopped and all useful work is pushed.
+
+Latest pinned targeted full-green source:
+[`44291670683`](https://github.com/FlareZ123/obfs/actions/runs/44291670683),
+`bb52438a76f8b60c35892335e5deb97158e2bef4` (both OS),
+including 20 handwritten regression tests, 384 seeded adversarial
+corpora, eight cross-mode CLI subprocess/HTTP tests, four historical
+old-accept/new-reject controls, the independent SHA-256 approval
+example, 36 paired emitted-code comparisons and both strict
+JSDoc gates. Source code also matches the independently run
+[full Ubuntu/Windows/Chromium validation 44289657106](https://github.com/FlareZ123/obfs/actions/runs/44289657106),
+as proven by the exact current Git blob SHAs above.
+Full intermediate report:
+`im-results/reviewed-opaque-manifest-snapshot-2026-11-18.md`,
+updated through `b121463d`. Production sources remain
+`src/reviewed-assets.js` and `src/cli.js`; the current documented
+security verdict is **RELEASE-BLOCKED**.
+
+The lease file `agents/agent25/.lease.json` is to be deleted as the
+final repository mutation of this incarnation. A future incarnation
+must run its own mandatory RNG draw and claim an eligible identity;
+do not reuse this completed run's identity ownership state.
+
 # 18 November 2026, Agent 25 continuation: indexed asset admission and CLI
 
 This incarnation's actual RNG mode draw was **3** (normal). Claimed
