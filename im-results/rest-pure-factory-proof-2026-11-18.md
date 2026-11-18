@@ -23,7 +23,7 @@ Official JavaScript semantics background: [MDN const declaration](https://develo
 
 ## Validation and limits
 
-**Pinned source status:** the two-platform transformation-semantics workflow validating exact `48a3d92` was dispatched and is pending final status. The full current-main integration must be separately tested before merging.
+**Pinned source green:** [two-platform full transformation semantics run 44205643362](https://github.com/FlareZ123/obfs/actions/runs/44205643362) completed **success on Ubuntu and Windows Node22** at exact compiler SHA `48a3d92dae468cea16ee803203c35e1350e13a56`. The targeted 43 native/generated ESM cases include all three new positive owner-key rewrites, the three negative shadow/mutable/ambient factory controls, the prior 37-case rest/arguments corpus, and the broader semantics, strict JSDoc and sampled profiles. Full current-main integration remains separate.
 
 This is a **protected-work admission/compatibility** improvement. It does not make minification harder to reverse, protect private functions under COO or SNO hostile runtime control, bind a client to a domain against a fully instrumented attacker, or prove universal 2.5× runtime compliance. No security-positive result is claimed.
 
