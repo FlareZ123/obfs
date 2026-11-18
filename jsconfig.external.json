@@ -161,7 +161,9 @@
     "test/property-in-metamorphic.test.js",
     "test/property-in-browser.js",
     "sims/property-in-operator-profile.js",
-    "sims/property-in-operator-static-recover.js"
+    "sims/property-in-operator-static-recover.js",
+    "sims/frozen-four-way-artifacts.js",
+    "test/frozen-four-way-artifacts.test.js"
   ],
   "exclude": [
     "node_modules"
