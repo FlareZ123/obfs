@@ -44,11 +44,14 @@ async function observe(call,inputs,repetitions){
 
 /**
  * @param {number} [rounds]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,cpuScope:string,rows:Workload[],strictCpuBreaches:number,unresolvedCpuPairs:number,strictWallBreaches:number}>}
+ * @param {boolean} [resolutionAmplified] Execute 12,288 authenticated 1k-iteration calls per trial to resolve Windows native CPU quantization.
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,initializationExcluded:boolean,resolutionAmplified:boolean,cpuScope:string,rows:Workload[],strictCpuBreaches:number,unresolvedCpuPairs:number,strictWallBreaches:number}>}
  */
-async function run(rounds=13){
+async function run(rounds=13,resolutionAmplified=false){
   if(!Number.isSafeInteger(rounds)||rounds<9||rounds>100)
     throw new RangeError('Expected 9 through 100 paired SCO observations');
+  if(typeof resolutionAmplified!=='boolean')
+    throw new TypeError('Expected boolean short-work amplification selection');
   const oldWindow=globalThis.window;
   const originalFetch=globalThis.fetch;
   /** @type {Awaited<ReturnType<typeof startServer>>|undefined} */
@@ -70,7 +73,8 @@ async function run(rounds=13){
 
     /** @type {Workload[]} */
     const rows=[];
-    for(const [count,repetitions] of [[1,64],[1000,64],[120000,64]]){
+    const work=resolutionAmplified?[[1000,4096]]:[[1,64],[1000,64],[120000,64]];
+    for(const [count,repetitions] of work){
       const inputs=/** @type {Array<readonly [number,number]>} */ ([
         [0x12345678,count],[0xffffffff,count],[0x9e3779b9,count]
       ]);
@@ -121,7 +125,7 @@ async function run(rounds=13){
     }
     return {
       source:'sims/sco-resident-cpu.js',node:process.version,
-      platform:process.platform,initializationExcluded:true,
+      platform:process.platform,initializationExcluded:true,resolutionAmplified,
       cpuScope:'Whole-process Node CPU includes same-process loopback client and trusted server after startup. CPU observations of zero are marked unresolved due to clock quantization. Wall time includes network waiting. Output parity is checked after JSON serialization, the declared RPC value boundary.',
       rows,
       strictCpuBreaches:rows.reduce((sum,row)=>sum+row.strictCpuOverBudgetPairs,0),
@@ -139,7 +143,7 @@ async function run(rounds=13){
     else globalThis.window=oldWindow;
   }
 }
-if(require.main===module)run().then(result=>
+if(require.main===module)run(13,process.argv.includes('--amplify-short')).then(result=>
   process.stdout.write('SCO_RESIDENT_CPU '+JSON.stringify(result)+'\n')
 ).catch(error=>{
   process.stderr.write(String(error.stack||error)+'\n');
