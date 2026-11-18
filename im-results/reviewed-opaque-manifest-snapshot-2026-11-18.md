@@ -172,6 +172,27 @@ improvement, not a nominated obfuscation-security candidate.
 The release-blocked security assessment in `results/README.md`
 remains unchanged.
 
+## Emitted-byte invariance across the three modes
+
+A later exact-source
+[Ubuntu/Windows manual gate 44291038156](https://github.com/FlareZ123/obfs/actions/runs/44291038156)
+at `cf32a9fe9935a9b829f9afd6a936f5eb75d48947`
+completed **green** on both operating systems. Alongside the full
+focused reviewer/CLI/seeded-fuzz tests and both JSDoc checks, it ran a
+new 36-pair compiler-output differential:
+`test/reviewed-opaque-manifest-snapshot.test.js` compiles a native
+two-file CommonJS worker plus one exact approved CSS asset in COO,
+SNO and SCO, for twelve deterministic seeds each. The comparator
+asserts the `files` source text, bytes, metadata and compiler metrics
+match exactly with and without the optional approved manifest.
+
+This establishes **zero extra emitted runtime instructions or changed
+runtime bytes** in these 36 paired compiler examples, by direct
+byte comparison. The validation does extra SHA-256 and inventory work
+at compile or SCO server setup time. It does not establish a general
+2.5× bound on obfuscated work, short sessions or end-to-end SCO RPC.
+The full results decision index remains release-blocked.
+
 ## Interpretation and limits
 
 This establishes a narrower, reproducible **trusted-build admission**
