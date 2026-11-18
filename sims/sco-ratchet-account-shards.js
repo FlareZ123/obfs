@@ -118,13 +118,17 @@ async function sample(accountShards){
     const firstBatches=Array.from({length:3},(_,trial)=>
       [challenge('B-'+trial,0),challenge('B-'+trial,1)]);
     const bExpected=native(root,'verified-B',0,firstBatches.flat());
+    const originalB=createPrivateMachine(root);
     /** @type {{trial:number,bWallMs:number,nativeWallMs:number,latencyRatio:number}[]} */
     const timings=[];
     for(let trial=0;trial<firstBatches.length;trial++){
       const expected=bExpected.slice(trial*2,trial*2+2);
       const nativeStart=performance.now();
-      const nativeBatch=native(root,'verified-B',0,
-        firstBatches.slice(0,trial+1).flat()).slice(trial*2);
+      const nativeBatch=firstBatches[trial].map((value,index)=>{
+        const output=originalB.advance('verified-B',trial*2+index,value);
+        assert.equal(typeof output,'string');
+        return /** @type {string} */(output);
+      });
       const nativeWallMs=performance.now()-nativeStart;
       assert.deepEqual(nativeBatch,expected);
       const held=await fetch(holder.base+'/__test__/hold',{
