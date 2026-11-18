@@ -47,7 +47,7 @@ function canonicalAllowedHosts(hosts) {
  * @returns {string|null}
  */
 function routingHostname(header) {
-  if(!header.startsWith('['))return header.split(':',1)[0].toLowerCase();
+  if(!header.startsWith('['))return header.split(':')[0].toLowerCase();
   const closing=header.indexOf(']');
   if(closing<2 || !/^(?::[0-9]+)?$/u.test(header.slice(closing+1)))return null;
   try {
