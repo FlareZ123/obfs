@@ -135,6 +135,9 @@ function proveSourceObserverIslands(files,selections) {
     'setTimeout','setInterval',
     'GeneratorFunction','AsyncGeneratorFunction','Worker','SharedWorker',
     'importScripts','fetch','XMLHttpRequest','FileReader','Request','Response',
+    // CacheStorage exposes fetched module bytes without an explicit fetch().
+    // Cache.add() performs a request, then Cache.match().text() reveals it.
+    'caches','CacheStorage',
     'URL','Blob','WebSocket','readFile','readFileSync','createRequire',
     'getBuiltinModule'
   ]);
