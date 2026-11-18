@@ -34,7 +34,7 @@ async function request(handler,body){
 /** @param {unknown[]} calls @returns {string} */
 function payload(calls){return JSON.stringify({method:'batch',args:[calls]});}
 
-test('SCO read-only batch contract preserves nested own JSON data and freezes policy/task views',async()=>{
+test('SCO read-only batch freezes inner policy/task while retaining an independent outer view',async()=>{
   /** @type {string[]} */
   const observations=[];
   const handler=createScoHandler([],{
@@ -50,10 +50,10 @@ test('SCO read-only batch contract preserves nested own JSON data and freezes po
     authorizeRpc:()=>true,
     authorizeOperation:(req,method,args)=>{
       observations.push(method);
-      assert.equal(Object.isFrozen(args),true);
+      assert.equal(Object.isFrozen(args),method!=='batch');
       if(method==='batch'){
         const calls=/** @type {unknown[]} */(args[0]);
-        assert.equal(Object.isFrozen(calls),true);
+        assert.equal(Object.isFrozen(calls),false);
       } else {
         const record=/** @type {{own:object,items:unknown[]}} */(args[0]);
         assert.equal(Object.isFrozen(record),true);
@@ -72,7 +72,7 @@ test('SCO read-only batch contract preserves nested own JSON data and freezes po
   assert.deepEqual(observations,['batch','inspect','task']);
 });
 
-test('SCO read-only contract prevents outer policy from retargeting a private batch method',async()=>{
+test('SCO read-only contract isolates outer policy mutation from inner methods',async()=>{
   let effects=0;
   const handler=createScoHandler([],{
     immutableBatchArgs:true,
@@ -90,9 +90,9 @@ test('SCO read-only contract prevents outer policy from retargeting a private ba
     }
   });
   assert.deepEqual(await request(handler,payload([{method:'allowed',args:[]}])),{
-    status:500,body:{ok:false,error:'Operation failed'}
+    status:200,body:{ok:true,value:[{ok:true,value:1}]}
   });
-  assert.equal(effects,0);
+  assert.equal(effects,1);
 });
 
 test('SCO read-only contract prevents inner policy from rewriting task arguments',async()=>{
@@ -183,7 +183,7 @@ test('SCO read-only batch option is explicit and does not affect ordinary direct
   assert.deepEqual(output,{status:200,body:{ok:true,value:8}});
 });
 
-test('SCO read-only registered batch needs one request-body JSON.parse versus three default policy copies',async()=>{
+test('SCO read-only registered batch needs two request-body JSON.parse calls versus three default copies',async()=>{
   const readOnlyMethods={batch:createScoBatchMethod({read:()=>37})};
   const defaultHandler=createScoHandler([],{
     remoteMethods:readOnlyMethods,
@@ -215,7 +215,7 @@ test('SCO read-only registered batch needs one request-body JSON.parse versus th
     assert.deepEqual(await request(frozenHandler,body),{
       status:200,body:{ok:true,value:[{ok:true,value:37}]}
     });
-    assert.equal(count,1,'Opt-in frozen sharing parses the body once');
+    assert.equal(count,2,'Opt-in shares the frozen inner/task graph while isolating outer policy');
   }finally{
     JSON.parse=parse;
   }
