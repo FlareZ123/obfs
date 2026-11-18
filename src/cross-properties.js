@@ -2508,8 +2508,8 @@ function renameCrossFileProperties(files,seed) {
   // single-use factory result, has no local owner binding to escape in its producer.
   // inside its producer. Closed-world direct default imports can therefore use
   // the same consumer ownership proof as named exported objects. Namespace
-  // imports and source reexports are declined because they create additional
-  // access paths to the default value that this narrow lane does not rewrite.
+  // imports and reexports that can expose the default binding are declined
+  // because they create access paths that this narrow lane does not rewrite.
   for(const [exporterName,exporter] of modules) {
     const defaults=exporter.ast.body.filter((/** @type {AstNode} */ statement)=>
       statement.type==='ExportDefaultDeclaration');
@@ -2598,10 +2598,24 @@ function renameCrossFileProperties(files,seed) {
           }
         }
         if(origin!==exporterName)continue;
-        if(statement.type==='ExportAllDeclaration' ||
-           statement.type==='ExportNamedDeclaration') {
-          failed=true;
-          break;
+        if(statement.type==='ExportAllDeclaration') {
+          // Plain export-star excludes the default binding by specification.
+          // Namespace reexport (export * as ns) exposes ns.default.
+          if(statement.exported) {
+            failed=true;
+            break;
+          }
+          continue;
+        }
+        if(statement.type==='ExportNamedDeclaration') {
+          const exposesDefault=statement.specifiers.some(
+            (/** @type {AstNode} */ spec)=>spec.type==='ExportSpecifier' &&
+              (spec.local.name??spec.local.value)==='default');
+          if(exposesDefault) {
+            failed=true;
+            break;
+          }
+          continue;
         }
         if(statement.type!=='ImportDeclaration')continue;
         for(const spec of statement.specifiers) {
