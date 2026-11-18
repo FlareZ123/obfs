@@ -89,6 +89,10 @@ function encodeStrings(source, ast, options) {
         node.value.length < minimumLength || !parent) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;
     if (hasEagerDependencies && ancestors.some(ancestor => ancestor.type === 'FunctionDeclaration')) return;
+    // A non-strict with environment may supply the newly generated helper
+    // binding dynamically. Even an otherwise inert string read inside its
+    // body can resolve to a hostile property instead of our decoder table.
+    if (ancestors.some(ancestor => ancestor.type === 'WithStatement')) return;
     if ((parent.type === 'Property' || parent.type === 'MethodDefinition' ||
          parent.type === 'PropertyDefinition') && key === 'key' && !parent.computed) return;
     // A quoted name in an ESM import/export specifier is a grammar token,
