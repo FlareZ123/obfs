@@ -334,14 +334,18 @@ function createScoHandler(sourceFiles,options={}) {
   // no static private dependency audit could discover. Build the allowlist
   // from independently reviewed public entrypoints and assets, not from
   // whatever sourceFiles happened to be supplied to this handler.
+  // A positive publication allowlist is authoritative at first read.
+  // Copy indexed entries once so subsequent caller getters, custom array
+  // iterators or changing element getters cannot expand its permissions.
+  const declaredPublicPaths=options.publicPaths;
   /** @type {Set<string>|null} */
-  const publicAllowlist=options.publicPaths===undefined?null:new Set();
+  const publicAllowlist=declaredPublicPaths===undefined?null:new Set();
   if(publicAllowlist){
-    if(!Array.isArray(options.publicPaths)){
+    if(!Array.isArray(declaredPublicPaths)){
       throw new TypeError('SCO publicPaths must be an array');
     }
     const seenPublic=new Set();
-    for(const item of options.publicPaths){
+    for(const item of snapshotMetadataEntries(declaredPublicPaths)){
       const filename=safePath(item);
       if(seenPublic.has(filename.toLowerCase())){
         throw new TypeError('Duplicate SCO publicPaths entry: '+filename);
