@@ -24,7 +24,7 @@ jobs:
       - name: Verify source-island native/generated regression and positive control
         run: node --test test/source-observer-islands.test.js test/source-observer-islands-host-argument.test.js test/source-observer-islands-reflection-gate.test.js test/cross-file-source-byte-reader.test.js
       - name: Native interprocedural helper ownership and ESM differential
-        run: node --test test/function-declaration-reader-proof.test.js
+        run: node --test test/function-declaration-reader-proof.test.js test/exported-reader-external-contract.test.js
       - name: Independent ESM host invokes exported immutable reader with foreign record
         run: node sims/exported-reader-host-argument-attack.js --expect-guarded
       - name: Post-initialization strict paired hot CPU for newly admitted helper
