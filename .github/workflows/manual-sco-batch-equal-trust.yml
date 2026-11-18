@@ -27,3 +27,8 @@ jobs:
         run: npm run typecheck:external
       - name: Compare one-trace authenticated relay against both served facades
         run: node sims/sco-batch-equal-trust-attacker.js
+      - name: Exercise actual hostile Chromium under HttpOnly cookie and CSP
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/sco-batch-equal-trust-attacker.js --browser
