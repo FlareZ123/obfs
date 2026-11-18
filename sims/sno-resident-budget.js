@@ -129,7 +129,7 @@ async function closeResident(worker){
  *
  * @param {number} [rounds]
  * @param {boolean} [compact]
- * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,compact:boolean,initializationExcluded:boolean,rows:ResidentRow[],leafRows:ResidentRow[]}>}
+ * @returns {Promise<{source:string,node:string,platform:NodeJS.Platform,compact:boolean,initializationExcluded:boolean,rows:ResidentRow[],leafRows:ResidentRow[],strictCpuBreaches:number,strictWallBreaches:number,cpuSampleVerdict:'sample-breached'|'sample-unbreached',medianCpuPopulationsSupported:boolean}>}
  */
 async function run(rounds=13,compact=false){
   if(!Number.isSafeInteger(rounds)||rounds<5||rounds>100)
@@ -244,8 +244,18 @@ async function run(rounds=13,compact=false){
         allOutputsEquivalent:true
       });
     }
+    const populations=[...rows,...leafRows];
+    const strictCpuBreaches=populations.reduce(
+      (count,row)=>count+row.strictCpuOverBudgetPairs,0);
+    const strictWallBreaches=populations.reduce(
+      (count,row)=>count+row.strictOverBudgetPairs,0);
+    const medianCpuPopulationsSupported=populations.every(
+      row=>row.cpuBudget.decision==='supported');
     return {source:'sims/sno-resident-budget.js',node:process.version,
-      platform:process.platform,compact,initializationExcluded:true,rows,leafRows};
+      platform:process.platform,compact,initializationExcluded:true,rows,leafRows,
+      strictCpuBreaches,strictWallBreaches,
+      cpuSampleVerdict:strictCpuBreaches?'sample-breached':'sample-unbreached',
+      medianCpuPopulationsSupported};
   }finally{
     await Promise.allSettled(workers.map(closeResident));
     await fs.rm(root,{recursive:true,force:true});
