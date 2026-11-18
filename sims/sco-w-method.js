@@ -17,7 +17,7 @@ function shortestSeparator(machine,initialLeft,initialRight) {
     const {left,right,word}=queue[index];
     for(let symbol=0;symbol<machine.next[left].length;symbol++){
       const candidate=[...word,symbol];
-      if(machine.output[left][symbol]!==machine.output[right][symbol])return candidate;
+      if(!Object.is(machine.output[left][symbol],machine.output[right][symbol]))return candidate;
       const a=machine.next[left][symbol],b=machine.next[right][symbol];
       const pair=a+':'+b;
       if(!visited.has(pair)){
@@ -125,7 +125,9 @@ async function testWMethod(hypothesis,maxStates,query,maxWords=50000){
           extensionDepth:maxStates-m,characterizers:identifiers.length};
         visited.add(key);tests++;
         const observed=await query(word);
-        if(JSON.stringify(observed)!==JSON.stringify(predict(word))){
+        const expected=predict(word);
+        if(!Array.isArray(observed)||observed.length!==expected.length ||
+           !observed.every((value,index)=>Object.is(value,expected[index]))){
           return {passed:false,exhaustive:false,tests,counterexample:word,
             hypothesisStates:m,extensionDepth:maxStates-m,
             characterizers:identifiers.length};
