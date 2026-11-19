@@ -2410,9 +2410,10 @@ function renameCrossFileProperties(files,seed) {
               const availableReaders=origin?readerExportsByFile.get(origin):null;
               if(availableReaders) {
                 for(const spec of statement.specifiers) {
-                  if(spec.type!=='ImportSpecifier'||
+                  if(!['ImportSpecifier','ImportDefaultSpecifier'].includes(spec.type)||
                      importer.bindings.get(spec.local.name)!==1)continue;
-                  const exposedName=spec.imported.name??spec.imported.value;
+                  const exposedName=spec.type==='ImportDefaultSpecifier' ? 'default' :
+                    spec.imported.name??spec.imported.value;
                   const original=availableReaders.get(exposedName);
                   if(original!==undefined)readerAliases.set(spec.local.name,original);
                 }
@@ -2476,7 +2477,8 @@ function renameCrossFileProperties(files,seed) {
             let unsafeReaderUse=false;
             walk(importer.ast,(node,parent,key)=>{
               if(node.type!=='Identifier'||!readerAliases.has(node.name))return;
-              if(parent?.type==='ImportSpecifier')return;
+              if(parent?.type==='ImportSpecifier'||
+                 parent?.type==='ImportDefaultSpecifier')return;
               const exportedReader=readerAliases.get(node.name);
               const readInfo=exportedReader ? readers.get(exportedReader) : null;
               const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
