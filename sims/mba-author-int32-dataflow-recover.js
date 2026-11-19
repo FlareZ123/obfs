@@ -6,7 +6,7 @@ const {parse, walk} = require('../src/ast');
 
 /**
  * @typedef {object} Symbolic
- * @property {'const'|'input'|'imul'|'xor'|'ushr'|'shl'|'or'|'builtin'} kind
+ * @property {'const'|'input'|'imul'|'xor'|'ushr'|'shl'|'or'|'builtin'|'array'} kind
  * @property {number} [value]
  * @property {number} [index]
  * @property {string} [name]
@@ -15,6 +15,7 @@ const {parse, walk} = require('../src/ast');
  * @property {Symbolic} [right]
  * @property {Symbolic} [base]
  * @property {number} [shift]
+ * @property {Symbolic[]} [elements]
  */
 
 /**
@@ -40,6 +41,9 @@ function symbolicKey(expression) {
   if (expression.kind === 'const') return 'c:' + String(expression.value >>> 0);
   if (expression.kind === 'input') return 'i:' + String(expression.index);
   if (expression.kind === 'builtin') return 'b:' + String(expression.name);
+  if (expression.kind === 'array') {
+    return 'a:[' + (expression.elements ?? []).map(symbolicKey).join(',') + ']';
+  }
   if (expression.kind === 'ushr' || expression.kind === 'shl') {
     return expression.kind + ':' + String(expression.shift) + ':' +
       symbolicKey(/** @type {Symbolic} */ (expression.base));
@@ -185,6 +189,34 @@ function build(node, environment, helpers, depth = 0) {
 
   if (node.type === 'Identifier') return environment.get(node.name) ?? null;
 
+  if (node.type === 'ArrayExpression') {
+    /** @type {Symbolic[]} */
+    const elements = [];
+    for (const element of node.elements) {
+      if (!element || element.type === 'SpreadElement') return null;
+      const value = build(element, environment, helpers, depth + 1);
+      if (!value) return null;
+      elements.push(value);
+    }
+    return {kind: 'array', elements};
+  }
+
+  if (node.type === 'MemberExpression') {
+    const object = build(node.object, environment, helpers, depth + 1);
+    if (object?.kind === 'array') {
+      if (!node.computed && node.property.type === 'Identifier' &&
+          node.property.name === 'length') {
+        return constant((object.elements ?? []).length);
+      }
+      if (node.computed) {
+        const property = build(node.property, environment, helpers, depth + 1);
+        if (property?.kind !== 'const') return null;
+        const index = property.value ?? 0;
+        return object.elements?.[index] ?? null;
+      }
+    }
+  }
+
   if (node.type === 'MemberExpression' && !node.computed &&
       node.object.type === 'Identifier' && node.object.name === 'Math' &&
       node.property.type === 'Identifier' && node.property.name === 'imul') {
@@ -294,6 +326,113 @@ function evaluate(node, environment, helpers) {
 }
 
 /**
+ * @param {AstNode} statement
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeStatement(statement, environment, helpers) {
+  if (statement.type === 'BlockStatement') {
+    for (const child of statement.body) {
+      if (!executeStatement(child, environment, helpers)) return false;
+    }
+    return true;
+  }
+
+  if (statement.type === 'VariableDeclaration') {
+    for (const declaration of statement.declarations) {
+      if (declaration.id.type !== 'Identifier' || !declaration.init) return false;
+      const value = evaluate(declaration.init, environment, helpers);
+      if (!value) return false;
+      environment.set(declaration.id.name, value);
+    }
+    return true;
+  }
+
+  if (statement.type === 'ExpressionStatement') {
+    if (typeof statement.expression.value === 'string') return true;
+    return evaluate(statement.expression, environment, helpers) !== null;
+  }
+
+  return false;
+}
+
+/**
+ * @param {AstNode} test
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean|null}
+ */
+function evaluateLoopTest(test, environment, helpers) {
+  if (test.type !== 'BinaryExpression' ||
+      !['<', '<=', '>', '>='].includes(test.operator)) return null;
+  const left = build(test.left, environment, helpers);
+  const right = build(test.right, environment, helpers);
+  if (left?.kind !== 'const' || right?.kind !== 'const') return null;
+  const a = left.value ?? 0;
+  const b = right.value ?? 0;
+  if (test.operator === '<') return a < b;
+  if (test.operator === '<=') return a <= b;
+  if (test.operator === '>') return a > b;
+  return a >= b;
+}
+
+/**
+ * @param {AstNode} update
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeLoopUpdate(update, environment, helpers) {
+  if (update.type === 'UpdateExpression' && update.argument.type === 'Identifier' &&
+      ['++', '--'].includes(update.operator)) {
+    const current = environment.get(update.argument.name);
+    if (current?.kind !== 'const') return false;
+    const delta = update.operator === '++' ? 1 : -1;
+    environment.set(update.argument.name, constant((current.value ?? 0) + delta));
+    return true;
+  }
+
+  if (update.type === 'AssignmentExpression' && update.left.type === 'Identifier' &&
+      ['+=', '-='].includes(update.operator)) {
+    const current = environment.get(update.left.name);
+    const amount = build(update.right, environment, helpers);
+    if (current?.kind !== 'const' || amount?.kind !== 'const') return false;
+    const delta = update.operator === '+=' ? (amount.value ?? 0) : -(amount.value ?? 0);
+    environment.set(update.left.name, constant((current.value ?? 0) + delta));
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * @param {AstNode} loop
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeForLoop(loop, environment, helpers) {
+  if (loop.type !== 'ForStatement' || !loop.init || !loop.test || !loop.update) return false;
+
+  if (loop.init.type === 'VariableDeclaration') {
+    if (!executeStatement(loop.init, environment, helpers)) return false;
+  } else if (evaluate(loop.init, environment, helpers) === null) {
+    return false;
+  }
+
+  for (let iteration = 0; iteration < 64; iteration++) {
+    const condition = evaluateLoopTest(loop.test, environment, helpers);
+    if (condition === null) return false;
+    if (!condition) return true;
+    if (!executeStatement(loop.body, environment, helpers)) return false;
+    if (!executeLoopUpdate(loop.update, environment, helpers)) return false;
+  }
+
+  return false;
+}
+
+/**
  * @param {AstNode} functionNode
  * @param {Map<string,Helper>} helpers
  * @returns {{expression:Symbolic,target:number}|null}
@@ -312,19 +451,14 @@ function symbolicPredicate(functionNode, helpers) {
   }
 
   for (const statement of functionNode.body.body) {
-    if (statement.type === 'VariableDeclaration') {
-      for (const declaration of statement.declarations) {
-        if (declaration.id.type !== 'Identifier' || !declaration.init) return null;
-        const value = evaluate(declaration.init, environment, helpers);
-        if (!value) return null;
-        environment.set(declaration.id.name, value);
-      }
+    if (statement.type === 'VariableDeclaration' ||
+        statement.type === 'ExpressionStatement') {
+      if (!executeStatement(statement, environment, helpers)) return null;
       continue;
     }
 
-    if (statement.type === 'ExpressionStatement') {
-      if (typeof statement.expression.value === 'string') continue;
-      if (!evaluate(statement.expression, environment, helpers)) return null;
+    if (statement.type === 'ForStatement') {
+      if (!executeForLoop(statement, environment, helpers)) return null;
       continue;
     }
 
