@@ -167,13 +167,15 @@ function profileRotation(rotation, count, trials) {
     ratioOfMedians: median(protectedSamples) / median(native),
     strictBreaches: ratios.filter(ratio => ratio > 2.5).length,
     maxPairRatio: Math.max(...ratios),
-    pairRatios: ratios
+    pairRatios: ratios,
+    nativeSamplesMicrosPerCall: native,
+    protectedSamplesMicrosPerCall: protectedSamples
   };
 }
 
 /** @returns {{count:number,trials:number,records:Array<Record<string,unknown>>}} */
 function profileRuntime() {
-  const count = 5000000;
+  const count = 25000000;
   const trials = 7;
   const rotations = [1, 2, 3, 4, 5, 8, 11, 16, 23, 31];
   return {count, trials, records: rotations.map(rotation => profileRotation(rotation, count, trials))};
