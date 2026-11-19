@@ -51,9 +51,9 @@ The pilot wraps a small native Int32 kernel and measures seven alternating CPU p
 | Context v3 | 1.43435x | 0/7 | 1.54966x |
 | Context v4 | 1.45839x | 0/7 | 1.57993x |
 | Context v5 | 1.43654x | 0/7 | 1.65608x |
-| Context v0 + Newton nonlinear envelope | 3.34406x | **7/7** | 3.60545x |
+| Context v0 + Newton nonlinear envelope | 3.06492x | **7/7** | 3.24952x |
 
-The nonlinear-envelope row is deliberately a lower-bound screen, using one documented `XorAdd` factor construction, an odd key made with `| 1`, and the implementation's Newton-style modular inverse. Other external variants can change constants and instruction scheduling, so these numbers do not measure every A²MBA configuration. The sampled direct port already fails every strict pair locally, which is enough to deprioritize that direct envelope design until a materially cheaper formulation is proposed.
+The nonlinear-envelope row uses one documented `XorAdd` factor construction, an odd key made with `| 1`, and the implementation's faster two-bit Newton seed (`2 - key`), which removes one refinement relative to the one-bit seed. Other external variants can change constants and instruction scheduling, so these numbers do not measure every A²MBA configuration. The sampled direct port already fails every strict pair locally, which is enough to deprioritize that direct envelope design until a materially cheaper formulation is proposed.
 
 ## Decision
 
