@@ -231,7 +231,8 @@ function normalizePublicFields(files,options={}) {
             node.arguments[0]?.type!=='Identifier'||
             node.arguments[1]?.type!=='Literal'||
             typeof node.arguments[1].value!=='string'||
-            node.arguments.some(argument=>argument.type==='SpreadElement'))return;
+            node.arguments.some(
+              (/** @type {{type:string}} */ argument)=>argument.type==='SpreadElement'))return;
         const host=node.callee.object.name;
         const method=node.callee.property.name;
         const supported=host==='Reflect' &&
