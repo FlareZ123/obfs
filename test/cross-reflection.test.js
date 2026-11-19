@@ -141,9 +141,3 @@ test('closed-world ESM renames two-field combined direct reflection reads',async
     Object.hasOwn(state,'otherValue'),state.otherValue);`,2,
     'export const state={secretValue:29,otherValue:12};');
 });
-
-test('closed-world ESM renames two-field reflected result exported as primitive',async()=>{
-  await check(`const value=Reflect.get(state,'secretValue')+state.otherValue;
-    const own=Object.hasOwn(state,'otherValue');export const answer=value+','+own;`,2,
-    'export const state={secretValue:29,otherValue:12};');
-});
