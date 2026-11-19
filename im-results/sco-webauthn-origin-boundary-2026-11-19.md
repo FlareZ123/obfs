@@ -33,8 +33,9 @@ convention supplies `CHROMIUM_BIN=google-chrome` as a PATH command. Commit
 `db279c7...` resolves that command from `PATH`; it makes no change to the
 WebAuthn ceremony or security assertions.
 
-The Linux job of run 44427336036 completed successfully with real headless
-Google Chrome. The Windows job does not execute the browser step.
+Run 44427336036 completed successfully on both Ubuntu and Windows. The real
+headless Google Chrome WebAuthn step runs on Ubuntu; Windows executes the
+shared SCO ratchet and JSDoc lanes while skipping browser-specific steps.
 
 ## Construction
 
