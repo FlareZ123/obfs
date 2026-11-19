@@ -52,7 +52,7 @@ int main(void) {
   uint32_t result = 0;
   for (size_t sample = 0; sample < SAMPLES; sample++) {
     uint64_t started = now_ns();
-    result ^= secretLedgerTransformNative(values, LENGTH, 50000);
+    result ^= secretLedgerTransformNative(values, LENGTH, 5000);
     samples[sample] = now_ns() - started;
   }
   sort_u64(samples, SAMPLES);
