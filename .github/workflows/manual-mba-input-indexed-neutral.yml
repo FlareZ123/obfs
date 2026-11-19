@@ -1,0 +1,22 @@
+name: Manual MBA input-indexed neutral
+
+on:
+  workflow_dispatch:
+
+jobs:
+  neutral:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-package-lock --ignore-scripts
+      - name: Recover module-scoped input-indexed neutral calibration
+        run: node --test test/mba-author-int32-input-indexed-neutral.test.js
+      - name: External research tool JSDoc
+        run: npm run typecheck:external
