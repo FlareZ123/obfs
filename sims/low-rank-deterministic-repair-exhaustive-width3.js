@@ -195,6 +195,25 @@ function applyLinear(columns, input) {
   return output;
 }
 
+/**
+ * @param {number[]} permutation
+ * @returns {number}
+ */
+function secondDifferenceRank(permutation) {
+  const differences = [];
+  for (let a = 0; a < SIZE; a += 1) {
+    for (let b = 0; b < SIZE; b += 1) {
+      differences.push(
+        permutation[0]
+        ^ permutation[a]
+        ^ permutation[b]
+        ^ permutation[a ^ b],
+      );
+    }
+  }
+  return vectorRank(differences);
+}
+
 /** @param {number[]} vectors @returns {number} */
 function vectorRank(vectors) {
   const pivots = Array(WIDTH).fill(0);
@@ -219,6 +238,7 @@ function main() {
   let targets = 0;
   let exact = 0;
   let singularModels = 0;
+  let secondDifferenceChecks = 0;
   let maxQueries = 0;
   let maxRepairs = 0;
   let maxExpansions = 0;
@@ -241,6 +261,8 @@ function main() {
         (_, input) => permutation[input] ^ base ^ applyLinear(columns, input),
       );
       const residualRank = vectorRank(residuals);
+      assert.equal(secondDifferenceRank(permutation), residualRank);
+      secondDifferenceChecks += 1;
       const nullity = WIDTH - solver.rank;
       assert.ok(nullity <= residualRank);
       if (nullity > 0) singularModels += 1;
@@ -267,6 +289,7 @@ function main() {
     width: WIDTH,
     permutations,
     initiallySingularModels: singularModels,
+    secondDifferenceChecks,
     targetRecoveries: `${exact}/${targets}`,
     maxObservedDistinctQueries: maxQueries,
     maxRepairs,
