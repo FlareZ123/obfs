@@ -88,6 +88,27 @@ because the only two changed inputs lie in the untouched pair. The certifier the
 
 Thus at least (2^(n-1)) distinct oracle input evaluations are necessary in the worst case.
 
+## Exact separation from target inversion under the same side information
+
+The certification bound should be interpreted as a property-testing boundary rather than as evidence of inversion hardness. In fact, the same sparse family has a one-query target inverter when given the same `A` and `u` side information already granted to the certifier.
+
+For a published target `y`, compute
+
+```text
+x0 = A^-1(y).
+```
+
+Evaluate the oracle once at `x0`.
+
+- If `F_t(x0) = y`, then `x0` is the target preimage.
+- Otherwise `x0` lies in the exceptional pair, and the target preimage is `x0 XOR u`.
+
+The second case follows because the exceptional set is exactly one coset `{a, a XOR u}`, and the defective map swaps the two baseline outputs on that pair.
+
+The width-8 reproducer exhaustively checks all 128 sparse candidates and all 256 targets per candidate, for 32,768 exact recoveries with at most one oracle evaluation after the known-baseline inverse is computed.
+
+This gives an explicit separation inside one family: exact global certification requires at least `2^(n-1)` queried inputs, while target inversion under the same side information requires one oracle check.
+
 ## Relation to the sampled CEGAR sandwich attack
 
 The existing empirical attack in
@@ -110,7 +131,22 @@ Then
 <m,F_t(x)> = <m,A x> XOR 1_[x in E_t].
 ```
 
-The component is affine everywhere except at exactly two hidden inputs. Any global exact certification rule based only on oracle evaluations must eventually touch the hidden pair to distinguish it from the affine baseline. Random fresh checks can make error unlikely under a distributional assumption, while they cannot provide a worst-case exact certificate for arbitrary compatible permutations with polynomially many evaluations.
+The component is affine everywhere except at exactly two hidden inputs. Any global exact certification rule based only on oracle evaluations must eventually touch the hidden pair to distinguish it from the affine baseline. For the two-point scalar defect `h = 1_E` with `0` outside `E`, the random second-derivative test used by this style of learner has an exact miss scale. For uniformly random `x,v` over an `n`-bit domain,
+
+```text
+h(x) XOR h(x XOR v) XOR h(0) XOR h(v)
+```
+
+is nonzero on exactly `6*2^n - 24` of the `2^(2n)` ordered pairs. The probability of one random check seeing the defect is therefore
+
+```text
+p_n = (6*2^n - 24) / 2^(2n).
+```
+
+The count follows by inclusion-exclusion over the three two-point events `x in E`, `x XOR v in E`, and `v in E`: each contains `2*2^n` ordered pairs, each pairwise intersection contains four, and the triple intersection is empty when `0` is outside the two-point support.
+
+At width 32, `p_32` is about `1.3969838606e-9`. Even 128 independent fresh checks detect the defect with probability only about `1.7881391830e-7`, leaving miss probability about `0.999999821186`. Random fresh checks can make error unlikely only under a stronger defect-density assumption; arbitrary compatible permutations admit this exponentially sparse case.
+
 
 This rules out a direct upgrade from sampled CEGAR to an exact polynomial-query theorem through global random defect testing alone. A stronger exact two-sided inversion theorem would need a target-guided argument, an additional structural promise on (P), or another invariant that avoids global affine-component certification.
 
