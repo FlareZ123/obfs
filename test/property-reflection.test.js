@@ -135,3 +135,17 @@ test('Reflect.set value spread stays outside local proof because it can supply r
     module.exports=[ok,a.secretField,receiver.secretField];`,0);
 });
 
+test('constructor-recovered Object mutation keeps local direct reflection disabled',()=>{
+  compare(`'use strict';const O=({}).constructor;const native=O.hasOwn;
+    O.hasOwn=(owner,key)=>key==="secretField"&&native(owner,key);
+    const a={secretField:23};
+    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,0);
+});
+
+test('dynamic compiler mutation keeps local direct reflection disabled',()=>{
+  compare(`'use strict';
+    Function("const native=Reflect.get;Reflect.get=(owner,key)=>key==='secretField'?native(owner,key):91")();
+    const a={secretField:24};
+    module.exports=[Reflect.get(a,"secretField"),a.secretField];`,0);
+});
+
