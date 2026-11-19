@@ -50,17 +50,18 @@ const output=obfuscateFiles([{
   strings:false,
   identifiers:false
 }).files[0];
+const emitted=String(output.code);
 
-assert.ok(output.metrics.properties>0,output.code);
+assert.ok(output.metrics.properties>0,emitted);
 
 const safeInput={missingField:1};
 const nativeSafe=run(source,safeInput);
-const emittedSafe=run(output.code,safeInput);
+const emittedSafe=run(emitted,safeInput);
 assert.equal(nativeSafe.status,0,nativeSafe.stderr);
 assert.deepEqual(emittedSafe,nativeSafe,output.code);
 
 const nativeFailure=run(source,null);
-const emittedFailure=run(output.code,null);
+const emittedFailure=run(emitted,null);
 assert.notEqual(nativeFailure.status,0);
 assert.equal(emittedFailure.status,nativeFailure.status);
 assert.notEqual(emittedFailure.stderr,nativeFailure.stderr,
