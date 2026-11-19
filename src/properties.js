@@ -354,9 +354,10 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedConstantKeys] Proven, unique named-import string values initialized before their exported owner.
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
- * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],forwardedCalls:Set<AstNode>}|null}
+ * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
+ * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],reflections:{key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
-function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set()) {
+function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
@@ -717,6 +718,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const patterns = [];
   /** @type {AstNode[]} */
   const inChecks = [];
+  /** @type {{key:AstNode,property:string}[]} */
+  const reflections = [];
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
   for (const {node,parent,key,ancestors} of aliasUses) {
@@ -781,6 +784,20 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
           ownPropertyName(p) === null || !isSimplePatternBinding(p.value))) return null;
       patterns.push(...fields);
       continue;
+    }
+    if (allowDirectReflection && parent.type==='CallExpression' && key==='arguments' &&
+        parent.arguments[0]===node && parent.arguments.length===2 &&
+        parent.arguments[1]?.type==='Literal' &&
+        typeof parent.arguments[1].value==='string' &&
+        parent.callee.type==='MemberExpression' && !parent.callee.computed &&
+        parent.callee.object.type==='Identifier') {
+      const host=parent.callee.object.name;
+      const method=staticName(parent.callee.property);
+      if(host==='Reflect' && method==='get' ||
+         host==='Object' && method==='hasOwn') {
+        reflections.push({key:parent.arguments[1],property:parent.arguments[1].value});
+        continue;
+      }
     }
     if (parent.type === 'CallExpression' && key === 'arguments' && parent.callee.type === 'Identifier') {
       const fn = functions.get(parent.callee.name);
@@ -919,7 +936,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(resolves(call))forwardedCalls.add(call);
     }
   }
-  return {aliases,members,memberNames,patterns,inChecks,forwardedCalls};
+  return {aliases,members,memberNames,patterns,inChecks,reflections,forwardedCalls};
 }
 
 /**
