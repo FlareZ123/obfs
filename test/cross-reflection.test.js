@@ -172,3 +172,24 @@ test('closed-world ESM refuses Proxy-wrapped owner in direct Reflect.has',async(
   });console.log(Reflect.has(proxy,'secretField'),state.secretField);`,0);
 });
 
+test('closed-world ESM can rename a direct three-argument Reflect.set',async()=>{
+  await check(`const ok=Reflect.set(state,'secretField',67);
+    console.log(ok,state.secretField);`,1);
+});
+
+test('closed-world ESM refuses Reflect.set with an explicit receiver',async()=>{
+  await check(`const receiver={};const ok=Reflect.set(state,'secretField',68,receiver);
+    console.log(ok,state.secretField,receiver.secretField);`,0);
+});
+
+test('closed-world ESM refuses patched Reflect.set before direct owner mutation',async()=>{
+  await check(`const native=Reflect.set;
+    Reflect.set=(owner,key,value)=>native(owner,key,value);
+    Reflect.set(state,'secretField',69);console.log(state.secretField);`,0);
+});
+
+test('closed-world ESM refuses owner self-assignment through Reflect.set',async()=>{
+  await check(`Reflect.set(state,'secretField',state);
+    console.log(state.secretField===state);`,0);
+});
+
