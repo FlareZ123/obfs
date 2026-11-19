@@ -55,34 +55,38 @@ function parity(value) {
   return bit;
 }
 
+/** @param {number} trigger */
+function verifyCompatibility(trigger) {
+  for (let k = 0; k <= WIDTH; k += 1) {
+    const mask = (1 << k) - 1;
+    /** @type {Map<number,number>} */
+    const residues = new Map();
+    for (let input = 0; input < SIZE; input += 1) {
+      const inputResidue = input & mask;
+      const outputResidue = sparseCompatiblePermutation(trigger, input) & mask;
+      const prior = residues.get(inputResidue);
+      if (prior === undefined) residues.set(inputResidue, outputResidue);
+      else if (prior !== outputResidue) throw new Error('compatibility failure');
+    }
+  }
+}
+
 function main() {
-  const differenceSupports = [];
   const pairKeys = new Set();
 
   for (let trigger = 0; trigger < TOP; trigger += 1) {
+    verifyCompatibility(trigger);
     const support = [];
     const outputs = new Set();
     for (let input = 0; input < SIZE; input += 1) {
       const output = sandwich(trigger, input);
       outputs.add(output);
       if (output !== baselineLinear(input)) support.push(input);
-
-      for (let k = 0; k <= WIDTH; k += 1) {
-        const mask = (1 << k) - 1;
-        for (let other = 0; other < SIZE; other += 1) {
-          if ((input & mask) === (other & mask)) {
-            const left = sparseCompatiblePermutation(trigger, input) & mask;
-            const right = sparseCompatiblePermutation(trigger, other) & mask;
-            if (left !== right) throw new Error('compatibility failure');
-          }
-        }
-      }
     }
     if (outputs.size !== SIZE) throw new Error('permutation failure');
     if (support.length !== 2 || (support[0] ^ support[1]) !== 1) {
       throw new Error('unexpected sparse support');
     }
-    differenceSupports.push(support);
     pairKeys.add(Math.min(...support));
 
     const outputMask = 1 << 3;
@@ -98,15 +102,13 @@ function main() {
 
   if (pairKeys.size !== TOP) throw new Error('hidden pairs do not partition domain');
 
-  const coveredPairs = new Set();
   const transcript = [];
   for (let pair = 0; pair < TOP - 1; pair += 1) {
     const input = pair << 1;
-    coveredPairs.add(input);
     transcript.push([input, baselineLinear(input)]);
   }
   const hiddenPairStart = (TOP - 1) << 1;
-  const hiddenTrigger = (innerLinear(hiddenPairStart) & LOW_MASK);
+  const hiddenTrigger = innerLinear(hiddenPairStart) & LOW_MASK;
   for (const [input, output] of transcript) {
     if (sandwich(hiddenTrigger, input) !== output) {
       throw new Error('indistinguishability witness failed');
