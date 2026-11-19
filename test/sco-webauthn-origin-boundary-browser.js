@@ -271,6 +271,35 @@ async function main(){
     assert.equal(honestStatus,200);
     assert.equal(hostileSameOriginStatus,200);
 
+    await cdp.send('WebAuthn.setUserVerified',{
+      authenticatorId:added.authenticatorId,
+      isUserVerified:false
+    });
+    const uvRequiredResult=await page.evaluate(async({rp,rawId})=>{
+      const decode=value=>{
+        const binary=atob(value);
+        return Uint8Array.from(binary,character=>character.charCodeAt(0));
+      };
+      const challengeInfo=await (await fetch('/challenge')).json();
+      try{
+        await navigator.credentials.get({publicKey:{
+          challenge:new Uint8Array(challengeInfo.challenge),
+          rpId:rp,
+          allowCredentials:[{type:'public-key',id:decode(rawId)}],
+          userVerification:'required',
+          timeout:2000
+        }});
+        return 'unexpected-success';
+      }catch(error){
+        return error instanceof DOMException?error.name:String(error);
+      }
+    },{rp:rpId,rawId:registration});
+    assert.notEqual(uvRequiredResult,'unexpected-success');
+    await cdp.send('WebAuthn.setUserVerified',{
+      authenticatorId:added.authenticatorId,
+      isUserVerified:true
+    });
+
     await page.goto('http://127.0.0.1:'+port+'/blank');
     const crossOriginResult=await page.evaluate(async({rp,rawId})=>{
       const decode=value=>{
@@ -304,6 +333,7 @@ async function main(){
       copiedClientOrigin:'http://127.0.0.1:'+port,
       copiedClientRpAssertionResult:crossOriginResult,
       userVerificationRequired:true,
+      failedUserVerificationResult:uvRequiredResult,
       acceptedAssertions,
       implication:'WebAuthn enforces the RP/origin boundary, while hostile code already executing at the authorized origin can still request fresh assertions when the authenticator ceremony succeeds.'
     }));
