@@ -80,6 +80,7 @@ async function main(){
   const sourcePath=path.join(workspace,'candidate.js');
   const bytecodePath=path.join(workspace,'candidate.jsc');
   const recoveredPath=path.join(workspace,'candidate.recovered.js');
+  const roMapPath=path.join(workspace,'candidate.ro-map.json');
   fs.writeFileSync(sourcePath,candidateSource,'utf8');
 
   const compileStarted=performance.now();
@@ -104,9 +105,13 @@ async function main(){
   const info=JSON.parse((await run(jscdBin,['info','--json',bytecodePath])).stdout);
   assert.equal(info.supported,true,'jscd does not report this V8 cache as supported');
 
+  const roMap=(await run(jscdBin,['ro-map',bytecodePath])).stdout;
+  fs.writeFileSync(roMapPath,roMap,'utf8');
+
   const attackStarted=performance.now();
   await run(jscdBin,[
-    'decompile','--runtime','--verify',bytecodePath,'-o',recoveredPath
+    'decompile','--runtime','--verify','--ro-map',roMapPath,
+    bytecodePath,'-o',recoveredPath
   ]);
   const attackMs=performance.now()-attackStarted;
   const recovered=fs.readFileSync(recoveredPath,'utf8');
