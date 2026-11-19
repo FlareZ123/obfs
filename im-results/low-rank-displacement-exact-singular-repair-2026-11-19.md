@@ -418,9 +418,11 @@ sims/public-affine-residual-target-inverter32.js::invertPublicResidualDeterminis
 
 It needs no random quotient search and no prior residual-rank value. Its operational caps only bound work; within the theorem regime it follows the deterministic closure and cycle algorithm above. The regression includes full-rank, singular rank-one, and a singular width-4 embedded fixture that requires closure growth before rank repair.
 
-Focused two-platform validation run **44478073316** passed on Ubuntu and Windows at source `59f9442ec247ca45705770b790e7faf8913515ad`. It includes the established low-rank target-inversion regressions, the reusable deterministic 32-bit attacker tests, the complete width-3 permutation enumeration, and the project JSDoc gate.
+Focused two-platform validation run **44478073316** passed on Ubuntu and Windows at source `59f9442ec247ca45705770b790e7faf8913515ad`. It includes the established low-rank target-inversion regressions, the reusable deterministic 32-bit attacker tests, and the project JSDoc gate.
 
-An earlier source-pinned focused run **44477303873** also passed on both platforms before the reusable API integration. The temporary workflow-only inclusion commit used for the standalone deterministic test was reverted after its dispatch.
+A second source-pinned focused run **44478786500** passed on Ubuntu and Windows at `e59c71330b79908b24eab07047d549c81bc6d536`. That run additionally includes the standalone deterministic theorem suite, the complete 40,320-permutation / 322,560-target width-3 enumeration, and 40,320 checks that interpolation residual rank equals zero-based second-difference rank.
+
+An earlier source-pinned focused run **44477303873** also passed on both platforms before the reusable API integration. The temporary workflow-only inclusion commits used for standalone theorem validation were reverted after their dispatches.
 
 ## Complete width-3 validation over every permutation
 
