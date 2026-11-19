@@ -1,0 +1,11 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "src/ast.js",
+    "sims/sco-root-identity-static-proof.js",
+    "test/sco-root-identity-static-proof.test.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
