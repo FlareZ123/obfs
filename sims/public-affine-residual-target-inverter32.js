@@ -1,5 +1,7 @@
 'use strict';
 
+const {randomBytes} = require('node:crypto');
+
 const WIDTH = 32;
 
 /** @param {number} value @returns {number} */
@@ -169,12 +171,14 @@ function makeRng32(seed) {
  * @param {(input:number)=>number} oracle
  * @param {number} target
  * @param {{seed?:number,maxQueries?:number,maxSubspaceDimension?:number}} [options]
+ * `seed` selects deterministic xorshift sampling for reproducible tests. Without it, quotient search uses fresh cryptographic random samples.
  * @returns {{value:number,queries:number,nullity:number,searchQueries:number,expansions:number}}
  */
 function invertPublicResidual32(oracle, target, options = {}) {
   const maxQueries = options.maxQueries ?? 1_000_000;
   const maxSubspaceDimension = options.maxSubspaceDimension ?? 20;
-  const next = makeRng32(options.seed ?? 0x243f6a88);
+  const seededNext = options.seed === undefined ? null : makeRng32(options.seed);
+  const next = seededNext ?? (() => randomBytes(4).readUInt32LE(0));
   /** @type {Map<number, number>} */
   const cache = new Map();
 

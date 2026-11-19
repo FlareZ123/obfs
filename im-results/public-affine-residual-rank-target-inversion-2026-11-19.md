@@ -330,6 +330,14 @@ At width 32 the rank-only upper bound `33 + 2^(r+1)` gives 41 expected queries a
 
 This result does not classify high-rank permutations, source-only reconstruction resistance, tamper resistance, or SCO operations whose full private mapping is unavailable as a chosen-input oracle. A high residual rank is therefore a necessary escape from this attack family rather than sufficient evidence of strong obfuscation.
 
+## Practical 32-bit oracle harness
+
+`sims/public-affine-residual-target-inverter32.js` implements the attack directly for JavaScript unsigned 32-bit permutation oracles. It derives the 33-query basis interpolant internally, computes subspace intersections with Gaussian kernel relations, and exposes query and candidate-subspace caps for candidate triage.
+
+The default quotient search draws fresh uniformly distributed 32-bit samples from Node's cryptographic random source. Supplying `options.seed` switches only that search order to deterministic xorshift sampling for reproducible regression tests; the theorem's `2^d` expectation is attached to the fresh-uniform default.
+
+The regression `test/public-affine-residual-target-inverter32.test.js` exercises both a four-direction nonlinear shear construction and a singular-interpolation construction with `d=r=1`.
+
 ## Reproduction
 
 Focused regressions:
