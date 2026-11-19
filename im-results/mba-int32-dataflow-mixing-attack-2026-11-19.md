@@ -135,6 +135,54 @@ Both JSDoc gates passed on both runners. This closes the specific public-paramet
 rescue tested here: loop preservation and array indexing add a static partial-evaluation
 step, while the recovered attacker problem remains direct inversion.
 
+## Constant-state CFG extension
+
+A third frozen-attacker experiment tests a small control-flow flattener. The protected
+predicate stores the next block as a concrete state value, dispatches through a
+`switch` inside a bounded loop, and places the MBA rounds in state cases whose source
+order differs from execution order.
+
+The evaluator extension was validated before the held-out corpus:
+
+- frozen attacker commit:
+  `0bf4a4ff66d90c6a04d11c36e88b8fbbd7433935`
+- fixed-case Actions run: **44440239144**
+- post-freeze seed:
+  `heldout-after-0bf4a4ff:2026-11-19:agent7:mba-cfg:v1`
+- held-out harness: `sims/mba-author-int32-cfg-heldout.js`
+- held-out evidence run: **44440642037**
+
+The 32 held-out cases are balanced 16 one-round / 16 two-round. Every case receives
+fresh MBA parameters and fresh dispatcher labels. The generator varies one or two
+xor shifts, three or five rotation terms, split additive constants, multiplication
+operand order, rotation-helper spelling, XOR and rotation term order, comparison
+direction, `!==` versus `!=` dispatcher tests, case order, and an unreachable dead
+case. The emitted source is passed through ordinary esbuild minification.
+
+The legacy loop extractor rejects all generated cases. The frozen dataflow evaluator
+partially executes the concrete dispatcher, follows the selected cases, reconstructs
+the round graph, and then applies the public inverse.
+
+| Metric | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Held-out cases | 32 | 32 |
+| One-round cases | 16 | 16 |
+| Two-round cases | 16 | 16 |
+| Previous syntax extractor rejections | 32/32 | 32/32 |
+| Exact parameter recoveries | **32/32** | **32/32** |
+| Exact preimages | **32/32** | **32/32** |
+| Maximum measured recovery time | 8.372432 ms | 12.068500 ms |
+
+The existing dataflow and table-indexed corpora remained green in the same run, and
+both JSDoc gates passed on Ubuntu. The Windows attacker steps and JSDoc gate also
+passed; its final external JSDoc step was still completing when the held-out metrics
+were extracted. The fixed evaluator run **44440239144** had already passed both type
+gates on both platforms.
+
+This closes the tested constant-state dispatcher rescue for the one- and two-round
+family. The added source structure requires bounded static partial evaluation and
+keeps the recovered round semantics directly invertible.
+
 ## Security-performance interpretation
 
 The prior cross-platform runtime study in
