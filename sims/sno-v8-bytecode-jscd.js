@@ -53,7 +53,7 @@ async function run(command,args){
 async function runCli(command,args){
   if(process.platform!=='win32')return run(command,args);
   const quote=value=>'"'+value.replaceAll('"','""')+'"';
-  const line=[command,...args].map(quote).join(' ');
+  const line='"'+[command,...args].map(quote).join(' ')+'"';
   return run(process.env.ComSpec??'cmd.exe',['/d','/s','/c',line]);
 }
 
@@ -147,11 +147,12 @@ async function main(){
     'then','resolve','reject','call','apply','bind','forEach','map','reduce','slice',
     'push','pop','shift','unshift','join','split','replace','match','test','exec'
   ];
-  const names=[...new Set([...genericNames,...asciiStrings])];
-  const probeSource=names.map((name,index)=>
-    'function p'+index+'(o){return o['+JSON.stringify(name)+'];}'
-  ).join('\n')+'\nfunction run(o){'+names.map((_,index)=>'p'+index+'(o);').join('')+
-    '}\nrun({});\n';
+  const names=[...new Set([...genericNames,...asciiStrings])]
+    .filter(name=>/^[A-Za-z_$][A-Za-z0-9_$]{0,31}$/u.test(name));
+  const probeSource=names.map(name=>
+    'function p_'+name+'(o){return o.'+name+';}'
+  ).join('\n')+'\nfunction __runAll(o){'+
+    names.map(name=>'p_'+name+'(o);').join('')+'}\n__runAll({});\n';
   fs.writeFileSync(probePath,probeSource,'utf8');
   compileProbe(probeSource,probeBytecodePath);
   const roMap=(await runCli(jscdBin,['ro-map','--json',probeBytecodePath])).stdout;
