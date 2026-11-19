@@ -165,3 +165,14 @@ test('uncaught explicit throw preserves native process source diagnostics',()=>{
   assert.equal(output.code,source);
   assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 });
+
+test('locally caught explicit throw retains private-property rewrite yield',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "try{throw new Error('probe');}catch{}module.exports=owner.distinctivelyLongPrivateField;";
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),false,source);
+  const output=obfuscateFiles([{
+    path:'caught-source-control.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'agent50-caught-source-control',strings:false,identifiers:false}).files[0];
+  assert.equal(execute(output.code).value,73,output.code);
+  assert.ok(output.metrics.properties>0,output.code);
+});
