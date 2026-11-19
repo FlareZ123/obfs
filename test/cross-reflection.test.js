@@ -78,3 +78,12 @@ test('closed-world ESM refuses direct own-key reflection of imported owner',asyn
       Object.keys(state)
     ]));`,0);
 });
+
+
+test('closed-world ESM can rename a direct literal-key Reflect.get read',async()=>{
+  await check(`console.log(Reflect.get(state,'secretField'));`,1);
+});
+
+test('closed-world ESM can rename a direct literal-key Object.hasOwn check',async()=>{
+  await check(`console.log(Object.hasOwn(state,'secretField'),state.secretField);`,1);
+});
