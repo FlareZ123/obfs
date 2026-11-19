@@ -190,6 +190,7 @@
     "sims/mba-author-int32-seed-expanded-heldout.js",
     "test/mba-author-int32-dataflow-recover.test.js",
     "test/mba-author-int32-seed-expanded.test.js",
+    "test/mba-author-int32-input-indexed-neutral.test.js",
     "sims/a2mba-context-int32-pilot.js",
     "test/a2mba-context-int32-pilot.test.js",
     "sims/a2mba-rotated-core-int32-pilot.js",
