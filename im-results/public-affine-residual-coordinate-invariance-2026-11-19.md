@@ -254,6 +254,51 @@ The exhaustive width-3 audit verifies, for every permutation, that the
 rank of each order-`k+1` finite-difference span exactly equals the
 corresponding ANF degree-quotient rank.
 
+## Exact bounded-degree oracle recovery
+
+If an independent structural argument proves that `F` has algebraic
+degree at most `d`, then the entire ANF and degree-quotient profile can
+be recovered from only the oracle values whose input Hamming weight is
+at most `d`.
+
+For each subset mask `S` with `|S|<=d`, Boolean Möbius inversion
+gives
+
+```text
+a_S = XOR_(T subseteq S) F(1_T).
+```
+
+No coefficient above degree `d` exists under the stated contract, so
+these queried values determine every vector coefficient. The exact
+query count is
+
+```text
+Q(n,d) = sum_(j=0)^d C(n,j).
+```
+
+At 32 bits:
+
+| proven maximum degree | exact oracle queries |
+| ---: | ---: |
+| 1 | 33 |
+| 2 | 529 |
+| 3 | 5,489 |
+| 4 | 41,449 |
+| 5 | 242,825 |
+| 6 | 1,149,017 |
+
+The reusable
+`profileBoundedDegreeOracle32`
+implementation in
+`sims/public-finite-difference-residual32.js`
+performs this recovery. Its `maxDegree` argument is an explicit trust
+contract: the sampled low-weight truth table cannot itself rule out
+omitted higher-degree terms.
+
+For quadratic 32-bit candidates, the 529-query basis-pair set is
+therefore exact rather than merely a lower-bound screen. The test suite
+also checks an exact cubic profile using 5,489 queries.
+
 ## Affine-wrapper invariance
 
 For an invertible affine input map `alpha`,
