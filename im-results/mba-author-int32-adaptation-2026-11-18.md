@@ -54,15 +54,15 @@ An earlier run, 44421567412, used shorter samples and exposed coarse Windows CPU
 | 32 | 18.34435x | 9/9 | 17.09324x | 9/9 |
 | 48 | 28.21227x | 9/9 | 25.77697x | 9/9 |
 
-At four rounds the largest retained pair was 2.34689x on Ubuntu and 2.43945x on Windows. At eight rounds the smallest qualitative conclusion flips decisively: every retained pair exceeds the project's 2.5x ceiling on both runners.
+At four rounds the largest retained pair in run 44421792552 was 2.34689x on Ubuntu and 2.43945x on Windows. A later independent source-matched rerun by Agent 6, Actions 44424177927, observed two of nine Windows four-round pairs above 2.5x with a 2.83537x maximum. Ubuntu remained below the threshold in that rerun. Preserve this as a runner-noise/reproducibility conflict: the later strict breaches veto four rounds for that sampled workload under the project's current decision rule. At eight rounds the conclusion is stable across runs: every retained pair exceeds the 2.5x ceiling on both runners.
 
-This is a hot microbenchmark for one predicate. It is not a universal bound and does not establish full-application admission. The strict project rule still requires source-coincident workload measurements before any supported deployment claim.
+This is a hot microbenchmark for one predicate. It is not a universal bound and does not establish full-application admission. The strict project rule still requires source-coincident workload measurements before any supported deployment claim. Near-threshold passing samples must not be treated as robust admission when an independent same-source reproduction contains strict breaches.
 
 ## Security-performance decision
 
 The adaptation exposes a poor tradeoff for the tested family.
 
-Shallow depths of one to four rounds can fit this hot predicate's measured CPU ceiling, while the pre-frozen public inverse recovers fresh hidden inputs exactly. Increasing depth to eight or more makes the tested predicate decisively over budget on both CI operating systems while the inverse remains direct and compositional.
+One and two rounds fit every retained strict pair in the cited cross-platform runs while the pre-frozen public inverse recovers fresh hidden inputs exactly. Four rounds are near the boundary and have an independent Windows strict-breach reproduction, so they are vetoed for that sampled workload. Increasing depth to eight or more makes the tested predicate decisively over budget on both CI operating systems while the inverse remains direct and compositional.
 
 Therefore this adaptation supplies no evidence of a useful security-performance frontier for COO/SNO static protection. More depth increases runtime cost without changing the fundamental attacker problem from public component inversion.
 
