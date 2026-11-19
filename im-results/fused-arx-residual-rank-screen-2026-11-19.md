@@ -112,7 +112,9 @@ For structured multi-step transitions, the composition upper bound is useful bef
 
 ## Cross-platform validation
 
-Focused workflow run **44480696995** passed on Ubuntu and Windows at source `13f1e1ed3bb08cfdaa46e0d8ea3af83b390a47c1`. It exercised the fused-ARX residual-rank screen alongside the established low-rank inversion regressions and the project JSDoc gate.
+Focused workflow run **44480696995** passed on Ubuntu and Windows at source `13f1e1ed3bb08cfdaa46e0d8ea3af83b390a47c1`. It exercised the initial one-unit fused-ARX residual-rank screen alongside the established low-rank inversion regressions and the project JSDoc gate.
+
+After extending the screen through four fixed units, focused run **44481744388** passed on both platforms at source `9009618cbac57bffb5ed169fa22d0717639bfda8`. It validates the exact 62/124 ranks and the four-unit full-rank witness together with project JSDoc.
 
 The workflow-only inclusion commit was reverted immediately after the source-pinned dispatch.
 
