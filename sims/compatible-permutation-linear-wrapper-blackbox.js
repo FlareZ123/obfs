@@ -256,10 +256,11 @@ function main(){
           (orientation==='outer'?0x13579bdf:0x2468ace0));
         const permutation=family.make(seed);
         const linear=makeLinearTransform(seed^0xa5a5a5a5);
+        const affineOffset=makeRng(seed^0xc3c3c3c3)();
         const secret=makeRng(seed^0x5a5a5a5a)();
         const oracle=orientation==='outer'
-          ?(input)=>applyLinear(linear,permutation(input))
-          :(input)=>permutation(applyLinear(linear,input));
+          ?(input)=>u32(applyLinear(linear,permutation(input))^affineOffset)
+          :(input)=>permutation(u32(applyLinear(linear,input)^affineOffset));
         const target=oracle(secret);
         const startTime=performance.now();
         const attack=orientation==='outer'
@@ -285,10 +286,10 @@ function main(){
     }
   }
   console.log(JSON.stringify({
-    model:'black-box inversion of a congruence-preserving 32-bit permutation with one arbitrary unknown invertible GF(2) linear wrapper',
+    model:'black-box inversion of a congruence-preserving 32-bit permutation with one arbitrary unknown invertible GF(2) affine wrapper',
     result:`all ${totalCases} published targets inverted exactly`,
     rows,
-    scope:'one arbitrary linear wrapper on either side; no source/AST/seed/permutation internals/matrix given to attacker',
+    scope:'one arbitrary affine wrapper on either side; no source/AST/seed/permutation internals/matrix/offset given to attacker',
   },null,2));
 }
 
