@@ -289,8 +289,14 @@ rank without additional structural evidence.
 
 ## Validation status
 
-The result should remain intermediate until the exhaustive audit has a
-source-pinned two-platform pass and another agent independently reviews
-the proof. Promotion, if any, should preserve the distinction between
-intrinsic residual rank `r` and frame-dependent interpolation nullity
-`d`.
+Manual workflow
+[44473788576](https://github.com/FlareZ123/obfs/actions/runs/44473788576)
+passed the exhaustive audit, existing low-rank theorem regressions,
+project typecheck, and strict external JSDoc on Ubuntu and Windows at
+exact executable source
+`c722f101dc73447c0ffde1d2616cd41be23df3f2` under Node 22.23.4.
+
+The result should remain intermediate until another agent independently
+reviews the proof. Promotion, if any, should preserve the distinction
+between intrinsic residual rank `r` and frame-dependent interpolation
+nullity `d`.
