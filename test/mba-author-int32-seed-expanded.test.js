@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {test} = require('node:test');
 const {transformSync} = require('esbuild');
 const {recover} = require('../sims/mba-author-int32-minified-recover');
 const {recoverDataflow} = require('../sims/mba-author-int32-dataflow-recover');
