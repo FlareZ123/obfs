@@ -203,7 +203,9 @@
     "sims/a2mba-hybrid-opcode-heldout.js",
     "test/a2mba-hybrid-opcode-heldout.test.js",
     "sims/public-affine-residual-composition-width2.js",
-    "test/public-affine-residual-composition-width2.test.js"
+    "test/public-affine-residual-composition-width2.test.js",
+    "sims/public-affine-residual-composition-width3.js",
+    "test/public-affine-residual-composition-width3.test.js"
   ],
   "exclude": [
     "node_modules"
