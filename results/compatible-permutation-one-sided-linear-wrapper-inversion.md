@@ -69,8 +69,10 @@ The linear-core proofs below therefore apply unchanged to arbitrary invertible a
 Assume
 
 ```text
-F(x) = L(P(x)).
+F(x) = L(P(x)) XOR a.
 ```
+
+All output differences below cancel `a`, so the linear-core argument applies directly.
 
 For every bit position `j`, define
 
@@ -128,8 +130,10 @@ For `n = 32`, the bound is 65.
 Assume
 
 ```text
-F(x) = P(L(x)).
+F(x) = P(L(x) XOR b).
 ```
+
+Define `Q(z)=P(z XOR b)`. By the affine reduction, `Q` is a compatible permutation and `F(x)=Q(L(x))`.
 
 Define the hidden input subspaces
 
