@@ -205,6 +205,17 @@ r(composition) <= dim S <= r(outer) + r(inner).
 The exhaustive test intentionally covers non-permutations as well,
 matching the theorem's general function scope.
 
+A second sweep
+
+```text
+sims/public-affine-residual-composition-width3.js
+```
+
+enumerates all 40,320 width-3 permutations, selects one deterministic
+representative of each residual rank 0 through 3, and checks composition
+in both orders against every permutation. This adds 322,560
+higher-width composition checks and reaches residual rank 3.
+
 ## Scope
 
 This result constrains one algebraic escape route. High residual rank
@@ -219,6 +230,19 @@ static/dynamic inversion attacks rather than optimizing rank alone.
 
 ## Validation status
 
-Pending source-pinned two-platform workflow completion and independent
-proof review. Keep this result in `im-results/` until both are
-available.
+The first manual run
+[44474161876](https://github.com/FlareZ123/obfs/actions/runs/44474161876)
+correctly exposed a bad test expectation: on width 2 there is only one
+non-frame input, so residual rank is at most one. The theorem assertions
+inside the exhaustive simulator did not fail.
+
+After correcting that expectation and adding the width-3 sweep, manual
+run
+[44474362982](https://github.com/FlareZ123/obfs/actions/runs/44474362982)
+passed on Ubuntu and Windows at exact executable source
+`298ae4dd08abd289247691828044c42dd05abb4f`, including both
+composition audits, the existing low-rank theorem regressions, project
+typecheck, and strict external JSDoc under Node 22.23.4.
+
+Independent proof review is still required before promotion. Keep this
+result in `im-results/` until then.
