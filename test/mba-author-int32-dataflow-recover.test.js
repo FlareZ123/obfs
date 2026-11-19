@@ -198,3 +198,68 @@ test('dataflow attacker partially evaluates constant-state switch flattening', (
   assert.deepEqual(recovered.rounds, rounds);
   assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
 });
+
+
+test('dataflow attacker evaluates deterministically encoded public parameter tables', () => {
+  const rounds = [
+    {
+      coefficients: [0x428a2f98, 0x71374491],
+      xorShifts: [7, 20],
+      cyclicShifts: [3, 16, 27]
+    },
+    {
+      coefficients: [0xb5c0fbcf, 0xe9b5dba5],
+      xorShifts: [11, 24],
+      cyclicShifts: [6, 18, 29]
+    }
+  ];
+  const secret = 239;
+  const target = forwardChain32(secret, rounds);
+  const addKey = 0x10203040;
+  const mulKey = 0x55667788;
+  const shiftKey = 37;
+  const rotateKey = 0x1b;
+
+  const source = [
+    "'use strict';",
+    "const rot=(v,s)=>(((v<<s)|(v>>>(32-s)))>>>0);",
+    "module.exports=function predicate(input){",
+    "const mul=Math.imul;",
+    "let x=input>>>0;",
+    `const add=[${rounds.map(round => (round.coefficients[0] + addKey) >>> 0).join(',')}];`,
+    `const muls=[${rounds.map(round => (round.coefficients[1] ^ mulKey) >>> 0).join(',')}];`,
+    `const s0=[${rounds.map(round => round.xorShifts[0] + shiftKey).join(',')}];`,
+    `const s1=[${rounds.map(round => round.xorShifts[1] + shiftKey).join(',')}];`,
+    `const r0=[${rounds.map(round => round.cyclicShifts[0] ^ rotateKey).join(',')}];`,
+    `const r1=[${rounds.map(round => round.cyclicShifts[1] ^ rotateKey).join(',')}];`,
+    `const r2=[${rounds.map(round => round.cyclicShifts[2] ^ rotateKey).join(',')}];`,
+    `const ak=${addKey},mk=${mulKey},sk=${shiftKey},rk=${rotateKey};`,
+    "for(let i=0;i<add.length;i++){",
+    "const p=(((add[i]-ak)^mul((muls[i]^mk),x)))>>>0;",
+    "const q=(p^(p>>>(s1[i]-sk))^(p>>>(s0[i]-sk)))>>>0;",
+    "x=(rot(q,(r2[i]^rk))^rot(q,(r0[i]^rk))^rot(q,(r1[i]^rk)))>>>0;",
+    "}",
+    `return ${target}===x;`,
+    "};"
+  ].join('\n');
+
+  const minified = transformSync(source, {
+    loader: 'js',
+    format: 'cjs',
+    target: 'es2022',
+    minify: true,
+    legalComments: 'none'
+  }).code;
+
+  assert.throws(
+    () => recover(minified),
+    /literal round count not found|round parameters not structurally recoverable/,
+    'The older extractor should reject encoded table parameters'
+  );
+
+  const recovered = recoverDataflow(minified);
+  assert.equal(recovered.inputIndex, 0);
+  assert.equal(recovered.target, target);
+  assert.deepEqual(recovered.rounds, rounds);
+  assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
+});
