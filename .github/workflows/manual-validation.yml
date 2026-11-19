@@ -27,6 +27,18 @@ on:
         description: 'Formal dependency chain depth for opt-in paired A/B'
         type: number
         default: 192
+      function_inventory:
+        description: 'Include many-owner local-function setup compiler A/B'
+        type: boolean
+        default: false
+      function_owners:
+        description: 'Private owner count for local-function setup A/B'
+        type: number
+        default: 384
+      function_count:
+        description: 'Unrelated local function count for setup A/B'
+        type: number
+        default: 192
 
 permissions:
   contents: read
@@ -54,12 +66,15 @@ jobs:
       - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
-          OBFS_PROOF_CONTROL_SHA: ${{ inputs.dependency_aliases && '2d540ee324013ff3bf36e878c0f1e2f411c52f6d' || inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
+          OBFS_PROOF_CONTROL_SHA: ${{ inputs.function_inventory && '473668c7b4911f878b7f8fd62ecee160ce1bf873' || inputs.dependency_aliases && '2d540ee324013ff3bf36e878c0f1e2f411c52f6d' || inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
           OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
           OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
           OBFS_PROOF_RICH_ALIASES: ${{ inputs.rich_aliases }}
           OBFS_PROOF_DEPENDENCY_ALIASES: ${{ inputs.dependency_aliases }}
           OBFS_PROOF_DEPENDENCY_DEPTH: ${{ inputs.dependency_depth }}
+          OBFS_PROOF_FUNCTION_INVENTORY: ${{ inputs.function_inventory }}
+          OBFS_PROOF_FUNCTION_OWNERS: ${{ inputs.function_owners }}
+          OBFS_PROOF_FUNCTION_COUNT: ${{ inputs.function_count }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:
