@@ -72,3 +72,63 @@ test('dataflow attacker recovers mixed independently parameterized unrolled roun
   const recoveredInput = inverseChain32(recovered.target, recovered.rounds);
   assert.equal(recoveredInput, secret);
 });
+
+
+test('dataflow attacker statically executes table-indexed round loop', () => {
+  const rounds = [
+    {
+      coefficients: [0x6a09e667, 0xbb67ae85],
+      xorShifts: [6, 17],
+      cyclicShifts: [4, 15, 29]
+    },
+    {
+      coefficients: [0x3c6ef372, 0xa54ff53b],
+      xorShifts: [9, 22],
+      cyclicShifts: [7, 19, 26]
+    }
+  ];
+  const secret = 173;
+  const target = forwardChain32(secret, rounds);
+
+  const source = [
+    "'use strict';",
+    "const rot=(v,s)=>(((v<<s)|(v>>>(32-s)))>>>0);",
+    "module.exports=function predicate(input){",
+    "const mul=Math.imul;",
+    "let x=input>>>0;",
+    `const add=[${rounds.map(round => round.coefficients[0]).join(',')}];`,
+    `const muls=[${rounds.map(round => round.coefficients[1]).join(',')}];`,
+    `const xs0=[${rounds.map(round => round.xorShifts[0]).join(',')}];`,
+    `const xs1=[${rounds.map(round => round.xorShifts[1]).join(',')}];`,
+    `const r0=[${rounds.map(round => round.cyclicShifts[0]).join(',')}];`,
+    `const r1=[${rounds.map(round => round.cyclicShifts[1]).join(',')}];`,
+    `const r2=[${rounds.map(round => round.cyclicShifts[2]).join(',')}];`,
+    "for(let i=0;i<add.length;i++){",
+    "const p=(add[i]^mul(muls[i],x))>>>0;",
+    "const q=(p^(p>>>xs1[i])^(p>>>xs0[i]))>>>0;",
+    "x=(rot(q,r2[i])^rot(q,r0[i])^rot(q,r1[i]))>>>0;",
+    "}",
+    `return ${target}===x;`,
+    "};"
+  ].join('\n');
+
+  const minified = transformSync(source, {
+    loader: 'js',
+    format: 'cjs',
+    target: 'es2022',
+    minify: true,
+    legalComments: 'none'
+  }).code;
+
+  assert.throws(
+    () => recover(minified),
+    /round bound not found|literal round count not found|round parameters not structurally recoverable/,
+    'The older repeated-literal loop recognizer should reject table-indexed rounds'
+  );
+
+  const recovered = recoverDataflow(minified);
+  assert.equal(recovered.inputIndex, 0);
+  assert.equal(recovered.target, target);
+  assert.deepEqual(recovered.rounds, rounds);
+  assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
+});
