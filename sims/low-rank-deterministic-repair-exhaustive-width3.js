@@ -214,6 +214,38 @@ function secondDifferenceRank(permutation) {
   return vectorRank(differences);
 }
 
+/** @param {number[]} vectors @returns {number[]} */
+function vectorBasis(vectors) {
+  const pivots = Array(WIDTH).fill(0);
+  for (const raw of vectors) {
+    let value = raw;
+    for (let bit = WIDTH - 1; bit >= 0 && value !== 0; bit -= 1) {
+      if (((value >>> bit) & 1) === 0) continue;
+      if (pivots[bit] !== 0) value ^= pivots[bit];
+      else {
+        pivots[bit] = value;
+        break;
+      }
+    }
+  }
+  return pivots.filter((value) => value !== 0);
+}
+
+/** @param {number[]} permutation @returns {{rank:number,values:Set<number>}} */
+function residualSpace(permutation) {
+  const base = permutation[0];
+  const columns = Array.from(
+    {length: WIDTH},
+    (_, bit) => permutation[1 << bit] ^ base,
+  );
+  const residuals = Array.from(
+    {length: SIZE},
+    (_, input) => permutation[input] ^ base ^ applyLinear(columns, input),
+  );
+  const basis = vectorBasis(residuals);
+  return {rank: basis.length, values: new Set(span(basis))};
+}
+
 /** @param {number[]} vectors @returns {number} */
 function vectorRank(vectors) {
   const pivots = Array(WIDTH).fill(0);
@@ -239,6 +271,7 @@ function main() {
   let exact = 0;
   let singularModels = 0;
   let secondDifferenceChecks = 0;
+  let inverseResidualChecks = 0;
   let maxQueries = 0;
   let maxRepairs = 0;
   let maxExpansions = 0;
@@ -260,9 +293,30 @@ function main() {
         {length: SIZE},
         (_, input) => permutation[input] ^ base ^ applyLinear(columns, input),
       );
+      const residual = residualSpace(permutation);
       const residualRank = vectorRank(residuals);
+      assert.equal(residual.rank, residualRank);
       assert.equal(secondDifferenceRank(permutation), residualRank);
       secondDifferenceChecks += 1;
+
+      const inputSubspace = new Set(
+        Array.from(
+          {length: SIZE},
+          (_, input) => input,
+        ).filter((input) => residual.values.has(applyLinear(columns, input))),
+      );
+      const inverse = Array(SIZE).fill(-1);
+      for (let input = 0; input < SIZE; input += 1) {
+        inverse[permutation[input]] = input;
+      }
+      const inverseResidual = residualSpace(inverse);
+      assert.equal(inverseResidual.rank, residualRank);
+      assert.deepEqual(
+        [...inverseResidual.values].sort((a, b) => a - b),
+        [...inputSubspace].sort((a, b) => a - b),
+      );
+      inverseResidualChecks += 1;
+
       const nullity = WIDTH - solver.rank;
       assert.ok(nullity <= residualRank);
       if (nullity > 0) singularModels += 1;
@@ -290,6 +344,7 @@ function main() {
     permutations,
     initiallySingularModels: singularModels,
     secondDifferenceChecks,
+    inverseResidualChecks,
     targetRecoveries: `${exact}/${targets}`,
     maxObservedDistinctQueries: maxQueries,
     maxRepairs,
