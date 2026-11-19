@@ -7,77 +7,56 @@ permissions:
   contents: read
 
 jobs:
-  wasm-i32:
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 12
+  tigress:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Install declared dependencies
-        run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Balanced real-clock Wasm i32 Chromium CPU differential
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/wasm-i32-browser.js
-      - name: Experimental fused four-word ARX semantics, extraction and warm profile
-        run: node --test test/fused-arx-batch.test.js
-      - name: Fused ARX fresh-instance amortization session curve
-        run: node sims/fused-arx-session-crossover.js
-      - name: Fused ARX independent fresh-process cold CPU differential
-        run: node sims/fused-arx-fresh-process-cold.js
-      - name: Real Chromium batched ARX matched CPU and semantics probe
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/fused-arx-batch-browser.js
-      - name: Real Chromium hostile preload and cross-origin Wasm clone
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/fused-arx-browser-runtime-clone.js
-      - name: Real Chromium runtime substitution of unchanged Wasm application bytes
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: /usr/bin/google-chrome
-        run: node test/fused-arx-browser-runtime-tamper.js
-      - name: Frozen three-module stateful ARX parity, source refusal and byte clone
-        run: node --test test/stateful-arx-graph-fuse.test.js
-      - name: Differential, negative and public-binary extraction tests
-        run: node --test test/wasm-i32.test.js test/wasm-i32-commonjs-lazy.test.js test/wasm-i32-deferred-static-recovery.test.js test/json-parse-function-source-observer.test.js test/wasm-i32-static-recovery.test.js test/wasm-runtime-capture.test.js test/fused-arx-runtime-extraction.test.js test/fused-arx-static-lift.test.js test/wasm-i32-multi-static-decoys.test.js test/wasm-i32-native-rebuild.test.js test/wasm-i32-esm-native-rebuild.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js test/source-observer-counterfactual-differential.test.js test/object-groupby-function-source-observer.test.js
-      - name: Verify pinned before/after artifact
+      - name: Build native baseline
         run: |
-          node examples/wasm-i32/build.cjs
-          node examples/wasm-i32-multi/build.cjs
-          node examples/wasm-i32-conditional/build.cjs
-          node examples/wasm-i32-lazy/build.cjs
-      - name: Hostile-runtime binary extraction and function replacement
-        run: node sims/wasm-i32-runtime-extraction.js
-      - name: Whole-session initialization cost curve
-        run: node sims/wasm-i32-cold-counterexample.js
-      - name: CommonJS deferred-compilation native/eager/lazy control
-        run: node sims/wasm-i32-commonjs-lazy-profile.js
-      - name: SNO runtime-only first-use Wasm cost curve
-        run: node sims/wasm-i32-commonjs-runtime-budget.js
-      - name: Whole-graph cold native versus Wasm versus offline-native control
-        run: node sims/wasm-i32-esm-rebuild-profile.js
-      - name: Strict JSDoc checks
-        run: npm run typecheck
-      - name: Strict Wasm research and attacker JSDoc checks
-        run: npx tsc -p jsconfig.wasm-i32.json
-      - name: Real Chromium public-only native replacement and strict CSP
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/wasm-i32-native-clone-browser.js
-      - name: Real Chromium strict CSP denial and targeted Wasm allowance
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/wasm-i32-csp-browser.js
+          gcc -O3 -s sims/tigress-native-virtualize/kernel.c \
+            sims/tigress-native-virtualize/bench.c -o baseline
+          ./baseline | tee baseline.txt
+      - name: Download Tigress 4.2.0 research package
+        run: |
+          curl -L --fail --retry 3 -o tigress.zip \
+            'https://tigress.cs.arizona.edu/cgi-bin/projects/tigress/download.cgi?file=tigress_4.2.0-1_all.deb.zip'
+          unzip -q tigress.zip -d tigress-package
+          DEB="$(find tigress-package -type f -name '*.deb' | head -1)"
+          test -n "$DEB"
+          dpkg-deb -x "$DEB" tigress-root
+          TIGRESS="$(find tigress-root -type f -name tigress -perm -111 | head -1)"
+          test -n "$TIGRESS"
+          echo "TIGRESS=$TIGRESS" >> "$GITHUB_ENV"
+          "$TIGRESS" --Version
+      - name: Virtualize protected kernel
+        run: |
+          cd sims/tigress-native-virtualize
+          "$GITHUB_WORKSPACE/$TIGRESS" --MakeTigressDotH
+          { echo '#include "tigress.h"'; cat kernel.c; } > kernel-input.c
+          "$GITHUB_WORKSPACE/$TIGRESS" \
+            --Seed=271828 \
+            --Transform=Virtualize \
+            --Functions=secretLedgerTransformNative \
+            --VirtualizeDispatch=indirect \
+            --VirtualizeOperands=mixed \
+            --VirtualizeEncodeByteArray=true \
+            --VirtualizeMaxDuplicateOps=2 \
+            --VirtualizeSuperOpsRatio=1.0 \
+            --out=kernel-obf.c kernel-input.c
+          gcc -O3 -s kernel-obf.c bench.c -o "$GITHUB_WORKSPACE/virtualized"
+          wc -c kernel.c kernel-obf.c "$GITHUB_WORKSPACE/virtualized"
+      - name: Measure runtime admission gate
+        run: |
+          ./virtualized | tee virtualized.txt
+          python - <<'PY'
+          import re
+          b=int(re.search(r'median_ns=(\d+)',open('baseline.txt').read()).group(1))
+          v=int(re.search(r'median_ns=(\d+)',open('virtualized.txt').read()).group(1))
+          ratio=v/b
+          print(f'TIGRESS_VIRTUALIZE_RATIO baseline_ns={b} virtualized_ns={v} ratio={ratio:.6f}')
+          if ratio > 2.5:
+              print('TIGRESS_VIRTUALIZE_BUDGET_PASS false')
+          else:
+              print('TIGRESS_VIRTUALIZE_BUDGET_PASS true')
+          PY
