@@ -69,3 +69,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-webcrypto-proof-of-possession-browser.js
+      - name: WebAuthn RP binding versus hostile allowed-origin assertion
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-webauthn-origin-boundary-browser.js
