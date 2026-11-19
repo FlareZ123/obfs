@@ -833,6 +833,7 @@ function stableDirectOwnerReflection(modules) {
     if(!stable)return false;
   }
   return true;
+}
 
 /**
  * Prove that an unrelated computed read belongs to a private literal record
