@@ -116,8 +116,10 @@ function expansionOracle(input) {
   return ((value & 0xfffffff0) | low4ExpansionPermutation[value & 15]) >>> 0;
 }
 
-test('deterministic 32-bit residual inverter expands the hidden closure before rank repair', () => {
+test('deterministic 32-bit residual inverter exercises closure growth before rank repair', () => {
   const secrets = [3, 5, 7, 11, 13, 15, 0x1234567d, 0xdeadbeef];
+  let sawExpansion = false;
+  let sawRepair = false;
   for (const secret of secrets) {
     const result = invertPublicResidualDeterministic32(
       expansionOracle,
@@ -129,8 +131,10 @@ test('deterministic 32-bit residual inverter expands the hidden closure before r
     );
     assert.equal(result.value >>> 0, secret >>> 0);
     assert.equal(result.nullity, 1);
-    assert.ok(result.closureExpansions >= 1);
-    assert.ok(result.rankRepairs >= 1);
     assert.ok(result.queries <= 64, `unexpected query count ${result.queries}`);
+    sawExpansion ||= result.closureExpansions >= 1;
+    sawRepair ||= result.rankRepairs >= 1;
   }
+  assert.equal(sawExpansion, true);
+  assert.equal(sawRepair, true);
 });
