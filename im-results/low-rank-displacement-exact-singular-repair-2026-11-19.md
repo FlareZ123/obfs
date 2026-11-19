@@ -518,6 +518,8 @@ Focused two-platform validation run **44478073316** passed on Ubuntu and Windows
 
 A second source-pinned focused run **44478786500** passed on Ubuntu and Windows at `e59c71330b79908b24eab07047d549c81bc6d536`. That run additionally includes the standalone deterministic theorem suite, the complete 40,320-permutation / 322,560-target width-3 enumeration, and 40,320 checks that interpolation residual rank equals zero-based second-difference rank.
 
+After adding inversion duality, focused run **44480125129** passed on both platforms at source `4e0a5a72003a08e24151c3bfa7a040da6e6eb8cb`. The exhaustive width-3 checker additionally verifies for all 40,320 permutations that inverse residual rank equals forward residual rank and that the inverse residual subspace equals the forward `U=M^-1(R)` subspace.
+
 An earlier source-pinned focused run **44477303873** also passed on both platforms before the reusable API integration. The temporary workflow-only inclusion commits used for standalone theorem validation were reverted after their dispatches.
 
 ## Complete width-3 validation over every permutation
