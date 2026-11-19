@@ -31,7 +31,7 @@ test('deterministic low-rank repair handles singular 32-bit generated cases', ()
   }
 });
 
-test('exhaustive width-3 k=2 low-rank class inverts every target', () => {
+test('exhaustive width-3 public residual theorem inverts every permutation target', () => {
   const script = path.join(
     __dirname,
     '..',
@@ -43,9 +43,8 @@ test('exhaustive width-3 k=2 low-rank class inverts every target', () => {
     encoding: 'utf8',
   }));
 
-  assert.equal(report.hiddenSubspaces, 7);
-  assert.equal(report.cosetPreservingPermutationModels, 4032);
-  assert.equal(report.initiallySingularModels, 576);
-  assert.equal(report.targetRecoveries, '32256/32256');
-  assert.ok(report.maxObservedDistinctQueries <= report.theoremDistinctQueryBound);
+  assert.equal(report.permutations, 40320);
+  assert.equal(report.initiallySingularModels, 8064);
+  assert.equal(report.targetRecoveries, '322560/322560');
+  assert.ok(report.maxObservedDistinctQueries <= 8);
 });
