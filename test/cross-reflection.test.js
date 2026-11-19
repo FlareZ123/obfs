@@ -67,3 +67,14 @@ test('closed-world ESM rejects destructuring of an inherited reflective getter',
     get(){return Object.keys(this)[0];}
   });const {inspect}=state;console.log(inspect,state.secretField);`,0);
 });
+
+
+test('closed-world ESM refuses direct own-key reflection of imported owner',async()=>{
+  await check(`
+    console.log(JSON.stringify([
+      Object.hasOwn(state,'secretField'),
+      Reflect.get(state,'secretField'),
+      Object.getOwnPropertyDescriptor(state,'secretField').value,
+      Object.keys(state)
+    ]));`,0);
+});
