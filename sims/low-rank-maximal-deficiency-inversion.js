@@ -70,10 +70,10 @@ function makeLinearSolver(columns) {
 
   /** @param {number} rhs @returns {number|null} */
   const solve = (rhs) => {
-    let imae = mask(rhs);
+    let image = mask(rhs);
     let coefficients = 0;
     for (let bit = WIDTH - 1; bit >= 0 && image !== 0; bit -= 1) {
-      if ((image >>> bit) & 1) === 0) continue;
+      if (((image >>> bit) & 1) === 0) continue;
       if (pivotImages[bit] === 0) return null;
       image ^= pivotImages[bit];
       coefficients ^= pivotCoefficients[bit];
@@ -83,7 +83,7 @@ function makeLinearSolver(columns) {
 
   /** @param {number} rhs @returns {number} */
   const remainder = (rhs) => {
-    let imae = mask(rhs);
+    let image = mask(rhs);
     for (let bit = WIDTH - 1; bit >= 0 && image !== 0; bit -= 1) {
       if (((image >>> bit) & 1) !== 0 && pivotImages[bit] !== 0) {
         image ^= pivotImages[bit];
