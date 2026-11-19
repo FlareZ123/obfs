@@ -622,29 +622,47 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   for (const name of unusableFunctions) functions.delete(name);
 
   const aliases = new Set([rootName]);
-  /** @param {AstNode|undefined|null} expression @returns {boolean} */
-  function resolves(expression) {
-    if (!expression) return false;
-    if (expression.type === 'Identifier') return aliases.has(expression.name);
+  /**
+   * Return the only alias fact needed to resolve an expression. A null result
+   * is already proved from this root through a private carrier or captured
+   * root return; false means the expression is outside this proof grammar.
+   * @param {AstNode|undefined|null} expression
+   * @returns {string|null|false}
+   */
+  function resolvingDependency(expression) {
+    if(!expression)return false;
+    if(expression.type==='Identifier')return expression.name;
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.computed&&expression.object.type==='Identifier'&&
        expression.property.type==='Literal'&&
-       expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return true;
+       expression.property.value===privateOwnerTuples.get(expression.object.name)?.index)return null;
     if(expression.type==='MemberExpression'&&!expression.optional&&
        expression.object.type==='Identifier'&&
        (expression.computed?staticString(expression.property):staticName(expression.property))===
-         privateOwnerRecords.get(expression.object.name))return true;
-    if (expression.type === 'CallExpression' && expression.callee.type === 'Identifier') {
-      const fn = functions.get(expression.callee.name);
-      return Boolean(fn && (fn.returnsRoot ||
-        fn.forwardIndex >= 0 && resolves(expression.arguments[fn.forwardIndex])));
+         privateOwnerRecords.get(expression.object.name))return null;
+    if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'){
+      const fn=functions.get(expression.callee.name);
+      if(!fn)return false;
+      if(fn.returnsRoot)return null;
+      if(fn.forwardIndex>=0)return resolvingDependency(expression.arguments[fn.forwardIndex]);
     }
     return false;
   }
-  // Direct identifier aliases form a monotone reachability closure. The
-  // reverse edges are root-independent and cached with the parsed AST. Drain
-  // them whenever a private carrier or a proved formal introduces a new root
-  // alias, so rich function/tuple/record cases avoid rescanning direct edges.
+  /** @param {AstNode|undefined|null} expression @returns {boolean} */
+  function resolves(expression) {
+    const dependency=resolvingDependency(expression);
+    return dependency===null||
+      typeof dependency==='string'&&aliases.has(dependency);
+  }
+
+  // Every accepted complex alias depends on at most one discovered alias.
+  // A formal parameter is proved only after every call site's dependency is
+  // known. Reverse dependency watchers therefore compute the same least fixed
+  // point without rescanning every complex declaration and formal after each
+  // newly discovered alias.
+  /** @type {Map<string,{target:string,remaining:Set<string>}[]>} */
+  const aliasWatchers=new Map();
+  /** @type {string[]} */
   const pending=[rootName];
   /** @param {string} name @returns {boolean} */
   function addAlias(name) {
@@ -653,47 +671,62 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     pending.push(name);
     return true;
   }
-  /** @returns {boolean} */
-  function closeDirectAliases() {
-    let added=false;
-    while(pending.length) {
-      const origin=/** @type {string} */ (pending.pop());
-      for(const decl of directAliasDeclarations.get(origin)??[]) {
-        if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1)continue;
-        if(addAlias(decl.id.name))added=true;
-      }
+  /** @param {string} target @param {Set<string>} dependencies @returns {void} */
+  function watchAlias(target,dependencies) {
+    if(!dependencies.size){
+      addAlias(target);
+      return;
     }
-    return added;
+    const state={target,remaining:dependencies};
+    for(const dependency of dependencies){
+      const watchers=aliasWatchers.get(dependency)??[];
+      watchers.push(state);
+      aliasWatchers.set(dependency,watchers);
+    }
   }
 
-  // The original proof is a least fixed point of direct aliases, private
-  // carriers, forwarding functions, and verified calls. Saturating one
-  // monotone relation before the other relations preserves that fixed point.
-  // Identifier initializers are fully handled by closeDirectAliases(); only
-  // computed member/call initializers need rechecking after new alias facts.
-  closeDirectAliases();
-  let changed;
-  do {
-    changed=false;
-    for(const decl of complexAliasDeclarations) {
-      if(decl.id.type==='Identifier'&&bindings.get(decl.id.name)===1&&
-         !aliases.has(decl.id.name)&&resolves(decl.init)&&
-         addAlias(decl.id.name))changed=true;
-    }
-    if(closeDirectAliases())changed=true;
-    for(const [name,fn] of functions) {
-      const sites=calls.get(name)??[];
-      if(!sites.length)continue;
-      for(let index=0;index<fn.params.length;index++) {
-        const param=fn.params[index];
-        if(param.type!=='Identifier'||bindings.get(param.name)!==1||
-           aliases.has(param.name))continue;
-        if(sites.every(call=>resolves(call.arguments[index]))&&
-           addAlias(param.name))changed=true;
+  for(const decl of complexAliasDeclarations){
+    if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1||
+       aliases.has(decl.id.name))continue;
+    const dependency=resolvingDependency(decl.init);
+    if(dependency===false)continue;
+    watchAlias(decl.id.name,
+      dependency===null?new Set():new Set([dependency]));
+  }
+  for(const [name,fn] of functions){
+    const sites=calls.get(name)??[];
+    if(!sites.length)continue;
+    for(let index=0;index<fn.params.length;index++){
+      const param=fn.params[index];
+      if(param.type!=='Identifier'||bindings.get(param.name)!==1||
+         aliases.has(param.name))continue;
+      /** @type {Set<string>} */
+      const dependencies=new Set();
+      let valid=true;
+      for(const call of sites){
+        const dependency=resolvingDependency(call.arguments[index]);
+        if(dependency===false){
+          valid=false;
+          break;
+        }
+        if(typeof dependency==='string')dependencies.add(dependency);
       }
+      if(valid)watchAlias(param.name,dependencies);
     }
-    if(closeDirectAliases())changed=true;
-  }while(changed);
+  }
+
+  while(pending.length){
+    const origin=/** @type {string} */ (pending.pop());
+    for(const decl of directAliasDeclarations.get(origin)??[]){
+      if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1)continue;
+      addAlias(decl.id.name);
+    }
+    for(const state of aliasWatchers.get(origin)??[]){
+      if(aliases.has(state.target))continue;
+      state.remaining.delete(origin);
+      if(!state.remaining.size)addAlias(state.target);
+    }
+  }
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.
