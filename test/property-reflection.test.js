@@ -66,3 +66,37 @@ test('an initial own literal key shadows a same-named inherited getter',()=>{
     get(){return 91}});const a={secretField:8};
     module.exports=a.secretField;`,1);
 });
+
+test('direct Reflect.has can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:11};
+    module.exports=[Reflect.has(a,"secretField"),a.secretField];`,1);
+});
+
+test('direct Reflect.getOwnPropertyDescriptor can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:12};
+    module.exports=[Reflect.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,1);
+});
+
+test('direct Object.getOwnPropertyDescriptor can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:13};
+    module.exports=[Object.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,1);
+});
+
+test('patched Reflect.has keeps local property renaming conservative',()=>{
+  compare(`'use strict';const native=Reflect.has;Reflect.has=(owner,key)=>key==="secretField"&&native(owner,key);
+    const a={secretField:14};module.exports=[Reflect.has(a,"secretField"),a.secretField];`,0);
+});
+
+test('patched Object.getOwnPropertyDescriptor keeps local property renaming conservative',()=>{
+  compare(`'use strict';const native=Object.getOwnPropertyDescriptor;
+    Object.getOwnPropertyDescriptor=(owner,key)=>native(owner,key);
+    const a={secretField:15};
+    module.exports=[Object.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,0);
+});
+
+test('Proxy-wrapped owner remains outside local direct-reflection proof',()=>{
+  compare(`'use strict';const a={secretField:16};const proxy=new Proxy(a,{
+    has(target,key){return key==="secretField"&&Reflect.has(target,key);}
+  });module.exports=[Reflect.has(proxy,"secretField"),a.secretField];`,0);
+});
+
