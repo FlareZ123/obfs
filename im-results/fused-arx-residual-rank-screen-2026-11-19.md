@@ -53,34 +53,42 @@ PR #181 proves affine-residual-rank subadditivity under composition, while affin
 r <= 31 + 31 = 62.
 ```
 
-## Matching 62-dimensional witness
+## Fixed-block rank growth
 
-`sims/fused-arx-residual-rank-screen.js` samples deterministic zero-based second finite differences of the 128-bit state permutation and computes their GF(2) span with a BigInt Gaussian basis.
+`sims/fused-arx-residual-rank-screen.js` samples deterministic zero-based second finite differences of fixed-block 128-bit state permutations and computes their GF(2) span with a BigInt Gaussian basis.
 
-The observed ranks are:
-
-```text
-32 samples:   32
-64 samples:   62
-96 samples:   62
-128 samples:  62
-160 samples:  62
-192 samples:  62
-224 samples:  62
-256 samples:  62
-```
-
-The 62 independent observed second differences give `r>=62`. Combined with the analytic composition bound,
+For the fixed unit sequence
 
 ```text
-r = 62
+1234 5678 9abc def0
 ```
 
-exactly.
+the observed final ranks are:
+
+```text
+1 unit:  62
+2 units: 124
+3 units: 126
+4 units: 128
+```
+
+One unit is exact rank 62 from the matching analytic upper bound above.
+
+Two units are also exact: composition subadditivity gives `r<=62+62=124`, while the screen witnesses 124 independent second differences.
+
+For three units the screen proves the lower bound `r>=126`; the generic composition bound has already saturated at the ambient dimension and does not close the remaining two dimensions.
+
+For four units, 128 independent second differences are witnessed by sample 128. Since 128 is the ambient maximum,
+
+```text
+r = 128
+```
+
+exactly for that fixed four-unit block.
 
 ## Security interpretation
 
-This candidate is outside the practical low-rank regime despite having a residual rank below the 128-bit ambient maximum.
+The one-unit candidate is already outside the practical low-rank regime, and the fixed four-unit block reaches the full 128-bit residual dimension.
 
 Even with exact `r=62` supplied to the deterministic inverter, the generic known-r query bound is
 
