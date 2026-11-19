@@ -153,16 +153,34 @@ function proveRootIdentityEligibility(source,name='candidate'){
     'isFinite','isInteger','isNaN','isSafeInteger'
   ]);
 
-  /** @param {import('../src/ast').AstNode} callee @returns {boolean} */
-  function isPurePrimitiveCall(callee){
+  /**
+   * @param {import('../src/ast').AstNode} node
+   * @returns {boolean}
+   */
+  function isSafePrimitiveCall(node){
+    if(node.type!=='CallExpression')return false;
+    const callee=node.callee;
     if(callee.type!=='MemberExpression'||callee.optional||callee.computed||
        callee.object.type!=='Identifier'||callee.property.type!=='Identifier')return false;
     const owner=callee.object.name;
+    const method=callee.property.name;
     if(shadowedBuiltins.has(owner))return false;
-    if(owner==='Math')return mathPrimitiveMethods.has(callee.property.name);
-    if(owner==='Number')return numberPrimitiveMethods.has(callee.property.name);
-    if(owner==='Array')return callee.property.name==='isArray';
-    return owner==='Object'&&callee.property.name==='hasOwn';
+    if(owner==='Array'&&method==='isArray')return true;
+    if(owner==='Number'&&numberPrimitiveMethods.has(method))return true;
+    if(owner==='Object'&&method==='hasOwn'){
+      const key=node.arguments[1];
+      if(!key)return true;
+      const keyValue=key.type==='SpreadElement'?provenance(key.argument):provenance(key);
+      return !hasReference(keyValue);
+    }
+    if(owner==='Math'&&mathPrimitiveMethods.has(method)){
+      return node.arguments.every(argument=>{
+        const value=argument.type==='SpreadElement'?
+          provenance(argument.argument):provenance(argument);
+        return !hasReference(value);
+      });
+    }
+    return false;
   }
 
   /** @param {import('../src/ast').AstNode|null|undefined} node @returns {RefProvenance} */
@@ -208,9 +226,7 @@ function proveRootIdentityEligibility(source,name='candidate'){
     }
     if(node.type==='UnaryExpression'||node.type==='BinaryExpression'||
        node.type==='TemplateLiteral'||node.type==='UpdateExpression')return emptyProvenance();
-    if(node.type==='CallExpression'){
-      return isPurePrimitiveCall(node.callee)?emptyProvenance():emptyProvenance();
-    }
+    if(node.type==='CallExpression')return emptyProvenance();
     if(node.type==='NewExpression'||node.type==='TaggedTemplateExpression')return emptyProvenance();
     return emptyProvenance();
   }
@@ -306,6 +322,9 @@ function proveRootIdentityEligibility(source,name='candidate'){
        key==='property'&&!parent.computed)&&['eval','Function'].includes(node.name)){
       reasons.add('dynamic source execution is outside root-identity proof');
     }
+    if(node.type==='Identifier'&&node.name==='arguments'){
+      reasons.add('implicit arguments alias is outside root-identity proof');
+    }
     if(node.type==='ForOfStatement'&&node.await){
       reasons.add('async iteration is outside root-identity proof');
     }
@@ -354,14 +373,15 @@ function proveRootIdentityEligibility(source,name='candidate'){
       reasons.add('delete of argument-derived member');
     }
     if(node.type==='CallExpression'){
+      const safePrimitiveCall=isSafePrimitiveCall(node);
       if(node.callee.type==='Identifier'&&hasReference(provenance(node.callee))){
         reasons.add('call through argument-derived callable');
       }
       if(node.callee.type==='MemberExpression'&&
-         hasReference(provenance(node.callee.object))&&!isPurePrimitiveCall(node.callee)){
+         hasReference(provenance(node.callee.object))&&!safePrimitiveCall){
         reasons.add('method call on argument-derived receiver');
       }
-      if(!isPurePrimitiveCall(node.callee)){
+      if(!safePrimitiveCall){
         for(const argument of node.arguments){
           const value=argument.type==='SpreadElement'?
             provenance(argument.argument):provenance(argument);
@@ -406,7 +426,9 @@ const ACCEPT_CASES=[
   {name:'nested-arithmetic',source:'export async function candidate(payload){return (payload.record.count|0)+1;}'},
   {name:'loop-return-root',source:'export async function candidate(payload){let sum=0;for(const record of payload.records){sum+=record.quantity|0;}if(sum===-1)return null;return payload;}'},
   {name:'fresh-summary',source:'export async function candidate(payload){return {count:payload.records.length|0,valid:!!payload.ok};}'},
-  {name:'pure-primitives',source:'export async function candidate(payload){const x=Math.imul(payload.count,31);return Number.isFinite(x)&&Array.isArray(payload.records)?payload:0;}'}
+  {name:'pure-primitives-primitiveized',source:'export async function candidate(payload){const x=Math.imul(payload.count|0,31);return Number.isFinite(x)&&Array.isArray(payload.records)?payload:0;}'},
+  {name:'array-isarray-direct',source:'export async function candidate(payload){return Array.isArray(payload.records)?payload:0;}'},
+  {name:'number-isfinite-direct',source:'export async function candidate(payload){return Number.isFinite(payload.count)?payload:0;}'}
 ];
 
 /** @type {Array<{name:string,source:string}>} */
@@ -437,7 +459,12 @@ const ADVERSARIAL_CASES=[
   {name:'outer-nested-store',source:'let shared;export async function candidate(payload){shared=payload.nested;return 1;}'},
   {name:'throw-root',source:'export async function candidate(payload){throw payload;}'},
   {name:'throw-nested',source:'export async function candidate(payload){throw payload.nested;}'},
-  {name:'local-reassignment-conservative',source:'export async function candidate(payload){let same;same=payload;return same;}'}
+  {name:'local-reassignment-conservative',source:'export async function candidate(payload){let same;same=payload;return same;}'},
+  {name:'implicit-arguments-return',source:'export async function candidate(payload){return arguments[0];}'},
+  {name:'implicit-arguments-mutation',source:'export async function candidate(payload){arguments[0].x=1;return 1;}'},
+  {name:'math-direct-nested',source:'export async function candidate(payload){return Math.imul(payload.count,31);}'},
+  {name:'math-max-direct-nested',source:'export async function candidate(payload){return Math.max(payload.left,payload.right);}'},
+  {name:'hasown-reference-key',source:'export async function candidate(payload,other){return Object.hasOwn(other,payload.key);}'}
 ];
 
 /** @type {Array<{name:string,expected:boolean,source:string}>} */
