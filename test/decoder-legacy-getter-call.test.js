@@ -51,7 +51,15 @@ const unsafe=[
   ['nested inherited __defineGetter__.call',
     "const box={inner:{}};box.inner.__defineGetter__.call(box.inner,'ref',function(){return String.prototype;});function poison(p){p.charCodeAt=()=>0;}poison(box.inner.ref);"],
   ['dynamic inherited __defineGetter__.call',
-    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.call(box,key,function(){return String.prototype;});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
+    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.call(box,key,function(){return String.prototype;});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['inherited __defineGetter__.apply',
+    "const box={};box.__defineGetter__.apply(box,['ref',function(){return String.prototype;}]);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['aliased inherited __defineGetter__.apply',
+    "const box={};const define=box.__defineGetter__;define.apply(box,['ref',function(){return String.prototype;}]);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['nested inherited __defineGetter__.apply',
+    "const box={inner:{}};box.inner.__defineGetter__.apply(box.inner,['ref',function(){return String.prototype;}]);function poison(p){p.charCodeAt=()=>0;}poison(box.inner.ref);"],
+  ['dynamic inherited __defineGetter__.apply',
+    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.apply(box,[key,function(){return String.prototype;}]);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -85,7 +93,15 @@ const harmless=[
   ['nested inherited Number __defineGetter__.call',
     "const box={inner:{}};box.inner.__defineGetter__.call(box.inner,'ref',function(){return Number.prototype;});box.inner.ref.unrelated=1;"],
   ['dynamic inherited Number __defineGetter__.call',
-    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.call(box,key,function(){return Number.prototype;});box.ref.unrelated=1;"]
+    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.call(box,key,function(){return Number.prototype;});box.ref.unrelated=1;"],
+  ['inherited Number __defineGetter__.apply',
+    "const box={};box.__defineGetter__.apply(box,['ref',function(){return Number.prototype;}]);box.ref.unrelated=1;"],
+  ['aliased inherited Number __defineGetter__.apply',
+    "const box={};const define=box.__defineGetter__;define.apply(box,['ref',function(){return Number.prototype;}]);box.ref.unrelated=1;"],
+  ['nested inherited Number __defineGetter__.apply',
+    "const box={inner:{}};box.inner.__defineGetter__.apply(box.inner,['ref',function(){return Number.prototype;}]);box.inner.ref.unrelated=1;"],
+  ['dynamic inherited Number __defineGetter__.apply',
+    "const box={};const key=process.argv.length?'ref':'other';box.__defineGetter__.apply(box,[key,function(){return Number.prototype;}]);box.ref.unrelated=1;"]
 ];
 
 for(const [name,mutator] of harmless) {
