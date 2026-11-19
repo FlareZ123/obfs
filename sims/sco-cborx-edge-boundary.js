@@ -51,6 +51,7 @@ function semanticEdges() {
   const restoredCustom = roundtrip(custom);
 
   const symbol = Symbol('edge');
+  /** @type {Record<PropertyKey,unknown>} */
   const withSymbol = {plain: 1};
   withSymbol[symbol] = 2;
   const restoredSymbol = roundtrip(withSymbol);
@@ -81,7 +82,8 @@ function semanticEdges() {
   const restoredGetter = roundtrip(withGetter);
   const getterDescriptor = Object.getOwnPropertyDescriptor(restoredGetter, 'value');
 
-  assert.equal({}.sentinel, undefined);
+  const cleanObject = /** @type {any} */ ({});
+  assert.equal(cleanObject.sentinel, undefined);
 
   return {
     ownProto: {
@@ -89,7 +91,7 @@ function semanticEdges() {
       restoredOwnProto: Object.hasOwn(restoredProto, '__proto__'),
       restoredOwnProtoUnderscore: Object.hasOwn(restoredProto, '__proto_'),
       restoredKeys: Object.keys(restoredProto),
-      globalPollution: /** @type {any} */ ({}).sentinel ?? null
+      globalPollution: cleanObject.sentinel ?? null
     },
     nullPrototype: {
       originalNull: Object.getPrototypeOf(nullProto) === null,
