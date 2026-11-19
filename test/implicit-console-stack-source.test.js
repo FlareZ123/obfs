@@ -5,6 +5,7 @@ const assert=require('node:assert/strict');
 const {Console}=require('node:console');
 const {Writable}=require('node:stream');
 const vm=require('node:vm');
+const {spawnSync}=require('node:child_process');
 const {obfuscateFiles}=require('../src');
 const {parse,observesFunctionSource}=require('../src/ast');
 
@@ -135,4 +136,32 @@ test('ordinary primitive logging remains eligible for real property renaming',()
   }],{mode:'sno',seed:'agent50-implicit-log-positive',strings:false}).files[0];
   assert.deepEqual(execute(output.code),execute(source));
   assert.ok(output.metrics.objects>0,output.code);
+});
+
+/**
+ * Run a CommonJS snippet as the process entry point and capture Node's native
+ * uncaught-exception diagnostic. The program itself never reads Error.stack.
+ * @param {string} code
+ * @returns {string}
+ */
+function uncaughtStderr(code) {
+  const child=spawnSync(process.execPath,['-e',code],{
+    encoding:'utf8',timeout:2000
+  });
+  assert.notEqual(child.status,0,'expected the explicit throw to escape');
+  return child.stderr.replace(/\r\n/g,'\n');
+}
+
+test('uncaught explicit throw preserves native process source diagnostics',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;throw new Error('probe '+value);";
+  const output=obfuscateFiles([{
+    path:'uncaught-source-observer.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'agent50-uncaught-source',strings:false,identifiers:false}).files[0];
+  const native=uncaughtStderr(source);
+  const transformed=uncaughtStderr(output.code);
+  assert.equal(transformed,native,output.code);
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
 });
