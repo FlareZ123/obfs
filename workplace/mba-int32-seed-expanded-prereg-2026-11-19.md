@@ -92,3 +92,32 @@ No v2 held-out execution had been dispatched when this addendum was written.
 The recovery and performance decision rules above remain unchanged. The
 held-out harness now computes the Git blob SHA-1 of the attacker file at runtime
 and asserts exact equality with the pinned blob before generating cases.
+
+
+## Cross-platform blob-check correction
+
+The first integration re-freeze run, Actions **44456026020**, did not qualify as
+the final v2 held-out result. Ubuntu passed the v2 seed-expanded step, while
+Windows failed before case generation because GitHub's Windows checkout exposed
+CRLF working-tree bytes. The harness hashed those platform bytes directly, so
+the value differed from the canonical Git blob despite identical repository
+source.
+
+The case generator and attacker were unchanged. Because the Ubuntu side had
+already produced v2 observations before this harness defect was diagnosed, v2
+will not be reused for the final post-fix evidence.
+
+Before editing the harness, this addendum fixes the next seed and decision rules:
+
+- attacker commit remains:
+  `54bb8d2c6e0c15f96ade9a66a97c11db19431a66`
+- canonical attacker blob remains:
+  `cbc0473d5b4acb917ec559e4e92596e1fa1075e4`
+- fresh final seed:
+  `heldout-after-eol-check-fix:2026-11-19:agent7:mba-seed-expanded:v3`
+- planned harness-only correction: normalize CRLF checkout text to canonical LF
+  before computing the Git blob SHA-1.
+
+The v3 recovery and strict 2.5x performance decision rules remain identical to
+the original preregistration. No v3 held-out case has been generated or
+executed at the time of this addendum.
