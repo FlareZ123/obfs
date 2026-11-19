@@ -4,6 +4,7 @@ const WIDTH = 8;
 const SIZE = 1 << WIDTH;
 const TOP = 1 << (WIDTH - 1);
 const LOW_MASK = TOP - 1;
+const INPUT_PAIR_DIRECTION = 1;
 
 /** @param {number} value @param {number} amount @returns {number} */
 function rotateLeft(value, amount) {
@@ -25,6 +26,11 @@ function outerLinear(input) {
 /** @param {number} input @returns {number} */
 function baselineLinear(input) {
   return rotateLeft(input, 3);
+}
+
+/** @param {number} output @returns {number} */
+function inverseBaseline(output) {
+  return rotateLeft(output, WIDTH - 3);
 }
 
 /**
@@ -71,8 +77,44 @@ function verifyCompatibility(trigger) {
   }
 }
 
+/**
+ * Under known A and u, one target check separates the two points in its pair.
+ * @param {number} trigger
+ * @param {number} target
+ * @returns {number}
+ */
+function invertWithKnownBaselineAndDirection(trigger, target) {
+  const candidate = inverseBaseline(target);
+  return sandwich(trigger, candidate) === target
+    ? candidate
+    : candidate ^ INPUT_PAIR_DIRECTION;
+}
+
+/**
+ * Count nonzero second-derivative samples for a two-point scalar defect h.
+ * @param {number[]} support
+ * @returns {number}
+ */
+function countScalarDefectSamples(support) {
+  const exceptional = new Set(support);
+  let count = 0;
+  for (let point = 0; point < SIZE; point += 1) {
+    for (let direction = 0; direction < SIZE; direction += 1) {
+      const defect =
+        Number(exceptional.has(point)) ^
+        Number(exceptional.has(point ^ direction)) ^
+        Number(exceptional.has(0)) ^
+        Number(exceptional.has(direction));
+      count += defect;
+    }
+  }
+  return count;
+}
+
 function main() {
   const pairKeys = new Set();
+  let genericSupport = null;
+  let targetInversions = 0;
 
   for (let trigger = 0; trigger < TOP; trigger += 1) {
     verifyCompatibility(trigger);
@@ -82,12 +124,17 @@ function main() {
       const output = sandwich(trigger, input);
       outputs.add(output);
       if (output !== baselineLinear(input)) support.push(input);
+
+      const recovered = invertWithKnownBaselineAndDirection(trigger, output);
+      if (recovered !== input) throw new Error('known-baseline target inversion failure');
+      targetInversions += 1;
     }
     if (outputs.size !== SIZE) throw new Error('permutation failure');
-    if (support.length !== 2 || (support[0] ^ support[1]) !== 1) {
+    if (support.length !== 2 || (support[0] ^ support[1]) !== INPUT_PAIR_DIRECTION) {
       throw new Error('unexpected sparse support');
     }
     pairKeys.add(Math.min(...support));
+    if (genericSupport === null && !support.includes(0)) genericSupport = support;
 
     const outputMask = 1 << 3;
     for (let input = 0; input < SIZE; input += 1) {
@@ -101,6 +148,13 @@ function main() {
   }
 
   if (pairKeys.size !== TOP) throw new Error('hidden pairs do not partition domain');
+  if (genericSupport === null) throw new Error('missing generic support');
+
+  const scalarDefectSamples = countScalarDefectSamples(genericSupport);
+  const expectedDefectSamples = 6 * SIZE - 24;
+  if (scalarDefectSamples !== expectedDefectSamples) {
+    throw new Error(`second-derivative count ${scalarDefectSamples}`);
+  }
 
   const transcript = [];
   for (let pair = 0; pair < TOP - 1; pair += 1) {
@@ -119,13 +173,18 @@ function main() {
     width: WIDTH,
     candidateHiddenPairs: TOP,
     oracleInputsInTranscript: transcript.length,
-    unqueriedPair: [hiddenPairStart, hiddenPairStart ^ 1],
+    unqueriedPair: [hiddenPairStart, hiddenPairStart ^ INPUT_PAIR_DIRECTION],
     allSparseSandwichesArePermutations: true,
     allSparseSandwichesAreCompatible: true,
     everyCandidateDiffersFromBaselineOnExactly: 2,
     scalarAffineDefectSupport: 2,
+    scalarSecondDerivativeNonzeroSamples: scalarDefectSamples,
+    scalarSecondDerivativeTotalSamples: SIZE * SIZE,
+    scalarSecondDerivativeExactFormula: '(6*2^n-24)/2^(2n) when 0 is outside the two-point support',
+    knownBaselineAndDirectionTargetInversions: targetInversions,
+    maxAdditionalQueriesWithKnownBaselineAndDirection: 1,
     transcriptIndistinguishableFromOneUnqueriedSparseCandidate: true,
-    consequence: 'exact deterministic global certification needs at least 2^(n-1) oracle input evaluations in this family'
+    consequence: 'global exact certification is exponentially harder than target inversion for this sparse family under the same side information',
   }, null, 2));
 }
 
