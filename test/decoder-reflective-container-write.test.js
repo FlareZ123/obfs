@@ -53,7 +53,23 @@ const unsafe=[
   ['Reflect.set object field',
     "const box={};Reflect.set(box,'ref',String.prototype);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
   ['Reflect.defineProperty object field',
-    "const box={};Reflect.defineProperty(box,'ref',{value:String.prototype});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
+    "const box={};Reflect.defineProperty(box,'ref',{value:String.prototype});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.assign source alias',
+    "const box={};const source={ref:String.prototype};Object.assign(box,source);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.assign nested target',
+    "const box={inner:{}};Object.assign(box.inner,{ref:String.prototype});function poison(p){p.charCodeAt=()=>0;}poison(box.inner.ref);"],
+  ['Object.defineProperty descriptor alias',
+    "const box={};const descriptor={value:String.prototype};Object.defineProperty(box,'ref',descriptor);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperties descriptor map alias',
+    "const box={};const descriptors={ref:{value:String.prototype}};Object.defineProperties(box,descriptors);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Reflect.set dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Reflect.set(box,key,String.prototype);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperty dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Object.defineProperty(box,key,{value:String.prototype});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Reflect.defineProperty dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Reflect.defineProperty(box,key,{value:String.prototype});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperties dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';const descriptors={[key]:{value:String.prototype}};Object.defineProperties(box,descriptors);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -89,7 +105,23 @@ const harmless=[
   ['Reflect.set Number field',
     "const box={};Reflect.set(box,'ref',Number.prototype);box.ref.unrelated=1;"],
   ['Reflect.defineProperty Number field',
-    "const box={};Reflect.defineProperty(box,'ref',{value:Number.prototype});box.ref.unrelated=1;"]
+    "const box={};Reflect.defineProperty(box,'ref',{value:Number.prototype});box.ref.unrelated=1;"],
+  ['Object.assign Number source alias',
+    "const box={};const source={ref:Number.prototype};Object.assign(box,source);box.ref.unrelated=1;"],
+  ['Object.assign nested Number target',
+    "const box={inner:{}};Object.assign(box.inner,{ref:Number.prototype});box.inner.ref.unrelated=1;"],
+  ['Object.defineProperty Number descriptor alias',
+    "const box={};const descriptor={value:Number.prototype};Object.defineProperty(box,'ref',descriptor);box.ref.unrelated=1;"],
+  ['Object.defineProperties Number descriptor map alias',
+    "const box={};const descriptors={ref:{value:Number.prototype}};Object.defineProperties(box,descriptors);box.ref.unrelated=1;"],
+  ['Reflect.set Number dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Reflect.set(box,key,Number.prototype);box.ref.unrelated=1;"],
+  ['Object.defineProperty Number dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Object.defineProperty(box,key,{value:Number.prototype});box.ref.unrelated=1;"],
+  ['Reflect.defineProperty Number dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';Reflect.defineProperty(box,key,{value:Number.prototype});box.ref.unrelated=1;"],
+  ['Object.defineProperties Number dynamic key',
+    "const box={};const key=process.argv.length?'ref':'other';const descriptors={[key]:{value:Number.prototype}};Object.defineProperties(box,descriptors);box.ref.unrelated=1;"]
 ];
 
 for(const [name,mutator] of harmless) {
