@@ -6,13 +6,17 @@
 
 ## Admission rule
 
-For a published `n`-bit permutation whose behavior admits
+For any published `n`-bit permutation `F`, build its public basis affine interpolant
 
 ```text
-F(x) = c XOR A(x) XOR g(x)
+c = F(0)
+M(e_i) = F(e_i) XOR c
+D(x) = F(x) XOR c XOR M(x)
+R = span { D(x) }
+r = dim R.
 ```
 
-with `A` invertible over `GF(2)` and every value of `g` inside one hidden output subspace of dimension `r`, treat a small `r` as a candidate veto for black-box inversion resistance.
+Treat a small public affine-residual rank `r` as a candidate veto for black-box inversion resistance.
 
 The current target-guided attack uses an expected number of chosen evaluations bounded by
 
@@ -20,11 +24,19 @@ The current target-guided attack uses an expected number of chosen evaluations b
 n + 1 + 2^(r+1).
 ```
 
-The bound is independent of how rarely individual nonlinear directions appear. It also survives arbitrary invertible affine input and output wrappers.
+A sharper bound keeps the public interpolation nullity `d=dim ker(M)`:
+
+```text
+n + 1 + 2^d + 2^r,
+```
+
+and every permutation satisfies `d <= r`.
+
+The attack derives these quantities from public behavior. Sparse residual activation and arbitrary invertible affine wrappers do not invalidate the algebraic bound.
 
 At width 32 the rank-only bounds are:
 
-| nonlinear displacement rank `r` | expected-query upper bound |
+| public residual rank `r` | expected-query upper bound |
 | ---: | ---: |
 | 1 | 37 |
 | 2 | 41 |
@@ -42,7 +54,7 @@ At width 32 the rank-only bounds are:
 | 30 | 2,147,483,681 |
 | 31 | 4,294,967,329 |
 
-The rank-one established theorem has a tighter deterministic bound of `n+3`. The table is therefore a conservative triage bound rather than the best attack in every row.
+The established rank-one theorem has a tighter deterministic `n+3` bound for its narrower structural class. The table is a conservative public-rank triage rule.
 
 ## Layered-shear consequence
 
@@ -78,4 +90,4 @@ The useful question is whether coupling increases attacker cost beyond what foll
 - `test/low-rank-target-guided-subspace-growth.test.js`
 - `test/low-rank-exhaustive-width3.test.js`
 
-The width-10 structured validation currently contains 86,016 exact inversions across every `(r,d)` pair with `1 <= r <= 4` and `0 <= d <= r`. The independent truth-table lane contains 322,560 exact inversions across every width-3 permutation and every target.
+The width-10 structured validation currently contains 86,016 exact inversions across its low-rank construction grid. The independent truth-table lane contains 322,560 exact inversions across every width-3 permutation and every target, classified by the public affine-residual rank. The strengthened proof is in `im-results/public-affine-residual-rank-target-inversion-2026-11-19.md`.
