@@ -191,6 +191,69 @@ permutation, checks equality of the nonlinear-coefficient span with
 the truth-table residual subspace, and verifies the complete degree
 profile under affine input/output generators.
 
+## Finite-difference characterization
+
+For a direction `h in V`, write
+
+```text
+Delta_h F(x) = F(x+h) XOR F(x).
+```
+
+Repeated differences remove low algebraic degree. For every threshold
+`k<n`,
+
+```text
+R_F^(>k)
+ = span {
+     Delta_(h_1) ... Delta_(h_(k+1)) F(x)
+     : x,h_1,...,h_(k+1) in V
+   }.
+```
+
+It is enough to use distinct standard-basis directions. To see this in
+the vector ANF, let `T` be a set of `k+1` basis indices. Applying
+the corresponding differences deletes every monomial that does not
+contain `T`, and turns
+
+```text
+a_(T union U) * product_(i in T union U) x_i
+```
+
+into
+
+```text
+a_(T union U) * product_(i in U) x_i.
+```
+
+The derivative truth table and its ANF coefficient table have the same
+GF(2) span because the Boolean Möbius transform is invertible. Every
+coefficient of degree greater than `k` appears in one such derivative
+by choosing any `k+1` indices from its support. Conversely every
+coefficient of every such derivative comes from an original coefficient
+above degree `k`.
+
+For `k=1`, the public affine-residual space therefore has the
+frame-free oracle form
+
+```text
+R_F = span {
+  F(x)
+  XOR F(x+a)
+  XOR F(x+b)
+  XOR F(x+a+b)
+}.
+```
+
+These parallelogram defects can be sampled without first constructing an
+affine interpolant. Observed defect rank is a certified lower bound on
+`r(F)`; reaching the output width certifies full residual rank. A
+smaller sampled rank is only a lower bound unless additional structural
+evidence supplies an upper bound.
+
+The exhaustive width-3 audit verifies, for every permutation, that the
+rank of each order-`k+1` finite-difference span exactly equals the
+corresponding ANF degree-quotient rank.
+
 ## Affine-wrapper invariance
 
 For an invertible affine input map `alpha`,
