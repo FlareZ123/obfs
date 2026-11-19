@@ -68,6 +68,86 @@ rounds=4:
 
 The two- and four-round residual ranks are therefore exactly 32, because 32 is the ambient maximum.
 
+## Exact theorem for odd constant multiplication
+
+The one-round calculation is an instance of a general exact formula.
+
+Let
+
+```text
+P_a(x) = a*x mod 2^n
+```
+
+for odd `a`. If `a=1 mod 2^n`, the map is the identity and the affine-residual rank is zero. Otherwise let
+
+```text
+t = v2(a-1).
+```
+
+Then the affine-residual rank of `P_a` is exactly
+
+```text
+n - t - 1.
+```
+
+### Upper bound
+
+Write `a=1+2^t*b` with odd `b`. Modulo `2^(t+1)`,
+
+```text
+P_a(x) = x + 2^t*b*x.
+```
+
+Only the low input bit contributes to the shifted term modulo `2^(t+1)`, so the low `t+1` output bits are GF(2)-linear functions of the low `t+1` input bits. Every second finite difference therefore has those low `t+1` output bits zero.
+
+Hence the residual span is contained in the `n-t-1` dimensional subspace of words divisible by `2^(t+1)`.
+
+### Matching lower bound
+
+Consider the zero-based second difference with directions `1` and `2^t`:
+
+```text
+delta =
+P_a(1)
+XOR P_a(2^t)
+XOR P_a(1 + 2^t).
+```
+
+The two integer addends `P_a(1)=a` and `P_a(2^t)=a*2^t` first have simultaneous set bits at bit `t`. Their addition therefore has its first carry into bit `t+1`. Equivalently,
+
+```text
+v2(delta) = t+1.
+```
+
+Constant multiplication commutes with doubling modulo `2^n`. Therefore shifting both second-difference directions by `j` gives
+
+```text
+Delta_(2^j) Delta_(2^(t+j)) P_a(0)
+= 2^j * delta mod 2^n.
+```
+
+For
+
+```text
+j = 0,1,...,n-t-2
+```
+
+these `n-t-1` vectors have distinct least-significant set-bit positions `t+1+j`, so they are GF(2)-linearly independent.
+
+The upper and lower bounds coincide.
+
+### Exhaustive finite-width check
+
+`sims/constant-multiplier-residual-rank.js` independently enumerates every odd multiplier at widths 2 through 8, computes the complete zero-based second-difference span, and compares it with the formula. It checks all
+
+```text
+2 + 4 + 8 + 16 + 32 + 64 + 128 = 254
+```
+
+odd multipliers with no mismatch.
+
+This theorem explains why a single ordinary odd multiplication can already have high affine-residual rank even though its source-level inverse is trivial when the multiplier is visible.
+
 ## Exact one-round rank
 
 The one-round result is also exact.
