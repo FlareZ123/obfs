@@ -237,6 +237,12 @@ inverse structure.
 
 ## Validation status
 
-The proof is analytic and the executable witness is reproducible, but
-the result should remain in `im-results/` pending source-pinned
-two-platform validation and independent review.
+Manual workflow
+[44474957456](https://github.com/FlareZ123/obfs/actions/runs/44474957456)
+passed on Ubuntu and Windows at exact source
+`b9cb3c0e7a1a03e78f64f0a3eac5efe9adbdd9f9` under Node 22.23.4.
+It validates the exact rank-30 witness, the full 31-member tunable
+family, 32-bit inverse checks, existing low-rank theorem regressions,
+project typecheck, and strict external JSDoc.
+
+The result should remain in `im-results/` pending independent review.
