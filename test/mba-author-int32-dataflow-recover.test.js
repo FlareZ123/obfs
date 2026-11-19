@@ -132,3 +132,69 @@ test('dataflow attacker statically executes table-indexed round loop', () => {
   assert.deepEqual(recovered.rounds, rounds);
   assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
 });
+
+
+test('dataflow attacker partially evaluates constant-state switch flattening', () => {
+  const rounds = [
+    {
+      coefficients: [0x510e527f, 0x9b05688d],
+      xorShifts: [5, 18],
+      cyclicShifts: [2, 14, 25]
+    },
+    {
+      coefficients: [0x1f83d9ab, 0x5be0cd19],
+      xorShifts: [8, 23],
+      cyclicShifts: [6, 17, 30]
+    }
+  ];
+  const secret = 211;
+  const target = forwardChain32(secret, rounds);
+
+  const source = [
+    "'use strict';",
+    "function rot(v,s){return (((v<<s)|(v>>>(32-s)))>>>0);}",
+    "module.exports=function predicate(input){",
+    "const mul=Math.imul;",
+    "let x=input>>>0,state=17;",
+    "while(state!==31){",
+    "switch(state){",
+    "case 9:",
+    `const p1=(mul(${rounds[1].coefficients[1]},x)^${rounds[1].coefficients[0]})>>>0;`,
+    `const q1=(p1^(p1>>>${rounds[1].xorShifts[1]})^(p1>>>${rounds[1].xorShifts[0]}))>>>0;`,
+    `x=(rot(q1,${rounds[1].cyclicShifts[2]})^rot(q1,${rounds[1].cyclicShifts[0]})^rot(q1,${rounds[1].cyclicShifts[1]}))>>>0;`,
+    "state=4;break;",
+    "case 4:",
+    "state=31;break;",
+    "case 17:",
+    `const p0=(${rounds[0].coefficients[0]}^mul(x,${rounds[0].coefficients[1]}))>>>0;`,
+    `const q0=(p0^(p0>>>${rounds[0].xorShifts[0]})^(p0>>>${rounds[0].xorShifts[1]}))>>>0;`,
+    `x=(rot(q0,${rounds[0].cyclicShifts[1]})^rot(q0,${rounds[0].cyclicShifts[2]})^rot(q0,${rounds[0].cyclicShifts[0]}))>>>0;`,
+    "state=9;break;",
+    "default:",
+    "state=31;break;",
+    "}",
+    "}",
+    `return x===${target};`,
+    "};"
+  ].join('\n');
+
+  const minified = transformSync(source, {
+    loader: 'js',
+    format: 'cjs',
+    target: 'es2022',
+    minify: true,
+    legalComments: 'none'
+  }).code;
+
+  assert.throws(
+    () => recover(minified),
+    /author-style loop or target not found/,
+    'The older loop recognizer should reject switch-flattened control flow'
+  );
+
+  const recovered = recoverDataflow(minified);
+  assert.equal(recovered.inputIndex, 0);
+  assert.equal(recovered.target, target);
+  assert.deepEqual(recovered.rounds, rounds);
+  assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
+});
