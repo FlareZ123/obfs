@@ -17,8 +17,8 @@ function run(code,input) {
     timeout:3000
   });
   assert.notEqual(child.status,null,'child process did not exit normally');
-  const stdout=/** @type {string} */ (child.stdout);
-  const stderr=/** @type {string} */ (child.stderr);
+  const stdout=String(child.stdout);
+  const stderr=String(child.stderr);
   return {
     status:/** @type {number} */ (child.status),
     stdout:stdout.replace(/\r\n/g,'\n'),
