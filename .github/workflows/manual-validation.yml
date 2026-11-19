@@ -2,26 +2,103 @@ name: Manual obfuscator validation
 
 on:
   workflow_dispatch:
+    inputs:
+      alias_proof_ab:
+        description: 'Run source-paired direct-alias compiler performance experiment'
+        type: boolean
+        default: false
+      alias_owners:
+        description: 'Number of direct-alias owners for opt-in paired A/B'
+        type: number
+        default: 384
+      repeat_aliases:
+        description: 'Use four alternating control/candidate pairs for aliases'
+        type: boolean
+        default: false
+      rich_aliases:
+        description: 'Include callable-containing alias corpus against general-closure baseline'
+        type: boolean
+        default: false
+      dependency_aliases:
+        description: 'Include reverse-ordered formal dependency-chain compiler A/B'
+        type: boolean
+        default: false
+      dependency_depth:
+        description: 'Formal dependency chain depth for opt-in paired A/B'
+        type: number
+        default: 192
 
 permissions:
   contents: read
 
 jobs:
-  low-rank-quotient:
+  node22:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ inputs.alias_proof_ab && '0' || '1' }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22.23.4'
       - name: Install declared dependencies
+        id: install
         run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Verify low-rank shear quotient pilot
-        run: node sims/low-rank-shear-quotient-pilot.js
-      - name: Strict JSDoc for research tools
+      - name: Behavioral and adversarial suites with compact failure diagnostics
+        run: node --test --test-reporter=spec test/*.test.js
+      - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
+        if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
+        env:
+          OBFS_PROOF_CONTROL_SHA: ${{ inputs.dependency_aliases && '2d540ee324013ff3bf36e878c0f1e2f411c52f6d' || inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
+          OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
+          OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
+          OBFS_PROOF_RICH_ALIASES: ${{ inputs.rich_aliases }}
+          OBFS_PROOF_DEPENDENCY_ALIASES: ${{ inputs.dependency_aliases }}
+          OBFS_PROOF_DEPENDENCY_DEPTH: ${{ inputs.dependency_depth }}
+        run: node sims/property-proof-inventory-ab.js
+      - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
+        env:
+          OBFS_BLIND_AUDIT_FILE: blind-affine-audit-${{ runner.os }}.json
+        run: node sims/blind-affine-public-recovery-matrix.js
+      - name: Persist complete blind post-answer transcripts
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: blind-affine-audit-${{ runner.os }}
+          path: blind-affine-audit-${{ runner.os }}.json
+          if-no-files-found: error
+      - name: JSDoc type safety
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run typecheck
+      - name: Strict JSDoc for external corpus research tools
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck:external
+      - name: Performance sample
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: npm run benchmark
+      - name: Paired own-key and null-prototype six-module startup-and-session profiles
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/verified-record-session-profile.js
+      - name: Native/emitted local formal-value whole-process budget and public clone
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/local-parameter-value-profile.js
+      - name: Real Chromium module and host-lock integration
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
+      - name: Real Chromium null-prototype protected-key and host-inheritance parity
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/verified-record-browser.js
+      - name: Real Chromium cross-module owner-field observation differential
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-observation-browser.js
