@@ -355,7 +355,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
- * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],reflections:{key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
@@ -718,7 +718,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const patterns = [];
   /** @type {AstNode[]} */
   const inChecks = [];
-  /** @type {{key:AstNode,property:string}[]} */
+  /** @type {{call:AstNode,key:AstNode,property:string}[]} */
   const reflections = [];
   const aliasUses=[...aliases].flatMap(name=>identifierUses.get(name)??[]);
   aliasUses.sort((a,b)=>a.order-b.order);
@@ -795,7 +795,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const method=staticName(parent.callee.property);
       if(host==='Reflect' && method==='get' ||
          host==='Object' && method==='hasOwn') {
-        reflections.push({key:parent.arguments[1],property:parent.arguments[1].value});
+        reflections.push({call:parent,key:parent.arguments[1],property:parent.arguments[1].value});
         continue;
       }
     }
@@ -923,6 +923,16 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       } else if (['&&=','||=','??='].includes(consumer.operator)) return null;
     }
 
+  }
+  for(const reflection of reflections) {
+    let expression=reflection.call;
+    let ancestor=parents.get(expression);
+    while(ancestor) {
+      if(sourceSpelledErrorOperand(ancestor)===expression)return null;
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))break;
+      expression=ancestor;
+      ancestor=parents.get(expression);
+    }
   }
   /** @type {Set<AstNode>} */
   const forwardedCalls=new Set();
