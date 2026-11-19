@@ -17,10 +17,12 @@ function run(code,input) {
     timeout:3000
   });
   assert.notEqual(child.status,null,'child process did not exit normally');
+  const stdout=/** @type {string} */ (child.stdout);
+  const stderr=/** @type {string} */ (child.stderr);
   return {
     status:/** @type {number} */ (child.status),
-    stdout:child.stdout.replace(/\r\n/g,'\n'),
-    stderr:child.stderr.replace(/\r\n/g,'\n')
+    stdout:stdout.replace(/\r\n/g,'\n'),
+    stderr:stderr.replace(/\r\n/g,'\n')
   };
 }
 
