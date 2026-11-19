@@ -13,6 +13,11 @@ on:
         required: false
         default: false
         type: boolean
+      root_identity_proof_only:
+        description: Run only the conservative root-identity static proof
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -31,21 +36,21 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared project dependencies and exact experimental codec
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only }}
         run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0 devalue@6.0.3
       - name: Compare devalue graph transport against native and JSON value work
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only }}
         run: node sims/sco-devalue-wire-pilot.js
       - name: Bound hostile graph wire parser probes
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only }}
         run: node sims/sco-devalue-untrusted-parser-grid.js
       - name: Real Chromium devalue module bootstrap and repeated compute
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && runner.os == 'Linux' }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && runner.os == 'Linux' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/sco-devalue-browser-profile.js
       - name: Independently test structured-clone JSON wire and document negative controls
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only }}
         run: node sims/sco-structured-wire-pilot.js
       - name: Install declared project dependencies for read-only identity pilot
         if: ${{ inputs.readonly_identity_only }}
@@ -65,3 +70,15 @@ jobs:
       - name: Run cbor-x root-identity semantic and paired CPU pilot
         if: ${{ inputs.cbor_root_identity_only }}
         run: node sims/sco-cborx-root-identity-pilot.js
+      - name: Install declared project dependencies for root-identity proof
+        if: ${{ inputs.root_identity_proof_only }}
+        run: npm ci --ignore-scripts
+      - name: Strict JSDoc for root-identity proof
+        if: ${{ inputs.root_identity_proof_only }}
+        run: npx tsc -p jsconfig.sco-root-identity-proof.json
+      - name: Run frozen root-identity proof corpus
+        if: ${{ inputs.root_identity_proof_only }}
+        run: node --test test/sco-root-identity-static-proof.test.js
+      - name: Emit root-identity proof classification
+        if: ${{ inputs.root_identity_proof_only }}
+        run: node sims/sco-root-identity-static-proof.js
