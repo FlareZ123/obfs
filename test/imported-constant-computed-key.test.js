@@ -347,3 +347,28 @@ test('named string re-export retains function-source observer refusal',async()=>
     ]
   ),0);
 });
+
+
+test('default string relay cannot hide a second owner computed-key use',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import hidden,{lookup} from "./relay.mjs";'+
+      'console.log(bag[lookup],bag[hidden]);',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="secretField";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup,key as default} from "./key.mjs";'}
+    ]
+  ),0);
+});
+
+test('default toString relay cannot hide a function-source observer',async()=>{
+  await compare(graph(
+    'export const bag={secretField:8};',
+    'import {bag} from "./state.mjs";import hidden,{lookup} from "./relay.mjs";'+
+      'function inspect(){return bag.secretField;}console.log(bag[lookup],inspect[hidden]());',
+    [
+      {path:'key.mjs',sourceType:'module',code:'export const key="toString";'},
+      {path:'relay.mjs',sourceType:'module',code:'export {key as lookup,key as default} from "./key.mjs";'}
+    ]
+  ),0);
+});
