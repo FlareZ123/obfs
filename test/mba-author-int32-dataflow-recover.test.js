@@ -58,6 +58,8 @@ test('dataflow attacker recovers mixed independently parameterized unrolled roun
     legalComments: 'none'
   }).code;
 
+  console.log('MBA_DATAFLOW_MINIFIED', minified);
+
   assert.throws(
     () => recover(minified),
     /author-style loop or target not found/,
