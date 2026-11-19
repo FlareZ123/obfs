@@ -28,6 +28,11 @@ on:
         required: false
         default: false
         type: boolean
+      path_identity_only:
+        description: Run only the cbor-x nested path-identity pilot
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -46,21 +51,21 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared project dependencies and exact experimental codec
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && !inputs.path_identity_only }}
         run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0 devalue@6.0.3
       - name: Compare devalue graph transport against native and JSON value work
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && !inputs.path_identity_only }}
         run: node sims/sco-devalue-wire-pilot.js
       - name: Bound hostile graph wire parser probes
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && !inputs.path_identity_only }}
         run: node sims/sco-devalue-untrusted-parser-grid.js
       - name: Real Chromium devalue module bootstrap and repeated compute
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && runner.os == 'Linux' }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && !inputs.path_identity_only && runner.os == 'Linux' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/sco-devalue-browser-profile.js
       - name: Independently test structured-clone JSON wire and document negative controls
-        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && !inputs.root_identity_proof_only && !inputs.root_identity_browser_http_only && !inputs.root_identity_yield_only && !inputs.path_identity_only }}
         run: node sims/sco-structured-wire-pilot.js
       - name: Install declared project dependencies for read-only identity pilot
         if: ${{ inputs.readonly_identity_only }}
@@ -112,3 +117,12 @@ jobs:
       - name: Scan existing SCO examples for v3 root-identity yield
         if: ${{ inputs.root_identity_yield_only }}
         run: node sims/sco-root-identity-v3-yield.js
+      - name: Install project dependencies and exact cbor-x for path identity
+        if: ${{ inputs.path_identity_only }}
+        run: npm install --no-package-lock --ignore-scripts cbor-x@1.6.9
+      - name: Strict JSDoc for cbor-x path identity
+        if: ${{ inputs.path_identity_only }}
+        run: npx tsc -p jsconfig.sco-path-identity.json
+      - name: Run cbor-x nested path-identity semantic and paired CPU pilot
+        if: ${{ inputs.path_identity_only }}
+        run: node sims/sco-cborx-path-identity-pilot.js
