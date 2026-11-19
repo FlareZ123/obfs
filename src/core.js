@@ -846,11 +846,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
             if(key===null) {
-              if(containsDecoderIntrinsic(property.value))opaqueReflectiveSensitiveWrite=true;
+              if(propertyReadProducesSensitiveValue(property)||
+                 containsDecoderIntrinsic(property.value))opaqueReflectiveSensitiveWrite=true;
               continue;
             }
             const pathParts=[...prefix,key];
-            recordSensitivePathWrite(owner,pathParts,property.value);
+            if(propertyReadProducesSensitiveValue(property)) {
+              recordKnownSensitivePath(owner,pathParts);
+            } else {
+              recordSensitivePathWrite(owner,pathParts,property.value);
+            }
             if(property.value.type==='ObjectExpression'||property.value.type==='ArrayExpression') {
               recordSensitiveContainerCopy(owner,property.value,pathParts);
             }
@@ -915,6 +920,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const method=memberName(node.callee);
         const target=node.arguments[0];
         if(!target)return;
+        if(method==='__defineGetter__') {
+          const getter=node.arguments[1];
+          if(getter&&functionReturnsSensitiveValue(getter)) {
+            const key=staticString(target);
+            if(key===null)opaqueReflectiveSensitiveWrite=true;
+            else recordKnownSensitivePath(receiver,[key]);
+          }
+          return;
+        }
         if(isObjectIntrinsic(receiver)&&method==='assign') {
           for(const source of node.arguments.slice(1)) {
             recordSensitiveContainerCopy(target,source);
