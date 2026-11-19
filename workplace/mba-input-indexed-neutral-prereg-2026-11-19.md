@@ -130,3 +130,30 @@ JSDoc gate.
 
 The final runtime profile and held-out generator must use module-scoped lookup
 tables as well. No held-out seed has been assigned yet.
+
+
+## Frozen held-out phase
+
+The module-scoped calibration passed on Ubuntu and Windows in targeted Actions
+run **44457206713**, including the external JSDoc gate. The held-out phase is
+therefore frozen at:
+
+- attacker commit:
+  `511ae500ff33f6d2b7acea11d3021c49ec138d8c`
+- attacker Git blob:
+  `461028d78cf5427130248d0ea27a08e1aa12744c`
+- post-freeze held-out seed:
+  `heldout-after-511ae500:2026-11-19:agent7:mba-input-indexed-neutral:v1`
+
+The held-out generator will assert the canonical attacker Git blob at runtime
+before generating any case. It will use 32 deterministic one-round cases,
+cycling table domains 4, 8, 16 and 32, with fresh MBA parameters, public
+multiplier/inverse tables and source variants. The source shape keeps both
+tables at module scope.
+
+The paired runtime profile uses the same module-scoped carrier shape. The
+original equality predicate remains the baseline, and any observed paired CPU
+ratio above 2.5x is a strict veto for that measured workload.
+
+No held-out case using this seed had been generated or executed when this
+freeze was recorded.
