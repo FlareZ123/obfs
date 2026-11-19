@@ -42,6 +42,8 @@ jobs:
         run: node --test test/mba-author-int32-dataflow-recover.test.js
       - name: Recover post-freeze heldout dataflow-mixed Int32 permutations
         run: node sims/mba-author-int32-dataflow-heldout.js
+      - name: Recover post-freeze table-loop Int32 permutations
+        run: node sims/mba-author-int32-table-heldout.js
       - name: JSDoc
         run: npm run typecheck
       - name: External research tool JSDoc
