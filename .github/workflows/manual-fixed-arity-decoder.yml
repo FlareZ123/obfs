@@ -79,6 +79,18 @@ jobs:
       - name: Reverse alias container field provenance red and positive-yield gate
         run: node --test test/decoder-container-alias-write.test.js
 
+      - name: Reflective container field write provenance red and positive-yield gate
+        run: node --test test/decoder-reflective-container-write.test.js
+
+      - name: Returned reflective container provenance red and positive-yield gate
+        run: node --test test/decoder-reflective-return-container.test.js
+
+      - name: Prototype-linked reflective container provenance red and positive-yield gate
+        run: node --test test/decoder-reflective-prototype-container.test.js
+
+      - name: Returned spread container provenance red and positive-yield gate
+        run: node --test test/decoder-returned-spread-container.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
