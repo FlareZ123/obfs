@@ -57,10 +57,18 @@ This consequence is already exhibited by multiple independent experiments:
   online-cloning capability. The security boundary came from private server
   residency and account authority.
 
-The new WebCrypto proof-of-possession experiment in
-`test/sco-webcrypto-proof-of-possession-browser.js` tests a stronger-looking
-credential form. Its result should be added only after source-pinned CI
-completes.
+Two additional browser controls now sharpen the credential boundary:
+
+- `im-results/sco-webcrypto-proof-of-possession-2026-11-19.md`: a real
+  Chromium page kept the ECDSA private `CryptoKey` non-extractable and
+  `exportKey` failed with `InvalidAccessError`, while hostile same-origin
+  code retained the opaque key handle and signed a fresh attacker-chosen
+  request that the server accepted.
+- `im-results/sco-webauthn-origin-boundary-2026-11-19.md`: WebAuthn
+  successfully blocked a copied `127.0.0.1` client from requesting the
+  `localhost` RP credential, while hostile code already running at the
+  admitted `localhost` origin obtained a fresh UV-required assertion when
+  the authenticator ceremony succeeded.
 
 ## What remains achievable
 
@@ -83,6 +91,13 @@ non-forwardable external trust anchor with independently enforced user
 presence, trusted hardware outside the hostile runtime, a restricted input
 domain, or a server policy that makes the downstream query unavailable to the
 authorized client. Each changes the threat model and must be declared.
+
+WebAuthn demonstrates why this distinction matters. Its RP binding supplies a
+real copied-origin admission boundary because the browser/authenticator
+participate in the security decision. The same mechanism does not prevent
+relay by hostile code already executing at the admitted RP when the required
+ceremony can be satisfied. Environment admission and same-account functional
+anti-relay must therefore remain separate reported properties.
 
 ## Research decision
 
