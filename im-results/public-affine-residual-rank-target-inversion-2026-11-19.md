@@ -241,6 +241,18 @@ The new `H` stays inside `U` and strictly grows. After at most `r-d` failed roun
 
 The candidate subspaces are nested, so the target-coset phase evaluates at most `2^r` distinct candidate inputs across all rounds.
 
+## Algebraic work does not require enumerating the observed output span
+
+The intersection
+
+```text
+S intersect image(M)
+```
+
+can be computed directly by Gaussian elimination. Form the combined column map whose columns are a basis of `S` followed by the columns of `M`. Kernel relations of that map identify exactly the vectors represented by both sides. Mapping a basis of those relations back through the `S` coefficients yields an intersection basis.
+
+The executable attack now uses this construction. It does not enumerate all `2^dim(S)` vectors merely to find the intersection. Apart from the chosen oracle evaluations, each growth round therefore uses polynomial-size linear algebra. A simple implementation costs at most cubic work in the bit width per elimination, plus linear-algebra updates over the queried `2^h` target-coset points.
+
 ## Query complexity
 
 The three sources of chosen evaluations are:

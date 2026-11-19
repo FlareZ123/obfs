@@ -30,6 +30,50 @@ function basis(vectors) {
 /** @param {number[]} vectors @returns {number} */
 function rank(vectors) { return basis(vectors).length; }
 
+
+/** @param {number[]} columns @returns {bigint[]} */
+function kernelRelations(columns) {
+  const pivotImages = Array(WIDTH).fill(0);
+  const pivotCoefficients = Array(WIDTH).fill(0n);
+  const kernel = [];
+  for (let index = 0; index < columns.length; index += 1) {
+    let image = mask(columns[index]);
+    let coefficients = 1n << BigInt(index);
+    for (let bit = WIDTH - 1; bit >= 0 && image !== 0; bit -= 1) {
+      if (((image >>> bit) & 1) === 0) continue;
+      if (pivotImages[bit] !== 0) {
+        image ^= pivotImages[bit];
+        coefficients ^= pivotCoefficients[bit];
+      } else {
+        pivotImages[bit] = image;
+        pivotCoefficients[bit] = coefficients;
+        break;
+      }
+    }
+    if (image === 0) kernel.push(coefficients);
+  }
+  return kernel;
+}
+
+/**
+ * @param {number[]} leftVectors
+ * @param {number[]} rightVectors
+ * @returns {number[]}
+ */
+function intersectionBasis(leftVectors, rightVectors) {
+  const left = basis(leftVectors);
+  const right = basis(rightVectors);
+  const intersection = [];
+  for (const relation of kernelRelations([...left, ...right])) {
+    let value = 0;
+    for (let index = 0; index < left.length; index += 1) {
+      if (((relation >> BigInt(index)) & 1n) !== 0n) value ^= left[index];
+    }
+    if (value !== 0) intersection.push(mask(value));
+  }
+  return basis(intersection);
+}
+
 /** @param {number[]} columns @param {number} input @returns {number} */
 function applyLinear(columns, input) {
   let output = 0;
@@ -134,10 +178,14 @@ function invert(permutation, target) {
       differences.push(output ^ target);
     }
     const differenceBasis = basis(differences);
+    const intersection = intersectionBasis(differenceBasis, columns);
     const preimageBasis = solver.kernelBasis.slice();
-    for (const vector of span(differenceBasis)) {
+    for (const vector of intersection) {
       const preimage = solver.solve(vector);
-      if (preimage !== null && rank([...preimageBasis, preimage]) > preimageBasis.length) preimageBasis.push(preimage);
+      assert.notEqual(preimage, null);
+      if (rank([...preimageBasis, /** @type {number} */ (preimage)]) > preimageBasis.length) {
+        preimageBasis.push(/** @type {number} */ (preimage));
+      }
     }
     const next = basis([...hBasis, ...preimageBasis]);
     assert.ok(next.length > hBasis.length);
