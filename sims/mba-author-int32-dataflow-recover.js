@@ -425,12 +425,14 @@ function executeLoopUpdate(update, environment, helpers) {
  * @returns {boolean}
  */
 function executeForLoop(loop, environment, helpers) {
-  if (loop.type !== 'ForStatement' || !loop.init || !loop.test || !loop.update) return false;
+  if (loop.type !== 'ForStatement' || !loop.test) return false;
 
-  if (loop.init.type === 'VariableDeclaration') {
-    if (!executeStatement(loop.init, environment, helpers)) return false;
-  } else if (evaluate(loop.init, environment, helpers) === null) {
-    return false;
+  if (loop.init) {
+    if (loop.init.type === 'VariableDeclaration') {
+      if (!executeStatement(loop.init, environment, helpers)) return false;
+    } else if (evaluate(loop.init, environment, helpers) === null) {
+      return false;
+    }
   }
 
   for (let iteration = 0; iteration < 64; iteration++) {
@@ -438,7 +440,7 @@ function executeForLoop(loop, environment, helpers) {
     if (condition === null) return false;
     if (!condition) return true;
     if (!executeStatement(loop.body, environment, helpers)) return false;
-    if (!executeLoopUpdate(loop.update, environment, helpers)) return false;
+    if (loop.update && !executeLoopUpdate(loop.update, environment, helpers)) return false;
   }
 
   return false;
