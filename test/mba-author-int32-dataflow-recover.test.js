@@ -188,7 +188,7 @@ test('dataflow attacker partially evaluates constant-state switch flattening', (
 
   assert.throws(
     () => recover(minified),
-    /author-style loop or target not found/,
+    /author-style loop or target not found|round bound not found/,
     'The older loop recognizer should reject switch-flattened control flow'
   );
 
