@@ -211,3 +211,27 @@ test('direct reflection normalization preserves opaque free receivers',()=>{
   assert.ok(attacked.files[0].code.includes('Reflect.get(hidden,"_publicField0")'));
   assert.ok(attacked.files[0].code.includes('Reflect.get(HOST,"'+field+'")'));
 });
+
+test('seedless normalizer follows every admitted direct reflection selector',()=>{
+  const field='_pfeedfacecafe';
+  const source='const hidden={'+field+':17};'+
+    'module.exports=['+
+    'Reflect.has(hidden,"'+field+'"),'+
+    'Reflect.getOwnPropertyDescriptor(hidden,"'+field+'").value,'+
+    'Object.getOwnPropertyDescriptor(hidden,"'+field+'").value,'+
+    'Reflect.set(hidden,"'+field+'",23),hidden.'+field+'];';
+  const attacked=normalizePublicFields([
+    {path:'reflect-extended.cjs',sourceType:'commonjs',code:source}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(attacked.properties,1);
+  assert.equal(execute(attacked.files[0].code),execute(source));
+  assert.equal(attacked.files[0].code.includes(field),false);
+  assert.ok(attacked.files[0].code.includes('Reflect.has(hidden,"_publicField0")'));
+  assert.ok(attacked.files[0].code.includes(
+    'Reflect.getOwnPropertyDescriptor(hidden,"_publicField0")'));
+  assert.ok(attacked.files[0].code.includes(
+    'Object.getOwnPropertyDescriptor(hidden,"_publicField0")'));
+  assert.ok(attacked.files[0].code.includes(
+    'Reflect.set(hidden,"_publicField0",23)'));
+});
+

@@ -3,7 +3,7 @@
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,parse,observesFunctionSource,observesDistributedSource,staticString,collectDirectCarrierFactories} = require('./ast');
-const {collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
+const {collectBindings,proveLocalObject,stableDirectOwnerReflection,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject} = require('./properties');
 const {proveDirectReaderPrimitives}=require('./direct-reader-primitives');
 
 /** @typedef {import('./core').SourceFile & {sourceType:import('./core').SourceType}} SourceFile */
@@ -797,42 +797,6 @@ function hasAcyclicStaticImports(modules) {
     }
   }
   return evaluated===modules.size;
-}
-
-/**
- * Allow literal-key owner reflection only in a graph where the relevant
- * mutable globals have no other source-visible access path. Any global-root
- * use, local Object/Reflect binding, alias, capture, mutation, computed method,
- * or indirect call disables this optional proof lane.
- *
- * @param {ReadonlyMap<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} modules
- * @returns {boolean}
- */
-function stableDirectOwnerReflection(modules) {
-  for(const module of modules.values()) {
-    if(module.bindings.has('Object')||module.bindings.has('Reflect'))return false;
-    let stable=true;
-    walk(module.ast,(node,parent,key,ancestors)=>{
-      if(!stable||node.type!=='Identifier')return;
-      if(['globalThis','window','self','global'].includes(node.name)) {
-        stable=false;
-        return;
-      }
-      if(node.name!=='Object'&&node.name!=='Reflect')return;
-      if(parent?.type!=='MemberExpression'||parent.object!==node||parent.computed) {
-        stable=false;
-        return;
-      }
-      const call=ancestors.at(-2);
-      const method=staticName(parent.property);
-      const supported=node.name==='Reflect'&&method==='get' ||
-        node.name==='Object'&&method==='hasOwn';
-      if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
-         call.optional)stable=false;
-    });
-    if(!stable)return false;
-  }
-  return true;
 }
 
 /**
@@ -1896,7 +1860,8 @@ function renameCrossFileProperties(files,seed) {
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
   const verifiedPrimitives=collectVerifiedImportedPrimitives(files);
   const acyclicImports=hasAcyclicStaticImports(modules);
-  const allowDirectReflection=stableDirectOwnerReflection(modules);
+  const allowDirectReflection=[...modules.values()].every(module=>
+    stableDirectOwnerReflection(module.ast,module.bindings));
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
