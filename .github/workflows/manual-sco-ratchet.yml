@@ -64,3 +64,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-ratchet-browser-equal-trust.js
+      - name: Hostile Chromium reuses non-extractable WebCrypto proof-of-possession key
+        if: runner.os == 'Linux'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-webcrypto-proof-of-possession-browser.js
