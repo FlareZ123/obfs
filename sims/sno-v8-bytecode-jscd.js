@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const os=require('node:os');
 const path=require('node:path');
-const {execFile}=require('node:child_process');
+const {execFile,exec:execCommand}=require('node:child_process');
 const {promisify}=require('node:util');
 const {performance}=require('node:perf_hooks');
 const vm=require('node:vm');
@@ -12,7 +12,8 @@ const v8=require('node:v8');
 const {wrap}=require('node:module');
 const bytenode=require('bytenode');
 
-const exec=promisify(execFile);
+const execFileAsync=promisify(execFile);
+const execCommandAsync=promisify(execCommand);
 const SOURCE_CANARY='AGENT8_V8_BYTECODE_SOURCE_CANARY_20261119';
 
 const candidateSource=`'use strict';
@@ -42,7 +43,9 @@ process.stdout.write(String(secretLedgerTransform(originalInputValues,originalIn
  * @returns {Promise<{stdout:string,stderr:string}>}
  */
 async function run(command,args){
-  return exec(command,args,{encoding:'utf8',maxBuffer:8*1024*1024,timeout:120000});
+  return execFileAsync(command,args,{
+    encoding:'utf8',maxBuffer:8*1024*1024,timeout:120000
+  });
 }
 
 /**
@@ -53,8 +56,11 @@ async function run(command,args){
 async function runCli(command,args){
   if(process.platform!=='win32')return run(command,args);
   const quote=value=>'"'+value.replaceAll('"','""')+'"';
-  const line='"'+[command,...args].map(quote).join(' ')+'"';
-  return run(process.env.ComSpec??'cmd.exe',['/d','/s','/c',line]);
+  const line=[command,...args].map(quote).join(' ');
+  return execCommandAsync(line,{
+    encoding:'utf8',maxBuffer:8*1024*1024,timeout:120000,
+    shell:process.env.ComSpec??'cmd.exe'
+  });
 }
 
 /**
