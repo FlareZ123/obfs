@@ -1,0 +1,27 @@
+name: Manual dynamic host exception source-boundary probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dynamic-host-boundary:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm install --no-package-lock --ignore-scripts
+      - name: Reproduce dynamic-input host source mismatch
+        run: node sims/host-dynamic-exception-boundary.js
+      - name: Validate external JSDoc
+        run: npm run typecheck:external
