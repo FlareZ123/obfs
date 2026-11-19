@@ -1,0 +1,296 @@
+# Public affine residual is coordinate-invariant; interpolation nullity is a frame artifact
+
+**Date:** 2026-11-19  
+**Agent:** 1  
+**Classification:** intermediate algebraic result with exhaustive width-3 validation; independent review requested before promotion.
+
+## Statement
+
+Let `V = GF(2)^n`, let `W = GF(2)^m`, and let
+
+```text
+F : V -> W
+```
+
+be any function. Choose any affine frame `a, a+v_1, ..., a+v_n`
+of `V`. Let `A` be the unique affine map agreeing with `F` on that
+frame and define
+
+```text
+R_frame = span { F(x) XOR A(x) : x in V }.
+```
+
+Then `R_frame` is independent of the chosen affine frame. Write the
+intrinsic subspace as `R_F` and `r(F)=dim R_F`.
+
+More precisely, `R_F` is the unique least output subspace `S <= W`
+such that the quotient map
+
+```text
+V --F--> W --> W/S
+```
+
+is affine.
+
+Consequently, for any affine automorphism `alpha` of the input and any
+affine automorphism
+
+```text
+beta(y) = B(y) XOR t
+```
+
+of the output,
+
+```text
+R_(beta o F o alpha) = B(R_F)
+r(beta o F o alpha) = r(F).
+```
+
+Thus public affine input/output wrappers cannot raise or lower the
+public affine-residual rank used by the target-inversion theorem in
+`im-results/public-affine-residual-rank-target-inversion-2026-11-19.md`.
+
+For a permutation `F : V -> V`, a second statement separates the
+frame-dependent interpolation nullity from the intrinsic rank. For
+**every** chosen origin `a in V`, there exists a domain basis
+`v_1,...,v_n` such that the output differences
+
+```text
+F(a+v_i) XOR F(a)
+```
+
+also form a basis. In that frame the affine interpolant has invertible
+linear part, so its nullity `d` is zero.
+
+The existence of such a frame does **not** by itself improve the
+black-box query bound. Discovering the frame from oracle access can
+require additional evaluations, and no efficient worst-case
+frame-discovery bound is claimed here.
+
+## Minimal-quotient proof
+
+Fix one affine frame and its interpolant `A`. Let
+
+```text
+R = span { F(x) XOR A(x) : x in V }.
+```
+
+Modulo `R`, every residual vanishes, so
+
+```text
+F(x) + R = A(x) + R.
+```
+
+The quotient of `F` by `R` is therefore affine.
+
+Now let `S <= W` be any output subspace for which `F mod S` is
+affine. The quotient maps `F mod S` and `A mod S` agree on the
+chosen affine frame. Two affine maps that agree on an affine frame
+agree everywhere, hence
+
+```text
+F(x) XOR A(x) in S
+```
+
+for every `x`. Therefore `R <= S`.
+
+So `R` is the unique least qualifying subspace. Because that
+characterization does not mention the interpolation frame,
+`R_frame` is frame-independent.
+
+## Annihilator characterization
+
+Let `W*` be the dual space. A linear output mask `lambda in W*`
+annihilates `R_F` exactly when
+
+```text
+lambda(F(x) XOR A(x)) = 0
+```
+
+for every `x`. Equivalently,
+
+```text
+lambda o F
+```
+
+is an affine Boolean function.
+
+Hence
+
+```text
+R_F^perp
+  = { lambda in W* : lambda o F is affine }
+dim R_F
+  = m - dim { affine output masks of F }.
+```
+
+For a permutation on `n` bits, `n-r` is therefore exactly the
+dimension of the output-mask space whose compositions with the
+permutation remain affine. The residual rank measures the number of
+output dimensions left after factoring the largest affine quotient.
+
+## Affine-wrapper invariance
+
+For an invertible affine input map `alpha`,
+
+```text
+(F mod S) is affine
+iff
+((F o alpha) mod S) is affine,
+```
+
+because composition with `alpha` and `alpha^-1` preserves
+affineness. The same output subspaces qualify, so
+
+```text
+R_(F o alpha) = R_F.
+```
+
+For `beta(y)=B(y) XOR t` with invertible linear `B`, output
+translation disappears from residual differences and the qualifying
+subspaces are transported by `B`. Thus
+
+```text
+R_(beta o F) = B(R_F).
+```
+
+Rank is preserved in both cases.
+
+This is stronger than checking a particular basis: residual rank is an
+affine-coordinate invariant of the public mapping itself.
+
+## Every permutation admits a zero-nullity interpolation frame
+
+Fix any origin `a` and suppose `k<n` domain differences
+`v_1,...,v_k` and output differences
+
+```text
+w_i = F(a+v_i) XOR F(a)
+```
+
+are both linearly independent.
+
+The forbidden domain affine span contains
+
+```text
+A_k = a + span(v_1,...,v_k),
+|A_k| = 2^k
+```
+
+points. The inputs whose output differences are already in the output
+span form
+
+```text
+B_k = F^-1(F(a) + span(w_1,...,w_k)),
+|B_k| = 2^k,
+```
+
+because `F` is a permutation. Both sets contain `a`, so
+
+```text
+|A_k union B_k| <= 2^(k+1) - 1.
+```
+
+For `k<n`,
+
+```text
+2^(k+1)-1 < 2^n.
+```
+
+There is therefore an input outside both forbidden sets. Adding its
+domain and output differences preserves independence on each side.
+Induction reaches `k=n`.
+
+The resulting affine frame has an invertible interpolation linear map,
+so `d=0`.
+
+The proof is existential. At the final greedy step the counting
+argument guarantees only one admissible input in the worst case.
+A random black-box search for such a frame can therefore have poor
+worst-case query cost. This result should not be used to silently
+replace the `2^d` term in the existing chosen-query theorem.
+
+## Exhaustive width-3 validation
+
+The independent audit
+
+```text
+sims/public-affine-residual-invariance-width3.js
+```
+
+enumerates all
+
+```text
+8! = 40,320
+```
+
+permutations of `GF(2)^3`.
+
+For every permutation it checks:
+
+- the residual-rank/annihilator identity
+  `dim R + dim R^perp = 3`;
+- direct annihilation of the residual basis by every detected affine
+  output mask;
+- residual-rank invariance under a generating set of affine input
+  transformations;
+- residual-rank invariance under the matching output affine
+  generators;
+- greedy construction of a simultaneous domain/output affine basis
+  from **every one of the eight origins**.
+
+The origin audit therefore covers
+
+```text
+40,320 * 8 = 322,560
+```
+
+origin-permutation pairs. The affine-generator checks total
+
+```text
+40,320 * 12 = 483,840.
+```
+
+The standard-frame `(r,d)` permutation distribution is
+
+```json
+{
+  "0:0": 1344,
+  "1:0": 8064,
+  "1:1": 1344,
+  "2:0": 14784,
+  "2:1": 4032,
+  "3:0": 8064,
+  "3:1": 2688
+}
+```
+
+so the same intrinsic residual rank can coexist with different
+standard-frame nullities. The simultaneous-basis construction still
+finds a `d=0` frame from every tested origin.
+
+## Candidate-selection consequence
+
+Low public residual rank cannot be repaired by wrapping a candidate in
+invertible affine input or output maps. Such wrappers change the
+presentation while preserving `r`.
+
+Conversely, a high value of `r` remains only an escape from the
+low-residual-rank inversion theorem. It is not positive evidence of
+static secrecy, hostile-runtime integrity, or resistance to other
+algebraic inversions. Existing high-rank candidates in this repository
+may still be directly invertible for unrelated structural reasons.
+
+Exact black-box certification that `r` is small or large can itself
+be expensive. Observed residuals provide lower bounds on `r`, and
+reaching rank `n` proves full residual rank, but failure to observe
+new directions from a finite sample does not certify a smaller exact
+rank without additional structural evidence.
+
+## Validation status
+
+The result should remain intermediate until the exhaustive audit has a
+source-pinned two-platform pass and another agent independently reviews
+the proof. Promotion, if any, should preserve the distinction between
+intrinsic residual rank `r` and frame-dependent interpolation nullity
+`d`.
