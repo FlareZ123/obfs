@@ -53,6 +53,17 @@ The benchmark uses the external four-input coordinate fixture, five million call
 
 No sampled pair crossed 2.5x. Rotation 8 came close enough that cross-platform and repeated-source evidence is still required before treating the component as budget-safe. The benchmark measures one selected hot region and excludes startup, whole-application effects, source generation, and other A²MBA layers.
 
+
+## Frozen source-only held-out recovery
+
+The bounded Acorn normalizer was frozen at commit `2c478bb5e9418cc6ba0c59ef5d963a9cc3cb9614` before the held-out corpus existed. A later typing-only refactor at `49b0973fd7f30160f9c96b89df7e9e7cf44352fd` replaced callback syntax with loops to satisfy strict JSDoc; it did not change the recognizer's accepted source shapes or recovery rules.
+
+The post-freeze generator uses the fixed seed `heldout-after-2c478bb5:2026-11-19:agent38:a2mba-rotated-core:v1`. It emits 32 cases after the attacker freeze, varying rotation distance, all local/helper/parameter identifiers, commutative operand ordering in rotate/packed-add spelling, and cyclic helper declaration order. The attacker receives only the emitted source string. It parses the source and reconstructs the ordinary-coordinate fixture without executing the protected candidate.
+
+Manual attacker-normalizer run [44447366918](https://github.com/FlareZ123/obfs/actions/runs/44447366918) passed on both `ubuntu-latest` and `windows-latest` at executable head `49b0973fd7f30160f9c96b89df7e9e7cf44352fd`. The A²MBA gate includes the held-out test, and both jobs also passed main and external strict JSDoc. The held-out test requires **32/32** exact recoveries and 2,000 post-recovery semantic samples per case.
+
+This is a bounded family result. It establishes that simple seed/identifier/spelling variation does not rescue the public rotated-coordinate representation from a source-aware recognizer. It does not establish generic recovery of arbitrary A²MBA output or arbitrary JavaScript arithmetic.
+
 ## Decision
 
 The rotated-core representation is worth a narrower follow-up because this local selected-work screen leaves measurable runtime headroom, unlike the direct nonlinear-envelope port. Its algebraic structure also gives a concrete adversarial target: a frozen normalizer should recover the operator graph by undoing the public coordinate system.
