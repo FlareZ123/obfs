@@ -7,58 +7,42 @@ permissions:
   contents: read
 
 jobs:
-  tigress:
+  amice:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Build native baseline
+      - name: Check LLVM 18 toolchain
         run: |
-          gcc -O3 -s sims/tigress-native-virtualize/kernel.c \
+          command -v clang-18
+          clang-18 --version
+      - name: Download and verify Amice v0.1.6-beta.2 LLVM 18 plugin
+        run: |
+          curl -L --fail --retry 3 -o libamice.so \
+            https://github.com/fuqiuluo/amice/releases/download/v0.1.6-beta.2/libamice-llvm18-linux-x86_64.so
+          curl -L --fail --retry 3 -o libamice.so.sha256 \
+            https://github.com/fuqiuluo/amice/releases/download/v0.1.6-beta.2/libamice-llvm18-linux-x86_64.so.sha256
+          sed -i 's#libamice-llvm18-linux-x86_64.so#libamice.so#' libamice.so.sha256
+          sha256sum -c libamice.so.sha256
+      - name: Build baseline and VMP-protected kernel
+        env:
+          AMICE_PANIC_POLICY: abort
+        run: |
+          clang-18 -O3 -s sims/tigress-native-virtualize/kernel.c \
             sims/tigress-native-virtualize/bench.c -o baseline
+          clang-18 -O3 -s -DAMICE_OBF -fpass-plugin="$GITHUB_WORKSPACE/libamice.so" \
+            sims/tigress-native-virtualize/kernel.c \
+            sims/tigress-native-virtualize/bench.c -o virtualized
+          wc -c baseline virtualized
+      - name: Measure VMP runtime admission gate
+        run: |
           ./baseline | tee baseline.txt
-      - name: Download official Tigress 4.0.11 research package
-        run: |
-          curl -L --fail --retry 3 -o tigress.zip \
-            'https://tigress.cs.arizona.edu/cgi-bin/projects/tigress/download.cgi?file=tigress_4.0.11-1_all.deb.zip'
-          file tigress.zip
-          head -80 tigress.zip
-          unzip -q tigress.zip -d tigress-package
-          DEB="$(find tigress-package -type f -name '*.deb' | head -1)"
-          test -n "$DEB"
-          dpkg-deb -x "$DEB" tigress-root
-          TIGRESS="$(find tigress-root -type f -name tigress -perm -111 | head -1)"
-          test -n "$TIGRESS"
-          echo "TIGRESS=$TIGRESS" >> "$GITHUB_ENV"
-          "$TIGRESS" --Version
-      - name: Virtualize protected kernel
-        run: |
-          cd sims/tigress-native-virtualize
-          "$GITHUB_WORKSPACE/$TIGRESS" --MakeTigressDotH
-          { echo '#include "tigress.h"'; cat kernel.c; } > kernel-input.c
-          "$GITHUB_WORKSPACE/$TIGRESS" \
-            --Seed=271828 \
-            --Transform=Virtualize \
-            --Functions=secretLedgerTransformNative \
-            --VirtualizeDispatch=indirect \
-            --VirtualizeOperands=mixed \
-            --VirtualizeEncodeByteArray=true \
-            --VirtualizeMaxDuplicateOps=2 \
-            --VirtualizeSuperOpsRatio=1.0 \
-            --out=kernel-obf.c kernel-input.c
-          gcc -O3 -s kernel-obf.c bench.c -o "$GITHUB_WORKSPACE/virtualized"
-          wc -c kernel.c kernel-obf.c "$GITHUB_WORKSPACE/virtualized"
-      - name: Measure runtime admission gate
-        run: |
           ./virtualized | tee virtualized.txt
           python - <<'PY'
           import re
           b=int(re.search(r'median_ns=(\d+)',open('baseline.txt').read()).group(1))
           v=int(re.search(r'median_ns=(\d+)',open('virtualized.txt').read()).group(1))
           ratio=v/b
-          print(f'TIGRESS_VIRTUALIZE_RATIO baseline_ns={b} virtualized_ns={v} ratio={ratio:.6f}')
-          if ratio > 2.5:
-              print('TIGRESS_VIRTUALIZE_BUDGET_PASS false')
-          else:
-              print('TIGRESS_VIRTUALIZE_BUDGET_PASS true')
+          print(f'AMICE_VMP_RATIO baseline_ns={b} virtualized_ns={v} ratio={ratio:.6f}')
+          print('AMICE_VMP_BUDGET_PASS', str(ratio <= 2.5).lower())
           PY
