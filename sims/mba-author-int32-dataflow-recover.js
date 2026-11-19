@@ -38,7 +38,7 @@ function constant(value) {
 
 /** @param {Symbolic} expression @returns {string} */
 function symbolicKey(expression) {
-  if (expression.kind === 'const') return 'c:' + String(expression.value >>> 0);
+  if (expression.kind === 'const') return 'c:' + String((expression.value ?? 0) >>> 0);
   if (expression.kind === 'input') return 'i:' + String(expression.index);
   if (expression.kind === 'builtin') return 'b:' + String(expression.name);
   if (expression.kind === 'array') {
