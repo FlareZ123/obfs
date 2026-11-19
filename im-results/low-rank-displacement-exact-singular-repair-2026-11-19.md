@@ -357,6 +357,8 @@ k=8:
 
 The implementation takes `k` as a known upper bound so it can exercise the tighter final-inference bound.
 
+Focused two-platform validation run **44477303873** passed on Ubuntu and Windows at source `a0e5fd6be9bfabd5d2f6e34c5f1a1cb0113726c9`. The run included the existing low-rank target-inversion regressions, the new deterministic repair test, the complete width-3 permutation enumeration, and the project JSDoc gate. The workflow-only inclusion commit was reverted after the source-pinned dispatch.
+
 ## Complete width-3 validation over every permutation
 
 A separate checker
