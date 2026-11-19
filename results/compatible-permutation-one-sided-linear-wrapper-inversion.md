@@ -1,18 +1,18 @@
-# Chosen-query inversion of compatible permutations with one unknown GF(2) linear wrapper
+# Chosen-query inversion of compatible permutations with one unknown GF(2) affine wrapper
 
-**Established result.** For any finite width `n`, let `P` be a permutation of `n`-bit words that preserves every congruence modulo `2^k`. Let `L` be any unknown invertible linear map on `GF(2)^n`. Given chosen-input oracle access to either
+**Established result.** For any finite width `n`, let `P` be a permutation of `n`-bit words that preserves every congruence modulo `2^k`. Let `L` be any unknown invertible linear map on `GF(2)^n`, and let `a` or `b` be an arbitrary unknown `n`-bit translation. Given chosen-input oracle access to either
 
 ```text
-F(x) = L(P(x))
+F(x) = L(P(x)) XOR a
 ```
 
 or
 
 ```text
-F(x) = P(L(x))
+F(x) = P(L(x) XOR b)
 ```
 
-an attacker can recover the unique preimage of any published target `F(c)` without reconstructing `P` or `L`.
+an attacker can recover the unique preimage of any published target `F(c)` without reconstructing `P`, `L`, or the affine translation.
 
 The outer orientation needs at most `2n + 1` distinct oracle queries. The inner orientation needs at most
 
@@ -22,7 +22,7 @@ The outer orientation needs at most `2n + 1` distinct oracle queries. The inner 
 
 distinct oracle queries. At 32 bits these bounds are 65 and 561.
 
-This is a negative candidate-selection theorem. It rules out one unknown invertible bit-linear shell as a source of chosen-query hardness for a compatible permutation.
+This is a negative candidate-selection theorem. It rules out one unknown invertible bit-affine shell as a source of chosen-query hardness for a compatible permutation.
 
 ## Definitions
 
@@ -38,7 +38,33 @@ Because `P` is a permutation of all `n`-bit words, the induced map modulo every 
 
 The attacker receives a target `y = F(c)` and may evaluate `F` at inputs of its choice.
 
-## Theorem 1: outer linear wrapper
+### Affine reduction
+
+XOR by a fixed word is itself a compatible permutation: if two words agree in their lowest `k` bits, XOR with the same fixed word preserves that agreement.
+
+For an outer affine wrapper,
+
+```text
+F(x) = L(P(x)) XOR a,
+```
+
+the translation `a` cancels from every output XOR difference used by the attack.
+
+For an inner affine wrapper,
+
+```text
+F(x) = P(L(x) XOR b),
+```
+
+define `P_b(z) = P(z XOR b)`. The fixed XOR translation is compatible, so `P_b` is again a compatible permutation, and
+
+```text
+F(x) = P_b(L(x)).
+```
+
+The linear-core proofs below therefore apply unchanged to arbitrary invertible affine wrappers, with the same query bounds.
+
+## Theorem 1: outer affine wrapper
 
 Assume
 
@@ -97,7 +123,7 @@ There are `n + 1` initialization queries: `F(0)` and `F(2^j)` for all `j`. The b
 
 For `n = 32`, the bound is 65.
 
-## Theorem 2: inner linear wrapper
+## Theorem 2: inner affine wrapper
 
 Assume
 
@@ -113,7 +139,7 @@ T_k = { v : L(v) in H_k }.
 
 Because `L` is invertible, `T_0` has dimension `n`, and each `T_(k+1)` has codimension one inside `T_k`.
 
-For `v` in `T_k`, compatibility implies that `P(L(v))` and `P(0)` agree below bit `k`. Modulo `2^(k+1)`, the two lifts of the same lower-`k)-bit residue must map bijectively to the two lifts of the output residue. Consequently,
+For `v` in `T_k`, compatibility implies that `Q(L(v))` and `Q(0)` agree below bit `k`. Modulo `2^(k+1)`, the two lifts of the same lower-`k`-bit residue must map bijectively to the two lifts of the output residue. Consequently,
 
 ```text
 ell_k(v) = bit_k(F(v) XOR F(0))
@@ -121,7 +147,7 @@ ell_k(v) = bit_k(F(v) XOR F(0))
 
 equals `bit_k(L(v))` on `T_k`.
 
-Thus `ell_k` is a nonzero linear functional on `T_k), with
+Thus `ell_k` is a nonzero linear functional on `T_k`, with
 
 ```text
 kernel(ell_k) = T_(k+1).
@@ -158,7 +184,7 @@ The 32-bit implementation is:
 sims/compatible-permutation-linear-wrapper-blackbox.js
 ```
 
-It tests both orientations against Rivest-family permutation polynomials of degrees 3, 7, and 15, plus an independent nonlinear triangular compatible-permutation family. It generates dense-looking invertible 32x32 GF(2) maps through elementary column operations. Across 512 deterministic randomized targets, all 512 preimages were recovered exactly. The original reproducer was introduced at commit `0f116cbfb6bec2dfdb82d7853c7ffdab5cea1d13`.
+It tests both orientations against Rivest-family permutation polynomials of degrees 3, 7, and 15, plus an independent nonlinear triangular compatible-permutation family. It generates dense-looking invertible 32x32 GF(2) maps through elementary column operations and adds deterministic unknown affine translations on the wrapped side. Across 512 deterministic randomized targets, all 512 preimages were recovered exactly. The original reproducer was introduced at commit `0f116cbfb6bec2dfdb82d7853c7ffdab5cea1d13`.
 
 An independent Agent 3 peer check is already preserved on `main`:
 
@@ -167,19 +193,19 @@ sims/compatible-permutation-linear-wrapper-exhaustive-small.js
 im-results/compatible-permutation-linear-wrapper-exhaustive-peercheck-2026-11-18.md
 ```
 
-At width 3, that implementation enumerates the entire model: all 128 compatible permutations, all 168 invertible 3x3 GF(2) maps, all 8 secrets, and both wrapper orientations. It reports 344,064 exact recoveries out of 344,064 cases. The independent implementation and report were pinned at commit `67c538429c2a10657d47c8e6db61f286adb320ce`.
+At width 3, that implementation enumerates the complete linear-core model: all 128 compatible permutations, all 168 invertible 3x3 GF(2) maps, all 8 secrets, and both wrapper orientations. It reports 344,064 exact recoveries out of 344,064 cases. The affine extension follows from the exact reduction above; the 32-bit reproducer additionally exercises nonzero translations. The independent implementation and report were pinned at commit `67c538429c2a10657d47c8e6db61f286adb320ce`.
 
 The exhaustive small-width computation is supporting validation. The general statement follows from the proofs above.
 
 ## Threat-model consequence
 
-COO and SNO give the modeled attacker a locally executable published artifact, so a protected function that exposes this map is naturally a chosen-input oracle. A one-sided unknown invertible bit-linear layer therefore cannot supply chosen-query inversion hardness for a compatible permutation in those modes.
+COO and SNO give the modeled attacker a locally executable published artifact, so a protected function that exposes this map is naturally a chosen-input oracle. A one-sided unknown invertible bit-affine layer therefore cannot supply chosen-query inversion hardness for a compatible permutation in those modes.
 
 For SCO, the theorem applies when an authorized interface exposes equivalent chosen-input evaluations. The repository threat model permits unlimited legitimate requests, while a particular private interface may expose a narrower operation. Applicability must therefore be checked against the actual SCO API.
 
 ## Scope
 
-This result covers exactly one arbitrary unknown invertible GF(2) linear wrapper, placed on either side of a compatible permutation.
+This result covers exactly one arbitrary unknown invertible GF(2) affine wrapper, placed on either side of a compatible permutation.
 
 The theorem does not cover the unrestricted two-sided composition
 
