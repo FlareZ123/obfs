@@ -38,6 +38,8 @@ jobs:
         run: node --test test/anti-llm-esbuild-analysis-view.test.js && node sims/anti-llm-esbuild-analysis-view.js
       - name: Recover post-freeze author-style Int32 permutation and profile CPU
         run: node sims/mba-author-int32-heldout.js
+      - name: Recover dataflow-mixed unrolled Int32 permutation
+        run: node --test test/mba-author-int32-dataflow-recover.test.js
       - name: JSDoc
         run: npm run typecheck
       - name: External research tool JSDoc
