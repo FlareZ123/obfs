@@ -58,7 +58,7 @@ const safeInput={missingField:1};
 const nativeSafe=run(source,safeInput);
 const emittedSafe=run(emitted,safeInput);
 assert.equal(nativeSafe.status,0,nativeSafe.stderr);
-assert.deepEqual(emittedSafe,nativeSafe,output.code);
+assert.deepEqual(emittedSafe,nativeSafe,emitted);
 
 const nativeFailure=run(source,null);
 const emittedFailure=run(emitted,null);
