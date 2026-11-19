@@ -129,3 +129,9 @@ test('patched Reflect.set keeps local property renaming conservative',()=>{
     module.exports=a.secretField;`,0);
 });
 
+test('Reflect.set value spread stays outside local proof because it can supply receiver',()=>{
+  compare(`'use strict';const a={secretField:22};const receiver={};
+    const args=[26,receiver];const ok=Reflect.set(a,"secretField",...args);
+    module.exports=[ok,a.secretField,receiver.secretField];`,0);
+});
+
