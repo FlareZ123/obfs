@@ -183,6 +183,51 @@ U(F^-1) = R(F).
 
 The complete width-3 checker verifies this subspace identity and rank equality for all 40,320 permutations.
 
+## Composition subadditivity
+
+Affine-residual rank is subadditive under composition.
+
+Let two maps have affine-plus-residual representations
+
+```text
+F(y) = c_F XOR L_F(y) XOR D_F(y),  D_F(y) in R_F
+G(x) = c_G XOR L_G(x) XOR D_G(x),  D_G(x) in R_G.
+```
+
+Then
+
+```text
+F(G(x))
+= c'
+  XOR L_F L_G(x)
+  XOR L_F(D_G(x))
+  XOR D_F(G(x)).
+```
+
+The nonlinear displacement of this representation lies in
+
+```text
+L_F(R_G) + R_F.
+```
+
+Therefore
+
+```text
+r(F o G)
+<= dim L_F(R_G) + dim R_F
+<= r(G) + r(F).
+```
+
+Iterating gives
+
+```text
+r(F_m o ... o F_1) <= sum_i r(F_i).
+```
+
+Invertible affine layers have rank zero and do not increase the bound. This formally justifies the earlier candidate-selection rule: a stack of `k` rank-one nonlinear components, even with arbitrary affine maps between them, has total affine-residual rank at most `k`.
+
+The bound can be loose because component residual spaces may overlap or a later linear part may collapse earlier residual directions. It is an upper bound for rejection, not a claim that ranks add exactly.
+
 ## Synthetic affine surrogates
 
 The attack starts with `N=M` and maintains a synthetic linear map
