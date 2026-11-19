@@ -91,6 +91,9 @@ jobs:
       - name: Returned spread container provenance red and positive-yield gate
         run: node --test test/decoder-returned-spread-container.test.js
 
+      - name: Accessor container provenance red and positive-yield gate
+        run: node --test test/decoder-accessor-container.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
