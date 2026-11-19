@@ -15,10 +15,17 @@ const ALIAS_OWNERS=Number(process.env.OBFS_PROOF_ALIAS_OWNERS||384);
 const RICH_ALIASES=process.env.OBFS_PROOF_RICH_ALIASES==='true';
 const DEPENDENCY_ALIASES=process.env.OBFS_PROOF_DEPENDENCY_ALIASES==='true';
 const DEPENDENCY_DEPTH=Number(process.env.OBFS_PROOF_DEPENDENCY_DEPTH||192);
+const FUNCTION_INVENTORY=process.env.OBFS_PROOF_FUNCTION_INVENTORY==='true';
+const FUNCTION_OWNERS=Number(process.env.OBFS_PROOF_FUNCTION_OWNERS||384);
+const FUNCTION_COUNT=Number(process.env.OBFS_PROOF_FUNCTION_COUNT||192);
 assert.ok(Number.isSafeInteger(ALIAS_OWNERS)&&ALIAS_OWNERS>=1&&ALIAS_OWNERS<=4096,
   'Alias owner count must be an integer from 1 to 4096');
 assert.ok(Number.isSafeInteger(DEPENDENCY_DEPTH)&&DEPENDENCY_DEPTH>=1&&DEPENDENCY_DEPTH<=768,
   'Dependency depth must be an integer from 1 to 768');
+assert.ok(Number.isSafeInteger(FUNCTION_OWNERS)&&FUNCTION_OWNERS>=1&&FUNCTION_OWNERS<=2048,
+  'Function-inventory owner count must be an integer from 1 to 2048');
+assert.ok(Number.isSafeInteger(FUNCTION_COUNT)&&FUNCTION_COUNT>=1&&FUNCTION_COUNT<=768,
+  'Function-inventory function count must be an integer from 1 to 768');
 assert.match(CONTROL_SHA,/^[a-f0-9]{40}$/,
   'A/B control ref must be a fully specified immutable commit SHA');
 /** @type {string} */
@@ -128,6 +135,23 @@ function dependencyMixedSource(){
 }
 
 /**
+ * Many irrelevant zero-argument local functions isolate the per-owner function
+ * classification/usability cost. Each private owner still has one positive
+ * direct field rewrite, so source-paired runs cannot pass vacuously.
+ * @returns {string}
+ */
+function functionInventorySource(){
+  let code="'use strict';let total=0;\n";
+  for(let i=0;i<FUNCTION_COUNT;i++)
+    code+='function helper'+i+'(){return '+(i%17)+';}'+
+      'total=(total+helper'+i+'())|0;\n';
+  for(let i=0;i<FUNCTION_OWNERS;i++)
+    code+='const owner'+i+'={secret:'+(i%31)+'};'+
+      'total=(total+owner'+i+'.secret)|0;\n';
+  return code+'module.exports=total;\n';
+}
+
+/**
  * Stress cases with almost no private owners among numerous ordinary bindings.
  * A global AST index can lose to a smaller local scan on sparse inputs.
  * @returns {string}
@@ -148,7 +172,7 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} objects
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'|'functionInventory'} objects
  * @returns {void}
  */
 function sample(objects){
@@ -156,7 +180,8 @@ function sample(objects){
   const input=objects==='mixed'?mixedSource():objects==='sparse'?sparseSource():
     objects==='aliases'?aliasSource():objects==='richAliases'?aliasSource(true):
     objects==='dependencyAliases'?dependencyAliasSource():
-    objects==='dependencyMixed'?dependencyMixedSource():original(objects);
+    objects==='dependencyMixed'?dependencyMixedSource():
+    objects==='functionInventory'?functionInventorySource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -169,6 +194,7 @@ function sample(objects){
     (objects==='aliases'||objects==='richAliases')?emitted.files[0].metrics.properties===ALIAS_OWNERS:
     objects==='dependencyAliases'?emitted.files[0].metrics.properties===1:
     objects==='dependencyMixed'?emitted.files[0].metrics.properties===3:
+    objects==='functionInventory'?emitted.files[0].metrics.properties===FUNCTION_OWNERS:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -181,6 +207,8 @@ function sample(objects){
   console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
     objects,aliasOwners:['aliases','richAliases'].includes(String(objects))?ALIAS_OWNERS:undefined,
     dependencyDepth:objects==='dependencyAliases'?DEPENDENCY_DEPTH:undefined,
+    functionOwners:objects==='functionInventory'?FUNCTION_OWNERS:undefined,
+    functionCount:objects==='functionInventory'?FUNCTION_COUNT:undefined,
     platform:process.platform,node:process.version,
     cpuMs:(cpu.user+cpu.system)/1000,wallMs,
     properties:emitted.files[0].metrics.properties,
@@ -198,8 +226,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'|'functionInventory'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'|'functionInventory',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -215,7 +243,7 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse','aliases','richAliases','dependencyAliases','dependencyMixed'].includes(process.argv[3])?
+  sample(['mixed','sparse','aliases','richAliases','dependencyAliases','dependencyMixed','functionInventory'].includes(process.argv[3])?
     /** @type {'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
@@ -239,7 +267,7 @@ if(process.argv[2]==='sample'){
     ['candidate','control','control','candidate','candidate','control','control','candidate']:
     ['candidate','control','control','candidate'];
   try{
-    /** @type {[number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed',('control'|'candidate')[]][]} */
+    /** @type {[number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'|'functionInventory',('control'|'candidate')[]][]} */
     const cases=[
       [512,['control','candidate','candidate','control']],
       [2048,largeArms],
@@ -252,6 +280,7 @@ if(process.argv[2]==='sample'){
       cases.push(['dependencyMixed',['control','candidate','candidate','control']]);
       cases.push(['dependencyAliases',aliasArms]);
     }
+    if(FUNCTION_INVENTORY)cases.push(['functionInventory',aliasArms]);
     for(const [objects,arms] of cases){
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
@@ -267,6 +296,8 @@ if(process.argv[2]==='sample'){
       console.log('PROOF_INDEX_AB '+JSON.stringify({
         baseline:CONTROL_SHA,objects,aliasOwners:['aliases','richAliases'].includes(String(objects))?ALIAS_OWNERS:undefined,
         dependencyDepth:objects==='dependencyAliases'?DEPENDENCY_DEPTH:undefined,
+        functionOwners:objects==='functionInventory'?FUNCTION_OWNERS:undefined,
+        functionCount:objects==='functionInventory'?FUNCTION_COUNT:undefined,
         platform:process.platform,node:process.version,
         controlCpuMs:controlRuns.map(x=>x.cpuMs),
         candidateCpuMs:candidateRuns.map(x=>x.cpuMs),
