@@ -17,6 +17,10 @@ const nodeEncoder = new Encoder({
 });
 const TOKEN = 'local-cborx-browser-pilot-v1';
 
+/** @typedef {{native:number[],json:number[],cborDefault:number[],cborFloat:number[]}} BrowserHotSamples */
+/** @typedef {{count:number,values:BrowserHotSamples}} BrowserHotRow */
+/** @typedef {{floatSemantic:Record<string,boolean>,rows:BrowserHotRow[]}} BrowserHotResult */
+
 /**
  * @param {'native'|'cbor-cold'|'cbor-hot'|'http-semantic'} variant
  * @returns {string}
@@ -252,9 +256,7 @@ async function run() {
       }
     }
 
-    const hot = /** @type {{floatSemantic:Record<string,boolean>,rows:Array<{count:number,values:{native:number[],json:number[],cborDefault:number[],cborFloat:number[]}}>} */ (
-      await browserSample(root, 'cbor-hot')
-    );
+    const hot = /** @type {BrowserHotResult} */ (await browserSample(root, 'cbor-hot'));
     assert.ok(Object.values(hot.floatSemantic).every(Boolean));
     const hotRows = hot.rows.map(row => {
       for (const values of Object.values(row.values)) {
