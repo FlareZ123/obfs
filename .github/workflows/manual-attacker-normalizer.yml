@@ -38,6 +38,16 @@ jobs:
         run: node --test test/anti-llm-esbuild-analysis-view.test.js && node sims/anti-llm-esbuild-analysis-view.js
       - name: Recover post-freeze author-style Int32 permutation and profile CPU
         run: node sims/mba-author-int32-heldout.js
+      - name: Recover dataflow-mixed unrolled Int32 permutation
+        run: node --test test/mba-author-int32-dataflow-recover.test.js
+      - name: Recover post-freeze heldout dataflow-mixed Int32 permutations
+        run: node sims/mba-author-int32-dataflow-heldout.js
+      - name: Recover post-freeze table-loop Int32 permutations
+        run: node sims/mba-author-int32-table-heldout.js
+      - name: Recover post-freeze flattened-CFG Int32 permutations
+        run: node sims/mba-author-int32-cfg-heldout.js
+      - name: Recover post-freeze encoded-table Int32 permutations
+        run: node sims/mba-author-int32-encoded-heldout.js
       - name: Validate A2MBA Int32 component screens and source-only rotated-core recovery
         run: node --test test/a2mba-context-int32-pilot.test.js test/a2mba-rotated-core-int32-pilot.test.js test/a2mba-rotated-core-static-recover.test.js test/a2mba-rotated-core-heldout.test.js
       - name: Recover A2MBA PureIR opcode with one post-freeze probe
