@@ -335,6 +335,14 @@ function proveRootIdentityEligibility(source,name='candidate'){
       if(node.left.type==='MemberExpression'&&hasReference(provenance(node.right))){
         reasons.add('argument-derived reference escapes through member assignment');
       }
+      if(node.operator==='='&&node.left.type==='Identifier'&&
+         hasReference(provenance(node.right))){
+        reasons.add('assignment of argument-derived reference is outside root-identity proof');
+      }
+    }
+    if(node.type==='ThrowStatement'&&node.argument&&
+       hasReference(provenance(node.argument))){
+      reasons.add('argument-derived reference thrown across boundary');
     }
     if(node.type==='UpdateExpression'&&node.argument.type==='MemberExpression'&&
        hasReference(provenance(node.argument.object))){
@@ -423,6 +431,15 @@ const REFUSE_CASES=[
   {name:'dynamic-import',source:'export async function candidate(payload){return import(payload);}'}
 ];
 
+/** @type {Array<{name:string,source:string}>} */
+const ADVERSARIAL_CASES=[
+  {name:'outer-root-store',source:'let shared;export async function candidate(payload){shared=payload;return 1;}'},
+  {name:'outer-nested-store',source:'let shared;export async function candidate(payload){shared=payload.nested;return 1;}'},
+  {name:'throw-root',source:'export async function candidate(payload){throw payload;}'},
+  {name:'throw-nested',source:'export async function candidate(payload){throw payload.nested;}'},
+  {name:'local-reassignment-conservative',source:'export async function candidate(payload){let same;same=payload;return same;}'}
+];
+
 /** @type {Array<{name:string,expected:boolean,source:string}>} */
 const FIXTURES=[
   {
@@ -442,13 +459,25 @@ const FIXTURES=[
   }
 ];
 
-/** @returns {object} */
+/**
+ * @returns {{
+ *   accepts:Array<{name:string,proof:RootIdentityProof}>,
+ *   refuses:Array<{name:string,proof:RootIdentityProof}>,
+ *   adversarial:Array<{name:string,proof:RootIdentityProof}>,
+ *   fixtures:Array<{name:string,expected:boolean,proof:RootIdentityProof}>,
+ *   passed:boolean
+ * }}
+ */
 function runFrozenCorpus(){
   const accepts=ACCEPT_CASES.map(item=>({
     name:item.name,
     proof:proveRootIdentityEligibility(item.source)
   }));
   const refuses=REFUSE_CASES.map(item=>({
+    name:item.name,
+    proof:proveRootIdentityEligibility(item.source)
+  }));
+  const adversarial=ADVERSARIAL_CASES.map(item=>({
     name:item.name,
     proof:proveRootIdentityEligibility(item.source)
   }));
@@ -460,9 +489,11 @@ function runFrozenCorpus(){
   return {
     accepts,
     refuses,
+    adversarial,
     fixtures,
     passed:accepts.every(item=>item.proof.eligible)&&
       refuses.every(item=>!item.proof.eligible)&&
+      adversarial.every(item=>!item.proof.eligible)&&
       fixtures.every(item=>item.proof.eligible===item.expected)
   };
 }
@@ -478,5 +509,6 @@ module.exports={
   runFrozenCorpus,
   ACCEPT_CASES,
   REFUSE_CASES,
+  ADVERSARIAL_CASES,
   FIXTURES
 };
