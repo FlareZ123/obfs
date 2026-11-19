@@ -98,7 +98,13 @@ Even with exact `r=62` supplied to the deterministic inverter, the generic known
 
 chosen queries, far beyond a practical black-box attack.
 
-The fused-ARX pilot nevertheless remains broken under its published COO/SNO threat models for independent reasons already demonstrated elsewhere in the repository: its public Wasm bytes can be captured at runtime, and the fixed binary can be statically lifted into a WebAssembly-free JavaScript functional clone.
+The fused-ARX pilot nevertheless remains broken under its published COO/SNO threat models for independent reasons already demonstrated elsewhere in the repository.
+
+Independent runtime capture is documented in `im-results/fused-arx-runtime-capture-2026-11-18.md`: the fixed 196-byte kernel (SHA-256 `c2e9f1fbf85505a43681f0a09da9c0ebe9b7eeb9f067b69cd8320b703d8df88d`) was captured under an attacker-controlled WebAssembly preload and replayed in an independent Wasm instance.
+
+Independent source-only lifting is documented in `im-results/fused-arx-static-lift-2026-11-18.md`: 75 public bytecode instructions were decoded and replayed by a pure-JavaScript clone with WebAssembly disabled during the attacker run, matching 12,288 deterministic held-out records.
+
+Those earlier attack lanes concern the same fixed pilot and are separate from the residual-rank analysis here.
 
 This is the same separation seen in the Int32 MBA screen: sufficiently high affine-residual rank escapes the low-rank black-box theorem, while source/binary-visible reversible structure can remain straightforward to reconstruct.
 
