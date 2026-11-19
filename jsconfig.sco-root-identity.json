@@ -1,0 +1,10 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/paired-budget-bound.js",
+    "sims/sco-cborx-root-identity-pilot.js"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
