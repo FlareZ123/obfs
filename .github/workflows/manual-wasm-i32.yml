@@ -17,10 +17,10 @@ jobs:
           gcc -O3 -s sims/tigress-native-virtualize/kernel.c \
             sims/tigress-native-virtualize/bench.c -o baseline
           ./baseline | tee baseline.txt
-      - name: Download Tigress 4.2.0 research package
+      - name: Download official Tigress 4.0.11 research package
         run: |
           curl -L --fail --retry 3 -o tigress.zip \
-            'https://tigress.cs.arizona.edu/cgi-bin/projects/tigress/download.cgi?file=tigress_4.2.0-1_all.deb.zip'
+            'https://tigress.cs.arizona.edu/cgi-bin/projects/tigress/download.cgi?file=tigress_4.0.11-1_all.deb.zip'
           unzip -q tigress.zip -d tigress-package
           DEB="$(find tigress-package -type f -name '*.deb' | head -1)"
           test -n "$DEB"
