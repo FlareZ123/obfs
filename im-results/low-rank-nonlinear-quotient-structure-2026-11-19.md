@@ -170,6 +170,12 @@ For a known `k`-shear architecture, `r<=k`, so `n+1+2^k` is a valid worst-case b
 
 The rank-deficient branch remains the unresolved part of the low-rank problem.
 
+Targeted run **44455975346** validated the residual-orbit implementation on Ubuntu and Windows at source pin `3fd6a58763b66a1bb35e1fbdff44f7bcda1d4b30`, including strict external JSDoc. Across the 100 width-5 two-shear cases, 65 had a full-rank interpolant. The attack recovered all **2,080 / 2,080** published targets in those cases and used at most four target-candidate queries:
+
+```json
+{"fullRankCases":65,"fullRankTargets":2080,"maxOrbitQueries":4}
+```
+
 ## Why k rank-one shears satisfy the model
 
 A rank-one shear adds one fixed direction multiplied by one Boolean scalar:
