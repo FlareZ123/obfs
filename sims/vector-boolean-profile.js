@@ -38,6 +38,55 @@ function gf2Basis32(vectors) {
   return result;
 }
 
+
+/**
+ * Apply one finite difference to a full truth table.
+ * @param {number[]} values
+ * @param {number} direction bit-vector in the input space
+ * @returns {number[]}
+ */
+function finiteDifference(values, direction) {
+  const inputBits = Math.log2(values.length);
+  assert.ok(Number.isInteger(inputBits), 'truth-table length must be a power of two');
+  const limit = values.length - 1;
+  assert.ok(Number.isInteger(direction) && direction >= 0 && direction <= limit);
+  return values.map((value, input) => u32(value ^ values[input ^ direction]));
+}
+
+/**
+ * Span rank of all order-th finite-difference values using distinct standard
+ * basis directions. This equals the least quotient dimension needed to reduce
+ * algebraic degree below the derivative order.
+ * @param {number[]} outputs
+ * @param {number} order
+ * @returns {number}
+ */
+function finiteDifferenceRank(outputs, order) {
+  const inputBits = Math.log2(outputs.length);
+  assert.ok(Number.isInteger(inputBits), 'truth-table length must be a power of two');
+  assert.ok(Number.isInteger(order) && order >= 1 && order <= inputBits);
+  /** @type {number[]} */
+  const values = [];
+
+  /**
+   * @param {number} nextBit
+   * @param {number} remaining
+   * @param {number[]} table
+   */
+  const visit = (nextBit, remaining, table) => {
+    if (remaining === 0) {
+      values.push(...table);
+      return;
+    }
+    for (let bit = nextBit; bit <= inputBits - remaining; bit += 1) {
+      visit(bit + 1, remaining - 1, finiteDifference(table, 2 ** bit));
+    }
+  };
+
+  visit(0, order, outputs.map(u32));
+  return gf2Basis32(values).length;
+}
+
 /**
  * Compute vector-valued ANF coefficients indexed by input-variable subset.
  * @param {number[]} outputs truth table in binary input order
@@ -112,6 +161,8 @@ function profileVectorBooleanFunction(outputs) {
 
 module.exports = {
   bitCount,
+  finiteDifference,
+  finiteDifferenceRank,
   gf2Basis32,
   profileVectorBooleanFunction,
   vectorAnfCoefficients,
