@@ -104,7 +104,9 @@ Hence the residual span is contained in the `n-t-1` dimensional subspace of word
 
 ### Matching lower bound
 
-Consider the zero-based second difference with directions `1` and `2^t`:
+If `t=n-1`, the upper-bound subspace already has dimension zero, so the claimed rank is zero and there is nothing further to prove.
+
+Assume below that `t<=n-2`. Consider the zero-based second difference with directions `1` and `2^t`:
 
 ```text
 delta =
@@ -113,7 +115,7 @@ XOR P_a(2^t)
 XOR P_a(1 + 2^t).
 ```
 
-The two integer addends `P_a(1)=a` and `P_a(2^t)=a*2^t` first have simultaneous set bits at bit `t`. Their addition therefore has its first carry into bit `t+1`. Equivalently,
+The two integer addends `P_a(1)=a` and `P_a(2^t)=a*2^t` first have simultaneous set bits at bit `t`. Their addition therefore has its first carry into bit `t+1`; because `t+1<n`, that bit survives the modulus. Equivalently,
 
 ```text
 v2(delta) = t+1.
