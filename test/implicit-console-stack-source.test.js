@@ -154,7 +154,7 @@ function uncaughtStderr(code) {
 
 test('uncaught explicit throw preserves native process source diagnostics',()=>{
   const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
-    "const value=owner.distinctivelyLongPrivateField;throw new Error('probe '+value);";
+    "const value=owner.distinctivelyLongPrivateField;void value;throw new Error('probe');";
   const output=obfuscateFiles([{
     path:'uncaught-source-observer.cjs',sourceType:'commonjs',code:source
   }],{mode:'sno',seed:'agent50-uncaught-source',strings:false,identifiers:false}).files[0];
