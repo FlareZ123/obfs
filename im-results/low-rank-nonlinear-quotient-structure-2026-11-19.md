@@ -163,7 +163,13 @@ For every case it:
 - checks all 32 published targets;
 - verifies the quotient candidate set is exactly one `2^r`-point coset and contains one unique true preimage.
 
-A targeted two-platform validation is being used to source-pin these checks and strict JSDoc before this note is considered stable evidence.
+Targeted run **44455513909** passed on Ubuntu and Windows at validation head `402d09d09d29a8a3f6129447dff50efe908cf8aa`, including strict external JSDoc. The pilot reported:
+
+```json
+{"width":5,"cases":100,"targets":3200,"rangeDimensions":{"1":5,"2":95},"interpolantRanks":{"3":1,"4":34,"5":65},"maxResidualValues":4,"maxCandidates":4}
+```
+
+The temporary targeted workflow definition was restored after the source-pinned run; the reusable simulator and report are the intended persistent artifacts.
 
 ## Remaining bottleneck
 
