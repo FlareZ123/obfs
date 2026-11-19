@@ -233,6 +233,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const returnedSensitiveFields=new Map();
   /** @type {Map<string,Set<string>>} */
   const returnedSensitivePaths=new Map();
+  // A finite container can hold a sensitive reference behind a computed key
+  // whose exact path cannot be represented by returnedSensitivePaths.
+  const unknownSensitiveContainers=new Set();
+  let opaqueReflectiveSensitiveWrite=false;
   const reflectNames=new Set(['Reflect']);
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
@@ -443,6 +447,28 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     return parts.map(part=>part.length+':'+part+';').join('');
   }
   /**
+   * Decode the collision-free sensitive path representation.
+   * @param {string} pathKey
+   * @returns {string[]|null}
+   */
+  function sensitivePathParts(pathKey) {
+    /** @type {string[]} */
+    const parts=[];
+    let offset=0;
+    while(offset<pathKey.length) {
+      const colon=pathKey.indexOf(':',offset);
+      if(colon<0)return null;
+      const length=Number(pathKey.slice(offset,colon));
+      if(!Number.isSafeInteger(length)||length<0)return null;
+      const start=colon+1;
+      const end=start+length;
+      if(end>=pathKey.length||pathKey[end]!==';')return null;
+      parts.push(pathKey.slice(start,end));
+      offset=end+1;
+    }
+    return parts;
+  }
+  /**
    * @param {import('./ast').AstNode} node
    * @returns {boolean}
    */
@@ -636,7 +662,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             if(property.type!=='Property')continue;
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
-            if(key===null)continue;
+            if(key===null) {
+              if(containsDecoderIntrinsic(property.value))add(unknownSensitiveContainers,name);
+              continue;
+            }
             const pathParts=[...prefix,key];
             if(sensitiveReturnValue(property.value)) {
               addReturnedPath(name,pathParts);
@@ -673,25 +702,197 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         recordLiteralSensitivePaths(name,value);
       }
       /**
+       * Resolve a statically named local container path.
+       * @param {import('./ast').AstNode} owner
+       * @returns {{name:string,parts:string[]}|null}
+       */
+      function localContainerPath(owner) {
+        /** @type {string[]} */
+        const parts=[];
+        let cursor=owner;
+        while(cursor.type==='MemberExpression') {
+          const key=pathMemberName(cursor);
+          if(key===null)return null;
+          parts.unshift(key);
+          cursor=cursor.object;
+        }
+        return cursor.type==='Identifier'?{name:cursor.name,parts}:null;
+      }
+      /**
+       * Record a decoder-sensitive descendant at an exact path under a local
+       * container. This is shared by direct assignments and reflective writes.
+       * @param {import('./ast').AstNode} owner
+       * @param {string[]} suffix
+       */
+      function recordKnownSensitivePath(owner,suffix) {
+        const root=localContainerPath(owner);
+        if(!root)return;
+        const parts=[...root.parts,...suffix];
+        if(!parts.length)return;
+        addReturnedPath(root.name,parts);
+        if(parts.length===1)addReturnedField(root.name,parts[0]);
+      }
+      /**
+       * @param {import('./ast').AstNode} owner
+       * @param {string[]} suffix
+       * @param {import('./ast').AstNode} value
+       */
+      function recordSensitivePathWrite(owner,suffix,value) {
+        if(sensitiveReturnValue(value))recordKnownSensitivePath(owner,suffix);
+      }
+      /**
        * Add a sensitive value written after construction to the same exact
        * local member-path summary used for literal initialization.
        * @param {import('./ast').AstNode} target
        * @param {import('./ast').AstNode} value
        */
       function recordSensitiveMemberWrite(target,value) {
-        if(target.type!=='MemberExpression'||!sensitiveReturnValue(value))return;
-        /** @type {string[]} */
-        const parts=[];
-        let cursor=target;
-        while(cursor.type==='MemberExpression') {
-          const key=pathMemberName(cursor);
-          if(key===null)return;
-          parts.unshift(key);
-          cursor=cursor.object;
+        if(target.type!=='MemberExpression')return;
+        const key=pathMemberName(target);
+        if(key===null)return;
+        recordSensitivePathWrite(target.object,[key],value);
+      }
+      /**
+       * Copy known sensitive descendants from a finite source into a target.
+       * Object.assign copies reference values, so nested literal containers
+       * preserve the same mutable decoder-intrinsic reachability.
+       * @param {import('./ast').AstNode} owner
+       * @param {import('./ast').AstNode} source
+       * @param {string[]} [prefix]
+       */
+      function recordSensitiveContainerCopy(owner,source,prefix=[]) {
+        if(source.type==='ObjectExpression') {
+          for(const property of source.properties) {
+            if(property.type==='SpreadElement') {
+              recordSensitiveContainerCopy(owner,property.argument,prefix);
+              continue;
+            }
+            if(property.type!=='Property')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key===null) {
+              if(containsDecoderIntrinsic(property.value))opaqueReflectiveSensitiveWrite=true;
+              continue;
+            }
+            const pathParts=[...prefix,key];
+            recordSensitivePathWrite(owner,pathParts,property.value);
+            if(property.value.type==='ObjectExpression'||property.value.type==='ArrayExpression') {
+              recordSensitiveContainerCopy(owner,property.value,pathParts);
+            }
+          }
+          return;
         }
-        if(cursor.type!=='Identifier'||parts.length===0)return;
-        addReturnedPath(cursor.name,parts);
-        if(parts.length===1)addReturnedField(cursor.name,parts[0]);
+        if(source.type==='ArrayExpression') {
+          for(let index=0;index<source.elements.length;index++) {
+            const element=source.elements[index];
+            if(!element||element.type==='SpreadElement')continue;
+            const pathParts=[...prefix,String(index)];
+            recordSensitivePathWrite(owner,pathParts,element);
+            if(element.type==='ObjectExpression'||element.type==='ArrayExpression') {
+              recordSensitiveContainerCopy(owner,element,pathParts);
+            }
+          }
+          return;
+        }
+        const sourceRoot=localContainerPath(source);
+        const targetRoot=localContainerPath(owner);
+        if(!sourceRoot||!targetRoot) {
+          if(containsDecoderIntrinsic(source))opaqueReflectiveSensitiveWrite=true;
+          return;
+        }
+        if(unknownSensitiveContainers.has(sourceRoot.name)) {
+          opaqueReflectiveSensitiveWrite=true;
+          return;
+        }
+        const sourcePrefix=sensitivePathKey(sourceRoot.parts);
+        const targetPrefix=sensitivePathKey([...targetRoot.parts,...prefix]);
+        for(const pathKey of returnedSensitivePaths.get(sourceRoot.name)??[]) {
+          if(!pathKey.startsWith(sourcePrefix)||pathKey.length===sourcePrefix.length)continue;
+          addReturnedPathKey(targetRoot.name,targetPrefix+pathKey.slice(sourcePrefix.length));
+        }
+      }
+      /**
+       * @param {import('./ast').AstNode} descriptor
+       * @returns {boolean}
+       */
+      function descriptorHasSensitiveValue(descriptor) {
+        if(descriptor.type==='ObjectExpression') {
+          return descriptor.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+            if(property.type!=='Property')return false;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            return key==='value'&&sensitiveReturnValue(property.value);
+          });
+        }
+        return hasSensitiveContainerField(descriptor,'value');
+      }
+      /**
+       * Preserve exact decoder-intrinsic provenance for writes performed by
+       * built-in reflection APIs rather than AssignmentExpression syntax.
+       * @param {import('./ast').AstNode} node
+       */
+      function recordReflectiveContainerWrite(node) {
+        if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
+        const receiver=node.callee.object;
+        const method=memberName(node.callee);
+        const target=node.arguments[0];
+        if(!target)return;
+        if(isObjectIntrinsic(receiver)&&method==='assign') {
+          for(const source of node.arguments.slice(1)) {
+            recordSensitiveContainerCopy(target,source);
+          }
+          return;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='defineProperties') {
+          const descriptors=node.arguments[1];
+          if(!descriptors)return;
+          if(descriptors.type==='ObjectExpression') {
+            for(const property of descriptors.properties) {
+              if(property.type!=='Property')continue;
+              const key=property.computed?staticString(property.key):
+                property.key.type==='Identifier'?property.key.name:staticString(property.key);
+              if(key===null) {
+                if(descriptorHasSensitiveValue(property.value))opaqueReflectiveSensitiveWrite=true;
+              } else if(descriptorHasSensitiveValue(property.value)) {
+                recordKnownSensitivePath(target,[key]);
+              }
+            }
+            return;
+          }
+          const descriptorRoot=localContainerPath(descriptors);
+          if(!descriptorRoot)return;
+          if(unknownSensitiveContainers.has(descriptorRoot.name)) {
+            opaqueReflectiveSensitiveWrite=true;
+            return;
+          }
+          const sourcePrefix=sensitivePathKey(descriptorRoot.parts);
+          for(const pathKey of returnedSensitivePaths.get(descriptorRoot.name)??[]) {
+            if(!pathKey.startsWith(sourcePrefix)||pathKey.length===sourcePrefix.length)continue;
+            const relative=sensitivePathParts(pathKey.slice(sourcePrefix.length));
+            if(relative?.length===2&&relative[1]==='value') {
+              recordKnownSensitivePath(target,[relative[0]]);
+            }
+          }
+          return;
+        }
+        if((isObjectIntrinsic(receiver)&&method==='defineProperty')||
+           (isReflectIntrinsic(receiver)&&method==='defineProperty')) {
+          const key=node.arguments[1]?staticString(node.arguments[1]):null;
+          const descriptor=node.arguments[2];
+          if(descriptor&&descriptorHasSensitiveValue(descriptor)) {
+            if(key===null)opaqueReflectiveSensitiveWrite=true;
+            else recordKnownSensitivePath(target,[key]);
+          }
+          return;
+        }
+        if(isReflectIntrinsic(receiver)&&method==='set') {
+          const key=node.arguments[1]?staticString(node.arguments[1]):null;
+          const value=node.arguments[2];
+          if(value&&sensitiveReturnValue(value)) {
+            if(key===null)opaqueReflectiveSensitiveWrite=true;
+            else recordKnownSensitivePath(target,[key]);
+          }
+        }
       }
       /**
        * @param {import('./ast').AstNode} owner
@@ -700,8 +901,14 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        */
       function hasSensitiveContainerField(owner,key) {
         if(owner.type==='Identifier') {
+          if(unknownSensitiveContainers.has(owner.name))return true;
           const fields=returnedSensitiveFields.get(owner.name);
-          return Boolean(fields&&(key===null||fields.has(key)));
+          if(fields&&(key===null||fields.has(key)))return true;
+          const paths=returnedSensitivePaths.get(owner.name);
+          if(!paths?.size)return false;
+          if(key===null)return true;
+          const prefix=sensitivePathKey([key]);
+          return [...paths].some(pathKey=>pathKey.startsWith(prefix));
         }
         if(owner.type==='ObjectExpression') {
           for(const property of owner.properties) {
@@ -784,6 +991,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(node.type==='AssignmentExpression'&&node.operator==='=') {
         recordSensitiveMemberWrite(node.left,node.right);
       }
+      recordReflectiveContainerWrite(node);
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier') {
         recordLocalReturns(node.id.name,node);
       }
@@ -863,6 +1071,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(node.id.type==='Identifier') {
           recordLiteralSensitiveFields(node.id.name,node.init);
           if(node.init.type==='Identifier') {
+            if(unknownSensitiveContainers.has(node.init.name))add(unknownSensitiveContainers,node.id.name);
+            if(unknownSensitiveContainers.has(node.id.name))add(unknownSensitiveContainers,node.init.name);
             if(returnedSensitiveFunctions.has(node.init.name)) {
               add(returnedSensitiveFunctions,node.id.name);
             }
@@ -926,6 +1136,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
                 node.left.type==='Identifier') {
         recordLiteralSensitiveFields(node.left.name,node.right);
         if(node.right.type==='Identifier') {
+          if(unknownSensitiveContainers.has(node.right.name))add(unknownSensitiveContainers,node.left.name);
+          if(unknownSensitiveContainers.has(node.left.name))add(unknownSensitiveContainers,node.right.name);
           if(returnedSensitiveFunctions.has(node.right.name)) {
             add(returnedSensitiveFunctions,node.left.name);
           }
@@ -972,6 +1184,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(touchesString(expression)||isArrayPrototype(expression)||
        isObjectPrototype(expression)||isPossiblePrototype(expression)||
        isPossibleConstructor(expression))return true;
+    if(expression.type==='Identifier'&&unknownSensitiveContainers.has(expression.name))return true;
     if(expression.type==='Identifier'&&returnedSensitivePaths.get(expression.name)?.size)return true;
     if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'&&
        returnedSensitivePaths.get(expression.callee.name)?.size)return true;
@@ -1066,7 +1279,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
-  let mutated=false;
+  let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
     // A captured mutator may be called, bound, or passed into an opaque helper.
     // Its receiver/arguments cannot be proved by the direct-call checks below.
