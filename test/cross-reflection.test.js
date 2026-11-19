@@ -136,3 +136,12 @@ test('closed-world ESM refuses unsupported three-argument Reflect.get in the gra
   await check(`const other={secretField:2};
     console.log(Reflect.get(other,'secretField',{}),state.secretField);`,0);
 });
+
+
+test('closed-world ESM combines direct Reflect.get and Object.hasOwn on one owner',async()=>{
+  await check(`console.log(
+    Reflect.get(state,'secretField'),
+    Object.hasOwn(state,'secretField'),
+    state.secretField
+  );`,1);
+});
