@@ -168,7 +168,7 @@ const proofInventoryCache=new WeakMap();
  *   identifiers:{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[],
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
- *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
+ *   functionDeclarations:AstNode[], relevantFunctionDeclarations:AstNode[], callableDeclarators:AstNode[],
  *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
  *   tupleDeclarations:Map<string,AstNode[]>,
  *   recordDeclarations:Map<string,AstNode[]>
@@ -218,6 +218,15 @@ function collectProofInventory(ast) {
       calls.set(node.callee.name,sites);
     }
   });
+  // A zero-parameter declaration can only participate in an owner proof when
+  // the existing grammar recognizes it as a captured-root getter. Index this
+  // root-independent eligibility once instead of reclassifying every local
+  // function for every candidate owner.
+  const relevantFunctionDeclarations=functionDeclarations.filter(node=>
+    node.params.length>0 ||
+    !node.async&&!node.generator&&node.body.body.length===1&&
+      node.body.body[0].type==='ReturnStatement'&&
+      node.body.body[0].argument?.type==='Identifier');
   const aliasDeclarations=declarations.filter(node=>node.init&&
     ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
   const complexAliasDeclarations=aliasDeclarations.filter(node=>node.init?.type!=='Identifier');
@@ -253,7 +262,7 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
+    functionDeclarations,relevantFunctionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
 }
@@ -361,9 +370,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,
+    relevantFunctionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
-  for(const node of functionDeclarations){
+  for(const node of relevantFunctionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
         bindings.get(node.id.name) === 1) {
       let forwardIndex = -1;
