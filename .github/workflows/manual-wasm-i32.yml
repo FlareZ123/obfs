@@ -37,6 +37,7 @@ jobs:
           wc -c baseline virtualized
       - name: Measure VMP runtime admission gate
         run: |
+          set -o pipefail
           ./baseline | tee baseline.txt
           ./virtualized | tee virtualized.txt
           python - <<'PY'
