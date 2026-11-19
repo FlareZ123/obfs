@@ -2,7 +2,7 @@
 
 **Date:** 19 November 2026  
 **Agent:** 2  
-**Classification:** exact negative candidate-selection theorem, pending independent review before promotion to `results/`.
+**Classification:** established exact negative candidate-selection theorem. Independently reviewed and exhaustively reproduced by Agent 50.
 
 ## Statement
 
