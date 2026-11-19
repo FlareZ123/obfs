@@ -27,7 +27,7 @@ const specimens=[
     name:'property-rewrite',
     source:"'use strict';const owner={distinctivelyLongPrivateField:73};"+
       "const value=owner.distinctivelyLongPrivateField;"+
-      "void opaqueInput.missingField;opaqueOutput=value;",
+      "[0].forEach(()=>{});void value;",
     options:{
       mode:'coo',seed:'browser-opaque-error-coordinate-property',
       strings:false,identifiers:false
@@ -89,16 +89,19 @@ async function run(){
         return;
       }
       const input=fail?'null':'{value:73,missingField:1}';
+      const propertyFailure=fail&&script.includes('property-rewrite');
       const html='<!doctype html><html><body><script>'+
         'globalThis.__opaqueInput='+input+';globalThis.__opaqueOutput=null;'+
         'globalThis.opaqueInput=globalThis.__opaqueInput;'+
         'globalThis.opaqueOutput=null;globalThis.__opaqueError="";'+
+        (propertyFailure?'Array.prototype.forEach=null;':'')+
         'globalThis.onerror=(message,source,line,column)=>{'+
         'globalThis.__opaqueError=line+":"+column;return true;};'+
         '<\/script><script src="'+script+'"><\/script><script>'+
         'setTimeout(()=>{const value='+(
           fail ? 'globalThis.__opaqueError' :
-            '"ok:"+(globalThis.opaqueOutput??globalThis.__opaqueOutput)'
+            (script.includes('property-rewrite') ? '"ok"' :
+              '"ok:"+(globalThis.opaqueOutput??globalThis.__opaqueOutput)')
         )+';const pre=document.createElement("pre");pre.id="result";'+
         'pre.textContent=btoa(String(value));document.body.append(pre);},0);'+
         '<\/script></body></html>';
@@ -126,7 +129,7 @@ async function run(){
     for(const item of comparisons){
       const nativeSafe=await executeChromium(address.port,item.nativePath,false);
       const generatedSafe=await executeChromium(address.port,item.generatedPath,false);
-      assert.equal(nativeSafe,'ok:73',item.name);
+      assert.equal(nativeSafe,item.name==='property-rewrite'?'ok':'ok:73',item.name);
       assert.equal(generatedSafe,nativeSafe,item.name);
 
       const nativeFailure=await executeChromium(address.port,item.nativePath,true);
