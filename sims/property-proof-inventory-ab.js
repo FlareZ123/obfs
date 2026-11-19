@@ -124,7 +124,7 @@ function dependencyMixedSource(){
     function blocked(blockedValueArg){return blockedValueArg.hidden;}
     const escaped={hidden:19};const observed=Object.keys(escaped)[0];
     const blockedValue=blocked(escaped);blocked(7);
-    module.exports=[total,observed,blockedValue];\n`;
+    module.exports=total+(observed==='hidden'?1000:0)+blockedValue;\n`;
 }
 
 /**
