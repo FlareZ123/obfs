@@ -151,7 +151,16 @@ lambda . F(x)
   XOR lambda . D(x).
 ```
 
-The first two terms are affine. Therefore the component is affine for every input if and only if
+The first two terms are affine. If `lambda . D(x)` vanishes identically, the component is therefore affine.
+
+Conversely, suppose `lambda . F(x)` is affine. Then `lambda . D(x)`, being the XOR of affine functions, is also affine. By construction of the public interpolant,
+
+```text
+D(0) = 0
+D(e_i) = 0  for every basis vector e_i.
+```
+
+An affine Boolean function that vanishes at zero and at every basis vector is identically zero. Hence
 
 ```text
 lambda . D(x) = 0
