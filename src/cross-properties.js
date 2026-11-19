@@ -800,6 +800,42 @@ function hasAcyclicStaticImports(modules) {
 }
 
 /**
+ * Allow literal-key owner reflection only in a graph where the relevant
+ * mutable globals have no other source-visible access path. Any global-root
+ * use, local Object/Reflect binding, alias, capture, mutation, computed method,
+ * or indirect call disables this optional proof lane.
+ *
+ * @param {ReadonlyMap<string,{file:SourceFile,ast:AstNode,bindings:Map<string,number>}>} modules
+ * @returns {boolean}
+ */
+function stableDirectOwnerReflection(modules) {
+  for(const module of modules.values()) {
+    if(module.bindings.has('Object')||module.bindings.has('Reflect'))return false;
+    let stable=true;
+    walk(module.ast,(node,parent,key,ancestors)=>{
+      if(!stable||node.type!=='Identifier')return;
+      if(['globalThis','window','self','global'].includes(node.name)) {
+        stable=false;
+        return;
+      }
+      if(node.name!=='Object'&&node.name!=='Reflect')return;
+      if(parent?.type!=='MemberExpression'||parent.object!==node||parent.computed) {
+        stable=false;
+        return;
+      }
+      const call=ancestors.at(-2);
+      const method=staticName(parent.property);
+      const supported=node.name==='Reflect'&&method==='get' ||
+        node.name==='Object'&&method==='hasOwn';
+      if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
+         call.optional)stable=false;
+    });
+    if(!stable)return false;
+  }
+  return true;
+}
+
+/**
  * Prove that an unrelated computed read belongs to a private literal record
  * and receives only strings from direct, statically known ESM call sites.
  * This narrowly restores a useful closed-world property transformation without
@@ -1860,6 +1896,7 @@ function renameCrossFileProperties(files,seed) {
   const verifiedUrlStatics=collectVerifiedImportedUrlStaticAliases(files);
   const verifiedPrimitives=collectVerifiedImportedPrimitives(files);
   const acyclicImports=hasAcyclicStaticImports(modules);
+  const allowDirectReflection=stableDirectOwnerReflection(modules);
   // The filename-oriented resolver only proves canonical relative imports.
   // Absolute file URLs, package aliases and encoded/query/fragment paths can
   // reach the same ESM source through another spelling without being tracked.
@@ -2340,7 +2377,10 @@ function renameCrossFileProperties(files,seed) {
         } while(readerForwarded);
         /** @type {Set<string>} */
         const usedReaders=new Set();
-        const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,importedIdentities.get(exporterName));
+        const localProof=proveLocalObject(exporter.ast,exportName,exporter.bindings,
+          importedIdentities.get(exporterName),new Map(),new Map(),
+          verifiedStrings.get(exporterName),verifiedPrimitives.get(exporterName),
+          allowDirectReflection);
         if(!localProof) continue;
         /** @type {{file:string,source:string,proof:NonNullable<ReturnType<typeof proveLocalObject>>}[]} */
         const users=[{file:exporterName,source:/** @type {string} */ (exporter.file.code),proof:localProof}];
@@ -2425,7 +2465,8 @@ function renameCrossFileProperties(files,seed) {
             // were initialized before the owner and match its own fields.
             const proof=proveLocalObject(importer.ast,alias,importer.bindings,
               importedIdentities.get(importerName),consumerIndices,importedKeys,
-              verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
+              verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
+              allowDirectReflection);
             if(!proof) {failed=true;break;}
             users.push({file:importerName,source:/** @type {string} */ (importer.file.code),proof});
             if(readerAliases.size)readerProof=proof;
@@ -2457,7 +2498,8 @@ function renameCrossFileProperties(files,seed) {
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
           user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
-          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)))) continue;
+          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
+          user.proof.reflections.some(reflection=>!ownNames.has(reflection.property)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
@@ -2496,6 +2538,13 @@ function renameCrossFileProperties(files,seed) {
           }
           for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
             add(user.file,edit);
+          }
+          for(const reflection of user.proof.reflections) {
+            const replacement=mapping.get(reflection.property);
+            if(replacement) {
+              add(user.file,{start:reflection.key.start,end:reflection.key.end,
+                text:JSON.stringify(replacement)});
+            }
           }
         }
         objects++;
@@ -2633,7 +2682,8 @@ function renameCrossFileProperties(files,seed) {
       for(const alias of aliases) {
         const proof=proveLocalObject(importer.ast,alias,importer.bindings,
           importedIdentities.get(importerName),undefined,importedKeys,
-          verifiedStrings.get(importerName),verifiedPrimitives.get(importerName));
+          verifiedStrings.get(importerName),verifiedPrimitives.get(importerName),
+          allowDirectReflection);
         if(!proof) {
           failed=true;
           break;
@@ -2655,7 +2705,8 @@ function renameCrossFileProperties(files,seed) {
         return typeof field!=='string'||!ownNames.has(field);
       }) ||
       user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
-      user.proof.inChecks.some(check=>!ownNames.has(check.left.value))))continue;
+      user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
+      user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
 
     const mapping=new Map();
     for(const prop of props) {
@@ -2689,6 +2740,13 @@ function renameCrossFileProperties(files,seed) {
       }
       for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
         add(user.file,edit);
+      }
+      for(const reflection of user.proof.reflections) {
+        const replacement=mapping.get(reflection.property);
+        if(replacement) {
+          add(user.file,{start:reflection.key.start,end:reflection.key.end,
+            text:JSON.stringify(replacement)});
+        }
       }
     }
     objects++;
