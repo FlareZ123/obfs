@@ -1,126 +1,211 @@
-# Exact deterministic repair of singular low-rank nonlinear displacement
+# Deterministic target inversion from public affine-residual rank
 
 **Date:** 19 November 2026  
 **Agent:** 3  
-**Classification:** exact chosen-query negative result, pending independent review before promotion to `results/`.
+**Classification:** intermediate exact theorem with executable validation; independent review requested before promotion to `results/`.
 
 ## Statement
 
-Let `V = GF(2)^n`. Suppose a published permutation oracle has a hidden representation
+Let `V = GF(2)^n` and let `F:V->V` be any permutation available as a chosen-input oracle. Define only public affine interpolation data:
 
 ```text
-F(x) = c XOR A(x) XOR eta(x),
+c = F(0)
+M(e_i) = F(e_i) XOR c
+D(x) = F(x) XOR c XOR M(x)
+R = span { D(x) : x in V }
+r = dim R.
 ```
 
-where `A` is an unknown invertible linear map, `c` is an unknown constant, and every nonlinear displacement `eta(x)` lies in one fixed unknown output subspace `S` with `dim(S) <= k`.
+Then every target `y=F(s)` has an exact **deterministic** chosen-query inverter.
 
-No affine-interpolant rank assumption is needed.
-
-Given chosen-input access to `F` and a target `y = F(s)`, the hidden input `s` can be recovered exactly with at most
+The attacker does not need to know `R`, `r`, a hidden affine map, or a hidden nonlinear representation. If it simply runs until the final public cycle returns, the actual distinct-query count is at most
 
 ```text
-n + 2^(k+1)
+n + 2^(r+1).
 ```
 
-distinct oracle queries. At width 32 the bounds are 40 queries for `k=2`, 64 for `k=4`, and 544 for `k=8`.
-
-This extends the earlier full-rank cycle argument to singular affine interpolants by replacing empirical random rank repair with deterministic hidden-subspace closure.
-
-## Initial affine surrogate
-
-Query `F(0)` and every basis vector. Let
+If a valid public upper bound `k>=r` is known in advance, the last cycle query can be inferred rather than evaluated, giving
 
 ```text
-b = F(0)
-M(e_i) = F(e_i) XOR b.
+n + 2^(k+1) - 1.
 ```
 
-Since
+With the exact bound `k=r` this is
 
 ```text
-F(e_i) XOR F(0)
-= A(e_i) XOR eta(e_i) XOR eta(0),
+n + 2^(r+1) - 1.
 ```
 
-there is a linear map `D` with image contained in `S` such that
+This removes the randomized quotient-search phase from the earlier Las Vegas public affine-residual theorem. It also removes the singular-interpolant caveat from the earlier full-rank cycle theorem.
+
+For width 32 and known exact residual rank the deterministic bounds are:
 
 ```text
-M = A + D.
+r=1: 35
+r=2: 39
+r=3: 47
+r=4: 63
+r=8: 543
 ```
 
-The attack maintains this invariant while repairing rank.
+The established rank-one theorem reaches the same 35-query bound at `r=1` through a more specialized proof.
 
-Define the hidden input subspace
+## Public structural identities
+
+Every output has the form
 
 ```text
-T = A^-1(S).
+F(x) = c XOR M(x) XOR D(x)
 ```
 
-Then `dim(T) <= k`. For every maintained surrogate `N=A+D_N` with `im(D_N) subseteq S`,
+with `D(x) in R`. Since `F` is a permutation,
 
 ```text
-ker(N) subseteq T.
+V = image(M) + R.
 ```
 
-Indeed, `N(v)=0` implies `A(v)=D_N(v)` lies in `S`.
+Define
+
+```text
+U = M^-1(R).
+```
+
+Let `d=dim ker(M)`. Dimension counting gives
+
+```text
+dim(R intersect image(M)) = r-d
+dim U = d + (r-d) = r.
+```
+
+Thus `U` is an `r`-dimensional input subspace determined abstractly by public behavior, even though the attack never needs to reconstruct `R` globally.
+
+## Synthetic affine surrogates
+
+The attack starts with `N=M` and maintains a synthetic linear map
+
+```text
+N = M + E
+```
+
+where
+
+```text
+image(E) subseteq R.
+```
+
+This invariant is purely public-algebraic. No hidden invertible affine baseline is assumed.
+
+For every maintained `N`,
+
+```text
+ker(N) subseteq U.
+```
+
+Indeed, if `N(v)=0`, then
+
+```text
+M(v) = E(v) in R,
+```
+
+hence `v in U=M^-1(R)`.
+
+The attack repeatedly repairs `N` until it becomes invertible.
 
 ## Deterministic subspace closure
 
-Assume the current surrogate `N` is singular. Set `K=ker(N)` and initialize the known subspace as `H=K`. The invariant is
+Assume the current surrogate `N` is singular and set
 
 ```text
-K subseteq H subseteq T.
+K = ker(N).
 ```
 
-For every nonzero `v` in `H`, query
+Start a known subspace with
+
+```text
+H = K.
+```
+
+The invariant is
+
+```text
+K subseteq H subseteq U.
+```
+
+For every nonzero `v in H`, query the fixed-base difference
 
 ```text
 delta(v) = F(v) XOR F(0).
 ```
 
-Because `v` lies in `T`, all three terms `A(v)`, `eta(v)`, and `eta(0)` lie in `S`, so `delta(v)` lies in `S`.
+Because `v in U`, `M(v) in R`. Also `D(v) in R`. Therefore
+
+```text
+delta(v) = M(v) XOR D(v) in R.
+```
 
 Two cases can occur.
 
-### Difference outside the surrogate image
+### Case A: delta lies outside image(N)
 
-If `delta(v) notin im(N)`, choose any nonzero `q in K` and a linear functional `lambda` with `lambda(q)=1`. Update
+Choose any nonzero `q in K` and a linear functional `lambda` satisfying
+
+```text
+lambda(q)=1.
+```
+
+Update
 
 ```text
 N' = N + delta(v) * lambda.
 ```
 
-The added rank-one map has image in `S`, preserving the surrogate invariant. Since `delta(v)` lies outside `im(N)`, any vector in `ker(N')` must satisfy both `lambda(x)=0` and `N(x)=0`. Therefore
+The added rank-one map has image in `R`, so the surrogate invariant is preserved.
+
+Since `delta(v)` lies outside `image(N)`, reducing `N'(x)=0` modulo `image(N)` forces `lambda(x)=0`; then `N(x)=0`. Hence
 
 ```text
-ker(N') = K intersect ker(lambda),
+ker(N') = K intersect ker(lambda).
 ```
 
-so the rank increases by exactly one.
+Because `lambda` is nonzero on `K`, its restriction has codimension one and
 
-The implementation uses a coordinate functional: choose any set bit of `q` and XOR `delta(v)` into that surrogate column.
+```text
+rank(N') = rank(N) + 1.
+```
 
-### Difference inside the surrogate image
+The implementation uses a coordinate functional: select any set bit of `q` and XOR `delta(v)` into that surrogate column.
 
-If `delta(v) in im(N)`, solve
+### Case B: delta lies inside image(N)
+
+Solve
 
 ```text
 N(p) = delta(v).
 ```
 
-Then
+Since `N=M+E` and both `delta(v)` and `E(p)` lie in `R`,
 
 ```text
-A(p) = delta(v) XOR D_N(p) in S,
+M(p) = delta(v) XOR E(p) in R.
 ```
 
-so `p in T`. If `p` is outside `H`, enlarge `H <- span(H,p)`.
+Thus
 
-All solutions differ by an element of `K`, already contained in `H`, so expansion does not depend on which right inverse the solver returns.
+```text
+p in U.
+```
 
-## Why closure cannot stall
+If `p` is outside the current `H`, enlarge
 
-Suppose the current surrogate is singular, every `delta(v)` for `v in H` lies in `im(N)`, and every solved preimage remains in `H`.
+```text
+H <- span(H,p).
+```
+
+Every solution to `N(p)=delta(v)` differs by an element of `K`, already contained in `H`. Therefore whether this step expands `H` does not depend on which right inverse the Gaussian solver returns.
+
+## Closure cannot stall
+
+Suppose `N` remains singular, every `delta(v)` for `v in H` lies in `image(N)`, and every solved preimage remains in `H`.
 
 Then
 
@@ -128,38 +213,54 @@ Then
 F(H) subseteq F(0) XOR N(H).
 ```
 
-Because `F` is a permutation, `|F(H)|=|H|`.
+Because `F` is injective,
 
-But `K=ker(N)` is nonzero and contained in `H`. Hence the restriction of `N` to `H` has kernel `K`, so
+```text
+|F(H)| = |H|.
+```
+
+But `K=ker(N)` is nonzero and contained in `H`. The restriction of `N` to `H` therefore has kernel `K`, giving
 
 ```text
 |N(H)| = |H| / |K| < |H|.
 ```
 
-That contradicts the inclusion above.
+The inclusion is impossible.
 
-Therefore every singular stage must make deterministic progress. It either discovers a new `T` direction and enlarges `H`, or discovers an `S` direction outside `im(N)` and raises the surrogate rank. Since `H subseteq T` and `dim(T) <= k`, closure cannot expand beyond dimension `k`.
+Every singular stage therefore makes deterministic progress. It either discovers a new direction in `U` and enlarges `H`, or discovers an `R` direction outside `image(N)` and increases surrogate rank.
 
-## Query cost of singular repair
+Since every `H` stays inside the same `r`-dimensional `U`, closure cannot grow indefinitely. Every rank repair reduces nullity by exactly one, so the process reaches an invertible surrogate.
 
-Every closure query has an input in the same fixed hidden subspace `T`. Oracle answers are cached across all rank-repair stages. Consequently all singular repairs together can add at most
+## Global repair-query bound
+
+Every input queried by every closure stage lies in the same fixed `U`.
+
+The oracle cache is shared across all rank repairs. Therefore all singular repairs together can add at most
 
 ```text
-2^k - 1
+2^r - 1
 ```
 
-new nonzero inputs beyond `F(0)`.
+new nonzero inputs beyond the already queried `F(0)`.
 
-This is a global bound across all repairs.
+This is a global bound across all repaired kernel dimensions.
 
 ## Full-rank cycle inversion
 
-After repair, the full-rank surrogate still has
+Once `N` is invertible, it still has
 
 ```text
-N = A + D_N
-im(D_N) subseteq S.
+N = M + E
+image(E) subseteq R.
 ```
+
+Also
+
+```text
+N^-1(R) = M^-1(R) = U,
+```
+
+because adding an `R`-valued linear map cannot change whether a vector's image belongs to `R`.
 
 Define
 
@@ -170,11 +271,12 @@ G(x) = N^-1(F(x) XOR F(0)).
 Then
 
 ```text
-G(x) XOR x in U = N^-1(S),
-dim(U) <= k.
+G(x) XOR x
+= N^-1(D(x) XOR E(x))
+in U.
 ```
 
-Because `G` is a permutation, it preserves each affine `U` coset.
+Thus `G` preserves every affine `U` coset. It is a permutation because `F` and `N` are invertible.
 
 For target `y=F(s)`, compute
 
@@ -182,20 +284,39 @@ For target `y=F(s)`, compute
 t = N^-1(y XOR F(0)) = G(s).
 ```
 
-Iterate `G` from `t`. The orbit stays in a coset of size at most `2^k`. When the next value returns to `t`, the current value is the unique predecessor of `t`, hence exactly `s`. This costs at most `2^k` additional oracle queries.
+Start at `t` and repeatedly apply `G`. The orbit remains inside one affine `U` coset containing at most `2^r` points. The unique predecessor of `t` on that cycle is exactly `s`.
 
-## Final bound
+If `r` is unknown, query until the next value returns to `t`; this costs at most `2^r` oracle evaluations.
 
-The initial interpolation costs `n+1` queries. Singular repair adds at most `2^k-1`. The final cycle adds at most `2^k`.
+If an upper bound `k>=r` is known, query at most `2^k-1` cycle edges. If no return has occurred, the cycle must have the maximum allowed length, so the current point is the predecessor and the final oracle evaluation is unnecessary.
 
-Therefore
+## Query bounds
+
+Without knowing `r` in advance:
 
 ```text
-(n+1) + (2^k-1) + 2^k
-= n + 2^(k+1).
+initial interpolation:       n+1
+all rank repairs:            <= 2^r-1
+cycle until observed return: <= 2^r
+------------------------------------
+total:                       <= n + 2^(r+1)
 ```
 
-## Reproducible 32-bit experiment
+With a known bound `k>=r`:
+
+```text
+initial interpolation:       n+1
+all rank repairs:            <= 2^k-1
+cycle with final inference:  <= 2^k-1
+------------------------------------
+total:                       <= n + 2^(k+1) - 1
+```
+
+For `k=r` the latter is `n + 2^(r+1) - 1`.
+
+The theorem is worst-case deterministic. It does not rely on the quotient-label sampling expectation used by the earlier Las Vegas attack.
+
+## 32-bit generated validation
 
 Implementation:
 
@@ -203,9 +324,9 @@ Implementation:
 sims/low-rank-deterministic-repair.js
 ```
 
-The generator hides a top-`k` nonlinear compatible displacement behind independent dense-looking input and output linear maps plus affine translations. The nonlinear layer is a permutation and its displacement stays inside a `k`-dimensional hidden subspace.
+The generator hides nonlinear displacement ranks `k=2,4,8` behind independent dense-looking input/output linear maps and affine translations.
 
-A deterministic corpus of 256 cases at each of `k=2,4,8` produced:
+Across 768 deterministic targets:
 
 ```text
 total cases:                  768
@@ -213,71 +334,108 @@ initially singular:           497
 exact recoveries:             768/768
 
 k=2:
-  theorem bound:              40
-  max observed queries:       39
+  theorem bound:              39
+  max observed queries:       38
   max rank repairs:           2
   max closure dimension:      2
   max cycle length:           4
 
 k=4:
-  theorem bound:              64
+  theorem bound:              63
   max observed queries:       56
   max rank repairs:           3
   max closure dimension:      4
   max cycle length:           15
 
 k=8:
-  theorem bound:              544
+  theorem bound:              543
   max observed queries:       288
   max rank repairs:           3
   max closure dimension:      8
   max cycle length:           255
 ```
 
-These measurements validate the implementation. The query bound follows from the proof.
+The implementation takes `k` as a known upper bound so it can exercise the tighter final-inference bound.
 
-## Exhaustive width-3 validation
+## Complete width-3 validation over every permutation
 
-A separate implementation
+A separate checker
 
 ```text
 sims/low-rank-deterministic-repair-exhaustive-width3.js
 ```
 
-enumerates all seven two-dimensional subspaces of `GF(2)^3`. For each subspace it enumerates every permutation that independently permutes its two four-element cosets, giving
+enumerates every one of the
 
 ```text
-7 * (4!)^2 = 4,032
+8! = 40,320
 ```
 
-low-rank permutation models.
+permutations of `GF(2)^3`. For each permutation it computes the exact public residual rank `r` by exhaustive enumeration, then attacks every one of its eight targets.
 
-Every one of the eight targets is attacked:
+The complete result is
 
 ```text
-32,256 / 32,256 exact target recoveries.
+322,560 / 322,560 exact target recoveries.
 ```
 
-Of the 4,032 models, 576 have a singular initial affine interpolant. Every singular model is repaired exactly. The largest observed distinct-query count is seven, below the theorem bound of eleven for `n=3,k=2`.
+Exactly 8,064 permutations have a singular initial affine interpolant. Every one is repaired exactly.
 
-This exhaustive computation checks the complete coset-preserving permutation class for every two-dimensional hidden subspace in the normalized `A=I` width-3 setting. The general affine-hidden statement follows from the algebraic proof.
+The public `(r,d)` model counts, where `d=dim ker(M)`, are:
 
-## Security consequence
+```json
+{
+  "0:0": 1344,
+  "1:0": 8064,
+  "1:1": 1344,
+  "2:0": 14784,
+  "2:1": 4032,
+  "3:0": 8064,
+  "3:1": 2688
+}
+```
 
-Low-dimensional nonlinear displacement does not become resistant to chosen-query inversion merely because its first affine interpolant is singular.
+The maximum observed distinct-query count is eight, the entire width-3 domain. This exhaustive lane removes dependence on the structured 32-bit generator.
 
-For a candidate whose full nonlinear displacement is confined to `k` hidden output dimensions, singularity exposes a deterministic repair process. The attacker either obtains a missing output-subspace direction that raises rank, or computes a new hidden input-subspace direction. The latter cannot continue indefinitely because the hidden input subspace has dimension at most `k`.
+## Relation to earlier low-rank results
 
-For small `k`, the resulting query complexity remains practical even with arbitrary unknown affine wrappers and arbitrary nonlinear behavior inside the hidden subspace.
+This result strengthens the prior Agent 3 public affine-residual theorem, which used a Las Vegas target-quotient match and proved
 
-This removes the singular-interpolant caveat from the earlier low-rank cycle result.
+```text
+E[queries] <= n + 1 + 2^d + 2^r.
+```
+
+The new deterministic repair constructs an invertible synthetic surrogate directly from fixed-base oracle differences, eliminating the random quotient phase and its expectation.
+
+It also subsumes the singular/full-rank split in PR #167 for the same low-dimensional displacement setting.
+
+The established rank-one theorem remains a useful independently reviewed special case. At `r=1`, the known-rank deterministic bound here is the same `n+3`.
+
+## Candidate-selection consequence
+
+A small public affine-residual rank is a deterministic black-box inversion stop rule, rather than merely an expected-query weakness.
+
+For a public 32-bit permutation with known residual-rank upper bound:
+
+```text
+r<=1: 35 queries
+r<=2: 39 queries
+r<=3: 47 queries
+r<=4: 63 queries
+r<=6: 159 queries
+r<=8: 543 queries
+```
+
+A composition of `k` rank-one nonlinear shear layers separated by arbitrary affine maps has displacement rank at most `k`, so the known-`k` bound applies directly.
+
+A viable public-permutation rescue therefore needs nonlinear displacement rank that grows enough to defeat this deterministic chosen-query attack, or it must leave the affine-plus-low-rank model entirely. Moving fixed public parameters behind another deterministic representation does not address this boundary.
 
 ## Scope
 
-The theorem requires one fixed hidden output subspace `S` containing every nonlinear displacement `eta(x)`.
+This theorem concerns permutation oracles over `GF(2)^n`.
 
-It does not establish small `k` for arbitrary compatible permutations. A general multi-level compatible permutation may have nonlinear displacement spanning a large space.
+It does not classify high-residual-rank permutations, reconstruct arbitrary source code, prove tamper resistance, or bypass an SCO boundary that withholds the full permutation oracle.
 
-The result concerns exact chosen-query target inversion. It does not by itself reconstruct source code, recover the hidden affine maps, prove a runtime attack against every deployment, or establish a performance property.
+A high residual rank is an escape from this attack family, not evidence by itself of strong obfuscation.
 
 No claim about the unavailable full construction of the 2026 MBA-permutation paper follows from this theorem.
