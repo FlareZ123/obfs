@@ -919,12 +919,25 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
         const receiver=node.callee.object;
         const method=memberName(node.callee);
-        if(method==='call'&&
-           (receiver.type==='Identifier'&&legacyGetterAliases.has(receiver.name)||
-            receiver.type==='MemberExpression'&&memberName(receiver)==='__defineGetter__')) {
+        const legacyGetterCallable=
+          receiver.type==='Identifier'&&legacyGetterAliases.has(receiver.name)||
+          receiver.type==='MemberExpression'&&memberName(receiver)==='__defineGetter__';
+        if(legacyGetterCallable&&(method==='call'||method==='apply')) {
           const target=node.arguments[0];
-          const keyArgument=node.arguments[1];
-          const getter=node.arguments[2];
+          let keyArgument;
+          let getter;
+          if(method==='call') {
+            keyArgument=node.arguments[1];
+            getter=node.arguments[2];
+          } else {
+            const args=node.arguments[1];
+            if(args?.type==='ArrayExpression') {
+              const keyElement=args.elements[0];
+              const getterElement=args.elements[1];
+              keyArgument=keyElement&&keyElement.type!=='SpreadElement'?keyElement:undefined;
+              getter=getterElement&&getterElement.type!=='SpreadElement'?getterElement:undefined;
+            }
+          }
           if(target&&keyArgument&&getter&&functionReturnsSensitiveValue(getter)) {
             const key=staticString(keyArgument);
             if(key===null)opaqueReflectiveSensitiveWrite=true;
