@@ -381,6 +381,20 @@ test('default import of a relayed reader cannot hide a foreign-owner call',async
   ],0);
 });
 
+test('namespace re-export of a reader relay cannot hide a foreign-owner call',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay-a.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'relay-b.mjs',sourceType:'module',code:
+      'export * as readers from "./relay-a.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import {inspect} from "./relay-a.mjs";'+
+      'import {readers} from "./relay-b.mjs";'+
+      'console.log(inspect(state),readers.inspect({secretField:99}));'}
+  ],0);
+});
+
 
 test('relayed reader source observation refuses cross-file property rewrite',async()=>{
   await preserves([
