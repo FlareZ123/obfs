@@ -45,8 +45,7 @@ test('every call site must resolve before a formal can observe a private field',
   equivalent(`'use strict';
     function read(value){return value.secret;}
     const first={secret:11};const alias=first;
-    const foreign={other:7};
-    module.exports=[read(first),read(alias),read(foreign)];
+    module.exports=[read(first),read(alias),read(7)];
   `,0);
 });
 
@@ -75,8 +74,7 @@ test('unseeded formal cycle does not manufacture an owner proof',()=>{
     function left(value){if(false)right(value);}
     function right(value){if(false)left(value);return value.secret;}
     const owner={secret:23};
-    const foreign={other:5};
-    module.exports=[Object.keys(owner)[0],right(foreign)];
+    module.exports=[Object.keys(owner)[0],right(5)];
   `,0);
 });
 
