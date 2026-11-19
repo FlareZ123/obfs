@@ -40,6 +40,8 @@ jobs:
         run: node sims/mba-author-int32-heldout.js
       - name: Recover dataflow-mixed unrolled Int32 permutation
         run: node --test test/mba-author-int32-dataflow-recover.test.js
+      - name: Confirm frozen attacker rejects input-indexed neutral calibration
+        run: node --test test/mba-author-int32-input-indexed-neutral.test.js
       - name: Validate frozen attacker on seed-expanded Int32 calibration
         run: node --test test/mba-author-int32-seed-expanded.test.js
       - name: Recover post-freeze seed-expanded Int32 permutations and profile CPU
