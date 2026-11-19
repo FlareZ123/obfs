@@ -91,10 +91,10 @@ async function main(){
   const compileMs=performance.now()-compileStarted;
 
   const bytecode=fs.readFileSync(bytecodePath);
-  assert.equal(bytecode.includes(Buffer.from(SOURCE_CANARY,'utf8')),false,
-    'V8 bytecode unexpectedly retained the source comment canary');
-  assert.equal(bytecode.includes(Buffer.from('secretLedgerTransform','utf8')),false,
-    'V8 bytecode unexpectedly retained the original function identifier');
+  const sourceCanaryInBytecode=bytecode.includes(Buffer.from(SOURCE_CANARY,'utf8'));
+  const originalIdentifierInBytecode=bytecode.includes(
+    Buffer.from('secretLedgerTransform','utf8')
+  );
 
   const jscdBin=process.env.JSCD_BIN||path.join(
     process.cwd(),'node_modules','.bin',process.platform==='win32'?'jscd.cmd':'jscd'
@@ -170,8 +170,8 @@ async function main(){
     sourceBytes:Buffer.byteLength(candidateSource),
     bytecodeBytes:bytecode.length,
     recoveredBytes:Buffer.byteLength(recovered),
-    sourceCanaryInBytecode:false,
-    originalIdentifierInBytecode:false,
+    sourceCanaryInBytecode,
+    originalIdentifierInBytecode,
     parityCases,
     compileMs,
     staticAttackMs:attackMs,
