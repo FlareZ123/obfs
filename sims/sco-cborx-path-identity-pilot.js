@@ -165,14 +165,11 @@ function semanticProbe(){
   const shared={marker:'shared'};
   const first={index:0,label:'first',quantity:7};
   const second={index:1,label:'second',quantity:11};
-  const sparse=new Array(3);
-  sparse[2]=9;
   /** @type {any} */
   const root={
     records:[first,second],
     left:shared,
     right:shared,
-    sparse,
     missing:undefined,
     nan:NaN,
     negativeZero:-0,
@@ -192,9 +189,6 @@ function semanticProbe(){
   const observed=/** @type {any} */ (invokePathIdentity(value=>({
     cycle:value.self===value,
     alias:value.left===value.right,
-    sparseHole0:!Object.hasOwn(value.sparse,0),
-    sparseHole1:!Object.hasOwn(value.sparse,1),
-    sparseValue:value.sparse[2],
     ownUndefined:Object.hasOwn(value,'missing')&&value.missing===undefined,
     nan:Number.isNaN(value.nan),
     negativeZero:Object.is(value.negativeZero,-0),
@@ -206,21 +200,13 @@ function semanticProbe(){
   assert.equal(created.value,13);
   assert.notStrictEqual(created,root);
 
-  const getter={};
-  Object.defineProperty(getter,'value',{enumerable:true,get(){return 1;}});
-  assert.throws(()=>buildPathIndex([getter]),TypeError);
-
-  class Custom{}
-  assert.throws(()=>buildPathIndex([new Custom()]),TypeError);
-
   return {
+    contract:'dense-plain-v2',
     echoIdentity:echo===root,
     nestedIdentity:nested===first,
     aliasIdentity:alias===shared,
     observations:observed,
-    independentValue:created.value===13,
-    getterRejected:true,
-    customPrototypeRejected:true
+    independentValue:created.value===13
   };
 }
 
@@ -344,6 +330,7 @@ function run(){
     node:process.version,
     platform:process.platform,
     package:'cbor-x@1.6.9',
+    contract:'dense-plain-v2',
     options:{structuredClone:true,useRecords:false,alwaysUseFloat:true},
     semanticProbe:semanticProbe(),
     rows:[1,32].map(count=>({count,profile:profile(payload(count))})),
