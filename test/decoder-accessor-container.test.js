@@ -55,7 +55,15 @@ const unsafe=[
   ['object literal getter field',
     "const box={get ref(){return String.prototype;}};function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
   ['returned object getter field',
-    "function holder(){return {get ref(){return String.prototype;}};}function poison(p){p.charCodeAt=()=>0;}poison(holder().ref);"]
+    "function holder(){return {get ref(){return String.prototype;}};}function poison(p){p.charCodeAt=()=>0;}poison(holder().ref);"],
+  ['Object.defineProperty accessor descriptor alias',
+    "const descriptor={get(){return String.prototype;}};const box={};Object.defineProperty(box,'ref',descriptor);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperty returned accessor descriptor',
+    "function descriptor(){return {get(){return String.prototype;}};}const box={};Object.defineProperty(box,'ref',descriptor());function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperties accessor map alias',
+    "const descriptors={ref:{get(){return String.prototype;}}};const box={};Object.defineProperties(box,descriptors);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['Object.defineProperties returned accessor map',
+    "function descriptors(){return {ref:{get(){return String.prototype;}}};}const box={};Object.defineProperties(box,descriptors());function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -93,7 +101,15 @@ const harmless=[
   ['object literal Number getter field',
     "const box={get ref(){return Number.prototype;}};box.ref.unrelated=1;"],
   ['returned object Number getter field',
-    "function holder(){return {get ref(){return Number.prototype;}};}holder().ref.unrelated=1;"]
+    "function holder(){return {get ref(){return Number.prototype;}};}holder().ref.unrelated=1;"],
+  ['Object.defineProperty Number accessor descriptor alias',
+    "const descriptor={get(){return Number.prototype;}};const box={};Object.defineProperty(box,'ref',descriptor);box.ref.unrelated=1;"],
+  ['Object.defineProperty returned Number accessor descriptor',
+    "function descriptor(){return {get(){return Number.prototype;}};}const box={};Object.defineProperty(box,'ref',descriptor());box.ref.unrelated=1;"],
+  ['Object.defineProperties Number accessor map alias',
+    "const descriptors={ref:{get(){return Number.prototype;}}};const box={};Object.defineProperties(box,descriptors);box.ref.unrelated=1;"],
+  ['Object.defineProperties returned Number accessor map',
+    "function descriptors(){return {ref:{get(){return Number.prototype;}}};}const box={};Object.defineProperties(box,descriptors());box.ref.unrelated=1;"]
 ];
 
 for(const [name,mutator] of harmless) {
