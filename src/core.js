@@ -720,7 +720,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
               continue;
             }
             const pathParts=[...prefix,key];
-            if(propertyReadProducesSensitiveValue(property)) {
+            if(propertyReadProducesSensitiveValue(property)||
+               key==='get'&&property.kind!=='get'&&
+                 functionReturnsSensitiveValue(property.value)) {
               addReturnedPath(name,pathParts);
               if(prefix.length===0)addReturnedField(name,key);
             }
@@ -899,9 +901,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
               functionReturnsSensitiveValue(property.value);
           });
         }
-        if(hasSensitiveContainerField(descriptor,'value'))return true;
-        if(descriptor.type!=='Identifier')return false;
-        return false;
+        return hasSensitiveContainerField(descriptor,'value')||
+          hasSensitiveContainerField(descriptor,'get');
       }
       /**
        * Preserve exact decoder-intrinsic provenance for writes performed by
@@ -952,7 +953,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           for(const pathKey of returnedSensitivePaths.get(descriptorRoot.name)??[]) {
             if(!pathKey.startsWith(sourcePrefix)||pathKey.length===sourcePrefix.length)continue;
             const relative=sensitivePathParts(pathKey.slice(sourcePrefix.length));
-            if(relative?.length===2&&relative[1]==='value') {
+            if(relative?.length===2&&
+               (relative[1]==='value'||relative[1]==='get')) {
               recordKnownSensitivePath(target,[relative[0]]);
             }
           }
