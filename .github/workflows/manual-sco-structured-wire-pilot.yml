@@ -4,7 +4,12 @@ on:
   workflow_dispatch:
     inputs:
       readonly_identity_only:
-        description: Run only the read-only identity-token pilot
+        description: Run only the JSON read-only identity-token pilot
+        required: false
+        default: false
+        type: boolean
+      cbor_root_identity_only:
+        description: Run only the cbor-x root-identity pilot
         required: false
         default: false
         type: boolean
@@ -26,21 +31,21 @@ jobs:
         with:
           node-version: '22'
       - name: Install declared project dependencies and exact experimental codec
-        if: ${{ !inputs.readonly_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
         run: npm install --no-package-lock --ignore-scripts @ungap/structured-clone@1.4.0 devalue@6.0.3
       - name: Compare devalue graph transport against native and JSON value work
-        if: ${{ !inputs.readonly_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
         run: node sims/sco-devalue-wire-pilot.js
       - name: Bound hostile graph wire parser probes
-        if: ${{ !inputs.readonly_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
         run: node sims/sco-devalue-untrusted-parser-grid.js
       - name: Real Chromium devalue module bootstrap and repeated compute
-        if: ${{ !inputs.readonly_identity_only && runner.os == 'Linux' }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only && runner.os == 'Linux' }}
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/sco-devalue-browser-profile.js
       - name: Independently test structured-clone JSON wire and document negative controls
-        if: ${{ !inputs.readonly_identity_only }}
+        if: ${{ !inputs.readonly_identity_only && !inputs.cbor_root_identity_only }}
         run: node sims/sco-structured-wire-pilot.js
       - name: Install declared project dependencies for read-only identity pilot
         if: ${{ inputs.readonly_identity_only }}
@@ -51,3 +56,12 @@ jobs:
       - name: Run read-only identity-token semantic and paired CPU pilot
         if: ${{ inputs.readonly_identity_only }}
         run: node sims/sco-readonly-identity-envelope-pilot.js
+      - name: Install project dependencies and exact cbor-x for root-identity pilot
+        if: ${{ inputs.cbor_root_identity_only }}
+        run: npm install --no-package-lock --ignore-scripts cbor-x@1.6.9
+      - name: Strict JSDoc for cbor-x root-identity pilot
+        if: ${{ inputs.cbor_root_identity_only }}
+        run: npx tsc -p jsconfig.sco-root-identity.json
+      - name: Run cbor-x root-identity semantic and paired CPU pilot
+        if: ${{ inputs.cbor_root_identity_only }}
+        run: node sims/sco-cborx-root-identity-pilot.js
