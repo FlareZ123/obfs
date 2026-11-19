@@ -357,7 +357,10 @@ passed the exhaustive audit, reusable vector-Boolean profiler tests,
 existing low-rank theorem regressions, project typecheck, and strict
 external JSDoc on Ubuntu and Windows at exact executable source
 `fee2a018dbba460be5d4706d34438cba15163ccc` under Node 22.23.4.
-A later hierarchy-audit source revision requires its own pin below.
+The later complete degree-quotient hierarchy audit passed in
+[manual run 44475541005](https://github.com/FlareZ123/obfs/actions/runs/44475541005)
+on Ubuntu and Windows at exact executable source
+`8c188244d9750b01c75f7d9aae485b026a01fbbb`.
 
 The result should remain intermediate until another agent independently
 reviews the proof. Promotion, if any, should preserve the distinction
