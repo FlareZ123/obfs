@@ -7,7 +7,36 @@ const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src/core');
 
 const exec=promisify(execFile);
-const original='globalThis.__opaqueOutput=globalThis.__opaqueInput.value;';
+
+const specimens=[
+  {
+    name:'host-lock-prefix',
+    source:'globalThis.__opaqueOutput=globalThis.__opaqueInput.value;',
+    options:{
+      mode:'coo',seed:'browser-opaque-error-coordinate-host-lock',
+      strings:false,properties:false,identifiers:false,
+      allowedHosts:['127.0.0.1']
+    },
+    check(result,generated){
+      assert.notEqual(generated,this.source);
+      assert.match(generated,/Unauthorized execution host/u);
+      assert.equal(result.metrics.properties,0);
+    }
+  },
+  {
+    name:'property-rewrite',
+    source:"'use strict';const owner={distinctivelyLongPrivateField:73};"+
+      "const value=owner.distinctivelyLongPrivateField;const input=globalThis.__opaqueInput;"+
+      "void input.missingField;globalThis.__opaqueOutput=value;",
+    options:{
+      mode:'coo',seed:'browser-opaque-error-coordinate-property',
+      strings:false,identifiers:false
+    },
+    check(result,generated){
+      assert.ok(result.metrics.properties>0,generated);
+    }
+  }
+];
 
 /**
  * @param {number} port
@@ -29,33 +58,37 @@ async function executeChromium(port,scriptPath,fail){
 
 /** @returns {Promise<void>} */
 async function run(){
-  const transformed=/** @type {string} */(obfuscateFiles([{
-    path:'entry.js',sourceType:'script',code:original
-  }],{
-    mode:'coo',seed:'browser-opaque-error-coordinate',
-    strings:false,properties:false,identifiers:false,
-    allowedHosts:['127.0.0.1']
-  }).files[0].code);
-
-  assert.notEqual(transformed,original);
-  assert.match(transformed,/Unauthorized execution host/u);
-
   /** @type {Map<string,string>} */
-  const scripts=new Map([
-    ['/native.js',original],
-    ['/generated.js',transformed]
-  ]);
+  const scripts=new Map();
+  /** @type {{name:string,nativePath:string,generatedPath:string,properties:number}[]} */
+  const comparisons=[];
+
+  for(const specimen of specimens){
+    const output=obfuscateFiles([{
+      path:'entry.js',sourceType:'script',code:specimen.source
+    }],specimen.options).files[0];
+    const generated=String(output.code);
+    specimen.check(output,generated);
+    const nativePath='/'+specimen.name+'-native.js';
+    const generatedPath='/'+specimen.name+'-generated.js';
+    scripts.set(nativePath,specimen.source);
+    scripts.set(generatedPath,generated);
+    comparisons.push({
+      name:specimen.name,nativePath,generatedPath,
+      properties:output.metrics.properties
+    });
+  }
 
   const server=http.createServer((req,res)=>{
     const parsed=new URL(req.url??'/', 'http://127.0.0.1');
     if(parsed.pathname==='/page'){
       const script=parsed.searchParams.get('script');
       const fail=parsed.searchParams.get('fail')==='1';
-      if(script!=='/native.js'&&script!=='/generated.js'){
+      if(!script||!scripts.has(script)){
         res.writeHead(400).end();
         return;
       }
-      const input=fail?'null':'{value:73}';
+      const input=fail?'null':'{value:73,missingField:1}';
       const html='<!doctype html><html><body><script>'+
         'globalThis.__opaqueInput='+input+';globalThis.__opaqueOutput=null;'+
         'globalThis.__opaqueError="";'+
@@ -88,26 +121,29 @@ async function run(){
     const address=server.address();
     if(!address||typeof address==='string')throw new Error('Missing Chromium fixture port');
 
-    const nativeSafe=await executeChromium(address.port,'/native.js',false);
-    const generatedSafe=await executeChromium(address.port,'/generated.js',false);
-    assert.equal(nativeSafe,'ok:73');
-    assert.equal(generatedSafe,nativeSafe);
+    for(const item of comparisons){
+      const nativeSafe=await executeChromium(address.port,item.nativePath,false);
+      const generatedSafe=await executeChromium(address.port,item.generatedPath,false);
+      assert.equal(nativeSafe,'ok:73',item.name);
+      assert.equal(generatedSafe,nativeSafe,item.name);
 
-    const nativeFailure=await executeChromium(address.port,'/native.js',true);
-    const generatedFailure=await executeChromium(address.port,'/generated.js',true);
-    assert.match(nativeFailure,/^\d+:\d+$/u);
-    assert.match(generatedFailure,/^\d+:\d+$/u);
-    assert.notEqual(generatedFailure,nativeFailure,
-      'An opaque host error observer should expose the host-lock coordinate shift');
+      const nativeFailure=await executeChromium(address.port,item.nativePath,true);
+      const generatedFailure=await executeChromium(address.port,item.generatedPath,true);
+      assert.match(nativeFailure,/^\d+:\d+$/u,item.name);
+      assert.match(generatedFailure,/^\d+:\d+$/u,item.name);
+      assert.notEqual(generatedFailure,nativeFailure,
+        item.name+': opaque host error observer should expose transformed coordinates');
 
-    process.stdout.write('OPAQUE_BROWSER_ERROR_COORDINATE '+JSON.stringify({
-      nativeSafe,generatedSafe,nativeFailure,generatedFailure,
-      parity:nativeFailure===generatedFailure
-    })+'\n');
+      process.stdout.write('OPAQUE_BROWSER_ERROR_COORDINATE '+JSON.stringify({
+        specimen:item.name,properties:item.properties,
+        nativeSafe,generatedSafe,nativeFailure,generatedFailure,
+        parity:nativeFailure===generatedFailure
+      })+'\n');
+    }
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 }
 
 if(require.main===module)run().catch(error=>{console.error(error);process.exitCode=1;});
-module.exports={run,original};
+module.exports={run,specimens};
