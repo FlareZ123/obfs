@@ -16,6 +16,7 @@ test('public residual rank is affine-coordinate invariant at width 3', () => {
   assert.equal(report.permutations, 40320);
   assert.equal(report.originsAudited, 322560);
   assert.equal(report.generatorChecks, 483840);
+  assert.equal(report.hierarchyChecks, 483840);
   assert.deepEqual(report.standardRegimes, {
     '0:0': 1344,
     '1:0': 8064,
