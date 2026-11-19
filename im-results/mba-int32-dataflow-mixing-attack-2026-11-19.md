@@ -230,6 +230,79 @@ This rules out the tested reversible public-table encoding as a source-shape
 rescue. The encoding adds a constant-folding step while leaving every decoding
 key and transformation publicly available.
 
+
+## Public seed-expansion extension
+
+The next preregistered experiment removes the literal round-parameter table.
+Each predicate carries only a public 32-bit seed plus public LCG constants. Four
+deterministic state advances per round derive the additive coefficient, an odd
+linear multiplier, the xor-right-shift distances and the rotate-left distances
+during execution.
+
+The chronology is source-pinned:
+
+- preregistration:
+  `workplace/mba-int32-seed-expanded-prereg-2026-11-19.md`
+- frozen attacker restore commit:
+  `95758eb71d69f7ebc6b24816fa9b5bb3665d4083`
+- frozen attacker blob:
+  `fbb449a7da43612d153af5244d42b036ec2bd0a7`
+- corrected fixed-calibration run: **44454719502**
+- post-freeze held-out generator commit:
+  `4226245284488b00f4a253e5587c5a5df3389dd0`
+- held-out seed:
+  `heldout-after-seed-expander-freeze:2026-11-19:agent7:mba-seed-expanded:v1`
+- held-out and CPU evidence run: **44454974382**
+- evidence source commit:
+  `aed4d1070d582acbd888ab19426cd3dda7773374`
+
+The first calibration run, **44454568091**, exposed a test-harness defect before
+the attacker ran: the new file omitted the `node:test` import. Commit
+`8e99488991c7692f4f5c0b3ee5e6f852707b11cd` fixes only that import. The
+attacker blob stayed unchanged. The corrected calibration passed on Ubuntu and
+Windows before the held-out corpus was added.
+
+The held-out corpus contains 32 deterministic cases, balanced 16 one-round and
+16 two-round. Every case has a fresh public seed, odd LCG multiplier, increment,
+split-constant value and source variant. The generator varies direct versus
+aliased `Math.imul`, multiplication operand order, split versus direct
+increments, loop initialization form, rotation-helper spelling, term order and
+comparison direction, then applies ordinary esbuild minification.
+
+| Recovery metric | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Held-out cases | 32 | 32 |
+| One-round cases | 16 | 16 |
+| Two-round cases | 16 | 16 |
+| Legacy syntax rejections | 32/32 | 32/32 |
+| Exact parameter recoveries | **32/32** | **32/32** |
+| Exact preimages | **32/32** | **32/32** |
+| Maximum measured recovery time | 10.707738 ms | 17.660800 ms |
+
+The same source-pinned run profiled the actual seed-expanded hot predicate
+against the original equality predicate with nine paired CPU samples per depth.
+
+| Runtime metric | Ubuntu 1 round | Windows 1 round | Ubuntu 2 rounds | Windows 2 rounds |
+| --- | ---: | ---: | ---: | ---: |
+| Ratio of medians | 1.250730x | 1.189024x | 2.370270x | 2.378049x |
+| Strict >2.5x pair breaches | 0/9 | 0/9 | 0/9 | **1/9** |
+| Maximum pair ratio | 1.257479x | 1.485623x | 2.421378x | **2.516026x** |
+
+The one-round seed-expanded representation therefore survives the measured
+strict CPU budget on both runners and still gives the frozen attacker exact
+recovery in every held-out case. Public runtime expansion has changed the source
+representation without creating a search problem for this bounded partial
+evaluator.
+
+The two-round representation is weaker under the project decision rule because
+Windows produced one strict 2.5x breach. It was also recovered exactly in every
+held-out case, so it offers no compensating result in this experiment.
+
+Run **44454974382** passed the restored dataflow, table-loop, flattened-CFG and
+encoded-table corpora plus both JSDoc gates on Ubuntu and Windows. Earlier
+current-main replay **44454398800** independently revalidated those four restored
+families before the seed experiment was introduced.
+
 ## Security-performance interpretation
 
 The prior cross-platform runtime study in
@@ -241,7 +314,11 @@ budget.
 The present held-out result covers exactly the cleanly budget-surviving one- and
 two-round depths, while adding independently randomized round parameters and a broader
 set of source-shape transformations. Within this tested family, those source
-transformations do not create a measured security-performance rescue.
+transformations do not create a measured security-performance rescue. The later
+seed-expanded extension strengthens that negative at one round: its measured CPU
+pairs stay within budget on both runners while the frozen attacker still recovers
+all 32 held-out predicates exactly. Its two-round form also has one Windows strict
+budget breach.
 
 This remains an intermediate negative candidate evaluation. It does not establish a
 universal statement about MBA obfuscation, arbitrary control-flow mixing, dynamically
