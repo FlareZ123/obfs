@@ -859,6 +859,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           }
           return;
         }
+        if((isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver))&&
+           method==='setPrototypeOf') {
+          const prototype=node.arguments[1];
+          if(prototype)recordSensitiveContainerCopy(target,prototype);
+          return;
+        }
         if(isObjectIntrinsic(receiver)&&method==='defineProperties') {
           const descriptors=node.arguments[1];
           if(!descriptors)return;
