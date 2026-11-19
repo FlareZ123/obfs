@@ -193,7 +193,7 @@ function learnInnerLinearToggles(query){
   for(let bit=0;bit<32;bit+=1){
     const labels=basis.map((vector)=>((query(vector)^base)>>>bit)&1);
     const pivotIndex=labels.indexOf(1);
-    if(pivotIndex<0)throw new Error(\`missing codimension-one pivot at bit \${bit}\`);
+    if(pivotIndex<0)throw new Error(`missing codimension-one pivot at bit ${bit}`);
     const pivot=basis[pivotIndex];
     toggles.push(pivot);
     const nextBasis=[];
@@ -234,7 +234,7 @@ function invertUnknownInnerLinear(oracle,target){
 }
 
 /** @param {number} value @returns {string} */
-function hex32(value){return\`0x\${(value>>>0).toString(16).padStart(8,'0')}\`;}
+function hex32(value){return`0x${(value>>>0).toString(16).padStart(8,'0')}`;}
 
 function main(){
   const rows=[];
@@ -267,7 +267,7 @@ function main(){
           :invertUnknownInnerLinear(oracle,target);
         times.push(performance.now()-startTime);
         queryCounts.push(attack.queryCount);
-        if(attack.value!==secret)throw new Error(\`\${orientation} recovery mismatch \${family.name} case \${caseIndex}\`);
+        if(attack.value!==secret)throw new Error(`${orientation} recovery mismatch ${family.name} case ${caseIndex}`);
         if(caseIndex===0)rows.push({
           orientation,family:family.name,
           exampleTarget:hex32(target),exampleRecovered:hex32(attack.value),
@@ -286,7 +286,7 @@ function main(){
   }
   console.log(JSON.stringify({
     model:'black-box inversion of a congruence-preserving 32-bit permutation with one arbitrary unknown invertible GF(2) linear wrapper',
-    result:\`all \${totalCases} published targets inverted exactly\`,
+    result:`all ${totalCases} published targets inverted exactly`,
     rows,
     scope:'one arbitrary linear wrapper on either side; no source/AST/seed/permutation internals/matrix given to attacker',
   },null,2));
