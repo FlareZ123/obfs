@@ -37,3 +37,25 @@ test('32-bit public residual inverter recovers targets from four independent non
     assert.ok(result.expansions <= 4);
   }
 });
+
+const low3Permutation = [0, 1, 2, 4, 3, 5, 6, 7];
+
+/** @param {number} input @returns {number} */
+function singularOracle(input) {
+  return (((input >>> 0) & 0xfffffff8) | low3Permutation[input & 7]) >>> 0;
+}
+
+test('32-bit public residual inverter handles singular interpolation with residual rank one', () => {
+  const secrets = [0, 1, 2, 3, 4, 5, 6, 7, 0x1234567b, 0xdeadbeef];
+  for (const secret of secrets) {
+    const result = invertPublicResidual32(singularOracle, singularOracle(secret), {
+      seed: (secret ^ 0x6a09e667) >>> 0,
+      maxQueries: 128,
+      maxSubspaceDimension: 4,
+    });
+    assert.equal(result.value >>> 0, secret >>> 0);
+    assert.equal(result.nullity, 1);
+    assert.ok(result.queries <= 40, `unexpected query count ${result.queries}`);
+    assert.equal(result.expansions, 0);
+  }
+});

@@ -191,7 +191,6 @@ function invertPublicResidual32(oracle, target, options = {}) {
 
   const normalizedTarget = u32(target);
   const base = query(0);
-  if (base === normalizedTarget) return {value: 0, queries: cache.size, nullity: 0, searchQueries: 0, expansions: 0};
 
   const columns = Array.from({length: WIDTH}, (_, bit) => u32(query(bitMask(bit)) ^ base));
   for (const [input, output] of cache) {
