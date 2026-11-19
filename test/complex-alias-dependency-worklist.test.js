@@ -72,12 +72,11 @@ test('tuple and record carrier aliases trigger dependent formal chains',()=>{
 
 test('unseeded formal cycle does not manufacture an owner proof',()=>{
   equivalent(`'use strict';
-    function left(value){right(value);}
-    function right(value){left(value);return value.secret;}
+    function left(value){if(false)right(value);}
+    function right(value){if(false)left(value);return value.secret;}
     const owner={secret:23};
     const foreign={other:5};
-    if(false)left(owner);
-    module.exports=right(foreign);
+    module.exports=[Object.keys(owner)[0],right(foreign)];
   `,0);
 });
 
