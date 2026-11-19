@@ -160,6 +160,27 @@ function invokePathIdentity(task,args){
   return decoded.value;
 }
 
+/**
+ * Use compile-time return-path metadata and verify it against the executed
+ * result without indexing the request graph.
+ * @param {(...args:any[])=>unknown} task
+ * @param {unknown[]} args
+ * @param {PathToken} token
+ * @returns {unknown}
+ */
+function invokeStaticPath(task,args,token){
+  const serverArgs=/** @type {unknown[]} */ (cborWire(args));
+  const result=task(...serverArgs);
+  const expected=resolvePath(serverArgs,token);
+  if(result!==expected){
+    throw new TypeError('Static return-path proof mismatch');
+  }
+  const decoded=/** @type {{kind:'path',arg:number,keys:string[]}} */ (
+    cborWire({kind:'path',arg:token.arg,keys:token.keys})
+  );
+  return resolvePath(args,{arg:decoded.arg,keys:decoded.keys});
+}
+
 /** @returns {object} */
 function semanticProbe(){
   const shared={marker:'shared'};
@@ -183,6 +204,17 @@ function semanticProbe(){
   const nested=invokePathIdentity(value=>value.records[0],[root]);
   assert.strictEqual(nested,first);
 
+  const staticNested=invokeStaticPath(
+    value=>value.records[0],
+    [root],
+    {arg:0,keys:['records','0']}
+  );
+  assert.strictEqual(staticNested,first);
+  assert.throws(
+    ()=>invokeStaticPath(value=>value.records[1],[root],{arg:0,keys:['records','0']}),
+    TypeError
+  );
+
   const alias=invokePathIdentity(value=>value.right,[root]);
   assert.strictEqual(alias,shared);
 
@@ -201,9 +233,11 @@ function semanticProbe(){
   assert.notStrictEqual(created,root);
 
   return {
-    contract:'dense-plain-v2',
+    contract:'static-path-v3',
     echoIdentity:echo===root,
     nestedIdentity:nested===first,
+    staticNestedIdentity:staticNested===first,
+    staticMismatchRejected:true,
     aliasIdentity:alias===shared,
     observations:observed,
     independentValue:created.value===13
@@ -238,7 +272,7 @@ function task(data){
 }
 
 /**
- * @param {'native'|'cborValue'|'rootToken'|'pathIdentity'} variant
+ * @param {'native'|'cborValue'|'pathIdentity'|'staticPath'} variant
  * @param {ReturnType<typeof payload>} data
  * @param {number} repeats
  * @returns {{cpuMicros:number,checksum:number,identityPreserved:boolean|null}}
@@ -254,14 +288,14 @@ function sample(variant,data,repeats){
     else if(variant==='cborValue')result=/** @type {ReturnType<typeof task>} */ (
       invokeCborValue(task,[data])
     );
-    else if(variant==='rootToken')result=/** @type {ReturnType<typeof task>} */ (
-      invokeRootToken(task,[data])
-    );
-    else result=/** @type {ReturnType<typeof task>} */ (
+    else if(variant==='pathIdentity')result=/** @type {ReturnType<typeof task>} */ (
       invokePathIdentity(task,[data])
     );
+    else result=/** @type {ReturnType<typeof task>} */ (
+      invokeStaticPath(task,[data],{arg:0,keys:['records','0']})
+    );
     checksum=(checksum+result.quantity+result.label.length)|0;
-    if(variant==='pathIdentity'){
+    if(variant==='pathIdentity'||variant==='staticPath'){
       const same=result===expected;
       identityPreserved=identityPreserved===null?same:identityPreserved&&same;
     }
@@ -282,16 +316,16 @@ function strictBreaches(native,candidate){
 /** @param {ReturnType<typeof payload>} data @returns {object} */
 function profile(data){
   const repeats=4096;
-  /** @type {Record<'native'|'cborValue'|'rootToken'|'pathIdentity',number[]>} */
-  const values={native:[],cborValue:[],rootToken:[],pathIdentity:[]};
-  for(const variant of /** @type {const} */ (['native','cborValue','rootToken','pathIdentity'])){
+  /** @type {Record<'native'|'cborValue'|'pathIdentity'|'staticPath',number[]>} */
+  const values={native:[],cborValue:[],pathIdentity:[],staticPath:[]};
+  for(const variant of /** @type {const} */ (['native','cborValue','pathIdentity','staticPath'])){
     sample(variant,data,16);
   }
   const orders=[
-    /** @type {const} */ (['native','cborValue','rootToken','pathIdentity']),
-    /** @type {const} */ (['pathIdentity','native','cborValue','rootToken']),
-    /** @type {const} */ (['rootToken','pathIdentity','native','cborValue']),
-    /** @type {const} */ (['cborValue','rootToken','pathIdentity','native'])
+    /** @type {const} */ (['native','cborValue','pathIdentity','staticPath']),
+    /** @type {const} */ (['staticPath','native','cborValue','pathIdentity']),
+    /** @type {const} */ (['pathIdentity','staticPath','native','cborValue']),
+    /** @type {const} */ (['cborValue','pathIdentity','staticPath','native'])
   ];
   for(let trial=0;trial<12;trial++){
     /** @type {Record<string,number>} */
@@ -301,25 +335,25 @@ function profile(data){
       if(observation.cpuMicros<=0)throw new TypeError('CPU sample must be positive');
       values[variant].push(observation.cpuMicros);
       checksums[variant]=observation.checksum;
-      if(variant==='pathIdentity'&&observation.identityPreserved!==true){
-        throw new TypeError('Path identity failed to return original nested object');
+      if((variant==='pathIdentity'||variant==='staticPath')&&observation.identityPreserved!==true){
+        throw new TypeError(variant+' failed to return original nested object');
       }
     }
     assert.equal(checksums.cborValue,checksums.native);
-    assert.equal(checksums.rootToken,checksums.native);
     assert.equal(checksums.pathIdentity,checksums.native);
+    assert.equal(checksums.staticPath,checksums.native);
   }
   return {
     repeats,
     rawCpuMicros:values,
     cborValueVsNative:pairedBudgetBound(values.native,values.cborValue),
-    rootTokenVsNative:pairedBudgetBound(values.native,values.rootToken),
     pathIdentityVsNative:pairedBudgetBound(values.native,values.pathIdentity),
-    pathIdentityVsCborValue:pairedBudgetBound(values.cborValue,values.pathIdentity),
+    staticPathVsNative:pairedBudgetBound(values.native,values.staticPath),
+    staticPathVsCborValue:pairedBudgetBound(values.cborValue,values.staticPath),
     strictBreaches:{
       cborValueVsNative:strictBreaches(values.native,values.cborValue),
-      rootTokenVsNative:strictBreaches(values.native,values.rootToken),
-      pathIdentityVsNative:strictBreaches(values.native,values.pathIdentity)
+      pathIdentityVsNative:strictBreaches(values.native,values.pathIdentity),
+      staticPathVsNative:strictBreaches(values.native,values.staticPath)
     }
   };
 }
@@ -334,7 +368,7 @@ function run(){
     options:{structuredClone:true,useRecords:false,alwaysUseFloat:true},
     semanticProbe:semanticProbe(),
     rows:[1,32].map(count=>({count,profile:profile(payload(count))})),
-    boundary:'in-process cbor-x request, decoded-input path indexing, response token/value, and task CPU'
+    boundary:'in-process cbor-x request, full path-index or compile-time static-path token, response, and task CPU'
   };
 }
 
@@ -349,6 +383,7 @@ module.exports={
   invokeCborValue,
   invokeRootToken,
   invokePathIdentity,
+  invokeStaticPath,
   semanticProbe,
   payload,
   task,
