@@ -15,14 +15,15 @@ const {
 
 const ATTACKER_COMMIT = '54bb8d2c6e0c15f96ade9a66a97c11db19431a66';
 const ATTACKER_BLOB = 'cbc0473d5b4acb917ec559e4e92596e1fa1075e4';
-const SEED = 'heldout-after-jsdoc-freeze:2026-11-19:agent7:mba-seed-expanded:v2';
+const SEED = 'heldout-after-eol-check-fix:2026-11-19:agent7:mba-seed-expanded:v3';
 
 /**
  * @param {string} filePath
  * @returns {string}
  */
 function gitBlobSha(filePath) {
-  const bytes = readFileSync(filePath);
+  const canonical = readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+  const bytes = Buffer.from(canonical, 'utf8');
   return createHash('sha1')
     .update('blob ' + String(bytes.length) + '\0')
     .update(bytes)
