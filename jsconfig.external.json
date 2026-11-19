@@ -172,6 +172,7 @@
     "sims/compatible-permutation-linear-wrapper-exhaustive-small.js",
     "sims/compatible-permutation-linear-sandwich-blackbox.js",
     "sims/compatible-permutation-linear-sandwich-sparse-counterexample.js",
+    "sims/compatible-rank-one-shear-exhaustive-width3.js",
     "test/compatible-permutation-linear-sandwich-counterexample.test.js",
     "sims/mba-author-int32-component-inverse.js",
     "sims/mba-author-int32-heldout.js",
