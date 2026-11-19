@@ -2,7 +2,8 @@
   "extends": "./jsconfig.json",
   "include": [
     "sims/paired-budget-bound.js",
-    "sims/sco-readonly-identity-envelope-pilot.js"
+    "sims/sco-readonly-identity-envelope-pilot.js",
+    "sims/sco-cborx-root-identity-pilot.js"
   ],
   "exclude": [
     "node_modules"
