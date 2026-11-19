@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 
 const {
+  finiteDifferenceRank,
   profileVectorBooleanFunction,
   vectorAnfCoefficients,
 } = require('../sims/vector-boolean-profile.js');
@@ -29,6 +30,12 @@ test('vector Boolean profiler captures carry hierarchy of multiply-by-three', ()
   assert.equal(profile.algebraicDegree, 7);
   assert.equal(profile.residualRank, 6);
   assert.deepEqual(profile.rankByMaxDegree, [8, 6, 5, 4, 3, 2, 1, 0, 0]);
+  for (let maxDegree = 0; maxDegree < width; maxDegree += 1) {
+    assert.equal(
+      finiteDifferenceRank(outputs, maxDegree + 1),
+      profile.rankByMaxDegree[maxDegree],
+    );
+  }
 });
 
 test('vector ANF transform round-trip fixture exposes the quadratic coefficient', () => {
@@ -43,4 +50,7 @@ test('vector ANF transform round-trip fixture exposes the quadratic coefficient'
   assert.equal(profile.algebraicDegree, 2);
   assert.equal(profile.residualRank, 1);
   assert.deepEqual(profile.rankByMaxDegree, [3, 1, 0, 0]);
+  assert.equal(finiteDifferenceRank(outputs, 1), 3);
+  assert.equal(finiteDifferenceRank(outputs, 2), 1);
+  assert.equal(finiteDifferenceRank(outputs, 3), 0);
 });
