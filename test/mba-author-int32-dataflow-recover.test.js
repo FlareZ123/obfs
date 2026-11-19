@@ -263,3 +263,82 @@ test('dataflow attacker evaluates deterministically encoded public parameter tab
   assert.deepEqual(recovered.rounds, rounds);
   assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
 });
+
+
+test('dataflow attacker merges equivalent input-dependent branch forms', () => {
+  const rounds = [
+    {
+      coefficients: [0x3956c25b, 0x59f111f1],
+      xorShifts: [8, 21],
+      cyclicShifts: [5, 17, 28]
+    }
+  ];
+  const secret = 251;
+  const target = forwardChain32(secret, rounds);
+  const round = rounds[0];
+
+  const source = [
+    "'use strict';",
+    "const rot=(v,s)=>(((v<<s)|(v>>>(32-s)))>>>0);",
+    "module.exports=function predicate(input){",
+    "const imul=Math.imul;",
+    "let x=input>>>0;",
+    `const p=(${round.coefficients[0]}^imul(x,${round.coefficients[1]}))>>>0;`,
+    "let q;",
+    `if(x===0){q=(p^(p>>>${round.xorShifts[0]})^(p>>>${round.xorShifts[1]}))>>>0;}`,
+    `else{q=((p>>>${round.xorShifts[1]})^p^(p>>>${round.xorShifts[0]}))>>>0;}`,
+    `x=(rot(q,${round.cyclicShifts[2]})^rot(q,${round.cyclicShifts[0]})^rot(q,${round.cyclicShifts[1]}))>>>0;`,
+    `return x===${target};`,
+    "};"
+  ].join('\n');
+
+  const minified = transformSync(source, {
+    loader:'js',
+    format:'cjs',
+    target:'es2022',
+    minify:true,
+    legalComments:'none'
+  }).code;
+
+  assert.throws(
+    () => recover(minified),
+    /author-style loop or target not found/,
+    'The older loop recognizer should reject input-dependent branch mixing'
+  );
+
+  const recovered = recoverDataflow(minified);
+  assert.equal(recovered.inputIndex, 0);
+  assert.equal(recovered.target, target);
+  assert.deepEqual(recovered.rounds, rounds);
+  assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
+});
+
+test('dataflow attacker refuses divergent input-dependent branch forms', () => {
+  const source = [
+    "'use strict';",
+    "const rot=(v,s)=>(((v<<s)|(v>>>(32-s)))>>>0);",
+    "module.exports=function predicate(input){",
+    "const imul=Math.imul;",
+    "let x=input>>>0;",
+    "const p=(123456789^imul(x,2654435761))>>>0;",
+    "let q;",
+    "if(x===0){q=(p^(p>>>7)^(p>>>19))>>>0;}",
+    "else{q=(p^(p>>>8)^(p>>>19))>>>0;}",
+    "x=(rot(q,3)^rot(q,11)^rot(q,23))>>>0;",
+    "return x===123456789;",
+    "};"
+  ].join('\n');
+
+  const minified = transformSync(source, {
+    loader:'js',
+    format:'cjs',
+    target:'es2022',
+    minify:true,
+    legalComments:'none'
+  }).code;
+
+  assert.throws(
+    () => recoverDataflow(minified),
+    /dataflow-normalized author-style predicate not found/
+  );
+});
