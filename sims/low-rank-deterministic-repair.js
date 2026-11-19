@@ -121,8 +121,8 @@ function enumerateSpan(basis) {
 }
 
 /**
- * Exact chosen-query inversion when all nonlinear displacement lies in a hidden
- * output subspace of dimension at most k.
+ * Exact chosen-query inversion when the public affine-residual span has
+ * dimension at most k. The caller supplies any valid upper bound k.
  *
  * @param {(input:number)=>number} oracle
  * @param {number} target
@@ -207,17 +207,14 @@ function invertLowRankDisplacementExact(oracle, target, k) {
     throw new Error('full-rank surrogate did not solve target');
   }
 
+  const maxCycle = 2 ** k;
   let current = transformedTarget;
-  for (let step = 1; step <= 2 ** k; step += 1) {
+  for (let step = 1; step < maxCycle; step += 1) {
     const transformedOutput = fullRank.solve(u32(query(current) ^ base));
     if (transformedOutput === null) {
       throw new Error('full-rank surrogate did not solve oracle output');
     }
     if (transformedOutput === transformedTarget) {
-      const queryBound = WIDTH + 2 ** (k + 1);
-      if (cache.size > queryBound) {
-        throw new Error(`query bound exceeded: ${cache.size} > ${queryBound}`);
-      }
       return {
         value: current >>> 0,
         queryCount: cache.size,
@@ -231,7 +228,19 @@ function invertLowRankDisplacementExact(oracle, target, k) {
     current = transformedOutput;
   }
 
-  throw new Error(`cycle exceeded hidden-coset bound 2^${k}`);
+  const queryBound = WIDTH + 2 ** (k + 1) - 1;
+  if (cache.size > queryBound) {
+    throw new Error(`query bound exceeded: ${cache.size} > ${queryBound}`);
+  }
+  return {
+    value: current >>> 0,
+    queryCount: cache.size,
+    initialRank,
+    rankRepairs,
+    closureExpansions,
+    maxClosureDimension,
+    cycleLength: maxCycle,
+  };
 }
 
 /**
@@ -295,7 +304,7 @@ function runGeneratedCorpus() {
 
       const attack = invertLowRankDisplacementExact(oracle, oracle(secret), k);
       assert.equal(attack.value, secret);
-      assert.ok(attack.queryCount <= WIDTH + 2 ** (k + 1));
+      assert.ok(attack.queryCount <= WIDTH + 2 ** (k + 1) - 1);
       if (attack.initialRank < WIDTH) {
         rowSingular += 1;
         singular += 1;
@@ -317,7 +326,7 @@ function runGeneratedCorpus() {
       generated: 256,
       initiallySingular: rowSingular,
       exactRecoveries: rowExact,
-      theoremQueryBound: WIDTH + 2 ** (k + 1),
+      theoremQueryBound: WIDTH + 2 ** (k + 1) - 1,
       maxQueries,
       maxRepairs,
       maxClosureDimension,
@@ -332,7 +341,7 @@ function main() {
   const report = runGeneratedCorpus();
   console.log(JSON.stringify({
     model: 'hidden low-dimensional nonlinear displacement with deterministic singular-interpolant repair',
-    theorem: 'all cases invert exactly within n + 2^(k+1) distinct chosen queries',
+    theorem: 'known residual-rank upper bound k gives at most n + 2^(k+1) - 1 distinct chosen queries',
     ...report,
   }, null, 2));
 }
