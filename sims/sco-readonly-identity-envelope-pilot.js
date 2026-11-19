@@ -15,7 +15,8 @@ function createClientSession() {
 /** @param {unknown} value @returns {WireValue} */
 function encodeScalar(value) {
   if (value === undefined) return ['u'];
-  if (value === null || typeof value === 'boolean' || typeof value === 'string') return ['p', value];
+  if (value === null) return ['p', null];
+  if (typeof value === 'boolean' || typeof value === 'string') return ['p', value];
   if (typeof value === 'number') {
     if (Object.is(value, -0)) return ['n', '-0'];
     if (Number.isNaN(value)) return ['n', 'nan'];
