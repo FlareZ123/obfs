@@ -125,6 +125,29 @@ The executable width-8 witness enumerates all 128 hidden pairs. It verifies that
 
 The script is an executable sanity check of the construction. The (2^(n-1)) lower bound follows from the adversarial transcript argument above.
 
+## Complete width-3 target-inversion negative control
+
+A separate exhaustive catalogue check prevents this certification lower bound from being misread as evidence that target inversion is already hard at small widths.
+
+Reproducer:
+
+```text
+sims/two-sided-width3-catalogue-attack.js
+test/two-sided-width3-catalogue-attack.test.js
+```
+
+At width 3 the complete model contains:
+
+- all 128 compatible permutations;
+- all 168 invertible 3x3 GF(2) maps on the input side;
+- all 168 invertible maps on the output side.
+
+After deduplication, these compositions produce **10,752 distinct two-sided permutations**.
+
+The catalogue attack first queries inputs `0, 1, 2, 4`. Those four outputs divide the entire family into 1,680 transcript classes, with at most seven candidate permutations in any class. For every one of the eight possible published targets, either the four-query transcript already fixes the target preimage or one additional query at one of `3, 5, 6, 7` separates the remaining preimage classes. Thus every target in every width-3 member of the model is exactly invertible with at most **five chosen oracle queries** by this finite catalogue method.
+
+This is a complete small-width computation rather than a scalable attack. Its purpose is methodological: the exponential global-certification lower bound above does not imply an inversion lower bound, even inside the same two-sided model. Any large-width hardness claim needs a direct inversion argument.
+
 ## Scope
 
 This result does **not** establish an exponential lower bound for target inversion of the two-sided sandwich. A target-guided inversion algorithm may use the published target to find a sparse exceptional pair without globally certifying every affine component.
