@@ -3,7 +3,7 @@
 const {nativeMix} = require('./fused-arx-batch');
 
 const WIDTH = 128;
-const UNIT = new Uint16Array([0x1234]);
+const DEFAULT_UNITS = new Uint16Array([0x1234]);
 
 /** @param {number} seed @returns {()=>number} */
 function makeRng(seed) {
@@ -52,20 +52,25 @@ function rank128(vectors) {
   return rank;
 }
 
-/** @param {bigint} state @returns {bigint} */
-function transition(state) {
-  return pack(nativeMix(unpack(state), UNIT));
+/**
+ * @param {bigint} state
+ * @param {Uint16Array} units
+ * @returns {bigint}
+ */
+function transition(state, units = DEFAULT_UNITS) {
+  return pack(nativeMix(unpack(state), units));
 }
 
 /**
+ * @param {Uint16Array} units
  * @param {number} samples
- * @returns {{samples:number,rank:number,checkpoints:Record<string,number>}}
+ * @returns {{units:number[],samples:number,rank:number,checkpoints:Record<string,number>}}
  */
-function screen(samples = 256) {
+function screen(units = DEFAULT_UNITS, samples = 256) {
   const next = makeRng(0x9e3779b9);
   /** @returns {bigint} */
   const randomState = () => pack(Array.from({length: 4}, () => next()));
-  const base = transition(0n);
+  const base = transition(0n, units);
   /** @type {bigint[]} */
   const differences = [];
   /** @type {Record<string,number>} */
@@ -76,9 +81,9 @@ function screen(samples = 256) {
     const b = randomState();
     differences.push(
       base
-      ^ transition(a)
-      ^ transition(b)
-      ^ transition(a ^ b),
+      ^ transition(a, units)
+      ^ transition(b, units)
+      ^ transition(a ^ b, units),
     );
     if ([32, 64, 96, 128, 160, 192, 224, 256].includes(index)) {
       checkpoints[String(index)] = rank128(differences);
@@ -86,6 +91,7 @@ function screen(samples = 256) {
   }
 
   return {
+    units: [...units],
     samples,
     rank: rank128(differences),
     checkpoints,
@@ -93,12 +99,18 @@ function screen(samples = 256) {
 }
 
 function main() {
+  const blocks = [
+    new Uint16Array([0x1234]),
+    new Uint16Array([0x1234, 0x5678]),
+    new Uint16Array([0x1234, 0x5678, 0x9abc]),
+    new Uint16Array([0x1234, 0x5678, 0x9abc, 0xdef0]),
+  ].map((units) => screen(units));
   process.stdout.write(JSON.stringify({
-    candidate: 'fused ARX one-unit four-word state permutation',
+    candidate: 'fused ARX fixed-block four-word state permutations',
     stateBits: WIDTH,
-    fixedUnit: UNIT[0],
-    analyticResidualRankUpperBound: 62,
-    ...screen(),
+    oneUnitAnalyticRank: 62,
+    twoUnitAnalyticUpperBound: 124,
+    blocks,
   }, null, 2) + '\n');
 }
 
