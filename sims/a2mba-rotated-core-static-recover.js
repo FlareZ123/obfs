@@ -72,11 +72,21 @@ function singleDeclaration(statement) {
 /** @param {any} fn @param {number} rotation @returns {boolean} */
 function isPackedRotatedAdd(fn, rotation) {
   if (!fn || fn.type !== 'FunctionDeclaration' || fn.params.length !== 2 ||
-      fn.params.some(param => param.type !== 'Identifier') || fn.body.body.length !== 6) return false;
+      fn.body.body.length !== 6) return false;
+  for (const param of fn.params) {
+    if (param.type !== 'Identifier') return false;
+  }
   const left = fn.params[0].name;
   const right = fn.params[1].name;
-  const declarations = fn.body.body.slice(0, 5).map(singleDeclaration);
-  if (declarations.some(item => item === null) || fn.body.body[5].type !== 'ReturnStatement') return false;
+  /** @type {Array<{name:string,init:any}|null>} */
+  const declarations = [];
+  for (const statement of fn.body.body.slice(0, 5)) {
+    declarations.push(singleDeclaration(statement));
+  }
+  for (const declaration of declarations) {
+    if (declaration === null) return false;
+  }
+  if (fn.body.body[5].type !== 'ReturnStatement') return false;
   const [sum, high, carry, upper, lower] = declarations;
   if (!sum || !high || !carry || !upper || !lower) return false;
 
@@ -85,9 +95,12 @@ function isPackedRotatedAdd(fn, rotation) {
 
   const highExpression = unwrapInt32(high.init);
   if (!highExpression || highExpression.type !== 'BinaryExpression' || highExpression.operator !== '+') return false;
-  const highPairs = [[highExpression.left, highExpression.right], [highExpression.right, highExpression.left]];
-  if (!highPairs.some(([a, b]) => isShift(a, left, '>>>', rotation) &&
-      isShift(b, right, '>>>', rotation))) return false;
+  const highMatches =
+    (isShift(highExpression.left, left, '>>>', rotation) &&
+      isShift(highExpression.right, right, '>>>', rotation)) ||
+    (isShift(highExpression.right, left, '>>>', rotation) &&
+      isShift(highExpression.left, right, '>>>', rotation));
+  if (!highMatches) return false;
 
   const back = 32 - rotation;
   if (!isShift(carry.init, high.name, '>>>', back)) return false;
@@ -135,17 +148,36 @@ function countCalls(node, name) {
 function recoverRotatedCoreSource(source) {
   /** @type {any} */
   const program = acorn.parse(source, {ecmaVersion: 'latest', sourceType: 'script'});
-  const functions = program.body.filter(node => node.type === 'FunctionDeclaration');
-  const target = functions.find(fn => fn.params.length === 4);
-  if (!target || !target.id || target.params.some(param => param.type !== 'Identifier')) {
-    throw new Error('rotated-core target function not found');
+  /** @type {any[]} */
+  const functions = [];
+  for (const node of program.body) {
+    if (node.type === 'FunctionDeclaration') functions.push(node);
+  }
+  let target = null;
+  for (const fn of functions) {
+    if (fn.params.length === 4) {
+      target = fn;
+      break;
+    }
+  }
+  if (!target || !target.id) throw new Error('rotated-core target function not found');
+  for (const param of target.params) {
+    if (param.type !== 'Identifier') throw new Error('rotated-core target function not found');
   }
 
-  const rotators = functions.map(fn => ({fn, shape: classifyRotate(fn)})).filter(item => item.shape);
+  /** @type {Array<{fn:any,shape:{leftShift:number,rightShift:number}}>} */
+  const rotators = [];
+  for (const fn of functions) {
+    const shape = classifyRotate(fn);
+    if (shape) rotators.push({fn, shape});
+  }
   if (rotators.length !== 2) throw new Error('rotation helper pair not found');
-  const forward = rotators.slice().sort((a, b) =>
-    countCalls(target.body, b.fn.id.name) - countCalls(target.body, a.fn.id.name))[0];
-  const inverse = rotators.find(item => item !== forward);
+  let forward = rotators[0];
+  if (countCalls(target.body, rotators[1].fn.id.name) >
+      countCalls(target.body, rotators[0].fn.id.name)) {
+    forward = rotators[1];
+  }
+  const inverse = rotators[0] === forward ? rotators[1] : rotators[0];
   if (!inverse || !forward.shape || !inverse.shape) throw new Error('inverse rotation helper not found');
   const rotation = forward.shape.leftShift;
   if (inverse.shape.leftShift !== 32 - rotation || inverse.shape.rightShift !== rotation) {
@@ -156,17 +188,32 @@ function recoverRotatedCoreSource(source) {
     throw new Error('unexpected coordinate boundary usage');
   }
 
-  const add = functions.find(fn => fn.params.length === 2 && isPackedRotatedAdd(fn, rotation));
+  let add = null;
+  for (const fn of functions) {
+    if (fn.params.length === 2 && isPackedRotatedAdd(fn, rotation)) {
+      add = fn;
+      break;
+    }
+  }
   if (!add || !add.id || countCalls(target.body, add.id.name) !== 2) {
     throw new Error('packed rotated-add helper not found');
   }
 
-  const returnStatement = target.body.body.find(statement => statement.type === 'ReturnStatement');
+  let returnStatement = null;
+  for (const statement of target.body.body) {
+    if (statement.type === 'ReturnStatement') {
+      returnStatement = statement;
+      break;
+    }
+  }
   if (!returnStatement || directCallName(returnStatement.argument) !== inverse.fn.id.name) {
     throw new Error('coordinate exit is not the inverse rotation');
   }
 
-  const [x, y, z, t] = target.params.map(param => param.name);
+  const x = target.params[0].name;
+  const y = target.params[1].name;
+  const z = target.params[2].name;
+  const t = target.params[3].name;
   const recoveredSource = 'function recovered(' + [x, y, z, t].join(',') + '){' +
     'const left=(((((' + x + '^' + t + ')+' + y + ')|0)+(' + z + '&' + t + '))|0);' +
     'const right=(((' + x + '+' + z + ')|0)|' + y + ');return (left^right)|0;}';
