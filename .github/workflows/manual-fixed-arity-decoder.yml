@@ -100,6 +100,9 @@ jobs:
       - name: Indirect legacy getter call provenance red and positive-yield gate
         run: node --test test/decoder-legacy-getter-call.test.js
 
+      - name: Proxy getter provenance red and positive-yield gate
+        run: node --test test/decoder-proxy-get.test.js
+
       - name: Browser WindowProxy decoder-alias differential and positive-yield control
         run: node --test test/decoder-browser-window-alias.test.js
 
