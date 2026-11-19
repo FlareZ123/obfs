@@ -166,6 +166,42 @@ The width-32 experiment generates 256 deterministic cases each for `k=2` and `k=
 
 The experiment reports full-rank and singular interpolation cases separately. Every full-rank case must recover the exact published target within the theorem bound. Singular cases are explicitly excluded rather than treated as failures or silently resampled.
 
+## Empirical singular-interpolant rank repair
+
+A separate attack prototype exercises the singular cases:
+
+```text
+sims/low-rank-displacement-singular-repair.js
+test/low-rank-displacement-singular-repair.test.js
+```
+
+The exact invariant behind the repair is simple. Maintain a linear surrogate `N` such that `N-A` has image in the hidden nonlinear output subspace `S`. If `v` lies in `kernel(N)`, then `A(v)` is in `S`, so for every probe point `x`,
+
+```text
+F(x XOR v) XOR F(x) in S.
+```
+
+If such a difference `d` lies outside `image(N)`, choose a linear functional `ell` with `ell(v)=1` and replace
+
+```text
+N <- N + d*ell.
+```
+
+The new surrogate still differs from `A` only by an `S`-valued map, while its rank increases by one.
+
+At rank `n-1`, an in-image difference is also useful. Solving `N(t)=d` yields another hidden input-subspace direction `t`. Replacing `N` by `N+d*ell` with `ell(t)=1` rotates the one-dimensional kernel to `span(t)` without changing the image. The attacker can then probe differences along the new hidden direction.
+
+The prototype uses a finite deterministic probe schedule of 32 pseudorandom points per candidate kernel direction, with up to 32 rank-31 kernel rotations. On the same 512 width-32 `k=2`/`k=4` corpus used by the conditional theorem, it recovers **512 / 512** targets, including every case whose original interpolant was singular:
+
+```text
+k=2: 256/256 recovered, max 105 distinct queries,
+     max 2 rank repairs, max 1 kernel rotation
+k=4: 256/256 recovered, max 368 distinct queries,
+     max 4 rank repairs, max 4 kernel rotations
+```
+
+These numbers are empirical attack evidence. The finite probe schedule has no worst-case guarantee: an adversarially sparse compatible permutation may hide every useful out-of-image difference outside the sampled points. The exact sparse-certification lower bound on main explains why such hiding cannot be dismissed by random testing alone.
+
 ## Scope
 
 The full-rank condition is essential to this proof. If `M` is singular, `M^-1` does not exist and the transformed cycle oracle cannot be formed directly.
