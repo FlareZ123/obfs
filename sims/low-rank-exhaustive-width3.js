@@ -30,6 +30,15 @@ function basis(vectors) {
 /** @param {number[]} vectors @returns {number} */
 function rank(vectors) { return basis(vectors).length; }
 
+/** @param {number[]} columns @param {number} input @returns {number} */
+function applyLinear(columns, input) {
+  let output = 0;
+  for (let bit = 0; bit < WIDTH; bit += 1) {
+    if (((input >>> bit) & 1) !== 0) output ^= columns[bit];
+  }
+  return mask(output);
+}
+
 /** @param {number[]} vectors @returns {number[]} */
 function span(vectors) {
   const points = [0];
@@ -158,14 +167,20 @@ function main() {
   permute(values, 0, (permutation) => {
     permutations += 1;
     const c0 = permutation[0];
-    const residuals = permutation.map((output, input) => output ^ c0 ^ input);
-    const displacementRank = rank(residuals);
+    const columns = Array.from({length: WIDTH}, (_, bit) => permutation[1 << bit] ^ c0);
+    const nullity = WIDTH - rank(columns);
+    const residuals = permutation.map(
+      (output, input) => mask(output ^ c0 ^ applyLinear(columns, input)),
+    );
+    const residualRank = rank(residuals);
+    assert.ok(residualRank >= nullity);
     for (let secret = 0; secret < SIZE; secret += 1) {
       const attack = invert(permutation, permutation[secret]);
       assert.equal(attack.value, secret);
+      assert.equal(attack.nullity, nullity);
       targets += 1;
       maxQueries = Math.max(maxQueries, attack.queries);
-      const key = `${displacementRank}:${attack.nullity}`;
+      const key = `${residualRank}:${nullity}`;
       byRank.set(key, (byRank.get(key) ?? 0) + 1);
     }
   });

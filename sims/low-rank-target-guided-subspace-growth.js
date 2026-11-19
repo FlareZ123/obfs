@@ -269,7 +269,7 @@ function makeCase(rangeDimension, nullity, seed) {
 }
 
 /**
- * Las Vegas target inversion for arbitrary hidden low-rank displacement.
+ * Las Vegas target inversion from the public affine interpolant and residual subspace.
  * @param {(input:number)=>number} oracle
  * @param {number} target
  * @param {number} randomSeed
@@ -340,7 +340,7 @@ function invertLowRank(oracle, target, randomSeed) {
         preimageBasis.push(preimage);
       }
     }
-    const nextBasis = basis([...hBasis, ...preimaeBasis]);
+    const nextBasis = basis([...hBasis, ...preimageBasis]);
     if (nextBasis.length <= hBasis.length) {
       throw new Error('known U-subspace failed to expand before target recovery');
     }

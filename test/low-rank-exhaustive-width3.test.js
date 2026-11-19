@@ -17,12 +17,12 @@ test('target-guided low-rank inverter covers every width-3 permutation and targe
   assert.equal(report.targets, 322560);
   assert.equal(report.maxQueries, 8);
   assert.deepEqual(report.regimes, {
-    '0:0': 64,
-    '1:0': 2880,
-    '1:1': 256,
-    '2:0': 46208,
-    '2:1': 8448,
-    '3:0': 208896,
-    '3:1': 55808,
+    '0:0': 10752,
+    '1:0': 64512,
+    '1:1': 10752,
+    '2:0': 118272,
+    '2:1': 32256,
+    '3:0': 64512,
+    '3:1': 21504,
   });
 });
