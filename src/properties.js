@@ -866,7 +866,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         host==='Object' &&
           ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
       const expectedArguments=host==='Reflect'&&method==='set'?3:2;
-      if(supported&&parent.arguments.length===expectedArguments) {
+      const hasSpread=parent.arguments.some(argument=>argument.type==='SpreadElement');
+      if(supported&&!hasSpread&&parent.arguments.length===expectedArguments) {
         reflections.push({call:parent,key:parent.arguments[1],property:parent.arguments[1].value});
         continue;
       }
