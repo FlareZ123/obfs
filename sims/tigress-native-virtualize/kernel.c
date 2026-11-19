@@ -1,13 +1,15 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#if defined(__GNUC__) || defined(__clang__)
-#define NOINLINE __attribute__((noinline))
+#if defined(AMICE_OBF)
+#define PROTECT __attribute__((noinline, annotate("+vm_virtualize,vm_runtime_scope=func")))
+#elif defined(__GNUC__) || defined(__clang__)
+#define PROTECT __attribute__((noinline))
 #else
-#define NOINLINE
+#define PROTECT
 #endif
 
-NOINLINE uint32_t secretLedgerTransformNative(
+PROTECT uint32_t secretLedgerTransformNative(
     const int32_t *values, size_t length, uint32_t rounds) {
   uint32_t accumulator = 0x13579bdfu;
   for (uint32_t round = 0; round < rounds; round++) {
