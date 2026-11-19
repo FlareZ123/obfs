@@ -98,3 +98,35 @@ The inserted input dependence is algebraically neutral by construction. Its
 purpose is to determine whether a small public finite-domain correlation
 meaningfully frustrates the current source-normalization boundary under the
 project's attacker model.
+
+
+## Source-coincident hoisting correction
+
+Before freezing the adapted attacker or generating any held-out corpus, the
+calibration architecture is strengthened to keep the public lookup tables at
+module scope. The first calibration source placed the table literals inside the
+predicate only to isolate symbolic lookup behavior. That shape risks charging
+per-call array allocation to the carrier and would make a later hot-path profile
+non-source-coincident.
+
+The corrected calibration therefore emits:
+
+```text
+const multiplier = [...]
+const inverse = [...]
+module.exports = function predicate(input) {
+  ...
+  index = input & mask
+  mixed = imul(imul(polynomial, multiplier[index]), inverse[index])
+  ...
+}
+```
+
+This changes no table values or algebra. It adds a second attacker obligation:
+recover public top-level constants and seed the predicate evaluator with that
+environment. The adapted attacker will not be frozen until the module-scoped
+calibration is recovered exactly and the same source shape passes the external
+JSDoc gate.
+
+The final runtime profile and held-out generator must use module-scoped lookup
+tables as well. No held-out seed has been assigned yet.
