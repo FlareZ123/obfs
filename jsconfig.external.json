@@ -185,7 +185,9 @@
     "sims/a2mba-rotated-core-int32-pilot.js",
     "test/a2mba-rotated-core-int32-pilot.test.js",
     "sims/a2mba-rotated-core-static-recover.js",
-    "test/a2mba-rotated-core-static-recover.test.js"
+    "test/a2mba-rotated-core-static-recover.test.js",
+    "sims/a2mba-rotated-core-heldout.js",
+    "test/a2mba-rotated-core-heldout.test.js"
   ],
   "exclude": [
     "node_modules"
