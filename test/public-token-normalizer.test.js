@@ -177,3 +177,37 @@ test('free-root refusal sacrifices private parameter-forwarding yield without ow
   // static reconstruction strategy: it currently misses the known local call.
   assert.ok(guarded.files[0].code.includes('input.'+field));
 });
+
+
+test('seedless normalizer follows emitted direct reflection selectors',()=>{
+  const field='_pabcdef123456';
+  const source='const hidden={'+field+':17};'+
+    'module.exports=[Reflect.get(hidden,"'+field+'"),Object.hasOwn(hidden,"'+field+'")];';
+  const attacked=normalizePublicFields([
+    {path:'reflect.cjs',sourceType:'commonjs',code:source}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(attacked.properties,1);
+  assert.equal(execute(attacked.files[0].code),execute(source));
+  assert.equal(attacked.files[0].code.includes(field),false);
+  assert.ok(attacked.files[0].code.includes('Reflect.get(hidden,"_publicField0")'));
+  assert.ok(attacked.files[0].code.includes('Object.hasOwn(hidden,"_publicField0")'));
+});
+
+test('direct reflection normalization preserves opaque free receivers',()=>{
+  const field='_pabcdef123456';
+  const source='const hidden={'+field+':17};'+
+    'module.exports=[Reflect.get(hidden,"'+field+'"),Reflect.get(HOST,"'+field+'")];';
+  /** @param {string} code @returns {string} */
+  function run(code) {
+    const context={module:{exports:null},HOST:{[field]:31}};
+    vm.runInNewContext(code,context,{timeout:1000});
+    return JSON.stringify(context.module.exports);
+  }
+  const attacked=normalizePublicFields([
+    {path:'reflect-host.cjs',sourceType:'commonjs',code:source}
+  ],{preserveFreeMemberReceivers:true});
+  assert.equal(attacked.properties,1);
+  assert.equal(run(attacked.files[0].code),run(source));
+  assert.ok(attacked.files[0].code.includes('Reflect.get(hidden,"_publicField0")'));
+  assert.ok(attacked.files[0].code.includes('Reflect.get(HOST,"'+field+'")'));
+});
