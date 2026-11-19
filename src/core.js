@@ -618,6 +618,35 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           isPossibleConstructor(value);
       }
       /**
+       * @param {import('./ast').AstNode} fn
+       * @returns {boolean}
+       */
+      function functionReturnsSensitiveValue(fn) {
+        if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
+           fn.async||fn.generator)return false;
+        if(fn.body.type!=='BlockStatement')return sensitiveReturnValue(fn.body);
+        let sensitive=false;
+        walk(fn.body,(innerNode,_parent,_key,ancestors)=>{
+          if(sensitive||innerNode.type!=='ReturnStatement'||!innerNode.argument)return;
+          if(ancestors.some((/** @type {import('./ast').AstNode} */ parent)=>
+            ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+             'ClassDeclaration','ClassExpression'].includes(parent.type)))return;
+          if(sensitiveReturnValue(innerNode.argument))sensitive=true;
+        });
+        return sensitive;
+      }
+      /**
+       * Reading an accessor property executes its getter. A data property
+       * preserves the existing direct-value semantics.
+       * @param {import('./ast').AstNode} property
+       * @returns {boolean}
+       */
+      function propertyReadProducesSensitiveValue(property) {
+        return property.type==='Property'&&
+          (property.kind==='get'&&functionReturnsSensitiveValue(property.value)||
+           property.kind!=='get'&&sensitiveReturnValue(property.value));
+      }
+      /**
        * @param {string} name
        * @param {string} pathKey
        */
@@ -691,7 +720,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
               continue;
             }
             const pathParts=[...prefix,key];
-            if(sensitiveReturnValue(property.value)) {
+            if(propertyReadProducesSensitiveValue(property)||
+               key==='get'&&property.kind!=='get'&&
+                 functionReturnsSensitiveValue(property.value)) {
               addReturnedPath(name,pathParts);
               if(prefix.length===0)addReturnedField(name,key);
             }
@@ -865,10 +896,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             if(property.type!=='Property')return false;
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
-            return key==='value'&&sensitiveReturnValue(property.value);
+            if(key==='value')return propertyReadProducesSensitiveValue(property);
+            return key==='get'&&property.kind!=='get'&&
+              functionReturnsSensitiveValue(property.value);
           });
         }
-        return hasSensitiveContainerField(descriptor,'value');
+        return hasSensitiveContainerField(descriptor,'value')||
+          hasSensitiveContainerField(descriptor,'get');
       }
       /**
        * Preserve exact decoder-intrinsic provenance for writes performed by
@@ -919,7 +953,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           for(const pathKey of returnedSensitivePaths.get(descriptorRoot.name)??[]) {
             if(!pathKey.startsWith(sourcePrefix)||pathKey.length===sourcePrefix.length)continue;
             const relative=sensitivePathParts(pathKey.slice(sourcePrefix.length));
-            if(relative?.length===2&&relative[1]==='value') {
+            if(relative?.length===2&&
+               (relative[1]==='value'||relative[1]==='get')) {
               recordKnownSensitivePath(target,[relative[0]]);
             }
           }
