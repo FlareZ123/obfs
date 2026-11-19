@@ -141,3 +141,34 @@ test('closed-world ESM renames two-field combined direct reflection reads',async
     Object.hasOwn(state,'otherValue'),state.otherValue);`,2,
     'export const state={secretValue:29,otherValue:12};');
 });
+
+test('closed-world ESM can rename a direct literal-key Reflect.has check',async()=>{
+  await check(`console.log(Reflect.has(state,'secretField'),state.secretField);`,1);
+});
+
+test('closed-world ESM can rename a direct Reflect.getOwnPropertyDescriptor read',async()=>{
+  await check(`console.log(Reflect.getOwnPropertyDescriptor(state,'secretField').value,state.secretField);`,1);
+});
+
+test('closed-world ESM can rename a direct Object.getOwnPropertyDescriptor read',async()=>{
+  await check(`console.log(Object.getOwnPropertyDescriptor(state,'secretField').value,state.secretField);`,1);
+});
+
+test('closed-world ESM refuses patched Reflect.has before direct owner reflection',async()=>{
+  await check(`const native=Reflect.has;
+    Reflect.has=(owner,key)=>key==='secretField'&&native(owner,key);
+    console.log(Reflect.has(state,'secretField'),state.secretField);`,0);
+});
+
+test('closed-world ESM refuses patched Object.getOwnPropertyDescriptor before direct owner reflection',async()=>{
+  await check(`const native=Object.getOwnPropertyDescriptor;
+    Object.getOwnPropertyDescriptor=(owner,key)=>native(owner,key);
+    console.log(Object.getOwnPropertyDescriptor(state,'secretField').value,state.secretField);`,0);
+});
+
+test('closed-world ESM refuses Proxy-wrapped owner in direct Reflect.has',async()=>{
+  await check(`const proxy=new Proxy(state,{
+    has(target,key){return key==='secretField'&&Reflect.has(target,key);}
+  });console.log(Reflect.has(proxy,'secretField'),state.secretField);`,0);
+});
+
