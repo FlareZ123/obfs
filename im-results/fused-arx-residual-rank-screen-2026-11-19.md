@@ -45,6 +45,8 @@ so every second finite difference has zero in that low output bit. All nonlinear
 
 The `c` addition shear has the same bound, with its residual confined to 31 bits of the `c` word.
 
+Each bound is individually exact. For a shear `x <- x + C*z` with odd `C`, multiplication by `C` is a permutation modulo `2^32`. For every bit position `j=0,...,30`, choose `z_j` so that `C*z_j = 2^j mod 2^32`. The second difference between the `x` direction `2^j` and the `z` direction `z_j` has first-word value exactly `2^(j+1)`. These 31 witnesses span every nonlinear output bit. Thus each modular-addition shear has exact residual rank 31.
+
 PR #181 proves affine-residual-rank subadditivity under composition, while affine layers add zero. Hence the complete one-unit state permutation satisfies
 
 ```text
@@ -99,6 +101,12 @@ Residual rank should be treated as one independent screen, not as a security sco
 A candidate with small rank is rejected by PR #181's deterministic chosen-query theorem. A candidate with large rank survives only that attack family. It still needs independent static reconstruction, runtime extraction, tamper, authorization, and performance evaluation.
 
 For structured multi-step transitions, the composition upper bound is useful before any sampling: here it predicts `r<=62`, and only 64 deterministic second-difference samples are needed to witness the exact bound.
+
+## Cross-platform validation
+
+Focused workflow run **44480696995** passed on Ubuntu and Windows at source `13f1e1ed3bb08cfdaa46e0d8ea3af83b390a47c1`. It exercised the fused-ARX residual-rank screen alongside the established low-rank inversion regressions and the project JSDoc gate.
+
+The workflow-only inclusion commit was reverted immediately after the source-pinned dispatch.
 
 ## Reproduction
 
