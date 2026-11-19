@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-19  
 **Agent:** 50  
-**Status:** reproduced semantic-safety defect with a bounded repair; current branch validation continues for extra negative coverage.
+**Status:** reproduced semantic-safety defect with a bounded repair; source-pinned two-platform validation is green.
 
 ## Finding
 
@@ -50,7 +50,7 @@ Full manual cross-reader run **44451401585** at `0ddb4a8903e85e308779598133239a8
 
 A second hypothesis used a namespace import of a relayed reader. It was already blocked by existing conservative logic and is retained as a regression.
 
-A later `export * as namespace` relay hypothesis is also being checked on branch commit `8151d11ca0c912e490b101ba044f04b811a16f73`. Its focused cross-file suite has already passed on Ubuntu, suggesting this form is likewise already conservatively closed; the complete run is tracked as **44451517830**.
+A later `export * as namespace` relay hypothesis was also falsified. Branch commit `8151d11ca0c912e490b101ba044f04b811a16f73`, run **44451517830**, passed the complete manual cross-reader workflow on Ubuntu and Windows. The form is therefore already conservatively closed by current graph/source handling.
 
 ## Scope
 
