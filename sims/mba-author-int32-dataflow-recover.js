@@ -248,6 +248,31 @@ function collectHelpers(ast) {
 }
 
 /**
+ * Collect immutable top-level values that are directly representable by the
+ * symbolic evaluator. Unsupported declarators, including helper functions,
+ * are skipped independently so one mixed declaration cannot hide later data.
+ *
+ * @param {AstNode} ast
+ * @param {Map<string,Helper>} helpers
+ * @returns {Map<string,Symbolic>}
+ */
+function collectGlobalValues(ast, helpers) {
+  /** @type {Map<string,Symbolic>} */
+  const environment = new Map(globals);
+  if (ast.type !== 'Program') return environment;
+
+  for (const statement of ast.body) {
+    if (statement.type !== 'VariableDeclaration') continue;
+    for (const declaration of statement.declarations) {
+      if (declaration.id.type !== 'Identifier' || !declaration.init) continue;
+      const value = build(declaration.init, environment, helpers);
+      if (value) environment.set(declaration.id.name, value);
+    }
+  }
+  return environment;
+}
+
+/**
  * @param {AstNode} node
  * @param {Map<string,Symbolic>} environment
  * @param {Map<string,Helper>} helpers
@@ -578,9 +603,10 @@ function executeWhileLoop(loop, environment, helpers) {
 /**
  * @param {AstNode} functionNode
  * @param {Map<string,Helper>} helpers
+ * @param {Map<string,Symbolic>} globals
  * @returns {{expression:Symbolic,target:number}|null}
  */
-function symbolicPredicate(functionNode, helpers) {
+function symbolicPredicate(functionNode, helpers, globals) {
   if (!['FunctionDeclaration', 'FunctionExpression', 'ArrowFunctionExpression'].includes(
     functionNode.type
   ) || functionNode.body.type !== 'BlockStatement') return null;
@@ -768,6 +794,7 @@ function matchCyclic(expression) {
 function recoverDataflow(source) {
   const ast = parse(source, 'commonjs');
   const helpers = collectHelpers(ast);
+  const globals = collectGlobalValues(ast, helpers);
   /** @type {AstNode[]} */
   const functions = [];
   walk(ast, node => {
@@ -777,7 +804,7 @@ function recoverDataflow(source) {
   });
 
   for (const functionNode of functions) {
-    const predicate = symbolicPredicate(functionNode, helpers);
+    const predicate = symbolicPredicate(functionNode, helpers, globals);
     if (!predicate) continue;
 
     let current = predicate.expression;
