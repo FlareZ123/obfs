@@ -229,6 +229,17 @@ function build(node, environment, helpers, depth = 0) {
     return constant(~(argument.value ?? 0));
   }
 
+  if (node.type === 'ConditionalExpression') {
+    const condition = evaluateCondition(node.test, environment, helpers);
+    if (condition === true) return build(node.consequent, environment, helpers, depth + 1);
+    if (condition === false) return build(node.alternate, environment, helpers, depth + 1);
+
+    const consequent = build(node.consequent, environment, helpers, depth + 1);
+    const alternate = build(node.alternate, environment, helpers, depth + 1);
+    if (!consequent || !alternate || !sameSymbolic(consequent, alternate)) return null;
+    return consequent;
+  }
+
   if (node.type === 'BinaryExpression') {
     const left = build(node.left, environment, helpers, depth + 1);
     const right = build(node.right, environment, helpers, depth + 1);
@@ -354,6 +365,10 @@ function executeStatement(statement, environment, helpers) {
     return evaluate(statement.expression, environment, helpers) !== null;
   }
 
+  if (statement.type === 'IfStatement') {
+    return executeIfStatement(statement, environment, helpers);
+  }
+
   if (statement.type === 'SwitchStatement') {
     return executeSwitch(statement, environment, helpers);
   }
@@ -387,6 +402,56 @@ function evaluateCondition(test, environment, helpers) {
   if (test.operator === '>=') return a >= b;
   if (test.operator === '===' || test.operator === '==') return a === b;
   return a !== b;
+}
+
+/**
+ * @param {Map<string,Symbolic>} left
+ * @param {Map<string,Symbolic>} right
+ * @returns {boolean}
+ */
+function sameEnvironment(left, right) {
+  if (left.size !== right.size) return false;
+  for (const [name, value] of left) {
+    const other = right.get(name);
+    if (!other || !sameSymbolic(value, other)) return false;
+  }
+  return true;
+}
+
+/**
+ * @param {Map<string,Symbolic>} target
+ * @param {Map<string,Symbolic>} source
+ */
+function replaceEnvironment(target, source) {
+  target.clear();
+  for (const [name, value] of source) target.set(name, value);
+}
+
+/**
+ * @param {AstNode} statement
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeIfStatement(statement, environment, helpers) {
+  if (statement.type !== 'IfStatement') return false;
+  const condition = evaluateCondition(statement.test, environment, helpers);
+  if (condition === true) {
+    return executeStatement(statement.consequent, environment, helpers);
+  }
+  if (condition === false) {
+    if (!statement.alternate) return true;
+    return executeStatement(statement.alternate, environment, helpers);
+  }
+
+  const consequent = new Map(environment);
+  const alternate = new Map(environment);
+  if (!executeStatement(statement.consequent, consequent, helpers)) return false;
+  if (statement.alternate &&
+      !executeStatement(statement.alternate, alternate, helpers)) return false;
+  if (!sameEnvironment(consequent, alternate)) return false;
+  replaceEnvironment(environment, consequent);
+  return true;
 }
 
 /**
