@@ -7,68 +7,77 @@ permissions:
   contents: read
 
 jobs:
-  native:
+  wasm-i32:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install pinned node-gyp
-        run: npm install --no-save --no-package-lock node-gyp@13.1.0
-      - name: Build release Node-API addon
-        run: node_modules/.bin/node-gyp rebuild --release --directory sims/sno-native-addon
-      - name: Verify native behavior and warm runtime
-        run: node sims/sno-native-addon/bench.js
-      - name: Inspect raw artifact strings
-        shell: bash
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Balanced real-clock Wasm i32 Chromium CPU differential
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/wasm-i32-browser.js
+      - name: Experimental fused four-word ARX semantics, extraction and warm profile
+        run: node --test test/fused-arx-batch.test.js
+      - name: Fused ARX fresh-instance amortization session curve
+        run: node sims/fused-arx-session-crossover.js
+      - name: Fused ARX independent fresh-process cold CPU differential
+        run: node sims/fused-arx-fresh-process-cold.js
+      - name: Real Chromium batched ARX matched CPU and semantics probe
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-batch-browser.js
+      - name: Real Chromium hostile preload and cross-origin Wasm clone
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-browser-runtime-clone.js
+      - name: Real Chromium runtime substitution of unchanged Wasm application bytes
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-browser-runtime-tamper.js
+      - name: Frozen three-module stateful ARX parity, source refusal and byte clone
+        run: node --test test/stateful-arx-graph-fuse.test.js
+      - name: Differential, negative and public-binary extraction tests
+        run: node --test test/wasm-i32.test.js test/wasm-i32-commonjs-lazy.test.js test/wasm-i32-deferred-static-recovery.test.js test/json-parse-function-source-observer.test.js test/wasm-i32-static-recovery.test.js test/wasm-runtime-capture.test.js test/fused-arx-runtime-extraction.test.js test/fused-arx-static-lift.test.js test/wasm-i32-multi-static-decoys.test.js test/wasm-i32-native-rebuild.test.js test/wasm-i32-esm-native-rebuild.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js test/source-observer-counterfactual-differential.test.js test/object-groupby-function-source-observer.test.js
+      - name: Verify pinned before/after artifact
         run: |
-          BIN="sims/sno-native-addon/build/Release/sno_native.node"
-          echo "NATIVE_ADDON_BYTES $(wc -c < "$BIN")"
-          if grep -a -F -q 'secretLedgerTransformNative' "$BIN"; then
-            echo "NATIVE_ADDON_ORIGINAL_IDENTIFIER true"
-          else
-            echo "NATIVE_ADDON_ORIGINAL_IDENTIFIER false"
-          fi
-
-  decompile:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: '25'
-      - name: Install pinned node-gyp
-        run: npm install --no-save --no-package-lock node-gyp@13.1.0
-      - name: Build stripped release addon
-        run: node_modules/.bin/node-gyp rebuild --release --directory sims/sno-native-addon
-      - name: Download official Ghidra 12.2 release
-        run: |
-          curl -L --fail --retry 3 -o ghidra.zip \
-            https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
-          unzip -q ghidra.zip
-          mv ghidra_12.2_PUBLIC ghidra
-      - name: Decompile every detected addon function
-        run: |
-          mkdir -p ghidra-project
-          ghidra/support/analyzeHeadless ghidra-project native-addon \
-            -import sims/sno-native-addon/build/Release/sno_native.node \
-            -scriptPath sims/sno-native-addon \
-            -postScript DecompileAllFunctions.java \
-            -analysisTimeoutPerFile 120 \
-            -deleteProject > native-decompile.txt 2>&1
-          echo "NATIVE_DECOMPILE_BYTES $(wc -c < native-decompile.txt)"
-          grep -n -E '1664525|1013904223|1103515245|12345|0x19660d|0x3c6ef35f|0x41c64e6d|0x3039|19660d|3c6ef35f|41c64e6d|3039' \
-            native-decompile.txt | head -120 || true
-          grep -n 'DECOMPILE_FUNCTION' native-decompile.txt | head -80
-          tail -220 native-decompile.txt
+          node examples/wasm-i32/build.cjs
+          node examples/wasm-i32-multi/build.cjs
+          node examples/wasm-i32-conditional/build.cjs
+          node examples/wasm-i32-lazy/build.cjs
+      - name: Hostile-runtime binary extraction and function replacement
+        run: node sims/wasm-i32-runtime-extraction.js
+      - name: Whole-session initialization cost curve
+        run: node sims/wasm-i32-cold-counterexample.js
+      - name: CommonJS deferred-compilation native/eager/lazy control
+        run: node sims/wasm-i32-commonjs-lazy-profile.js
+      - name: SNO runtime-only first-use Wasm cost curve
+        run: node sims/wasm-i32-commonjs-runtime-budget.js
+      - name: Whole-graph cold native versus Wasm versus offline-native control
+        run: node sims/wasm-i32-esm-rebuild-profile.js
+      - name: Strict JSDoc checks
+        run: npm run typecheck
+      - name: Strict Wasm research and attacker JSDoc checks
+        run: npx tsc -p jsconfig.wasm-i32.json
+      - name: Real Chromium public-only native replacement and strict CSP
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-native-clone-browser.js
+      - name: Real Chromium strict CSP denial and targeted Wasm allowance
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-csp-browser.js
