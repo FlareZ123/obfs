@@ -59,7 +59,7 @@ function loadPredicate(source) {
   return /** @type {(input:number)=>boolean} */ (moduleObject.exports);
 }
 
-test('frozen dataflow attacker rejects input-indexed neutral lookup carrier', () => {
+test('dataflow attacker recovers input-indexed neutral lookup carrier', () => {
   const round = {
     coefficients: [0x91e10da5, 0x6d2b79f5],
     xorShifts: [7, 19],
@@ -101,8 +101,9 @@ test('frozen dataflow attacker rejects input-indexed neutral lookup carrier', ()
     assert.equal(predicate(input), input === secret);
   }
 
-  assert.throws(
-    () => recoverDataflow(minified),
-    /dataflow-normalized author-style predicate not found/
-  );
+  const recovered = recoverDataflow(minified);
+  assert.equal(recovered.inputIndex, 0);
+  assert.equal(recovered.target, target);
+  assert.deepEqual(recovered.rounds, [round]);
+  assert.equal(inverseChain32(recovered.target, recovered.rounds), secret);
 });
