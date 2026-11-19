@@ -137,12 +137,13 @@ function invert(permutation, target, k) {
   const t = solver.solve(target ^ base);
   assert.notEqual(t, null);
   let current = /** @type {number} */ (t);
+  const maxCycle = 2 ** k;
 
-  for (let step = 1; step <= 2 ** k; step += 1) {
+  for (let step = 1; step < maxCycle; step += 1) {
     const next = solver.solve(query(current) ^ base);
     assert.notEqual(next, null);
     if (next === t) {
-      assert.ok(cache.size <= WIDTH + 2 ** (k + 1));
+      assert.ok(cache.size <= WIDTH + 2 ** (k + 1) - 1);
       return {
         value: current,
         queryCount: cache.size,
@@ -154,7 +155,14 @@ function invert(permutation, target, k) {
     current = /** @type {number} */ (next);
   }
 
-  throw new Error('cycle bound exceeded');
+  assert.ok(cache.size <= WIDTH + 2 ** (k + 1) - 1);
+  return {
+    value: current,
+    queryCount: cache.size,
+    initialRank,
+    repairs,
+    expansions,
+  };
 }
 
 /**
@@ -174,69 +182,73 @@ function enumeratePermutations(values, index, visit) {
   }
 }
 
-/** @returns {number[][]} */
-function twoDimensionalSubspaces() {
-  /** @type {Map<string,number[]>} */
-  const unique = new Map();
-  for (let a = 1; a < SIZE; a += 1) {
-    for (let b = a + 1; b < SIZE; b += 1) {
-      const values = span([a, b]).sort((x, y) => x - y);
-      if (values.length === 4) unique.set(values.join(','), values);
-    }
+/**
+ * @param {number[]} columns
+ * @param {number} input
+ * @returns {number}
+ */
+function applyLinear(columns, input) {
+  let output = 0;
+  for (let bit = 0; bit < WIDTH; bit += 1) {
+    if (((input >>> bit) & 1) !== 0) output ^= columns[bit];
   }
-  return [...unique.values()];
+  return output;
 }
 
-/**
- * Enumerate every permutation that preserves each coset of one 2D subspace.
- * @param {number[]} subspace
- * @param {(permutation:number[])=>void} visit
- */
-function enumerateCosetPreserving(subspace, visit) {
-  const inSubspace = new Set(subspace);
-  const representative = Array.from(
-    {length: SIZE},
-    (_, value) => value,
-  ).find((value) => !inSubspace.has(value));
-  if (representative === undefined) throw new Error('missing second coset');
-  const other = subspace.map((value) => value ^ representative).sort((a, b) => a - b);
-
-  enumeratePermutations(subspace.slice(), 0, (left) => {
-    enumeratePermutations(other.slice(), 0, (right) => {
-      const permutation = Array(SIZE).fill(-1);
-      for (let index = 0; index < 4; index += 1) {
-        permutation[subspace[index]] = left[index];
-        permutation[other[index]] = right[index];
+/** @param {number[]} vectors @returns {number} */
+function vectorRank(vectors) {
+  const pivots = Array(WIDTH).fill(0);
+  let count = 0;
+  for (const raw of vectors) {
+    let value = raw;
+    for (let bit = WIDTH - 1; bit >= 0 && value !== 0; bit -= 1) {
+      if (((value >>> bit) & 1) === 0) continue;
+      if (pivots[bit] !== 0) value ^= pivots[bit];
+      else {
+        pivots[bit] = value;
+        count += 1;
+        break;
       }
-      visit(permutation);
-    });
-  });
+    }
+  }
+  return count;
 }
 
 function main() {
-  const subspaces = twoDimensionalSubspaces();
-  assert.equal(subspaces.length, 7);
-
-  let models = 0;
-  let singularModels = 0;
+  let permutations = 0;
   let targets = 0;
   let exact = 0;
+  let singularModels = 0;
   let maxQueries = 0;
   let maxRepairs = 0;
   let maxExpansions = 0;
+  /** @type {Map<string,number>} */
+  const regimes = new Map();
 
-  for (const subspace of subspaces) {
-    enumerateCosetPreserving(subspace, (permutation) => {
-      models += 1;
+  enumeratePermutations(
+    Array.from({length: SIZE}, (_, value) => value),
+    0,
+    (permutation) => {
+      permutations += 1;
       const base = permutation[0];
       const columns = Array.from(
         {length: WIDTH},
         (_, bit) => permutation[1 << bit] ^ base,
       );
-      if (makeSolver(columns).rank < WIDTH) singularModels += 1;
+      const solver = makeSolver(columns);
+      const residuals = Array.from(
+        {length: SIZE},
+        (_, input) => permutation[input] ^ base ^ applyLinear(columns, input),
+      );
+      const residualRank = vectorRank(residuals);
+      const nullity = WIDTH - solver.rank;
+      assert.ok(nullity <= residualRank);
+      if (nullity > 0) singularModels += 1;
+      const key = `${residualRank}:${nullity}`;
+      regimes.set(key, (regimes.get(key) || 0) + 1);
 
       for (let secret = 0; secret < SIZE; secret += 1) {
-        const attack = invert(permutation, permutation[secret], 2);
+        const attack = invert(permutation, permutation[secret], residualRank);
         assert.equal(attack.value, secret);
         targets += 1;
         exact += 1;
@@ -244,25 +256,22 @@ function main() {
         maxRepairs = Math.max(maxRepairs, attack.repairs);
         maxExpansions = Math.max(maxExpansions, attack.expansions);
       }
-    });
-  }
+    },
+  );
 
-  assert.equal(models, 4032);
-  assert.equal(singularModels, 576);
-  assert.equal(targets, 32256);
+  assert.equal(permutations, 40320);
+  assert.equal(targets, 322560);
   assert.equal(exact, targets);
 
   console.log(JSON.stringify({
     width: WIDTH,
-    hiddenSubspaceDimension: 2,
-    hiddenSubspaces: subspaces.length,
-    cosetPreservingPermutationModels: models,
+    permutations,
     initiallySingularModels: singularModels,
     targetRecoveries: `${exact}/${targets}`,
-    theoremDistinctQueryBound: WIDTH + 2 ** 3,
     maxObservedDistinctQueries: maxQueries,
     maxRepairs,
     maxClosureExpansions: maxExpansions,
+    regimes: Object.fromEntries([...regimes.entries()].sort()),
   }));
 }
 
