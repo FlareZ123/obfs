@@ -825,8 +825,10 @@ function stableDirectOwnerReflection(modules) {
       }
       const call=ancestors.at(-2);
       const method=staticName(parent.property);
-      const supported=node.name==='Reflect'&&method==='get' ||
-        node.name==='Object'&&method==='hasOwn';
+      const supported=node.name==='Reflect' &&
+          ['get','has','getOwnPropertyDescriptor'].includes(method??'') ||
+        node.name==='Object' &&
+          ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
       if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
          call.optional)stable=false;
     });
