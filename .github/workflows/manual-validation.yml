@@ -81,6 +81,9 @@ jobs:
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
+      - name: Direct reflection property repeated-work profile
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node sims/direct-reflection-property-profile.js
       - name: Paired own-key and null-prototype six-module startup-and-session profiles
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: node sims/verified-record-session-profile.js
