@@ -7,6 +7,9 @@ const path=require('node:path');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {performance}=require('node:perf_hooks');
+const vm=require('node:vm');
+const v8=require('node:v8');
+const {wrap}=require('node:module');
 const bytenode=require('bytenode');
 
 const exec=promisify(execFile);
@@ -40,6 +43,32 @@ process.stdout.write(String(secretLedgerTransform(originalInputValues,originalIn
  */
 async function run(command,args){
   return exec(command,args,{encoding:'utf8',maxBuffer:8*1024*1024,timeout:120000});
+}
+
+/**
+ * @param {string} command
+ * @param {string[]} args
+ * @returns {Promise<{stdout:string,stderr:string}>}
+ */
+async function runCli(command,args){
+  if(process.platform!=='win32')return run(command,args);
+  const quote=value=>'"'+value.replaceAll('"','""')+'"';
+  const line=[command,...args].map(quote).join(' ');
+  return run(process.env.ComSpec??'cmd.exe',['/d','/s','/c',line]);
+}
+
+/**
+ * Compile an eager CommonJS probe exactly in the form jscd documents for ro-map calibration.
+ * @param {string} source
+ * @param {string} output
+ * @returns {void}
+ */
+function compileProbe(source,output){
+  v8.setFlagsFromString('--no-lazy');
+  v8.setFlagsFromString('--no-flush-bytecode');
+  const script=new vm.Script(wrap(source),{produceCachedData:true});
+  const cached=script.cachedData?.length?script.cachedData:script.createCachedData();
+  fs.writeFileSync(output,Buffer.from(cached));
 }
 
 /**
@@ -104,7 +133,7 @@ async function main(){
   );
   assert.ok(fs.existsSync(jscdBin),'Missing jscd binary at '+jscdBin);
 
-  const info=JSON.parse((await run(jscdBin,['info','--json',bytecodePath])).stdout);
+  const info=JSON.parse((await runCli(jscdBin,['info','--json',bytecodePath])).stdout);
   assert.equal(info.supported,true,'jscd does not report this V8 cache as supported');
 
   const asciiStrings=[...bytecode.toString('latin1').matchAll(/[A-Za-z_$][A-Za-z0-9_$]{1,31}/gu)]
@@ -124,16 +153,12 @@ async function main(){
   ).join('\n')+'\nfunction run(o){'+names.map((_,index)=>'p'+index+'(o);').join('')+
     '}\nrun({});\n';
   fs.writeFileSync(probePath,probeSource,'utf8');
-  await bytenode.compileFile({
-    filename:probePath,
-    output:probeBytecodePath,
-    compileAsModule:false
-  });
-  const roMap=(await run(jscdBin,['ro-map','--json',probeBytecodePath])).stdout;
+  compileProbe(probeSource,probeBytecodePath);
+  const roMap=(await runCli(jscdBin,['ro-map','--json',probeBytecodePath])).stdout;
   fs.writeFileSync(roMapPath,roMap,'utf8');
 
   const attackStarted=performance.now();
-  await run(jscdBin,[
+  await runCli(jscdBin,[
     'decompile','--runtime','--verify','--ro-map',roMapPath,
     bytecodePath,'-o',recoveredPath
   ]);
