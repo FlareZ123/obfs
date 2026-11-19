@@ -154,33 +154,18 @@ function proveRootIdentityEligibility(source,name='candidate'){
   ]);
 
   /**
+   * Source-only proof cannot establish ambient callee identity. A call is
+   * reference-safe here only when no argument-derived object crosses it.
    * @param {import('../src/ast').AstNode} node
    * @returns {boolean}
    */
   function isSafePrimitiveCall(node){
     if(node.type!=='CallExpression')return false;
-    const callee=node.callee;
-    if(callee.type!=='MemberExpression'||callee.optional||callee.computed||
-       callee.object.type!=='Identifier'||callee.property.type!=='Identifier')return false;
-    const owner=callee.object.name;
-    const method=callee.property.name;
-    if(shadowedBuiltins.has(owner))return false;
-    if(owner==='Array'&&method==='isArray')return true;
-    if(owner==='Number'&&numberPrimitiveMethods.has(method))return true;
-    if(owner==='Object'&&method==='hasOwn'){
-      const key=node.arguments[1];
-      if(!key)return true;
-      const keyValue=key.type==='SpreadElement'?provenance(key.argument):provenance(key);
-      return !hasReference(keyValue);
-    }
-    if(owner==='Math'&&mathPrimitiveMethods.has(method)){
-      return node.arguments.every((/** @type {import('../src/ast').AstNode} */ argument)=>{
-        const value=argument.type==='SpreadElement'?
-          provenance(argument.argument):provenance(argument);
-        return !hasReference(value);
-      });
-    }
-    return false;
+    return node.arguments.every((/** @type {import('../src/ast').AstNode} */ argument)=>{
+      const value=argument.type==='SpreadElement'?
+        provenance(argument.argument):provenance(argument);
+      return !hasReference(value);
+    });
   }
 
   /** @param {import('../src/ast').AstNode|null|undefined} node @returns {RefProvenance} */
@@ -378,7 +363,7 @@ function proveRootIdentityEligibility(source,name='candidate'){
         reasons.add('call through argument-derived callable');
       }
       if(node.callee.type==='MemberExpression'&&
-         hasReference(provenance(node.callee.object))&&!safePrimitiveCall){
+         hasReference(provenance(node.callee.object))){
         reasons.add('method call on argument-derived receiver');
       }
       if(!safePrimitiveCall){
@@ -426,9 +411,7 @@ const ACCEPT_CASES=[
   {name:'nested-arithmetic',source:'export async function candidate(payload){return (payload.record.count|0)+1;}'},
   {name:'loop-return-root',source:'export async function candidate(payload){let sum=0;for(const record of payload.records){sum+=record.quantity|0;}if(sum===-1)return null;return payload;}'},
   {name:'fresh-summary',source:'export async function candidate(payload){return {count:payload.records.length|0,valid:!!payload.ok};}'},
-  {name:'pure-primitives-primitiveized',source:'export async function candidate(payload){const x=Math.imul(payload.count|0,31);return Number.isFinite(x)&&Array.isArray(payload.records)?payload:0;}'},
-  {name:'array-isarray-direct',source:'export async function candidate(payload){return Array.isArray(payload.records)?payload:0;}'},
-  {name:'number-isfinite-direct',source:'export async function candidate(payload){return Number.isFinite(payload.count)?payload:0;}'}
+  {name:'pure-primitives-primitiveized',source:'export async function candidate(payload){const x=Math.imul(payload.count|0,31);return Number.isFinite(x)?payload:0;}'}
 ];
 
 /** @type {Array<{name:string,source:string}>} */
@@ -464,7 +447,12 @@ const ADVERSARIAL_CASES=[
   {name:'implicit-arguments-mutation',source:'export async function candidate(payload){arguments[0].x=1;return 1;}'},
   {name:'math-direct-nested',source:'export async function candidate(payload){return Math.imul(payload.count,31);}'},
   {name:'math-max-direct-nested',source:'export async function candidate(payload){return Math.max(payload.left,payload.right);}'},
-  {name:'hasown-reference-key',source:'export async function candidate(payload,other){return Object.hasOwn(other,payload.key);}'}
+  {name:'hasown-reference-key',source:'export async function candidate(payload,other){return Object.hasOwn(other,payload.key);}'},
+  {name:'ambient-array-isarray',source:'export async function candidate(payload){return Array.isArray(payload.records)?payload:0;}'},
+  {name:'ambient-number-isfinite',source:'export async function candidate(payload){return Number.isFinite(payload.count)?payload:0;}'},
+  {name:'ambient-object-hasown',source:'export async function candidate(payload){return Object.hasOwn(payload,"x");}'},
+  {name:'ambient-reflect-get',source:'export async function candidate(payload){return Reflect.get(payload,"x");}'},
+  {name:'ambient-constructor',source:'export async function candidate(payload){return new Box(payload);}'}
 ];
 
 /** @type {Array<{name:string,expected:boolean,source:string}>} */
