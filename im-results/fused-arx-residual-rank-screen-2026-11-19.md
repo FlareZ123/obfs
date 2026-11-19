@@ -76,7 +76,37 @@ One unit is exact rank 62 from the matching analytic upper bound above.
 
 Two units are also exact: composition subadditivity gives `r<=62+62=124`, while the screen witnesses 124 independent second differences.
 
-For three units the screen proves the lower bound `r>=126`; the generic composition bound has already saturated at the ambient dimension and does not close the remaining two dimensions.
+Three units are exact rank 126 as well. Two independent affine output components survive three rounds.
+
+For one round with fixed unit `u`, low-bit arithmetic gives the identities
+
+```text
+a'_0 XOR d'_13
+= d_13 XOR u_13
+
+a'_19 XOR b'_7 XOR c'_0 XOR d'_0 XOR d'_13
+= b_7 XOR d_13 XOR u_0 XOR u_13.
+```
+
+The first identity follows from `d'_13=d_13 XOR a'_0 XOR u_13`. In the second, the two occurrences each of `a'_19`, `c_0`, `d_0`, and `a'_0` cancel.
+
+After two rounds, both `b_7` and `d_13` are affine functions of the initial 128 state bits. This follows recursively from
+
+```text
+b'_7 = b_7 XOR c_0
+d'_13 = d_13 XOR a'_0 XOR u_13
+a'_0 = a_0 XOR b_0 XOR c_0 XOR u_0,
+```
+
+while `b'_0=b_0 XOR c_25` and `c'_0=c_0 XOR d_0 XOR a'_0` remain affine at the depths needed here.
+
+Therefore, after the third round, the two displayed output masks are independent affine Boolean components. By the affine-component characterization from PR #181, the residual rank is at most `128-2=126`. The screen witnesses 126 independent second differences, so
+
+```text
+r = 126
+```
+
+exactly for the fixed three-unit block.
 
 For four units, 128 independent second differences are witnessed by sample 128. Since 128 is the ambient maximum,
 
