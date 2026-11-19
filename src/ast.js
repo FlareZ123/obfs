@@ -2505,7 +2505,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(changedWorkerInstances);
-  walk(ast,(node,parent,key)=>{
+  /**
+   * Return true when a syntactic throw can escape the nearest local catch.
+   * A catch surrounding a function declaration does not catch a later call
+   * into that function, so function boundaries end this bounded proof.
+   * @param {AstNode[]} ancestors
+   * @returns {boolean}
+   */
+  function throwMayReachHost(ancestors) {
+    for(let i=ancestors.length-1;i>=0;i--) {
+      const ancestor=ancestors[i];
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))
+        return true;
+      if(ancestor.type==='TryStatement' && ancestor.handler &&
+         ancestor.block===ancestors[i+1])return false;
+    }
+    return true;
+  }
+  walk(ast,(node,parent,key,ancestors)=>{
+    // An uncaught throw is itself a source-coordinate observer in Node: the
+    // process diagnostic prints the throwing source line, caret and stack
+    // column. Browser hosts can likewise surface uncaught error locations.
+    // Preserve exact source whenever a throw lacks a syntactically enclosing
+    // catch before the current function boundary.
+    if(node.type==='ThrowStatement'&&throwMayReachHost(ancestors))observed=true;
     // Keep precise local aliases and direct member access analyzable, while
     // refusing opaque process/report capability escapes that can reach getReport later.
     const directMember=parent?.type==='MemberExpression'&&key==='object';
