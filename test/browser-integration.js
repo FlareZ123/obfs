@@ -107,6 +107,21 @@ async function main(){
   ],{mode:'coo',closedWorld:true,seed:'chrome-default-assignment',
     identifiers:false,strings:false});
   assert.equal(defaultSet.crossFile.properties,2);
+
+  // Direct literal-key reflection participates in the same closed-world
+  // owner mapping in a real browser ESM graph.
+  const reflectionSet=obfuscateFiles([
+    {path:'reflection-state.mjs',sourceType:'module',
+      code:'export const state={secretValue:29,otherValue:12};'},
+    {path:'reflection-entry.mjs',sourceType:'module',
+      code:'import {state} from "./reflection-state.mjs";'+
+        'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
+        'const own=Object.hasOwn(state,"otherValue");'+
+        'document.getElementById("answer").textContent=value+","+own;'}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
+    identifiers:false,strings:false});
+  assert.equal(reflectionSet.crossFile.properties,2);
+
   // The imported reader receives a state object through nested identity
   // forwarding. Prove both private fields, while preserving the page-owned
   // window.hostApi.accept interface exactly as written.
@@ -231,7 +246,7 @@ async function main(){
       args.length===1 && args[0]===19 &&
       request.headers.cookie==='session=accepted'
   });
-  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
+  const content=new Map([...moduleSet.files,...parameterSet.files,...parameterShorthandSet.files,...parameterRefusalSet.files,...auditedSet.files,...namedJsSet.files,...defaultSet.files,...reflectionSet.files,...readerSet.files,...patternSet.files,...factorySet.files,...iifeSet.files,...containerSet.files,...cycleSet.files].map(x=>['/'+x.path,x.code]));
   content.set('/good.js',good);
   content.set('/blocked.js',bad);
   content.set('/trace.js',traceOutput.code);
@@ -248,6 +263,7 @@ async function main(){
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
+  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/reflection-entry.mjs"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
@@ -287,7 +303,8 @@ async function main(){
       ['/parameter-shorthand.html','42'],
       ['/parameter-refusal.html','secretField'],
       ['/audited-module.html','41'],['/js-module.html','23'],
-      ['/default-module.html','17,0,5'],['/cycle.html','browser-cycle-ok'],
+      ['/default-module.html','17,0,5'],['/reflection.html','41,true'],
+      ['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
       ['/container.html','37'],
