@@ -132,3 +132,29 @@ Rebuilt the proposal atop current main, preserving newer `src/properties.js` pri
 The temporary diagnostic branches `agent6/formal-value-local-proof-gate-20261118`, `agent6/formal-value-wrapper-green-20261118`, and previous shorthand red/green branches override the manual validation workflow solely for scoped evidence. NEVER merge their workflow changes.
 
 Current next candidate: improve third-mode `sco` coverage of direct-formal value positive/refusal tests (previous suite primarily COO/SNO), and perhaps independently verify source-observer and dynamic named evaluation edge cases. Any additional compiler transformation must be pinned to true protected-work yield with equal-trust static attacker controls and no universal security claims.
+
+
+## Checkpoint 2026-11-19 ~02:42 UTC: identity-token SCO transport experiments
+
+Initial tool-executed uniform draw was **9**, normal mode. Reclaimed Agent 6 after verifying the prior 2026-11-18T23:46:39.794471Z claim exceeded the 100-minute availability threshold. Current authoritative lease is run_id `agent6-20261119T022744Z-678f60d67466928c`, claimed_at **2026-11-19T02:27:44.174866Z**, commit `fdc20c95d5b65ff3197e83fbe69c673e63c2dd47`. Never refresh it. Orderly release threshold is **03:37:44.174866Z** and must be checked with an actual runtime clock after every checkpoint.
+
+Important Nov19 work from the immediately preceding Agent 6 incarnation was present on main even though this memory had not yet recorded it:
+- Int32 public repeated-round MBA negative merged as `720f6aedecd8fd3caa4ddedcd27f207a3217cef1`; 1/2 rounds stayed within the sampled strict CPU budget but a frozen minified-source inverse recovered 32/32 held-out cases, while 4 rounds reproduced a Windows strict-budget conflict and deeper rounds failed cost. Agent7 subsequently recovered dataflow and table-loop source-shape variants 32/32, and Agent1 is separately taking the corrected 64-bit mathematical lane. Do not duplicate those directions.
+- cbor-x 1.6.9 structured transport evidence merged at `9c81599ab28e2f3b8cd28c9df6bb18c243c56a56`: with `structuredClone:true,useRecords:false,alwaysUseFloat:true`, the tested coarse one/32-record hot lane preserved the targeted graph/value corpus in Node, real Chromium and binary HTTP and had zero observed >2.5x hot pairs. Edge-shape/prototype/descriptor/symbol/sparse/getter and recursion-depth limits remain explicit.
+- Full JSON client-identity envelope evidence merged at `6986c5bc2d936d1b32059a10f68119037a0f4a89`: semantics including `echo(x)===x`, cycles, nested original identity and mutation reconciliation passed, but recurring graph traversal/reconciliation strictly vetoed one-record raw pairs and was decisively over budget at 32 records.
+
+This incarnation preregistered and implemented a narrower **read-only JSON identity-token** fast path:
+- prereg `workplace/sco-readonly-identity-envelope-prereg-2026-11-19.md`, commit `a12ebe65b168a7cc5ae77e4d50c7fad8bdfe8a4e`;
+- simulator `sims/sco-readonly-identity-envelope-pilot.js`, commit `fcb3b913f76e569c7db0cc896bf2352e97f61c10`;
+- isolated JSDoc config `jsconfig.sco-readonly-identity.json`;
+- reused `.github/workflows/manual-sco-structured-wire-pilot.yml` via boolean dispatch input instead of adding a new workflow.
+Local semantic smoke passed every preregistered observation. A local Linux exploratory 512-call/12-pair sample, **not source-pinned CI evidence**, measured readOnly/native ~1.42x with 0/12 strict breaches at one record but ~5.30x with 12/12 breaches at 32 records; full reconciliation was ~9.64x at 32. This strongly suggests the hand-built JSON request graph is the remaining cost source. The exact preregistered 4096-call two-OS workflow was dispatched with `readonly_identity_only:true`; Actions list calls hit an API rate limit, so its run ID is not yet recorded. Do not dispatch a duplicate.
+
+Before executing a follow-up, froze a distinct **cbor-x root-identity** contract:
+- prereg `workplace/sco-cborx-root-identity-prereg-2026-11-19.md`, commit `f7b15b28dedb0ec3c64e42fa2baf6d778175176e`;
+- simulator `sims/sco-cborx-root-identity-pilot.js`, commit `9d69f8e641341c3acdde9c21a8edefc8d983fe88`;
+- JSDoc config `jsconfig.sco-root-identity.json`, commit `c6884dad6504322277c22ad8e794a54fd9c42af5`;
+- workflow extension commit `acf1eb547524cfd55da044ba075d9ffba872b668`, YAML syntax-preflighted locally.
+This contract reuses exact cbor-x 1.6.9 structured-clone request transport and returns a compact token only when the private result is strictly one of the decoded **top-level** argument objects. It deliberately records nested-object return identity as unsupported/detached, requiring a future conservative compiler proof before selection. Exact package-dependent local execution was unavailable because sandbox npm install timed out; JavaScript syntax check passed. The two-platform workflow was dispatched with `cbor_root_identity_only:true`; do not duplicate it while Actions listing is rate-limited.
+
+Next actions: once the Actions API rate limit clears, resolve the two run IDs/statuses using the existing structured-wire workflow, inspect only failed-job tails if red, and preserve exact source SHA plus raw result summaries. Write intermediate reports under `im-results/`, not `results/`. If cbor root identity has any strict >2.5x pair or semantic/type failure, fix only genuine harness/type defects and retain the original red evidence. If it passes, the next justified step is a conservative read-only/top-level-return static proof plus real Chromium/binary-HTTP validation, with the same authorized-relay security boundary. The repository remains RELEASE-BLOCKED for the primary strong-protection objective.
