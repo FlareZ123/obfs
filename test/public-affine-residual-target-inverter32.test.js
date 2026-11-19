@@ -103,3 +103,34 @@ test('deterministic 32-bit residual inverter repairs singular interpolation exac
     assert.equal(result.closureExpansions, 0);
   }
 });
+
+
+const low4ExpansionPermutation = [
+  0, 15, 11, 5, 4, 7, 6, 2,
+  9, 14, 10, 8, 13, 1, 12, 3,
+];
+
+/** @param {number} input @returns {number} */
+function expansionOracle(input) {
+  const value = input >>> 0;
+  return ((value & 0xfffffff0) | low4ExpansionPermutation[value & 15]) >>> 0;
+}
+
+test('deterministic 32-bit residual inverter expands the hidden closure before rank repair', () => {
+  const secrets = [3, 5, 7, 11, 13, 15, 0x1234567d, 0xdeadbeef];
+  for (const secret of secrets) {
+    const result = invertPublicResidualDeterministic32(
+      expansionOracle,
+      expansionOracle(secret),
+      {
+        maxQueries: 128,
+        maxSubspaceDimension: 8,
+      },
+    );
+    assert.equal(result.value >>> 0, secret >>> 0);
+    assert.equal(result.nullity, 1);
+    assert.ok(result.closureExpansions >= 1);
+    assert.ok(result.rankRepairs >= 1);
+    assert.ok(result.queries <= 64, `unexpected query count ${result.queries}`);
+  }
+});
