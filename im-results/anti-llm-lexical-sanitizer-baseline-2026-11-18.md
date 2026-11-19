@@ -97,3 +97,42 @@ other source-recovery experiments.
 This result says nothing about adversarial identifiers, reachable misleading
 logic, opaque predicates, dynamic state, VM semantics, or model-specific
 reasoning limits. Keep it in `im-results/`.
+
+
+## Compiler-normalized identifier lane
+
+A second lane adds a conventional compiler analysis view after the conservative
+lexical pass:
+
+- `sims/anti-llm-esbuild-analysis-view.js`
+- `test/anti-llm-esbuild-analysis-view.test.js`
+- workflow source `e9cf97b0d98dc8fbe72b25b0014a0de75d47b671`
+- cross-platform run https://github.com/FlareZ123/obfs/actions/runs/44425357416
+
+The corpus moves instruction-like text into ordinary local binding, function,
+and parameter names in addition to comments and dead strings. The attacker
+first applies the lexical sanitizer and then uses the repository's pinned
+esbuild dependency with CommonJS output, Node 22 target, full minification, and
+`legalComments:'none'`.
+
+This compiler lane is deliberately narrower than arbitrary JavaScript.
+esbuild's own documentation notes that minification can change source/name
+observers and that direct `eval` or `with` blocks many identifier
+optimizations. The generated corpus contains no such observer.
+
+On both Ubuntu and Windows:
+
+- 256/256 native-versus-normalized observable outcomes matched;
+- all tested prompt-like comments, dead strings, local bindings, function
+  names, and parameter names disappeared from the normalized text;
+- total output was 25,482 bytes from 133,840 input bytes, a
+  **0.19039 output/input byte ratio**.
+
+Mean lexical-plus-esbuild normalization time was:
+
+- Ubuntu: **1,488.60 microseconds/program**;
+- Windows: **1,460.85 microseconds/program**.
+
+This adds adversarial local identifier naming to the low-cost normalization
+baseline. It still does not cover externally observed names, property keys,
+reachable misleading computations, or model-specific attacks.
