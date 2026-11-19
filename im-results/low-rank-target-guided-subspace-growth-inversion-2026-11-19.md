@@ -355,3 +355,44 @@ This result is a black-box chosen-query inversion theorem for the stated low-ran
 It does not invert arbitrary compatible permutations whose nonlinear displacement rank can grow with `n`, and it does not address secrecy mechanisms that withhold the full permutation oracle from the attacker. SCO server-held material may therefore escape this particular model when the client cannot make the required oracle evaluations.
 
 For COO and other deployments where the attacker can execute the complete published permutation on arbitrary inputs, low-rank nonlinear displacement should now be treated as an expected-query inversion stop rule rather than as a promising standalone hardness mechanism.
+
+
+## Exhaustive generator-independent validation at width 3
+
+A second reproducer removes the structured low-rank generator entirely:
+
+```text
+sims/low-rank-exhaustive-width3.js
+```
+
+For every one of the `8! = 40,320` permutations of `GF(2)^3`, and for every one of its eight output targets, it runs the same quotient-match plus subspace-growth inversion directly against the permutation table. This is valid as a theorem check because any permutation admits the model with the identity linear baseline,
+
+```text
+A = I
+c = F(0)
+g(x) = F(x) XOR F(0) XOR x,
+```
+
+and the span of `g` has some rank `r <= 3`.
+
+The exhaustive run gives:
+
+```json
+{
+  "width": 3,
+  "permutations": 40320,
+  "targets": 322560,
+  "maxQueries": 8,
+  "regimes": {
+    "0:0": 64,
+    "1:0": 2880,
+    "1:1": 256,
+    "2:0": 46208,
+    "2:1": 8448,
+    "3:0": 208896,
+    "3:1": 55808
+  }
+}
+```
+
+All `322,560` target inversions succeed. This does not prove the theorem by enumeration at larger width, but it rules out dependence on the seeded coset-permutation generator for the complete width-3 state space.
