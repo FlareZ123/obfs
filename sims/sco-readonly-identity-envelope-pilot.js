@@ -213,11 +213,11 @@ function decodeFullGraph(graph, reuse = new Map()) {
 
   for (const node of graph.nodes) {
     let object = reuse.get(node.id);
-    if (object) {
+    if (object === undefined) {
+      object = node.kind === 'array' ? [] : node.kind === 'null-object' ? Object.create(null) : {};
+    } else {
       if (objectKind(object) !== node.kind) throw new TypeError('Graph kind changed across RPC boundary');
       clearAdmittedObject(object);
-    } else {
-      object = node.kind === 'array' ? [] : node.kind === 'null-object' ? Object.create(null) : {};
     }
     objects.set(node.id, object);
     objectIds.set(object, node.id);
