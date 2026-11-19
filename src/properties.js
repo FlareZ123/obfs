@@ -1169,10 +1169,12 @@ function renameLocalProperties(source, ast, options) {
   const edits = [];
   let objects = 0;
   let properties = 0;
-  const allowDirectReflection=stableDirectOwnerReflection(ast,bindings);
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast,candidate.name,bindings,
-      new Map(),new Map(),new Map(),new Map(),new Set(),allowDirectReflection);
+    // Local-owner renaming has no closed-world ambient-effect contract.
+    // Even when this owner never escapes, unrelated source can recover and
+    // replace Object/Reflect before a reflective call. Keep direct reflection
+    // reserved for the separately gated closed-world ESM analysis.
+    const proof = proveLocalObject(ast,candidate.name,bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length &&
         !proof.inChecks.length && !proof.reflections.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
