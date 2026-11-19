@@ -11,6 +11,7 @@ const exec=promisify(execFile);
 const specimens=[
   {
     name:'host-lock-prefix',
+    sourceType:'script',
     source:'globalThis.__opaqueOutput=globalThis.__opaqueInput.value;',
     options:{
       mode:'coo',seed:'browser-opaque-error-coordinate-host-lock',
@@ -25,6 +26,7 @@ const specimens=[
   },
   {
     name:'property-rewrite',
+    sourceType:'module',
     source:"'use strict';const owner={distinctivelyLongPrivateField:73};"+
       "const value=owner.distinctivelyLongPrivateField;"+
       "[0].forEach(()=>{});void value;",
@@ -65,7 +67,7 @@ async function run(){
 
   for(const specimen of specimens){
     const output=obfuscateFiles([{
-      path:'entry.js',sourceType:'script',code:specimen.source
+      path:'entry.js',sourceType:specimen.sourceType,code:specimen.source
     }],specimen.options).files[0];
     const generated=String(output.code);
     specimen.check(output,generated);
@@ -97,7 +99,8 @@ async function run(){
         (propertyFailure?'Array.prototype.forEach=null;':'')+
         'globalThis.onerror=(message,source,line,column)=>{'+
         'globalThis.__opaqueError=line+":"+column;return true;};'+
-        '<\/script><script src="'+script+'"><\/script><script>'+
+        '<\/script><script '+(script.includes('property-rewrite')?'type="module" ':'')+
+        'src="'+script+'"><\/script><script>'+
         'setTimeout(()=>{const value='+(
           fail ? 'globalThis.__opaqueError' :
             (script.includes('property-rewrite') ? '"ok"' :
