@@ -2,8 +2,26 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const fs=require('node:fs');
+const path=require('node:path');
 const {randomBytes,createHash,createPublicKey,verify,timingSafeEqual}=require('node:crypto');
 const puppeteer=require('puppeteer-core');
+
+/**
+ * Resolve a PATH command because puppeteer-core requires an executable path,
+ * while the existing CI convention supplies CHROMIUM_BIN as "google-chrome".
+ * @param {string} command
+ * @returns {string}
+ */
+function resolveExecutable(command){
+  if(path.isAbsolute(command))return command;
+  for(const directory of (process.env.PATH??'').split(path.delimiter)){
+    if(!directory)continue;
+    const candidate=path.join(directory,command);
+    if(fs.existsSync(candidate))return candidate;
+  }
+  throw new Error('Browser executable not found in PATH: '+command);
+}
 
 /** @param {Buffer|Uint8Array} value @returns {string} */
 function base64url(value){
@@ -147,7 +165,7 @@ async function main(){
     port=address.port;
     const allowedOrigin='http://localhost:'+port;
     browser=await puppeteer.launch({
-      executablePath:process.env.CHROMIUM_BIN??'chromium',
+      executablePath:resolveExecutable(process.env.CHROMIUM_BIN??'chromium'),
       headless:true,
       args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage','--no-first-run']
     });
