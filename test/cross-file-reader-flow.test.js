@@ -301,6 +301,17 @@ test('named reader re-export preserves cross-file property rewrite',async()=>{
   ],1);
 });
 
+test('default reader re-export preserves cross-file property rewrite',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as default} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";import inspect from "./relay.mjs";'+
+      'console.log(inspect(state));'}
+  ],1);
+});
+
 
 test('named reader re-export chain preserves cross-file property rewrite',async()=>{
   await preserves([
