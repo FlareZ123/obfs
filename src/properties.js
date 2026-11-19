@@ -31,7 +31,7 @@ function stableDirectOwnerReflection(ast,bindings) {
     const call=ancestors.at(-2);
     const method=staticName(parent.property);
     const supported=node.name==='Reflect' &&
-        ['get','has','getOwnPropertyDescriptor'].includes(method??'') ||
+        ['get','has','set','getOwnPropertyDescriptor'].includes(method??'') ||
       node.name==='Object' &&
         ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
     if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
@@ -854,7 +854,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       continue;
     }
     if (allowDirectReflection && parent.type==='CallExpression' && key==='arguments' &&
-        parent.arguments[0]===node && parent.arguments.length===2 &&
+        parent.arguments[0]===node &&
         parent.arguments[1]?.type==='Literal' &&
         typeof parent.arguments[1].value==='string' &&
         parent.callee.type==='MemberExpression' && !parent.callee.computed &&
@@ -862,10 +862,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       const host=parent.callee.object.name;
       const method=staticName(parent.callee.property);
       const supported=host==='Reflect' &&
-          ['get','has','getOwnPropertyDescriptor'].includes(method??'') ||
+          ['get','has','set','getOwnPropertyDescriptor'].includes(method??'') ||
         host==='Object' &&
           ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
-      if(supported) {
+      const expectedArguments=host==='Reflect'&&method==='set'?3:2;
+      if(supported&&parent.arguments.length===expectedArguments) {
         reflections.push({call:parent,key:parent.arguments[1],property:parent.arguments[1].value});
         continue;
       }
