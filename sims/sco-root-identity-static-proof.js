@@ -174,7 +174,7 @@ function proveRootIdentityEligibility(source,name='candidate'){
       return !hasReference(keyValue);
     }
     if(owner==='Math'&&mathPrimitiveMethods.has(method)){
-      return node.arguments.every(argument=>{
+      return node.arguments.every((/** @type {import('../src/ast').AstNode} */ argument)=>{
         const value=argument.type==='SpreadElement'?
           provenance(argument.argument):provenance(argument);
         return !hasReference(value);
