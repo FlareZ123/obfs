@@ -21,9 +21,59 @@ jobs:
         run: |
           command -v google-chrome
           google-chrome --version
-      - name: Reproduce opaque host error-coordinate observation
+      - name: Verify native COO and SCO V8 failed-operand text under Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
-        run: node sims/browser-opaque-error-coordinate.js
-      - name: Strict-check external harness JSDoc
+        run: node test/string-failed-operand-browser.js
+      - name: Run live browser integration suite
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: npm run test:browser
+      - name: Native-versus-COO function-source clone errors in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/clone-source-browser.js
+      - name: Verify executable XML document URL behavior in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/xml-data-url-browser.js
+      - name: Verify public-only XOR string decoding under real Chromium CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/jsdeobsbench-public-browser.js
+      - name: Strict-check external benchmark and browser harness JSDoc
         run: npm run typecheck:external
+      - name: Compare held-out multi-file property graphs in Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/heldout-browser-integration.js
+      - name: Compare imported constant-key ownership under real browser CSP
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/imported-constant-key-browser.js
+      - name: Execute real server-private SCO before-and-after example in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-real-browser.js
+      - name: Compare native and SCO varied mixed UTF-16 literals in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-spelling-mask-browser.js
+      - name: Compare native and guarded large ESM strings after prototype index mutation in Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-array-prototype-browser.js
+      - name: Strict-check pinned TLS Chromium SCO challenge JSDoc
+        run: npx tsc -p jsconfig.sco-tls-browser.json
+      - name: Execute real SCO client over test-pinned HTTPS in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-real-tls-browser.js
+      - name: Test experimental COO piggyback sharding in real Chrome
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/coo-piggyback-browser.js
+      - name: Check experimental COO piggyback JSDoc types
+        run: node_modules/.bin/tsc -p jsconfig.piggyback.json
+      - name: Check JSDoc types
+        run: npm run typecheck
