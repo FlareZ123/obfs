@@ -67,19 +67,19 @@ test('an initial own literal key shadows a same-named inherited getter',()=>{
     module.exports=a.secretField;`,1);
 });
 
-test('direct Reflect.has can rename a private local literal key',()=>{
+test('local Reflect.has stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:11};
-    module.exports=[Reflect.has(a,"secretField"),a.secretField];`,1);
+    module.exports=[Reflect.has(a,"secretField"),a.secretField];`,0);
 });
 
-test('direct Reflect.getOwnPropertyDescriptor can rename a private local literal key',()=>{
+test('local Reflect.getOwnPropertyDescriptor stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:12};
-    module.exports=[Reflect.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,1);
+    module.exports=[Reflect.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,0);
 });
 
-test('direct Object.getOwnPropertyDescriptor can rename a private local literal key',()=>{
+test('local Object.getOwnPropertyDescriptor stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:13};
-    module.exports=[Object.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,1);
+    module.exports=[Object.getOwnPropertyDescriptor(a,"secretField").value,a.secretField];`,0);
 });
 
 test('patched Reflect.has keeps local property renaming conservative',()=>{
@@ -100,20 +100,20 @@ test('Proxy-wrapped owner remains outside local direct-reflection proof',()=>{
   });module.exports=[Reflect.has(proxy,"secretField"),a.secretField];`,0);
 });
 
-test('direct Reflect.get can rename a private local literal key',()=>{
+test('local Reflect.get stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:17};
-    module.exports=[Reflect.get(a,"secretField"),a.secretField];`,1);
+    module.exports=[Reflect.get(a,"secretField"),a.secretField];`,0);
 });
 
-test('direct Object.hasOwn can rename a private local literal key',()=>{
+test('local Object.hasOwn stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:18};
-    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,1);
+    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,0);
 });
 
-test('direct three-argument Reflect.set can rename a private local literal key',()=>{
+test('local three-argument Reflect.set stays conservative without an ambient-effect proof',()=>{
   compare(`'use strict';const a={secretField:19};
     const ok=Reflect.set(a,"secretField",23);
-    module.exports=[ok,a.secretField];`,1);
+    module.exports=[ok,a.secretField];`,0);
 });
 
 test('Reflect.set with an explicit receiver stays outside local proof',()=>{
