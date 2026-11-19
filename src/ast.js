@@ -2506,13 +2506,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     });
   }while(changedWorkerInstances);
   /**
-   * Return true when a syntactic throw can escape the nearest local catch.
+   * Return true when a runtime failure can escape the nearest local catch.
    * A catch surrounding a function declaration does not catch a later call
    * into that function, so function boundaries end this bounded proof.
    * @param {AstNode[]} ancestors
    * @returns {boolean}
    */
-  function throwMayReachHost(ancestors) {
+  function failureMayReachHost(ancestors) {
     for(let i=ancestors.length-1;i>=0;i--) {
       const ancestor=ancestors[i];
       if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type))
@@ -2528,7 +2528,15 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     // column. Browser hosts can likewise surface uncaught error locations.
     // Preserve exact source whenever a throw lacks a syntactically enclosing
     // catch before the current function boundary.
-    if(node.type==='ThrowStatement'&&throwMayReachHost(ancestors))observed=true;
+    if(node.type==='ThrowStatement'&&failureMayReachHost(ancestors))observed=true;
+    // A statically nullish ordinary member access is a guaranteed TypeError.
+    // If it escapes, the host diagnostic exposes the generated line/caret and
+    // stack column even though source never reads Error.stack.
+    const staticallyNullishObject=node.type==='MemberExpression'&&(
+      node.object.type==='Literal'&&node.object.value===null ||
+      node.object.type==='UnaryExpression'&&node.object.operator==='void');
+    if(staticallyNullishObject&&node.optional!==true&&
+       failureMayReachHost(ancestors))observed=true;
     // Keep precise local aliases and direct member access analyzable, while
     // refusing opaque process/report capability escapes that can reach getReport later.
     const directMember=parent?.type==='MemberExpression'&&key==='object';
