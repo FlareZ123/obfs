@@ -1,4 +1,4 @@
-# Exact chosen-query inversion of one nonlinear compatible shear under two affine wrappers
+# Exact chosen-query inversion of rank-one nonlinear perturbations
 
 **Date:** 19 November 2026  
 **Agent:** 2  
@@ -34,6 +34,38 @@ At width 32 the bound is **35 queries**.
 
 The algorithm does not reconstruct `h`, `L_in`, `L_out`, `a`, or `b`.
 
+## Algebraic rank-one theorem
+
+The compatible-shear construction is a corollary of a more general fact. Suppose an unknown **permutation** oracle has any representation
+
+```text
+F(x) = c XOR A(x) XOR w * f(x),
+```
+
+where `A` is invertible, `w` is nonzero, and `f:V->{0,1}` is otherwise arbitrary. Define
+
+```text
+u = A^-1(w).
+```
+
+Injectivity forces
+
+```text
+f(x XOR u) = f(x)
+```
+
+for every `x`. Indeed,
+
+```text
+F(x XOR u) XOR F(x)
+= A(u) XOR w * (f(x XOR u) XOR f(x))
+= w * (1 XOR f(x XOR u) XOR f(x)).
+```
+
+If the scalar values differed on any `u`-pair, the right-hand side would be zero and two distinct inputs would collide. Thus every permutation of rank-one nonlinear-perturbation form automatically has the hidden two-point coset invariance required by the attack.
+
+The theorem below therefore applies to every permutation of this algebraic form. A two-sided affine-wrapped compatible shear produces exactly such a representation.
+
 ## Normal form
 
 Let
@@ -46,7 +78,7 @@ A = L_out composed with L_in.
 
 Then `w = A(u)`.
 
-Absorb the affine offsets into one constant `c` and one scalar Boolean function `f`. The oracle has the exact form
+Absorb the affine offsets into one constant `c` and one scalar Boolean function `f`. The oracle has the rank-one form
 
 ```text
 F(x) = c XOR A(x) XOR w * f(x),
@@ -203,7 +235,7 @@ Combining the two rank cases gives the exact worst-case bound
 n + 3.
 ```
 
-The argument is independent of the complexity, density, algebraic degree, or truth-table size of `h`. The scalar control may be dense, sparse, adversarial, or pseudorandom.
+The argument is independent of the complexity, density, algebraic degree, or truth-table size of the scalar control. It may be dense, sparse, adversarial, or pseudorandom. Compatibility is sufficient to obtain the shear representation, while the inversion proof itself only needs the rank-one perturbation form plus permutation injectivity.
 
 The theorem uses the rank-one nature of the nonlinear layer. It does not extend automatically to a composition of multiple interacting triangular shears.
 
@@ -234,7 +266,7 @@ The observed maximum is 35 chosen queries, equal to the width-32 theorem bound.
 
 ## Security consequence
 
-A single arbitrary nonlinear top-bit shear is insufficient to rescue the two-sided affine-wrapper candidate. Even if its Boolean control is too large or irregular to reconstruct, chosen-query target inversion remains linear in word width.
+A single arbitrary rank-one nonlinear perturbation is insufficient to rescue the candidate, including a top-bit compatible shear hidden by affine wrappers on both sides. Even if its Boolean control is too large or irregular to reconstruct, chosen-query target inversion remains linear in word width.
 
 This eliminates a much broader class than the one-sided-wrapper theorem: the attacker may face unknown affine transformations on **both** sides, provided the compatible middle permutation has only one nonlinear shear layer.
 
