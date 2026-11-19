@@ -6,7 +6,7 @@ const {parse, walk} = require('../src/ast');
 
 /**
  * @typedef {object} Symbolic
- * @property {'const'|'input'|'imul'|'xor'|'ushr'|'shl'|'or'|'builtin'|'array'} kind
+ * @property {'const'|'input'|'imul'|'xor'|'ushr'|'shl'|'or'|'and'|'builtin'|'array'|'lookup'} kind
  * @property {number} [value]
  * @property {number} [index]
  * @property {string} [name]
@@ -16,6 +16,7 @@ const {parse, walk} = require('../src/ast');
  * @property {Symbolic} [base]
  * @property {number} [shift]
  * @property {Symbolic[]} [elements]
+ * @property {Symbolic} [indexExpression]
  */
 
 /**
@@ -43,6 +44,18 @@ function symbolicKey(expression) {
   if (expression.kind === 'builtin') return 'b:' + String(expression.name);
   if (expression.kind === 'array') {
     return 'a:[' + (expression.elements ?? []).map(symbolicKey).join(',') + ']';
+  }
+  if (expression.kind === 'lookup') {
+    return 'l:' +
+      symbolicKey(/** @type {Symbolic} */ (expression.indexExpression)) +
+      ':[' + (expression.elements ?? []).map(symbolicKey).join(',') + ']';
+  }
+  if (expression.kind === 'and') {
+    const sides = [
+      symbolicKey(/** @type {Symbolic} */ (expression.left)),
+      symbolicKey(/** @type {Symbolic} */ (expression.right))
+    ].sort();
+    return 'and:' + sides.join(':');
   }
   if (expression.kind === 'ushr' || expression.kind === 'shl') {
     return expression.kind + ':' + String(expression.shift) + ':' +
@@ -107,6 +120,52 @@ function makeOr(source) {
 }
 
 /** @param {Symbolic} left @param {Symbolic} right @returns {Symbolic} */
+function makeAnd(left, right) {
+  if (left.kind === 'const' && right.kind === 'const') {
+    return constant((left.value ?? 0) & (right.value ?? 0));
+  }
+  if (left.kind === 'const' && (left.value ?? 0) === 0) return constant(0);
+  if (right.kind === 'const' && (right.value ?? 0) === 0) return constant(0);
+  if (left.kind === 'const' && (left.value ?? 0) === 0xffffffff) return right;
+  if (right.kind === 'const' && (right.value ?? 0) === 0xffffffff) return left;
+  return {kind: 'and', left, right};
+}
+
+/** @param {Symbolic} expression @param {number} length @returns {boolean} */
+function indexWithinArray(expression, length) {
+  if (length <= 0) return false;
+  if (expression.kind === 'const') {
+    return (expression.value ?? 0) < length;
+  }
+  if (expression.kind !== 'and') return false;
+  const left = /** @type {Symbolic} */ (expression.left);
+  const right = /** @type {Symbolic} */ (expression.right);
+  const literal = left.kind === 'const' ? left : right.kind === 'const' ? right : null;
+  if (!literal) return false;
+  const mask = literal.value ?? 0;
+  return mask <= 0x7fffffff && mask < length;
+}
+
+/** @param {Symbolic} left @param {Symbolic} right @returns {boolean} */
+function inverseLookupPair(left, right) {
+  if (left.kind !== 'lookup' || right.kind !== 'lookup') return false;
+  const leftIndex = /** @type {Symbolic} */ (left.indexExpression);
+  const rightIndex = /** @type {Symbolic} */ (right.indexExpression);
+  if (!sameSymbolic(leftIndex, rightIndex)) return false;
+  const leftElements = left.elements ?? [];
+  const rightElements = right.elements ?? [];
+  if (leftElements.length === 0 || leftElements.length !== rightElements.length) return false;
+  if (!indexWithinArray(leftIndex, leftElements.length)) return false;
+  for (let index = 0; index < leftElements.length; index++) {
+    const a = leftElements[index];
+    const b = rightElements[index];
+    if (!a || !b || a.kind !== 'const' || b.kind !== 'const') return false;
+    if ((Math.imul(a.value ?? 0, b.value ?? 0) >>> 0) !== 1) return false;
+  }
+  return true;
+}
+
+/** @param {Symbolic} left @param {Symbolic} right @returns {Symbolic} */
 function makeImul(left, right) {
   if (left.kind === 'const' && right.kind === 'const') {
     return constant(Math.imul(left.value ?? 0, right.value ?? 0));
@@ -115,6 +174,20 @@ function makeImul(left, right) {
   if (right.kind === 'const' && (right.value ?? 0) === 0) return constant(0);
   if (left.kind === 'const' && (left.value ?? 0) === 1) return right;
   if (right.kind === 'const' && (right.value ?? 0) === 1) return left;
+
+  if (left.kind === 'imul') {
+    const nestedLeft = /** @type {Symbolic} */ (left.left);
+    const nestedRight = /** @type {Symbolic} */ (left.right);
+    if (inverseLookupPair(nestedLeft, right)) return nestedRight;
+    if (inverseLookupPair(nestedRight, right)) return nestedLeft;
+  }
+  if (right.kind === 'imul') {
+    const nestedLeft = /** @type {Symbolic} */ (right.left);
+    const nestedRight = /** @type {Symbolic} */ (right.right);
+    if (inverseLookupPair(left, nestedLeft)) return nestedRight;
+    if (inverseLookupPair(left, nestedRight)) return nestedLeft;
+  }
+
   return {kind: 'imul', left, right};
 }
 
@@ -210,9 +283,14 @@ function build(node, environment, helpers, depth = 0) {
       }
       if (node.computed) {
         const property = build(node.property, environment, helpers, depth + 1);
-        if (property?.kind !== 'const') return null;
-        const index = property.value ?? 0;
-        return object.elements?.[index] ?? null;
+        if (!property) return null;
+        if (property.kind === 'const') {
+          const index = property.value ?? 0;
+          return object.elements?.[index] ?? null;
+        }
+        const elements = object.elements ?? [];
+        if (elements.length === 0 || elements.length > 256) return null;
+        return {kind: 'lookup', elements, indexExpression: property};
       }
     }
   }
@@ -236,6 +314,7 @@ function build(node, environment, helpers, depth = 0) {
 
     if (node.operator === '^') return makeXor([left, right]);
     if (node.operator === '|') return makeOr([left, right]);
+    if (node.operator === '&') return makeAnd(left, right);
 
     if (['+', '-', '*'].includes(node.operator) &&
         left.kind === 'const' && right.kind === 'const') {
