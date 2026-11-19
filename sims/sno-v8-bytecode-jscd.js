@@ -80,6 +80,8 @@ async function main(){
   const sourcePath=path.join(workspace,'candidate.js');
   const bytecodePath=path.join(workspace,'candidate.jsc');
   const recoveredPath=path.join(workspace,'candidate.recovered.js');
+  const probePath=path.join(workspace,'ro-probe.js');
+  const probeBytecodePath=path.join(workspace,'ro-probe.jsc');
   const roMapPath=path.join(workspace,'candidate.ro-map.json');
   fs.writeFileSync(sourcePath,candidateSource,'utf8');
 
@@ -105,7 +107,29 @@ async function main(){
   const info=JSON.parse((await run(jscdBin,['info','--json',bytecodePath])).stdout);
   assert.equal(info.supported,true,'jscd does not report this V8 cache as supported');
 
-  const roMap=(await run(jscdBin,['ro-map',bytecodePath])).stdout;
+  const asciiStrings=[...bytecode.toString('latin1').matchAll(/[A-Za-z_$][A-Za-z0-9_$]{1,31}/gu)]
+    .map(match=>match[0]);
+  const genericNames=[
+    'Array','BigInt','Boolean','Buffer','Date','Error','Function','Infinity','JSON',
+    'Map','Math','NaN','Number','Object','Promise','Reflect','RegExp','Set','String',
+    'Symbol','Uint8Array','WeakMap','WeakSet','console','globalThis','process',
+    'argv','length','parse','parseInt','parseFloat','imul','stdout','stderr','write',
+    'constructor','prototype','toString','valueOf','entries','keys','values','next',
+    'then','resolve','reject','call','apply','bind','forEach','map','reduce','slice',
+    'push','pop','shift','unshift','join','split','replace','match','test','exec'
+  ];
+  const names=[...new Set([...genericNames,...asciiStrings])];
+  const probeSource=names.map((name,index)=>
+    'function p'+index+'(o){return o['+JSON.stringify(name)+'];}'
+  ).join('\n')+'\nfunction run(o){'+names.map((_,index)=>'p'+index+'(o);').join('')+
+    '}\nrun({});\n';
+  fs.writeFileSync(probePath,probeSource,'utf8');
+  await bytenode.compileFile({
+    filename:probePath,
+    output:probeBytecodePath,
+    compileAsModule:false
+  });
+  const roMap=(await run(jscdBin,['ro-map','--json',probeBytecodePath])).stdout;
   fs.writeFileSync(roMapPath,roMap,'utf8');
 
   const attackStarted=performance.now();
@@ -172,6 +196,7 @@ async function main(){
     jscd:String(info.version??info.jscd_version??'unknown'),
     detectedV8:info.v8,
     detectedNode:info.node,
+    roProbeNames:names.length,
     sourceBytes:Buffer.byteLength(candidateSource),
     bytecodeBytes:bytecode.length,
     recoveredBytes:Buffer.byteLength(recovered),
