@@ -165,7 +165,7 @@ function makeRng32(seed) {
   };
 }
 
-/*
+/**
  * Exact Las Vegas target inversion for a 32-bit permutation oracle.
  * Low public affine-residual rank makes this practical; high-rank candidates may hit the configured cap.
  * @param {(input:number)=>number} oracle
