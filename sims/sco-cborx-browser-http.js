@@ -232,13 +232,14 @@ async function run() {
 
   await new Promise((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', resolve);
+    server.listen(0, '127.0.0.1', () => resolve(undefined));
   });
   try {
     const address = server.address();
     assert.ok(address && typeof address !== 'string');
     const root = 'http://127.0.0.1:' + address.port;
 
+    /** @type {{native:number[],cbor:number[]}} */
     const cold = {native: [], cbor: []};
     for (let trial = 0; trial < 9; trial++) {
       const order = trial % 2 === 0 ?
@@ -251,7 +252,9 @@ async function run() {
       }
     }
 
-    const hot = await browserSample(root, 'cbor-hot');
+    const hot = /** @type {{floatSemantic:Record<string,boolean>,rows:Array<{count:number,values:{native:number[],json:number[],cborDefault:number[],cborFloat:number[]}}>} */ (
+      await browserSample(root, 'cbor-hot')
+    );
     assert.ok(Object.values(hot.floatSemantic).every(Boolean));
     const hotRows = hot.rows.map(row => {
       for (const values of Object.values(row.values)) {
@@ -288,7 +291,9 @@ async function run() {
       boundary: 'real Chromium standalone UMD load, hot in-page codec, and one loopback binary HTTP graph roundtrip; HTTP timing excluded'
     };
   } finally {
-    await new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => server.close(
+      error => error ? reject(error) : resolve(undefined)
+    ));
   }
 }
 
