@@ -59,12 +59,14 @@ test('all proven call sites admit the formal and its owner field',()=>{
 
 test('tuple and record carrier aliases trigger dependent formal chains',()=>{
   equivalent(`'use strict';let total=0;
-    function sink(value){total=(total+value.secret)|0;}
-    function mid(value){sink(value);}
+    function sinkA(value){total=(total+value.secret)|0;}
+    function midA(value){sinkA(value);}
+    function sinkB(value){total=(total+value.secret)|0;}
+    function midB(value){sinkB(value);}
     const first={secret:17};const tuple=[0,first,3];
-    const tupleOwner=tuple[1];mid(tupleOwner);
+    const tupleOwner=tuple[1];midA(tupleOwner);
     const second={secret:19};const record={tag:0,owned:second};
-    const recordOwner=record.owned;mid(recordOwner);
+    const recordOwner=record.owned;midB(recordOwner);
     module.exports=total;
   `,2);
 });
