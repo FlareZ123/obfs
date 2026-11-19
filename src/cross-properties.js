@@ -2477,7 +2477,8 @@ function renameCrossFileProperties(files,seed) {
             let unsafeReaderUse=false;
             walk(importer.ast,(node,parent,key)=>{
               if(node.type!=='Identifier'||!readerAliases.has(node.name))return;
-              if(parent?.type==='ImportSpecifier')return;
+              if(parent?.type==='ImportSpecifier'||
+                 parent?.type==='ImportDefaultSpecifier')return;
               const exportedReader=readerAliases.get(node.name);
               const readInfo=exportedReader ? readers.get(exportedReader) : null;
               const input=readInfo ? parent?.arguments?.[readInfo.argIndex] : null;
