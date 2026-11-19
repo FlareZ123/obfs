@@ -180,22 +180,11 @@ function normalizePublicFields(files,options={}) {
     const externalAliases=new Set();
     /** @type {[string,string][]} */
     const aliasEdges=[];
-    /** @param {import('acorn').Node|null|undefined} node */
-    function declarePattern(node) {
-      if(!node)return;
-      if(node.type==='Identifier')declared.add(node.name);
-      else if(node.type==='RestElement')declarePattern(node.argument);
-      else if(node.type==='AssignmentPattern')declarePattern(node.left);
-      else if(node.type==='ArrayPattern')
-        for(const item of node.elements)declarePattern(item);
-      else if(node.type==='ObjectPattern')
-        for(const property of node.properties)
-          declarePattern(property.type==='RestElement'?property.argument:property.value);
-    }
     walk.simple(ast,{
       VariableDeclarator(node) {
-        declarePattern(node.id);
-        if(node.id.type==='Identifier'&&node.init?.type==='Identifier')
+        if(node.id.type!=='Identifier')return;
+        declared.add(node.id.name);
+        if(node.init?.type==='Identifier')
           aliasEdges.push([node.id.name,node.init.name]);
       },
       AssignmentExpression(node) {
@@ -203,33 +192,19 @@ function normalizePublicFields(files,options={}) {
           aliasEdges.push([node.left.name,node.right.name]);
       },
       FunctionDeclaration(node) {
-        declarePattern(node.id);
-        for(const param of node.params)declarePattern(param);
-      },
-      FunctionExpression(node) {
-        declarePattern(node.id);
-        for(const param of node.params)declarePattern(param);
-      },
-      ArrowFunctionExpression(node) {
-        for(const param of node.params)declarePattern(param);
+        if(node.id?.type==='Identifier')declared.add(node.id.name);
       },
       ClassDeclaration(node) {
-        declarePattern(node.id);
-      },
-      ClassExpression(node) {
-        declarePattern(node.id);
-      },
-      CatchClause(node) {
-        declarePattern(node.param);
+        if(node.id?.type==='Identifier')declared.add(node.id.name);
       },
       ImportDeclaration(node) {
         const specifier=typeof node.source.value==='string'?node.source.value:'';
         const localPath=specifier.startsWith('./')||specifier.startsWith('../') ?
           posix.normalize(posix.join(posix.dirname(file.path),specifier)) : null;
         for(const spec of node.specifiers) {
-          declarePattern(spec.local);
-          if(localPath===null||!publishedPaths.has(localPath))
-            externalAliases.add(spec.local.name);
+          if(localPath!==null&&publishedPaths.has(localPath))
+            declared.add(spec.local.name);
+          else externalAliases.add(spec.local.name);
         }
       }
     });
