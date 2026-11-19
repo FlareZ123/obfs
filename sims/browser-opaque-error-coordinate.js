@@ -99,14 +99,16 @@ async function run(){
         (propertyFailure?'Array.prototype.forEach=null;':'')+
         'globalThis.onerror=(message,source,line,column)=>{'+
         'globalThis.__opaqueError=line+":"+column;return true;};'+
-        '<\/script><script '+(script.includes('property-rewrite')?'type="module" ':'')+
-        'src="'+script+'"><\/script><script>'+
-        'setTimeout(()=>{const value='+(
+        'const finish=()=>{const value='+(
           fail ? 'globalThis.__opaqueError' :
             (script.includes('property-rewrite') ? '"ok"' :
               '"ok:"+(globalThis.opaqueOutput??globalThis.__opaqueOutput)')
         )+';const pre=document.createElement("pre");pre.id="result";'+
-        'pre.textContent=btoa(String(value));document.body.append(pre);},0);'+
+        'pre.textContent=btoa(String(value));document.body.append(pre);};'+
+        'const loader=document.createElement("script");'+
+        (script.includes('property-rewrite')?'loader.type="module";':'')+
+        'loader.src='+JSON.stringify(script)+';'+
+        'loader.onload=()=>setTimeout(finish,0);document.head.append(loader);'+
         '<\/script></body></html>';
       res.writeHead(200,{'content-type':'text/html; charset=utf-8'});
       res.end(html);
