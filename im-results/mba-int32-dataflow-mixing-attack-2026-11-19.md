@@ -183,6 +183,53 @@ This closes the tested constant-state dispatcher rescue for the one- and two-rou
 family. The added source structure requires bounded static partial evaluation and
 keeps the recovered round semantics directly invertible.
 
+
+## Deterministically encoded public-table extension
+
+A fourth experiment tests whether reversible literal encoding of the public
+per-round tables changes the attack. Each stored additive coefficient is offset by
+a public key, each multiplier is XOR-masked, and each xor-shift or rotation distance
+is stored under a public arithmetic or XOR encoding. The predicate decodes those
+values only at their use sites inside the round loop.
+
+The fixed encoded-table regression was added only after the dataflow evaluator
+already handled its required constant operations:
+
+- fixed regression commit:
+  `a800804e69543514c8fd5480a5960ca1dd0ff872`
+- fixed-case Actions run: **44440738034**
+- post-freeze held-out generator commit:
+  `753a1f57683243f0bc58b2a18de9ea589077b421`
+- post-freeze seed:
+  `heldout-after-a800804e:2026-11-19:agent7:mba-encoded-tables:v1`
+- held-out harness: `sims/mba-author-int32-encoded-heldout.js`
+- final evidence run: **44441047391**
+- final evidence source:
+  `f795ff596c9bbcd93fe8e806988c394bc75bc58e`
+
+The held-out corpus again has 32 deterministic cases, balanced 16 one-round and
+16 two-round predicates, with fresh parameters and encoding keys. The older
+syntax extractor rejects all cases. The frozen dataflow evaluator folds the
+public decoders while statically executing the bounded round loop, then applies
+the existing public component inverse.
+
+| Metric | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Held-out cases | 32 | 32 |
+| One-round cases | 16 | 16 |
+| Two-round cases | 16 | 16 |
+| Exact parameter recoveries | **32/32** | **32/32** |
+| Exact preimages | **32/32** | **32/32** |
+| Maximum measured recovery time | 13.804673 ms | 16.221100 ms |
+
+Run **44441047391** also reran the earlier dataflow, table-loop and flattened-CFG
+held-out corpora and passed both the repository JSDoc gate and the external
+research-tool JSDoc gate on Ubuntu and Windows.
+
+This rules out the tested reversible public-table encoding as a source-shape
+rescue. The encoding adds a constant-folding step while leaving every decoding
+key and transformation publicly available.
+
 ## Security-performance interpretation
 
 The prior cross-platform runtime study in
