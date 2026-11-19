@@ -169,7 +169,7 @@ const proofInventoryCache=new WeakMap();
  *   identifierUses:Map<string,{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[],order:number}[]>,
  *   parents:WeakMap<AstNode,AstNode>, dynamicScope:boolean,
  *   functionDeclarations:AstNode[], callableDeclarators:AstNode[],
- *   aliasDeclarations:AstNode[], directAliasDeclarations:Map<string,AstNode[]>,
+ *   directAliasDeclarations:Map<string,AstNode[]>, complexAliasDeclarations:AstNode[],
  *   tupleDeclarations:Map<string,AstNode[]>,
  *   recordDeclarations:Map<string,AstNode[]>
  * }}
@@ -220,6 +220,7 @@ function collectProofInventory(ast) {
   });
   const aliasDeclarations=declarations.filter(node=>node.init&&
     ['Identifier','MemberExpression','CallExpression'].includes(node.init.type));
+  const complexAliasDeclarations=aliasDeclarations.filter(node=>node.init?.type!=='Identifier');
   // An immutable reverse index lets ordinary direct aliases use a queue per
   // candidate owner, avoiding a full scan of all declarations on each pass.
   /** @type {Map<string,AstNode[]>} */
@@ -252,7 +253,7 @@ function collectProofInventory(ast) {
     }
   }
   const inventory={calls,declarations,declarationSet:new Set(declarations),identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,aliasDeclarations,directAliasDeclarations,tupleDeclarations,recordDeclarations};
+    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,tupleDeclarations,recordDeclarations};
   proofInventoryCache.set(ast,inventory);
   return inventory;
 }
@@ -360,7 +361,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   /** @type {Map<string,{node:AstNode,params:AstNode[],forwardIndex:number,returnsRoot?:boolean,external?:boolean,consumerIndex?:number}>} */
   const functions = new Map();
   const {calls,declarationSet,identifiers,identifierUses,parents,dynamicScope,
-    functionDeclarations,callableDeclarators,aliasDeclarations,directAliasDeclarations,
+    functionDeclarations,callableDeclarators,directAliasDeclarations,complexAliasDeclarations,
     tupleDeclarations,recordDeclarations}=collectProofInventory(ast);
   for(const node of functionDeclarations){
     if (node.type === 'FunctionDeclaration' && node.id?.type === 'Identifier' &&
@@ -640,46 +641,59 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
     return false;
   }
-  // No callable or private-carrier forwarding means resolves() is precisely
-  // ordinary identifier membership. Reverse edges then reach the identical
-  // least fixed point while visiting only declarations of discovered aliases.
-  if(functions.size===0 && privateOwnerTuples.size===0 && privateOwnerRecords.size===0){
-    const pending=[rootName];
-    while(pending.length){
-      const name=/** @type {string} */ (pending.pop());
-      for(const decl of directAliasDeclarations.get(name)??[]){
-        if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1||
-           aliases.has(decl.id.name))continue;
-        aliases.add(decl.id.name);
-        pending.push(decl.id.name);
+  // Direct identifier aliases form a monotone reachability closure. The
+  // reverse edges are root-independent and cached with the parsed AST. Drain
+  // them whenever a private carrier or a proved formal introduces a new root
+  // alias, so rich function/tuple/record cases avoid rescanning direct edges.
+  const pending=[rootName];
+  /** @param {string} name @returns {boolean} */
+  function addAlias(name) {
+    if(aliases.has(name))return false;
+    aliases.add(name);
+    pending.push(name);
+    return true;
+  }
+  /** @returns {boolean} */
+  function closeDirectAliases() {
+    let added=false;
+    while(pending.length) {
+      const origin=/** @type {string} */ (pending.pop());
+      for(const decl of directAliasDeclarations.get(origin)??[]) {
+        if(decl.id.type!=='Identifier'||bindings.get(decl.id.name)!==1)continue;
+        if(addAlias(decl.id.name))added=true;
       }
     }
-  } else {
-  // Monotone fixed point: aliases are only added, never removed.
+    return added;
+  }
+
+  // The original proof is a least fixed point of direct aliases, private
+  // carriers, forwarding functions, and verified calls. Saturating one
+  // monotone relation before the other relations preserves that fixed point.
+  // Identifier initializers are fully handled by closeDirectAliases(); only
+  // computed member/call initializers need rechecking after new alias facts.
+  closeDirectAliases();
   let changed;
   do {
-    changed = false;
-    for (const decl of aliasDeclarations) {
-      if (decl.id.type === 'Identifier' && bindings.get(decl.id.name) === 1 &&
-          !aliases.has(decl.id.name) && resolves(decl.init)) {
-        aliases.add(decl.id.name);
-        changed = true;
+    changed=false;
+    for(const decl of complexAliasDeclarations) {
+      if(decl.id.type==='Identifier'&&bindings.get(decl.id.name)===1&&
+         !aliases.has(decl.id.name)&&resolves(decl.init)&&
+         addAlias(decl.id.name))changed=true;
+    }
+    if(closeDirectAliases())changed=true;
+    for(const [name,fn] of functions) {
+      const sites=calls.get(name)??[];
+      if(!sites.length)continue;
+      for(let index=0;index<fn.params.length;index++) {
+        const param=fn.params[index];
+        if(param.type!=='Identifier'||bindings.get(param.name)!==1||
+           aliases.has(param.name))continue;
+        if(sites.every(call=>resolves(call.arguments[index]))&&
+           addAlias(param.name))changed=true;
       }
     }
-    for (const [name, fn] of functions) {
-      const sites = calls.get(name) || [];
-      if (!sites.length) continue;
-      for (let index = 0; index < fn.params.length; index++) {
-        const param = fn.params[index];
-        if (param.type !== 'Identifier' || bindings.get(param.name) !== 1 || aliases.has(param.name)) continue;
-        if (sites.every(call => resolves(call.arguments[index]))) {
-          aliases.add(param.name);
-          changed = true;
-        }
-      }
-    }
-  } while (changed);
-  }
+    if(closeDirectAliases())changed=true;
+  }while(changed);
 
   // A const alias can be exported without any reference appearing in an
   // ExportSpecifier. Such exports reveal the object shape to untracked callers.

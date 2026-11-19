@@ -15,6 +15,10 @@ on:
         description: 'Use four alternating control/candidate pairs for aliases'
         type: boolean
         default: false
+      rich_aliases:
+        description: 'Include callable-containing alias corpus against general-closure baseline'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -42,9 +46,10 @@ jobs:
       - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
-          OBFS_PROOF_CONTROL_SHA: 841807ff1e37c237da347d2b70053d059bf6271f
+          OBFS_PROOF_CONTROL_SHA: ${{ inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
           OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
           OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
+          OBFS_PROOF_RICH_ALIASES: ${{ inputs.rich_aliases }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:

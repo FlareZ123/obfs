@@ -12,6 +12,7 @@ const PROPERTY_FILE=join(REPO,'src','properties.js');
 const DEFAULT_CONTROL_SHA='72fe98ac1a542bed02ef43d434876c69cff35acd';
 const CONTROL_SHA=process.env.OBFS_PROOF_CONTROL_SHA||DEFAULT_CONTROL_SHA;
 const ALIAS_OWNERS=Number(process.env.OBFS_PROOF_ALIAS_OWNERS||384);
+const RICH_ALIASES=process.env.OBFS_PROOF_RICH_ALIASES==='true';
 assert.ok(Number.isSafeInteger(ALIAS_OWNERS)&&ALIAS_OWNERS>=1&&ALIAS_OWNERS<=4096,
   'Alias owner count must be an integer from 1 to 4096');
 assert.match(CONTROL_SHA,/^[a-f0-9]{40}$/,
@@ -76,10 +77,12 @@ function mixedSource(){
 /**
  * Dense independent owner-to-alias-to-alias chains exercise the direct edge
  * fixed-point, while preserving the original generated output byte-for-byte.
+ * @param {boolean} [rich]
  * @returns {string}
  */
-function aliasSource(){
-  let code="'use strict';let total=0;\n";
+function aliasSource(rich=false){
+  let code=rich?"'use strict';function unrelated(){return 1;}let total=unrelated();\n":
+    "'use strict';let total=0;\n";
   for(let i=0;i<ALIAS_OWNERS;i++)
     code+='const bag'+i+'={secret:'+(i%31)+'};'+
       'const alias'+i+'=bag'+i+';const final'+i+'=alias'+i+';'+
@@ -108,13 +111,13 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'|'aliases'} objects
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
-  const input=objects==='mixed'?mixedSource():
-    objects==='sparse'?sparseSource():objects==='aliases'?aliasSource():original(objects);
+  const input=objects==='mixed'?mixedSource():objects==='sparse'?sparseSource():
+    objects==='aliases'?aliasSource():objects==='richAliases'?aliasSource(true):original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -124,7 +127,7 @@ function sample(objects){
   const cpu=process.cpuUsage(cpuStart);
   assert.ok(objects==='mixed'?emitted.files[0].metrics.properties>=16:
     objects==='sparse'?emitted.files[0].metrics.properties===2:
-    objects==='aliases'?emitted.files[0].metrics.properties===ALIAS_OWNERS:
+    (objects==='aliases'||objects==='richAliases')?emitted.files[0].metrics.properties===ALIAS_OWNERS:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -135,7 +138,7 @@ function sample(objects){
   new Function('module',input)(native);
   assert.equal(module.exports,native.exports);
   console.log('PROOF_INDEX_SAMPLE '+JSON.stringify({
-    objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+    objects,aliasOwners:['aliases','richAliases'].includes(String(objects))?ALIAS_OWNERS:undefined,
     platform:process.platform,node:process.version,
     cpuMs:(cpu.user+cpu.system)/1000,wallMs,
     properties:emitted.files[0].metrics.properties,
@@ -153,8 +156,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'|'aliases'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases'|'richAliases',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -170,8 +173,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse','aliases'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'|'aliases'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','aliases','richAliases'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'aliases'|'richAliases'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -194,26 +197,29 @@ if(process.argv[2]==='sample'){
     ['candidate','control','control','candidate','candidate','control','control','candidate']:
     ['candidate','control','control','candidate'];
   try{
-    for(const [objects,arms] of [
-      /** @type {[number,('control'|'candidate')[]]} */ ([512,['control','candidate','candidate','control']]),
-      /** @type {[number,('control'|'candidate')[]]} */ ([2048,largeArms]),
-      /** @type {['mixed',('control'|'candidate')[]]} */ (['mixed',['control','candidate']]),
-      /** @type {['sparse',('control'|'candidate')[]]} */ (['sparse',['candidate','control','control','candidate']]),
-      /** @type {['aliases',('control'|'candidate')[]]} */ (['aliases',aliasArms])
-    ]) {
+    /** @type {[number|'mixed'|'sparse'|'aliases'|'richAliases',('control'|'candidate')[]][]} */
+    const cases=[
+      [512,['control','candidate','candidate','control']],
+      [2048,largeArms],
+      ['mixed',['control','candidate']],
+      ['sparse',['candidate','control','control','candidate']],
+      ['aliases',aliasArms]
+    ];
+    if(RICH_ALIASES)cases.push(['richAliases',aliasArms]);
+    for(const [objects,arms] of cases){
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
       assert.equal(new Set(group.map(record=>record.sourceHash)).size,1,
         'Control and candidate must emit byte-identical code');
       assert.equal(new Set(group.map(record=>record.expectedChecksum)).size,1);
     }
-    for(const objects of [512,2048,'mixed','sparse','aliases']){
+    for(const [objects] of cases){
       const group=records.filter(record=>record.objects===objects);
       const controlRuns=group.filter(record=>record.arm==='control');
       const candidateRuns=group.filter(record=>record.arm==='candidate');
       const average=(/** @type {number[]} */ samples)=>samples.reduce((a,b)=>a+b,0)/samples.length;
       console.log('PROOF_INDEX_AB '+JSON.stringify({
-        baseline:CONTROL_SHA,objects,aliasOwners:objects==='aliases'?ALIAS_OWNERS:undefined,
+        baseline:CONTROL_SHA,objects,aliasOwners:['aliases','richAliases'].includes(String(objects))?ALIAS_OWNERS:undefined,
         platform:process.platform,node:process.version,
         controlCpuMs:controlRuns.map(x=>x.cpuMs),
         candidateCpuMs:candidateRuns.map(x=>x.cpuMs),
