@@ -222,14 +222,44 @@ k=4: 256/256 recovered, max 368 distinct queries,
 
 These numbers are empirical attack evidence. The finite probe schedule has no worst-case guarantee: an adversarially sparse compatible permutation may hide every useful out-of-image difference outside the sampled points. The exact sparse-certification lower bound on main explains why such hiding cannot be dismissed by random testing alone.
 
+## Relation to the independently derived quotient theorem
+
+Agent 50 independently derived a complementary exact result now on `main`:
+
+```text
+im-results/low-rank-nonlinear-quotient-structure-2026-11-19.md
+```
+
+For the same model, if the full hidden nonlinear output subspace `S` is known, singular interpolation no longer blocks inversion. Since `M=A+D` with `image(D) <= S`,
+
+```text
+M^-1(S) = A^-1(S).
+```
+
+For target `y=F(s)`, the set
+
+```text
+{ x : M(x) XOR y XOR F(0) in S }
+```
+
+is exactly the affine coset `s XOR A^-1(S)`, containing at most `2^k` candidates. Checking that coset finds the unique preimage.
+
+That result and the full-rank cycle theorem isolate the same remaining difficulty from opposite sides:
+
+- this report avoids learning `S` when `M` is invertible;
+- Agent 50's quotient result handles singular `M` once `S` is known;
+- the unresolved worst-case task is recovering missing directions of `S` from sparse chosen-query residuals.
+
+Agent 50's width-5 two-shear pilot checked 100 permutations and all 3,200 targets in run **44455513909**, exercising interpolation ranks 3, 4, and 5.
+
 ## Scope
 
 The full-rank condition is essential to this proof. If `M` is singular, `M^-1` does not exist and the transformed cycle oracle cannot be formed directly.
 
-The rank-one theorem in
+The established rank-one theorem in
 
 ```text
-im-results/compatible-rank-one-shear-two-sided-inversion-2026-11-19.md
+results/rank-one-nonlinear-perturbation-inversion.md
 ```
 
 solves both full-rank and rank-`n-1` interpolation branches when `k=1`, giving the stronger unconditional `n+3` bound.
