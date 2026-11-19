@@ -40,6 +40,30 @@ function spanSet(vectors) {
 }
 
 /** @param {number} value @returns {number} */
+function popcount(value) {
+  let x = mask(value);
+  let count = 0;
+  while (x !== 0) {
+    count += x & 1;
+    x >>>= 1;
+  }
+  return count;
+}
+
+/** @param {number[]} values @returns {number[]} */
+function vectorAnfCoefficients(values) {
+  const coefficients = values.map(mask);
+  for (let bit = 0; bit < WIDTH; bit += 1) {
+    for (let subset = 0; subset < SIZE; subset += 1) {
+      if (((subset >>> bit) & 1) !== 0) {
+        coefficients[subset] ^= coefficients[subset ^ (1 << bit)];
+      }
+    }
+  }
+  return coefficients.map(mask);
+}
+
+/** @param {number} value @returns {number} */
 function parity(value) {
   let x = mask(value);
   let bit = 0;
@@ -226,6 +250,15 @@ function main() {
     permutations += 1;
     const standard = residualData(permutation);
     const affineMasks = affineOutputMasks(permutation);
+    const anf = vectorAnfCoefficients(permutation);
+    const nonlinearCoefficients = anf.filter(
+      (coefficient, subset) => popcount(subset) >= 2 && coefficient !== 0,
+    );
+    assert.deepEqual(
+      [...spanSet(nonlinearCoefficients)].sort((a, b) => a - b),
+      [...spanSet(standard.residualBasis)].sort((a, b) => a - b),
+      'nonlinear ANF coefficient span must equal the intrinsic residual space',
+    );
 
     assert.equal(
       basis(affineMasks).length,
