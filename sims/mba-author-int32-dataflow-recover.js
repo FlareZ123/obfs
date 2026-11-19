@@ -354,6 +354,14 @@ function executeStatement(statement, environment, helpers) {
     return evaluate(statement.expression, environment, helpers) !== null;
   }
 
+  if (statement.type === 'SwitchStatement') {
+    return executeSwitch(statement, environment, helpers);
+  }
+
+  if (statement.type === 'WhileStatement') {
+    return executeWhileLoop(statement, environment, helpers);
+  }
+
   return false;
 }
 
@@ -363,9 +371,11 @@ function executeStatement(statement, environment, helpers) {
  * @param {Map<string,Helper>} helpers
  * @returns {boolean|null}
  */
-function evaluateLoopTest(test, environment, helpers) {
+function evaluateCondition(test, environment, helpers) {
   if (test.type !== 'BinaryExpression' ||
-      !['<', '<=', '>', '>='].includes(test.operator)) return null;
+      !['<', '<=', '>', '>=', '===', '!==', '==', '!='].includes(test.operator)) {
+    return null;
+  }
   const left = build(test.left, environment, helpers);
   const right = build(test.right, environment, helpers);
   if (left?.kind !== 'const' || right?.kind !== 'const') return null;
@@ -374,7 +384,9 @@ function evaluateLoopTest(test, environment, helpers) {
   if (test.operator === '<') return a < b;
   if (test.operator === '<=') return a <= b;
   if (test.operator === '>') return a > b;
-  return a >= b;
+  if (test.operator === '>=') return a >= b;
+  if (test.operator === '===' || test.operator === '==') return a === b;
+  return a !== b;
 }
 
 /**
@@ -422,13 +434,63 @@ function executeForLoop(loop, environment, helpers) {
   }
 
   for (let iteration = 0; iteration < 64; iteration++) {
-    const condition = evaluateLoopTest(loop.test, environment, helpers);
+    const condition = evaluateCondition(loop.test, environment, helpers);
     if (condition === null) return false;
     if (!condition) return true;
     if (!executeStatement(loop.body, environment, helpers)) return false;
     if (!executeLoopUpdate(loop.update, environment, helpers)) return false;
   }
 
+  return false;
+}
+
+/**
+ * @param {AstNode} statement
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeSwitch(statement, environment, helpers) {
+  if (statement.type !== 'SwitchStatement') return false;
+  const discriminant = build(statement.discriminant, environment, helpers);
+  if (discriminant?.kind !== 'const') return false;
+
+  let active = false;
+  for (const switchCase of statement.cases) {
+    if (!active) {
+      if (switchCase.test === null) {
+        active = true;
+      } else {
+        const test = build(switchCase.test, environment, helpers);
+        active = test?.kind === 'const' &&
+          (test.value ?? 0) === (discriminant.value ?? 0);
+      }
+    }
+    if (!active) continue;
+
+    for (const child of switchCase.consequent) {
+      if (child.type === 'BreakStatement') return true;
+      if (!executeStatement(child, environment, helpers)) return false;
+    }
+  }
+
+  return active;
+}
+
+/**
+ * @param {AstNode} loop
+ * @param {Map<string,Symbolic>} environment
+ * @param {Map<string,Helper>} helpers
+ * @returns {boolean}
+ */
+function executeWhileLoop(loop, environment, helpers) {
+  if (loop.type !== 'WhileStatement') return false;
+  for (let iteration = 0; iteration < 64; iteration++) {
+    const condition = evaluateCondition(loop.test, environment, helpers);
+    if (condition === null) return false;
+    if (!condition) return true;
+    if (!executeStatement(loop.body, environment, helpers)) return false;
+  }
   return false;
 }
 
@@ -459,6 +521,11 @@ function symbolicPredicate(functionNode, helpers) {
 
     if (statement.type === 'ForStatement') {
       if (!executeForLoop(statement, environment, helpers)) return null;
+      continue;
+    }
+
+    if (statement.type === 'WhileStatement') {
+      if (!executeWhileLoop(statement, environment, helpers)) return null;
       continue;
     }
 
