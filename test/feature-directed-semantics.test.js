@@ -88,6 +88,22 @@ const CASES = Object.freeze([
   {
     name:'nested catch binding shadowing remains lexical',
     source:`let value='outer';try{throw new Error('x');}catch(value){module.exports=[value.message,(()=>value.name)(),globalThis.value];}`
+  },
+  {
+    name:'Object.keys keeps private owner spelling observable',
+    source:`const state={secretField:41,otherField:7};module.exports=Object.keys(state).sort();`
+  },
+  {
+    name:'monkey-patched Object.hasOwn observes the key argument',
+    source:`const state={secretField:41};const nativeHasOwn=Object.hasOwn;Object.hasOwn=(owner,key)=>[key,nativeHasOwn(owner,key)];module.exports=Object.hasOwn(state,'secretField');`
+  },
+  {
+    name:'monkey-patched Reflect.get observes the key argument',
+    source:`const state={secretField:41};const nativeGet=Reflect.get;Reflect.get=(owner,key)=>key+':'+nativeGet(owner,key);module.exports=Reflect.get(state,'secretField');`
+  },
+  {
+    name:'monkey-patched descriptor lookup observes the key argument',
+    source:`const state={secretField:41};const nativeDescriptor=Object.getOwnPropertyDescriptor;Object.getOwnPropertyDescriptor=(owner,key)=>[key,nativeDescriptor(owner,key).value];module.exports=Object.getOwnPropertyDescriptor(state,'secretField');`
   }
 ]);
 
@@ -106,4 +122,12 @@ test('feature-directed corpus contains both transformed and conservatively refus
     item.literals + item.objects + item.properties + item.bindings === 0).length;
   assert.ok(transformed > 0);
   assert.ok(unchanged > 0);
+});
+
+
+test('reflective owner hazards remain ineligible for private property renaming', () => {
+  for (const item of CASES.slice(-4)) {
+    const output = transform(item.source);
+    assert.equal(output.metrics.properties, 0, item.name);
+  }
 });
