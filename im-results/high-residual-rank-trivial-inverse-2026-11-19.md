@@ -141,6 +141,64 @@ The executable witness in
 residual directions and checks exact inversion on edge cases plus
 100,000 deterministic pseudo-random 32-bit values.
 
+## Tunable trivial-inverse family
+
+The same phenomenon spans every residual rank below 31. For
+
+```text
+F_s(x) = (1 + 2^s) * x mod 2^32,
+1 <= s <= 31,
+```
+
+the standard affine interpolant is
+
+```text
+M_s(x) = x XOR (x << s).
+```
+
+The low `s` output bits cannot receive a contribution from the shifted
+term, and bit `s` has no incoming carry. Therefore every residual has
+bits 0 through `s` equal to zero, giving
+
+```text
+r(F_s) <= 31-s.
+```
+
+For `s>=2`, choose
+
+```text
+x_k = (1+2^s) * 2^k,
+0 <= k < 31-s.
+```
+
+Then direct expansion gives
+
+```text
+D_s(x_k) = 2^(k+s+1),
+```
+
+so the residuals are distinct unit vectors in positions `s+1`
+through 31 and are independent. The `s=1` case is the multiplier-three
+witness above, with residuals `12*2^k`. Hence
+
+```text
+r(F_s) = 31-s.
+```
+
+Every multiplier `1+2^s` is odd and therefore has a public modular
+inverse modulo `2^32`. The family realizes every residual rank
+
+```text
+30, 29, ..., 1, 0
+```
+
+while retaining a one-`Math.imul` inverse.
+
+The executable family audit in
+`sims/trivial-inverse-residual-rank-family32.js` checks all 31
+multipliers, their explicit independent residual witnesses, the low-bit
+upper-bound condition on deterministic samples, and exact inversion.
+
 ## Contrast with the generic residual attack
 
 The rank-only chosen-query theorem gives, at `r=30` and `n=32`,
