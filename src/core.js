@@ -719,6 +719,22 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         return cursor.type==='Identifier'?{name:cursor.name,parts}:null;
       }
       /**
+       * Resolve a local container or a direct call whose synchronous function
+       * has a finite returned-container summary.
+       * @param {import('./ast').AstNode} owner
+       * @returns {{name:string,parts:string[]}|null}
+       */
+      function sensitiveContainerPath(owner) {
+        const local=localContainerPath(owner);
+        if(local)return local;
+        if(owner.type==='CallExpression'&&owner.callee.type==='Identifier'&&
+           (returnedSensitivePaths.has(owner.callee.name)||
+            unknownSensitiveContainers.has(owner.callee.name))) {
+          return {name:owner.callee.name,parts:[]};
+        }
+        return null;
+      }
+      /**
        * Record a decoder-sensitive descendant at an exact path under a local
        * container. This is shared by direct assignments and reflective writes.
        * @param {import('./ast').AstNode} owner
@@ -794,7 +810,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           }
           return;
         }
-        const sourceRoot=localContainerPath(source);
+        const sourceRoot=sensitiveContainerPath(source);
         const targetRoot=localContainerPath(owner);
         if(!sourceRoot||!targetRoot) {
           if(containsDecoderIntrinsic(source))opaqueReflectiveSensitiveWrite=true;
@@ -859,7 +875,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             }
             return;
           }
-          const descriptorRoot=localContainerPath(descriptors);
+          const descriptorRoot=sensitiveContainerPath(descriptors);
           if(!descriptorRoot)return;
           if(unknownSensitiveContainers.has(descriptorRoot.name)) {
             opaqueReflectiveSensitiveWrite=true;
@@ -900,14 +916,14 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        * @returns {boolean}
        */
       function hasSensitiveContainerField(owner,key) {
-        if(owner.type==='Identifier') {
-          if(unknownSensitiveContainers.has(owner.name))return true;
-          const fields=returnedSensitiveFields.get(owner.name);
-          if(fields&&(key===null||fields.has(key)))return true;
-          const paths=returnedSensitivePaths.get(owner.name);
+        const summary=sensitiveContainerPath(owner);
+        if(summary) {
+          if(unknownSensitiveContainers.has(summary.name))return true;
+          const paths=returnedSensitivePaths.get(summary.name);
           if(!paths?.size)return false;
-          if(key===null)return true;
-          const prefix=sensitivePathKey([key]);
+          const requested=key===null?summary.parts:[...summary.parts,key];
+          if(key===null&&summary.parts.length===0)return true;
+          const prefix=sensitivePathKey(requested);
           return [...paths].some(pathKey=>pathKey.startsWith(prefix));
         }
         if(owner.type==='ObjectExpression') {
@@ -985,6 +1001,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           if(sensitiveReturnValue(value))add(returnedSensitiveFunctions,name);
           if(value.type==='ObjectExpression'||value.type==='ArrayExpression') {
             recordLiteralSensitiveFields(name,value);
+          }
+          if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
+            const sourceName=value.callee.name;
+            if(unknownSensitiveContainers.has(sourceName))add(unknownSensitiveContainers,name);
+            for(const key of returnedSensitiveFields.get(sourceName)??[]) {
+              addReturnedField(name,key);
+            }
+            for(const pathKey of returnedSensitivePaths.get(sourceName)??[]) {
+              addReturnedPathKey(name,pathKey);
+            }
           }
         }
       }
@@ -1088,6 +1114,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             for(const pathKey of returnedSensitivePaths.get(node.id.name)??[]) {
               addReturnedPathKey(node.init.name,pathKey);
             }
+          } else if(node.init.type==='CallExpression'&&node.init.callee.type==='Identifier') {
+            const sourceName=node.init.callee.name;
+            if(unknownSensitiveContainers.has(sourceName))add(unknownSensitiveContainers,node.id.name);
+            for(const key of returnedSensitiveFields.get(sourceName)??[]) {
+              addReturnedField(node.id.name,key);
+            }
+            for(const pathKey of returnedSensitivePaths.get(sourceName)??[]) {
+              addReturnedPathKey(node.id.name,pathKey);
+            }
           }
           if(isGlobal(node.init))add(globalNames,node.id.name);
           if(isDocumentValue(node.init) ||
@@ -1152,6 +1187,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           }
           for(const pathKey of returnedSensitivePaths.get(node.left.name)??[]) {
             addReturnedPathKey(node.right.name,pathKey);
+          }
+        } else if(node.right.type==='CallExpression'&&node.right.callee.type==='Identifier') {
+          const sourceName=node.right.callee.name;
+          if(unknownSensitiveContainers.has(sourceName))add(unknownSensitiveContainers,node.left.name);
+          for(const key of returnedSensitiveFields.get(sourceName)??[]) {
+            addReturnedField(node.left.name,key);
+          }
+          for(const pathKey of returnedSensitivePaths.get(sourceName)??[]) {
+            addReturnedPathKey(node.left.name,pathKey);
           }
         }
         if(isGlobal(node.right))add(globalNames,node.left.name);
