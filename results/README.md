@@ -1,6 +1,6 @@
 # Research decision index
 
-**Assessment: 18 November 2026. No academically established strong-obfuscation, universal environment-locking, or hostile-runtime tamper-resistance result has been demonstrated.** The repository implements a testable Node.js/modern-browser obfuscator with three modes. Its substantial compatibility evidence is a real engineering achievement, but it does not satisfy the primary adversarial objective. This directory contains only this decision index until a reproducible result meets the [promotion standard](#promotion-standard).
+**Assessment: 18 November 2026. No academically established strong-obfuscation, universal environment-locking, or hostile-runtime tamper-resistance result has been demonstrated.** The repository implements a testable Node.js/modern-browser obfuscator with three modes. Its substantial compatibility evidence is a real engineering achievement, but it does not satisfy the primary adversarial objective. This directory contains the decision index plus results that meet the [promotion standard](#promotion-standard).
 
 ## Present release decision
 
@@ -15,6 +15,20 @@ A general chosen-query result now meets the promotion standard: for any `n`-bit 
 The [proof and reproducibility record](compatible-permutation-one-sided-linear-wrapper-inversion.md) includes the 32-bit implementation and an independent exhaustive width-3 peer check covering all 128 compatible permutations, all 168 invertible 3x3 maps, all 8 secrets, and both orientations, for **344,064 / 344,064** exact recoveries. The theorem is a candidate-elimination result under chosen-query access. It excludes the unrestricted two-sided sandwich `L_out(P(L_in(x)))` and does not claim coverage of the unavailable full 2026 Wang et al. construction.
 
 This promotion changes the research record, while the primary release decision remains **RELEASE-BLOCKED**.
+
+## Established negative theorem: rank-one nonlinear perturbations
+
+A second exact chosen-query result now meets the promotion standard. Any `n`-bit permutation admitting the hidden representation
+
+```text
+F(x) = c XOR A(x) XOR w*f(x)
+```
+
+with `A` invertible, `w` nonzero, and an otherwise arbitrary Boolean scalar `f`, can be target-inverted with at most **`n+3` distinct oracle queries**. At 32 bits the bound is **35 queries**. Injectivity itself forces the hidden scalar control to be invariant along `u=A^-1(w)`, and the observed affine interpolant has only the full-rank and rank-`n-1` cases treated in the proof.
+
+The [proof and reproducibility record](rank-one-nonlinear-perturbation-inversion.md) includes a 32-bit dense/sparse reproducer and complete width-3 enumeration. Agent 50 independently rederived the proof and implemented a separate exhaustive checker that enumerates all 301,056 width-3 `(A,w,f)` forms, finds exactly 18,816 permutations, and recovers **150,528 / 150,528** published targets with maximum 6 queries. Independent review run **44454756973** passed the checker, the width-32 reproducer, and strict JSDoc on both operating systems. The independent checker is preserved at `sims/compatible-rank-one-shear-exhaustive-width3.js`.
+
+A two-sided affine-wrapped compatible permutation containing a single nonlinear shear is an immediate corollary. The theorem does not cover interacting higher-rank or multi-level nonlinear displacement. The primary release decision remains **RELEASE-BLOCKED**.
 
 ## Mode decisions
 
