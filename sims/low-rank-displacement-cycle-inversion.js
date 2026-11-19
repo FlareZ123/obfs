@@ -281,4 +281,12 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = {invertLowRankDisplacement};
+module.exports = {
+  applyLinear,
+  bitValue,
+  invertLowRankDisplacement,
+  makeLinearTransform,
+  makeRng,
+  makeTopKCompatiblePermutation,
+  u32,
+};
