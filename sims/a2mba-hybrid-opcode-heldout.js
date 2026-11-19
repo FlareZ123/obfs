@@ -158,6 +158,7 @@ function runHeldout() {
     /** @type {(left:number,right:number)=>number} */
     const candidate=vm.runInNewContext(source,{Math});
     let calls=0;
+    /** @type {(left:number,right:number)=>number} */
     const observed=(left,right)=>{
       calls++;
       return candidate(left,right);
