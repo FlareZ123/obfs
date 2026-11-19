@@ -22,8 +22,9 @@ jobs:
             https://github.com/fuqiuluo/amice/releases/download/v0.1.6-beta.2/libamice-llvm18-linux-x86_64.so
           curl -L --fail --retry 3 -o libamice.so.sha256 \
             https://github.com/fuqiuluo/amice/releases/download/v0.1.6-beta.2/libamice-llvm18-linux-x86_64.so.sha256
-          sed -i 's#libamice-llvm18-linux-x86_64.so#libamice.so#' libamice.so.sha256
-          sha256sum -c libamice.so.sha256
+          HASH="$(awk '{print $1}' libamice.so.sha256)"
+          printf '%s  libamice.so\n' "$HASH" > libamice.local.sha256
+          sha256sum -c libamice.local.sha256
       - name: Build baseline and VMP-protected kernel
         env:
           AMICE_PANIC_POLICY: abort
