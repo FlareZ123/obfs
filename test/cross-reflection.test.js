@@ -105,3 +105,10 @@ test('closed-world ESM refuses computed Reflect method access',async()=>{
 test('closed-world ESM refuses nonliteral reflective keys',async()=>{
   await check(`const key='secretField';console.log(Reflect.get(state,key));`,0);
 });
+
+
+test('closed-world ESM refuses constructor-recovered Object.hasOwn mutation',async()=>{
+  await check(`const O=({}).constructor;const native=O.hasOwn;
+    O.hasOwn=(owner,key)=>key==='secretField'&&native(owner,key);
+    console.log(Object.hasOwn(state,'secretField'),state.secretField);`,0);
+});
