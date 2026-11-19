@@ -73,11 +73,11 @@ test('dataflow attacker recovers input-indexed neutral lookup carrier', () => {
   const source = [
     "'use strict';",
     'const rot=(v,s)=>(((v<<s)|(v>>>(32-s)))>>>0);',
+    'const m=[' + tables.multipliers.join(',') + '];',
+    'const inv=[' + tables.inverses.join(',') + '];',
     'module.exports=function predicate(input){',
     'const mul=Math.imul;',
     'let x=input>>>0;',
-    'const m=[' + tables.multipliers.join(',') + '];',
-    'const inv=[' + tables.inverses.join(',') + '];',
     'const p=(' + String(round.coefficients[0] >>> 0) +
       '^mul(' + String(round.coefficients[1] >>> 0) + ',x))>>>0;',
     'const index=input&31;',
