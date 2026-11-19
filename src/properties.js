@@ -6,13 +6,6 @@ const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpel
 /** @typedef {import('./ast').AstNode} AstNode */
 
 /**
- * Collect every declared name, including names shadowed in inner scopes.
- * Requiring exactly one declaration of a tracked name is a deliberately strict
- * safety gate that avoids inventing a partial lexical resolver.
- * @param {AstNode} ast
- * @returns {Map<string,number>}
- */
-/**
  * Direct owner reflection is safe only while the ambient Object/Reflect
  * intrinsics remain source-stable. Any global-root access, local shadow,
  * alias/capture, computed method, unsupported method, or non-direct call
@@ -47,6 +40,13 @@ function stableDirectOwnerReflection(ast,bindings) {
   return stable;
 }
 
+/**
+ * Collect every declared name, including names shadowed in inner scopes.
+ * Requiring exactly one declaration of a tracked name is a deliberately strict
+ * safety gate that avoids inventing a partial lexical resolver.
+ * @param {AstNode} ast
+ * @returns {Map<string,number>}
+ */
 function collectBindings(ast) {
   const counts = new Map();
   /** @param {AstNode|null|undefined} node */
