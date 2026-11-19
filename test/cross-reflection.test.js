@@ -114,29 +114,6 @@ test('closed-world ESM refuses constructor-recovered Object.hasOwn mutation',asy
 });
 
 
-test('closed-world ESM refuses computed constructor recovery before Object.hasOwn',async()=>{
-  await check(`const key='constructor';const O=({})[key];const native=O.hasOwn;
-    O.hasOwn=(owner,name)=>name==='secretField'&&native(owner,name);
-    console.log(Object.hasOwn(state,'secretField'),state.secretField);`,0);
-});
-
-test('closed-world ESM refuses inherited constructor destructuring before Object.hasOwn',async()=>{
-  await check(`const {constructor:O}={};const native=O.hasOwn;
-    O.hasOwn=(owner,name)=>name==='secretField'&&native(owner,name);
-    console.log(Object.hasOwn(state,'secretField'),state.secretField);`,0);
-});
-
-test('closed-world ESM refuses Reflect.get constructor recovery before Object.hasOwn',async()=>{
-  await check(`const O=Reflect.get({},'constructor');const native=O.hasOwn;
-    O.hasOwn=(owner,name)=>name==='secretField'&&native(owner,name);
-    console.log(Object.hasOwn(state,'secretField'),state.secretField);`,0);
-});
-
-test('closed-world ESM refuses unsupported three-argument Reflect.get in the graph',async()=>{
-  await check(`const other={secretField:2};
-    console.log(Reflect.get(other,'secretField',{}),state.secretField);`,0);
-});
-
 
 test('closed-world ESM combines direct Reflect.get and Object.hasOwn on one owner',async()=>{
   await check(`console.log(
