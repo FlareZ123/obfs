@@ -357,7 +357,17 @@ k=8:
 
 The implementation takes `k` as a known upper bound so it can exercise the tighter final-inference bound.
 
-Focused two-platform validation run **44477303873** passed on Ubuntu and Windows at source `a0e5fd6be9bfabd5d2f6e34c5f1a1cb0113726c9`. The run included the existing low-rank target-inversion regressions, the new deterministic repair test, the complete width-3 permutation enumeration, and the project JSDoc gate. The workflow-only inclusion commit was reverted after the source-pinned dispatch.
+The reusable 32-bit attacker is also exposed as
+
+```text
+sims/public-affine-residual-target-inverter32.js::invertPublicResidualDeterministic32
+```
+
+It needs no random quotient search and no prior residual-rank value. Its operational caps only bound work; within the theorem regime it follows the deterministic closure and cycle algorithm above. The regression includes full-rank, singular rank-one, and a singular width-4 embedded fixture that requires closure growth before rank repair.
+
+Focused two-platform validation run **44478073316** passed on Ubuntu and Windows at source `59f9442ec247ca45705770b790e7faf8913515ad`. It includes the established low-rank target-inversion regressions, the reusable deterministic 32-bit attacker tests, the complete width-3 permutation enumeration, and the project JSDoc gate.
+
+An earlier source-pinned focused run **44477303873** also passed on both platforms before the reusable API integration. The temporary workflow-only inclusion commit used for the standalone deterministic test was reverted after its dispatch.
 
 ## Complete width-3 validation over every permutation
 
