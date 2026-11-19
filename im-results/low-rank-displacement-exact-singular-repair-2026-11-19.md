@@ -132,6 +132,57 @@ This matters directly for obfuscation design: low affine-residual rank cannot be
 
 The complete width-3 exhaustive checker now verifies, for all 40,320 permutations, that the interpolation residual rank equals the rank of the zero-based second-difference span.
 
+## Inversion duality
+
+For a permutation, affine-residual rank is invariant under inversion.
+
+Let the forward residual space be `R`, with public interpolant `M), and define
+
+```text
+U = M^-1(R).
+```
+
+The structural identity above gives `dim U = dim R = r`.
+
+For any `u in U`,
+
+```text
+F(x XOR u) XOR F(x) in R,
+```
+
+because both the linear difference `M(u)` and both residual values lie in `R`. Thus `F` maps every affine `U` coset into one affine `R` coset. Since `F` is a permutation and both cosets have `2^r` elements, that containment is a bijection between the two cosets.
+
+Consequently `F^-1` maps every affine `R` coset into an affine `U` coset. The induced quotient map
+
+```text
+V/R -> V/U
+```
+
+is affine and bijective. Choose any linear lift of its linear part back to `V`; subtracting that affine lift from `F^-1` leaves all residual values in `U`.
+
+Therefore the intrinsic residual space of `F^-1` is contained in `U`, so
+
+```text
+r(F^-1) <= r(F).
+```
+
+Applying the same argument to `F^-1` gives the reverse inequality. Hence
+
+```text
+r(F^-1) = r(F).
+```
+
+The containment above must then be equality in dimension, so the inverse permutation's intrinsic residual space is exactly the forward input subspace `U`.
+
+Thus inversion swaps the two natural nonlinear subspaces:
+
+```text
+R(F^-1) = U(F)
+U(F^-1) = R(F).
+```
+
+The complete width-3 checker verifies this subspace identity and rank equality for all 40,320 permutations.
+
 ## Synthetic affine surrogates
 
 The attack starts with `N=M` and maintains a synthetic linear map
