@@ -2498,7 +2498,8 @@ function renameCrossFileProperties(files,seed) {
         if (users.some(user=>
           user.proof.members.some(member=>{const field=user.proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
           user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
-          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)))) continue;
+          user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
+          user.proof.reflections.some(reflection=>!ownNames.has(reflection.property)))) continue;
         // Prevent externally exposed exports of the same object via an export specifier.
         let reexported=false;
         walk(exporter.ast,(node,parent)=>{
@@ -2537,6 +2538,13 @@ function renameCrossFileProperties(files,seed) {
           }
           for (const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
             add(user.file,edit);
+          }
+          for(const reflection of user.proof.reflections) {
+            const replacement=mapping.get(reflection.property);
+            if(replacement) {
+              add(user.file,{start:reflection.key.start,end:reflection.key.end,
+                text:JSON.stringify(replacement)});
+            }
           }
         }
         objects++;
@@ -2697,7 +2705,8 @@ function renameCrossFileProperties(files,seed) {
         return typeof field!=='string'||!ownNames.has(field);
       }) ||
       user.proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
-      user.proof.inChecks.some(check=>!ownNames.has(check.left.value))))continue;
+      user.proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
+      user.proof.reflections.some(reflection=>!ownNames.has(reflection.property))))continue;
 
     const mapping=new Map();
     for(const prop of props) {
@@ -2731,6 +2740,13 @@ function renameCrossFileProperties(files,seed) {
       }
       for(const edit of inOperatorPropertyEdits(user.proof.inChecks,mapping)) {
         add(user.file,edit);
+      }
+      for(const reflection of user.proof.reflections) {
+        const replacement=mapping.get(reflection.property);
+        if(replacement) {
+          add(user.file,{start:reflection.key.start,end:reflection.key.end,
+            text:JSON.stringify(replacement)});
+        }
       }
     }
     objects++;
