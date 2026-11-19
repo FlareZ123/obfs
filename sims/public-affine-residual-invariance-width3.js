@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const {finiteDifferenceRank} = require('./vector-boolean-profile.js');
 
 const WIDTH = 3;
 const SIZE = 1 << WIDTH;
@@ -262,6 +263,13 @@ function main() {
     const standard = residualData(permutation);
     const standardDegreeRanks = degreeQuotientRanks(permutation);
     assert.equal(standardDegreeRanks[1], standard.rank);
+    for (let maxDegree = 0; maxDegree < WIDTH; maxDegree += 1) {
+      assert.equal(
+        finiteDifferenceRank(permutation, maxDegree + 1),
+        standardDegreeRanks[maxDegree],
+        'finite-difference span must equal the corresponding ANF degree quotient',
+      );
+    }
     const affineMasks = affineOutputMasks(permutation);
     const anf = vectorAnfCoefficients(permutation);
     const nonlinearCoefficients = anf.filter(
