@@ -133,6 +133,12 @@ A future permutation candidate should pass both screens independently:
 
 This MBA Int32 family passes the first screen at the two-round depth that remains inside the measured runtime budget, while failing the second.
 
+## Cross-platform validation
+
+Focused low-rank workflow run **44479391077** passed on both Ubuntu and Windows at source `dd0e004b9a9d6c5a3fdbe7d55fa749ec58080143`. The run exercised the deterministic residual-rank screen alongside the repository's established low-rank inversion regressions and the project JSDoc gate.
+
+The workflow-only inclusion commit was reverted immediately after the source-pinned dispatch, so the research branch retains only the screen, its focused test, and this report.
+
 ## Reproduction
 
 ```text
