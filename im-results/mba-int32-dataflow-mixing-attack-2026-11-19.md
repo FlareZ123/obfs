@@ -93,6 +93,48 @@ fresh round and then uses the already-public component inverse. For this tested
 one- and two-round family, ordinary source-shape mixing changes the recognizer
 engineering without changing the attacker problem into a search problem.
 
+## Table-indexed loop extension
+
+A second frozen-attacker experiment asks whether keeping the rounds in a real loop and
+moving the public per-round constants and shifts into arrays changes the result.
+
+The attacker extension was fixed and cross-platform tested before the held-out corpus:
+
+- fixed table-indexed regression commit:
+  `ea38b303d26c09493ddb88d0a680f96ee4d5c230`
+- fixed-case Actions run: **44439318005**
+- post-freeze seed:
+  `heldout-after-ea38b303:2026-11-19:agent7:mba-table-loop:v1`
+- held-out harness: `sims/mba-author-int32-table-heldout.js`
+- held-out evidence run: **44439551438**
+
+The held-out corpus again contains 32 cases, balanced 16 one-round / 16 two-round.
+Each case uses fresh per-round values and stores them in indexed public arrays. Across
+the corpus the source varies one or two xor shifts, three or five rotation terms,
+split additive constants in separate arrays, multiplication operand order, loop tests
+using either `i < a.length` or `i <= a.length - 1`, updates using either `i++`
+or `i += 1`, helper spelling, term order, comparison direction, and ordinary
+esbuild minification.
+
+The older syntax extractor rejected all cases because the round parameters are no
+longer literal repeated-round operands. The frozen dataflow evaluator statically
+executes the bounded loop with the concrete public arrays, reconstructs the same
+round semantics, and applies the public inverse.
+
+| Metric | Ubuntu | Windows |
+| --- | ---: | ---: |
+| Held-out cases | 32 | 32 |
+| One-round cases | 16 | 16 |
+| Two-round cases | 16 | 16 |
+| Previous syntax extractor rejections | 32/32 | 32/32 |
+| Exact parameter recoveries | **32/32** | **32/32** |
+| Exact preimages | **32/32** | **32/32** |
+| Maximum measured recovery time | 15.299564 ms | 16.042300 ms |
+
+Both JSDoc gates passed on both runners. This closes the specific public-parameter-table
+rescue tested here: loop preservation and array indexing add a static partial-evaluation
+step, while the recovered attacker problem remains direct inversion.
+
 ## Security-performance interpretation
 
 The prior cross-platform runtime study in
