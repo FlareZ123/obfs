@@ -264,6 +264,34 @@ rank 32: 201 cases
 
 The observed maximum is 35 chosen queries, equal to the width-32 theorem bound.
 
+## Complete width-3 exhaustive validation
+
+A second implementation exhausts the general algebraic theorem at width 3:
+
+```text
+sims/rank-one-nonlinear-perturbation-exhaustive-small.js
+test/rank-one-nonlinear-perturbation-exhaustive-small.test.js
+```
+
+It enumerates:
+
+- all 168 invertible 3x3 GF(2) maps `A`;
+- all seven nonzero output directions `w`;
+- all 256 Boolean truth tables `f:GF(2)^3->{0,1}`.
+
+Among the 301,056 raw `(A,w,f)` representations, exactly **18,816** induce permutations. The independent width-3 attack implementation tests all eight targets for every such representation, giving **150,528 / 150,528** exact target recoveries.
+
+Both interpolation branches occur:
+
+```text
+rank 3 recoveries: 139,776
+rank 2 recoveries:  10,752
+```
+
+The maximum observed distinct-query count is **6**, equal to the theorem bound `n+3` at width 3.
+
+This exhaustive computation is supporting validation. The general `n+3` statement follows from the algebraic proof.
+
 ## Security consequence
 
 A single arbitrary rank-one nonlinear perturbation is insufficient to rescue the candidate, including a top-bit compatible shear hidden by affine wrappers on both sides. Even if its Boolean control is too large or irregular to reconstruct, chosen-query target inversion remains linear in word width.
