@@ -179,7 +179,13 @@
     "sims/mba-author-int32-minified-recover.js",
     "test/mba-author-int32-minified-recover.test.js",
     "sims/mba-author-int32-minified-heldout.js",
-    "test/mba-author-int32-minified-heldout.test.js"
+    "test/mba-author-int32-minified-heldout.test.js",
+    "sims/a2mba-context-int32-pilot.js",
+    "test/a2mba-context-int32-pilot.test.js",
+    "sims/a2mba-rotated-core-int32-pilot.js",
+    "test/a2mba-rotated-core-int32-pilot.test.js",
+    "sims/a2mba-rotated-core-static-recover.js",
+    "test/a2mba-rotated-core-static-recover.test.js"
   ],
   "exclude": [
     "node_modules"
