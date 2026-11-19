@@ -132,6 +132,47 @@ This matters directly for obfuscation design: low affine-residual rank cannot be
 
 The complete width-3 exhaustive checker now verifies, for all 40,320 permutations, that the interpolation residual rank equals the rank of the zero-based second-difference span.
 
+## Affine component-mask characterization
+
+Identify output linear functionals with masks `lambda in V` under the standard GF(2) dot product. The Boolean component
+
+```text
+f_lambda(x) = lambda . F(x)
+```
+
+is affine exactly when `lambda` annihilates every public residual value.
+
+Indeed,
+
+```text
+lambda . F(x)
+= lambda . c
+  XOR lambda . M(x)
+  XOR lambda . D(x).
+```
+
+The first two terms are affine. Therefore the component is affine for every input if and only if
+
+```text
+lambda . D(x) = 0
+```
+
+for every `x`, equivalently
+
+```text
+lambda in R^perp.
+```
+
+Hence
+
+```text
+dim { affine output component masks } = n-r.
+```
+
+Equivalently, the affine-residual rank is the codimension of the space of affine Boolean output components.
+
+This gives a dual interpretation of the same stop rule. Small `r` means many output combinations remain globally affine. Full residual rank `r=n` means there is no nonzero affine output component at all.
+
 ## Inversion duality
 
 For a permutation, affine-residual rank is invariant under inversion.
