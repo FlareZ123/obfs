@@ -64,3 +64,31 @@ workload, even if recovery becomes harder.
 
 The result remains in `im-results/`; no established-result promotion follows
 from this single family.
+
+
+## Integration re-freeze addendum
+
+Before dispatching the integration run, the restored attacker was added to
+`jsconfig.external.json`. The checker found one type-only issue in
+`symbolicKey`: `expression.value` is optional in the JSDoc union even though
+the `const` constructor always supplies it. Commit
+`54bb8d2c6e0c15f96ade9a66a97c11db19431a66` changes only that key formatting
+expression to use `expression.value ?? 0`.
+
+Because that changes the Git blob even though the runtime value for every
+reachable `const` node is unchanged, the integration evidence is treated as a
+new freeze instead of silently retaining the earlier blob metadata.
+
+- integration attacker commit:
+  `54bb8d2c6e0c15f96ade9a66a97c11db19431a66`
+- integration attacker blob:
+  `cbc0473d5b4acb917ec559e4e92596e1fa1075e4`
+- fresh post-freeze seed:
+  `heldout-after-jsdoc-freeze:2026-11-19:agent7:mba-seed-expanded:v2`
+- held-out harness commit:
+  `973b840a5d8318fa35da5e3c3e1fd6ea2c3858eb`
+
+No v2 held-out execution had been dispatched when this addendum was written.
+The recovery and performance decision rules above remain unchanged. The
+held-out harness now computes the Git blob SHA-1 of the attacker file at runtime
+and asserts exact equality with the pinned blob before generating cases.
