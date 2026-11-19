@@ -78,3 +78,47 @@ test('closed-world ESM refuses direct own-key reflection of imported owner',asyn
       Object.keys(state)
     ]));`,0);
 });
+
+
+test('closed-world ESM can rename a direct literal-key Reflect.get read',async()=>{
+  await check(`console.log(Reflect.get(state,'secretField'));`,1);
+});
+
+test('closed-world ESM can rename a direct literal-key Object.hasOwn check',async()=>{
+  await check(`console.log(Object.hasOwn(state,'secretField'),state.secretField);`,1);
+});
+
+
+test('closed-world ESM refuses direct reflection in a source-spelled failed call operand',async()=>{
+  await check(`try{Reflect.get(state,'secretField')();}catch(error){console.log(error.message);}`,0);
+});
+
+test('closed-world ESM refuses aliased Reflect when the intrinsic can be replaced',async()=>{
+  await check(`const R=Reflect;const nativeGet=R.get;R.get=(owner,key)=>key+':'+nativeGet(owner,key);
+    console.log(R.get(state,'secretField'));`,0);
+});
+
+test('closed-world ESM refuses computed Reflect method access',async()=>{
+  await check(`console.log(Reflect['get'](state,'secretField'));`,0);
+});
+
+test('closed-world ESM refuses nonliteral reflective keys',async()=>{
+  await check(`const key='secretField';console.log(Reflect.get(state,key));`,0);
+});
+
+
+test('closed-world ESM refuses constructor-recovered Object.hasOwn mutation',async()=>{
+  await check(`const O=({}).constructor;const native=O.hasOwn;
+    O.hasOwn=(owner,key)=>key==='secretField'&&native(owner,key);
+    console.log(Object.hasOwn(state,'secretField'),state.secretField);`,0);
+});
+
+
+
+test('closed-world ESM combines direct Reflect.get and Object.hasOwn on one owner',async()=>{
+  await check(`console.log(
+    Reflect.get(state,'secretField'),
+    Object.hasOwn(state,'secretField'),
+    state.secretField
+  );`,1);
+});
