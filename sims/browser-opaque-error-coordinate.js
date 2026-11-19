@@ -26,8 +26,8 @@ const specimens=[
   {
     name:'property-rewrite',
     source:"'use strict';const owner={distinctivelyLongPrivateField:73};"+
-      "const value=owner.distinctivelyLongPrivateField;const input=globalThis.__opaqueInput;"+
-      "void input.missingField;globalThis.__opaqueOutput=value;",
+      "const value=owner.distinctivelyLongPrivateField;"+
+      "void opaqueInput.missingField;opaqueOutput=value;",
     options:{
       mode:'coo',seed:'browser-opaque-error-coordinate-property',
       strings:false,identifiers:false
@@ -91,12 +91,14 @@ async function run(){
       const input=fail?'null':'{value:73,missingField:1}';
       const html='<!doctype html><html><body><script>'+
         'globalThis.__opaqueInput='+input+';globalThis.__opaqueOutput=null;'+
-        'globalThis.__opaqueError="";'+
+        'globalThis.opaqueInput=globalThis.__opaqueInput;'+
+        'globalThis.opaqueOutput=null;globalThis.__opaqueError="";'+
         'globalThis.onerror=(message,source,line,column)=>{'+
         'globalThis.__opaqueError=line+":"+column;return true;};'+
         '<\/script><script src="'+script+'"><\/script><script>'+
         'setTimeout(()=>{const value='+(
-          fail ? 'globalThis.__opaqueError' : '"ok:"+globalThis.__opaqueOutput'
+          fail ? 'globalThis.__opaqueError' :
+            '"ok:"+(globalThis.opaqueOutput??globalThis.__opaqueOutput)'
         )+';const pre=document.createElement("pre");pre.id="result";'+
         'pre.textContent=btoa(String(value));document.body.append(pre);},0);'+
         '<\/script></body></html>';
