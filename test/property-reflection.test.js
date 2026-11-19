@@ -110,3 +110,22 @@ test('direct Object.hasOwn can rename a private local literal key',()=>{
     module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,1);
 });
 
+test('direct three-argument Reflect.set can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:19};
+    const ok=Reflect.set(a,"secretField",23);
+    module.exports=[ok,a.secretField];`,1);
+});
+
+test('Reflect.set with an explicit receiver stays outside local proof',()=>{
+  compare(`'use strict';const a={secretField:20};const receiver={};
+    const ok=Reflect.set(a,"secretField",24,receiver);
+    module.exports=[ok,a.secretField,receiver.secretField];`,0);
+});
+
+test('patched Reflect.set keeps local property renaming conservative',()=>{
+  compare(`'use strict';const native=Reflect.set;
+    Reflect.set=(owner,key,value)=>native(owner,key,value);
+    const a={secretField:21};Reflect.set(a,"secretField",25);
+    module.exports=a.secretField;`,0);
+});
+
