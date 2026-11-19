@@ -488,6 +488,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       ownerName=cursor.name;
     }
     if(ownerName===null)return false;
+    if(unknownSensitiveContainers.has(ownerName))return true;
     const paths=returnedSensitivePaths.get(ownerName);
     if(!paths?.size)return false;
     const unknown=parts.indexOf(null);
@@ -659,6 +660,29 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       function recordLiteralSensitivePaths(name,value,prefix=[]) {
         if(value.type==='ObjectExpression') {
           for(const property of value.properties) {
+            if(property.type==='SpreadElement') {
+              const source=property.argument;
+              if(source.type==='ObjectExpression'||source.type==='ArrayExpression') {
+                recordLiteralSensitivePaths(name,source,prefix);
+                continue;
+              }
+              const sourceRoot=sensitiveContainerPath(source);
+              if(sourceRoot) {
+                if(unknownSensitiveContainers.has(sourceRoot.name)) {
+                  add(unknownSensitiveContainers,name);
+                  continue;
+                }
+                const sourcePrefix=sensitivePathKey(sourceRoot.parts);
+                const targetPrefix=sensitivePathKey(prefix);
+                for(const pathKey of returnedSensitivePaths.get(sourceRoot.name)??[]) {
+                  if(!pathKey.startsWith(sourcePrefix)||pathKey.length===sourcePrefix.length)continue;
+                  addReturnedPathKey(name,targetPrefix+pathKey.slice(sourcePrefix.length));
+                }
+              } else if(containsDecoderIntrinsic(source)) {
+                add(unknownSensitiveContainers,name);
+              }
+              continue;
+            }
             if(property.type!=='Property')continue;
             const key=property.computed?staticString(property.key):
               property.key.type==='Identifier'?property.key.name:staticString(property.key);
@@ -680,7 +704,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(value.type!=='ArrayExpression')return;
         for(let index=0;index<value.elements.length;index++) {
           const element=value.elements[index];
-          if(!element||element.type==='SpreadElement')continue;
+          if(!element)continue;
+          if(element.type==='SpreadElement') {
+            if(containsDecoderIntrinsic(element.argument))add(unknownSensitiveContainers,name);
+            continue;
+          }
           const key=String(index);
           const pathParts=[...prefix,key];
           if(sensitiveReturnValue(element)) {
@@ -857,6 +885,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           for(const source of node.arguments.slice(1)) {
             recordSensitiveContainerCopy(target,source);
           }
+          return;
+        }
+        if((isObjectIntrinsic(receiver)||isReflectIntrinsic(receiver))&&
+           method==='setPrototypeOf') {
+          const prototype=node.arguments[1];
+          if(prototype)recordSensitiveContainerCopy(target,prototype);
           return;
         }
         if(isObjectIntrinsic(receiver)&&method==='defineProperties') {
@@ -1231,7 +1265,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(expression.type==='Identifier'&&unknownSensitiveContainers.has(expression.name))return true;
     if(expression.type==='Identifier'&&returnedSensitivePaths.get(expression.name)?.size)return true;
     if(expression.type==='CallExpression'&&expression.callee.type==='Identifier'&&
-       returnedSensitivePaths.get(expression.callee.name)?.size)return true;
+       (returnedSensitivePaths.get(expression.callee.name)?.size||
+        unknownSensitiveContainers.has(expression.callee.name)))return true;
     if(expression.type==='SpreadElement')return containsDecoderIntrinsic(expression.argument);
     if(expression.type==='SequenceExpression')return expression.expressions.some(
       (/** @type {import('./ast').AstNode} */ part)=>containsDecoderIntrinsic(part));
