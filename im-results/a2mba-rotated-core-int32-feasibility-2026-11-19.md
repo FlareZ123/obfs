@@ -64,6 +64,20 @@ Manual attacker-normalizer run [44447366918](https://github.com/FlareZ123/obfs/a
 
 This is a bounded family result. It establishes that simple seed/identifier/spelling variation does not rescue the public rotated-coordinate representation from a source-aware recognizer. It does not establish generic recovery of arbitrary A²MBA output or arbitrary JavaScript arithmetic.
 
+
+## Cross-platform higher-resolution selected-work profile
+
+The first Windows CI profile used five million calls per sample. Its raw `process.cpuUsage()` samples were visibly quantized and produced 10/70 strict pair ratios above 2.5x even though ratio-of-medians stayed near 1.66x–2.00x. Because the individual Windows CPU samples were too short to resolve the strict pair boundary reliably, the benchmark was rerun with 25,000,000 calls per sample and raw per-pair CPU samples emitted. The earlier low-resolution run remains useful as a timer-resolution warning rather than an admission measurement.
+
+Manual attacker-normalizer run [44447900344](https://github.com/FlareZ123/obfs/actions/runs/44447900344), source head `a6aa88ca1165c82b211d356fb0b1b0335da35fb4`, used Node 22.23.4 on both platforms. Each of ten representative rotations had seven alternating native/protected pairs:
+
+- `ubuntu-latest`: **0/70** strict >2.5x pairs. Representative ratio-of-medians ranged about **2.23x–2.30x**; observed per-pair maxima stayed below 2.33x.
+- `windows-latest`: **0/70** strict >2.5x pairs. Ratio-of-medians ranged **1.90698x–2.18023x**; the worst observed pair was **2.40385x** at rotation 2.
+
+The raw Windows samples still show platform CPU-accounting granularity, but the longer sample duration moves every observed pair below the strict threshold. This is selected-work evidence only. Whole-application overhead, source size, JIT effects in larger programs, and browser engines remain unmeasured.
+
+The performance result therefore keeps the rotated-core component feasible as a low-cost representation transform. The frozen 32/32 source-only recovery result still prevents treating this representation, by itself, as a static-resistance gain.
+
 ## Decision
 
 The rotated-core representation is worth a narrower follow-up because this local selected-work screen leaves measurable runtime headroom, unlike the direct nonlinear-envelope port. Its algebraic structure also gives a concrete adversarial target: a frozen normalizer should recover the operator graph by undoing the public coordinate system.
