@@ -199,3 +199,19 @@ test('closed-world ESM refuses Reflect.set value spread that can supply a receiv
     console.log(ok,state.secretField,receiver.secretField);`,0);
 });
 
+test('closed-world ESM keeps direct reflection aligned through a private owner alias',async()=>{
+  await check(`const alias=state;
+    console.log(Reflect.has(alias,'secretField'),alias.secretField);`,1);
+});
+
+test('closed-world ESM keeps direct reflection aligned through local identity forwarding',async()=>{
+  await check(`const identity=value=>value;const alias=identity(state);
+    console.log(Reflect.get(alias,'secretField'),alias.secretField);`,1);
+});
+
+test('closed-world ESM refuses accessor-defined owner fields for direct descriptor reflection',async()=>{
+  await check(`const descriptor=Object.getOwnPropertyDescriptor(state,'secretField');
+    console.log(descriptor.get?.call(state));`,0,
+    `export const state={get secretField(){return Object.keys(this)[0];}};`);
+});
+
