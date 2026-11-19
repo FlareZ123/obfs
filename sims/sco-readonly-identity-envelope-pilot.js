@@ -212,12 +212,12 @@ function decodeFullGraph(graph, reuse = new Map()) {
   const objectIds = new WeakMap();
 
   for (const node of graph.nodes) {
-    let object = reuse.get(node.id);
-    if (object === undefined) {
-      object = node.kind === 'array' ? [] : node.kind === 'null-object' ? Object.create(null) : {};
-    } else {
-      if (objectKind(object) !== node.kind) throw new TypeError('Graph kind changed across RPC boundary');
-      clearAdmittedObject(object);
+    const existing = reuse.get(node.id);
+    const object = /** @type {object} */ (existing ??
+      (node.kind === 'array' ? [] : node.kind === 'null-object' ? Object.create(null) : {}));
+    if (existing !== undefined) {
+      if (objectKind(existing) !== node.kind) throw new TypeError('Graph kind changed across RPC boundary');
+      clearAdmittedObject(existing);
     }
     objects.set(node.id, object);
     objectIds.set(object, node.id);
