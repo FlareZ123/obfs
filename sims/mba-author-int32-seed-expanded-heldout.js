@@ -2,6 +2,8 @@
 
 const assert = require('node:assert/strict');
 const {createHash} = require('node:crypto');
+const {readFileSync} = require('node:fs');
+const {join} = require('node:path');
 const {performance} = require('node:perf_hooks');
 const {transformSync} = require('esbuild');
 const {recover} = require('./mba-author-int32-minified-recover');
@@ -11,9 +13,21 @@ const {
   inverseChain32
 } = require('./mba-author-int32-component-inverse');
 
-const ATTACKER_COMMIT = '95758eb71d69f7ebc6b24816fa9b5bb3665d4083';
-const ATTACKER_BLOB = 'fbb449a7da43612d153af5244d42b036ec2bd0a7';
-const SEED = 'heldout-after-seed-expander-freeze:2026-11-19:agent7:mba-seed-expanded:v1';
+const ATTACKER_COMMIT = '54bb8d2c6e0c15f96ade9a66a97c11db19431a66';
+const ATTACKER_BLOB = 'cbc0473d5b4acb917ec559e4e92596e1fa1075e4';
+const SEED = 'heldout-after-jsdoc-freeze:2026-11-19:agent7:mba-seed-expanded:v2';
+
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
+function gitBlobSha(filePath) {
+  const bytes = readFileSync(filePath);
+  return createHash('sha1')
+    .update('blob ' + String(bytes.length) + '\0')
+    .update(bytes)
+    .digest('hex');
+}
 
 class HashStream {
   /** @param {string} seed */
@@ -189,6 +203,8 @@ function sourceFor(
  * }}
  */
 function runHeldoutRecovery() {
+  const actualAttackerBlob = gitBlobSha(join(__dirname, 'mba-author-int32-dataflow-recover.js'));
+  assert.equal(actualAttackerBlob, ATTACKER_BLOB);
   const stream = new HashStream(SEED);
   /** @type {Array<Record<string,unknown>>} */
   const records = [];
@@ -268,6 +284,7 @@ function runHeldoutRecovery() {
   return {
     attackerCommit:ATTACKER_COMMIT,
     attackerBlob:ATTACKER_BLOB,
+    actualAttackerBlob,
     seed:SEED,
     cases:records.length,
     oneRoundCases:records.filter(record => record.roundCount === 1).length,
