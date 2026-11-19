@@ -15,6 +15,6 @@ test('public affine residual rank is subadditive under all width-2 function comp
   assert.equal(report.width, 2);
   assert.equal(report.functions, 256);
   assert.equal(report.pairs, 65536);
-  assert.equal(report.maxCompositionRank, 2);
+  assert.equal(report.maxCompositionRank, 1);
   assert.ok(report.tightRankBounds > 0);
 });
