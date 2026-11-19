@@ -12,6 +12,41 @@ const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpel
  * @param {AstNode} ast
  * @returns {Map<string,number>}
  */
+/**
+ * Direct owner reflection is safe only while the ambient Object/Reflect
+ * intrinsics remain source-stable. Any global-root access, local shadow,
+ * alias/capture, computed method, unsupported method, or non-direct call
+ * disables this optional proof lane for the complete source unit.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @returns {boolean}
+ */
+function stableDirectOwnerReflection(ast,bindings) {
+  if(bindings.has('Object')||bindings.has('Reflect'))return false;
+  let stable=true;
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!stable||node.type!=='Identifier')return;
+    if(['globalThis','window','self','global'].includes(node.name)) {
+      stable=false;
+      return;
+    }
+    if(node.name!=='Object'&&node.name!=='Reflect')return;
+    if(parent?.type!=='MemberExpression'||parent.object!==node||parent.computed) {
+      stable=false;
+      return;
+    }
+    const call=ancestors.at(-2);
+    const method=staticName(parent.property);
+    const supported=node.name==='Reflect' &&
+        ['get','has','getOwnPropertyDescriptor'].includes(method??'') ||
+      node.name==='Object' &&
+        ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
+    if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
+       call.optional)stable=false;
+  });
+  return stable;
+}
+
 function collectBindings(ast) {
   const counts = new Map();
   /** @param {AstNode|null|undefined} node */
@@ -826,8 +861,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
         parent.callee.object.type==='Identifier') {
       const host=parent.callee.object.name;
       const method=staticName(parent.callee.property);
-      if(host==='Reflect' && method==='get' ||
-         host==='Object' && method==='hasOwn') {
+      const supported=host==='Reflect' &&
+          ['get','has','getOwnPropertyDescriptor'].includes(method??'') ||
+        host==='Object' &&
+          ['hasOwn','getOwnPropertyDescriptor'].includes(method??'');
+      if(supported) {
         reflections.push({call:parent,key:parent.arguments[1],property:parent.arguments[1].value});
         continue;
       }
@@ -1128,15 +1166,19 @@ function renameLocalProperties(source, ast, options) {
   const edits = [];
   let objects = 0;
   let properties = 0;
+  const allowDirectReflection=stableDirectOwnerReflection(ast,bindings);
   for (const candidate of candidates) {
-    const proof = proveLocalObject(ast, candidate.name, bindings);
-    if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    const proof = proveLocalObject(ast,candidate.name,bindings,
+      new Map(),new Map(),new Map(),new Map(),new Set(),allowDirectReflection);
+    if (!proof || (!proof.members.length && !proof.patterns.length &&
+        !proof.inChecks.length && !proof.reflections.length)) continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
         proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
-        proof.inChecks.some(check=>!ownNames.has(check.left.value))) continue;
+        proof.inChecks.some(check=>!ownNames.has(check.left.value)) ||
+        proof.reflections.some(reflection=>!ownNames.has(reflection.property))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
       const old = ownPropertyName(prop);
@@ -1161,10 +1203,17 @@ function renameLocalProperties(source, ast, options) {
     }
     edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
     edits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
+    for(const reflection of proof.reflections) {
+      const replacement=mapping.get(reflection.property);
+      if(replacement)edits.push({
+        start:reflection.key.start,end:reflection.key.end,
+        text:JSON.stringify(replacement)
+      });
+    }
     objects++;
     properties += mapping.size;
   }
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,stableDirectOwnerReflection,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
