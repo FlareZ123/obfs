@@ -7,21 +7,77 @@ permissions:
   contents: read
 
 jobs:
-  candidate:
+  wasm-i32:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install repository dependencies
-        run: npm install --no-package-lock --ignore-scripts
-      - name: Install pinned bytecode candidate and attacker
-        run: npm install --no-save --no-package-lock bytenode@2.1.0 @ejfkdev/jscd@0.3.3
-      - name: Run source-free V8 bytecode candidate against jscd
-        run: node sims/sno-v8-bytecode-jscd.js
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Balanced real-clock Wasm i32 Chromium CPU differential
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/wasm-i32-browser.js
+      - name: Experimental fused four-word ARX semantics, extraction and warm profile
+        run: node --test test/fused-arx-batch.test.js
+      - name: Fused ARX fresh-instance amortization session curve
+        run: node sims/fused-arx-session-crossover.js
+      - name: Fused ARX independent fresh-process cold CPU differential
+        run: node sims/fused-arx-fresh-process-cold.js
+      - name: Real Chromium batched ARX matched CPU and semantics probe
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-batch-browser.js
+      - name: Real Chromium hostile preload and cross-origin Wasm clone
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-browser-runtime-clone.js
+      - name: Real Chromium runtime substitution of unchanged Wasm application bytes
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/fused-arx-browser-runtime-tamper.js
+      - name: Frozen three-module stateful ARX parity, source refusal and byte clone
+        run: node --test test/stateful-arx-graph-fuse.test.js
+      - name: Differential, negative and public-binary extraction tests
+        run: node --test test/wasm-i32.test.js test/wasm-i32-commonjs-lazy.test.js test/wasm-i32-deferred-static-recovery.test.js test/json-parse-function-source-observer.test.js test/wasm-i32-static-recovery.test.js test/wasm-runtime-capture.test.js test/fused-arx-runtime-extraction.test.js test/fused-arx-static-lift.test.js test/wasm-i32-multi-static-decoys.test.js test/wasm-i32-native-rebuild.test.js test/wasm-i32-esm-native-rebuild.test.js test/wasm-i32-early-cycle.test.js test/wasm-i32-nested-fuzz.test.js test/wasm-i32-multiparam.test.js test/wasm-i32-multifile.test.js test/wasm-i32-conditional.test.js test/wasm-i32-lazy-conditional.test.js test/wasm-i32-multi-early-cycle.test.js test/wasm-i32-conditional-fuzz.test.js test/wasm-i32-negative-zero.test.js test/regexp-function-source-observer.test.js test/string-prototype-function-source-receiver.test.js test/function-source-coercion-matrix.test.js test/string-static-function-source-observer.test.js test/source-observer-counterfactual-differential.test.js test/object-groupby-function-source-observer.test.js
+      - name: Verify pinned before/after artifact
+        run: |
+          node examples/wasm-i32/build.cjs
+          node examples/wasm-i32-multi/build.cjs
+          node examples/wasm-i32-conditional/build.cjs
+          node examples/wasm-i32-lazy/build.cjs
+      - name: Hostile-runtime binary extraction and function replacement
+        run: node sims/wasm-i32-runtime-extraction.js
+      - name: Whole-session initialization cost curve
+        run: node sims/wasm-i32-cold-counterexample.js
+      - name: CommonJS deferred-compilation native/eager/lazy control
+        run: node sims/wasm-i32-commonjs-lazy-profile.js
+      - name: SNO runtime-only first-use Wasm cost curve
+        run: node sims/wasm-i32-commonjs-runtime-budget.js
+      - name: Whole-graph cold native versus Wasm versus offline-native control
+        run: node sims/wasm-i32-esm-rebuild-profile.js
+      - name: Strict JSDoc checks
+        run: npm run typecheck
+      - name: Strict Wasm research and attacker JSDoc checks
+        run: npx tsc -p jsconfig.wasm-i32.json
+      - name: Real Chromium public-only native replacement and strict CSP
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-native-clone-browser.js
+      - name: Real Chromium strict CSP denial and targeted Wasm allowance
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/wasm-i32-csp-browser.js
