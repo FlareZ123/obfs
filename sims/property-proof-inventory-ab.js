@@ -109,6 +109,24 @@ function dependencyAliasSource(){
   return code+'const root={secret:37};f0(root);module.exports=total;\n';
 }
 
+/** @returns {string} */
+function dependencyMixedSource(){
+  return `'use strict';let total=0;
+    function id(value){return value;}
+    function sinkA(value){total=(total+value.secret)|0;}
+    function sinkB(value){total=(total+value.secret)|0;}
+    function sinkC(value){total=(total+value.secret)|0;}
+    const first={secret:11};const firstAlias=id(first);sinkA(firstAlias);
+    const second={secret:13};const tuple=[0,second,3];
+    const tupleOwner=tuple[1];const tupleAlias=tupleOwner;sinkB(tupleAlias);
+    const third={secret:17};const record={tag:0,owned:third};
+    const recordOwner=record.owned;const recordAlias=recordOwner;sinkC(recordAlias);
+    function blocked(value){return value.hidden;}
+    const escaped={hidden:19};const observed=Object.keys(escaped)[0];
+    const blockedValue=blocked(escaped);blocked(7);
+    module.exports=[total,observed,blockedValue];\n`;
+}
+
 /**
  * Stress cases with almost no private owners among numerous ordinary bindings.
  * A global AST index can lose to a smaller local scan on sparse inputs.
@@ -130,14 +148,15 @@ function sha256(source){
 /**
  * The sample runs in a fresh subprocess after the controlling source swap.
  * CPU and wall both measure only obfuscateFiles, not this script's process.
- * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'} objects
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} objects
  * @returns {void}
  */
 function sample(objects){
   const {obfuscateFiles}=require('../src');
   const input=objects==='mixed'?mixedSource():objects==='sparse'?sparseSource():
     objects==='aliases'?aliasSource():objects==='richAliases'?aliasSource(true):
-    objects==='dependencyAliases'?dependencyAliasSource():original(objects);
+    objects==='dependencyAliases'?dependencyAliasSource():
+    objects==='dependencyMixed'?dependencyMixedSource():original(objects);
   const cpuStart=process.cpuUsage();
   const wallStart=performance.now();
   const emitted=obfuscateFiles([{path:'onefile.cjs',code:input,sourceType:'commonjs'}],{
@@ -149,6 +168,7 @@ function sample(objects){
     objects==='sparse'?emitted.files[0].metrics.properties===2:
     (objects==='aliases'||objects==='richAliases')?emitted.files[0].metrics.properties===ALIAS_OWNERS:
     objects==='dependencyAliases'?emitted.files[0].metrics.properties===1:
+    objects==='dependencyMixed'?emitted.files[0].metrics.properties===3:
     emitted.files[0].metrics.properties===objects,'Positive field rewrite required');
   const output=/** @type {string} */ (emitted.files[0].code);
   /** @type {{exports:number|null}} */
@@ -178,8 +198,8 @@ function replaceAtomically(content){
 
 /**
  * @param {'control'|'candidate'} arm
- * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'} objects
- * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
+ * @param {number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} objects
+ * @returns {{arm:string,objects:number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed',cpuMs:number,wallMs:number,properties:number,sourceHash:string,sourceBytes:number,expectedChecksum:number}}
  */
 function run(arm,objects){
   const code=arm==='control'?control:originalCompiler;
@@ -195,8 +215,8 @@ function run(arm,objects){
 }
 
 if(process.argv[2]==='sample'){
-  sample(['mixed','sparse','aliases','richAliases','dependencyAliases'].includes(process.argv[3])?
-    /** @type {'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'} */ (process.argv[3]):Number(process.argv[3]));
+  sample(['mixed','sparse','aliases','richAliases','dependencyAliases','dependencyMixed'].includes(process.argv[3])?
+    /** @type {'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed'} */ (process.argv[3]):Number(process.argv[3]));
 }else{
   // This intentionally swaps the single compiler file, so only run in an
   // isolated CI checkout with no concurrent compiler clients.
@@ -219,7 +239,7 @@ if(process.argv[2]==='sample'){
     ['candidate','control','control','candidate','candidate','control','control','candidate']:
     ['candidate','control','control','candidate'];
   try{
-    /** @type {[number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases',('control'|'candidate')[]][]} */
+    /** @type {[number|'mixed'|'sparse'|'aliases'|'richAliases'|'dependencyAliases'|'dependencyMixed',('control'|'candidate')[]][]} */
     const cases=[
       [512,['control','candidate','candidate','control']],
       [2048,largeArms],
@@ -228,7 +248,10 @@ if(process.argv[2]==='sample'){
       ['aliases',aliasArms]
     ];
     if(RICH_ALIASES)cases.push(['richAliases',aliasArms]);
-    if(DEPENDENCY_ALIASES)cases.push(['dependencyAliases',aliasArms]);
+    if(DEPENDENCY_ALIASES){
+      cases.push(['dependencyMixed',['control','candidate','candidate','control']]);
+      cases.push(['dependencyAliases',aliasArms]);
+    }
     for(const [objects,arms] of cases){
       for(const arm of arms)records.push(run(arm,objects));
       const group=records.filter(record=>record.objects===objects);
