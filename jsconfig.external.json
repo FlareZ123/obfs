@@ -205,7 +205,9 @@
     "sims/public-affine-residual-invariance-width3.js",
     "test/public-affine-residual-invariance-width3.test.js",
     "sims/vector-boolean-profile.js",
-    "test/vector-boolean-profile.test.js"
+    "test/vector-boolean-profile.test.js",
+    "sims/public-finite-difference-residual32.js",
+    "test/public-finite-difference-residual32.test.js"
   ],
   "exclude": [
     "node_modules"
