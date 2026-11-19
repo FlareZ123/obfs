@@ -187,7 +187,10 @@
     "sims/a2mba-rotated-core-static-recover.js",
     "test/a2mba-rotated-core-static-recover.test.js",
     "sims/a2mba-rotated-core-heldout.js",
-    "test/a2mba-rotated-core-heldout.test.js"
+    "test/a2mba-rotated-core-heldout.test.js",
+    "sims/a2mba-hybrid-opcode-classifier.js",
+    "sims/a2mba-hybrid-opcode-heldout.js",
+    "test/a2mba-hybrid-opcode-heldout.test.js"
   ],
   "exclude": [
     "node_modules"
