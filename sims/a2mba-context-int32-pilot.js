@@ -72,8 +72,8 @@ function contextTrap32(input, shift, selectedBits, variant) {
 function oddInverse32(key) {
   key |= 0;
   assert.equal(key & 1, 1);
-  let inverse = key;
-  for (let bits = 1; bits < 32; bits *= 2) {
+  let inverse = (2 - key) | 0;
+  for (let bits = 2; bits < 32; bits *= 2) {
     inverse = Math.imul(inverse, 2 - Math.imul(key, inverse));
   }
   return inverse | 0;
