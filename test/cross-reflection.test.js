@@ -193,3 +193,9 @@ test('closed-world ESM refuses owner self-assignment through Reflect.set',async(
     console.log(state.secretField===state);`,0);
 });
 
+test('closed-world ESM refuses Reflect.set value spread that can supply a receiver',async()=>{
+  await check(`const receiver={};const args=[70,receiver];
+    const ok=Reflect.set(state,'secretField',...args);
+    console.log(ok,state.secretField,receiver.secretField);`,0);
+});
+
