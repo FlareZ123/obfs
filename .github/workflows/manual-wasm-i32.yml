@@ -29,9 +29,6 @@ jobs:
         shell: bash
         run: |
           BIN="sims/sno-native-addon/build/Release/sno_native.node"
-          if [ ! -f "$BIN" ]; then
-            BIN="sims/sno-native-addon/build/Release/sno_native.node"
-          fi
           echo "NATIVE_ADDON_BYTES $(wc -c < "$BIN")"
           if grep -a -F -q 'secretLedgerTransformNative' "$BIN"; then
             echo "NATIVE_ADDON_ORIGINAL_IDENTIFIER true"
@@ -47,28 +44,31 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
       - name: Install pinned node-gyp
         run: npm install --no-save --no-package-lock node-gyp@13.1.0
       - name: Build stripped release addon
         run: node_modules/.bin/node-gyp rebuild --release --directory sims/sno-native-addon
-      - name: Download official Cutter 2.5.0 release
+      - name: Download official Ghidra 12.2 release
         run: |
-          curl -L --fail --retry 3 -o cutter.AppImage \
-            https://github.com/rizinorg/cutter/releases/download/v2.5.0/Cutter-v2.5.0-Linux-x86_64.AppImage
-          chmod +x cutter.AppImage
-          ./cutter.AppImage --appimage-extract >/dev/null
-      - name: Locate bundled Rizin and Ghidra plugin
+          curl -L --fail --retry 3 -o ghidra.zip \
+            https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.2_build/ghidra_12.2_PUBLIC_20261016.zip
+          unzip -q ghidra.zip
+          mv ghidra_12.2_PUBLIC ghidra
+      - name: Decompile every detected addon function
         run: |
-          find squashfs-root -type f \( -name rizin -o -name 'lib*ghidra*' -o -name '*rz-ghidra*' \) -print
-          squashfs-root/usr/bin/rizin -v
-      - name: Decompile all detected functions with bundled rz-ghidra
-        env:
-          QT_QPA_PLATFORM: offscreen
-        run: |
-          BIN="sims/sno-native-addon/build/Release/sno_native.node"
-          RZ="squashfs-root/usr/bin/rizin"
-          "$RZ" -q -N -e scr.color=false -c 'aaa; pdgo @@F' "$BIN" > native-decompile.txt
+          mkdir -p ghidra-project
+          ghidra/support/analyzeHeadless ghidra-project native-addon \
+            -import sims/sno-native-addon/build/Release/sno_native.node \
+            -scriptPath sims/sno-native-addon \
+            -postScript DecompileAllFunctions.java \
+            -analysisTimeoutPerFile 120 \
+            -deleteProject > native-decompile.txt 2>&1
           echo "NATIVE_DECOMPILE_BYTES $(wc -c < native-decompile.txt)"
-          grep -n -E '1664525|1013904223|1103515245|12345|0x19660d|0x3c6ef35f|0x41c64e6d|0x3039' \
-            native-decompile.txt | head -80 || true
-          head -160 native-decompile.txt
+          grep -n -E '1664525|1013904223|1103515245|12345|0x19660d|0x3c6ef35f|0x41c64e6d|0x3039|19660d|3c6ef35f|41c64e6d|3039' \
+            native-decompile.txt | head -120 || true
+          grep -n 'DECOMPILE_FUNCTION' native-decompile.txt | head -80
+          tail -220 native-decompile.txt
