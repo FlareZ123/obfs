@@ -139,7 +139,7 @@ function intersectionBasis32(leftVectors, rightVectors) {
 /**
  * Visit every value in a subspace without materializing the full span.
  * @param {number[]} vectors
- * @param {((value:number)=>boolean|void} visit
+ * @param {(value:number)=>boolean|void} visit
  * @returns {boolean}
  */
 function visitSpan32(vectors, visit) {
@@ -244,6 +244,7 @@ function invertPublicResidual32(oracle, target, options = {}) {
       throw new Error(`candidate subspace dimension ${hBasis.length} exceeds cap ${maxSubspaceDimension}`);
     }
 
+    /** @type {number[]} */
     const differences = [];
     let found = -1;
     visitSpan32(hBasis, (point) => {
