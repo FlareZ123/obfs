@@ -165,7 +165,122 @@ function normalizePublicFields(files,options={}) {
     }
     return {...file,code};
   });
-  return {files:emitted,properties:labels.size};
+  // A protected key can now also occur as the literal selector of the
+  // compiler's narrow direct-reflection lane. Run this source-only pass after
+  // ordinary property tokens have populated labels across every emitted file,
+  // so file order cannot make an imported reflection key unrecognizable.
+  const reflected=emitted.map(file=>{
+    const ast=acorn.parse(file.code,{
+      ecmaVersion:'latest',
+      sourceType:file.sourceType??'module'
+    });
+    /** @type {Set<string>} */
+    const declared=new Set();
+    /** @type {Set<string>} */
+    const externalAliases=new Set();
+    /** @type {[string,string][]} */
+    const aliasEdges=[];
+    /** @param {import('acorn').Node|null|undefined} node */
+    function declarePattern(node) {
+      if(!node)return;
+      if(node.type==='Identifier')declared.add(node.name);
+      else if(node.type==='RestElement')declarePattern(node.argument);
+      else if(node.type==='AssignmentPattern')declarePattern(node.left);
+      else if(node.type==='ArrayPattern')
+        for(const item of node.elements)declarePattern(item);
+      else if(node.type==='ObjectPattern')
+        for(const property of node.properties)
+          declarePattern(property.type==='RestElement'?property.argument:property.value);
+    }
+    walk.simple(ast,{
+      VariableDeclarator(node) {
+        declarePattern(node.id);
+        if(node.id.type==='Identifier'&&node.init?.type==='Identifier')
+          aliasEdges.push([node.id.name,node.init.name]);
+      },
+      AssignmentExpression(node) {
+        if(node.left.type==='Identifier'&&node.right.type==='Identifier')
+          aliasEdges.push([node.left.name,node.right.name]);
+      },
+      FunctionDeclaration(node) {
+        declarePattern(node.id);
+        for(const param of node.params)declarePattern(param);
+      },
+      FunctionExpression(node) {
+        declarePattern(node.id);
+        for(const param of node.params)declarePattern(param);
+      },
+      ArrowFunctionExpression(node) {
+        for(const param of node.params)declarePattern(param);
+      },
+      ClassDeclaration(node) {
+        declarePattern(node.id);
+      },
+      ClassExpression(node) {
+        declarePattern(node.id);
+      },
+      CatchClause(node) {
+        declarePattern(node.param);
+      },
+      ImportDeclaration(node) {
+        const specifier=typeof node.source.value==='string'?node.source.value:'';
+        const localPath=specifier.startsWith('./')||specifier.startsWith('../') ?
+          posix.normalize(posix.join(posix.dirname(file.path),specifier)) : null;
+        for(const spec of node.specifiers) {
+          declarePattern(spec.local);
+          if(localPath===null||!publishedPaths.has(localPath))
+            externalAliases.add(spec.local.name);
+        }
+      }
+    });
+    if(options.preserveFreeMemberReceivers) {
+      let changed;
+      do {
+        changed=false;
+        for(const [name,origin] of aliasEdges) {
+          if((!declared.has(origin)||externalAliases.has(origin))&&
+              !externalAliases.has(name)) {
+            externalAliases.add(name);
+            changed=true;
+          }
+        }
+      }while(changed);
+    }
+    /** @type {Edit[]} */
+    const edits=[];
+    walk.simple(ast,{
+      CallExpression(node) {
+        if(node.callee.type!=='MemberExpression'||node.callee.computed||
+            node.callee.object.type!=='Identifier'||
+            node.callee.property.type!=='Identifier'||
+            node.arguments.length!==2||
+            node.arguments[0]?.type!=='Identifier'||
+            node.arguments[1]?.type!=='Literal'||
+            typeof node.arguments[1].value!=='string')return;
+        const host=node.callee.object.name;
+        const method=node.callee.property.name;
+        if(!(host==='Reflect'&&method==='get' ||
+             host==='Object'&&method==='hasOwn'))return;
+        if(options.preserveFreeMemberReceivers &&
+           (!declared.has(node.arguments[0].name)||
+            externalAliases.has(node.arguments[0].name)))return;
+        const label=labels.get(node.arguments[1].value);
+        if(label===undefined)return;
+        edits.push({
+          start:node.arguments[1].start,
+          end:node.arguments[1].end,
+          text:JSON.stringify(label)
+        });
+      }
+    });
+    let code=file.code;
+    for(let i=edits.length-1;i>=0;i--) {
+      const edit=edits[i];
+      code=code.slice(0,edit.start)+edit.text+code.slice(edit.end);
+    }
+    return {...file,code};
+  });
+  return {files:reflected,properties:labels.size};
 }
 
 module.exports={normalizePublicFields};
