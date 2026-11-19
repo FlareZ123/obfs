@@ -203,7 +203,9 @@
     "sims/a2mba-hybrid-opcode-heldout.js",
     "test/a2mba-hybrid-opcode-heldout.test.js",
     "sims/high-residual-trivial-inverse32.js",
-    "test/high-residual-trivial-inverse32.test.js"
+    "test/high-residual-trivial-inverse32.test.js",
+    "sims/trivial-inverse-residual-rank-family32.js",
+    "test/trivial-inverse-residual-rank-family32.test.js"
   ],
   "exclude": [
     "node_modules"
