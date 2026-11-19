@@ -132,6 +132,44 @@ n + 1 + 2^r.
 
 At `n=32`, this conditional bound is 37 queries for `r=2` and 41 for `r=3`.
 
+## Full-rank interpolant: R is unnecessary
+
+There is a stronger target-specific attack when `M` is invertible.
+
+For target `y=F(s)`, compute
+
+```text
+z = M^-1(y XOR c0).
+```
+
+For any `t in R`, define
+
+```text
+G(t) = F(z XOR M^-1(t)) XOR y.
+```
+
+Because `M^-1(R)=U`, every queried input lies in the same `U` coset as `s`. The restriction of the permutation `F` to that coset is a bijection onto the corresponding `R` coset. Since `M^-1` is also a bijection from `R` to `U`, `G` is a permutation of `R`.
+
+The attacker does not need a basis for `R`. Start with `t=0`:
+
+1. query `x=z XOR M^-1(t)`;
+2. if `F(x)=y`, return `x`;
+3. otherwise set `t=F(x) XOR y` and repeat.
+
+Every failed query returns the next valid element of `R` automatically. Iteration follows the cycle of `G` containing zero. The predecessor of zero in that cycle is exactly a `t` whose corresponding input maps to `y`. The cycle length is at most `|R|=2^r`.
+
+Therefore an invertible interpolant gives an **unconditional target inversion bound**
+
+```text
+n + 1 + 2^r
+```
+
+without recovering `R`.
+
+For a known `k`-shear architecture, `r<=k`, so `n+1+2^k` is a valid worst-case bound in this full-rank branch. At 32 bits, two propagated directions give at most 37 queries.
+
+The rank-deficient branch remains the unresolved part of the low-rank problem.
+
 ## Why k rank-one shears satisfy the model
 
 A rank-one shear adds one fixed direction multiplied by one Boolean scalar:
