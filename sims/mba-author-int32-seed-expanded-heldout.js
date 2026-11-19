@@ -192,6 +192,7 @@ function sourceFor(
  * @returns {{
  *   attackerCommit:string,
  *   attackerBlob:string,
+ *   actualAttackerBlob:string,
  *   seed:string,
  *   cases:number,
  *   oneRoundCases:number,
