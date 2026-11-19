@@ -346,6 +346,18 @@ test('relayed reader called with a foreign owner refuses cross-file property rew
   ],0);
 });
 
+test('namespace import of a relayed reader cannot hide a foreign-owner call',async()=>{
+  await preserves([
+    {path:'state.mjs',sourceType:'module',code:exposed+reader},
+    {path:'relay.mjs',sourceType:'module',code:
+      'export {peek as inspect} from "./state.mjs";'},
+    {path:'main.mjs',sourceType:'module',code:
+      'import {state} from "./state.mjs";'+
+      'import {inspect} from "./relay.mjs";import * as relay from "./relay.mjs";'+
+      'console.log(inspect(state),relay.inspect({secretField:99}));'}
+  ],0);
+});
+
 
 test('relayed reader source observation refuses cross-file property rewrite',async()=>{
   await preserves([
