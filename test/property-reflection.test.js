@@ -100,3 +100,13 @@ test('Proxy-wrapped owner remains outside local direct-reflection proof',()=>{
   });module.exports=[Reflect.has(proxy,"secretField"),a.secretField];`,0);
 });
 
+test('direct Reflect.get can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:17};
+    module.exports=[Reflect.get(a,"secretField"),a.secretField];`,1);
+});
+
+test('direct Object.hasOwn can rename a private local literal key',()=>{
+  compare(`'use strict';const a={secretField:18};
+    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,1);
+});
+
