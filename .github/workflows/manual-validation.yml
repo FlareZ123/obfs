@@ -19,6 +19,14 @@ on:
         description: 'Include callable-containing alias corpus against general-closure baseline'
         type: boolean
         default: false
+      dependency_aliases:
+        description: 'Include reverse-ordered formal dependency-chain compiler A/B'
+        type: boolean
+        default: false
+      dependency_depth:
+        description: 'Formal dependency chain depth for opt-in paired A/B'
+        type: number
+        default: 192
 
 permissions:
   contents: read
@@ -46,10 +54,12 @@ jobs:
       - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
-          OBFS_PROOF_CONTROL_SHA: ${{ inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
+          OBFS_PROOF_CONTROL_SHA: ${{ inputs.dependency_aliases && '2d540ee324013ff3bf36e878c0f1e2f411c52f6d' || inputs.rich_aliases && 'dea08a9e220618621db9f7a90533eeeb474b1982' || '841807ff1e37c237da347d2b70053d059bf6271f' }}
           OBFS_PROOF_ALIAS_OWNERS: ${{ inputs.alias_owners }}
           OBFS_PROOF_REPEAT_ALIASES: ${{ inputs.repeat_aliases }}
           OBFS_PROOF_RICH_ALIASES: ${{ inputs.rich_aliases }}
+          OBFS_PROOF_DEPENDENCY_ALIASES: ${{ inputs.dependency_aliases }}
+          OBFS_PROOF_DEPENDENCY_DEPTH: ${{ inputs.dependency_depth }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
         env:
