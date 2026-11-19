@@ -203,7 +203,9 @@
     "sims/a2mba-hybrid-opcode-heldout.js",
     "test/a2mba-hybrid-opcode-heldout.test.js",
     "sims/public-affine-residual-invariance-width3.js",
-    "test/public-affine-residual-invariance-width3.test.js"
+    "test/public-affine-residual-invariance-width3.test.js",
+    "sims/vector-boolean-profile.js",
+    "test/vector-boolean-profile.test.js"
   ],
   "exclude": [
     "node_modules"
