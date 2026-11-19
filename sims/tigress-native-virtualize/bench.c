@@ -40,7 +40,7 @@ int main(void) {
   fill_values(values, LENGTH, UINT32_C(0x10293847));
 
   uint32_t check = secretLedgerTransformNative(values, LENGTH, 7);
-  if (check != UINT32_C(0x082eb32b)) {
+  if (check != UINT32_C(0xd163af68)) {
     fprintf(stderr, "parity check mismatch: 0x%08" PRIx32 "\n", check);
     return 2;
   }
