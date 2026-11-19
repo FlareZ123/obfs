@@ -238,6 +238,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const unknownSensitiveContainers=new Set();
   let opaqueReflectiveSensitiveWrite=false;
   const reflectNames=new Set(['Reflect']);
+  const legacyGetterAliases=new Set();
   const mutatorsObject=new Set(['defineProperty','defineProperties','assign','setPrototypeOf']);
   const mutatorsReflect=new Set(['set','defineProperty','deleteProperty','setPrototypeOf']);
   const sensitiveReadsObject=new Set(['getOwnPropertyDescriptor','getOwnPropertyDescriptors','getPrototypeOf']);
@@ -918,6 +919,19 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(node.type!=='CallExpression'||node.callee.type!=='MemberExpression')return;
         const receiver=node.callee.object;
         const method=memberName(node.callee);
+        if(method==='call'&&
+           (receiver.type==='Identifier'&&legacyGetterAliases.has(receiver.name)||
+            receiver.type==='MemberExpression'&&memberName(receiver)==='__defineGetter__')) {
+          const target=node.arguments[0];
+          const keyArgument=node.arguments[1];
+          const getter=node.arguments[2];
+          if(target&&keyArgument&&getter&&functionReturnsSensitiveValue(getter)) {
+            const key=staticString(keyArgument);
+            if(key===null)opaqueReflectiveSensitiveWrite=true;
+            else recordKnownSensitivePath(target,[key]);
+          }
+          return;
+        }
         const target=node.arguments[0];
         if(!target)return;
         if(method==='__defineGetter__') {
@@ -1179,7 +1193,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         recordSensitiveContainerPattern(node.id,node.init);
         if(node.id.type==='Identifier') {
           recordLiteralSensitiveFields(node.id.name,node.init);
+          if(node.init.type==='MemberExpression'&&memberName(node.init)==='__defineGetter__') {
+            add(legacyGetterAliases,node.id.name);
+          }
           if(node.init.type==='Identifier') {
+            if(legacyGetterAliases.has(node.init.name))add(legacyGetterAliases,node.id.name);
             if(unknownSensitiveContainers.has(node.init.name))add(unknownSensitiveContainers,node.id.name);
             if(unknownSensitiveContainers.has(node.id.name))add(unknownSensitiveContainers,node.init.name);
             if(returnedSensitiveFunctions.has(node.init.name)) {
@@ -1253,7 +1271,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       } else if(node.type==='AssignmentExpression' && node.operator==='=' &&
                 node.left.type==='Identifier') {
         recordLiteralSensitiveFields(node.left.name,node.right);
+        if(node.right.type==='MemberExpression'&&memberName(node.right)==='__defineGetter__') {
+          add(legacyGetterAliases,node.left.name);
+        }
         if(node.right.type==='Identifier') {
+          if(legacyGetterAliases.has(node.right.name))add(legacyGetterAliases,node.left.name);
           if(unknownSensitiveContainers.has(node.right.name))add(unknownSensitiveContainers,node.left.name);
           if(unknownSensitiveContainers.has(node.left.name))add(unknownSensitiveContainers,node.right.name);
           if(returnedSensitiveFunctions.has(node.right.name)) {
