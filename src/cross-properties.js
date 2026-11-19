@@ -813,7 +813,30 @@ function stableDirectOwnerReflection(modules) {
     if(module.bindings.has('Object')||module.bindings.has('Reflect'))return false;
     let stable=true;
     walk(module.ast,(node,parent,key,ancestors)=>{
-      if(!stable||node.type!=='Identifier')return;
+      if(!stable)return;
+      // A constructor read can recover %Object% or %Function% without
+      // spelling either global. An unresolved computed selector can do the
+      // same at runtime, so this optional proof lane declines it.
+      if(node.type==='MemberExpression') {
+        let selected=null;
+        if(node.computed) {
+          if(node.property.type==='Literal' &&
+             typeof node.property.value!=='string')selected=String(node.property.value);
+          else selected=staticString(node.property);
+        }else selected=staticName(node.property);
+        if(selected===null||selected==='constructor') {
+          stable=false;
+          return;
+        }
+      }
+      if(node.type==='Property'&&parent?.type==='ObjectPattern') {
+        const selected=node.computed?staticString(node.key):ownPropertyName(node);
+        if(selected===null||selected==='constructor') {
+          stable=false;
+          return;
+        }
+      }
+      if(node.type!=='Identifier')return;
       if(['globalThis','window','self','global'].includes(node.name)) {
         stable=false;
         return;
@@ -827,8 +850,11 @@ function stableDirectOwnerReflection(modules) {
       const method=staticName(parent.property);
       const supported=node.name==='Reflect'&&method==='get' ||
         node.name==='Object'&&method==='hasOwn';
+      const selector=call?.type==='CallExpression'?call.arguments[1]:null;
       if(!supported||call?.type!=='CallExpression'||call.callee!==parent||
-         call.optional)stable=false;
+         call.optional||call.arguments.length!==2||
+         selector?.type!=='Literal'||typeof selector.value!=='string'||
+         selector.value==='constructor')stable=false;
     });
     if(!stable)return false;
   }
