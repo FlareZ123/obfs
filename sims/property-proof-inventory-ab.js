@@ -112,16 +112,16 @@ function dependencyAliasSource(){
 /** @returns {string} */
 function dependencyMixedSource(){
   return `'use strict';let total=0;
-    function id(value){return value;}
-    function sinkA(value){total=(total+value.secret)|0;}
-    function sinkB(value){total=(total+value.secret)|0;}
-    function sinkC(value){total=(total+value.secret)|0;}
+    function id(idValue){return idValue;}
+    function sinkA(sinkAValue){total=(total+sinkAValue.secret)|0;}
+    function sinkB(sinkBValue){total=(total+sinkBValue.secret)|0;}
+    function sinkC(sinkCValue){total=(total+sinkCValue.secret)|0;}
     const first={secret:11};const firstAlias=id(first);sinkA(firstAlias);
     const second={secret:13};const tuple=[0,second,3];
     const tupleOwner=tuple[1];const tupleAlias=tupleOwner;sinkB(tupleAlias);
     const third={secret:17};const record={tag:0,owned:third};
     const recordOwner=record.owned;const recordAlias=recordOwner;sinkC(recordAlias);
-    function blocked(value){return value.hidden;}
+    function blocked(blockedValueArg){return blockedValueArg.hidden;}
     const escaped={hidden:19};const observed=Object.keys(escaped)[0];
     const blockedValue=blocked(escaped);blocked(7);
     module.exports=[total,observed,blockedValue];\n`;
