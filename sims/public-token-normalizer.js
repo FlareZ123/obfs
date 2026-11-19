@@ -228,14 +228,18 @@ function normalizePublicFields(files,options={}) {
         if(node.callee.type!=='MemberExpression'||node.callee.computed||
             node.callee.object.type!=='Identifier'||
             node.callee.property.type!=='Identifier'||
-            node.arguments.length!==2||
             node.arguments[0]?.type!=='Identifier'||
             node.arguments[1]?.type!=='Literal'||
-            typeof node.arguments[1].value!=='string')return;
+            typeof node.arguments[1].value!=='string'||
+            node.arguments.some(argument=>argument.type==='SpreadElement'))return;
         const host=node.callee.object.name;
         const method=node.callee.property.name;
-        if(!(host==='Reflect'&&method==='get' ||
-             host==='Object'&&method==='hasOwn'))return;
+        const supported=host==='Reflect' &&
+            ['get','has','set','getOwnPropertyDescriptor'].includes(method) ||
+          host==='Object' &&
+            ['hasOwn','getOwnPropertyDescriptor'].includes(method);
+        const expectedArguments=host==='Reflect'&&method==='set'?3:2;
+        if(!supported||node.arguments.length!==expectedArguments)return;
         if(options.preserveFreeMemberReceivers &&
            (!declared.has(node.arguments[0].name)||
             externalAliases.has(node.arguments[0].name)))return;
