@@ -258,7 +258,7 @@ function collectHelpers(ast) {
  */
 function collectGlobalValues(ast, helpers) {
   /** @type {Map<string,Symbolic>} */
-  const environment = new Map(globals);
+  const environment = new Map();
   if (ast.type !== 'Program') return environment;
 
   for (const statement of ast.body) {
@@ -612,7 +612,7 @@ function symbolicPredicate(functionNode, helpers, globals) {
   ) || functionNode.body.type !== 'BlockStatement') return null;
 
   /** @type {Map<string,Symbolic>} */
-  const environment = new Map();
+  const environment = new Map(globals);
   for (let index = 0; index < functionNode.params.length; index++) {
     const param = functionNode.params[index];
     if (param.type !== 'Identifier') return null;
