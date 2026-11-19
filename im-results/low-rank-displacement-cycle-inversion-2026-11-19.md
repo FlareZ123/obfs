@@ -166,6 +166,26 @@ The width-32 experiment generates 256 deterministic cases each for `k=2` and `k=
 
 The experiment reports full-rank and singular interpolation cases separately. Every full-rank case must recover the exact published target within the theorem bound. Singular cases are explicitly excluded rather than treated as failures or silently resampled.
 
+## Complete width-3 validation of the exact full-rank branch
+
+A separate exhaustive checker enumerates every permutation of a three-bit space:
+
+```text
+sims/low-rank-displacement-exhaustive-width3.js
+test/low-rank-displacement-exhaustive-width3.test.js
+```
+
+Taking the hidden nonlinear subspace to be the full three-dimensional space gives all `8! = 40,320` permutations without making any structural assumption beyond bijectivity. Their observed affine interpolants split exactly into:
+
+```text
+full rank: 32,256
+singular:   8,064
+```
+
+For all 32,256 full-rank permutations and all eight targets per permutation, the cycle inverter recovers **258,048 / 258,048** target preimages exactly. The largest observed target cycle has length four, below the general `2^k = 8` bound.
+
+This exhaustive computation validates the conditional theorem at small width while retaining all singular cases as explicit exclusions.
+
 ## Empirical singular-interpolant rank repair
 
 A separate attack prototype exercises the singular cases:
