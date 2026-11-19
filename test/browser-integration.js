@@ -117,7 +117,7 @@ async function main(){
       code:'import {state} from "./reflection-state.mjs";'+
         'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
         'const own=Object.hasOwn(state,"otherValue");'+
-        'document.getElementById("answer").textContent=value+","+own;'}
+        'export const answer=value+","+own;'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
     identifiers:false,strings:false});
   assert.equal(reflectionSet.crossFile.properties,2);
@@ -263,7 +263,7 @@ async function main(){
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
-  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/reflection-entry.mjs"></script></body></html>');
+  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import {answer} from "/reflection-entry.mjs";document.getElementById("answer").textContent=answer;</script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
