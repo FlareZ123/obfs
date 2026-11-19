@@ -46,6 +46,7 @@ test('exhaustive width-3 public residual theorem inverts every permutation targe
   assert.equal(report.permutations, 40320);
   assert.equal(report.initiallySingularModels, 8064);
   assert.equal(report.secondDifferenceChecks, 40320);
+  assert.equal(report.inverseResidualChecks, 40320);
   assert.equal(report.targetRecoveries, '322560/322560');
   assert.ok(report.maxObservedDistinctQueries <= 8);
 });
