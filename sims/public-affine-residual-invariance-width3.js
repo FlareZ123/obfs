@@ -63,6 +63,16 @@ function vectorAnfCoefficients(values) {
   return coefficients.map(mask);
 }
 
+/** @param {number[]} values @returns {number[]} */
+function degreeQuotientRanks(values) {
+  const coefficients = vectorAnfCoefficients(values);
+  return Array.from({length: WIDTH + 1}, (_, maxDegree) => basis(
+    coefficients.filter(
+      (coefficient, subset) => coefficient !== 0 && popcount(subset) > maxDegree,
+    ),
+  ).length);
+}
+
 /** @param {number} value @returns {number} */
 function parity(value) {
   let x = mask(value);
@@ -244,11 +254,14 @@ function main() {
   let permutations = 0;
   let originsAudited = 0;
   let generatorChecks = 0;
+  let hierarchyChecks = 0;
   const standardRegimes = new Map();
 
   permute(Array.from({length: SIZE}, (_, index) => index), 0, (permutation) => {
     permutations += 1;
     const standard = residualData(permutation);
+    const standardDegreeRanks = degreeQuotientRanks(permutation);
+    assert.equal(standardDegreeRanks[1], standard.rank);
     const affineMasks = affineOutputMasks(permutation);
     const anf = vectorAnfCoefficients(permutation);
     const nonlinearCoefficients = anf.filter(
@@ -273,21 +286,35 @@ function main() {
     }
 
     for (const transform of domainGenerators) {
+      const transformed = precompose(permutation, transform);
       assert.equal(
-        residualData(precompose(permutation, transform)).rank,
+        residualData(transformed).rank,
         standard.rank,
         'domain affine generator must preserve residual rank',
       );
+      assert.deepEqual(
+        degreeQuotientRanks(transformed),
+        standardDegreeRanks,
+        'domain affine generator must preserve the degree-quotient hierarchy',
+      );
       generatorChecks += 1;
+      hierarchyChecks += 1;
     }
 
     for (const transform of outputGenerators) {
+      const transformed = postcompose(permutation, transform);
       assert.equal(
-        residualData(postcompose(permutation, transform)).rank,
+        residualData(transformed).rank,
         standard.rank,
         'output affine generator must preserve residual rank',
       );
+      assert.deepEqual(
+        degreeQuotientRanks(transformed),
+        standardDegreeRanks,
+        'output affine generator must preserve the degree-quotient hierarchy',
+      );
       generatorChecks += 1;
+      hierarchyChecks += 1;
     }
 
     for (let origin = 0; origin < SIZE; origin += 1) {
@@ -306,6 +333,7 @@ function main() {
     permutations,
     originsAudited,
     generatorChecks,
+    hierarchyChecks,
     standardRegimes: Object.fromEntries([...standardRegimes.entries()].sort()),
   }, null, 2));
 }
