@@ -77,9 +77,10 @@ function encodeClientGraph(roots,session) {
       const kind=objectKind(value);
       /** @type {WireNode} */
       const node={id,kind,entries:[]};
-      if(kind==='array')node.length=value.length;
+      if(Array.isArray(value))node.length=value.length;
       nodes.push(node);
-      for(const key of Object.keys(value))node.entries.push([key,encode(value[key])]);
+      const indexed=/** @type {Record<string,any>} */ (value);
+      for(const key of Object.keys(value))node.entries.push([key,encode(indexed[key])]);
     }
     return ['r',id];
   }
@@ -115,9 +116,10 @@ function encodeServerGraph(roots,existingIds) {
       const kind=objectKind(value);
       /** @type {WireNode} */
       const node={id,kind,entries:[]};
-      if(kind==='array')node.length=value.length;
+      if(Array.isArray(value))node.length=value.length;
       nodes.push(node);
-      for(const key of Object.keys(value))node.entries.push([key,encode(value[key])]);
+      const indexed=/** @type {Record<string,any>} */ (value);
+      for(const key of Object.keys(value))node.entries.push([key,encode(indexed[key])]);
     }
     return ['r',id];
   }
@@ -145,11 +147,11 @@ function decodeValue(value,objects) {
 /** @param {object} object @returns {void} */
 function clearAdmittedObject(object) {
   if(Array.isArray(object)) {
-    for(const key of Object.keys(object))delete object[key];
+    for(const key of Object.keys(object))Reflect.deleteProperty(object,key);
     object.length=0;
     return;
   }
-  for(const key of Object.keys(object))delete object[key];
+  for(const key of Object.keys(object))Reflect.deleteProperty(object,key);
 }
 
 /** @param {object} object @param {string} key @param {unknown} value @returns {void} */
@@ -180,6 +182,7 @@ function decodeGraph(graph,reuse=new Map()) {
       object=node.kind==='array' ? [] :
         node.kind==='null-object' ? Object.create(null) : {};
     }
+    if(!object)throw new TypeError('Failed to allocate graph node');
     objects.set(node.id,object);
     objectIds.set(object,node.id);
   }
@@ -222,6 +225,7 @@ function invokeIdentity(task,args,session) {
 /** @returns {object} */
 function semanticProbe() {
   const session=createClientSession();
+  /** @type {any[]} */
   const shared=[];
   shared.push(shared,-0,undefined,NaN,12345678901234567890n);
   Object.defineProperty(shared,'__proto__',{
@@ -236,7 +240,7 @@ function semanticProbe() {
   assert.equal(Number.isNaN(shared[3]),true);
   assert.equal(shared[4],12345678901234567890n);
   assert.equal(Object.hasOwn(shared,'__proto__'),true);
-  assert.equal(shared.__proto__,'own-proto-data');
+  assert.equal(/** @type {any} */ (shared).__proto__,'own-proto-data');
 
   const alias={count:1};
   const aliasResult=invokeIdentity((a,b)=>({same:a===b}),[alias,alias],session);
@@ -249,6 +253,7 @@ function semanticProbe() {
   assert.equal(Object.hasOwn(sparse,1),false);
   assert.equal(sparse[2],9);
 
+  /** @type {{count:number,nested:{value:number},added?:number}} */
   const mutable={count:1,nested:{value:2}};
   const mutationResult=invokeIdentity(value=>{
     value.count=3;
@@ -261,22 +266,29 @@ function semanticProbe() {
     {count:3,nested:5});
   assert.equal(Object.is(mutable.added,-0),true);
 
-  const created=invokeIdentity(value=>{
+  const created=/** @type {any} */ (invokeIdentity(value=>{
+    /** @type {any} */
     const root={copy:value.count};
     root.self=root;
     root.left={x:1};
     root.right=root.left;
     return root;
-  },[mutable],session);
+  },[mutable],session));
   assert.notStrictEqual(created,mutable);
   assert.strictEqual(created.self,created);
   assert.strictEqual(created.left,created.right);
 
   const negative={};
   Object.defineProperty(negative,'getter',{enumerable:true,get(){return 1;}});
-  const getterRejected=assert.throws(
-    ()=>encodeClientGraph([negative],createClientSession()),TypeError
-  );
+  let getterRejected=false;
+  try {
+    encodeClientGraph([negative],createClientSession());
+  } catch(error) {
+    assert.ok(error instanceof TypeError);
+    getterRejected=true;
+  }
+  assert.equal(getterRejected,true);
+  /** @type {Record<PropertyKey,unknown>} */
   const symbolObject={};
   symbolObject[Symbol('x')]=1;
   assert.throws(()=>encodeClientGraph([symbolObject],createClientSession()),TypeError);
@@ -293,8 +305,8 @@ function semanticProbe() {
     nestedResultIdentity: mutationResult===mutable.nested,
     createdCycle: created.self===created,
     createdAlias: created.left===created.right,
-    getterRejected: getterRejected instanceof TypeError,
-    ownProtoPreserved: Object.hasOwn(shared,'__proto__')&&shared.__proto__==='own-proto-data'
+    getterRejected,
+    ownProtoPreserved: Object.hasOwn(shared,'__proto__')&&/** @type {any} */ (shared).__proto__==='own-proto-data'
   };
 }
 
@@ -344,6 +356,7 @@ function sample(variant,data,repeats,session) {
 function profile(data) {
   const repeats=2048;
   const session=createClientSession();
+  /** @type {Record<'native'|'json'|'identity',number[]>} */
   const values={native:[],json:[],identity:[]};
   for(const variant of /** @type {const} */ (['native','json','identity']))
     sample(variant,data,32,session);
