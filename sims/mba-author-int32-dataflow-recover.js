@@ -399,24 +399,36 @@ function matchXorShift(expression) {
   if (expression.kind !== 'xor') return null;
   const terms = expression.terms ?? [];
   if (terms.length < 2) return null;
-  for (const candidate of terms) {
+
+  /** @type {Symbolic[]} */
+  const candidateBases = [];
+  for (const term of terms) {
+    if (term.kind !== 'ushr' || !term.base ||
+        !term.shift || term.shift < 1 || term.shift > 31) continue;
+    if (!candidateBases.some(base => sameSymbolic(base, /** @type {Symbolic} */ (term.base)))) {
+      candidateBases.push(/** @type {Symbolic} */ (term.base));
+    }
+  }
+
+  for (const base of candidateBases) {
     /** @type {number[]} */
     const shifts = [];
-    let valid = true;
+    /** @type {Symbolic[]} */
+    const residue = [];
     for (const term of terms) {
-      if (term === candidate) continue;
-      if (term.kind !== 'ushr' || !term.base ||
-          !sameSymbolic(term.base, candidate) ||
-          !term.shift || term.shift < 1 || term.shift > 31) {
-        valid = false;
-        break;
+      if (term.kind === 'ushr' && term.base &&
+          term.shift && term.shift >= 1 && term.shift <= 31 &&
+          sameSymbolic(term.base, base)) {
+        shifts.push(term.shift);
+      } else {
+        residue.push(term);
       }
-      shifts.push(term.shift);
     }
-    if (valid && shifts.length === terms.length - 1) {
-      shifts.sort((a, b) => a - b);
-      return {base: candidate, shifts};
-    }
+    if (shifts.length === 0) continue;
+    const reconstructedBase = makeXor(residue);
+    if (!sameSymbolic(reconstructedBase, base)) continue;
+    shifts.sort((a, b) => a - b);
+    return {base, shifts};
   }
   return null;
 }
