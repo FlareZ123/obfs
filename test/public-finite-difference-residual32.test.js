@@ -43,7 +43,7 @@ test('basis-pair defects can certify full residual rank without interpolation', 
     return [left, right, outputBit];
   });
 
-  const oracle = (input) => {
+  const oracle = (/** @type {number} */ input) => {
     const x = u32(input);
     let output = x;
     for (const [left, right, outputBit] of pairs) {
@@ -69,7 +69,7 @@ test('bounded-degree profiler exactly recovers a full-rank quadratic residual sp
     return [left, right, outputBit];
   });
 
-  const oracle = (input) => {
+  const oracle = (/** @type {number} */ input) => {
     const x = u32(input);
     let output = x;
     for (const [left, right, outputBit] of pairs) {
@@ -87,7 +87,7 @@ test('bounded-degree profiler exactly recovers a full-rank quadratic residual sp
 });
 
 test('bounded-degree profiler recovers an exact cubic degree quotient profile', () => {
-  const oracle = (input) => {
+  const oracle = (/** @type {number} */ input) => {
     const x = u32(input);
     let output = x;
     if ((x & 0b00000011) === 0b00000011) output ^= 1 << 20;
