@@ -176,3 +176,18 @@ test('locally caught explicit throw retains private-property rewrite yield',()=>
   assert.equal(execute(output.code).value,73,output.code);
   assert.ok(output.metrics.properties>0,output.code);
 });
+
+
+test('uncaught nullish property failure preserves native process source diagnostics',()=>{
+  const source="'use strict';const owner={distinctivelyLongPrivateField:73};"+
+    "const value=owner.distinctivelyLongPrivateField;void value;void (null).missingField;";
+  const output=obfuscateFiles([{
+    path:'nullish-source-observer.cjs',sourceType:'commonjs',code:source
+  }],{mode:'sno',seed:'agent50-nullish-host-source',strings:false,identifiers:false}).files[0];
+  const native=uncaughtStderr(source);
+  const transformed=uncaughtStderr(output.code);
+  assert.equal(transformed,native,output.code);
+  assert.equal(observesFunctionSource(parse(source,'commonjs')),true,source);
+  assert.equal(output.code,source);
+  assert.deepEqual(output.metrics,{literals:0,objects:0,properties:0,bindings:0});
+});
