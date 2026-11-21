@@ -53,11 +53,12 @@ function compareCandidateEvidence(evidence){
   const control=evidence.conventionalControl;
   const candidate=evidence.protectedCandidate;
   const measurementReady=evidence.frozenSameApplication&&
-    Number.isInteger(evidence.protectedFunctions)&&evidence.protectedFunctions>0&&
+    Number.isSafeInteger(evidence.protectedFunctions)&&evidence.protectedFunctions>0&&
     control.attempted&&candidate.attempted&&
     control.protocol.length>0&&control.protocol===candidate.protocol&&
     Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
     control.oracleCalls===candidate.oracleCalls&&
+    Number.isSafeInteger(control.verifiedHeldoutComparisons)&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
   // A positive claim requires a completed, precommitted, equally resourced
