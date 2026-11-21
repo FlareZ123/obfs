@@ -1374,6 +1374,208 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       });
     return false;
   }
+  // Proxy get traps can return a mutable decoder intrinsic through a property
+  // read whose syntactic owner is an otherwise innocent proxy object. Track
+  // finite handlers and local factories before the final mutation scan.
+  const proxyConstructorNames=new Set(['Proxy']);
+  const proxyRevocableNames=new Set();
+  const sensitiveProxyGetTraps=new Set();
+  const sensitiveProxyHandlers=new Set();
+  const sensitiveProxyHandlerFactories=new Set();
+  /**
+   * @param {import('./ast').AstNode} fn
+   * @returns {boolean}
+   */
+  function proxyGetMayReturnDecoderIntrinsic(fn) {
+    if(fn.type==='Identifier')return returnedSensitiveFunctions.has(fn.name)||
+      sensitiveProxyGetTraps.has(fn.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type))return false;
+    if(fn.body.type!=='BlockStatement')return containsDecoderIntrinsic(fn.body)||
+      proxyGetMayReturnDecoderIntrinsic(fn.body);
+    let found=false;
+    walk(fn.body,(node,_parent,_key,ancestors)=>{
+      if(found||node.type!=='ReturnStatement'||!node.argument)return;
+      if(ancestors.some((/** @type {import('./ast').AstNode} */ owner)=>
+        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+         'ClassDeclaration','ClassExpression'].includes(owner.type)))return;
+      if(containsDecoderIntrinsic(node.argument)||
+         proxyGetMayReturnDecoderIntrinsic(node.argument))found=true;
+    });
+    return found;
+  }
+  /**
+   * @param {import('./ast').AstNode} handler
+   * @returns {boolean}
+   */
+  function proxyHandlerHasSensitiveGet(handler) {
+    if(handler.type==='Identifier')return sensitiveProxyHandlers.has(handler.name);
+    if(handler.type==='CallExpression'&&handler.callee.type==='Identifier') {
+      return sensitiveProxyHandlerFactories.has(handler.callee.name);
+    }
+    if(handler.type==='ConditionalExpression')return (
+      proxyHandlerHasSensitiveGet(handler.consequent)||
+      proxyHandlerHasSensitiveGet(handler.alternate));
+    if(handler.type==='LogicalExpression')return (
+      proxyHandlerHasSensitiveGet(handler.left)||
+      proxyHandlerHasSensitiveGet(handler.right));
+    if(handler.type!=='ObjectExpression')return false;
+    return handler.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+      if(property.type==='SpreadElement')return proxyHandlerHasSensitiveGet(property.argument);
+      if(property.type!=='Property')return false;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      return (key===null||key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(property.value);
+    });
+  }
+  /**
+   * @param {import('./ast').AstNode} fn
+   * @returns {boolean}
+   */
+  function functionReturnsSensitiveProxyHandler(fn) {
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
+       fn.async||fn.generator)return false;
+    if(fn.body.type!=='BlockStatement')return proxyHandlerHasSensitiveGet(fn.body);
+    let found=false;
+    walk(fn.body,(node,_parent,_key,ancestors)=>{
+      if(found||node.type!=='ReturnStatement'||!node.argument)return;
+      if(ancestors.some((/** @type {import('./ast').AstNode} */ owner)=>
+        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+         'ClassDeclaration','ClassExpression'].includes(owner.type)))return;
+      if(proxyHandlerHasSensitiveGet(node.argument))found=true;
+    });
+    return found;
+  }
+  /**
+   * Proxy handlers can be populated by reflection after creation. A
+   * descriptor's value, or an accessor returning the trap, may expose the
+   * decoder-sensitive getter without a get method in the initial literal.
+   * @param {import('./ast').AstNode} descriptor
+   * @returns {boolean}
+   */
+  function proxyDescriptorHasSensitiveGet(descriptor) {
+    if(descriptor.type!=='ObjectExpression')return false;
+    return descriptor.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+      if(property.type!=='Property')return false;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      return (key===null||key==='value'||key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(property.value);
+    });
+  }
+  let discoveredProxyHandler;
+  do {
+    discoveredProxyHandler=false;
+    walk(ast,node=>{
+      /** @param {Set<string>} target @param {string} name */
+      function add(target,name) {
+        if(!target.has(name)){target.add(name);discoveredProxyHandler=true;}
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         (pathMemberName(node.left)===null||pathMemberName(node.left)==='get')&&
+         node.left.object.type==='Identifier'&&
+         proxyGetMayReturnDecoderIntrinsic(node.right)) {
+        add(sensitiveProxyHandlers,node.left.object.name);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.arguments[0]?.type==='Identifier') {
+        const target=node.arguments[0];
+        const receiver=node.callee.object;
+        const method=memberName(node.callee);
+        const key=node.arguments[1]?staticString(node.arguments[1]):null;
+        let sensitiveWrite=false;
+        if(isReflectIntrinsic(receiver)&&method==='set'&&
+           (key===null||key==='get')&&node.arguments[2]&&
+           proxyGetMayReturnDecoderIntrinsic(node.arguments[2])) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='assign'&&
+           node.arguments.slice(1).some((/** @type {import('./ast').AstNode} */ source)=>
+             proxyHandlerHasSensitiveGet(source))) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='defineProperty'&&
+           (key===null||key==='get')&&node.arguments[2]&&
+           proxyDescriptorHasSensitiveGet(node.arguments[2])) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='defineProperties'&&
+           node.arguments[1]?.type==='ObjectExpression'&&
+           node.arguments[1].properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+             if(property.type!=='Property')return false;
+             const propertyKey=property.computed?staticString(property.key):
+               property.key.type==='Identifier'?property.key.name:staticString(property.key);
+             return (propertyKey===null||propertyKey==='get')&&
+               proxyDescriptorHasSensitiveGet(property.value);
+           })) {
+          sensitiveWrite=true;
+        }
+        if(sensitiveWrite)add(sensitiveProxyHandlers,target.name);
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         proxyGetMayReturnDecoderIntrinsic(node)) {
+        add(sensitiveProxyGetTraps,node.id.name);
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         functionReturnsSensitiveProxyHandler(node)) {
+        add(sensitiveProxyHandlerFactories,node.id.name);
+      }
+      let name;
+      let value;
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier') {
+        name=node.id.name;
+        value=node.init;
+      } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+                node.left.type==='Identifier') {
+        name=node.left.name;
+        value=node.right;
+      }
+      if(name&&value) {
+        if(value.type==='Identifier'&&sensitiveProxyHandlers.has(name)) {
+          add(sensitiveProxyHandlers,value.name);
+        }
+        if(value.type==='Identifier'&&proxyConstructorNames.has(value.name)||
+           value.type==='MemberExpression'&&isGlobal(value.object)&&
+             memberName(value)==='Proxy') {
+          add(proxyConstructorNames,name);
+        }
+        if(value.type==='Identifier'&&proxyRevocableNames.has(value.name)||
+           value.type==='MemberExpression'&&memberName(value)==='revocable'&&
+             (value.object.type==='Identifier'&&proxyConstructorNames.has(value.object.name)||
+              value.object.type==='MemberExpression'&&isGlobal(value.object.object)&&
+                memberName(value.object)==='Proxy')) {
+          add(proxyRevocableNames,name);
+        }
+        if(value.type==='Identifier'&&sensitiveProxyGetTraps.has(value.name)||
+           ['FunctionExpression','ArrowFunctionExpression'].includes(value.type)&&
+             proxyGetMayReturnDecoderIntrinsic(value)) {
+          add(sensitiveProxyGetTraps,name);
+        }
+        if(proxyHandlerHasSensitiveGet(value))add(sensitiveProxyHandlers,name);
+        if(functionReturnsSensitiveProxyHandler(value)) {
+          add(sensitiveProxyHandlerFactories,name);
+        }
+      }
+    });
+  } while(discoveredProxyHandler);
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function createsSensitiveProxy(node) {
+    if(node.type!=='NewExpression'&&node.type!=='CallExpression')return false;
+    const callee=node.callee;
+    const direct=callee.type==='Identifier'&&proxyConstructorNames.has(callee.name)||
+      callee.type==='MemberExpression'&&isGlobal(callee.object)&&
+        memberName(callee)==='Proxy';
+    const revocable=callee.type==='Identifier'&&proxyRevocableNames.has(callee.name)||
+      callee.type==='MemberExpression'&&memberName(callee)==='revocable'&&
+      (callee.object.type==='Identifier'&&proxyConstructorNames.has(callee.object.name)||
+       callee.object.type==='MemberExpression'&&isGlobal(callee.object.object)&&
+         memberName(callee.object)==='Proxy');
+    return Boolean((direct||revocable)&&node.arguments[1]&&
+      proxyHandlerHasSensitiveGet(node.arguments[1]));
+  }
   /**
    * @param {import('./ast').AstNode} node
    * @returns {boolean}
@@ -1444,6 +1646,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     'GeneratorFunction','AsyncGeneratorFunction']);
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
+    if(createsSensitiveProxy(node)) {
+      mutated=true;
+      return;
+    }
     // A captured mutator may be called, bound, or passed into an opaque helper.
     // Its receiver/arguments cannot be proved by the direct-call checks below.
     if(node.type==='MemberExpression') {
