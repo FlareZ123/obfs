@@ -1644,6 +1644,19 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
+  // An immutable local alias of Object.create can install the same accessor
+  // descriptors as a direct call. Track such aliases for this conservative
+  // decoder-safety scan. A same-spelled shadow only causes an extra refusal.
+  /** @type {Set<string>} */
+  const objectCreateAliases=new Set();
+  walk(ast,(node,parent)=>{
+    if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+       parent.kind==='const'&&node.id.type==='Identifier'&&
+       node.init?.type==='MemberExpression'&&
+       isObjectIntrinsic(node.init.object)&&memberName(node.init)==='create') {
+      objectCreateAliases.add(node.id.name);
+    }
+  });
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
@@ -1653,8 +1666,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     // Object.create installs accessor descriptors during construction. A
     // getter may expose String.prototype to an otherwise untracked receiver,
     // allowing a later write to corrupt the eager string decoder.
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
+    if(node.type==='CallExpression'&&
+       (node.callee.type==='MemberExpression'&&
+         isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'||
+        node.callee.type==='Identifier'&&objectCreateAliases.has(node.callee.name))&&
        node.arguments[1]?.type==='ObjectExpression'&&
        node.arguments[1].properties.some(
          (/** @type {import('./ast').AstNode} */ property)=>
