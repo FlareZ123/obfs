@@ -316,6 +316,23 @@ configured property-mangling minifier or general reconstruction
 has **not** been established. The repository's primary strong
 release remains **RELEASE-BLOCKED**.
 
+## Independent protection and cost dimensions
+
+| Requested dimension | Source-pinned finding for the accepted closed-world ESM graph | Inference limit |
+| --- | --- | --- |
+| Static deobfuscation / reconstruction | Both human-readable private field names disappear from published positive graphs while default unbundled esbuild minification retains them | A limited syntactic source-label reduction; no verified semantic reconstruction-cost advantage over a properly configured property-mangling competitor |
+| Dynamic inspection and extraction | Published ESM modules can be loaded by the test browser; unknown outside consumers could inspect the exported record shape | The compatibility proof's closed-world contract excludes outside consumers, so it cannot establish adversarial client confidentiality |
+| Unauthorized modification / integrity checks | This AST property rename adds no cryptographic or trusted-secret integrity mechanism | Existing independent integrity features require separate analysis |
+| Unauthorized execution / host lock | These test fixtures contain no domain gate; transformed ESM executes on the ordinary local test host | Host locking and bypass resistance are separate mechanisms, with no strengthened claim from this transform |
+| Performance and compatibility | All 128 deterministic transitive/negative ESM graph cases, 41/41 focused tests on both OS, full source-pinned 4,152-case integration, Chrome source labels and 100,000 exact held-out outputs | Browser selected-work ratios are close to the coarse timer granularity; strict 2.5× all-workload compliance is not established |
+
+**Combined decision:** the proof improves supported behavior-preserving
+field renaming for a common ESM ownership flow. Its security
+contribution is limited to removing semantic field identifiers in
+a restricted distributed graph; a hostile COO browser can still
+inspect the public code and object data. Maintain RELEASE-BLOCKED
+for the overarching strong-obfuscation objective.
+
 ## Proof mechanism and limitations
 
 `proveLocalObject` already receives `importedIdentityFunctions`
