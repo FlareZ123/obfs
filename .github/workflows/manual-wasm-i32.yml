@@ -69,6 +69,8 @@ jobs:
         run: node sims/wasm-i32-esm-rebuild-profile.js
       - name: Equal-trust Wasm versus esbuild four-way ESM control
         run: node sims/wasm-i32-four-way-minified.js
+      - name: Four-way fresh Node-process Wasm and minifier comparison
+        run: node sims/wasm-i32-four-way-fresh-process.js
       - name: Equal-trust four-way real Chromium ESM comparison
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
