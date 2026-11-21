@@ -160,3 +160,19 @@ for(const [name,entry] of /** @type {[string,string][]} */ ([
       'import {identity} from "./identity.mjs";'+entry));
   });
 }
+
+
+for(const [name,observed] of /** @type {[string,string][]} */ ([
+  ['imported source', 'identity.toString()'],
+  ['first relay source', 'first.toString()'],
+  ['middle relay name', 'second.name']
+])) {
+  test('ancestor source observation invalidates all downstream const relays: '+name,async()=>{
+    await expectRefused(name,graph(fn,
+      'import {state} from "./state.mjs";'+
+      'import {identity} from "./identity.mjs";'+
+      'const first=identity;const second=first;const third=second;'+
+      'const record=third(state);'+
+      'console.log(JSON.stringify(['+observed+',record.secretField]));'));
+  });
+}
