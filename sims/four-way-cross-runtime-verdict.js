@@ -58,7 +58,7 @@ function evaluateFourWayCrossRuntime(node,browser){
   for(const name of variants){
     const nativeHash=node.sha256[name];
     const browserHash=browser.sourceSha256[name];
-    if(typeof nativeHash!=='string'||nativeHash.length!==64||
+    if(typeof nativeHash!=='string'||!/^[0-9a-f]{64}$/u.test(nativeHash)||
        nativeHash!==browserHash){
       throw new Error('Node and browser emitted graph SHA-256 mismatch: '+name);
     }

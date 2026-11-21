@@ -224,3 +224,41 @@ test('actual native-output or external-host trace divergence vetoes candidate',(
   input.protectedCandidate.cloneSucceeded=false;
   assert.equal(compareCandidateEvidence(input).verdict,'contradicted');
 });
+
+test('truthy strings cannot impersonate committed, executed attacks',()=>{
+  for(const target of ['frozenSameApplication','controlAttempted','candidateAttempted',
+    'controlCloneSucceeded','candidateCloneSucceeded']){
+    const input=/** @type {any} */ (example());
+    recordMatchedCompletedAttack(input);
+    if(target==='frozenSameApplication')input.frozenSameApplication='false';
+    if(target==='controlAttempted')input.conventionalControl.attempted='false';
+    if(target==='candidateAttempted')input.protectedCandidate.attempted='false';
+    if(target==='controlCloneSucceeded')input.conventionalControl.cloneSucceeded='true';
+    if(target==='candidateCloneSucceeded')input.protectedCandidate.cloneSucceeded='false';
+    const verdict=compareCandidateEvidence(input);
+    assert.equal(verdict.measurementReady,false,target);
+    assert.equal(verdict.attackAdvantage,'inconclusive',target);
+    assert.equal(verdict.verdict,'inconclusive',target);
+  }
+});
+
+test('positive attacker-cost claim requires a string protocol and valid SHA-256 commitments',()=>{
+  const badProtocol=/** @type {any} */ (example());
+  recordMatchedCompletedAttack(badProtocol);
+  const sameArray=['source-only/AST-reconstruction'];
+  badProtocol.conventionalControl.protocol=sameArray;
+  badProtocol.protectedCandidate.protocol=sameArray;
+  assert.equal(compareCandidateEvidence(badProtocol).measurementReady,false);
+  assert.equal(compareCandidateEvidence(badProtocol).verdict,'inconclusive');
+  for(const field of ['selectedFunctionSetDigest','verifierCaseDigest','methodCommitmentDigest']){
+    for(const malformed of ['g'.repeat(64),'a'.repeat(63)+' ', 'A'.repeat(64)]){
+      const input=/** @type {any} */ (example());
+      recordMatchedCompletedAttack(input);
+      input.conventionalControl[field]=malformed;
+      input.protectedCandidate[field]=malformed;
+      const verdict=compareCandidateEvidence(input);
+      assert.equal(verdict.attackAdvantage,'inconclusive',field+':'+malformed.slice(0,2));
+      assert.equal(verdict.verdict,'inconclusive',field);
+    }
+  }
+});
