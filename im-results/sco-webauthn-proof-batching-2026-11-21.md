@@ -7,7 +7,7 @@
 
 Previous [per-operation proof CPU evidence](./sco-webauthn-proof-cpu-budget-2026-11-21.md) found server verification alone costs 95–111x the CPU of the small 500-round Int32 native operation, far exceeding 2.5x. The frozen additive model suggested a 128-operation group may amortize a single ES256 verifier below 2.5x at the **server-only** level.
 
-The new experiment contains **two distinct and explicit** proofs of feasibility: an isolated verifier-frequency CPU screen on 500-round synthetic JS kernels, and a separately source-pinned real Chromium WebAuthn proof that cryptographically commits to every element of a 128-element original-result list before the genuine SCO handler executes the private batch. These test separate workload properties and cannot be algebraically combined into an unmeasured full-system ratio.
+The new experiment contains **two distinct and explicit** tests of a candidate: an isolated verifier-frequency CPU screen on 500-round synthetic JS kernels, and a separately source-pinned real Chromium WebAuthn proof that cryptographically commits to every element of a 128-element original-result list before the genuine SCO handler executes the private batch. These test separate workload properties and cannot be algebraically combined into an unmeasured full-system ratio.
 
 ## Frozen server-only CPU benchmark
 
@@ -17,14 +17,14 @@ Every A/B sample measures **128,000 original operations** across 32 repetitions 
 
 [Final Linux + Windows manual CI 44878034483](https://github.com/FlareZ123/obfs/actions/runs/44878034483), exact tested code head `3d963476ff6f5718cf6de8ed2cefbd42a020ea6f`, Node 22, strict external JSDoc and all paired parity checks passed. The raw seven paired microsecond timings are preserved in the source-pinned CI logs.
 
-| Platform | Proof every B ops | Native CPU µs/op | Protected CPU µs/op | Ratio | Isolated 2.5x screen |
+| Platform | Proof every B ops | Native CPU µs/op | Protected CPU µs/op | Ratio of medians | **Strict per-pair 2.5x verdict** |
 | --- | ---: | ---: | ---: | ---: | --- |
 | Ubuntu | 32 | 0.6663 | 2.8860 | **4.3313x** | **Fails** |
-| Ubuntu | 128 | 0.6652 | 1.2473 | **1.8750x** | Component passes |
+| Ubuntu | 128 | 0.6652 | 1.2473 | **1.8750x** | 0/7 observed pairs breach |
 | Windows | 32 | 0.7344 | 2.9297 | **3.9894x** | **Fails** |
-| Windows | 128 | 0.6094 | 1.2188 | **2.0000x** | Component passes |
+| Windows | 128 | 0.6094 | 1.2188 | **2.0000x** | **FAILS: 1/7 pairs at 2.7742x** |
 
-The 32-group pair is a valuable negative control: grouping is not sufficient by itself. The 128-group proof verifier component meets the threshold **at the recorded sizes, CPU models and runner state**. This is no guarantee for the complete protected system. The Windows ratios retain process CPU quantum effects despite longer measurement windows; report raw samples rather than pretending exact precision.
+The 32-group pair is a valuable negative control: grouping is not sufficient by itself. **Important correction:** the B=128 ratios in this table are *ratios of medians*; on Windows the third actual A/B CPU pair was 62,000 µs original versus 172,000 µs signed, **2.77419x**. That violates the repository's strict rule that every observed paired workload must stay at or below 2.5x. The earlier “component passes on both systems” interpretation was **incorrect** and is superseded by the [preregistered strict-pair audit charter](../workplace/sco-webauthn-batch-strict-pair-audit-charter-2026-11-21.md). The Ubuntu B=128 raw pairs stayed under 2.5x. Windows CPU accounting remains quantized, so the causal attribution of one breach is uncertain; it must still be preserved as a runtime gate failure for this pinned sample.
 
 ## Actual real Chromium and SCO private batch semantics
 
@@ -49,11 +49,11 @@ The proof commits to an exact **bounded array of 128 integer values**, not an ar
 
 ## Meaning and release veto
 
-This candidate gives a measurable tradeoff: for the synthetic 500-round original work, one ES256 verifier per 128 operations brings the **server-only CPU component** below the 2.5x cap on both checked systems, whereas one verifier per 32 operations fails. The independently tested batch-binding policy prevents an exported cookie without a fresh valid signature from authorizing the exact 128-element operation, and prevents post-signature argument editing or replay.
+This candidate gives a measurable tradeoff: for the synthetic 500-round original work, one ES256 verifier per 128 operations reduces the **median** server-only CPU ratio to approximately 2x, but the **strict per-sample 2.5x cap fails on Windows** and therefore does not authorize promotion. One verifier per 32 operations also fails. The independently tested batch-binding policy prevents an exported cookie without a fresh valid signature from authorizing the exact 128-element operation, and prevents post-signature argument editing or replay.
 
 The fixed SCO threat model still permits unlimited authorized-origin operations and online relay. The successful fresh signed batch forwarded to raw client is a direct negative against stronger claims of only running at the original client or resisting a genuinely authorized same-account relay. The batch proof is an authorization-layer hardening candidate for coarse protected operations. It is **not** static or dynamic code confidentiality proof and is independent of COO/SNO.
 
-Crucially, the Chrome batch computes one arithmetic mapping per element, whereas the isolated CPU benchmark uses a much heavier 500-round operation. Its **end-to-end** browser signing, RPC serialization, network and server authorization overhead is unmeasured, and the browser's 128-element computation cannot inherit the CPU benchmark's positive ratio. A valid final 2.5x claim would require original and transformed *the same realistic app* and an equally trusted baseline with all overhead accounted for. Overall **RELEASE-BLOCKED** remains the correct decision.
+Crucially, the Chrome batch computes one arithmetic mapping per element, whereas the isolated CPU benchmark uses a much heavier 500-round operation. Its **end-to-end** browser signing, RPC serialization, network and server authorization overhead is unmeasured, and the browser's 128-element computation cannot inherit the CPU benchmark's median-only ratio. A valid final 2.5x claim would require original and transformed *the same realistic app* and an equally trusted baseline with all overhead accounted for. Overall **RELEASE-BLOCKED** remains the correct decision.
 
 ## Reproduction
 
