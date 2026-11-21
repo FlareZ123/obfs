@@ -133,6 +133,23 @@ async function runEvidence(){
         functionComparisons++;
       }
     }
+    // Both static reconstructions were completed before loading the original.
+    // The original here is a held-out verifier only, never an attack oracle.
+    const staticFolder=path.join(folder,'heldout-published-static');
+    await materialize(staticFolder,graphs.reconstructed);
+    const recoveredMath=await import(pathToFileURL(
+      path.join(staticFolder,'math.mjs')).href);
+    let publishedStaticComparisons=0;
+    for(const name of ['round1','round2','round3']){
+      for(let index=0;index<4096;index++){
+        const input=index<7?
+          [-2147483648,-1,0,1,2147483647,-0,0x12345678|0][index]:
+          Math.imul(index^0x5ac31eed,0x9e3779b1)|0;
+        assert.ok(Object.is(recoveredMath[name](input),originalMath[name](input)),
+          'Published static recovery fails held-out parity: '+name+'/'+index);
+        publishedStaticComparisons++;
+      }
+    }
     // Matched-query black-box control: identical three f(0) observations
     // against each distribution before any held-out native/output check.
     /** @type {Record<string,{oracleCalls:number,attackMs:number,offsets:Record<string,number>,heldoutComparisons:number,verificationOracleCalls:number}>} */
@@ -216,6 +233,34 @@ async function runEvidence(){
       bytes[variant]=graphs[variant].reduce((sum,file)=>sum+Buffer.byteLength(file.code),0);
       hashes[variant]=digest(graphs[variant]);
     }
+    const sampledSessionPairs=rows.map(row=>({
+      native:/** @type {number[]} */ (row.timingMs.native),
+      candidate:/** @type {number[]} */ (row.timingMs.published)
+    }));
+    // Equal public-byte source access, zero runtime oracle queries and the
+    // same 4096 held-out signed-Int32 cases for all three selected functions.
+    // The two source-only normalizers have different grammars; a successful
+    // clone is decisive negative evidence without inferring relative effort.
+    const matchedStaticDecision=compareCandidateEvidence({
+      frozenSameApplication:true,nativeOutputAndHostTraceParity:true,
+      protectedFunctions,
+      conventionalControl:{
+        protocol:'source-only/Acorn-recovery-heldout-v1',oracleCalls:0,
+        attempted:true,cloneSucceeded:minifiedAttack.recovered===protectedFunctions&&
+          functionComparisons===protectedFunctions*4096,
+        verifiedHeldoutComparisons:functionComparisons
+      },
+      protectedCandidate:{
+        protocol:'source-only/Acorn-recovery-heldout-v1',oracleCalls:0,
+        attempted:true,
+        cloneSucceeded:publishedAttack.functions.length===protectedFunctions&&
+          publishedStaticComparisons===protectedFunctions*4096,
+        verifiedHeldoutComparisons:publishedStaticComparisons
+      },
+      sessionPairs:sampledSessionPairs
+    });
+    assert.equal(matchedStaticDecision.attackAdvantage,'contradicted',
+      'Both static-only delivered-byte recoveries must pass held-out checks');
     const candidateDecision=compareCandidateEvidence({
       frozenSameApplication:true,nativeOutputAndHostTraceParity:true,
       protectedFunctions,
@@ -235,10 +280,7 @@ async function runEvidence(){
         verifiedHeldoutComparisons:
           matchedThreeQueryAttacks.published.heldoutComparisons
       },
-      sessionPairs:rows.map(row=>({
-        native:/** @type {number[]} */ (row.timingMs.native),
-        candidate:/** @type {number[]} */ (row.timingMs.published)
-      }))
+      sessionPairs:sampledSessionPairs
     });
     assert.equal(candidateDecision.attackAdvantage,'contradicted',
       'Known baseline must remain recoverable under the matched probe');
@@ -249,8 +291,9 @@ async function runEvidence(){
         comparisons:functionComparisons,attackMs:minifiedAttack.attackMs,
         locals:minifiedAttack.functions.map(item=>({name:item.name,local:item.local}))},
       publishedStaticRecovery:{recovered:publishedAttack.functions.length,
+        comparisons:publishedStaticComparisons,
         attackMs:publishedAttack.attackMs,paths:publishedAttack.functions},
-      matchedThreeQueryAttacks,candidateDecision,protectedFunctions,
+      matchedThreeQueryAttacks,matchedStaticDecision,candidateDecision,protectedFunctions,
       heldoutNativeParity:true,rows};
   }finally{
     await fs.rm(folder,{recursive:true,force:true});
