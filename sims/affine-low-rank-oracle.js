@@ -171,4 +171,72 @@ function invertLowRankPermutation(oracle,target,options){
   throw new RangeError('Oracle violates promised permutation or rank bound');
 }
 
-module.exports={invertLowRankPermutation};
+/**
+ * Compute a one-sided certificate against a claimed low-rank output
+ * perturbation model without knowledge of its hidden affine layers.
+ *
+ * For any representation F(x)=c XOR A*x XOR W*g(x) with invertible A,
+ * every residual against the observed basis interpolant belongs to im(W).
+ * The interpolant nullity is independently bounded above by rank(W).
+ * Therefore max(nullity, observedResidualRank) is a sound LOWER bound on
+ * rank(W), including when the function is not a permutation.
+ *
+ * A small observed bound does not prove a small actual rank. Unqueried
+ * inputs can introduce arbitrarily many additional residual directions.
+ *
+ * @param {UInt32Oracle} oracle
+ * @param {number} bits
+ * @param {number[]} probeInputs
+ * @returns {{
+ *   minimumOutputRank:number,
+ *   interpolantNullity:number,
+ *   observedResidualRank:number,
+ *   residualWitnesses:{input:number,residual:number}[],
+ *   distinctOracleCalls:number
+ * }}
+ */
+function auditObservedOutputRank(oracle,bits,probeInputs){
+  if(!Number.isInteger(bits)||bits<1||bits>32)
+    throw new RangeError('Expected 1..32 bits');
+  const range=2**bits;
+  /** @type {Map<number,number>} */
+  const evaluated=new Map();
+  /** @param {number} input @returns {number} */
+  const query=input=>{
+    if(!Number.isInteger(input)||input<0||input>=range)
+      throw new RangeError('Probe outside unsigned n-bit domain');
+    const cached=evaluated.get(input);
+    if(cached!==undefined)return cached;
+    const output=oracle(input);
+    if(!Number.isInteger(output)||output<0||output>=range)
+      throw new RangeError('Oracle output outside unsigned n-bit domain');
+    evaluated.set(input,output>>>0);
+    return output>>>0;
+  };
+  const origin=query(0);
+  const columns=Array.from({length:bits},(_,bit)=>
+    (query((1<<bit)>>>0)^origin)>>>0);
+  const interpolantBasis=Array(bits).fill(0);
+  let interpolantRank=0;
+  for(const column of columns){
+    if(extendBasis(interpolantBasis,column,bits))interpolantRank++;
+  }
+  const residualBasis=Array(bits).fill(0);
+  /** @type {{input:number,residual:number}[]} */
+  const residualWitnesses=[];
+  for(const input of probeInputs){
+    const residual=(query(input)^origin^applyColumns(columns,input))>>>0;
+    if(extendBasis(residualBasis,residual,bits)){
+      residualWitnesses.push({input,residual});
+    }
+  }
+  const interpolantNullity=bits-interpolantRank;
+  const observedResidualRank=residualWitnesses.length;
+  return {
+    minimumOutputRank:Math.max(interpolantNullity,observedResidualRank),
+    interpolantNullity,observedResidualRank,residualWitnesses,
+    distinctOracleCalls:evaluated.size
+  };
+}
+
+module.exports={invertLowRankPermutation,auditObservedOutputRank};
