@@ -98,6 +98,27 @@ function hidden32(seed) {
   };
 }
 
+/**
+ * For a promised quadratic function, the span of its pairwise polar
+ * vectors is exactly the output interpolation residual span.
+ * @param {(x:number)=>number} oracle
+ * @param {number} bits
+ * @returns {number}
+ */
+function quadraticOutputRank(oracle, bits) {
+  const c = oracle(0);
+  const columns = Array.from({length: bits}, (_, i) => oracle((2 ** i) >>> 0) ^ c);
+  /** @type {number[]} */
+  const polarImages = [];
+  for (let i = 0; i < bits; i++) {
+    for (let j = i + 1; j < bits; j++) {
+      polarImages.push((oracle(((2 ** i) ^ (2 ** j)) >>> 0) ^
+        columns[i] ^ columns[j] ^ c) >>> 0);
+    }
+  }
+  return basis(polarImages, bits).length;
+}
+
 function main() {
   const summary = {
     width3Permutations: 0, width3Targets: 0, width3MaxQueries: 0,
@@ -147,6 +168,7 @@ function main() {
   }
   for (let instance = 0; instance < 10; instance++) {
     const oracle = hidden32(random());
+    assert.equal(quadraticOutputRank(oracle, 32), 24);
     for (let k = 0; k < 8; k++) {
       const input = random();
       const v = invertQuadraticPermutation(oracle, oracle(input), {
