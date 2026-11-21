@@ -79,8 +79,8 @@ test('immutable imported arrow can be aliased and used with the direct import',a
   await expectRewritten('arrow and mixed direct call',graph(arrow,
     'import {state} from "./state.mjs";'+
     'import {identity as relay} from "./identity.mjs";'+
-    'const forward=relay;const value=forward(state);'+
-    'console.log(JSON.stringify([value.secretField,relay(state).otherField]));'));
+    'const forward=relay;const value=forward(state);const direct=relay(state);'+
+    'console.log(JSON.stringify([value.secretField,direct.otherField]));'));
 });
 
 test('two immutable aliases of the same imported identity remain direct-only',async()=>{
@@ -88,7 +88,8 @@ test('two immutable aliases of the same imported identity remain direct-only',as
     'import {state} from "./state.mjs";'+
     'import {identity} from "./identity.mjs";'+
     'const first=identity;const second=identity;'+
-    'console.log(JSON.stringify([first(state).secretField,second(state).otherField]));'));
+    'const one=first(state);const two=second(state);'+
+    'console.log(JSON.stringify([one.secretField,two.otherField]));'));
 });
 
 for(const [name,entry] of /** @type {[string,string][]} */ ([
