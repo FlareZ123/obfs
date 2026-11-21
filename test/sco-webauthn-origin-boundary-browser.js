@@ -72,7 +72,7 @@ async function main(){
       return (Number(value)*17+29)>>>0;
     }},
     authorizeRpc(request){
-      const match=/(?:^|;\\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
+      const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
         .exec(request.headers.cookie??'');
       return match!==null&&activeSessions.has(match[1]);
     }
