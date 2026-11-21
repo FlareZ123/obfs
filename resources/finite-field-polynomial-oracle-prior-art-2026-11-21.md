@@ -1,0 +1,26 @@
+# Prior-art checkpoint: finite-field polynomial queries, alternating radicals, Reed–Muller validation
+
+**Agent 11, 21 November 2026. Classification: source-backed literature orientation only, not an academic novelty finding.** This note compares established external literature with the repository's restricted chosen-query oracle-cloning tests. It does **not** claim that the 244-, 428–516-, 631-, 1,127-, or 6,882-query specialized bounds are original, optimal, or absent from prior publications.
+
+## Verified authoritative sources
+
+1. **Robert E. Schapire and Linda M. Sellie, "Learning Sparse Multivariate Polynomials over a Field with Queries and Counterexamples," Journal of Computer and System Sciences 52(2), 201–213 (April 1996). DOI: [10.1006/jcss.1996.0017](https://doi.org/10.1006/jcss.1996.0017).** Princeton's authoritative publication record: https://collaborate.princeton.edu/en/publications/learning-sparse-multivariate-polynomials-over-a-field-with-querie-2/ . Its abstract explicitly states exact polynomial identification over arbitrary fields on Boolean variables, with **membership AND equivalence queries**, polynomial time in input count and polynomial sparsity. This is strong historical grounding for treating polynomial-learning oracle attacks as a pre-existing research field. The abstract alone does not imply the specialized rank-restricted *membership-only* 244/631/6,882-query bounds in this repository.
+
+2. **Ilias Diakonikolas, Homin Lee, Kevin Matulef, Rocco Servedio, Andrew Wan, "Efficiently Testing Sparse GF(2) Polynomials," Algorithmica 61 (2011); arXiv preprint 2008:** https://arxiv.org/abs/0805.1765 and https://www1.cs.columbia.edu/~rocco/papers/icalp08testsparsepoly.html . The authors' summary explicitly describes polynomial property testing and reliance on Schapire–Sellie's exact sparse-polynomial learner. This reinforces the maturity of GF2 membership-query interpolation. Property-testing objectives and its polynomial-sparsity promises are **different** from this project's vector-output low-joint-derivative-rank exact functional cloning objective.
+
+3. **J. Hora, "Steiner forms," Commentationes Mathematicae Universitatis Carolinae 57(4), 527–536 (2016), DOI 10.14712/1213-7243.2015.182:** https://cmuc.karlin.mff.cuni.cz/pdf/cmuc1604/hora.pdf . The source defines alternating trilinear GF2 forms, radicals and radical codimensions, and discusses the complexity of classifying such forms. This is algebraic background supporting the terminology of the rank-three/four tensor results. It does not by itself prove the repository's vector-valued quotient-signature chosen-oracle reconstruction lemmas or their query complexity. The source was text-inspected; independent full-page visual verification was not available due web screenshot retrieval failure.
+
+4. **Reed–Muller minimum-distance background:** for order-r Boolean polynomials in m variables, the binary evaluation code RM(r,m) has minimum Hamming distance 2^(m-r). An accessible textbook statement is https://link.springer.com/chapter/10.1007/978-981-19-0920-7_2 ; additional notes: https://a.ravagnani.win.tue.nl/coding%20th/Coding_theory_notes.pdf . This supports Agent41's idea that two distinct degree≤2 Boolean models differ on at least one quarter of inputs, so independent uniform postfit challenges can detect an incorrect rank hint with probability at least 1-(3/4)^t. The theorem pertains to distinct **functions** and proper polynomial models; it is not a general detector of arbitrary dynamic malicious scripts.
+
+## What remains unverified
+
+- A serious novelty review must compare these exact radical-dimension constrained source families and query upper bounds to classic exterior-algebra algorithms, low-rank polynomial interpolation, tensor learning and black-box algebraic cryptanalysis. Matching broad field terms to a source is insufficient to establish result priority.
+- Stronger adversaries against the chosen-query algorithms should exploit query correlation, finite precision, adversarial output range, incorrect source-class hints, stateful or quota-limited oracles, and hidden high algebraic degree.
+- A fairness comparison must include the same oracle class offered by an ordinary authenticated un-obfuscated server, because polynomial predictability is independent of SCO packaging. The project remains RELEASE-BLOCKED until unrelated source fidelity, dynamic attacks, environment restriction and the 2.5× runtime limit are satisfied.
+
+## Local supporting evidence
+
+- `im-results/rankthree-quadratic-polarization-peer-2026-11-21.md`: n32 rank≤3 quadratic 244-query theorem and source-pinned full-function parity.
+- `im-results/adaptive-quadratic-polar-k4-k6-2026-11-21.md`: exact polar codim4..6 adaptive proofs, 428/473/516-query caps, source-pinned CI and explicit rank-promise caveat.
+- `im-results/rankfive-top-quartic-functional-clone-2026-11-21.md`: top fourth derivative rank≤5, unrestricted lower cubic, 6,882-query full-function conditional learner and 32-bit source-pinned parity.
+- `im-results/sco-rank6-authenticated-adaptive-functional-clone-2026-11-21.md`: actual authenticated SCO HTTP offline behavior cloning with 150/171 authorized queries and honest authentication-source boundaries.
