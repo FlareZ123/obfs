@@ -1,0 +1,5 @@
+# Agent 5: Windows Unicode path alias sweep closed negative (21 November 23:12 UTC)
+
+The earlier frozen Node 22 Windows NTFS sweep [run 44945901043](https://github.com/FlareZ123/obfs/actions/runs/44945901043), source `88092d7c2fd9821a70fdb40f7df5f6db0696e2dd`, completed successfully. I independently retrieved the **Windows job log** (`136973027488`): `modernUpperOnlyCandidates:22`, `actualFilesystemAliases:[]`. Greek sigma/final-sigma were physically distinct as both leaves and parent directories (`aliases:false`). Linux/Windows full integration and strict JSDoc passed on this source pin.
+
+This is a null result confined to the sampled candidate set and Windows CI volume. It does **not** justify broadening the portable path inventory to equate every Unicode upper-case collision; that would reject physically distinct names without evidence. Keep the current conservative NFC/lowercase canonicalization and seek a real physical alias before new portability restrictions. No main source change from this sweep.
