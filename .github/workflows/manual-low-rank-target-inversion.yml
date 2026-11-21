@@ -29,5 +29,7 @@ jobs:
         run: node --test test/public-residual-width5-6-independent.test.js
       - name: Independent full-target r-equals-nullity width-8/10 regression
         run: node --test test/public-residual-maximal-nullity8-10.test.js
+      - name: Explicit extremal residual-rank construction and inversion
+        run: node --test test/public-residual-extremal-construction.test.js
       - name: Project JSDoc type safety
         run: npm run typecheck
