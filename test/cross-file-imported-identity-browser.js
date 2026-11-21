@@ -78,7 +78,8 @@ async function mangleGraph(input){
       bundle:false,write:false,
       platform:'browser',format:'esm',target:'es2022',
       minify:true,legalComments:'none',
-      mangleProps:/^(secretField|otherField)$/
+      mangleProps:/^(secretField|otherField)$/,
+      mangleCache:{secretField:'a',otherField:'b'}
     });
     const files=result.outputFiles??[];
     assert.equal(files.length,input.length);
@@ -111,7 +112,6 @@ async function main(){
     [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
     const original=graph(reflective,depth),compiled=compile(original);
     const mangled=await mangleGraph(original);
-    console.log('PROPERTY_MANGLE_EMITTED '+JSON.stringify({name,files:mangled}));
     /** @type {Output[]} */
     const minified=await Promise.all(original.map(async file=>({
       path:file.path,
