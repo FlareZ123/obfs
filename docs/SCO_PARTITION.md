@@ -160,7 +160,7 @@ These checks strengthen publication configuration guidance; they do not
 prevent unlimited authorized RPC relaying or prove dynamic-loader absence.
 
 The audited private graph also conservatively refuses references to known
-browser-owned host APIs, including `fetch`, `Worker`, `WebSocket`,
+browser-owned host APIs, including `fetch`, `Request`, `Worker`, `WebSocket`,
 `XMLHttpRequest`, `EventSource`, `BroadcastChannel`, and `MessageChannel`.
 The same check applies to explicitly selected private exports and their
 server-resident helpers. For example, in a browser `fetch('./data.json')`
