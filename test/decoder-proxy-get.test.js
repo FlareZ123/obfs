@@ -59,7 +59,15 @@ const unsafe=[
   ['factory-produced Proxy handler',
     "function makeHandler(){return {get(_t,key){return key==='ref'?String.prototype:undefined;}};}const box=new Proxy({},makeHandler());function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
   ['revocable Proxy get trap',
-    "const box=Proxy.revocable({}, {get(_t,key){return key==='ref'?String.prototype:undefined;}}).proxy;function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
+    "const box=Proxy.revocable({}, {get(_t,key){return key==='ref'?String.prototype:undefined;}}).proxy;function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['aliased Proxy constructor',
+    "const P=Proxy;const box=new P({}, {get(_t,key){return key==='ref'?String.prototype:undefined;}});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['aliased revocable Proxy factory',
+    "const make=Proxy.revocable;const box=make({}, {get(_t,key){return key==='ref'?String.prototype:undefined;}}).proxy;function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['assigned Proxy handler',
+    "let handler;handler={get(_t,key){return key==='ref'?String.prototype:undefined;}};const box=new Proxy({},handler);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['aliased Proxy trap callable',
+    "const trap=(_t,key)=>key==='ref'?String.prototype:undefined;const alias=trap;const box=new Proxy({}, {get:alias});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -103,7 +111,15 @@ const harmless=[
   ['factory-produced Proxy Number handler',
     "function makeHandler(){return {get(){return Number.prototype;}};}const box=new Proxy({},makeHandler());box.ref.unrelated=1;"],
   ['revocable Proxy Number getter',
-    "const box=Proxy.revocable({}, {get(){return Number.prototype;}}).proxy;box.ref.unrelated=1;"]
+    "const box=Proxy.revocable({}, {get(){return Number.prototype;}}).proxy;box.ref.unrelated=1;"],
+  ['aliased Proxy Number constructor',
+    "const P=Proxy;const box=new P({}, {get(){return Number.prototype;}});box.ref.unrelated=1;"],
+  ['aliased revocable Proxy Number factory',
+    "const make=Proxy.revocable;const box=make({}, {get(){return Number.prototype;}}).proxy;box.ref.unrelated=1;"],
+  ['assigned Proxy Number handler',
+    "let handler;handler={get(){return Number.prototype;}};const box=new Proxy({},handler);box.ref.unrelated=1;"],
+  ['aliased Proxy Number trap',
+    "const trap=()=>Number.prototype;const alias=trap;const box=new Proxy({}, {get:alias});box.ref.unrelated=1;"]
 ];
 
 for(const [name,mutator] of harmless) {
