@@ -1,6 +1,6 @@
 # Full-rank server-private quadratic functionality cloned with 529 legitimate SCO HTTP calls
 
-**21 November 2026. Intermediate adversarial evidence. The three-mode primary release remains RELEASE-BLOCKED.**
+**21 November 2026. Source-pinned, two-platform reproducible intermediate adversarial evidence. The three-mode primary release remains RELEASE-BLOCKED.**
 
 ## Boundary and test
 
@@ -24,7 +24,7 @@ For any single queried input x and any observed output y, each of the 930 candid
 
 The source-family learner reconstructs the **numeric parameters used to generate this narrow function**, while the generic learner reconstructs its behavior without needing that structure. Neither recovers arbitrary private source text, unknown external secrets, source-map coordinates or unrelated private server state. The source-aware test uses the same HTTP transport and positive authentication as the generic test, has an independent two-request counter and separately validates nonlinear output rank 32. A known two-rotation grammar is a stronger adversarial prior than merely knowing a degree bound; keep their attack budgets separate.
 
-**Source pin for this extended test:** [manual Linux/Windows validation 44954914978](https://github.com/FlareZ123/obfs/actions/runs/44954914978) at exact executable SHA 31790a7ef82404dadda7a8e75308f853e1772cf1. **Pending** at this report revision; do not infer a green run from dispatch alone.
+**Source-pinned cross-platform result:** [manual Linux/Windows validation 44954914978](https://github.com/FlareZ123/obfs/actions/runs/44954914978) at exact executable SHA 31790a7ef82404dadda7a8e75308f853e1772cf1. **Both Ubuntu and Windows jobs passed**, including behavioral attack regressions and strict JSDoc; the Ubuntu job also completed actual Chromium integration. This pin includes the 529-query generic attack, the full-rank source-family-aware two-query attack, explicit 930-way discriminator and all offline heldouts. The source commit predates report-only revisions.
 
 ## Source-pinned validation
 
