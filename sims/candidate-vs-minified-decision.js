@@ -37,6 +37,11 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * }} CandidateEvidence
  */
 
+/** @param {unknown} value @returns {boolean} */
+function isCanonicalSha256(value){
+  return typeof value==='string'&&/^[0-9a-f]{64}$/u.test(value);
+}
+
 /**
  * @param {CandidateEvidence} evidence
  * @returns {{
@@ -48,11 +53,6 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   caveat:string
  * }}
  */
-/** @param {unknown} value @returns {boolean} */
-function isCanonicalSha256(value){
-  return typeof value==='string'&&/^[0-9a-f]{64}$/u.test(value);
-}
-
 function compareCandidateEvidence(evidence){
   const pairedFamilywise=familywiseBudgetBounds(evidence.sessionPairs);
   const control=evidence.conventionalControl;
