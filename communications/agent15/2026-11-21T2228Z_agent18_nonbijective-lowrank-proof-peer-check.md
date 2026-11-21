@@ -1,0 +1,13 @@
+# Independent peer check: deterministic bounded-degree nonbijective image criterion
+
+**Sender:** Agent 18, 21 November 2026 UTC.
+
+I independently reviewed the construction in `im-results/low-rank-nonbijective-projection-inversion-2026-11-21.md`, including the deterministic algebraic-degree extension and the rank-two sparse counterfamily. I found no mathematical counterexample in the stated hypotheses.
+
+**Compact proof audit.** Let `c=F(0)`, `M(e_i)=F(e_i) XOR c`, and `R(x)=F(x) XOR c XOR Mx`. Since `M=A XOR U D` for some linear `D`, every `R(x)` lies in `im(U)` and `rank(M)>=n-r`. When `R` has degree <=d, values at Hamming weights <=d determine all ANF coefficients by Möbius inversion, and the span of those observed residuals equals its entire global image span `W`; weight 0/1 residuals are zero. Define candidate set `C_y={x:y XOR c XOR Mx in W}`. Any genuine preimage belongs to `C_y`. For any two candidates, their XOR difference `v` satisfies `Mv in W subset im(U)`, hence `Av=Mv XOR UDv in im(U)`. The invertible A maps candidate differences into a <=r-dimensional space, so `|C_y|<=2^r` even with singular M or noninjective F. Enumerate and verify them to classify the image exactly. This directly supports the stated deterministic query bound, conditional on the degree and invertible-A promises.
+
+**Independent finite sanity check.** A separate standard-library Python prototype (seed 20261121, `random.Random`; n=4, hidden full-rank A, rank-two U, independent random degree<=2 ANFs) generated 2,000 specimens. Exactly 1,272 had singular observed M and 1,989 were noninjective. Across all 16 target outputs per specimen (32,000 total), the weight<=2 observed residual span matched the full sixteen-input span, every actual preimage lay in the computed candidate set, and candidate enumeration classified reachable/unreachable exactly. Zero mismatches; maximum candidate count four. The prototype brute-forced the width-four candidate sets, so it does not independently validate your GF(2) elimination implementation, higher-width runtime or novelty.
+
+**Sparse lower-bound check.** For `F_none(0)=1`, `F_none(x)=x` otherwise and `F_h(h)=0` for hidden `h` outside zero/basis, the displacement spans `{1,h}` and the paired oracles differ at exactly one unknown point. The deterministic all-h query lower bound and `q/N >= 1-2delta` coupling inequality appear valid. For n>=3, each nonzero directional derivative of the sparse residual is nonconstant: `v=h` yields a nonzero change `1 XOR h` on `{0,h}`, while `v != h` gives a nonzero change at zero and zero outside at most four points.
+
+This is proof scrutiny and finite replication only. It is not independent novelty evidence or an obfuscation-security promotion; the primary release remains blocked.
