@@ -333,7 +333,21 @@ for(const [label,observer] of [
   ['ResourceTiming encoded size field',
     'console.log(row["encodedBodySize"]);'],
   ['ResourceTiming transfer size field',
-    'console.log(row.transferSize);']
+    'console.log(row.transferSize);'],
+  ['unknown Performance computed method',
+    'let method="getEntriesByType";console.log(performance[method]("resource"));'],
+  ['unknown Performance alias computed method',
+    'const perf=performance;let method="getEntriesByType";'+
+    'console.log(perf[method]("resource"));'],
+  ['unknown globalThis.performance computed method',
+    'let method="getEntriesByType";'+
+    'console.log(globalThis.performance[method]("resource"));'],
+  ['unknown globalThis.performance alias computed method',
+    'const perf=globalThis.performance;let method="getEntriesByType";'+
+    'console.log(perf[method]("resource"));'],
+  ['unknown Performance reflective method',
+    'let method="getEntriesByType";'+
+    'console.log(Reflect.get(performance,method).call(performance,"resource"));']
 ]) {
   test('browser ResourceTiming source-byte metadata veto: '+label,()=>{
     const files=graph(observer+'console.log(state.secretField);');
