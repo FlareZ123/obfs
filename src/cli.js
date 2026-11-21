@@ -139,7 +139,9 @@ async function readSourceTree(root) {
           ': '+Buffer.from(item.name).toString('hex'));
       }
     }
-    entries.sort((a,b)=>String(a.name).localeCompare(String(b.name),'en'));
+    // Bytewise ordering is independent of ICU locale/collation versions and
+    // preserves a reproducible input order on Linux and Windows runners.
+    entries.sort((a,b)=>Buffer.compare(a.name,b.name));
     for(const item of entries) {
       const name=String(item.name);
       if (name.toLowerCase() === 'node_modules' || name.toLowerCase() === '.git') continue;
