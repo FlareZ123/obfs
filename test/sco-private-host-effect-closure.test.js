@@ -139,7 +139,7 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
       {path:'mixed.mjs',sourceType:'module',
         code:source+'export function visible(){return 7;}'},
       {seed:'sco-direct-cross-realm-host-api-20261121',privateNames:['protectedOp']}
-    ),/Private SCO (?:export|helper) contains unproved cross-realm host API/u,source);
+    ),/Private SCO export or helper contains unproved cross-realm host API/u,source);
   }
   const inert='export async function protectedOp(){'+
     'const record={fetch:41,Worker:1};return record.fetch+record.Worker;}'+
