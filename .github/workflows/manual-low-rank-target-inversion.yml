@@ -65,6 +65,8 @@ jobs:
         run: node sims/rankthree-quadratic-polarization-peer.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
+      - name: Random-basis low-rank quadratic clone negative control
+        run: node sims/rankthree-random-basis-attack.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
