@@ -30,3 +30,10 @@ The standalone SNO launcher API also writes an integrity manifest from caller-su
 ## Successful integrated validation
 
 The exact combined source `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`, which includes compiler, direct SCO, direct SNO source-string admission and the regression cases described above, passed the full Node 22 Linux/Windows and Ubuntu Chromium workflow [44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755). The separate raw source-tree filename and package BOM changes were developed later; this pin does not validate those additions.
+
+
+## Textual asset strings
+
+The direct API can also receive text assets as JavaScript strings. A raw unpaired UTF-16 surrogate in such a string is subject to the same UTF-8 replacement on file or HTTP publication, even when the asset is named `.json` or `.txt`. Follow-up commits `4e0be881b37126757f560d57d6c6b4a22d50425f` (core), `cde9f08825e9ece4103d83f2547914cfc2dcd82e` (direct SCO), and `d22a81c61a9769fef6571fc77fce7fffac577d78` (direct SNO) extend the existing well-formed UTF-16 check to all **string** inputs, with asset-specific refusal messages. Binary Buffers remain byte-exact and unrestricted by this text-only rule. Regression additions in `test/unpaired-source-input.test.js` through `d869759be31c8aa2a175ecc16a7ab72b5f987157` cover three-mode text asset refusal, direct SCO/SNO refusal, accepted binary replacement-character bytes, and exact textual JSON `\\ud800` escape spelling. Validation is pending at [44939896026](https://github.com/FlareZ123/obfs/actions/runs/44939896026), pinned to `d869759be31c8aa2a175ecc16a7ab72b5f987157`.
+
+This refinement narrows direct API admission for deliberately malformed text strings. It is a compile-input fidelity rule, not a runtime protection grade.
