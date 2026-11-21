@@ -436,12 +436,13 @@ async function main(){
     /**
      * Sign an operation-specific, one-use server challenge through the real
      * browser WebAuthn API; optionally submit it through same-origin fetch.
-     * @param {number} value
-     * @param {number|null} submitValue
+     * @param {number|number[]} value
+     * @param {number|number[]|null} submitValue
+     * @param {'proofSum'|'proofBatch'} [method]
      * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
      */
-    async function browserSignedOperation(value,submitValue){
-      return page.evaluate(async({rp,rawId,value,submitValue})=>{
+    async function browserSignedOperation(value,submitValue,method='proofSum'){
+      return page.evaluate(async({rp,rawId,value,submitValue,method})=>{
         const decode=encoded=>{
           const binary=atob(encoded);
           return Uint8Array.from(binary,character=>character.charCodeAt(0));
@@ -453,7 +454,7 @@ async function main(){
         };
         const challengeResponse=await fetch('/proof-challenge',{
           method:'POST',headers:{'content-type':'application/json'},
-          body:JSON.stringify({method:'proofSum',args:[value]})
+          body:JSON.stringify({method,args:[value]})
         });
         if(!challengeResponse.ok)throw Error('Operation challenge denied');
         const issued=await challengeResponse.json();
@@ -480,10 +481,10 @@ async function main(){
             'content-type':'application/json',
             'x-webauthn-proof':proof
           },
-          body:JSON.stringify({method:'proofSum',args:[submitValue]})
+          body:JSON.stringify({method,args:[submitValue]})
         });
         return {proof,status:response.status,body:await response.json(),signingWallMs};
-      },{rp:rpId,rawId:registration,value,submitValue});
+      },{rp:rpId,rawId:registration,value,submitValue,method});
     }
 
     const authorizedProof=await browserSignedOperation(7,7);
@@ -491,6 +492,14 @@ async function main(){
     assert.deepEqual(authorizedProof.body,{ok:true,value:148});
     assert.equal(proofRpcCalls,1);
     assert.ok(authorizedProof.signingWallMs>0);
+
+    const batchValues=Array.from({length:128},(_,index)=>index-64);
+    const batchExpected=batchValues.map(value=>(value*17+29)>>>0);
+    const authorizedBatch=await browserSignedOperation(
+      batchValues,batchValues,'proofBatch');
+    assert.equal(authorizedBatch.status,200);
+    assert.deepEqual(authorizedBatch.body,{ok:true,value:batchExpected});
+    assert.equal(proofBatchRpcCalls,1);
 
     await cdp.send('WebAuthn.setUserVerified',{
       authenticatorId:added.authenticatorId,
@@ -547,7 +556,7 @@ async function main(){
     /**
      * @param {string|undefined} token
      * @param {string} [method]
-     * @param {number} [value]
+     * @param {number|number[]} [value]
      * @param {string} [proof]
      * @returns {Promise<{status:number,body:unknown}>}
      */
