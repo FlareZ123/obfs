@@ -231,4 +231,4 @@ function run(quiet = false) {
 }
 
 if (require.main === module) run();
-module.exports = {run};
+module.exports = {run,apply,span,kernel,random,randomLinear,invert,verifyStructure};
