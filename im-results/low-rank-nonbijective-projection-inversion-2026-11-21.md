@@ -55,6 +55,49 @@ The self-contained Node 22.16.0 CommonJS witness `sims/low-rank-affine-nonpermut
 
 These finite observations validate the witness algebra on the sampled cases, not the theoretical probability claim. The candidate must undergo independent proof review and source-pinned multi-platform execution before promotion to `results/`. No source-code secrecy, 2.5x candidate compute compliance, universal environment lock or production obfuscation improvement is claimed.
 
+## Generalization: singular affine core and observable envelope nullity
+
+The previous representation need not have invertible `A` for
+correct **image-membership** classification once the full residual
+span is learned. The affine envelope `C_y` still contains every
+genuine preimage for any linear `A`, and exhaustive forward
+verification remains exact. The difference is candidate-set size.
+
+Let `k=n-rank(A)` be the hidden affine nullity and
+`r=dim(im U)`. If `x_1,x_2` belong to one consistent
+affine envelope then `M(x_1 XOR x_2)` belongs to `W`
+and `A(x_1 XOR x_2)` belongs to `im U`. Therefore all
+candidate differences lie in
+`A^{-1}(im U)`, whose dimension is exactly
+`k+dim(im A intersect im U)<=k+r`. Every nonempty
+candidate set has size at most `2^(k+r)`. The randomized
+uniform residual-spanning lemma remains valid because its proof did
+not use invertibility of `A`; only the candidate bound changes.
+
+More strongly, if `t=dim W`, the **fully public, measured**
+value `nu=n+t-rank([M | W])` is the exact exponent
+for every consistent affine envelope: it has exactly
+`2^nu` distinct input candidates, since the `t` residual
+columns are independent and there is a unique residual-coordinate
+vector for each input. An inconsistent envelope has zero
+candidates. The attacker can calculate `nu` directly after
+training; the hidden `A`, `r`, and `k` need not be supplied.
+The `2^(r+k)` bound follows as a corollary when those hidden
+structure bounds are promised. Even without a rank bound, a verified
+low-degree residual span and small measured `nu` allow exact
+noninjective image classification by enumerating the public envelope.
+
+The `envelopeNullity` function and width-12
+`singularAffineDegreeWitness` in the shared reproducer test
+**24** degree-two, output-rank-two nonbijective fixtures with hidden
+affine nullity `k=1` or `k=2`. Independent full truth tables
+confirmed **16,504** target classifications, including **16,384**
+complete all-target comparisons, with largest measured `nu=4`
+and largest candidate envelope **16**. Every nonempty candidate
+envelope exactly matched `2^nu`, and none exceeded
+`2^(r+k)`. This is a local deterministic finite check, pending
+a source-pinned two-platform JSDoc CI run and independent review.
+
 ## Deterministic extension: low algebraic degree plus low output rank
 
 An exact, seedless alternative recovers the complete residual span when
