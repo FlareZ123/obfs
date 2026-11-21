@@ -26,6 +26,7 @@
     "sims/ranktwo-polarization-oracle-clone.js",
     "sims/rankthree-polarization-oracle-clone.js",
     "sims/rankthree-quadratic-bilinear-shortcut.js",
+    "sims/rankthree-random-basis-attack.js",
     "sims/low-rank-nonbijective-independent-peer.js",
     "sims/rankthree-quadratic-polarization-peer.js",
     "sims/rankthree-projected-vs-generic-cubic-matched.js",
