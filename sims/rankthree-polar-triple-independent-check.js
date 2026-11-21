@@ -110,7 +110,7 @@ function main(){
     jointlyCheckedInputPairs:pairWitnessChecks,
     jointlyCheckedInputTriples:tripleWitnessChecks,
     sharpScalarForms:scalarSharp,
-    rankThreeVectorOutputForms,
+    rankThreeVectorOutputForms:rankThreeOutputForms,
     polarPair:{maxZeroPairs:worstNoPair,totalPairs:64,
       minimumNonzeroPairs:minWitnessPairs},
     polarTriple:{maxAllThreePairsZero:worstNoTriple,
