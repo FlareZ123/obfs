@@ -52,7 +52,29 @@ const variants=[
     'const create=Object.create;const box=create(null,descriptors);'],
   ['computed descriptor key',
     'const key="ref";const descriptors={[key]:{get(){return TARGET.prototype}}};'+
-    'const box=Object.create(null,descriptors);']
+    'const box=Object.create(null,descriptors);'],
+  ['destructured Object.create',
+    'const {create}=Object;'+
+    'const box=create(null,{ref:{get(){return TARGET.prototype}}});'],
+  ['multi-hop first-class Object.create',
+    'const create=Object.create;const capture=create;'+
+    'const box=capture(null,{ref:{get(){return TARGET.prototype}}});'],
+  ['computed getter name',
+    'const key="get";const descriptors={ref:{[key](){return TARGET.prototype}}};'+
+    'const box=Object.create(null,descriptors);'],
+  ['map entry assigned before create',
+    'const descriptors={};descriptors.ref={get(){return TARGET.prototype}};'+
+    'const box=Object.create(null,descriptors);'],
+  ['getter assigned to descriptor',
+    'const descriptor={};descriptor.get=()=>TARGET.prototype;'+
+    'const descriptors={ref:descriptor};'+
+    'const box=Object.create(null,descriptors);'],
+  ['map Object.assign construction',
+    'const descriptors=Object.assign({},{ref:{get(){return TARGET.prototype}}});'+
+    'const box=Object.create(null,descriptors);'],
+  ['first-class method called with call',
+    'const descriptors={ref:{get(){return TARGET.prototype}}};'+
+    'const box=Object.create.call(Object,null,descriptors);']
 ];
 
 for(const [name,mutator] of variants) {
