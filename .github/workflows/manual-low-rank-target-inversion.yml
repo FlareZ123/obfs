@@ -39,5 +39,9 @@ jobs:
         run: node sims/affine-residual-minimal-rank-peer.js
       - name: Independent verifier strict JSDoc
         run: npx --no-install tsc -p jsconfig.affine-low-rank-peer.json
+      - name: Quadratic radical exhaustive oracle attack
+        run: node sims/quadratic-radical-peer-check.js
+      - name: Quadratic radical strict JSDoc
+        run: npx --no-install tsc -p jsconfig.quadratic-radical.json
       - name: Project JSDoc type safety
         run: npm run typecheck
