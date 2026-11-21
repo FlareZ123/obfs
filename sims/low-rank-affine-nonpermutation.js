@@ -168,6 +168,41 @@ function learn(oracle, n, rankBound, failureProbability, random = () => randomIn
 }
 
 /**
+ * Deterministically span every residual of algebraic degree <= degreeBound
+ * using the Hamming-weight <= degreeBound interpolation set. No random
+ * sampling, guessed projection, or bijectivity assumption is needed.
+ * @param {(x:number)=>number} oracle
+ * @param {number} n
+ * @param {number} degreeBound
+ * @returns {{base:number,columns:number[],residual:number[],observed:Map<number,number>,samples:number}}
+ */
+function learnLowDegree(oracle,n,degreeBound) {
+  if(!Number.isInteger(degreeBound)||degreeBound<1||degreeBound>n)
+    throw new RangeError('Invalid algebraic-degree bound');
+  const observed=new Map();
+  /** @param {number} x */
+  function ask(x){
+    if(!observed.has(x))observed.set(x,oracle(x));
+    return /** @type {number} */ (observed.get(x));
+  }
+  const base=ask(0);
+  const columns=Array.from({length:n},(_,i)=>ask(1<<i)^base);
+  const span=newSpan(n);
+  let samples=0;
+  /** @param {number} start @param {number} remaining @param {number} value */
+  function visit(start,remaining,value){
+    if(remaining===0){
+      addToSpan(span,ask(value)^base^applyColumns(columns,value));
+      samples++;
+      return;
+    }
+    for(let i=start;i<=n-remaining;i++)visit(i+1,remaining-1,value|(1<<i));
+  }
+  for(let weight=2;weight<=degreeBound;weight++)visit(0,weight,0);
+  return {base,columns,residual:span.vectors,observed,samples};
+}
+
+/**
  * @param {(x:number)=>number} oracle
  * @param {{base:number,columns:number[],residual:number[]}} learned
  * @param {number} target
@@ -300,6 +335,109 @@ function outputRankTwoLowerBoundWitness() {
     unqueriedLocationsAfter30:hiddenLocations.length-30};
 }
 
+/**
+ * Independent quadratic, full-input-dependent output-rank-two family.
+ * Choosing random quadratic terms produces degree two while remaining
+ * independent of the input-projection-rank condition.
+ * @param {number} n
+ * @param {()=>number} random
+ * @returns {(x:number)=>number}
+ */
+function generateQuadratic(n,random) {
+  const A=invertibleRows(n,random);
+  /** @type {number[]} */
+  const U=[];
+  const basis=newSpan(n);
+  while(U.length<2){
+    const vector=random()&((1<<n)-1);
+    if(addToSpan(basis,vector))U.push(vector);
+  }
+  /** @type {{left:number,right:number,mask:number}[]} */
+  const terms=[];
+  for(let left=0;left<n;left++)for(let right=left+1;right<n;right++){
+    const mask=random()&3;
+    if(mask)terms.push({left,right,mask});
+  }
+  return x=>{
+    let nonlinear=0;
+    for(const t of terms){
+      if(((x>>>t.left)&1)&&((x>>>t.right)&1))nonlinear^=t.mask;
+    }
+    return (applyRows(A,x)^applyColumns(U,nonlinear))>>>0;
+  };
+}
+
+/**
+ * Degree-d residuals are determined by samples of weight <= d. Verify
+ * that their observed span is the complete oracle-residual span, then
+ * exhaustively test inverse/image membership even for noninjective maps.
+ * @returns {{projectionFixtures:number,quadraticFixtures:number,allOutputClassifications:number,verifiedFullInputDependence:number,maxDeterministicQueries:number}}
+ */
+function deterministicDegreeWitness() {
+  const n=12;
+  let projectionFixtures=0,quadraticFixtures=0,allOutputClassifications=0;
+  let verifiedFullInputDependence=0,maxDeterministicQueries=0;
+  const trainingByRank=[0,13,79,299];
+  /**
+   * @param {(x:number)=>number} oracle
+   * @param {number} rank
+   * @param {number} degree
+   * @param {boolean} fullClassify
+   */
+  function verify(oracle,rank,degree,fullClassify){
+    const learned=learnLowDegree(oracle,n,degree);
+    assert.equal(learned.observed.size,trainingByRank[degree]);
+    const exact=newSpan(n);
+    const seen=new Uint16Array(1<<n);
+    for(let x=0;x<(1<<n);x++){
+      const value=oracle(x);
+      seen[value]++;
+      addToSpan(exact,value^learned.base^applyColumns(learned.columns,x));
+    }
+    assert.equal(learned.residual.length,exact.vectors.length);
+    const targets=fullClassify?Array.from({length:1<<n},(_,i)=>i):
+      [0,1,128,512,1023,2047,4095];
+    for(const y of targets){
+      const verdict=invert(oracle,learned,y);
+      assert.equal(verdict.answer===null,seen[y]===0);
+      if(verdict.answer!==null)assert.equal(oracle(verdict.answer),y);
+      assert.ok(verdict.candidates<=2**rank);
+      maxDeterministicQueries=Math.max(maxDeterministicQueries,
+        learned.observed.size+verdict.candidates);
+      allOutputClassifications++;
+    }
+  }
+  for(let rank=1;rank<=3;rank++)for(const kind of /** @type {const} */ (['shear','quotient','nonbijective'])){
+    for(let instance=0;instance<20;instance++){
+      const random=randomFromSeed(0xabe7633^(rank*997)^(instance*9973)^(kind==='shear'?7:kind==='quotient'?13:29));
+      verify(generate(n,rank,kind,random),rank,rank,kind==='nonbijective'&&rank>=2&&instance===0);
+      projectionFixtures++;
+    }
+  }
+  for(let instance=0;instance<12;instance++){
+    const random=randomFromSeed(0x527a318^Math.imul(instance+1,0x19660d));
+    const oracle=generateQuadratic(n,random);
+    verify(oracle,2,2,instance<2);
+    quadraticFixtures++;
+    // For degree two, checking derivative at zero and every basis vector
+    // certifies whether the derivative is constant on the whole domain.
+    let constantDirections=0;
+    for(let shift=1;shift<(1<<n);shift++){
+      const base=oracle(shift)^oracle(0);
+      let constant=true;
+      for(let bit=0;bit<n;bit++){
+        const unit=1<<bit;
+        if((oracle(shift^unit)^oracle(unit))!==base){constant=false;break;}
+      }
+      if(constant)constantDirections++;
+    }
+    if(constantDirections===0)verifiedFullInputDependence++;
+  }
+  assert.ok(verifiedFullInputDependence>=10);
+  return {projectionFixtures,quadraticFixtures,allOutputClassifications,
+    verifiedFullInputDependence,maxDeterministicQueries};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -360,11 +498,13 @@ function main() {
     meanQueryBudget:totalQueries/cases,
     delta,independentExecutable:__filename,
     outOfPromiseCounterexample:outOfPromiseControl(),
-    rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness()};
+    rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness(),
+    deterministicDegree:deterministicDegreeWitness()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
 
 if (require.main===module) main();
-module.exports={learn,invert,generate,applyRows,applyColumns,solveAffinePreimageCandidates,
+module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
+  deterministicDegreeWitness,applyRows,applyColumns,solveAffinePreimageCandidates,
   outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
