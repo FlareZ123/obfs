@@ -46,6 +46,8 @@ jobs:
       # The historical computed-refusal ablation is source-anchored to a
       # removed compiler clause and cannot run against modern main; its pinned
       # counterfactual evidence remains in sims/computed-refusal-ablation.js.
+      - name: Source-only normalization of real host-locked SCO variants
+        run: node --test test/sco-variant-normalize.test.js
       - name: Strict external researcher and diagnostic JSDoc
         run: npx tsc -p jsconfig.external.json
       - name: Strict JSDoc type safety
