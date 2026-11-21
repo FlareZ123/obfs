@@ -1847,8 +1847,9 @@ function obfuscateFiles(files, options = {}) {
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
   const prepared = files.map(file => {
     const filename = safePath(file.path);
-    // Case collisions overwrite files on common Windows volumes.
-    const collisionKey = filename.toLowerCase();
+    // Windows case aliases and macOS APFS canonical Unicode equivalents
+    // must not become two output paths for one filesystem entry.
+    const collisionKey = filename.normalize('NFC').toLowerCase();
     if (seen.has(collisionKey)) throw new TypeError(`Duplicate file ${filename}`);
     seen.add(collisionKey);
     // Snapshot caller-controlled data once. Re-reading a code getter or
