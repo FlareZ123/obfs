@@ -74,7 +74,28 @@ const variants=[
     'const box=Object.create(null,descriptors);'],
   ['first-class method called with call',
     'const descriptors={ref:{get(){return TARGET.prototype}}};'+
-    'const box=Object.create.call(Object,null,descriptors);']
+    'const box=Object.create.call(Object,null,descriptors);'],
+  ['destructured assignment of create',
+    'let create;({create}=Object);'+
+    'const box=create(null,{ref:{get(){return TARGET.prototype}}});'],
+  ['computed destructure capture',
+    'const key="create";const {[key]:create}=Object;'+
+    'const box=create(null,{ref:{get(){return TARGET.prototype}}});'],
+  ['captured create.call',
+    'const create=Object.create;const descriptors={ref:{get(){return TARGET.prototype}}};'+
+    'const box=create.call(null,null,descriptors);'],
+  ['captured create.apply',
+    'const create=Object.create;const descriptors={ref:{get(){return TARGET.prototype}}};'+
+    'const box=create.apply(null,[null,descriptors]);'],
+  ['Reflect.apply captured create',
+    'const create=Object.create;const descriptors={ref:{get(){return TARGET.prototype}}};'+
+    'const box=Reflect.apply(create,null,[null,descriptors]);'],
+  ['sequence callee alias',
+    'const create=Object.create;'+
+    'const box=(0,create)(null,{ref:{get(){return TARGET.prototype}}});'],
+  ['local descriptor factory',
+    'function make(){return {ref:{get(){return TARGET.prototype}}}};'+
+    'const box=Object.create(null,make());']
 ];
 
 for(const [name,mutator] of variants) {
