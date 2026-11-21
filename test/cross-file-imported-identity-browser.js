@@ -3,12 +3,13 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const puppeteer=require('puppeteer-core');
+const {transform}=require('esbuild');
 const {obfuscateFiles}=require('../src');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Input */
 /** @typedef {{path:string,code:string}} Output */
-/** @typedef {{native:number[],compiled:number[]}} Timings */
+/** @typedef {{native:number[],minified:number[],compiled:number[]}} Timings */
 
 /**
  * A browser-valid cross-file identity-forwarding graph. Public host callbacks
@@ -67,8 +68,16 @@ async function main(){
   for(const [name,reflective,depth] of /** @type {[string,boolean,number][]} */ (
     [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
     const original=graph(reflective,depth),compiled=compile(original);
+    /** @type {Output[]} */
+    const minified=await Promise.all(original.map(async file=>({
+      path:file.path,
+      code:(await transform(file.code,{
+        format:'esm',loader:'js',target:'es2022',sourcefile:file.path,
+        minify:true,legalComments:'none'
+      })).code
+    })));
     for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
-      [['native',original],['compiled',compiled]])){
+      [['native',original],['minified',minified],['compiled',compiled]])){
       for(const file of files)
         assets.set('/'+name+'/'+variant+'/'+file.path,
           {body:file.code,type:'text/javascript; charset=utf-8'});
@@ -106,9 +115,10 @@ async function main(){
       {waitUntil:'domcontentloaded',timeout:45000});
     const data=await page.evaluate(async()=>{
       /** @type {Timings} */
-      const time={native:[],compiled:[]};
+      const time={native:[],minified:[],compiled:[]};
       const expected=(/** @type {string} */ (JSON.stringify(['secretField','otherField'])));
       const positiveNative='/positive/native/entry.mjs';
+      const positiveMinified='/positive/minified/entry.mjs';
       const positiveCompiled='/positive/compiled/entry.mjs';
       const transitiveNative='/transitive/native/entry.mjs';
       const transitiveCompiled='/transitive/compiled/entry.mjs';
@@ -116,6 +126,8 @@ async function main(){
       const negativeCompiled='/reflective/compiled/entry.mjs';
       const baseline=/** @type {{run:(a:number)=>number}} */(
         await import(positiveNative));
+      const ordinaryMinified=/** @type {{run:(a:number)=>number}} */ (
+        await import(positiveMinified));
       const protectedGraph=/** @type {{run:(a:number)=>number}} */ (
         await import(positiveCompiled));
       const transitiveBaseline=/** @type {{run:(a:number)=>number}} */ (
@@ -129,8 +141,9 @@ async function main(){
       let parity=0;
       for(let i=0;i<4096;i++){
         const native=baseline.run(i);
-        if(!Object.is(native,protectedGraph.run(i)))
-          throw Error('Browser cross-file positive mismatch at '+i);
+        if(!Object.is(native,protectedGraph.run(i))||
+           !Object.is(native,ordinaryMinified.run(i)))
+          throw Error('Browser cross-file positive or minifier mismatch at '+i);
         if(!Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
           throw Error('Browser transitive alias differential mismatch at '+i);
         const reflected=reflectiveBaseline.run(i);
@@ -164,19 +177,29 @@ async function main(){
       }
       for(let i=0;i<4;i++){
         timed(baseline.run,65536);
+        timed(ordinaryMinified.run,65536);
         timed(protectedGraph.run,65536);
       }
+      const orders=[
+        ['native','minified','compiled'],
+        ['compiled','minified','native'],
+        ['minified','native','compiled'],
+        ['compiled','native','minified'],
+        ['native','compiled','minified'],
+        ['minified','compiled','native']
+      ];
       for(let trial=0;trial<12;trial++){
-        const orders=trial%2?['compiled','native']:['native','compiled'];
+        const order=orders[trial%orders.length];
         /** @type {number|undefined} */
         let checksum;
-        for(const variant of orders){
-          const fn=variant==='native'?baseline.run:protectedGraph.run;
+        for(const variant of order){
+          const fn=variant==='native'?baseline.run:
+            variant==='minified'?ordinaryMinified.run:protectedGraph.run;
           const result=timed(fn,100000);
           if(checksum!==undefined&&result.checksum!==checksum)
             throw Error('Browser benchmark checksum mismatch '+variant);
           if(checksum===undefined)checksum=result.checksum;
-          time[/** @type {'native'|'compiled'} */ (variant)].push(result.ms);
+          time[/** @type {'native'|'minified'|'compiled'} */ (variant)].push(result.ms);
         }
       }
       return {trace:{
@@ -192,6 +215,7 @@ async function main(){
     assert.equal(data.trace.transitiveParity,true);
     assert.equal(data.trace.benchmarkChecksumsMatched,true);
     const bound=pairedBudgetBound(data.time.native,data.time.compiled);
+    const minifiedBound=pairedBudgetBound(data.time.minified,data.time.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
       version:await browser.version(),
       positiveFieldsRenamed:2,
@@ -201,9 +225,11 @@ async function main(){
       fullOutputParity:true,transitiveOutputParity:true,
       reflectiveKeyParity:true,
       nativeVsCompiled:bound,
+      minifiedVsCompiled:minifiedBound,
       strictObservedBreaches:bound.samplePairs-bound.observedPairsWithinBudget,
+      strictObservedMinifiedBreaches:minifiedBound.samplePairs-minifiedBound.observedPairsWithinBudget,
       timingMs:data.time,
-      caveat:'The tested ESM graph is closed under the compiler declaration; hostile outside consumers can inspect the published state module. The 12-pair browser loop is a bounded performance sample.'
+      caveat:'The minified graph is unbundled ES2022 esbuild with properties preserved. The graph is closed under the compiler declaration; hostile outside consumers can inspect the published state module. The 12-pair browser loop is a bounded performance sample.'
     }));
   }finally{
     try{if(browser)await browser.close();}
