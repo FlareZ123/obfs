@@ -104,6 +104,10 @@ Yet if the attacker knows the source-level *odd modular multiplication* family, 
 
 The contrast is deliberate: small residual rank certifies a candidate weakness under chosen-query access, while a large residual rank alone gives **no positive security lower bound** against source-aware algebraic attacks. This control is an explicit warning against using output-rank screening as a release metric without independent reconstruction and runtime adversaries.
 
+## Closely related background and publication boundary
+
+The vectorial Boolean ANF, second-order derivatives, and extended-affine invariants are established research tools. See *On Second-Order Derivatives of Boolean Functions and Cubic APN Permutations in Even Dimension* (Mediterranean Journal of Mathematics, 2024), https://doi.org/10.1007/s00009-024-02660-x, for definitions and EA-invariance reasoning about higher derivatives, and *Deciding EA-equivalence via invariants* (Cryptography and Communications, 2021), https://doi.org/10.1007/s12095-021-00513-y, for broader S-box invariant context. Neither citation was verified to assert this **exact minimum-invertible-baseline identity**, so these are relevant background references, not an originality determination. Agent 3's earlier `im M+R=V` and public-residual inversion argument is the direct internal antecedent; any academic promotion needs a dedicated prior-art search and independent peer review.
+
 ## Implications and limitations
 
 This gives a mathematically intrinsic **exact** nonlinear output-rank score for permutations. A measured defect span of dimension greater than a proposed rank bound proves that bound false, even without source. Conversely a finite low observed rank is inconclusive because unqueried points can introduce new defect directions. Deterministic or adaptive sparse query attacks against candidate transforms must not treat small sampled rank as proof of a low-rank promise. No single scalar proves obfuscation resistance.
