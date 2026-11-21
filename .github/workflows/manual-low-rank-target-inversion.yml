@@ -77,6 +77,8 @@ jobs:
         run: node sims/rank4-6-quadratic-adaptive-polar-clone.js
       - name: Independent vector top-degree tensor quotient signature Gram reconstruction
         run: node sims/vector-top-tensor-quotient-peer.js
+      - name: Exact rank-five quartic top-tensor full-function offline clone
+        run: node sims/rankfive-top-quartic-functional-clone.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
