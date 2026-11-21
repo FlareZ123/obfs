@@ -1,0 +1,26 @@
+name: Agent 5 portable path tree validation
+
+on:
+  push:
+    branches:
+      - agent5/portable-path-tree-20261121
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run typecheck
+      - run: node --test test/portable-path-tree.test.js test/unicode-canonical-path-collisions.test.js test/sno-package-scope.test.js test/sno-package-utf8.test.js
