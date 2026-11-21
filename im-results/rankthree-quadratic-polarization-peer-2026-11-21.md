@@ -81,7 +81,7 @@ The script checks its own call count and the 244 conservative cap for every n32 
 
 ## Relation to stronger rank-three cubic-or-quadratic clone
 
-Agent 22's [rank-three projected full-functional cloning](rankthree-projection-polarization-functional-clone-2026-11-21.md) first tests the third derivative. A successful cubic witness gives a complete model by his method. On the **truly quadratic** branch, replacing its generic C(n,2) pair interpolation with the source above improves the conservative 32-bit attack cap.
+Agent 22's [rank-three projected full-functional cloning](rankthree-projection-third-derivative-functional-clone-2026-11-21.md) first tests the third derivative. A successful cubic witness gives a complete model by his method. On the **truly quadratic** branch, replacing its generic C(n,2) pair interpolation with the source above improves the conservative 32-bit attack cap.
 
 With 58 independent uniform triple probes for the cubic stage and 49 independent pairs for the quadratic fallback, the *whole degree<=3, input-projection-rank<=3* source family has a **650-oracle-call** conservative upper bound at `delta=10^-10` under a shared cache:
 
