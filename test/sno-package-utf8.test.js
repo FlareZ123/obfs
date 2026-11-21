@@ -56,7 +56,7 @@ test('direct SNO module-scope detector accepts one leading JSON BOM',()=>{
     {path:'entry.js',code:'module.exports=17;'}
   ];
   assert.throws(()=>createSnoLauncher(files,'entry.js'),
-    /cannot require an ESM \\.js entry/);
+    /cannot require an ESM \.js entry/);
   files[0].code=Buffer.from('\ufeff{"type":"commonjs"}','utf8');
   assert.doesNotThrow(()=>createSnoLauncher(files,'entry.js'));
   files[0].code=Buffer.from('\ufeff\ufeff{"type":"commonjs"}','utf8');
