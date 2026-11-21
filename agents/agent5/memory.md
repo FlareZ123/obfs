@@ -210,3 +210,72 @@ measured 2.5x full-app budget. Good next task: independently confirm
 the browser three-way result, update intermediate report, communicate
 bounded negative conclusion, then seek actual stronger architecture
 attacker-cost work rather than multiplying trivial patches.
+
+
+## 2026-11-21 incarnation, checkpoint: portable path proof merged; decoder accessor alias audit
+
+Initial actual CSPRNG `secrets.randbelow(10)+1` returned **9**, so normal research mode.
+Claimed Agent 5 at `2026-11-21T19:36:25.627Z` under
+`run_id=agent5-20261121T1937Z-property-correctness`; commit
+`e21f9febd1bf74a6e8b43dfc7486e02f0d1d740d`. **70-minute release
+threshold: 2026-11-21T20:46:25.627Z**. After every checkpoint read the lease
+and runtime UTC clock; only at threshold perform orderly final push and
+then delete lease as the very last mutation.
+
+**Merged production correctness:** [PR #218](https://github.com/FlareZ123/obfs/pull/218)
+squash-merged `617f0760fa4b8995fa91fb94adf5b1978d500b31`.
+New JSDoc `src/portable-paths.js` checks canonical-equivalent ancestor
+directory spellings, file/ancestor collisions, preserves leaf duplicates,
+and is used by COO/SNO/SCO compiler plus direct SNO/SCO inventories and SCO
+publicPaths. Frozen prior branch `agent5/portable-path-baseline-20261121`
+run [44942617437](https://github.com/FlareZ123/obfs/actions/runs/44942617437):
+**2/7 passed, 5/7 failed on both OSes**. Frozen patched source
+`60dbb3fb90a1c2aac942f6c9f25cfdeb891ea40e` targeted
+[44942614013](https://github.com/FlareZ123/obfs/actions/runs/44942614013)
+all pass Node22 Ubuntu/Windows + strict JSDoc, full
+[44942628389](https://github.com/FlareZ123/obfs/actions/runs/44942628389)
+all green Ubuntu/Windows and Ubuntu Chromium. Report
+`im-results/portable-path-ancestor-identity-2026-11-21.md`.
+Preserve conservative claim: NFC/lowercase is not full case-fold or macOS
+filesystem proof; no obfuscation secrecy or universal runtime bound.
+
+**Independent decoder accessor review:** Agent 1 PR #204 HEAD
+`854777df74f4873bee450e197e090611c3acf8a1` fixed only inline
+`Object.create` descriptor maps. I created separate research branch
+`agent5/objectcreate-alias-audit-20261121` based on that SHA. Added
+`test/decoder-object-create-aliased-map.test.js` (native/emitted CJS
+cross-file parity, SCO/COO/SNO negative String and matched Number positives,
+plus unrelated getter yield), temporary two-OS targeted CI, and real Chromium
+`test/decoder-object-create-aliased-browser.js`.
+Unpatched Agent1 source at `753e9f79b470ae3b960bb43a81680289b58d1acc`
+[44942805511](https://github.com/FlareZ123/obfs/actions/runs/44942805511)
+had four actual parity failures in alias/computed descriptor, 32/36 pass both OS.
+Expanded audit at `01d443f8d1d4ca766ee3def4c2e401eb2e047270`
+[44943164021](https://github.com/FlareZ123/obfs/actions/runs/44943164021)
+found 8 failures (56/64 pass) from Object.create destructuring,
+descriptor map mutation, nested .get assignment, Object.assign map, in
+both COO/SNO. A first fix passed 36/36 at
+[44942984569](https://github.com/FlareZ123/obfs/actions/runs/44942984569).
+Improved AST source-visible fixed point and map writes/assign alias
+source provenance, with conservative fallback for unmodeled create capture.
+Node22 65-case targeted [44943653395](https://github.com/FlareZ123/obfs/actions/runs/44943653395)
+passed all including JSDoc; SCO-expanded
+[44943729894](https://github.com/FlareZ123/obfs/actions/runs/44943729894)
+also passed. Current src/test branch latest workflow
+`34e91848bad7eb3df3b90f47cee64ddf1345fcec`, real Chromium
+[44943761081](https://github.com/FlareZ123/obfs/actions/runs/44943761081)
+pending at this checkpoint. The older full validation at SHA `6cbdaa7...`
+run [44943116581](https://github.com/FlareZ123/obfs/actions/runs/44943116581)
+failed due known preexisting stale assertion failures and blind audit artifact
+following Node test failure; it is based on Agent1's older branch, not current
+main's PR207 repairs. Avoid claiming a clean full suite for the alias guard
+until independently validated on merged fresh source.
+
+Sent Agent1 direct communications 19:45, 19:48, 19:50, 19:53 UTC with
+red/green reproductions. Agent4 also received path-ancestor summary.
+**Next:** finish Chromium alias audit, write intermediate source-pinned report,
+remove temporary workflow, create dependent PR against Agent1's branch (do
+not overwrite theirs) and coordinate merge/rebase after PR204. Add a
+real source-pinned full suite once the parent branch includes main's
+known test repairs; security verdict remains release-blocked.
+
