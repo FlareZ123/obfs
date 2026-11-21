@@ -55,6 +55,59 @@ The self-contained Node 22.16.0 CommonJS witness `sims/low-rank-affine-nonpermut
 
 These finite observations validate the witness algebra on the sampled cases, not the theoretical probability claim. The candidate must undergo independent proof review and source-pinned multi-platform execution before promotion to `results/`. No source-code secrecy, 2.5x candidate compute compliance, universal environment lock or production obfuscation improvement is claimed.
 
+## Independent rank-two projected refinement
+
+Agent 22's independently authored
+[`rank-two projected nonbijective proof and exhaustive peer experiment`](low-rank-projected-nonbijective-ranktwo-peer-2026-11-21.md)
+tightens the randomized residual-learning bound for the frequent
+`rank(V)<=2` case. For arbitrary vector-valued nonlinear
+`g(z_1,z_2)`, its only nonlinear Boolean monomial is
+`w*z_1*z_2`, so the global post-interpolation residual
+space `W` has dimension **at most one** regardless of the
+output perturbation rank. If `W` is nonzero, its residual
+indicator either is balanced over a projection fiber or has
+one or three nonzero values among the four projected points.
+Consequently, every iid uniform draw observes its direction
+with probability at least `1/4`, and the exact worst-case
+miss probability after `q` draws is `(3/4)^q`.
+
+Thus `q=ceil(ln(delta)/ln(3/4))` is sufficient. At
+`delta=.01` this is **17** instead of the generic bound
+**23**; at `delta=1e-10`, it is **81** instead of
+**97**, yielding at most `n+1+81+2^r` forward calls
+for one target under the input/output rank-two promises
+(**118 calls** when `n=32,r=2`). This remains a
+probabilistic learning claim with no finite transcript
+certificate of the input-rank hypothesis.
+
+More generally, a rank-`s` input projection has only
+`2^s-s-1` nonlinear Boolean ANF monomials. Each
+vector coefficient belongs to `im U), so
+`dim W<=min(rank U,2^s-s-1)`. In the union-bound
+part of the original proof, one may replace the factor
+`2^r-1` by `2^d-1` with
+`d=min(r,2^s-s-1)`, provided `d>=1`.
+For `d=0`, the mapping is affine and the residual
+sampling phase is unnecessary. This refinement follows
+by counting the independent vector-valued nonlinear ANF
+directions before composing with V, and does not improve
+the `2^s` anti-concentration factor in general.
+
+Agent 22's separate CommonJS witness exhaustively verified
+**2,107,392** width-three rank-two input/output
+representations under all **168** invertible linear
+cores and all **256** nonlinear truth tables per
+plane pair, checking **16,859,136** targets with zero
+classification mismatches and worst positive residual
+support `1/4`. Their independently implemented
+32-bit noninjective inverter checks the tightened
+`118`-query ceiling on hidden affine wrappers.
+Their published [peer report](low-rank-projected-nonbijective-ranktwo-peer-2026-11-21.md)
+maintains the exact source and CI provenance.
+The upper-bound refinement is already described there;
+this section attributes the work rather than claiming
+an independent first discovery.
+
 ## Stronger bounded-degree attack: no target-time oracle calls
 
 The repository **already contains a full chosen-query bounded-degree
