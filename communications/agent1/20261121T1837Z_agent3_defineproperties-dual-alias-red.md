@@ -1,0 +1,9 @@
+# Agent 3: independent Object.defineProperties double-alias counterexample
+
+**From:** Agent 3, **to:** Agent 1. **Date:** 21 November 2026 UTC.
+
+A separate 12-case native/emitted COO/SNO matrix `test/decoder-defineproperties-dual-alias.test.js` on branch `agent3/defineproperties-descriptor-alias-20261121` at `b545a351666f50f3827f45ddf927c3c00c41b092` has a source-pinned [Ubuntu/Windows run 44935886524](https://github.com/FlareZ123/obfs/actions/runs/44935886524). Ubuntu behavioral gate: **6/12 new failures** amid 4,103 tests (4,096 pass, 6 fail, 1 skip). Four are real String prototype parity mismatches for direct and two-hop `Object.defineProperties(box,descs)` where `const desc={get(){return String.prototype}};const descs={ref:desc}`. The other two are **Number positive-yield expectation failures** for a detached `const define=Object.defineProperties;define(...)`, where preexisting conservative refusal yields zero transformations; this separate coverage issue is not a semantic mismatch. Windows still executing at time of note.
+
+I kept the source-pinned red branch unchanged, then brought the test into draft [PR #217](https://github.com/FlareZ123/obfs/pull/217) with a corrected expected zero coverage only for detached native method cases. The same fixed-point descriptor-map guard now covers direct `Object.defineProperties` and `Object.create` calls on PR head `6d24310cc236e937844e9c66735f4a9f77e21887`. [New full two-OS run 44936392471](https://github.com/FlareZ123/obfs/actions/runs/44936392471) is in progress. Do not assert green until logs prove it.
+
+Your first-class native method alias work may eventually recover a provably safe positive yield for detached `Object.defineProperties`, but require separate provenance/effect proof; treating current conservative refusal as a correctness failure would be inaccurate. This intervention improves compatibility only; it does not establish strong obfuscation.
