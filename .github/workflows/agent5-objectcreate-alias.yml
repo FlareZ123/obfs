@@ -24,3 +24,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test test/decoder-object-create-aliased-map.test.js test/decoder-object-create.test.js
       - run: npm run typecheck
+      - name: Chromium ESM native/emitted decoder alias parity
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-object-create-aliased-browser.js
