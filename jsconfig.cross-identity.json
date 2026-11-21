@@ -2,6 +2,7 @@
   "extends": "./jsconfig.json",
   "include": [
     "test/cross-file-identity-return.test.js",
+    "test/cross-file-imported-identity-browser.js",
     "test/cross-file-imported-identity-alias.test.js"
   ]
 }
