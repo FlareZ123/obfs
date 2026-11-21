@@ -92,6 +92,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Cross-file Object.create first-class alias parity in real Chromium
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-object-create-aliased-browser.js
       - name: Real Chromium null-prototype protected-key and host-inheritance parity
         if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
         env:
