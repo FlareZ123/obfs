@@ -1672,9 +1672,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       entries.push(...node.arguments.slice(1));
       objectAssignSources.set(name,entries);
     }
-    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
-       node.init&&isObjectIntrinsic(node.init)){
-      for(const property of node.id.properties){
+    const pattern=node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+      node.init&&isObjectIntrinsic(node.init)?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&isObjectIntrinsic(node.right)?node.left:null;
+    if(pattern){
+      for(const property of pattern.properties){
         if(property.type!=='Property'||property.value.type!=='Identifier')continue;
         const key=property.computed?staticString(property.key):
           property.key.type==='Identifier'?property.key.name:staticString(property.key);
@@ -1696,6 +1699,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   function directObjectCreate(expression) {
     return expression.type==='MemberExpression'&&
       isObjectIntrinsic(expression.object)&&memberName(expression)==='create';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function callsObjectCreate(expression) {
+    if(directObjectCreate(expression)||
+       expression.type==='Identifier'&&objectCreateAliases.has(expression.name))return true;
+    if(expression.type==='SequenceExpression'&&expression.expressions.length){
+      return callsObjectCreate(expression.expressions[expression.expressions.length-1]);
+    }
+    return false;
   }
   let createAliasFound;
   do {
@@ -1813,9 +1825,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     }
     // Object.create's computed descriptor names and first-class aliases
     // can surface a sensitive getter before another file's decoder loads.
-    if(node.type==='CallExpression'&&
-       (directObjectCreate(node.callee)||
-        node.callee.type==='Identifier'&&objectCreateAliases.has(node.callee.name))&&
+    if(node.type==='CallExpression'&&callsObjectCreate(node.callee)&&
        node.arguments[1]&&objectCreateMayExposeDecoder(node.arguments[1])) {
       mutated=true;
       return;
