@@ -58,7 +58,7 @@ function isStaticKey(parent,key){
  */
 function usesUnprovedCrossRealmHostApi(body){
   const hostApis=new Set([
-    'fetch','Worker','WebSocket','XMLHttpRequest','EventSource',
+    'fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel'
   ]);
   let observed=false;
