@@ -97,6 +97,7 @@ function main() {
       }, 32);
       assert.equal(serverCalls, queries(32));
       assert.equal(model.queryCount, 529);
+      /** @type {{bits:number,constant:number,linear:number[],quadratic:number[][],queryCount:number}} */
       const published = JSON.parse(JSON.stringify(model));
       const outputRank = rank(
         published.quadratic.flatMap((row, i) => row.slice(i + 1)), 32);
