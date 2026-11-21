@@ -64,6 +64,33 @@ function indexedDictionaryDecoder(value){
     `for(let j=0;j<raw.length;j+=${width})output+=dictionary[${index}];output;`;
 }
 
+/**
+ * Zero-query, source-only attacker for this exact generated dictionary format.
+ * It reads published bytes and performs JSON parsing, without executing them.
+ * @param {string} program
+ * @returns {string}
+ */
+function reconstructStatic(program){
+  const prefix='const dictionary=';
+  const separator=';const raw=';
+  const end=';let output=';
+  const split=program.indexOf(separator);
+  if(!program.startsWith(prefix)||split<0)
+    throw Error('Not a dictionary pilot output');
+  /** @type {Record<string,string>} */
+  const dictionary=JSON.parse(program.slice(prefix.length,split));
+  const remainder=program.slice(split+separator.length);
+  const rawEnd=remainder.indexOf(end);
+  if(rawEnd<0)throw Error('No encoded raw string');
+  /** @type {string} */
+  const raw=JSON.parse(remainder.slice(0,rawEnd));
+  const width=Object.keys(dictionary)[0]?.length??1;
+  let recovered='';
+  for(let i=0;i<raw.length;i+=width)
+    recovered+=dictionary[raw.slice(i,i+width)];
+  return recovered;
+}
+
 /** @param {string} program @param {string} value @returns {boolean} */
 function preservedWhenPatched(program,value){
   const native=new vm.Script(program).runInNewContext({});
@@ -128,9 +155,11 @@ function main(){
     assert.equal(correct.literal,true);
     assert.equal(correct.dictionary,true);
     assert.equal(correct.xor,false);
+    assert.equal(reconstructStatic(programs.dictionary),value,
+      'Public dictionary remains exactly source-recoverable');
     console.log(JSON.stringify({
       case:name,utf16Units:value.length,
-      mutatedBuiltinsStillCorrect:correct,
+      mutatedBuiltinsStillCorrect:correct,staticRecovery:true,
       bytes:byteLengths,medianMsPerInvocation:medianMs,
       dictionaryVsLiteral:medianMs.dictionary/medianMs.literal,
       dictionaryVsXor:medianMs.dictionary/medianMs.xor
@@ -139,4 +168,4 @@ function main(){
 }
 
 if(require.main===module)main();
-module.exports={nativeDecoder,indexedDictionaryDecoder,main};
+module.exports={nativeDecoder,indexedDictionaryDecoder,reconstructStatic,main};
