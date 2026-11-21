@@ -158,10 +158,12 @@ function wrappedTriangularOracle(r,next) {
   return x=>{
     const transformed=applyLinear(left,x);
     const upper=transformed>>>r;
-    const low0=(upper&1)&((upper>>>1)&1);
-    const low1=((upper>>>2)&1)&((upper>>>3)&1);
-    const low2=((upper>>>4)&1)&((upper>>>5)&1);
-    const delta=low0|(low1<<1)|(low2<<2);
+    let delta=0;
+    for(let bit=0;bit<r;bit++){
+      const first=(upper>>>(2*bit))&1;
+      const second=(upper>>>(2*bit+1))&1;
+      delta|=(first&second)<<bit;
+    }
     const shifted=(transformed^(delta&((1<<r)-1)))>>>0;
     return (applyLinear(right,shifted)^constant)>>>0;
   };
@@ -210,7 +212,7 @@ function main() {
   let maxLargeSteps=0;
   let maxLargeNullity=0;
   const byRank=[];
-  for(const r of [2,3]) {
+  for(const r of [2,3,4,5]) {
     let rankTargets=0;
     let rankMaxQueries=0;
     let rankMaxSteps=0;
@@ -241,7 +243,7 @@ function main() {
   console.log('LOW_RANK_ORBIT_INDEPENDENT_REVIEW '+JSON.stringify({
     width3:{permutationsChecked,targetsChecked,maxQueries:maxSmallQueries,maxNullity:maxSmallNullity},
     width32:{targetsChecked:largeTargets,maxQueries:maxLargeQueries,maxSteps:maxLargeSteps,maxNullity:maxLargeNullity,byRank},
-    theory:{boundAtRank2:33+2**4,boundAtRank3:33+2**6},
+    theory:{boundAtRank2:33+2**4,boundAtRank3:33+2**6,boundAtRank4:33+2**8,boundAtRank5:33+2**10},
     seed:'0x41d2026'
   }));
 }
