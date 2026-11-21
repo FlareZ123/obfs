@@ -51,6 +51,36 @@ function span(basis) {
   return values;
 }
 
+/** @param {number[]} columns @param {number} rhs @returns {number} */
+function solveUnique(columns,rhs) {
+  const solutions=[];
+  for(let input=0;input<SIZE;input++)if(apply(columns,input)===rhs)solutions.push(input);
+  assert.equal(solutions.length,1,'expected full-rank interpolant solve');
+  return solutions[0];
+}
+
+/**
+ * Full-rank target attack that never receives the hidden nonlinear span.
+ * A two-shear architecture guarantees at most four points in the hidden coset.
+ * @param {(x:number)=>number} oracle
+ * @param {number} target
+ * @param {number} base
+ * @param {number[]} columns
+ * @returns {{value:number,queries:number}}
+ */
+function invertFullRankOrbit(oracle,target,base,columns) {
+  const origin=solveUnique(columns,target^base);
+  let residual=0;
+  for(let queries=1;queries<=4;queries++) {
+    const candidate=origin^solveUnique(columns,residual);
+    const observed=oracle(candidate);
+    if(observed===target)return {value:candidate,queries};
+    residual=observed^target;
+  }
+  throw new Error('full-rank residual orbit exceeded two-shear coset size');
+}
+
+
 /** @param {()=>number} next @returns {number[]} */
 function invertible(next) {
   while(true) {
@@ -111,6 +141,9 @@ function main() {
   /** @type {Map<number,number>} */
   const interpolantRanks=new Map();
   let targets=0;
+  let fullRankCases=0;
+  let fullRankTargets=0;
+  let maxOrbitQueries=0;
   let maxCandidates=0;
   let maxResidualValues=0;
 
@@ -126,6 +159,7 @@ function main() {
     assert.ok(interpolantRank>=WIDTH-rangeDimension);
     rangeDimensions.set(rangeDimension,(rangeDimensions.get(rangeDimension)??0)+1);
     interpolantRanks.set(interpolantRank,(interpolantRanks.get(interpolantRank)??0)+1);
+    if(interpolantRank===WIDTH)fullRankCases++;
 
     const residuals=new Set();
     for(let x=0;x<SIZE;x++) {
@@ -144,17 +178,28 @@ function main() {
       assert.equal(candidates.length,range.size);
       assert.ok(candidates.includes(secret));
       assert.deepEqual(candidates.filter(x=>oracle(x)===oracle(secret)),[secret]);
+      if(interpolantRank===WIDTH) {
+        const attack=invertFullRankOrbit(oracle,oracle(secret),base,columns);
+        assert.equal(attack.value,secret);
+        maxOrbitQueries=Math.max(maxOrbitQueries,attack.queries);
+        fullRankTargets++;
+      }
       maxCandidates=Math.max(maxCandidates,candidates.length);
       targets++;
     }
   }
 
   assert.equal(targets,3200);
+  assert.ok(fullRankTargets>0);
+  assert.ok(maxOrbitQueries<=4);
   assert.ok(maxCandidates<=4);
   console.log(JSON.stringify({
     width:WIDTH,
     cases:100,
     targets,
+    fullRankCases,
+    fullRankTargets,
+    maxOrbitQueries,
     rangeDimensions:Object.fromEntries([...rangeDimensions].sort()),
     interpolantRanks:Object.fromEntries([...interpolantRanks].sort()),
     maxResidualValues,
