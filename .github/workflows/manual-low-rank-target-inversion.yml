@@ -55,6 +55,8 @@ jobs:
         run: node sims/ranktwo-polarization-oracle-clone.js
       - name: Rank-three projected cubic-or-quadratic offline oracle clone
         run: node sims/rankthree-polarization-oracle-clone.js
+      - name: Independent rank-three quadratic 244-query full clone
+        run: node sims/rankthree-quadratic-polarization-peer.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
