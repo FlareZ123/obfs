@@ -6,7 +6,7 @@
 
 This audit independently implements a deliberately brute-force reference of the proposed singular-surrogate rank-repair and cycle inversion procedure. It uses bit-vector enumeration rather than the production inverter's Gaussian elimination routines.
 
-The deterministic generator constructs 656 different small permutation oracles, each hidden behind independently sampled invertible linear input and output changes of basis plus affine shifts:
+The deterministic generator constructs 656 different small permutation oracles, each evaluated before and after independently sampled invertible linear input and output changes of basis plus affine shifts:
 
 - 240 width-5 permutations with one randomized 3-bit internal permutation and two unchanged bits;
 - 160 width-6 permutations with two randomized 3-bit internal permutations;
@@ -23,7 +23,8 @@ For each permutation:
 2. Independently derive the span of **all zero-based second differences** and assert that it equals R.
 3. Enumerate U = {x : M(x) in R} and assert |U| = |R|.
 4. Build the complete inverse table and independently interpolate it; assert the inverse residual space equals the forward U.
-5. For every possible target, perform independent rank repairs and cycle inversion, assert exact preimage recovery, and check the deterministic query bound n + 2^(r+1) using the exact residual rank r.
+5. Compare each original permutation's intrinsic residual rank against the same function wrapped with invertible affine input/output maps; reject any change.
+6. For every possible target, perform independent rank repairs and cycle inversion, assert exact preimage recovery, and check the deterministic query bound n + 2^(r+1) using the exact residual rank r.
 
 The source is sims/public-residual-width5-6-independent.js; its fixed-seed regression is test/public-residual-width5-6-independent.test.js. The shared manual low-rank workflow includes this independent lane on Node 22 for Ubuntu and Windows.
 
@@ -35,13 +36,14 @@ Node.js v22.16.0, exact fixed seed:
 | --- | ---: |
 | Generated permutation oracles | 656 |
 | Target inversions | **29,184 / 29,184** |
-| Initially singular interpolants | **277** |
+| Initially singular interpolants | **287** |
 | Maximum rank repairs | **2** |
-| Maximum closure expansions | **4** |
-| Maximum distinct oracle inputs for any target | **63** |
+| Maximum closure expansions | **5** |
+| Maximum distinct oracle inputs for any target | **64** |
 | Query-bound failures | **0** |
 | Residual/second-difference and inverse-space mismatches | **0** |
+| Affine-wrapper residual-rank mismatches | **0** |
 
 The mixed width/rank histogram is emitted by the script. The generator combines structured low-rank cases with seeded Fisher-Yates permutation tables; its seeded PRNG and modular draw technique are not a claim of uniform random permutation sampling. The check is finite empirical evidence against implementation mistakes, separate from the draft proof itself. It does not establish strong obfuscation resistance or performance compliance. Existing full-control reconstruction and 2.5x-cost vetoes remain applicable.
 
-Cross-platform source-pinned workflow: [expanded manual low-rank inversion run 44927446777](https://github.com/FlareZ123/obfs/actions/runs/44927446777) completed successfully on Ubuntu and Windows at exact executable source fa1879fae6ae4907ffc92433b7bc8aed548d4ddb. The earlier [structured-only run 44927224558](https://github.com/FlareZ123/obfs/actions/runs/44927224558) also passed. Both jobs passed the new 5/6-bit test, existing rank-inversion tests, and strict project JSDoc.
+Cross-platform source-pinned workflow for the prior expanded branch (without direct before/after affine-rank comparison): [expanded manual low-rank inversion run 44927446777](https://github.com/FlareZ123/obfs/actions/runs/44927446777) completed successfully on Ubuntu and Windows at exact executable source fa1879fae6ae4907ffc92433b7bc8aed548d4ddb. The earlier [structured-only run 44927224558](https://github.com/FlareZ123/obfs/actions/runs/44927224558) also passed. Both jobs passed the new 5/6-bit test, existing rank-inversion tests, and strict project JSDoc.
