@@ -98,7 +98,7 @@ function modernUpperOnlyCandidates() {
   const groups=new Map();
   for(let codepoint=0x20;codepoint<0x10000;codepoint++){
     const character=String.fromCharCode(codepoint);
-    if(/[<>:\\x22|?*\\\\/\\x00-\\x1f\\uD800-\\uDFFF]/u.test(character)||
+    if(character==='/'||character==='\\'||/[<>:"|?*\x00-\x1f\uD800-\uDFFF]/u.test(character)||
        /[. ]$/u.test(character))continue;
     const normalized=character.normalize('NFC');
     const upper=normalized.toUpperCase().normalize('NFC');
