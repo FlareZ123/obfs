@@ -61,10 +61,11 @@ async function main(){
   const rpId='localhost';
   /** @type {Set<string>} */
   const activeSessions=new Set();
-  /** @type {Map<string,{challenge:Buffer,value:number,session:string}>} */
+  /** @type {Map<string,{challenge:Buffer,value:number|number[],method:'proofSum'|'proofBatch',session:string}>} */
   const operationChallenges=new Map();
   let privateRpcCalls=0;
   let proofRpcCalls=0;
+  let proofBatchRpcCalls=0;
   /**
    * @param {http.IncomingMessage} request
    * @returns {string|null}
@@ -92,11 +93,16 @@ async function main(){
       proofSum(value){
         proofRpcCalls++;
         return (Number(value)*17+29)>>>0;
+      },
+      /** @param {number[]} values */
+      proofBatch(values){
+        proofBatchRpcCalls++;
+        return values.map(value=>(Number(value)*17+29)>>>0);
       }
     },
     authorizeRpc:authorizedSession,
     authorizeOperation(request,method,args){
-      if(method!=='proofSum')return true;
+      if(method!=='proofSum'&&method!=='proofBatch')return true;
       const header=request.headers['x-webauthn-proof'];
       if(typeof header!=='string'||!publicKey)return false;
       try{
@@ -111,8 +117,16 @@ async function main(){
         if(!record)return false;
         // Consume the one-use challenge even on argument mismatch or bad proof.
         operationChallenges.delete(proof.challengeId);
-        if(record.session!==sessionToken(request)||args.length!==1||
-           args[0]!==record.value)return false;
+        if(record.session!==sessionToken(request)||record.method!==method||
+           args.length!==1)return false;
+        const requested=args[0];
+        if(method==='proofSum') {
+          if(typeof record.value!=='number'||requested!==record.value)return false;
+        } else {
+          if(!Array.isArray(record.value)||!Array.isArray(requested)||
+             requested.length!==128||!record.value.every((value,index)=>
+               requested[index]===value))return false;
+        }
         const clientData=Buffer.from(proof.clientData,'base64');
         const authenticatorData=Buffer.from(proof.authenticatorData,'base64');
         const signature=Buffer.from(proof.signature,'base64');
@@ -169,14 +183,28 @@ async function main(){
         const body=/** @type {{method?:unknown,args?:unknown}} */(
           JSON.parse(await readBody(request))
         );
-        if(body.method!=='proofSum'||!Array.isArray(body.args)||
-           body.args.length!==1||typeof body.args[0]!=='number'||
-           !Number.isSafeInteger(body.args[0])){
+        if(!Array.isArray(body.args)||body.args.length!==1){
+          response.writeHead(400).end();return;
+        }
+        const requested=body.args[0];
+        const method=body.method;
+        if(method==='proofSum') {
+          if(typeof requested!=='number'||!Number.isSafeInteger(requested)){
+            response.writeHead(400).end();return;
+          }
+        } else if(method==='proofBatch') {
+          if(!Array.isArray(requested)||requested.length!==128||
+             !requested.every(value=>typeof value==='number'&&
+               Number.isSafeInteger(value))){
+            response.writeHead(400).end();return;
+          }
+        } else {
           response.writeHead(400).end();return;
         }
         const id=randomBytes(12).toString('hex');
         const challenge=randomBytes(32);
-        operationChallenges.set(id,{challenge,value:body.args[0],session:token});
+        const value=Array.isArray(requested)?requested.slice():requested;
+        operationChallenges.set(id,{challenge,value,method,session:token});
         response.writeHead(200,{
           'content-type':'application/json','cache-control':'no-store'
         }).end(JSON.stringify({id,challenge:[...challenge]}));
@@ -391,7 +419,7 @@ async function main(){
     const publicFacade=await fetch(allowedOrigin+'/obfs/facade.js');
     assert.equal(publicFacade.status,200);
     const servedSource=await publicFacade.text();
-    assert.doesNotMatch(servedSource,/protectedSum|webauthn_session|Number\(value\)/u);
+    assert.doesNotMatch(servedSource,/protectedSum|proofSum|proofBatch|webauthn_session|Number\(value\)/u);
     assert.ok(lastAcceptedAssertion);
     const reusedAssertion=await fetch(allowedOrigin+'/verify',{
       method:'POST',headers:{'content-type':'application/json'},
