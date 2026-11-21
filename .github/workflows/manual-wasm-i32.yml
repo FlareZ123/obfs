@@ -67,6 +67,8 @@ jobs:
         run: node sims/wasm-i32-commonjs-runtime-budget.js
       - name: Whole-graph cold native versus Wasm versus offline-native control
         run: node sims/wasm-i32-esm-rebuild-profile.js
+      - name: Equal-trust Wasm versus esbuild four-way ESM control
+        run: node sims/wasm-i32-four-way-minified.js
       - name: Strict JSDoc checks
         run: npm run typecheck
       - name: Strict Wasm research and attacker JSDoc checks
