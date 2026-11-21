@@ -654,6 +654,29 @@ function width32ProjectedRankWitness(){
     reachable,unreachable,highBitSampled,maxCandidateCount};
 }
 
+/**
+ * Deliberately false degree-two promise for a cubic rank-one mapping.
+ * Every weight-two residual vanishes although some weight-three values
+ * differ. The incomplete envelope misses a real preimage.
+ * @returns {{trueDegree:number,falseDegree:number,hiddenPreimage:number,misclassifiedTarget:number,completeResidualRank:number}}
+ */
+function outOfDegreePromiseControl() {
+  const n=12;
+  /** @param {number} x @returns {number} */
+  const F=x=>x^(((((x>>>1)&1)&((x>>>2)&1)&((x>>>3)&1))?1:0);
+  const misclassifiedTarget=0x0e, hiddenPreimage=0x0f;
+  const incomplete=learnLowDegree(F,n,2);
+  assert.equal(incomplete.residual.length,0);
+  assert.equal(invert(F,incomplete,misclassifiedTarget).answer,null);
+  const complete=learnLowDegree(F,n,3);
+  assert.equal(complete.residual.length,1);
+  const result=invert(F,complete,misclassifiedTarget);
+  assert.equal(result.answer,hiddenPreimage);
+  assert.equal(F(result.answer),misclassifiedTarget);
+  return {trueDegree:3,falseDegree:2,hiddenPreimage,
+    misclassifiedTarget,completeResidualRank:complete.residual.length};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -719,7 +742,8 @@ function main() {
     width32Deterministic:width32DeterministicQuadratic(),
     width3Exhaustive:width3ExhaustiveNonbijective(),
     singularAffine:singularAffineDegreeWitness(),
-    width32Projected:width32ProjectedRankWitness()};
+    width32Projected:width32ProjectedRankWitness(),
+    outOfDegreePromise:outOfDegreePromiseControl()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
@@ -730,4 +754,5 @@ module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
   width3ExhaustiveNonbijective,singularAffineDegreeWitness,
   width32ProjectedRankWitness,envelopeNullity,
   applyRows,applyColumns,solveAffinePreimageCandidates,
-  outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
+  outOfPromiseControl,outOfDegreePromiseControl,
+  outputRankTwoLowerBoundWitness,main};
