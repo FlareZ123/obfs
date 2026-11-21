@@ -9,6 +9,8 @@
     "test/source-observer-islands-fuzz.test.js",
     "sims/host-capability-transport-grid.js",
     "sims/sco-selective-challenge.js",
+    "sims/sco-quadratic-529-live-clone.js",
+    "test/sco-quadratic-529-live-clone.test.js",
     "sims/sco-selected-graph-budget.js",
     "sims/sco-selected-graph-attacker.js",
     "sims/sco-selected-graph-relay.js",
