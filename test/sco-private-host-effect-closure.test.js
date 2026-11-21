@@ -100,6 +100,7 @@ test('Private static dependencies refuse unproved cross-realm browser host APIs'
   const sensitive=[
     'return fetch("./client-resource.json").then(response=>response.status);',
     'const load=fetch;return load("./client-resource.json");',
+    'return new Request("./client-resource.json").url;',
     'return new Worker("./private/worker.mjs",{type:"module"});',
     'return new WebSocket("wss://example.invalid/feed");',
     'return new XMLHttpRequest();',
@@ -117,8 +118,8 @@ test('Private static dependencies refuse unproved cross-realm browser host APIs'
 });
 
 test('Host API spellings remain permitted as inert private-record property labels',()=>{
-  const body='const record={fetch:41,Worker:1,WebSocket:0};'+
-    'return record.fetch+record.Worker+record.WebSocket;';
+  const body='const record={fetch:41,Request:0,Worker:1,WebSocket:0};'+
+    'return record.fetch+record.Request+record.Worker+record.WebSocket;';
   for(const transitive of [false,true]){
     const emitted=partitionGraph(body,transitive);
     assert.deepEqual(emitted.privateNames,['protectedOp']);
@@ -131,6 +132,7 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
     'function helper(){return fetch("./client-data.json");}'+
       'export async function protectedOp(){return helper();}',
     'export async function protectedOp(){return new Worker("./worker.mjs");}',
+    'export async function protectedOp(){return new Request("./client-data.json").url;}',
     'function helper(){return new WebSocket("wss://example.invalid/stream");}'+
       'export async function protectedOp(){return helper();}'
   ];
@@ -142,7 +144,8 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
     ),/Private SCO export or helper contains unproved cross-realm host API/u,source);
   }
   const inert='export async function protectedOp(){'+
-    'const record={fetch:41,Worker:1};return record.fetch+record.Worker;}'+
+    'const record={fetch:41,Request:0,Worker:1};'+
+    'return record.fetch+record.Request+record.Worker;}'+
     'export function visible(){return 7;}';
   const partition=partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',sourceType:'module',code:inert},
