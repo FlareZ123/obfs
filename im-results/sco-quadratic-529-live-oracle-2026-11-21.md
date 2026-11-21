@@ -1,0 +1,48 @@
+# Full-rank server-private quadratic functionality cloned with 529 legitimate SCO HTTP calls
+
+**21 November 2026. Source-pinned, two-platform reproducible intermediate adversarial evidence. The three-mode primary release remains RELEASE-BLOCKED.**
+
+## Boundary and test
+
+The trusted server loads an original, randomly parameterized 32-bit quadratic JavaScript function, then generates a public ESM facade through partitionScoSelectedAsyncExports, bindScoModuleExports and createScoHandler. A separate public identity export keeps the partition real. The attacker has an ordinary authorized credential, sees only the HTTP-served facade and can make unlimited legitimate requests. The private constant names are absent from the public text. An unauthenticated RPC receives HTTP 403.
+
+The attacker derives the opaque method identifier directly from the served public ESM. It makes **529 authenticated HTTP POST** requests: one all-zero input, all 32 single-bit inputs and all 496 distinct two-bit inputs. The existing bounded-degree Boolean ANF learner interpolates all coefficients of the private 32-bit-output function. All query responses are checked for correct unsigned 32-bit shape and the fitting transcript is hashed.
+
+For the unrestricted vector-valued degree-at-most-two class, there are 529 independently choosable monomials (one constant, 32 linear and 496 quadratic), each with an arbitrary 32-bit output coefficient. Therefore the class contains 2^(529×32) distinct functions. Every selected-input oracle response yields at most 32 bits of evidence, so an adaptive deterministic learner guaranteeing exact reconstruction of every member needs at least 529 queries by counting. The interpolation procedure attains this worst-case query bound. This information-theoretic lower bound concerns the **full unrestricted degree-two family**; it does not apply to the tiny private two-rotation family later recovered in two queries.
+
+The server is then **closed**. An offline model is checked against the original trusted function on four high-weight fixed inputs and 1,024 deterministic SHA-256-derived held-out inputs. Exactly 529 trusted RPC invocations are permitted; no subsequent RPC serves a held-out answer. The candidate has genuine degree-two terms and the 496 quadratic coefficient vectors have full GF(2) output rank **32**, explicitly checked by the learner and a separate basis routine. Each coefficient of degree two equals the polar difference F(e_i XOR e_j) XOR F(e_i) XOR F(e_j) XOR F(0). Because this polar output span is the entire 32-bit output space, any affine-adjusted residual image must also span all 32 dimensions. The example therefore has **maximal minimum affine-residual output rank**, despite its efficient quadratic interpolation.
+
+A cubic negative control matches all training answers but diverges on input seven, showing that the global degree-at-most-two promise is indispensable. The specific randomly parameterized two-rotation private function belongs to a smaller family than unrestricted quadratic functions. The **529-query budget is an upper bound for generic quadratic interpolation, not a minimal attacker cost for this particular small family**. Successful functional cloning is not source-text recovery or private-key recovery.
+
+## Independent source-family-aware two-query attack
+
+The generic 529-query ANF learner deliberately does not use detailed source-family knowledge. A stronger attacker given the narrow **two-distinct-rotation plus arbitrary 32-bit offset** grammar can reconstruct its private parameters after **two** real authenticated HTTP responses. The additional attacker in sims/sco-quadratic-two-query.js receives the same limited public URL, route and credential.
+
+Define P_a(x) as x XOR (x left-shifted by a) XOR (x unsigned-right-shifted by 32 minus a), all modulo 32-bit words, and G_(a,b)(x) as P_a(x) XOR (P_a(x) AND P_b(x)). Then F_(a,b,k)(x) = G_(a,b)(x) XOR k. First query the zero input: F(0) equals the unknown offset. The second precommitted query is the unsigned 32-bit input **0x894b7023**. Subtract the offset by XOR and compare its signature against an entirely public dictionary of all **930 ordered distinct rotation pairs** (a,b) with 1 <= a,b <= 31 and a != b. The dictionary itself exhaustively checks that all 930 signatures are unique. This singles out both rotation amounts, and F(0) has already given the offset. The learner can then evaluate the recovered family for any 32-bit input, including the 1,028 held-out inputs after closing the server, without additional trusted RPC.
+
+For any single queried input x and any observed output y, each of the 930 candidate pairs admits an offset k = y XOR G_(a,b)(x) yielding that exact answer. Those parameterizations remain distinct functions because the verified second-probe signatures distinguish pairs after offset removal. Therefore one query cannot uniquely identify the function under this grammar. Thus **two selected queries suffice, and one cannot suffice in the worst case for the declared family**. This lower-bound reasoning is strictly family-specific. For arbitrary quadratic functions of 32 input and output bits, retain the generic 529-query interpolation result; for arbitrary JavaScript functions, neither attack implies a finite small-query cloning budget.
+
+The source-family learner reconstructs the **numeric parameters used to generate this narrow function**, while the generic learner reconstructs its behavior without needing that structure. Neither recovers arbitrary private source text, unknown external secrets, source-map coordinates or unrelated private server state. The source-aware test uses the same HTTP transport and positive authentication as the generic test, has an independent two-request counter and separately validates nonlinear output rank 32. A known two-rotation grammar is a stronger adversarial prior than merely knowing a degree bound; keep their attack budgets separate.
+
+**Source-pinned cross-platform result:** [manual Linux/Windows validation 44954914978](https://github.com/FlareZ123/obfs/actions/runs/44954914978) at exact executable SHA 31790a7ef82404dadda7a8e75308f853e1772cf1. **Both Ubuntu and Windows jobs passed**, including behavioral attack regressions and strict JSDoc; the Ubuntu job also completed actual Chromium integration. This pin includes the 529-query generic attack, the full-rank source-family-aware two-query attack, explicit 930-way discriminator and all offline heldouts. The source commit predates report-only revisions.
+
+## Source-pinned validation
+
+The implementation is in sims/sco-quadratic-529-live-clone.js, with regression test test/sco-quadratic-529-live-clone.test.js and the source-family learner sims/sco-quadratic-two-query.js, using the already existing sims/bounded-degree-oracle-functional-clone.js and sims/quadratic-radical-target-inversion.js. Both are included in strict external JSDoc checks via jsconfig.external.json.
+
+- Initial source-pinned Linux/Windows complete validation: [run 44953727646](https://github.com/FlareZ123/obfs/actions/runs/44953727646), SHA 9d186813adf84f950cb578032fa773ec7a262570, **both OS jobs succeeded**. It covered 529 HTTP calls, 1,028 offline holdouts, 403 denial and cubic-negative controls, but it predates the later explicit full-rank and public-byte-method-extraction assertions.
+- Stronger intermediate Linux/Windows revision: [run 44954316491](https://github.com/FlareZ123/obfs/actions/runs/44954316491), SHA 9f8e6e716470ddc09d719c2c273556cc24777842. Both OS jobs **failed the strict external JSDoc step** because a server variable was possibly undefined in callback closures; the earlier full behavioral suite passed. The actual TypeScript narrowing issue was fixed in the later SHA above. This run is not a fully green validation.
+
+Fresh secure random numeric parameters are generated on every run; the result emits source and transcript SHA-256 values, RPC count, output-rank evidence and held-out match counts. Exact random parameters are not emitted, preventing byte-identical reconstruction of a given CI sample while preserving reproducibility of the method and invariants.
+
+## Independent decisions and limitations
+
+**Static protection:** The private original implementation is withheld, as checked by absence of its three private identifiers in the HTTP-served client. Nothing here proves general resistance to a compromised server.
+
+**Dynamic reconstruction:** An already authorized client completely reproduces the function after legitimate selected queries (two when its narrow source family is known, or 529 under the generic quadratic promise) and can run its model with the server unavailable. A similarly trusted ordinary HTTP service exposing the same function has the same mathematical limitation.
+
+**Integrity and host lock:** Unauthorized RPC remains denied. No bypass of authentication, domain locks, source integrity or server-side controls is demonstrated.
+
+**Compatibility and performance:** Only the scalar uint32 JSON-wire contract is tested. The attack has **no** matched native-versus-compiled, client-inclusive, or worst-case 2.5x compute-performance result. It makes no claim about browser operation, non-JSON JavaScript values, stateful functions, latency or tenant contention.
+
+**Decision:** This bridges the existing degree-two interpolation theorem to real authenticated SCO transport. It is an intermediate negative candidate-selection finding and does not justify promotion to an established new theorem or a stronger obfuscation release.
