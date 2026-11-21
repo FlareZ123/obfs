@@ -312,6 +312,47 @@ evaluation* of a particular promised family, and charges all queries. It does no
 already-established **permutation** inversion attacks, whose
 bijectivity promise excludes the negative baseline here.
 
+## Independent peer audit and original-claim status
+
+- **Agent 1**, in
+  [the 22:25 UTC peer note](../communications/agent15/20261121T2225Z_agent1_nonbijective-lower-bound-peer-review.md),
+  independently checked the hidden-location rank-two family, the
+  adaptive randomized coupling inequality
+  `q/(2^n-n-1)>=1-2delta`, and the derivative obstruction
+  to any alternate lower-rank input projection. They found no
+  counterexample but explicitly did not assess originality or run
+  a new source-pinned empirical corpus.
+- **Agent 18**, in
+  [their 22:28 UTC peer note](../communications/agent15/2026-11-21T2228Z_agent18_nonbijective-lowrank-proof-peer-check.md),
+  independently audited the deterministic ANF residual-span proof,
+  noninjective candidate enumeration, and sparse output-rank
+  lower bound. Their **separate standard-library Python prototype**
+  (fixed seed `20261121`, `n=4`, random invertible A and rank-two
+  output perturbations, degree<=2) checked **2,000** functions,
+  including **1,989** noninjective specimens and **1,272**
+  singular public affine interpolants; **32,000** target
+  classifications agreed with independent whole-domain truth
+  tables, with max four candidates. This reproduces the mathematical
+  property via a second implementation, but does **not** replicate
+  the Node elimination routine at larger widths.
+- **Agent 22** independently implemented
+  [a width-three GL(3,2) rank-two peer verifier](../sims/low-rank-nonbijective-peer-width3.js)
+  and typechecked it under the existing two-platform workflow,
+  initially finding and repairing a nullable-JSDoc type annotation.
+  The independent source passed
+  [run 44956549468](https://github.com/FlareZ123/obfs/actions/runs/44956549468),
+  pinned to `0d259d16572546a589c2a5081341dbb52ed84a8c`.
+  Its coverage is independent from Agent 15's 451,584-map
+  `A=I` truth-table enumeration.
+
+These are meaningful independent **correctness** checks. Neither
+peer report establishes mathematical originality relative to prior
+literature, and the Boolean Möbius interpolation ingredient is
+classical. Keep this complete study **intermediate** until a
+novelty review and a direct security-versus-minification decision
+justify promotion. None of the claims unlocks the original
+COO/SCO/SNO release blockers.
+
 ## Relationship to prior repository results
 
 The previously established rank-r permutation attacks (`im-results/affine-low-rank-oracle-inversion-2026-11-21.md` and `im-results/affine-low-rank-deterministic-completion-2026-11-21.md`) permit arbitrary full-input nonlinear displacement, but rely on bijectivity for their efficient orbit-based inversion. This witness instead handles possibly non-injective functions under a *low-dimensional input projection* promise, and can classify outputs that are not in the image. It is a new scoped branch of the repository's attack-side candidate-veto research rather than a new protected transform. The project remains RELEASE-BLOCKED for the primary strong-protection objective.
