@@ -44,13 +44,24 @@ function createSnoLauncher(files,entry) {
   // A Linux checkout can contain canonically equivalent Unicode names that
   // address the same APFS file on macOS; refuse an ambiguous SNO manifest.
   const seen=new Set();
+  /** @type {[string,string][]} */
+  const manifest=[];
   for(const file of files) {
     const name=safePath(file.path);
     const key=name.normalize('NFC').toLowerCase();
     if(seen.has(key))throw new TypeError('Duplicate SNO file: '+name);
     seen.add(key);
+    const code=file.code;
+    if(/\.(?:js|mjs|cjs)$/.test(name)) {
+      if(Buffer.isBuffer(code)&&!isUtf8(code)){
+        throw new TypeError('Invalid UTF-8 JavaScript source: '+name);
+      }
+      if(typeof code==='string'&&/[\uD800-\uDFFF]/u.test(code)){
+        throw new TypeError(name+' JavaScript source contains unpaired surrogate');
+      }
+    }
+    manifest.push([name,createHash('sha256').update(code).digest('hex')]);
   }
-  const manifest = files.map(file => [safePath(file.path), createHash('sha256').update(file.code).digest('hex')]);
   return `'use strict';\n` +
     `const fs=require('node:fs');const crypto=require('node:crypto');const path=require('node:path');\n` +
     `const checks=${JSON.stringify(manifest)};\n` +
