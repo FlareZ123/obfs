@@ -17,3 +17,8 @@ Both SNO scope checks now strip **exactly one leading U+FEFF** from already UTF-
 **Validation pending**: a full Windows/Linux Node 22 plus Ubuntu Chromium source-pinned run for this newer code has not yet completed at report creation. Successful native Node reproduction alone is evidence about the runtime's package behavior, not evidence that the new SNO output already passed its full gate.
 
 This improves Node package-scope compatibility under the existing SNO one-entry loader. It creates no resistance to a filesystem owner who controls SNO execution, nor an independent universal 2.5× runtime guarantee.
+
+
+## Pending source-pinned full gate
+
+The exact source/test candidate `be6a51b6b190c560d864cf146b4e4d55d69faef9` is pinned on `agent4/raw-filename-bom-parity-20261121`. The full Linux/Windows Node 22 and Ubuntu Chromium run is [44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826), queued when this note was added. The earlier complete [44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755) was green but did **not** include this BOM correction.
