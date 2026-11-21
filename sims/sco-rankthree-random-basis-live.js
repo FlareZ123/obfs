@@ -159,7 +159,7 @@ async function main(){
       /export async function protectedRank3\([^)]*\)\{return await [\w$]+\("([^"]+)",\[\.\.\.arguments\]\);\}/u);
     assert.ok(match?.[1],'Public facade method route not recoverable');
     const learned=await learn({origin,method:match[1],credential:TOKEN});
-    assert.ok(learned.early&&learned.queries<=529);
+    assert.ok(learned.early&&learned.queryCount<=529);
     assert.equal(privateExecutions,learned.queryCount);
     const closing=instance;
     /** @type {Promise<void>} */
