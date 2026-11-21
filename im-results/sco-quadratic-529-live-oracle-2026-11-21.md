@@ -12,12 +12,24 @@ The server is then **closed**. An offline model is checked against the original 
 
 A cubic negative control matches all training answers but diverges on input seven, showing that the global degree-at-most-two promise is indispensable. The specific randomly parameterized two-rotation private function belongs to a smaller family than unrestricted quadratic functions. The **529-query budget is an upper bound for generic quadratic interpolation, not a minimal attacker cost for this particular small family**. Successful functional cloning is not source-text recovery or private-key recovery.
 
+## Independent source-family-aware two-query attack
+
+The generic 529-query ANF learner deliberately does not use detailed source-family knowledge. A stronger attacker given the narrow **two-distinct-rotation plus arbitrary 32-bit offset** grammar can reconstruct its private parameters after **two** real authenticated HTTP responses. The additional attacker in sims/sco-quadratic-two-query.js receives the same limited public URL, route and credential.
+
+First query the zero input: F(0) equals the unknown offset. The second precommitted query is the unsigned 32-bit input **0x894b7023**. Subtract the offset by XOR and compare its signature against an entirely public dictionary of all **930 ordered distinct rotation pairs** (a,b) with 1 <= a,b <= 31 and a != b. The dictionary itself exhaustively checks that all 930 signatures are unique. This singles out both rotation amounts, and F(0) has already given the offset. The learner can then evaluate the recovered family for any 32-bit input, including the 1,028 held-out inputs after closing the server, without additional trusted RPC.
+
+Under this precise grammar, a one-query result leaves the arbitrary 32-bit XOR offset free for each candidate rotation pair and cannot uniquely identify the underlying function. Thus **two selected queries suffice, and one cannot suffice in the worst case for the declared family**. This lower-bound reasoning is strictly family-specific. For arbitrary quadratic functions of 32 input and output bits, retain the generic 529-query interpolation result; for arbitrary JavaScript functions, neither attack implies a finite small-query cloning budget.
+
+The source-family learner reconstructs the **numeric parameters used to generate this narrow function**, while the generic learner reconstructs its behavior without needing that structure. Neither recovers arbitrary private source text, unknown external secrets, source-map coordinates or unrelated private server state. The source-aware test uses the same HTTP transport and positive authentication as the generic test, has an independent two-request counter and separately validates nonlinear output rank 32. A known two-rotation grammar is a stronger adversarial prior than merely knowing a degree bound; keep their attack budgets separate.
+
+**Source pin for this extended test:** [manual Linux/Windows validation 44954914978](https://github.com/FlareZ123/obfs/actions/runs/44954914978) at exact executable SHA 31790a7ef82404dadda7a8e75308f853e1772cf1. **Pending** at this report revision; do not infer a green run from dispatch alone.
+
 ## Source-pinned validation
 
-The implementation is in sims/sco-quadratic-529-live-clone.js, with regression test test/sco-quadratic-529-live-clone.test.js, using the already existing sims/bounded-degree-oracle-functional-clone.js and sims/quadratic-radical-target-inversion.js. Both are included in strict external JSDoc checks via jsconfig.external.json.
+The implementation is in sims/sco-quadratic-529-live-clone.js, with regression test test/sco-quadratic-529-live-clone.test.js and the source-family learner sims/sco-quadratic-two-query.js, using the already existing sims/bounded-degree-oracle-functional-clone.js and sims/quadratic-radical-target-inversion.js. Both are included in strict external JSDoc checks via jsconfig.external.json.
 
 - Initial source-pinned Linux/Windows complete validation: [run 44953727646](https://github.com/FlareZ123/obfs/actions/runs/44953727646), SHA 9d186813adf84f950cb578032fa773ec7a262570, **both OS jobs succeeded**. It covered 529 HTTP calls, 1,028 offline holdouts, 403 denial and cubic-negative controls, but it predates the later explicit full-rank and public-byte-method-extraction assertions.
-- Final stronger source-pinned Linux/Windows validation: [run 44954316491](https://github.com/FlareZ123/obfs/actions/runs/44954316491), executable SHA 9f8e6e716470ddc09d719c2c273556cc24777842. **Pending at report authoring; verify its outcome before claiming those additional assertions passed.**
+- Stronger intermediate Linux/Windows revision: [run 44954316491](https://github.com/FlareZ123/obfs/actions/runs/44954316491), SHA 9f8e6e716470ddc09d719c2c273556cc24777842. Both OS jobs **failed the strict external JSDoc step** because a server variable was possibly undefined in callback closures; the earlier full behavioral suite passed. The actual TypeScript narrowing issue was fixed in the later SHA above. This run is not a fully green validation.
 
 Fresh secure random numeric parameters are generated on every run; the result emits source and transcript SHA-256 values, RPC count, output-rank evidence and held-out match counts. Exact random parameters are not emitted, preventing byte-identical reconstruction of a given CI sample while preserving reproducibility of the method and invariants.
 
@@ -25,7 +37,7 @@ Fresh secure random numeric parameters are generated on every run; the result em
 
 **Static protection:** The private original implementation is withheld, as checked by absence of its three private identifiers in the HTTP-served client. Nothing here proves general resistance to a compromised server.
 
-**Dynamic reconstruction:** An already authorized client completely reproduces the function after legitimate selected queries and can run its model with the server unavailable. A similarly trusted ordinary HTTP service exposing the same function has the same mathematical limitation.
+**Dynamic reconstruction:** An already authorized client completely reproduces the function after legitimate selected queries (two when its narrow source family is known, or 529 under the generic quadratic promise) and can run its model with the server unavailable. A similarly trusted ordinary HTTP service exposing the same function has the same mathematical limitation.
 
 **Integrity and host lock:** Unauthorized RPC remains denied. No bypass of authentication, domain locks, source integrity or server-side controls is demonstrated.
 
