@@ -59,6 +59,8 @@ jobs:
         run: node sims/sco-rankthree-631-live-clone.js
       - name: Matched rank-three projected versus generic cubic functional clone
         run: node sims/rankthree-projected-vs-generic-cubic-matched.js
+      - name: Exhaustive vector-polar triple miss probability verifier
+        run: node sims/rankthree-polar-triple-independent-check.js
       - name: Independent rank-three quadratic 244-query full clone
         run: node sims/rankthree-quadratic-polarization-peer.js
       - name: Rank-three quadratic bilinear early clone and fallback
