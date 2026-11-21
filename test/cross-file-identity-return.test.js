@@ -81,9 +81,16 @@ test('default-parameter wrapper is outside the pure imported identity proof',asy
     'import {state} from "./state.mjs";import {identity} from "./util.mjs";const v=identity(state);console.log(v.secretField);',0);
 });
 
-test('an imported identity function passed as a value is rejected',async()=>{
+test('top-level const alias of a proven imported identity supports direct forwarding',async()=>{
   await check(identity,
-    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const invoke=identity;const v=invoke(state);console.log(v.secretField);',0);
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";const invoke=identity;const v=invoke(state);console.log(v.secretField);',1);
+});
+
+test('imported identity passed through an opaque function holder still refuses rewriting',async()=>{
+  await check(identity,
+    'import {state} from "./state.mjs";import {identity} from "./util.mjs";'+
+    'const invoke=identity;const holder={fn:invoke};'+
+    'const v=holder.fn(state);console.log(v.secretField);',0);
 });
 
 test('immutable exported arrow identity enables cross-file alias flow',async()=>{
