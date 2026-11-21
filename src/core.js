@@ -1945,6 +1945,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function isObjectCreateCallable(value) {
+    if(value.type==='SequenceExpression'&&value.expressions.length){
+      return isObjectCreateCallable(value.expressions[value.expressions.length-1]);
+    }
     if(value.type==='Identifier')return objectCreateAliases.has(value.name);
     if(value.type==='MemberExpression') {
       if(isObjectIntrinsic(value.object)&&memberName(value)==='create')return true;
@@ -2080,6 +2083,31 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(guardedDescriptors&&
        (objectCreateMayExposeDecoder(guardedDescriptors)||
         isDecoderGetterMap(guardedDescriptors))) {
+      mutated=true;
+      return;
+    }
+    // Prebinding the descriptor map is itself a potential installation of
+    // a decoder-sensitive getter; the bound callable may run later.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind'&&
+       isObjectCreateCallable(node.callee.object)&&
+       node.arguments.slice(1).some(
+         argument=>objectCreateMayExposeDecoder(argument)||
+           isDecoderGetterMap(argument))) {
+      mutated=true;
+      return;
+    }
+    // When a native constructor escapes through a container or unknown
+    // call target, interprocedural effects cannot be proven from the local
+    // graph. Require a source-visible sensitive accessor before declining.
+    if(sensitiveAccessorWrite&&node.type==='ArrayExpression'&&
+       node.elements.some(element=>element&&isObjectCreateCallable(element))) {
+      mutated=true;
+      return;
+    }
+    if(sensitiveAccessorWrite&&
+       (node.type==='CallExpression'||node.type==='NewExpression')&&
+       node.arguments.some(argument=>isObjectCreateCallable(argument))) {
       mutated=true;
       return;
     }
