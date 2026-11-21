@@ -35,7 +35,7 @@ For \(t=81\), \((3/4)^{81}=7.58511788349506\cdot10^{-11}\), below \(10^{-10}\). 
 
 The new wrapper caches legitimate oracle responses. It first constructs the rank-hinted exact-when-promised model. If the interpolator explicitly detects a false rank promise, it immediately completes generic quadratic ANF. If an early model is produced, it makes up to 81 validation oracle calls. A mismatch triggers the same generic exact ANF using all cached samples. The final model is therefore either exactly reconstructed using the low-rank proof, generically exact after fallback, or a wrong quadratic that passed all challenges with risk bounded as above.
 
-A worst-case distinct-value upper bound at \(n=32\) is \(529+81=610\). This is a query budget, not CPU budget, and it requires the degree-at-most-two promise. If the function is cubic or otherwise outside that degree class, the Reed-Muller distance bound and 529-query fallback cease to be correct. No claim about arbitrary-JavaScript learning follows.
+This minimum-weight fact is a classical Reed–Muller code theorem, not a novelty claim. A textbook reference states that \(\mathrm{RM}(2,m,r)\) has minimum distance \(2^{m-r}\): [Introduction to Coding Theory, Theorem 6.3.3](https://cse.buffalo.edu/faculty/atri/courses/coding-theory/book/ada-coding-book.pdf). The special case \(r=2\) supplies the one-quarter disagreement floor.\n\nA worst-case distinct-value upper bound at \(n=32\) is \(529+81=610\). This is a query budget, not CPU budget, and it requires the degree-at-most-two promise. If the function is cubic or otherwise outside that degree class, the Reed-Muller distance bound and 529-query fallback cease to be correct. No claim about arbitrary-JavaScript learning follows.
 
 ## Reproduction
 
