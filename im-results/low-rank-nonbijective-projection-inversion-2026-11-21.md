@@ -90,8 +90,12 @@ At `n=32` with `d=r`, this is **35** calls for `r=1`,
 **533** for `r=2`, and **5,497** for `r=3`. This is a
 deterministic, conditional oracle-call bound, with no claim about the
 instruction cost of the full solver or universal JavaScript behavior.
-Known-degree Boolean interpolation is standard, and the repository already
-has separate bounded-degree *functional-cloning* attacks; the refinement
+Known-degree Boolean interpolation is standard (for an explicit
+ANF/Möbius coefficient formula, see [the Boolean-function algebraic-degree
+study](https://link.springer.com/article/10.1007/s12095-025-00839-x)
+and [the ANF implementation reference](https://booleanfunction.github.io/efficient-implementation.html)),
+and the repository already has separate bounded-degree
+*functional-cloning* attacks; the refinement
 here couples a complete residual span to small-coset
 **non-injective image membership**. Novelty needs independent review.
 
