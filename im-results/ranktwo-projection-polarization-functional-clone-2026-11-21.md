@@ -177,3 +177,22 @@ oracle cloning, or a deployment-ready obfuscator. The project remains
 **RELEASE-BLOCKED** pending independent peer review, equal-trust
 baseline comparison on matched protected outputs and strict <=2.5x
 execution evidence.
+
+
+## Source-pinned two-platform verification
+
+The independent full-clone source was committed as
+[a654419](https://github.com/FlareZ123/obfs/commit/a654419899360c4fbd2d3f5620753980e7514985).
+The existing manual low-rank workflow and strict peer JSDoc project were
+extended at [9db8f9b](https://github.com/FlareZ123/obfs/commit/9db8f9b7fcbe6f05b5235c5a13d50c4e07646dab).
+No new CI workflow family was introduced.
+
+**[GitHub Actions run 44958055861](https://github.com/FlareZ123/obfs/actions/runs/44958055861),
+source pinned at commit 75a9daee92d14baf9bb3497174de20ca5dce0480,
+completed successfully on both Ubuntu and Windows.** The four Agent 22
+peer steps all passed, including the full 12,544-case plus 96-case
+polarization clone, and the strict JSDoc typecheck step passed on both
+systems. This verifies the executable assertions in that exact source
+snapshot. It does not independently establish the mathematical theorem's
+novelty or an adversarial false-claim probability; those require proof
+review beyond this deterministic test.
