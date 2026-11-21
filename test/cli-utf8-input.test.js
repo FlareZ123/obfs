@@ -45,7 +45,7 @@ test('source reader rejects malformed UTF-8 in every JavaScript extension',async
         const source=Buffer.concat([
           Buffer.from('const text="','utf8'),
           Buffer.from(sequence),
-          Buffer.from('";\\n','utf8')
+          Buffer.from('";\n','utf8')
         ]);
         await atomicWrite(path.join(root,filename),source);
         await assert.rejects(readSourceTree(root),error=>
