@@ -61,20 +61,71 @@ async function main(){
   const rpId='localhost';
   /** @type {Set<string>} */
   const activeSessions=new Set();
+  /** @type {Map<string,{challenge:Buffer,value:number,session:string}>} */
+  const operationChallenges=new Map();
   let privateRpcCalls=0;
+  let proofRpcCalls=0;
+  /**
+   * @param {http.IncomingMessage} request
+   * @returns {string|null}
+   */
+  function sessionToken(request){
+    const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
+      .exec(request.headers.cookie??'');
+    return match?.[1]??null;
+  }
+  /** @param {http.IncomingMessage} request @returns {boolean} */
+  function authorizedSession(request){
+    const token=sessionToken(request);
+    return token!==null&&activeSessions.has(token);
+  }
   const scoHandler=createScoHandler([
     {path:'facade.js',code:'globalThis.obfsWebAuthnTest=true;',sourceType:'script'}
   ],{
     allowedHosts:['localhost'],
     publicPaths:['facade.js'],
-    remoteMethods:{protectedSum(value){
-      privateRpcCalls++;
-      return (Number(value)*17+29)>>>0;
-    }},
-    authorizeRpc(request){
-      const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
-        .exec(request.headers.cookie??'');
-      return match!==null&&activeSessions.has(match[1]);
+    remoteMethods:{
+      protectedSum(value){
+        privateRpcCalls++;
+        return (Number(value)*17+29)>>>0;
+      },
+      proofSum(value){
+        proofRpcCalls++;
+        return (Number(value)*17+29)>>>0;
+      }
+    },
+    authorizeRpc:authorizedSession,
+    authorizeOperation(request,method,args){
+      if(method!=='proofSum')return true;
+      const header=request.headers['x-webauthn-proof'];
+      if(typeof header!=='string'||!publicKey)return false;
+      try{
+        const proof=/** @type {{
+          challengeId?:unknown,rawId?:unknown,clientData?:unknown,
+          authenticatorData?:unknown,signature?:unknown
+        }} */(JSON.parse(Buffer.from(header,'base64').toString('utf8')));
+        if(typeof proof.challengeId!=='string'||typeof proof.rawId!=='string'||
+           typeof proof.clientData!=='string'||typeof proof.authenticatorData!=='string'||
+           typeof proof.signature!=='string'||proof.rawId!==credentialId)return false;
+        const record=operationChallenges.get(proof.challengeId);
+        if(!record)return false;
+        // Consume the one-use challenge even on argument mismatch or bad proof.
+        operationChallenges.delete(proof.challengeId);
+        if(record.session!==sessionToken(request)||args.length!==1||
+           args[0]!==record.value)return false;
+        const clientData=Buffer.from(proof.clientData,'base64');
+        const authenticatorData=Buffer.from(proof.authenticatorData,'base64');
+        const signature=Buffer.from(proof.signature,'base64');
+        verifyClientData(clientData,'webauthn.get',record.challenge,
+          'http://localhost:'+port);
+        if(authenticatorData.length<37)return false;
+        const rpHash=createHash('sha256').update(rpId).digest();
+        if(!timingSafeEqual(authenticatorData.subarray(0,32),rpHash))return false;
+        if((authenticatorData[32]&0x05)!==0x05)return false;
+        const clientHash=createHash('sha256').update(clientData).digest();
+        return verify('sha256',Buffer.concat([authenticatorData,clientHash]),
+          publicKey,signature);
+      }catch{return false;}
     }
   });
   /** @type {Map<string,Buffer>} */
@@ -108,6 +159,27 @@ async function main(){
         challenges.set(id,challenge);
         response.writeHead(200,{'content-type':'application/json','cache-control':'no-store'})
           .end(JSON.stringify({id,challenge:[...challenge]}));
+        return;
+      }
+      if(url.pathname==='/proof-challenge'&&request.method==='POST'){
+        const token=sessionToken(request);
+        if(token===null||!activeSessions.has(token)){
+          response.writeHead(403).end();return;
+        }
+        const body=/** @type {{method?:unknown,args?:unknown}} */(
+          JSON.parse(await readBody(request))
+        );
+        if(body.method!=='proofSum'||!Array.isArray(body.args)||
+           body.args.length!==1||typeof body.args[0]!=='number'||
+           !Number.isSafeInteger(body.args[0])){
+          response.writeHead(400).end();return;
+        }
+        const id=randomBytes(12).toString('hex');
+        const challenge=randomBytes(32);
+        operationChallenges.set(id,{challenge,value:body.args[0],session:token});
+        response.writeHead(200,{
+          'content-type':'application/json','cache-control':'no-store'
+        }).end(JSON.stringify({id,challenge:[...challenge]}));
         return;
       }
       if(url.pathname==='/register'&&request.method==='POST'){
@@ -333,6 +405,65 @@ async function main(){
     assert.ok(exportedCookie?.httpOnly,'DevTools must observe HttpOnly bearer');
     assert.match(exportedCookie.value,/^[0-9a-f]{64}$/u);
 
+    /**
+     * Sign an operation-specific, one-use server challenge through the real
+     * browser WebAuthn API; optionally submit it through same-origin fetch.
+     * @param {number} value
+     * @param {number|null} submitValue
+     * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
+     */
+    async function browserSignedOperation(value,submitValue){
+      return page.evaluate(async({rp,rawId,value,submitValue})=>{
+        const decode=encoded=>{
+          const binary=atob(encoded);
+          return Uint8Array.from(binary,character=>character.charCodeAt(0));
+        };
+        const encode=buffer=>{
+          let binary='';
+          for(const byte of new Uint8Array(buffer))binary+=String.fromCharCode(byte);
+          return btoa(binary);
+        };
+        const challengeResponse=await fetch('/proof-challenge',{
+          method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify({method:'proofSum',args:[value]})
+        });
+        if(!challengeResponse.ok)throw Error('Operation challenge denied');
+        const issued=await challengeResponse.json();
+        const start=performance.now();
+        const credential=await navigator.credentials.get({publicKey:{
+          challenge:new Uint8Array(issued.challenge),rpId:rp,
+          allowCredentials:[{type:'public-key',id:decode(rawId)}],
+          userVerification:'required',timeout:10000
+        }});
+        if(!(credential instanceof PublicKeyCredential))throw Error('No credential');
+        const assertion=credential.response;
+        if(!(assertion instanceof AuthenticatorAssertionResponse))
+          throw Error('No authenticator assertion');
+        const signingWallMs=performance.now()-start;
+        const proof=btoa(JSON.stringify({
+          challengeId:issued.id,rawId:encode(credential.rawId),
+          clientData:encode(assertion.clientDataJSON),
+          authenticatorData:encode(assertion.authenticatorData),
+          signature:encode(assertion.signature)
+        }));
+        if(submitValue===null)return {proof,status:null,body:null,signingWallMs};
+        const response=await fetch('/obfs/rpc',{
+          method:'POST',headers:{
+            'content-type':'application/json',
+            'x-webauthn-proof':proof
+          },
+          body:JSON.stringify({method:'proofSum',args:[submitValue]})
+        });
+        return {proof,status:response.status,body:await response.json(),signingWallMs};
+      },{rp:rpId,rawId:registration,value,submitValue});
+    }
+
+    const authorizedProof=await browserSignedOperation(7,7);
+    assert.equal(authorizedProof.status,200);
+    assert.deepEqual(authorizedProof.body,{ok:true,value:148});
+    assert.equal(proofRpcCalls,1);
+    assert.ok(authorizedProof.signingWallMs>0);
+
     await cdp.send('WebAuthn.setUserVerified',{
       authenticatorId:added.authenticatorId,
       isUserVerified:false
@@ -387,10 +518,13 @@ async function main(){
 
     /**
      * @param {string|undefined} token
+     * @param {string} [method]
+     * @param {number} [value]
+     * @param {string} [proof]
      * @returns {Promise<{status:number,body:unknown}>}
      */
-    async function copiedOriginRpc(token){
-      const body=JSON.stringify({method:'protectedSum',args:[7]});
+    async function copiedOriginRpc(token,method='protectedSum',value=7,proof){
+      const body=JSON.stringify({method,args:[value]});
       return new Promise((resolve,reject)=>{
         const request=http.request({
           hostname:'127.0.0.1',port,path:'/obfs/rpc',method:'POST',
@@ -398,7 +532,8 @@ async function main(){
             host:'localhost:'+port,
             'content-type':'application/json',
             'content-length':Buffer.byteLength(body),
-            ...(token?{cookie:'webauthn_session='+token}:{})
+            ...(token?{cookie:'webauthn_session='+token}:{}),
+            ...(proof?{'x-webauthn-proof':proof}:{})
           }
         },async response=>{
           try{
@@ -418,7 +553,50 @@ async function main(){
     assert.equal(copiedBearer.status,200);
     assert.deepEqual(copiedBearer.body,authorized.body);
     assert.equal(privateRpcCalls,2);
+
+    const copiedNoProof=await copiedOriginRpc(exportedCookie.value,'proofSum',7);
+    assert.equal(copiedNoProof.status,403);
+    assert.equal(proofRpcCalls,1);
+    const copiedStaleProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,authorizedProof.proof);
+    assert.equal(copiedStaleProof.status,403);
+    assert.equal(proofRpcCalls,1);
+
+    await page.goto(allowedOrigin+'/blank');
+    const signedForOtherInput=await browserSignedOperation(7,null);
+    const copiedSubstituted=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',8,signedForOtherInput.proof);
+    assert.equal(copiedSubstituted.status,403);
+    assert.equal(proofRpcCalls,1);
+    const signedTampered=await browserSignedOperation(7,null);
+    const modifiedProof=JSON.parse(Buffer.from(signedTampered.proof,'base64').toString('utf8'));
+    modifiedProof.signature=Buffer.alloc(64).toString('base64');
+    const badProof=Buffer.from(JSON.stringify(modifiedProof)).toString('base64');
+    const copiedBadSignature=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,badProof);
+    assert.equal(copiedBadSignature.status,403);
+    assert.equal(proofRpcCalls,1);
+
+    const signedAndForwarded=await browserSignedOperation(7,null);
+    const copiedFreshWithoutSession=await copiedOriginRpc(
+      undefined,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedFreshWithoutSession.status,403);
+    const copiedFreshProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedFreshProof.status,200);
+    assert.deepEqual(copiedFreshProof.body,authorizedProof.body);
+    assert.equal(proofRpcCalls,2);
+    const copiedReplay=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedReplay.status,403);
+    assert.equal(proofRpcCalls,2);
+
+    const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
+    const revokedValidProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedBeforeRevocation.proof);
+    assert.equal(revokedValidProof.status,403);
+    assert.equal(proofRpcCalls,2);
     const afterRevocation=await copiedOriginRpc(exportedCookie.value);
     assert.equal(afterRevocation.status,403);
     assert.equal(privateRpcCalls,2);
@@ -436,7 +614,18 @@ async function main(){
       failedUserVerificationResult:uvRequiredResult,
       acceptedAssertions,
       privateRpcCalls,
+      proofRpcCalls,
       authorizedPrivateRpcStatus:authorized.status,
+      authorizedProofRpcStatus:authorizedProof.status,
+      copiedOriginProofWithoutAssertionStatus:copiedNoProof.status,
+      copiedOriginUsedProofReplayStatus:copiedStaleProof.status,
+      copiedOriginArgumentSubstitutionStatus:copiedSubstituted.status,
+      copiedOriginFreshAuthorizedProofStatus:copiedFreshProof.status,
+      copiedOriginFreshProofReplayStatus:copiedReplay.status,
+      copiedOriginBadSignatureStatus:copiedBadSignature.status,
+      copiedOriginFreshProofWithoutSessionStatus:copiedFreshWithoutSession.status,
+      revokedSessionWithUnusedValidProofStatus:revokedValidProof.status,
+      observedBrowserSigningWallMs:authorizedProof.signingWallMs,
       pageJavascriptCookieVisible:authorized.jsCookie.length>0,
       debuggerCanExportHttpOnlySession:true,
       copiedOriginWithoutSessionStatus:withoutBearer.status,
