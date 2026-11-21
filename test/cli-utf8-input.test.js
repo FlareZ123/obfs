@@ -100,3 +100,20 @@ test('POSIX source filename bytes reject malformed UTF-8 before aliasing U+FFFD'
     await fs.rm(root,{recursive:true,force:true});
   }
 });
+
+
+test('source reader sorts valid Unicode filenames by stable UTF-8 bytes',async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-utf8-sort-'));
+  const names=['é.mjs','A.mjs','z.mjs','中.mjs'];
+  try {
+    for(const name of names){
+      await atomicWrite(path.join(root,name),'export const value=1;');
+    }
+    const expected=names.slice().sort((a,b)=>
+      Buffer.compare(Buffer.from(a,'utf8'),Buffer.from(b,'utf8')));
+    const files=await readSourceTree(root);
+    assert.deepEqual(files.map(file=>file.path),expected);
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
