@@ -10,7 +10,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * @typedef {'supported'|'contradicted'|'inconclusive'} Decision
  * @typedef {{
  *   protocol:string,
- *   oracleCalls:number,
+ *   oracleCalls:number, // zero is valid for source-only reconstruction
  *   attempted:boolean,
  *   cloneSucceeded:boolean,
  *   verifiedHeldoutComparisons:number,
@@ -27,6 +27,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   frozenSameApplication:boolean,
  *   nativeOutputAndHostTraceParity:boolean,
  *   protectedFunctions:number,
+ *   requiredHeldoutComparisons?:number, // preregistered threshold for positive claims
  *   conventionalControl:MatchedAttack,
  *   protectedCandidate:MatchedAttack,
  *   sessionPairs:Array<{native:number[],candidate:number[]}>
@@ -52,7 +53,8 @@ function compareCandidateEvidence(evidence){
     Number.isInteger(evidence.protectedFunctions)&&evidence.protectedFunctions>0&&
     control.attempted&&candidate.attempted&&
     control.protocol.length>0&&control.protocol===candidate.protocol&&
-    control.oracleCalls===candidate.oracleCalls&&control.oracleCalls>0&&
+    Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
+    control.oracleCalls===candidate.oracleCalls&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
   // A positive claim requires a completed, precommitted, equally resourced
@@ -61,6 +63,10 @@ function compareCandidateEvidence(evidence){
   // authenticated artifacts: the experimenter must verify the commitments.
   const positiveEvidenceReady=measurementReady&&
     evidence.nativeOutputAndHostTraceParity===true&&
+    typeof evidence.requiredHeldoutComparisons==='number'&&
+    Number.isSafeInteger(evidence.requiredHeldoutComparisons)&&
+    evidence.requiredHeldoutComparisons>=evidence.protectedFunctions&&
+    control.verifiedHeldoutComparisons>=evidence.requiredHeldoutComparisons&&
     control.verifiedSelectedFunctions===evidence.protectedFunctions&&
     candidate.verifiedSelectedFunctions===evidence.protectedFunctions&&
     control.attackCompleted===true&&candidate.attackCompleted===true&&
