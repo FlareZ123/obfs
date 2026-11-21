@@ -3357,7 +3357,14 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     // iframe; Window.frames exposes that child Document's exact source body.
     // Declared ESM can also create an iframe and read its Document through
     // HTMLIFrameElement.contentDocument or .contentWindow.
-    'frames','contentDocument','contentWindow']);
+    'frames','contentDocument','contentWindow',
+    // Browser ResourceTiming exposes the actual transfer and decoded byte
+    // length of same-origin fetched ESM files without exposing their text.
+    // A rewritten module can otherwise produce a different observed length.
+    // Do not veto ordinary performance.now() measurements.
+    'PerformanceObserver','PerformanceResourceTiming',
+    'getEntries','getEntriesByType','getEntriesByName',
+    'decodedBodySize','encodedBodySize','transferSize']);
   const globals=new Set(['globalThis','window','self','global']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
