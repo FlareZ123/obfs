@@ -107,9 +107,32 @@ constant derivative, certified by their degree-two structure and
 basis-derivative checks; consequently none admits an alternate
 lower-rank input projection in an affine-plus-projected form. The largest
 observed conservative training-plus-candidate query count was **307**
-(the width-12 `d=3,r=3` worst-case bound). These are locally
-reproducible observations; two-platform strict-JSDoc CI and independent
-mathematical review must still be recorded for this expanded source.
+(the width-12 `d=3,r=3` worst-case bound). An additional **32-bit** quadratic source-side witness uses two
+linearly independent fixed 32-bit output displacement masks and two
+different quadratic pair parities covering all 32 input coordinates.
+The first quadratic has a nondegenerate pairwise polar form, so no
+nonzero input direction has a constant derivative; the published
+`rank(V)<=2` input-projection hypothesis is inapplicable, while
+the rank-two **output** and degree-two hypotheses hold. Deterministic
+learning made exactly **529** basis/weight-two oracle observations,
+then classified **2,048** held-out 32-bit targets against an
+independent oracle using the four true displacement coset points:
+**1,716 reachable, 332 unreachable**, with at most four candidates
+checked per target. The fully independent reference uses the known
+two output directions only as a verifier; the attacker receives
+forward queries and the rank/degree promises, with neither the affine
+core nor the output directions supplied. This validates a genuinely
+noninjective 32-bit non-projection instance locally.
+
+The original deterministic width-12 source including 192 finite
+fixtures passed source-pinned Ubuntu/Windows Node 22 and strict JSDoc
+in [manual run 44955704794](https://github.com/FlareZ123/obfs/actions/runs/44955704794)
+at `5e46ee14e724ed290d089ed493b270a9ddbe8ca0`.
+The appended width-32 witness is a **new source revision** requiring
+separate two-platform CI; its local execution alone cannot extend
+the above source-pinned claim. Independent mathematical review remains
+necessary.
+
 
 ## Matching negative control: output rank two alone permits exponential image-membership uncertainty
 
