@@ -131,23 +131,39 @@ function median(values){
  * @param {number} [proofBatchSize]
  */
 function profile(name,rounds,operations,fixtures,aggregation,proofBatchSize=1){
+  // Some Windows runners report a zero process-CPU delta for a short
+  // batch. Reject that unmeasurable sample and rerun the whole paired
+  // profile at a larger *common* work size. Never substitute wall time
+  // for CPU time or silently treat a zero denominator as valid evidence.
   /** @type {Pair[]} */
-  const pairs=[];
-  for(let index=0;index<7;index++){
-    const originalFirst=index%2===0;
-    const first=runBatch(rounds,operations,!originalFirst,fixtures,aggregation,proofBatchSize);
-    const second=runBatch(rounds,operations,originalFirst,fixtures,aggregation,proofBatchSize);
-    const original=originalFirst?first:second;
-    const proof=originalFirst?second:first;
-    assert.equal(proof.checksum,original.checksum,'paired output parity');
-    assert.ok(original.cpuUs>0&&proof.cpuUs>0,'measurement resolution');
-    pairs.push({original,proof});
+  let pairs=[];
+  let measuredAggregation=aggregation;
+  let resolutionRetries=0;
+  for(let attempt=0;attempt<4;attempt++){
+    pairs=[];
+    for(let index=0;index<7;index++){
+      const originalFirst=index%2===0;
+      const first=runBatch(rounds,operations,!originalFirst,fixtures,
+        measuredAggregation,proofBatchSize);
+      const second=runBatch(rounds,operations,originalFirst,fixtures,
+        measuredAggregation,proofBatchSize);
+      const original=originalFirst?first:second;
+      const proof=originalFirst?second:first;
+      assert.equal(proof.checksum,original.checksum,'paired output parity');
+      if(original.cpuUs<=0||proof.cpuUs<=0)break;
+      pairs.push({original,proof});
+    }
+    if(pairs.length===7)break;
+    resolutionRetries++;
+    measuredAggregation*=2;
   }
+  assert.equal(pairs.length,7,'measurement resolution after calibrated CPU batches');
   const nativeCpuMedian=median(pairs.map(p=>p.original.cpuUs));
   const proofCpuMedian=median(pairs.map(p=>p.proof.cpuUs));
-  const timedOperations=operations*aggregation;
+  const timedOperations=operations*measuredAggregation;
   return {
-    name,rounds,operations,aggregation,timedOperations,proofBatchSize,repeats:7,
+    name,rounds,operations,aggregation:measuredAggregation,
+    resolutionRetries:resolutionRetries,timedOperations,proofBatchSize,repeats:7,
     originalCpuUsPerOperation:nativeCpuMedian/timedOperations,
     proofCpuUsPerOperation:proofCpuMedian/timedOperations,
     serverCpuRatio:proofCpuMedian/nativeCpuMedian,
