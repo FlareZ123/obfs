@@ -78,7 +78,7 @@ const variants=[
 ];
 
 for(const [name,mutator] of variants) {
-  for(const mode of /** @type {const} */(['coo','sno'])) {
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     for(const safe of [false,true]) {
       test('Object.create alias descriptor parity: '+name+'/'+mode+'/'+
         (safe?'Number positive':'String unsafe'),async()=>{
@@ -112,7 +112,7 @@ test('unrelated String getter and empty Object.create retain positive decoder wo
   const input=graph(
     'const unused={get(){return String.prototype}};'+
     'const box=Object.create(null,{});box.unrelated=17;');
-  for(const mode of /** @type {const} */(['coo','sno'])){
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
     const out=obfuscateFiles(input,{mode,strings:true,identifiers:false,
       properties:false,seed:'object-create-precision-positive'});
     const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-create-independent-'));
