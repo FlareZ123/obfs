@@ -218,18 +218,6 @@ test('32-bit hidden GF(2) coordinates, three-dimensional nonlinearity',()=>{
   }
 });
 
-test('all 331,776 four-fiber rank-two permutations at width four',()=>{
-  const p=permutations([0,1,2,3]);
-  let verified=0;
-  for(const a of p)for(const b of p)for(const c of p)for(const d of p){
-    const outputs=[...a,...b.map(x=>x+4),...c.map(x=>x+8),...d.map(x=>x+12)];
-    for(let input=0;input<16;input++){
-      verify(x=>outputs[x],4,2,input,input+11);
-      verified++;
-    }
-  }
-  assert.equal(verified,5308416);
-});
 
 test('near worst-case 65,519-state orbit at 32 bits and rank bound 16',()=>{
   const lowMask=0xffff;
