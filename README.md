@@ -2,21 +2,25 @@
 
 This repository is an experimental, conservative JavaScript obfuscator targeting Node.js 22+ and modern browsers. It offers three operational modes. The current version is a reproducible starting implementation; its security and performance guarantees are limited to the conditions described here.
 
-**Current release decision (18 November 2026): RELEASE-BLOCKED for
+**Current release decision (21 November 2026): RELEASE-BLOCKED for
 the primary strong-protection objective.** The repository offers functional,
 tested COO/SNO/SCO modes, but source reconstruction, runtime extraction,
 authorized SCO relaying and strict 2.5× compute-limit counterexamples prevent
 a strong confidentiality/integrity or universal environment-locking claim.
 Read the [current evidence and three-mode decision index](results/README.md)
 before interpreting an experimental transform as a security guarantee.
-The source-pinned [18 November full correctness integration 44278347784](https://github.com/FlareZ123/obfs/actions/runs/44278347784)
-passed its documented Node 22 Linux/Windows and Ubuntu Chromium checks
-at `03e155c0a5e01878acc3a98ff8faa1d44f337d5a`; source-pinned
-regressions validate only their tested code and workload, with the exact
-test/attacker and performance boundaries recorded in the decision index.
-The historical pins below remain useful but are not the latest full-suite
-evidence. Dependencies and runner environments are not yet a frozen
-byte-reproducible security-candidate receipt.
+The source-pinned [21 November cross-mode adversarial run 44930959323](https://github.com/FlareZ123/obfs/actions/runs/44930959323)
+passed its evidence harness on Ubuntu and Windows at
+`69eeb0c77023064df28c9127a659a7dc8008f833`, while independently
+reconstructing a selected COO math module, bypassing scoped SNO integrity,
+relaying same-account SCO outputs, and observing strict >2.5× compute pairs.
+These are bounded negative findings, not a full correctness integration.
+The most recently cited **full correctness** integration remains
+[18 November run 44278347784](https://github.com/FlareZ123/obfs/actions/runs/44278347784)
+at `03e155c0a5e01878acc3a98ff8faa1d44f337d5a`, which passed its
+documented Node 22 Linux/Windows and Ubuntu Chromium checks. Neither run
+certifies later executable commits or arbitrary workloads. Dependencies and
+runner environments are not yet a frozen byte-reproducible security receipt.
 
 ## Install and verify
 
