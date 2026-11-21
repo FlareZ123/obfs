@@ -405,6 +405,65 @@ async function main(){
     assert.ok(exportedCookie?.httpOnly,'DevTools must observe HttpOnly bearer');
     assert.match(exportedCookie.value,/^[0-9a-f]{64}$/u);
 
+    /**
+     * Sign an operation-specific, one-use server challenge through the real
+     * browser WebAuthn API; optionally submit it through same-origin fetch.
+     * @param {number} value
+     * @param {number|null} submitValue
+     * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
+     */
+    async function browserSignedOperation(value,submitValue){
+      return page.evaluate(async({rp,rawId,value,submitValue})=>{
+        const decode=encoded=>{
+          const binary=atob(encoded);
+          return Uint8Array.from(binary,character=>character.charCodeAt(0));
+        };
+        const encode=buffer=>{
+          let binary='';
+          for(const byte of new Uint8Array(buffer))binary+=String.fromCharCode(byte);
+          return btoa(binary);
+        };
+        const challengeResponse=await fetch('/proof-challenge',{
+          method:'POST',headers:{'content-type':'application/json'},
+          body:JSON.stringify({method:'proofSum',args:[value]})
+        });
+        if(!challengeResponse.ok)throw Error('Operation challenge denied');
+        const issued=await challengeResponse.json();
+        const start=performance.now();
+        const credential=await navigator.credentials.get({publicKey:{
+          challenge:new Uint8Array(issued.challenge),rpId:rp,
+          allowCredentials:[{type:'public-key',id:decode(rawId)}],
+          userVerification:'required',timeout:10000
+        }});
+        if(!(credential instanceof PublicKeyCredential))throw Error('No credential');
+        const assertion=credential.response;
+        if(!(assertion instanceof AuthenticatorAssertionResponse))
+          throw Error('No authenticator assertion');
+        const signingWallMs=performance.now()-start;
+        const proof=btoa(JSON.stringify({
+          challengeId:issued.id,rawId:encode(credential.rawId),
+          clientData:encode(assertion.clientDataJSON),
+          authenticatorData:encode(assertion.authenticatorData),
+          signature:encode(assertion.signature)
+        }));
+        if(submitValue===null)return {proof,status:null,body:null,signingWallMs};
+        const response=await fetch('/obfs/rpc',{
+          method:'POST',headers:{
+            'content-type':'application/json',
+            'x-webauthn-proof':proof
+          },
+          body:JSON.stringify({method:'proofSum',args:[submitValue]})
+        });
+        return {proof,status:response.status,body:await response.json(),signingWallMs};
+      },{rp:rpId,rawId:registration,value,submitValue});
+    }
+
+    const authorizedProof=await browserSignedOperation(7,7);
+    assert.equal(authorizedProof.status,200);
+    assert.deepEqual(authorizedProof.body,{ok:true,value:148});
+    assert.equal(proofRpcCalls,1);
+    assert.ok(authorizedProof.signingWallMs>0);
+
     await cdp.send('WebAuthn.setUserVerified',{
       authenticatorId:added.authenticatorId,
       isUserVerified:false
@@ -459,10 +518,13 @@ async function main(){
 
     /**
      * @param {string|undefined} token
+     * @param {string} [method]
+     * @param {number} [value]
+     * @param {string} [proof]
      * @returns {Promise<{status:number,body:unknown}>}
      */
-    async function copiedOriginRpc(token){
-      const body=JSON.stringify({method:'protectedSum',args:[7]});
+    async function copiedOriginRpc(token,method='protectedSum',value=7,proof){
+      const body=JSON.stringify({method,args:[value]});
       return new Promise((resolve,reject)=>{
         const request=http.request({
           hostname:'127.0.0.1',port,path:'/obfs/rpc',method:'POST',
@@ -470,7 +532,8 @@ async function main(){
             host:'localhost:'+port,
             'content-type':'application/json',
             'content-length':Buffer.byteLength(body),
-            ...(token?{cookie:'webauthn_session='+token}:{})
+            ...(token?{cookie:'webauthn_session='+token}:{}),
+            ...(proof?{'x-webauthn-proof':proof}:{})
           }
         },async response=>{
           try{
@@ -490,6 +553,32 @@ async function main(){
     assert.equal(copiedBearer.status,200);
     assert.deepEqual(copiedBearer.body,authorized.body);
     assert.equal(privateRpcCalls,2);
+
+    const copiedNoProof=await copiedOriginRpc(exportedCookie.value,'proofSum',7);
+    assert.equal(copiedNoProof.status,403);
+    assert.equal(proofRpcCalls,1);
+    const copiedStaleProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,authorizedProof.proof);
+    assert.equal(copiedStaleProof.status,403);
+    assert.equal(proofRpcCalls,1);
+
+    await page.goto(allowedOrigin+'/blank');
+    const signedForOtherInput=await browserSignedOperation(7,null);
+    const copiedSubstituted=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',8,signedForOtherInput.proof);
+    assert.equal(copiedSubstituted.status,403);
+    assert.equal(proofRpcCalls,1);
+    const signedAndForwarded=await browserSignedOperation(7,null);
+    const copiedFreshProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedFreshProof.status,200);
+    assert.deepEqual(copiedFreshProof.body,authorizedProof.body);
+    assert.equal(proofRpcCalls,2);
+    const copiedReplay=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedReplay.status,403);
+    assert.equal(proofRpcCalls,2);
+
     activeSessions.delete(exportedCookie.value);
     const afterRevocation=await copiedOriginRpc(exportedCookie.value);
     assert.equal(afterRevocation.status,403);
@@ -508,7 +597,15 @@ async function main(){
       failedUserVerificationResult:uvRequiredResult,
       acceptedAssertions,
       privateRpcCalls,
+      proofRpcCalls,
       authorizedPrivateRpcStatus:authorized.status,
+      authorizedProofRpcStatus:authorizedProof.status,
+      copiedOriginProofWithoutAssertionStatus:copiedNoProof.status,
+      copiedOriginUsedProofReplayStatus:copiedStaleProof.status,
+      copiedOriginArgumentSubstitutionStatus:copiedSubstituted.status,
+      copiedOriginFreshAuthorizedProofStatus:copiedFreshProof.status,
+      copiedOriginFreshProofReplayStatus:copiedReplay.status,
+      observedBrowserSigningWallMs:authorizedProof.signingWallMs,
       pageJavascriptCookieVisible:authorized.jsCookie.length>0,
       debuggerCanExportHttpOnlySession:true,
       copiedOriginWithoutSessionStatus:withoutBearer.status,
