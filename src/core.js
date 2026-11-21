@@ -1861,6 +1861,13 @@ function obfuscateFiles(files, options = {}) {
     const sourceType = file.sourceType ?? (filename.endsWith('.mjs') ? 'module' :
       filename.endsWith('.cjs') ? 'commonjs' : mode === 'sno' ? 'commonjs' : 'script');
     if (!['module','script','commonjs','asset'].includes(sourceType)) throw new TypeError(`Unknown source type ${sourceType}`);
+    // Node's UTF-8 writer substitutes U+FFFD for raw unpaired UTF-16
+    // surrogates. Decline source strings that cannot survive publication.
+    // The Unicode flag treats valid astral surrogate pairs as one code point.
+    if (sourceType!=='asset' && typeof code==='string' &&
+        /[\uD800-\uDFFF]/u.test(code)) {
+      throw new TypeError(filename+' JavaScript source contains unpaired surrogate');
+    }
     return {path:filename,code,sourceType};
   });
   // A requested backend is an explicit protection requirement. Silently
