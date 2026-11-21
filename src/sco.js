@@ -531,6 +531,12 @@ function createScoHandler(sourceFiles,options={}) {
     if(sourceType!=='asset'&&typeof code!=='string'){
       throw new TypeError(filename+' JavaScript must be UTF-8 text');
     }
+    // HTTP response writers encode lone UTF-16 surrogates as U+FFFD.
+    // Reject source text that could change bytes after admission.
+    if(sourceType!=='asset'&&typeof code==='string'&&
+       /[\uD800-\uDFFF]/u.test(code)){
+      throw new TypeError(filename+' JavaScript source contains unpaired surrogate');
+    }
     // Build only the documented SourceFile fields: spreading the caller's
     // object would invoke a code getter again even after taking the snapshot.
     const normalizedFile = {path:filename,code,sourceType,
