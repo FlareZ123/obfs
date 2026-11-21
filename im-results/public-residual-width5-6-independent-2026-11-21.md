@@ -42,4 +42,4 @@ Node.js v22.16.0, exact fixed seed:
 
 The mixed width/rank histogram is emitted by the script. This deterministic model is intentionally **not** a uniform draw from every width-5 or width-6 permutation. The check is finite empirical evidence against implementation mistakes, separate from the draft proof itself. It does not establish strong obfuscation resistance or performance compliance. Existing full-control reconstruction and 2.5x-cost vetoes remain applicable.
 
-Cross-platform source-pinned workflow: see the branch's manual low-rank run. Only label that run green once GitHub Actions has reported completed success.
+Cross-platform source-pinned workflow: [manual low-rank inversion run 44927224558](https://github.com/FlareZ123/obfs/actions/runs/44927224558) completed successfully on Ubuntu and Windows at exact source 6ff68ffeedda803be6ca412f01101f941effdeb0. Both jobs passed the new 5/6-bit test, existing rank-inversion tests, and strict project JSDoc.
