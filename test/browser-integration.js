@@ -110,17 +110,29 @@ async function main(){
 
   // Direct literal-key reflection participates in the same closed-world
   // owner mapping in a real browser ESM graph.
-  const reflectionSet=obfuscateFiles([
-    {path:'reflection-state.mjs',sourceType:'module',
-      code:'export const state={secretValue:29,otherValue:12};'},
-    {path:'reflection-entry.mjs',sourceType:'module',
-      code:'import {state} from "./reflection-state.mjs";'+
-        'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
-        'const own=Object.hasOwn(state,"otherValue");'+
-        'if(value!==41||!own)throw new Error("reflection mismatch");'}
-  ],{mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
-    identifiers:false,strings:false});
+  const reflectionState={path:'reflection-state.mjs',sourceType:'module',
+    code:'export const state={secretValue:29,otherValue:12};'};
+  // Export both observations to the real page. A source-level uncaught throw
+  // would legitimately make the compiled group opaque to property rewriting
+  // because the browser host can observe the transformed throwing source.
+  const reflectionEntry={path:'reflection-entry.mjs',sourceType:'module',
+    code:'import {state} from "./reflection-state.mjs";'+
+      'export const value=Reflect.get(state,"secretValue")+state.otherValue;'+
+      'export const own=Object.hasOwn(state,"otherValue");'};
+  const reflectionSet=obfuscateFiles([reflectionState,reflectionEntry],{
+    mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
+    identifiers:false,strings:false
+  });
   assert.equal(reflectionSet.crossFile.properties,2);
+  // Keep a matched negative control: escaping explicit throws require
+  // conservatively preserving public source bytes and private-field names.
+  const unsafeReflection=obfuscateFiles([reflectionState,{
+    ...reflectionEntry,
+    code:reflectionEntry.code+
+      'if(value!==41||!own)throw new Error("reflection mismatch");'
+  }],{mode:'coo',closedWorld:true,seed:'chrome-reflection-throw-refusal',
+    identifiers:false,strings:false});
+  assert.equal(unsafeReflection.crossFile.properties,0);
 
   // The imported reader receives a state object through nested identity
   // forwarding. Prove both private fields, while preserving the page-owned
@@ -263,7 +275,7 @@ async function main(){
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
-  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import "/reflection-entry.mjs";document.getElementById("answer").textContent="reflection-ok";</script></body></html>');
+  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import {value,own} from "/reflection-entry.mjs";document.getElementById("answer").textContent=value+","+own;</script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
@@ -303,7 +315,7 @@ async function main(){
       ['/parameter-shorthand.html','42'],
       ['/parameter-refusal.html','secretField'],
       ['/audited-module.html','41'],['/js-module.html','23'],
-      ['/default-module.html','17,0,5'],['/reflection.html','reflection-ok'],
+      ['/default-module.html','17,0,5'],['/reflection.html','41,true'],
       ['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
       ['/pattern.html','41'],['/factory.html','41'],['/factory-iife.html','41'],
