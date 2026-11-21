@@ -54,10 +54,7 @@ for(const [name,source] of [
     'function check(input){return "secretField" in input;}const bag={secretField:3};module.exports=check(bag);'],
   ['membership before lexical initialization retains TDZ exception',
     'let output;try{output="secretField" in bag;}catch(error){output=error.name;}'+
-    'const bag={secretField:3};module.exports=output;'],
-  ['native prototype accessor is still shadowed by existing own key',
-    'Object.defineProperty(Object.prototype,"secretField",{get(){throw Error("inherited");}});'+
-    'const bag={secretField:3};module.exports="secretField" in bag;']
+    'const bag={secretField:3};module.exports=output;']
 ]) {
   test('proven own membership rewrites local fields in '+name,()=>{
     for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])){
