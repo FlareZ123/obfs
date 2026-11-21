@@ -6,6 +6,7 @@ const {randomBytes,createHash}=require('node:crypto');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 const {masksOfWeight,learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
   require('./bounded-degree-oracle-functional-clone');
+const {basis}=require('./quadratic-radical-target-inversion');
 
 const TOKEN='authorized-quadratic-study-session';
 
@@ -65,14 +66,16 @@ async function cloneAuthorizedQuadratic(access){
  *   transcriptSha256:string,privateExecutions:number,deniedStatus:number,
  *   originalBytes:number,publishedBytes:number,
  *   privateIdentifiersPublished:boolean,cubicNegativeAtSeven:boolean,
- *   nonzeroQuadraticCoefficients:number,
+ *   nonzeroQuadraticCoefficients:number,nonlinearOutputRank:number,
  *   offlineAfterServerClose:boolean
  * }>}
  */
 async function runChallenge(){
   const raw=randomBytes(2);
-  const a=1+raw[0]%31;
-  // Distinct shifts prevent a degenerate constant private function.
+  let a=1+raw[0]%31;
+  // Avoid the (8,16,24) shift subfamily with output residual rank 24.
+  if(a%8===0)a++;
+  // Distinct shifts provide genuine quadratic terms.
   const b=1+(a+raw[1]%30)%31;
   const constant=randomBytes(4).readUInt32BE(0);
   const source=[
@@ -148,6 +151,9 @@ async function runChallenge(){
     const nonzeroQuadraticCoefficients=recovered.model.coefficients
       .slice(33).filter(([,value])=>value!==0).length;
     assert.ok(nonzeroQuadraticCoefficients>0,'Expected genuine degree-two target');
+    const nonlinearOutputRank=basis(recovered.model.coefficients.slice(33)
+      .map(([,value])=>value),32).length;
+    assert.equal(nonlinearOutputRank,32,'Expected full quadratic output rank');
     const closed=server;
     /** @type {Promise<void>} */
     const done=new Promise((resolve,reject)=>
@@ -182,7 +188,7 @@ async function runChallenge(){
       originalBytes:Buffer.byteLength(source),
       publishedBytes:Buffer.byteLength(publicCode),
       privateIdentifiersPublished:leaked,cubicNegativeAtSeven,
-      nonzeroQuadraticCoefficients,
+      nonzeroQuadraticCoefficients,nonlinearOutputRank,
       offlineAfterServerClose
     };
   }finally{
