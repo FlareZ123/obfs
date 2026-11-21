@@ -308,3 +308,99 @@ the CI inputs are fixed-seed regression witnesses.
 
 This improves a **specific** chosen-query functional-cloning result
 and has no effect on the global obfuscation RELEASE-BLOCKED status.
+
+
+## Matched-source baseline and exhaustive finite witness probabilities
+
+The earlier **631-call** theorem is a source-family upper bound. To avoid
+comparing it only against a generic theorem or mismatched generators, the
+new [matched 32-bit executable](../sims/rankthree-projected-vs-generic-cubic-matched.js)
+runs two *different full-functional oracle learners on the same exact
+function instances*:
+
+- **Specialized source-aware learner:** the third-derivative plus
+  cached-edge two-anchor Gram algorithm in this report, promised
+  rank(V)<=3, high-confidence cap 631 selected values.
+- **Generic bounded-degree learner:** the existing repository
+  [degree-three Boolean ANF interpolation](../sims/bounded-degree-oracle-functional-clone.js),
+  requiring exactly 1+32+C(32,2)+C(32,3)=5,489 values per source,
+  regardless of the hidden input projection.
+
+Both receive separate full-forward-oracle callbacks for the **same 20
+functions**: five genuine cubic, five genuine quadratic, five
+deliberately singular/noninjective (including both cubic and quadratic)
+and five affine controls. Both callbacks are disabled before the models
+evaluate an identical independently selected 256 held-out input values
+per function. The test checks each model against the source's private
+reference output and checks exact per-run distinct query counters.
+Only chosen-input oracle **query volume** is compared; there is no
+minifier, wall-clock performance, program size or deployment cost
+measurement.
+
+| Matched quantity | Specialized projected-rank3 | Generic degree3 |
+| --- | ---: | ---: |
+| Functions | 20 | 20 |
+| Held-out offline outputs verified | 5,120 | 5,120 |
+| Minimum chosen values in one instance | 232 | 5,489 |
+| Maximum chosen values in one instance | 503 | 5,489 |
+| Total chosen values over all sources | 7,628 | 109,780 |
+| Wrong held-out outputs | 0 | 0 |
+
+This is a **102,152-call** saving, or approximately **93.05%** fewer
+chosen inputs across this fixed suite. The generic algorithm consumed
+**14.39 times** as many oracle evaluations in aggregate. The
+nonadaptive generic 5,489 value count and the specialized cap
+are mathematical counts; the observed specialized 232-to-503 range
+is specific to the fixed-seed test sources and input draws.
+
+[Matched-run source pin and two-platform CI:
+44959535485](https://github.com/FlareZ123/obfs/actions/runs/44959535485)
+at commit
+ce2ec7db1d8219503f1931fd2627458a74face3c
+passed this executable and strict JSDoc on Ubuntu and Windows.
+Its raw per-family query arrays are printed by the matching step.
+
+### Exhaustive three-bit probability constants
+
+A separate [independently coded finite enumerator](../sims/rankthree-polar-triple-independent-check.js)
+tests the two exact constants used in the proof, without invoking the
+third-derivative or Gram reconstruction implementation.
+
+It exhausts **all 511 nonzero** alternating vector-valued bilinear
+forms on GF(2)^3, expressed by their three independent vector-valued
+Gram coefficients (each of eight possible three-bit outputs).
+For each form it enumerates all 64 ordered input pairs and all
+512 ordered input triples, comprising **32,704 pair checks**
+and **261,632 triple checks**. Every nonzero form has at
+least 24/64 nonzero pairs and at most **176/512 = 11/32**
+triples with all three pair B values zero. The upper bound
+is *attained* by 49 of these forms, so it is sharp. The
+forms of full three-dimensional vector coefficient rank are
+included (168 such configurations).
+
+The same verifier enumerates all **168** invertible three-bit
+input projections V, and all **512** ordered triples per V
+(86,016 determinant evaluations). Exactly 168 triples per
+projection yield a nonzero cubic determinant, establishing
+**168/512 = 21/64** cubic witness probability for this finite
+quotient. All enumerated cases passed.
+
+The original CI attempt reached all mathematical assertions but
+failed on a result-reporting identifier typo; the typo was fixed
+at [f08e8fa](https://github.com/FlareZ123/obfs/commit/f08e8fa53364ff20f2c328698f24ec6f3bcd5efd).
+The corrected [run 44959801369](https://github.com/FlareZ123/obfs/actions/runs/44959801369),
+source pin 1eb3bd676657f35215c2581bad93c4f3f7f74b3f,
+passed the enumerator, matched-source comparison, all prior
+rank-two/rank-three peer witnesses and strict JSDoc on **both
+Ubuntu and Windows**. These finite counts independently
+support the exact probability premises. The extension of those
+counts to n<=32 follows from uniform projection to the
+two- or three-dimensional quotient, as proved above.
+
+**Overall scope remains restricted:** fixed chosen-input oracle,
+GF(2) numeric functions, hidden input projection rank<=3,
+iid uniform sampling for the confidence theorem, and no
+adversarial mutation of F during training. The 2.5x
+obfuscator performance limit and general source secrecy remain
+unverified, so the primary repository release grade stays
+**RELEASE-BLOCKED**.
