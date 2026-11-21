@@ -41,6 +41,8 @@ jobs:
         run: npx --no-install tsc -p jsconfig.affine-low-rank-peer.json
       - name: Quadratic radical exhaustive oracle attack
         run: node sims/quadratic-radical-peer-check.js
+      - name: Matched 1100-query cap for quadratic versus residual methods
+        run: node sims/quadratic-radical-public-residual-cap.js
       - name: Quadratic radical strict JSDoc
         run: npx --no-install tsc -p jsconfig.quadratic-radical.json
       - name: Project JSDoc type safety
