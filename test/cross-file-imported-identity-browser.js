@@ -111,6 +111,7 @@ async function main(){
     [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
     const original=graph(reflective,depth),compiled=compile(original);
     const mangled=await mangleGraph(original);
+    console.log('PROPERTY_MANGLE_EMITTED '+JSON.stringify({name,files:mangled}));
     /** @type {Output[]} */
     const minified=await Promise.all(original.map(async file=>({
       path:file.path,
