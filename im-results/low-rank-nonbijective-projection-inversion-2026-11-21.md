@@ -28,6 +28,19 @@ When the full W has been observed, for any y solve the public affine system
 
 Every genuine preimage lies in C_y. For x1,x2 in C_y, d=x1 XOR x2 satisfies M*d in W <= im(U). Since A*d=M*d XOR U*D*d, d lies in A^-1(im U), a subspace of dimension at most r. Thus C_y has at most 2^r elements whether or not F is a permutation. Enumerate solutions to [M | basis(W)]*(x,z) = y XOR c with ordinary GF(2) elimination, and check each x with the oracle. Finding one proves preimage existence; exhausting all proves absence, conditional on complete W. If C_y is empty, y is likewise unreachable.
 
+**Constructive out-of-promise false-negative control.** The reproducer also
+fixes a 12-bit non-injective `F` equal to the identity except
+`F(0x5a8)=0x5a9` and `F(0x5a9)=0x5aa`. Its nonlinear output
+differences span only two directions, but recognizing the two rare inputs
+requires more than two projected input bits. With a deterministic
+sampling transcript containing no modified input, the observed residual span
+is zero, and the solver incorrectly calls `0x5a9` unreachable even though
+`F(0x5a8)=0x5a9`. This deliberately violates the input-projection
+assumption; it demonstrates why a low *output* rank alone does not justify
+the advertised non-injective image-membership sampling bound. The check is
+neither a probabilistic tail estimate nor a counterexample to the stated
+rank-bounded theorem.
+
 The finite sampler cannot independently *certify* global completeness of W. If g depends on arbitrarily many input bits without a low-rank V projection, a rare residual could evade the advertised q samples. The probability guarantee requires fresh independent uniform samples; a fixed-seed PRNG used for deterministic testing is not a substitute.
 
 ## Local independent finite witness
