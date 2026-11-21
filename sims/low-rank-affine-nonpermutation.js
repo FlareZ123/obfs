@@ -182,8 +182,9 @@ function learnLowDegree(oracle,n,degreeBound) {
   const observed=new Map();
   /** @param {number} x */
   function ask(x){
-    if(!observed.has(x))observed.set(x,oracle(x));
-    return /** @type {number} */ (observed.get(x));
+    const key=x>>>0;
+    if(!observed.has(key))observed.set(key,oracle(key)>>>0);
+    return /** @type {number} */ (observed.get(key));
   }
   const base=ask(0);
   const columns=Array.from({length:n},(_,i)=>ask(1<<i)^base);
@@ -438,6 +439,48 @@ function deterministicDegreeWitness() {
     verifiedFullInputDependence,maxDeterministicQueries};
 }
 
+/**
+ * Verify the degree-two deterministic rank-two target classifier on a
+ * truly 32-bit quadratic family. The reference image-membership oracle
+ * enumerates the hidden four-point displacement coset independently.
+ * @returns {{bits:number,trainingQueries:number,targetChecks:number,reachable:number,unreachable:number,maxCandidateCount:number}}
+ */
+function width32DeterministicQuadratic() {
+  const U0=0x9e3779b9,U1=0x85ebca6b;
+  /** @param {number} x @param {number} offset @returns {number} */
+  function pairQuadratic(x,offset){
+    let bit=0;
+    for(let i=0;i<16;i++){
+      const a=(2*i+offset)%32,b=(2*i+offset+1)%32;
+      bit^=((x>>>a)&1)&((x>>>b)&1);
+    }
+    return bit;
+  }
+  /** @param {number} x @returns {number} */
+  const oracle=x=>(x^(pairQuadratic(x,0)?U0:0)^
+    (pairQuadratic(x,1)?U1:0))>>>0;
+  const learned=learnLowDegree(oracle,32,2);
+  assert.equal(learned.observed.size,529);
+  const random=randomFromSeed(0x88325ca1);
+  let reachable=0,unreachable=0,maxCandidateCount=0;
+  const targetChecks=2048;
+  for(let i=0;i<targetChecks;i++){
+    const x=random();
+    const target=i%2===0?oracle(x):x;
+    const independentPreimages=[target,target^U0,target^U1,target^U0^U1];
+    const expected=independentPreimages.some(candidate=>oracle(candidate>>>0)===target);
+    const verdict=invert(oracle,learned,target);
+    assert.equal(verdict.answer!==null,expected,
+      `width32 target=${target} iteration=${i}`);
+    if(verdict.answer!==null)assert.equal(oracle(verdict.answer),target);
+    maxCandidateCount=Math.max(maxCandidateCount,verdict.candidates);
+    if(expected)reachable++; else unreachable++;
+  }
+  assert.ok(reachable>0&&unreachable>0);
+  return {bits:32,trainingQueries:learned.observed.size,targetChecks,
+    reachable,unreachable,maxCandidateCount};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -499,12 +542,14 @@ function main() {
     delta,independentExecutable:__filename,
     outOfPromiseCounterexample:outOfPromiseControl(),
     rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness(),
-    deterministicDegree:deterministicDegreeWitness()};
+    deterministicDegree:deterministicDegreeWitness(),
+    width32Deterministic:width32DeterministicQuadratic()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
 
 if (require.main===module) main();
 module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
-  deterministicDegreeWitness,applyRows,applyColumns,solveAffinePreimageCandidates,
+  deterministicDegreeWitness,width32DeterministicQuadratic,applyRows,applyColumns,
+  solveAffinePreimageCandidates,
   outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
