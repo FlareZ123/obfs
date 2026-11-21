@@ -1651,6 +1651,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const decoderGetterDescriptors=new Set();
   /** @type {Set<string>} */
   const decoderGetterMaps=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMapFactories=new Set();
   /**
    * @param {import('./ast').AstNode} value
    * @returns {boolean}
@@ -1670,6 +1672,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    */
   function isDecoderGetterMap(value) {
     if(value.type==='Identifier')return decoderGetterMaps.has(value.name);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
+      return decoderGetterMapFactories.has(value.callee.name);
+    }
     if(value.type!=='ObjectExpression')return false;
     return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
       property.type==='Property'&&
@@ -1678,7 +1683,24 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   let decoderDescriptorChanged;
   do {
     decoderDescriptorChanged=false;
-    walk(ast,node=>{
+    walk(ast,(node,_parent,_key,ancestors)=>{
+      // Preserve a descriptor map returned through a local function factory.
+      // Find the nearest return owner, avoiding nested function bodies.
+      if(node.type==='ReturnStatement'&&node.argument&&
+         isDecoderGetterMap(node.argument)) {
+        for(let i=ancestors.length-1;i>=0;i--) {
+          const owner=ancestors[i];
+          if(!['FunctionDeclaration','FunctionExpression',
+                'ArrowFunctionExpression'].includes(owner.type))continue;
+          if(owner.type==='FunctionDeclaration'&&
+             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator&&
+             !decoderGetterMapFactories.has(owner.id.name)) {
+            decoderGetterMapFactories.add(owner.id.name);
+            decoderDescriptorChanged=true;
+          }
+          break;
+        }
+      }
       const declaration=node.type==='VariableDeclarator'&&node.id.type==='Identifier';
       const assignment=node.type==='AssignmentExpression'&&node.operator==='='&&
         node.left.type==='Identifier';
@@ -1702,8 +1724,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        isObjectIntrinsic(node.callee.object)&&
        (memberName(node.callee)==='create'||
         memberName(node.callee)==='defineProperties')&&
-       node.arguments[1]?.type==='Identifier'&&
-       decoderGetterMaps.has(node.arguments[1].name)) {
+       node.arguments[1]&&isDecoderGetterMap(node.arguments[1])) {
       mutated=true;
       return;
     }
