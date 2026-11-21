@@ -75,6 +75,18 @@ One local Node v22.16.0 Linux run produced:
 
 The rank-two sample's maximum observed orbit length was 15, and rank three's was 47. In the exhaustive n=3 identity-affine population the residual span dimension was computed from every table entry before deciding eligibility, so it tests the **entire qualifying population for that fixed affine core**, including cases with singular M. The pseudorandom 32-bit tests exercise both repaired singular and full-rank interpolation under unknown dense affine wrappers. Exhaustive validation at n=3 and finite randomized n=32 checks support the implementation, while the theorem rests on the algebraic proof above.
 
+### Independent exhaustive check of the matrix-repair lemma
+
+A second small script, [sims/low-rank-matrix-repair-exhaustive.js](../sims/low-rank-matrix-repair-exhaustive.js), separately computes matrix rank by enumerating **all possible images**, rather than reusing the target attack's pivot rank routine. It checks every 2×2, 3×3 and 4×4 binary matrix, verifying actual invertibility of T, exactly d changed columns, rank(T XOR M)≤d, and linear inversion of every possible input vector.
+
+Local Node22 outcome: 16/16 matrices at width2, 512/512 at width3 and 65,536/65,536 at width4, **66,064 complete matrices** with zero mismatches. Nullity distributions were respectively [6,9,1], [168,294,49,1] and [20,160,37,800,7,350,225,1]. Its remote Git blob `a35bfc8f35c2506fb0c23409ba0b74740a4749ce` matches the locally executed script byte-for-byte, commit `791fa90950d84e29ac7c86b30a3d753c586e21c1`. This is a separate implementation of the rank verifier, while importing the tested repair procedure, and is **not yet an external researcher peer review**.
+
+### Relevant mathematical literature and novelty uncertainty
+
+The invariant-coset step itself is known in related settings. [Permutations on finite fields with invariant cycle structure on lines](https://link.springer.com/article/10.1007/s10623-020-00721-2) (Designs, Codes and Cryptography, 2020) explicitly observes that functions of the form x+γf(x) preserve affine lines in the γ direction, and its Proposition 1 bounds the cycles of corresponding permutations. [Local Inversion of maps: Black box Cryptanalysis](https://arxiv.org/abs/2207.03247) (2022) discusses recovering a local inverse through the preceding point on a forward periodic orbit. Both are related to the last step of this candidate attack, and neither source should be described as demonstrating novelty of cycle traversal.
+
+The bounded new candidate argument is that **n+1 oracle observations suffice to construct and, when singular, repair an approximate affine core** whose residual has rank≤r+d, allowing short coset cycles without knowing the hidden output subspace or original linear core. A limited keyword literature search did not establish whether this combined interpolation-repair query bound has already been published; keep formal novelty explicitly unverified and request a thorough peer literature comparison.
+
 ### Review and promotion criteria
 
 Have another identity independently inspect the rank(M) bound, the column repair argument, coset invariance and query accounting. Require a fresh independent implementation or small-width exhaustive verifier before promoting to [results/](../results/README.md). Attempt explicit counterexamples with permutations whose interpolation nullity reaches r, unexpected affine translations, and hidden residual subspaces. Review the theorem's novelty against known permutation low-rank perturbation and cycle-oracle results before an academic novelty claim.
