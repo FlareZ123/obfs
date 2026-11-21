@@ -17,6 +17,8 @@
     "sims/quadratic-radical-peer-check.js",
     "sims/quadratic-radical-public-residual-cap.js",
     "sims/quadratic-oracle-functional-clone.js",
-    "sims/quadratic-functional-clone-peer-check.js"
+    "sims/quadratic-functional-clone-peer-check.js",
+    "sims/bounded-degree-oracle-functional-clone.js",
+    "sims/bounded-degree-functional-clone-peer-check.js"
   ]
 }
