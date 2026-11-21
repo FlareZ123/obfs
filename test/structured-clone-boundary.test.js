@@ -66,9 +66,9 @@ const introductions=[
 for(let index=0;index<copyForms.length;index++){
   test('host structuredClone copied own-key exposure '+index,()=>{
     const code='const state={secretField:73};'+introductions[index]+
-      'const copy='+copyForms[index]+';'+
+      'const cloned='+copyForms[index]+';'+
       'module.exports=JSON.stringify(['+
-      'Reflect.ownKeys(copy),copy.secretField,state.secretField]);';
+      'Reflect.ownKeys(cloned),cloned.secretField,state.secretField]);';
     check(code,0);
   });
 }
