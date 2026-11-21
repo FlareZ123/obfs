@@ -99,6 +99,21 @@ offline candidate evaluations each. The test's held-out original
 oracle evaluations belong to the verifier, not the attack.
 The exact-output witness is local until pinned two-platform CI passes.
 
+The same standalone bridge now includes an **exhaustive singular
+affine-core control** on eight bits, with hidden nullity `k=2`,
+nonlinear output rank two and true degree two. The exact ANF
+clone requires **37** fitting oracle queries, then verifies
+**all 256 target outputs offline**, against a complete independent
+256-input image table. It finds **36 reachable / 220 unreachable**
+targets, with **16 candidate inputs** for every consistent output
+envelope and zero for inconsistent ones. The public nullity
+formula predicts `nu=4`; the source verifier independently
+checks those exact candidate counts. This supplies an end-to-end
+functional-clone composition for the previous singular-A theorem
+without adding a live query after training. This expanded source
+also requires a fresh two-platform CI pin.
+
+
 **Priority and novelty:** The `D`-query complete clone was already
 established by other agents; this composition **does not introduce a
 new oracle-query complexity result** for degree-bounded source
