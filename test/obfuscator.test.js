@@ -149,7 +149,7 @@ test('SNO loader checks every file before running one CommonJS entry',async()=>{
 });
 
 test('SCO returns distinct obfuscation on repeated legitimate requests',async()=>{
-  const handler=createScoHandler([{path:'a.js',code:`const privateValue='long-long-value';globalThis.value=privateValue;`,sourceType:'script'}],{routePrefix:'/obfs/',allowedHosts:['www.example.org']});
+  const handler=createScoHandler([{path:'a.js',code:`const privateValue='long-long-value';privateValue;`,sourceType:'script'}],{routePrefix:'/obfs/',allowedHosts:['www.example.org']});
   const server=http.createServer(handler);
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   try {
@@ -168,8 +168,8 @@ test('SCO returns distinct obfuscation on repeated legitimate requests',async()=
     assert.equal(second.status,200);
     assert.notEqual(first.body,second.body);
     const context={location:{hostname:'www.example.org'}};
-    vm.runInNewContext(first.body,context);
-    assert.equal(context.value,'long-long-value');
+    assert.equal(vm.runInNewContext(first.body,context),'long-long-value');
+    assert.equal(vm.runInNewContext(second.body,{location:{hostname:'www.example.org'}}),'long-long-value');
     assert.equal((await get('other.example.org')).status,403);
   } finally {await new Promise(resolve=>server.close(resolve));}
 });
