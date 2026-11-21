@@ -270,6 +270,24 @@ individual-value differential strengthens semantic parity evidence,
 while keeping the public-byte attacker reconstruction and
 sample-specific performance restrictions intact.
 
+## Independent threat and cost dimensions
+
+| Requested dimension | Source-pinned finding for this selected COO typed-Int32 fixture | Inference limit |
+| --- | --- | --- |
+| Static deobfuscation / reconstruction | **Two out of two** published typed kernels independently recovered as executable ESM using only the public emitted Wasm module | Establishes a successful bounded grammar attack, not universal reconstruction of arbitrary Wasm or JavaScript |
+| Dynamic analysis / runtime extraction | The protected browser can import and run the public Wasm module; exact output and callback traces are observable to the browser-controlled test harness | Instrumentation *resistance* was not independently established in this experiment |
+| Unauthorized code modification / integrity | The selected Wasm transform supplies no independent trusted-secret integrity verification in the distributed three-file graph | No supported anti-tamper guarantee |
+| Unauthorized environment execution / host lock | The specific four-way graph has no domain lock; source-only reconstructed code executes as standalone Node ESM and in Chromium | This experiment does not measure separately optional COO host-lock guards |
+| Performance | 384 independent Linux/Windows fresh Node processes verify repeated strict short-session work-budget violations; large callback-heavy browser samples amortize work | No universal runtime ceiling or worst-case guarantee |
+| Functional compatibility | Complete 4-way app and host callback parity, plus 1.2M exact Chrome integer function outputs, all source pinned | Covers this finite three-module grammar and tested environments |
+
+**Combined decision:** the backend is a syntactic representation experiment with
+real compatible performance on selected long workloads, yet the required
+independent static confidentiality and universal strict 2.5× work properties
+are both unproven or directly falsified in the tested scope.
+Do not promote its security posture based on the favorable whole-app
+or full-process session ratios. Strong-protection release stays blocked.
+
 ## Threat-model interpretation
 
 A COO attacker can download the entire public artifact and instrument the
