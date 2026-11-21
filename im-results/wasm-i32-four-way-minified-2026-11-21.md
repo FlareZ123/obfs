@@ -24,8 +24,11 @@ new protection theorem or a universal JavaScript claim.
 - **Pinned full Node workflow:** [44942214736](https://github.com/FlareZ123/obfs/actions/runs/44942214736)
   at source commit `6095014078ca7361b0d8ff31baff7190a5b08c7d`,
   successfully completed on Ubuntu and Windows Node 22.23.5.
-- The Chromium extension was committed after that immutable Node pin.
-  Its independent validation is tracked separately below.
+- **Pinned full Chromium extension workflow:** [44942599211](https://github.com/FlareZ123/obfs/actions/runs/44942599211)
+  at source commit `a1a90590e8a7b9bc6475143ff37898ef0793470d`,
+  fully green on Windows and Ubuntu Node 22.23.5, both strict JSDoc checks,
+  and real Ubuntu Chrome 157.0.8103.78. This newer pin includes the
+  Chromium browser evaluator.
 
 Four variants use the *same* source graph and semantically equivalent entry point:
 
@@ -84,14 +87,41 @@ writes, process startup, and output trace hashing from application timing.
 The source-pinned evidence is enough to reject a **universal** 2.5× claim,
 not to predict performance of other applications.
 
-## Browser validation
+## Source-pinned real Chromium evaluation
 
-The later Chromium extension serves the same four graphs over local HTTP,
-uses permitted `wasm-unsafe-eval` CSP, counterbalances 12 trials,
-exercises 10,000 typed events plus exact host callbacks each trial/variant,
-and separates import, first-use and warmed application work. It must be
-reported only after a source-pinned Chromium run has passed; the Node pin
-above does not cover this new file.
+The [green full Chromium extension workflow 44942599211](https://github.com/FlareZ123/obfs/actions/runs/44942599211)
+on Ubuntu ran Chrome **157.0.8103.78** against the same four delivered
+source digests as the Node experiment. The browser loaded separate
+ESM modules over localhost HTTP under `script-src 'self' 'wasm-unsafe-eval'`.
+It rotated four variant orders over 12 paired trials, with 10,000
+typed Int32 events and exact external host callbacks for *each variant*
+in *each trial*: **480,000 browser application events**. Full output
+and callback trace parity passed for all four variants, including
+the independently recovered native kernel.
+
+The browser records latency for ESM module HTTP import, first invocation,
+and after-warmup application work separately. The 10,000-event synchronous
+application-work timings exclude HTTP import time and the first call.
+The native and conventionally minified application-work medians were each
+approximately **2.20 ms**; Wasm was **2.25 ms**. The measured ratio of
+medians was **1.0227×** versus either native or minified JavaScript, with
+**0/12 strict paired >2.5× breaches** against both controls. The
+one-sided order-statistic upper median-ratio bounds were 1.2917× versus
+native and 1.4583× versus minified for this bounded workload.
+
+The separately measured first invocation (which includes deferred Wasm
+compilation) ranged from approximately 0.1 to 0.7 ms for Wasm, versus
+0 to 0.2 ms native in this sample. The browser clock displayed many
+first-use increments of 0.1 ms or zero, so those microtimings cannot
+support a precise effect-size claim. The browser did pass a separate
+13.8 ms monotonic clock advancement control.
+
+**Interpretation:** the browser's larger callback-heavy session can
+amortize extra selected-kernel costs, while the *same published Wasm source*
+is still recoverable into native ESM. No ratio from this workload certifies
+any arbitrary browser, cold session, hot kernel, or user input. Keep
+Node selected-work and Chromium whole-application boundaries distinct;
+one cannot replace the other or justify strong protection release.
 
 ## Threat-model interpretation
 
