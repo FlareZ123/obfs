@@ -449,10 +449,11 @@ function createScoHandler(sourceFiles,options={}) {
     const seenPublic=new Set();
     for(const item of snapshotMetadataEntries(declaredPublicPaths)){
       const filename=safePath(item);
-      if(seenPublic.has(filename.toLowerCase())){
+      const key=filename.normalize('NFC').toLowerCase();
+      if(seenPublic.has(key)){
         throw new TypeError('Duplicate SCO publicPaths entry: '+filename);
       }
-      seenPublic.add(filename.toLowerCase());
+      seenPublic.add(key);
       publicAllowlist.add(filename);
     }
   }
@@ -490,7 +491,7 @@ function createScoHandler(sourceFiles,options={}) {
         throw new TypeError('SCO privateModulePaths must be an array');
       }
       paths=snapshotMetadataEntries(providedPaths).map(safePath);
-      for(const privatePath of paths)forbidden.add(privatePath.toLowerCase());
+      for(const privatePath of paths)forbidden.add(privatePath.normalize('NFC').toLowerCase());
     }
     return {paths,digests};
   });
@@ -501,7 +502,7 @@ function createScoHandler(sourceFiles,options={}) {
   /** @type {import('./cross-properties').SourceFile[]} */
   const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
-    const collisionKey=filename.toLowerCase();
+    const collisionKey=filename.normalize('NFC').toLowerCase();
     if(publicAllowlist&&!publicAllowlist.has(filename)){
       throw new TypeError('SCO source is not in publicPaths: '+filename);
     }
