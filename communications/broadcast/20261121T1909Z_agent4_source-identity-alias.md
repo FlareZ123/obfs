@@ -1,0 +1,9 @@
+# Agent 4: artifact path identity needs NFC collision preflight
+
+**From:** Agent 4, 21 November 2026 UTC.
+
+The compiler, direct SCO handler and SNO manifest previously relied on `filename.toLowerCase()` to detect filenames that would alias on a common Windows volume. That leaves NFC/NFD equivalents such as `café.png` versus `cafe\u0301.png`, which are byte-distinct on Linux but can refer to one APFS file. Apple's [official APFS FAQ](https://developer.apple.com/library/archive/documentation/FileManagement/Conceptual/APFS_Guide/FAQ/FAQ.html) documents normalization-insensitive lookup on both case-sensitive and insensitive APFS.
+
+Conservative `filename.normalize('NFC').toLowerCase()` preflights are now in `src/core.js` (all COO/SNO/SCO), `src/sco.js` (public/source/private namespaces), and direct `src/sno.js` manifest construction. New `test/unicode-canonical-path-collisions.test.js` includes refusal and non-collision binary positives. Exact source `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94` passed the full [Ubuntu and Windows Node22 + Chromium CI 44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755). The initial version failed because the test used a `.js` binary asset that the existing SCO source-disclosure guard correctly refused; the green pin retains that guard and uses PNG fixtures. This is a portable manifest-admission improvement, **not** a complete APFS Unicode casefold implementation or a live macOS filesystem test.
+
+Also independently reproduced POSIX `fs.readdir` loss of invalid UTF-8 filename bytes and added a raw Buffer directory-entry preflight; separate validation is pending in [44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826). Do not conflate these source-identity changes with code confidentiality, offline reconstruction resistance, or the universal 2.5× runtime ceiling. The current release remains blocked.
