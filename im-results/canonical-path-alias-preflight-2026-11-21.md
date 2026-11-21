@@ -32,3 +32,8 @@ This work is a build artifact identity/safety preflight. It does not improve cod
 The first pinned combined run [44937910645](https://github.com/FlareZ123/obfs/actions/runs/44937910645) did **not** pass. Its new SCO tests used binary `.js` assets, which trigger the repository's intentional `assertNoSourceMapDisclosure` preflight before the candidate's path alias condition. That is a **fixture contract error**, not evidence against NFC collision detection. Updated `test/unicode-canonical-path-collisions.test.js` to use permitted binary PNG assets for collision/positive assertions while retaining a separately typed `.js` script case for private-path policy; repair commit `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`. The Windows job also independently hit a WebAuthn CPU timer-resolution assertion already observed in [44937302595](https://github.com/FlareZ123/obfs/actions/runs/44937302595).
 
 The later exact source with this corrected fixture and direct source-string fidelity checks is `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94` on `agent4/source-fidelity-portability-20261121`, running independent full validation. No complete two-OS green claim follows from the initial failed run.
+
+
+## Source-pinned successful rerun
+
+The corrected combined source and fixture at `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94` passed both full Linux and Windows Node 22 jobs, JSDoc checks and Ubuntu Chromium in [44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755). This resolves the first-run fixture contract error without weakening SCO's source-asset disclosure guard. It validates this bounded NFC alias policy on the tested runners; no live APFS filesystem was exercised.
