@@ -210,9 +210,13 @@ without creating a new CI workflow family. The complete
 [run 44960231507](https://github.com/FlareZ123/obfs/actions/runs/44960231507),
 source pinned at
 da7c3d8543df11bd38ead0ba24dbafbc0f38aafa,
-has passed its Ubuntu rank-four source and strict typecheck
-steps. Windows status must be checked separately before
-claiming source-coincident dual-platform validation.
+**passed both Ubuntu and Windows** rank-four executable,
+every earlier rank-two and rank-three peer step,
+the matched-source generic cubic baseline, the exact
+quadratic-triple probability witness, and all strict
+JSDoc/typecheck gates. This green status applies to the
+exact cited source pin and does not independently certify
+the theorem's general-uniform probability guarantee.
 
 ## Limits and candidate consequences
 
