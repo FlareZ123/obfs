@@ -1644,8 +1644,67 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
+  // An Object.create descriptor map may contain an aliased getter
+  // descriptor. Its getter can return String.prototype and a later write
+  // may change the eager string decoder before another module loads.
+  /** @type {Set<string>} */
+  const decoderGetterDescriptors=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMaps=new Set();
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterDescriptor(value) {
+    if(value.type==='Identifier')return decoderGetterDescriptors.has(value.name);
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      (property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key))==='get'&&
+      proxyGetMayReturnDecoderIntrinsic(property.value));
+  }
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMap(value) {
+    if(value.type==='Identifier')return decoderGetterMaps.has(value.name);
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      isDecoderGetterDescriptor(property.value));
+  }
+  let decoderDescriptorChanged;
+  do {
+    decoderDescriptorChanged=false;
+    walk(ast,node=>{
+      const declaration=node.type==='VariableDeclarator'&&node.id.type==='Identifier';
+      const assignment=node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier';
+      if(!declaration&&!assignment)return;
+      const name=declaration?node.id.name:node.left.name;
+      const value=declaration?node.init:node.right;
+      if(!value)return;
+      if(isDecoderGetterDescriptor(value)&&!decoderGetterDescriptors.has(name)) {
+        decoderGetterDescriptors.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterMap(value)&&!decoderGetterMaps.has(name)) {
+        decoderGetterMaps.add(name);
+        decoderDescriptorChanged=true;
+      }
+    });
+  }while(decoderDescriptorChanged);
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
+       node.arguments[1]?.type==='Identifier'&&
+       decoderGetterMaps.has(node.arguments[1].name)) {
+      mutated=true;
+      return;
+    }
     if(createsSensitiveProxy(node)) {
       mutated=true;
       return;
