@@ -180,6 +180,43 @@ source-only recoverability limitations remain unchanged. A targeted
 34/34 pass is not a general property-proof theorem. A full integration
 gate on the exact transitive revision is still a separate requirement.
 
+## Three-graph Chrome extension and deterministic owner-flow corpus
+
+[Targeted full Chrome/Windows/Linux run 44945684002](https://github.com/FlareZ123/obfs/actions/runs/44945684002)
+at source `5ee83d3507aba17188bfead1f56ecab3d202b185`
+completed successfully for strict core/test JSDoc, **36/36**
+top-level Node focused tests (including two loops of 64 distinct
+native/emitted ESM runs), and real Ubuntu Chrome 157.
+
+The real-browser harness now loads *three* independent variants of
+the same state and imported-identity modules: the original one-hop
+positive, a **three-hop source-ordered immutable** positive, and
+a reflective `Object.keys` negative. Both positive graphs rewrite
+**2/2** protected keys each; the reflective graph remains unchanged.
+All three native/emitted pairs matched on **4,096** input values
+per graph. The host callback receives primitive outputs only, with
+384 observed callback invocations. The 12-pair, 100,000-call
+one-hop protected/native runtime-work ratio of medians was
+**0.9167×**, with **0/12** sampled strict >2.5× breaches.
+
+The last number is a workload-specific browser sample, with
+fast integer/record reads near runtime-timer granularity. It does
+not certify arbitrary cold starts, broader applications, or an
+attacker-resilient secret. The graphs are only correct under the
+declared closed-world exposure model.
+
+A prior [36/36 targeted cross-OS run 44945351340](https://github.com/FlareZ123/obfs/actions/runs/44945351340)
+at source `e84ff7970b7c4644e9d47bcc62181c21fd6928e2`
+already validated 64 deterministic positive alias chains of
+depth 1–8, exact Node stdout parity and 2/2 renames each,
+plus 64 independently varied negative chains requiring unchanged
+fields. The single-pass source-order invalidation refactor
+[44945519088](https://github.com/FlareZ123/obfs/actions/runs/44945519088)
+at `d913f8584df685e901311ac80475e2d15588554b`
+also passed 36/36 on both OS plus strict JSDoc and Chrome.
+No second broad manual source-pin was needed until the transitive
+revision had passed those targeted gates.
+
 ## Proof mechanism and limitations
 
 `proveLocalObject` already receives `importedIdentityFunctions`
