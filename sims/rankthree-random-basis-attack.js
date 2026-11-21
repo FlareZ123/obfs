@@ -204,6 +204,15 @@ function main(){
       hashHeldouts++;
     }
   }
+  const distributionTrials=2048;
+  const distributionPivots=Array(33).fill(0);
+  let distributionQueries=0;
+  for(let i=0;i<distributionTrials;i++){
+    const m=cloneInHashBasis(lateSupport,32,3,(0x103e503a+i)>>>0);
+    assert.ok(m.early&&m.queries<=529);
+    distributionPivots[m.pivots]++;
+    distributionQueries+=m.queries;
+  }
   hashCosts.sort((a,b)=>a-b);
   const hashMean=hashCosts.reduce((a,b)=>a+b,0)/hashCosts.length;
   queryCosts.sort((a,b)=>a-b);
@@ -216,7 +225,10 @@ function main(){
     heldouts:targetChecks,generalModels,generalHeldouts,seed:'0x9f135c21',hardQueryCap:529,
     hashSampled:{trials:hashCosts.length,early:hashEarly,min:hashCosts[0],
       median:hashCosts[hashCosts.length/2],mean:hashMean,max:hashCosts[hashCosts.length-1],
-      heldouts:hashHeldouts,pivotHistogram:hashPivots.map((count,pivots)=>({count,pivots})).filter(entry=>entry.count!==0)}
+      heldouts:hashHeldouts,pivotHistogram:hashPivots.map((count,pivots)=>({count,pivots})).filter(entry=>entry.count!==0),
+      distribution:{trials:distributionTrials,mean:distributionQueries/distributionTrials,
+        twoPivot:distributionPivots[2],
+        pivotHistogram:distributionPivots.map((count,pivots)=>({count,pivots})).filter(entry=>entry.count!==0)}}
   }));
 }
 if(require.main===module)main();
