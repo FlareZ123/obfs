@@ -455,6 +455,27 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
   }
 
+  // A direct, top-level immutable alias of a previously verified imported
+  // one-parameter identity is itself a proven direct-call identity. This
+  // admits const invoke=importedIdentity; invoke(owner) without exposing
+  // arbitrary function-value transport or mutable local relay bindings.
+  // A bare identifier initializer performs no user-visible getter call.
+  /** @type {Map<string,string>} */
+  const immutableImportedIdentityAliases=new Map();
+  for(const statement of ast.body) {
+    if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+    for(const decl of statement.declarations) {
+      if(decl.id.type!=='Identifier'||decl.init?.type!=='Identifier'||
+         bindings.get(decl.id.name)!==1||
+         importedIdentityFunctions.get(decl.init.name)!==0||
+         functions.has(decl.id.name))continue;
+      immutableImportedIdentityAliases.set(decl.id.name,decl.init.name);
+      functions.set(decl.id.name,{
+        node:decl.init,params:[],forwardIndex:0,external:true
+      });
+    }
+  }
+
   const scopes=collectBindingScopes(ast);
   // Most owners use direct known member names and need no constant-key scan.
   // Build the same per-owner key facts only when a computed identifier read
@@ -618,6 +639,13 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       continue;
     }
     if (functions.get(node.name)?.external && /^Import(?:Default|Namespace)?Specifier$/.test(parent?.type??'')) continue;
+    // The imported helper is read exactly once to initialize an immutable
+    // top-level alias whose own references are still checked below. An
+    // arbitrary value escape, mutation or reflective use stays inadmissible.
+    if (functions.get(node.name)?.external &&
+        parent?.type==='VariableDeclarator' && key==='init' &&
+        parent.init===node && parent.id.type==='Identifier' &&
+        immutableImportedIdentityAliases.get(parent.id.name)===node.name)continue;
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
   for (const name of unusableFunctions) functions.delete(name);
