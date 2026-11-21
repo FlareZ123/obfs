@@ -31,6 +31,7 @@
     "sims/sco-rankthree-random-basis-live.js",
     "sims/ranktwo-quadratic-competitor.js",
     "sims/quadratic-rank-validated-offline.js",
+    "sims/rankk-exact-tail-fraction-peer.js",
     "sims/low-rank-nonbijective-independent-peer.js",
     "sims/rankthree-quadratic-polarization-peer.js",
     "sims/rankthree-projected-vs-generic-cubic-matched.js",
