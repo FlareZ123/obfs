@@ -80,17 +80,22 @@ function nativeKernel(input,rounds){
  * @param {number} operations
  * @param {boolean} protectedOperation
  * @param {ReturnType<typeof createSignedProofs>} fixtures
+ * @param {number} [aggregation]
  * @returns {{cpuUs:number,wallMs:number,checksum:number}}
  */
-function runBatch(rounds,operations,protectedOperation,fixtures){
+function runBatch(rounds,operations,protectedOperation,fixtures,aggregation=1){
   const cpuBefore=process.cpuUsage();
   const start=process.hrtime.bigint();
   let checksum=0;
-  for(let i=0;i<operations;i++){
-    if(protectedOperation&&!verifySignedProof(fixtures[i&15])){
-      throw new Error('Cryptographic proof verification failed');
+  for(let repeat=0;repeat<aggregation;repeat++){
+    let batchChecksum=0;
+    for(let i=0;i<operations;i++){
+      if(protectedOperation&&!verifySignedProof(fixtures[i&15])){
+        throw new Error('Cryptographic proof verification failed');
+      }
+      batchChecksum^=nativeKernel(i+1,rounds);
     }
-    checksum^=nativeKernel(i+1,rounds);
+    checksum=(checksum+batchChecksum)|0;
   }
   const elapsedNs=process.hrtime.bigint()-start;
   const cpu=process.cpuUsage(cpuBefore);
@@ -119,14 +124,15 @@ function median(values){
  * @param {number} rounds
  * @param {number} operations
  * @param {ReturnType<typeof createSignedProofs>} fixtures
+ * @param {number} aggregation
  */
-function profile(name,rounds,operations,fixtures){
+function profile(name,rounds,operations,fixtures,aggregation){
   /** @type {Pair[]} */
   const pairs=[];
   for(let index=0;index<7;index++){
     const originalFirst=index%2===0;
-    const first=runBatch(rounds,operations,!originalFirst,fixtures);
-    const second=runBatch(rounds,operations,originalFirst,fixtures);
+    const first=runBatch(rounds,operations,!originalFirst,fixtures,aggregation);
+    const second=runBatch(rounds,operations,originalFirst,fixtures,aggregation);
     const original=originalFirst?first:second;
     const proof=originalFirst?second:first;
     assert.equal(proof.checksum,original.checksum,'paired output parity');
@@ -135,10 +141,11 @@ function profile(name,rounds,operations,fixtures){
   }
   const nativeCpuMedian=median(pairs.map(p=>p.original.cpuUs));
   const proofCpuMedian=median(pairs.map(p=>p.proof.cpuUs));
+  const timedOperations=operations*aggregation;
   return {
-    name,rounds,operations,repeats:7,
-    originalCpuUsPerOperation:nativeCpuMedian/operations,
-    proofCpuUsPerOperation:proofCpuMedian/operations,
+    name,rounds,operations,aggregation,timedOperations,repeats:7,
+    originalCpuUsPerOperation:nativeCpuMedian/timedOperations,
+    proofCpuUsPerOperation:proofCpuMedian/timedOperations,
     serverCpuRatio:proofCpuMedian/nativeCpuMedian,
     serverCpuWithin2_5x:proofCpuMedian<=2.5*nativeCpuMedian,
     samples:pairs
@@ -160,8 +167,8 @@ function runBudgetProbe(){
   runBatch(250000,2,false,fixtures);
   runBatch(250000,2,true,fixtures);
   const profiles=[
-    profile('small-500-round',500,4000,fixtures),
-    profile('coarse-250000-round',250000,60,fixtures)
+    profile('small-500-round',500,4000,fixtures,8),
+    profile('coarse-250000-round',250000,60,fixtures,1)
   ];
   return {
     node:process.version,platform:process.platform,arch:process.arch,
