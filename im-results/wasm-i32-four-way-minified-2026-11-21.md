@@ -246,6 +246,30 @@ for ordinary non-isolated pages, corresponding to the observed 0.1 ms
 increment grid. These documents explain **possible confounders**;
 the actual ratios above remain experimental measurements.
 
+## Exact held-out Chromium integer-output differential
+
+[Full Linux/Windows and Chrome 157 gate 44944098089](https://github.com/FlareZ123/obfs/actions/runs/44944098089)
+at immutable source `3a5e16260e920ccfff8d186417f04a3099c58209`
+passed all targeted typed-Wasm tests and strict JSDoc.
+
+This revision performs an additional **1,200,000 exact
+function-result comparisons** after all CPU timing, on 200,000
+deterministic signed Int32 input tuples across both selected functions
+and the three non-native variants (conventionally minified, public
+Wasm, reconstructed-native output). It uses `Object.is` for each
+numeric result. The original 480,000 application/callback tests,
+9.6 million selected-kernel checksummed iterations and two-function
+public-byte reconstruction also passed on this same source.
+
+The Chrome 157 trial's 10,000-event application protected/native
+ratio of medians was **0.9200×** (0/12 strict native breaches),
+and the separately warmed 200,000-iteration selected kernel was
+**1.3009×** (one strict native breach). These measurements again
+differ from the fresh-process short-call Node evidence. The exact
+individual-value differential strengthens semantic parity evidence,
+while keeping the public-byte attacker reconstruction and
+sample-specific performance restrictions intact.
+
 ## Threat-model interpretation
 
 A COO attacker can download the entire public artifact and instrument the
