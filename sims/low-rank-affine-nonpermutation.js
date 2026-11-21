@@ -446,7 +446,16 @@ function deterministicDegreeWitness() {
  * @returns {{bits:number,trainingQueries:number,targetChecks:number,reachable:number,unreachable:number,maxCandidateCount:number}}
  */
 function width32DeterministicQuadratic() {
-  const U0=0x9e3779b9,U1=0x85ebca6b;
+  const U0=0x9e3779b9,U1=0x85ebca6b,constant=0x13579bdf;
+  /** @param {number} x @param {number} steps @returns {number} */
+  function rotate(x,steps){return ((x<<steps)|(x>>>(32-steps)))>>>0;}
+  /** @param {number} x @returns {number} */
+  function affine(x){return rotate((x^((x&65535)<<16))>>>0,9);}
+  /** @param {number} y @returns {number} */
+  function invertAffine(y){
+    const v=rotate(y,23);
+    return (v^((v&65535)<<16))>>>0;
+  }
   /** @param {number} x @param {number} offset @returns {number} */
   function pairQuadratic(x,offset){
     let bit=0;
@@ -457,8 +466,13 @@ function width32DeterministicQuadratic() {
     return bit;
   }
   /** @param {number} x @returns {number} */
-  const oracle=x=>(x^(pairQuadratic(x,0)?U0:0)^
+  const oracle=x=>(constant^affine(x)^(pairQuadratic(x,0)?U0:0)^
     (pairQuadratic(x,1)?U1:0))>>>0;
+  const roundtrip=randomFromSeed(0x8419673a);
+  for(let i=0;i<2048;i++){
+    const x=roundtrip();
+    assert.equal(invertAffine(affine(x)),x);
+  }
   const learned=learnLowDegree(oracle,32,2);
   assert.equal(learned.observed.size,529);
   const random=randomFromSeed(0x88325ca1);
@@ -467,8 +481,9 @@ function width32DeterministicQuadratic() {
   for(let i=0;i<targetChecks;i++){
     const x=random();
     const target=i%2===0?oracle(x):x;
-    const independentPreimages=[target,target^U0,target^U1,target^U0^U1];
-    const expected=independentPreimages.some(candidate=>oracle(candidate>>>0)===target);
+    const independentPreimages=[target^constant,target^constant^U0,
+      target^constant^U1,target^constant^U0^U1].map(value=>invertAffine(value>>>0));
+    const expected=independentPreimages.some(candidate=>oracle(candidate)===target);
     const verdict=invert(oracle,learned,target);
     assert.equal(verdict.answer!==null,expected,
       `width32 target=${target} iteration=${i}`);
