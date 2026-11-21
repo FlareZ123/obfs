@@ -347,7 +347,20 @@ for(const [label,observer] of [
     'console.log(perf[method]("resource"));'],
   ['unknown Performance reflective method',
     'let method="getEntriesByType";'+
-    'console.log(Reflect.get(performance,method).call(performance,"resource"));']
+    'console.log(Reflect.get(performance,method).call(performance,"resource"));'],
+  ['destructured global Performance alias with dynamic key',
+    'const {performance:perf}=globalThis;'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['verified computed global Performance alias with dynamic key',
+    'const field="performance";const perf=globalThis[field];'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['chained computed Performance alias with dynamic key',
+    'const field="performance";const perf=globalThis[field];'+
+    'const alias=perf;let method="getEntriesByType";'+
+    'console.log(alias[method]("resource"));'],
+  ['computed global destructuring Performance alias',
+    'const field="performance";const {[field]:perf}=globalThis;'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));']
 ]) {
   test('browser ResourceTiming source-byte metadata veto: '+label,()=>{
     const files=graph(observer+'console.log(state.secretField);');
