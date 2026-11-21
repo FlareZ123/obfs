@@ -203,4 +203,4 @@ if(require.main===module)
   runChallenge().then(out=>
     console.log('SCO_RANK_SIX_516_LIVE_ORACLE '+JSON.stringify(out)))
     .catch(error=>{console.error(error);process.exitCode=1;});
-module.exports={runChallenge,learnViaHttp};
+module.exports={runChallenge,learnViaHttp,privateSource};
