@@ -159,6 +159,20 @@ and [the pinned targeted gate](https://github.com/FlareZ123/obfs/actions/runs/43
 These checks strengthen publication configuration guidance; they do not
 prevent unlimited authorized RPC relaying or prove dynamic-loader absence.
 
+The audited private graph also conservatively refuses references to known
+browser-owned host APIs, including `fetch`, `Worker`, `WebSocket`,
+`XMLHttpRequest`, `EventSource`, `BroadcastChannel`, and `MessageChannel`.
+The same check applies to explicitly selected private exports and their
+server-resident helpers. For example, in a browser `fetch('./data.json')`
+resolves against the page's base URL; relocating that operation to Node does
+not preserve the browser's URL resolution or host effects. Inert object
+property labels with those spellings remain permitted. The check intentionally
+may decline locally shadowed identifiers with the same names. Indirect host
+capabilities and other environment effects remain outside its bounded syntax
+proof; this does not establish general client/server equivalence. See the
+[host API admission regression](../test/sco-private-host-effect-closure.test.js)
+and the [browser fetch URL contract](https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch).
+
 The static audit is **opt-in**. Without `privateModuleSources`, the manifest
 still covers only direct imports and explicit `additionalPrivateModulePaths`.
 Even with the opt-in, this is a bounded *static* path audit, not proof that a
