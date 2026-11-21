@@ -67,7 +67,23 @@ const unsafe=[
   ['assigned Proxy handler',
     "let handler;handler={get(_t,key){return key==='ref'?String.prototype:undefined;}};const box=new Proxy({},handler);function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
   ['aliased Proxy trap callable',
-    "const trap=(_t,key)=>key==='ref'?String.prototype:undefined;const alias=trap;const box=new Proxy({}, {get:alias});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"]
+    "const trap=(_t,key)=>key==='ref'?String.prototype:undefined;const alias=trap;const box=new Proxy({}, {get:alias});function poison(p){p.charCodeAt=()=>0;}poison(box.ref);"],
+  ['direct post-construction get write',
+    "const h={};h.get=(_t,k)=>k==='ref'?String.prototype:undefined;const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['alias post-construction get write',
+    "const h={};const alias=h;alias.get=(_t,k)=>k==='ref'?String.prototype:undefined;const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['Reflect.set handler get',
+    "const h={};Reflect.set(h,'get',(_t,k)=>k==='ref'?String.prototype:undefined);const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['Object.assign handler get',
+    "const h={};Object.assign(h,{get(_t,k){return k==='ref'?String.prototype:undefined;}});const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['Object.defineProperty handler get',
+    "const h={};Object.defineProperty(h,'get',{value:(_t,k)=>k==='ref'?String.prototype:undefined});const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['Object.defineProperties handler get',
+    "const h={};Object.defineProperties(h,{get:{value:(_t,k)=>k==='ref'?String.prototype:undefined}});const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['accessor-produced handler get trap',
+    "const h={get get(){return (_t,k)=>k==='ref'?String.prototype:undefined;}};const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"],
+  ['computed post-construction get write',
+    "const key='get';const h={};h[key]=(_t,k)=>k==='ref'?String.prototype:undefined;const p=new Proxy({},h);function poison(x){x.charCodeAt=()=>0;}poison(p.ref);"]
 ];
 
 for(const [name,mutator] of unsafe) {
@@ -119,7 +135,23 @@ const harmless=[
   ['assigned Proxy Number handler',
     "let handler;handler={get(){return Number.prototype;}};const box=new Proxy({},handler);box.ref.unrelated=1;"],
   ['aliased Proxy Number trap',
-    "const trap=()=>Number.prototype;const alias=trap;const box=new Proxy({}, {get:alias});box.ref.unrelated=1;"]
+    "const trap=()=>Number.prototype;const alias=trap;const box=new Proxy({}, {get:alias});box.ref.unrelated=1;"],
+  ['direct post-construction get write Number',
+    "const h={};h.get=(_t,k)=>k==='ref'?Number.prototype:undefined;const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['alias post-construction get write Number',
+    "const h={};const alias=h;alias.get=(_t,k)=>k==='ref'?Number.prototype:undefined;const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['Reflect.set handler get Number',
+    "const h={};Reflect.set(h,'get',(_t,k)=>k==='ref'?Number.prototype:undefined);const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['Object.assign handler get Number',
+    "const h={};Object.assign(h,{get(_t,k){return k==='ref'?Number.prototype:undefined;}});const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['Object.defineProperty handler get Number',
+    "const h={};Object.defineProperty(h,'get',{value:(_t,k)=>k==='ref'?Number.prototype:undefined});const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['Object.defineProperties handler get Number',
+    "const h={};Object.defineProperties(h,{get:{value:(_t,k)=>k==='ref'?Number.prototype:undefined}});const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['accessor-produced handler get trap Number',
+    "const h={get get(){return (_t,k)=>k==='ref'?Number.prototype:undefined;}};const p=new Proxy({},h);p.ref.unrelated=1;"],
+  ['computed post-construction get write Number',
+    "const key='get';const h={};h[key]=(_t,k)=>k==='ref'?Number.prototype:undefined;const p=new Proxy({},h);p.ref.unrelated=1;"]
 ];
 
 for(const [name,mutator] of harmless) {
