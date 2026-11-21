@@ -38,7 +38,7 @@ test('direct SNO launcher refuses malformed executable entry text and bytes',()=
   }],'entry.cjs'),/JavaScript source contains unpaired surrogate/);
   assert.throws(()=>createSnoLauncher([{
     path:'entry.cjs',code:Buffer.from([0xff,0xfe,0x00])
-  }],'entry.cjs'),/Invalid UTF-8 JavaScript source: entry\\.cjs/);
+  }],'entry.cjs'),/Invalid UTF-8 JavaScript source: entry\.cjs/);
 });
 
 test('explicit escape spelling and valid astral pairs remain eligible',()=>{
