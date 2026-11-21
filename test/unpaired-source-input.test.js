@@ -74,3 +74,35 @@ test('default string encoding preserves escaped isolated UTF-16 units on publica
     assert.equal(published,nativeValue);
   }
 });
+
+
+test('text assets with raw isolated surrogate characters fail closed in all three modes',()=>{
+  const bad='notice:'+isolated;
+  const good=Buffer.from(bad,'utf8');
+  for(const mode of modes){
+    assert.throws(()=>obfuscateFiles([
+      {path:'notice.txt',code:bad,sourceType:'asset'}
+    ],{mode,seed:'text-asset-unpaired'}),/text asset contains unpaired surrogate/,mode);
+    const files=obfuscateFiles([
+      {path:'notice.txt',code:good,sourceType:'asset'}
+    ],{mode,seed:'binary-asset-allowed'});
+    assert.deepEqual(files.files[0].code,good);
+  }
+  assert.throws(()=>createScoHandler([
+    {path:'notice.txt',code:bad,sourceType:'asset'}
+  ]),/text asset contains unpaired surrogate/);
+  assert.throws(()=>createSnoLauncher([
+    {path:'entry.cjs',code:'module.exports=1;'},
+    {path:'notice.txt',code:bad}
+  ],'entry.cjs'),/text asset contains unpaired surrogate/);
+});
+
+test('explicit JSON unicode escapes remain byte-identical textual assets',()=>{
+  const text=String.raw`{"note":"\\ud800"}`;
+  for(const mode of modes){
+    const result=obfuscateFiles([
+      {path:'notice.json',code:text,sourceType:'asset'}
+    ],{mode,seed:'escaped-text-asset'});
+    assert.equal(result.files[0].code,text);
+  }
+});
