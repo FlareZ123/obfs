@@ -453,6 +453,58 @@ async function main(){
     const mixedReservedBound=pairedBudgetBound(data.mixedTiming.reserved,data.mixedTiming.compiled);
     const minifiedBound=pairedBudgetBound(data.time.minified,data.time.compiled);
     const mangledBound=pairedBudgetBound(data.time.mangled,data.time.compiled);
+    // Use Chrome's renderer-thread duration counter as a CPU-oriented control
+    // against browser wall-time scheduling noise. Keep old wall trials intact.
+    const cdp=await page.createCDPSession();
+    await cdp.send('Performance.enable',{timeDomain:'threadTicks'});
+    /** @returns {Promise<number>} */
+    async function rendererTaskSeconds(){
+      const data=await cdp.send('Performance.getMetrics');
+      const metric=data.metrics.find(item=>item.name==='TaskDuration');
+      assert.ok(metric&&Number.isFinite(metric.value), 'Missing Chrome TaskDuration metric');
+      return metric.value;
+    }
+    /** @type {{native:number[],compiled:number[],reserved:number[]}} */
+    const mixedCpuMs={native:[],compiled:[],reserved:[]};
+    const cpuOrders=[
+      ['native','compiled','reserved'],
+      ['reserved','compiled','native'],
+      ['compiled','native','reserved'],
+      ['native','reserved','compiled'],
+      ['compiled','reserved','native'],
+      ['reserved','native','compiled']
+    ];
+    for(let trial=0;trial<12;trial++){
+      /** @type {number|undefined} */
+      let checksum;
+      for(const variant of cpuOrders[trial%cpuOrders.length]){
+        const before=await rendererTaskSeconds();
+        const value=await page.evaluate(async selected=>{
+          const source='/mixed/'+selected+'/entry.mjs';
+          const module=/** @type {{run:(a:number)=>[number,string[],number]}} */(
+            await import(source));
+          let sum=0;
+          for(let index=0;index<1000000;index++){
+            const answer=module.run(index);
+            sum^=answer[0]^answer[2]^answer[1].length;
+          }
+          return sum;
+        },variant);
+        const after=await rendererTaskSeconds();
+        const elapsedMs=(after-before)*1000;
+        assert.ok(Number.isFinite(elapsedMs)&&elapsedMs>0,
+          'Nonpositive renderer TaskDuration delta');
+        if(checksum!==undefined)assert.equal(value,checksum,
+          'CPU-work control checksum mismatch');
+        checksum=value;
+        mixedCpuMs[/** @type {'native'|'compiled'|'reserved'} */(variant)]
+          .push(elapsedMs);
+      }
+    }
+    await cdp.detach();
+    const mixedCpuBound=pairedBudgetBound(mixedCpuMs.native,mixedCpuMs.compiled);
+    const mixedCpuReservedBound=pairedBudgetBound(
+      mixedCpuMs.reserved,mixedCpuMs.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
       version:await browser.version(),
       positiveFieldsRenamed:2,
@@ -467,6 +519,9 @@ async function main(){
         protectedVsNative:mixedBound,
         protectedVsSafeReservedEsbuild:mixedReservedBound,
         mixedTimingMs:data.mixedTiming,
+        rendererTaskCpuMs:mixedCpuMs,
+        rendererTaskCpuVsNative:mixedCpuBound,
+        rendererTaskCpuVsReserved:mixedCpuReservedBound,
         privateRenamed:2,reflectedRenamed:0,
         esbuildPrivateRenamed:2,esbuildReflectedRenamed:2,
         reservedEsbuildPrivateRenamed:0,reservedEsbuildReflectedRenamed:0,
