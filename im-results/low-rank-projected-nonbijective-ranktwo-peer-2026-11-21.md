@@ -83,7 +83,7 @@ Every observed W had rank at most one. The exact worst-case probabilities equal 
 
 The initial computational witness was committed at [8aa491e](https://github.com/FlareZ123/obfs/commit/8aa491eede21f0a8b4561feffe0170fc8735c241). The first integrated [Linux/Windows run 44956396637](https://github.com/FlareZ123/obfs/actions/runs/44956396637) passed computation but identified an absent union JSDoc type for a witness object. The corrected source [0d259d1](https://github.com/FlareZ123/obfs/commit/0d259d16572546a589c2a5081341dbb52ed84a8c) then passed the entire existing Ubuntu/Windows research workflow in [run 44956549468](https://github.com/FlareZ123/obfs/actions/runs/44956549468).
 
-The later exact-tail measurement and rank-one assertion were implemented at [82a1e65](https://github.com/FlareZ123/obfs/commit/82a1e6544894eb94c070d742e5f70a2333f76ffc), [c744500](https://github.com/FlareZ123/obfs/commit/c744500c881355b5d9e3075ab29a9e3c7f676f6b) and [bb1d6b8](https://github.com/FlareZ123/obfs/commit/bb1d6b82fa9c8bd2abf53b612c0d7d50faf23a7f). This latest code passed local Node 22.16.0 exhaustive execution. Its source-coincident CI status is separate from the earlier green workflow. The witness now participates in the existing [manual low-rank workflow](../.github/workflows/manual-low-rank-target-inversion.yml) and [strict peer JSDoc project](../jsconfig.affine-low-rank-peer.json), without a new workflow family.
+The later exact-tail measurement and rank-one assertion were implemented at [82a1e65](https://github.com/FlareZ123/obfs/commit/82a1e6544894eb94c070d742e5f70a2333f76ffc), [c744500](https://github.com/FlareZ123/obfs/commit/c744500c881355b5d9e3075ab29a9e3c7f676f6b) and [bb1d6b8](https://github.com/FlareZ123/obfs/commit/bb1d6b82fa9c8bd2abf53b612c0d7d50faf23a7f). This code passed local Node 22.16.0 exhaustive execution and was subsequently validated through the full existing Ubuntu/Windows/JSDoc workflow in [run 44957722328](https://github.com/FlareZ123/obfs/actions/runs/44957722328), source-pinned at eaf2af8. The later [run 44958055861](https://github.com/FlareZ123/obfs/actions/runs/44958055861) also passed all three Agent 22 peer steps on both systems after integration of the full polarization clone. The witness now participates in the existing [manual low-rank workflow](../.github/workflows/manual-low-rank-target-inversion.yml) and [strict peer JSDoc project](../jsconfig.affine-low-rank-peer.json), without a new workflow family.
 
 ## Threat-model boundary
 
@@ -128,9 +128,12 @@ targets, while the attack object never receives those parameters.
 The new test was appended to the **existing** low-rank Ubuntu/Windows manual
 workflow and strict peer JSDoc project in
 [commit 150a867](https://github.com/FlareZ123/obfs/commit/150a86717285585402f3553ebe11358714e700e4).
-The first post-addition full [run 44957313436](https://github.com/FlareZ123/obfs/actions/runs/44957313436)
-is blocked earlier by a concurrent syntax error in Agent 15's existing
-simulator (unexpected token near line 666); the 32-bit peer step has not
-yet executed in that run. Agent 15 has been notified through the repository
-mailbox. Do not mark the 32-bit source as two-platform green until it actually
-executes and passes there.
+The first post-addition [run 44957313436](https://github.com/FlareZ123/obfs/actions/runs/44957313436)
+was red due to an earlier concurrent syntax error in Agent 15's source.
+After that syntax was fixed, the complete two-platform
+[run 44957722328](https://github.com/FlareZ123/obfs/actions/runs/44957722328)
+passed the width-three exhaustive witness, this 32-bit verifier, and the
+independent singular-A quotient witness, including strict JSDoc on both
+operating systems. The later full [run 44958055861](https://github.com/FlareZ123/obfs/actions/runs/44958055861)
+at source 75a9dae also passed all three plus the full-functional polarization
+clone on both operating systems.
