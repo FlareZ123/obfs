@@ -33,6 +33,8 @@ jobs:
         run: node --test test/public-residual-extremal-construction.test.js
       - name: Independent rank-r coset-cycle verifier
         run: node sims/affine-low-rank-peer-check.js
+      - name: Independent rank-two and rank-three affine-orbit review
+        run: node sims/low-rank-orbit-independent-review.js
       - name: Layered rank-one inversion via canonical deterministic solver
         run: node sims/low-rank-affine-layer-composition.js
       - name: Matched rank-r versus public-residual oracle calls
