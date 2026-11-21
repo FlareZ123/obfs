@@ -217,6 +217,8 @@ function main() {
     let rankMaxQueries=0;
     let rankMaxSteps=0;
     let rankMaxNullity=0;
+    let oneStepFromConditionalCycleCap=0;
+    let atConditionalCycleCap=0;
     for(let caseNo=0;caseNo<96;caseNo++) {
       const oracle=wrappedTriangularOracle(r,next);
       for(let targetNo=0;targetNo<8;targetNo++) {
@@ -229,6 +231,9 @@ function main() {
         maxLargeQueries=Math.max(maxLargeQueries,attackQueries);
         const displacement=Array.from({length:64},(_,i)=>inverter.transformedDisplacement(((i<<16)^next())>>>0));
         assert.ok(rank(displacement)<=r+inverter.nullity);
+        const conditionalCap=2**Math.min(32,r+inverter.nullity);
+        if(answer.steps===conditionalCap)atConditionalCycleCap++;
+        if(answer.steps===conditionalCap-1)oneStepFromConditionalCycleCap++;
         maxLargeSteps=Math.max(maxLargeSteps,answer.steps);
         maxLargeNullity=Math.max(maxLargeNullity,inverter.nullity);
         rankMaxQueries=Math.max(rankMaxQueries,attackQueries);
@@ -238,7 +243,9 @@ function main() {
         largeTargets++;
       }
     }
-    byRank.push({r,targets:rankTargets,maxQueries:rankMaxQueries,maxSteps:rankMaxSteps,maxNullity:rankMaxNullity});
+    byRank.push({r,targets:rankTargets,maxQueries:rankMaxQueries,
+      maxSteps:rankMaxSteps,maxNullity:rankMaxNullity,
+      atConditionalCycleCap,oneStepFromConditionalCycleCap});
   }
   console.log('LOW_RANK_ORBIT_INDEPENDENT_REVIEW '+JSON.stringify({
     width3:{permutationsChecked,targetsChecked,maxQueries:maxSmallQueries,maxNullity:maxSmallNullity},
