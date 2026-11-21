@@ -1644,28 +1644,110 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
+  // Object.create can be held in a local variable and its descriptor map
+  // can be constructed before the call. Track the finite source-visible
+  // aliases without assuming an opaque or computed descriptor name is safe.
+  /** @type {Set<string>} */
+  const objectCreateAliases=new Set();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const descriptorBindings=new Map();
+  walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
+      const entries=descriptorBindings.get(node.id.name)??[];
+      entries.push(node.init);
+      descriptorBindings.set(node.id.name,entries);
+    } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+              node.left.type==='Identifier') {
+      const entries=descriptorBindings.get(node.left.name)??[];
+      entries.push(node.right);
+      descriptorBindings.set(node.left.name,entries);
+    }
+  });
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function directObjectCreate(expression) {
+    return expression.type==='MemberExpression'&&
+      isObjectIntrinsic(expression.object)&&memberName(expression)==='create';
+  }
+  let createAliasFound;
+  do {
+    createAliasFound=false;
+    for(const [name,expressions] of descriptorBindings){
+      if(objectCreateAliases.has(name))continue;
+      if(expressions.some(expression=>directObjectCreate(expression)||
+        expression.type==='Identifier'&&objectCreateAliases.has(expression.name))) {
+        objectCreateAliases.add(name);
+        createAliasFound=true;
+      }
+    }
+  } while(createAliasFound);
+  /**
+   * Prove whether a finite descriptor value may expose decoder state via
+   * an accessor. Unknown descriptor expressions remain unproved and are
+   * handled by the broader conservative mutation scanner.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='Identifier'){
+      if(visited.has(expression.name))return false;
+      visited.add(expression.name);
+      const found=(descriptorBindings.get(expression.name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source,visited));
+      visited.delete(expression.name);
+      return found;
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ descriptor)=>{
+        if(descriptor.type==='SpreadElement') {
+          return descriptorHasSensitiveGetter(descriptor.argument,visited);
+        }
+        if(descriptor.type!=='Property')return false;
+        const key=descriptor.computed?staticString(descriptor.key):
+          descriptor.key.type==='Identifier'?descriptor.key.name:
+            staticString(descriptor.key);
+        return (key===null||key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(descriptor.value);
+      });
+  }
+  /**
+   * Object.create's outer map may use a computed property name. The name
+   * cannot make a decoder-sensitive accessor harmless if it is later read.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoder(expression,visited=new Set()){
+    if(expression.type==='Identifier'){
+      if(visited.has(expression.name))return false;
+      visited.add(expression.name);
+      const found=(descriptorBindings.get(expression.name)??[]).some(
+        source=>objectCreateMayExposeDecoder(source,visited));
+      visited.delete(expression.name);
+      return found;
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement')return objectCreateMayExposeDecoder(
+          property.argument,visited);
+        return property.type==='Property'&&
+          descriptorHasSensitiveGetter(property.value);
+      });
+  }
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
       return;
     }
-    // Object.create installs accessor descriptors during construction. A
-    // getter may expose String.prototype to an otherwise untracked receiver,
-    // allowing a later write to corrupt the eager string decoder.
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
-       node.arguments[1]?.type==='ObjectExpression'&&
-       node.arguments[1].properties.some(
-         (/** @type {import('./ast').AstNode} */ property)=>
-           property.type==='Property'&&property.value.type==='ObjectExpression'&&
-           property.value.properties.some(
-             (/** @type {import('./ast').AstNode} */ descriptor)=>
-               descriptor.type==='Property'&&
-               (descriptor.computed?staticString(descriptor.key):
-                 descriptor.key.type==='Identifier'?descriptor.key.name:
-                   staticString(descriptor.key))==='get'&&
-               proxyGetMayReturnDecoderIntrinsic(descriptor.value)))) {
+    // Object.create's computed descriptor names and first-class aliases
+    // can surface a sensitive getter before another file's decoder loads.
+    if(node.type==='CallExpression'&&
+       (directObjectCreate(node.callee)||
+        node.callee.type==='Identifier'&&objectCreateAliases.has(node.callee.name))&&
+       node.arguments[1]&&objectCreateMayExposeDecoder(node.arguments[1])) {
       mutated=true;
       return;
     }
