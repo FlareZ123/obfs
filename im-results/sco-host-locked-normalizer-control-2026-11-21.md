@@ -20,4 +20,4 @@ This is a deliberately favorable attack family: recognized SCO source-spelling t
 
 The test is added to the existing manual cross-file reader gate to ensure subsequent SCO implementation changes cannot quietly pass a per-request diversity test while falsely implying byte-different outputs are semantically difficult to reconstruct.
 
-Validation: pending exact Ubuntu/Windows and JSDoc workflow result.
+Validation: [manual cross-file proof workflow run 44930774436](https://github.com/FlareZ123/obfs/actions/runs/44930774436) completed successfully on **Ubuntu and Windows** at exact executable SHA `814f15fd54d8d16e57918094962fed36ef568571`. Both ran the real host-locked source-only normalization test, extensive existing cross-file/property/host-lock tests, Chromium on Ubuntu and strict JSDoc gates.
