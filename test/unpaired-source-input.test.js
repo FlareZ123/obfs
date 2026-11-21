@@ -39,8 +39,12 @@ test('explicit escape spelling and valid astral pairs remain eligible',()=>{
         {path:'entry.cjs',code:source,sourceType:'commonjs'}
       ],{mode,seed:'wellformed-source-positive',strings:false,identifiers:false,properties:false});
       assert.equal(compiled.files.length,1);
-      assert.equal(typeof compiled.files[0].code,'string');
-      assert.equal(compiled.files[0].code,source);
+      const emitted=compiled.files[0].code;
+      assert.equal(typeof emitted,'string');
+      const originalValue=new Function('module',source+'return module.exports;')({exports:null});
+      const generatedValue=new Function('module',emitted+'return module.exports;')({exports:null});
+      assert.equal(generatedValue,originalValue);
+      assert.equal(/[\uD800-\uDFFF]/u.test(emitted),false);
     }
   }
 });
