@@ -15,3 +15,8 @@ Official [Node fsPromises.readdir documentation](https://nodejs.org/download/rel
 Initial implementation `a0a7d167144236badba195ec6371bc3fd055a133`, test plus regex correction through `9fe81328653765d1b93183355af0b321b7a5a5a1`. An independent full validation run for this exact source has **not yet been completed** at report creation.
 
 This does not establish a race-proof directory walk: another process that controls the source tree may replace entries between `readdir` and `readFile`. This is a deterministic encoding and path-identity preflight in trusted-build operation, not hostile-runtime confidentiality or integrity.
+
+
+## Pending source-pinned full gate
+
+Combined native raw-filename check and single-BOM SNO package-scope tests are pinned at `be6a51b6b190c560d864cf146b4e4d55d69faef9` on `agent4/raw-filename-bom-parity-20261121`, [manual full run 44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826). Do not infer a pass until both job conclusions are read.
