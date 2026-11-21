@@ -191,6 +191,21 @@ function main() {
   const cubic = x => x ^ (((x & 1) && (x & 2) && (x & 4)) ? 8 : 0);
   const third = [0,1,2,3,4,5,6,7].reduce((sum,x) => sum ^ cubic(x),0);
   assert.equal(third, 8);
+  // Two nonquadratic permutations agree with the identity on every zero,
+  // basis and basis-pair input; the sparse polar sample cannot certify
+  // global degree two. Explicit post-solve oracle verification catches
+  // the incorrect inferred radical on a chosen held-out target.
+  /** @param {number} x @returns {number} */
+  const sparseTransposition = x => x === 7 ? 11 : x === 11 ? 7 : x;
+  for (let i = 0; i < 256; i++) {
+    if (i === 0 || ((i & (i - 1)) === 0) ||
+        ((i & (i - 1) & (i - 2)) === 0 && i.toString(2).replaceAll('0','').length <= 2)) {
+      assert.equal(sparseTransposition(i), i);
+    }
+  }
+  assert.equal(invertQuadraticPermutation(x => x, 7, {bits: 8}).preimage, 7);
+  assert.throws(() => invertQuadraticPermutation(sparseTransposition, 7, {bits: 8}),
+    /promised quadratic structure/);
   process.stdout.write(JSON.stringify({...summary, cubicThirdDerivative: third}) + '\n');
 }
 
