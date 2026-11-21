@@ -163,6 +163,7 @@ function lowerBoundCollisions() {
     const visited = order.slice(0, 15);
     const rows = visited.map(x => monomials.reduce((mask, m, index) =>
       mask | (((x & m) === m ? 1 : 0) << index), 0));
+    /** @type {number[]} */
     const pivotColumns = [];
     let rank = 0;
     for (let c = 0; c < 16; c++) {
