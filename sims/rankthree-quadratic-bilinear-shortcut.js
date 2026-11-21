@@ -181,10 +181,29 @@ function main(){
     }
     byRank.push({r,cases:96,early:rankEarly,maxQueries:rankMax});
   }
+  // Adversarial coordinate placement: every nonlinear input bit is late.
+  // The rank-3 promise is true, yet certification cannot save any queries.
+  /** @param {number} x @returns {number} */
+  const lateSupport=x=>{
+    const a=(x>>>29)&1,b=(x>>>30)&1,c=(x>>>31)&1;
+    return ((a&b)|((a&c)<<1)|((b&c)<<2))>>>0;
+  };
+  let lateOnline=true;
+  const late=cloneQuadratic(x=>{
+    if(!lateOnline)throw Error('Late-support oracle used after training');
+    return lateSupport(x);
+  },32,3);
+  lateOnline=false;
+  assert.equal(late.early,true);
+  assert.equal(late.queries,529);
+  for(let i=0;i<4096;i++){
+    const value=next();
+    assert.equal(late.evaluate(value),lateSupport(value));
+  }
   rankThreeCosts.sort((a,b)=>a-b);
   const medianThree=rankThreeCosts[rankThreeCosts.length/2];
   const meanThree=rankThreeCosts.reduce((a,b)=>a+b,0)/rankThreeCosts.length;
-  const summary={width3:{cases:smallCases,outputsChecked:smallOutputs,early:smallEarly},width32:{cases,heldoutOutputs:targets,early,maxQueries,maxPivots,byRank,rankThreeQueryMedian:medianThree,rankThreeQueryMean:meanThree},seed:'0x65a2f11'};
+  const summary={width3:{cases:smallCases,outputsChecked:smallOutputs,early:smallEarly},width32:{cases,heldoutOutputs:targets,early,maxQueries,maxPivots,byRank,rankThreeQueryMedian:medianThree,rankThreeQueryMean:meanThree,lateSupport:{queries:late.queries,pivots:late.pivots,heldouts:4096}},seed:'0x65a2f11'};
   console.log('RANKTHREE_QUADRATIC_SHORTCUT '+JSON.stringify(summary));
   return summary;
 }
