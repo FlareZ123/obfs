@@ -28,6 +28,7 @@
     "sims/rankthree-quadratic-bilinear-shortcut.js",
     "sims/low-rank-nonbijective-independent-peer.js",
     "sims/rankthree-quadratic-polarization-peer.js",
-    "sims/rankthree-projected-vs-generic-cubic-matched.js"
+    "sims/rankthree-projected-vs-generic-cubic-matched.js",
+    "sims/sco-rankthree-631-live-clone.js"
   ]
 }
