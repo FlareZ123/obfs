@@ -25,3 +25,10 @@ The new key is **not** a complete simulation of every filesystem's Unicode and c
 Pinned [manual Node 22 Linux/Windows and Ubuntu Chromium run](https://github.com/FlareZ123/obfs/actions/workflows/manual-validation.yml) was dispatched from `agent4/canonical-path-safety-20261121` and is pending at report creation. Do not claim a green integrated result until the exact run and job conclusions are read. The preceding, separate UTF-8 source admission result is tracked in `im-results/utf8-source-admission-2026-11-21.md`.
 
 This work is a build artifact identity/safety preflight. It does not improve code confidentiality, authenticated environment locking, resistance to a fully controlling SNO/COO attacker, or a universal protected-runtime 2.5× compute guarantee.
+
+
+## Initial CI diagnostics and corrected fixture
+
+The first pinned combined run [44937910645](https://github.com/FlareZ123/obfs/actions/runs/44937910645) did **not** pass. Its new SCO tests used binary `.js` assets, which trigger the repository's intentional `assertNoSourceMapDisclosure` preflight before the candidate's path alias condition. That is a **fixture contract error**, not evidence against NFC collision detection. Updated `test/unicode-canonical-path-collisions.test.js` to use permitted binary PNG assets for collision/positive assertions while retaining a separately typed `.js` script case for private-path policy; repair commit `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`. The Windows job also independently hit a WebAuthn CPU timer-resolution assertion already observed in [44937302595](https://github.com/FlareZ123/obfs/actions/runs/44937302595).
+
+The later exact source with this corrected fixture and direct source-string fidelity checks is `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94` on `agent4/source-fidelity-portability-20261121`, running independent full validation. No complete two-OS green claim follows from the initial failed run.
