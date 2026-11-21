@@ -196,15 +196,18 @@ function run(quiet = false) {
       const innerHigh = width===6 ? permutation(8,rng) : null;
       const a = rng() % size;
       const b = rng() % size;
-      const values = kind==='arbitrary' ? permutation(size,rng) :
+      const base = kind==='arbitrary' ? permutation(size,rng) :
         Array.from({length:size}, (_,x) => {
-          const value = apply(input,x) ^ a;
-          const low = innerLow[value & 7];
-          const high = innerHigh ? innerHigh[value >>> 3] << 3 : value & ~7;
-          return apply(output,low | high) ^ b;
+          const low = innerLow[x & 7];
+          const high = innerHigh ? innerHigh[x >>> 3] << 3 : x & ~7;
+          return low | high;
         });
+      const values = Array.from({length:size}, (_,x) =>
+        apply(output,base[apply(input,x) ^ a]) ^ b);
       assert.equal(new Set(values).size,size);
+      const {r:baseRank} = verifyStructure(base);
       const {r,singular} = verifyStructure(values);
+      assert.equal(r,baseRank,'affine wrapper changed intrinsic residual rank');
       if (singular) initiallySingular++;
       const rankKey = width+':'+r;
       ranks.set(rankKey,(ranks.get(rankKey)??0)+1);
