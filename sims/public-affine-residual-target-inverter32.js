@@ -272,10 +272,167 @@ function invertPublicResidual32(oracle, target, options = {}) {
   }
 }
 
+/** @param {number} value @returns {number} */
+function firstSetBit32(value) {
+  for (let bit = 0; bit < WIDTH; bit += 1) {
+    if (((value >>> bit) & 1) !== 0) return bit;
+  }
+  throw new Error('zero vector has no set bit');
+}
+
+/**
+ * Deterministic exact target inversion for a 32-bit permutation oracle.
+ *
+ * The algorithm repairs a singular public affine interpolant with fixed-base
+ * differences, then cycle-walks the repaired affine quotient. Its actual query
+ * count is bounded by n + 2^(r+1), where r is the oracle's public affine-residual
+ * rank, without requiring r to be known in advance.
+ *
+ * @param {(input:number)=>number} oracle
+ * @param {number} target
+ * @param {{maxQueries?:number,maxSubspaceDimension?:number}} [options]
+ * @returns {{value:number,queries:number,nullity:number,rankRepairs:number,closureExpansions:number,maxClosureDimension:number}}
+ */
+function invertPublicResidualDeterministic32(oracle, target, options = {}) {
+  const maxQueries = options.maxQueries ?? 1_000_000;
+  const maxSubspaceDimension = options.maxSubspaceDimension ?? WIDTH;
+  /** @type {Map<number,number>} */
+  const cache = new Map();
+
+  /** @param {number} input @returns {number} */
+  const query = (input) => {
+    const key = u32(input);
+    const prior = cache.get(key);
+    if (prior !== undefined) return prior;
+    if (cache.size >= maxQueries) throw new Error(`query cap ${maxQueries} reached`);
+    const output = u32(oracle(key));
+    cache.set(key, output);
+    return output;
+  };
+
+  const normalizedTarget = u32(target);
+  const base = query(0);
+  const columns = Array.from(
+    {length: WIDTH},
+    (_, bit) => u32(query(bitMask(bit)) ^ base),
+  );
+  const initialSolver = makeSolver32(columns);
+  const nullity = WIDTH - initialSolver.rank;
+
+  for (const [input, output] of cache) {
+    if (output === normalizedTarget) {
+      return {
+        value: input,
+        queries: cache.size,
+        nullity,
+        rankRepairs: 0,
+        closureExpansions: 0,
+        maxClosureDimension: nullity,
+      };
+    }
+  }
+
+  let rankRepairs = 0;
+  let closureExpansions = 0;
+  let maxClosureDimension = nullity;
+
+  for (;;) {
+    const solver = makeSolver32(columns);
+    if (solver.rank === WIDTH) break;
+    if (solver.kernelBasis.length === 0) {
+      throw new Error('singular surrogate has no kernel basis');
+    }
+
+    let hBasis = solver.kernelBasis.slice();
+    let repaired = false;
+
+    for (;;) {
+      maxClosureDimension = Math.max(maxClosureDimension, hBasis.length);
+      if (hBasis.length > maxSubspaceDimension) {
+        throw new Error(
+          `closure dimension ${hBasis.length} exceeds cap ${maxSubspaceDimension}`,
+        );
+      }
+
+      let expanded = false;
+      let foundTarget = -1;
+
+      visitSpan32(hBasis, (direction) => {
+        if (direction === 0) return false;
+        const output = query(direction);
+        if (output === normalizedTarget) {
+          foundTarget = direction;
+          return true;
+        }
+
+        const difference = u32(output ^ base);
+        const preimage = solver.solve(difference);
+        if (preimage === null) {
+          const kernelDirection = solver.kernelBasis[0];
+          const bit = firstSetBit32(kernelDirection);
+          columns[bit] = u32(columns[bit] ^ difference);
+          rankRepairs += 1;
+          repaired = true;
+          return true;
+        }
+
+        const nextBasis = basis32([...hBasis, preimage]);
+        if (nextBasis.length > hBasis.length) {
+          hBasis = nextBasis;
+          closureExpansions += 1;
+          expanded = true;
+          return true;
+        }
+        return false;
+      });
+
+      if (foundTarget >= 0) {
+        return {
+          value: foundTarget,
+          queries: cache.size,
+          nullity,
+          rankRepairs,
+          closureExpansions,
+          maxClosureDimension,
+        };
+      }
+      if (repaired) break;
+      if (expanded) continue;
+      throw new Error('deterministic residual closure stalled');
+    }
+  }
+
+  const fullRank = makeSolver32(columns);
+  const transformedTarget = fullRank.solve(u32(normalizedTarget ^ base));
+  if (transformedTarget === null) {
+    throw new Error('repaired full-rank surrogate did not solve target');
+  }
+
+  let current = transformedTarget;
+  for (;;) {
+    const transformedOutput = fullRank.solve(u32(query(current) ^ base));
+    if (transformedOutput === null) {
+      throw new Error('repaired full-rank surrogate did not solve oracle output');
+    }
+    if (transformedOutput === transformedTarget) {
+      return {
+        value: current,
+        queries: cache.size,
+        nullity,
+        rankRepairs,
+        closureExpansions,
+        maxClosureDimension,
+      };
+    }
+    current = transformedOutput;
+  }
+}
+
 module.exports = {
   basis32,
   intersectionBasis32,
   invertPublicResidual32,
+  invertPublicResidualDeterministic32,
   makeSolver32,
   rank32,
 };
