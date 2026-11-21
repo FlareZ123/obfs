@@ -61,11 +61,12 @@ async function main(){
   const rpId='localhost';
   /** @type {Set<string>} */
   const activeSessions=new Set();
-  /** @type {Map<string,{challenge:Buffer,value:number|number[],method:'proofSum'|'proofBatch',session:string}>} */
+  /** @type {Map<string,{challenge:Buffer,value:number|number[],method:'proofSum'|'proofBatch'|'proofZero',session:string}>} */
   const operationChallenges=new Map();
   let privateRpcCalls=0;
   let proofRpcCalls=0;
   let proofBatchRpcCalls=0;
+  let proofZeroRpcCalls=0;
   /**
    * @param {http.IncomingMessage} request
    * @returns {string|null}
@@ -94,6 +95,10 @@ async function main(){
         proofRpcCalls++;
         return (Number(value)*17+29)>>>0;
       },
+      proofZero(value){
+        proofZeroRpcCalls++;
+        return Object.is(value,-0)?'negative-zero':'positive-zero';
+      },
       /** @param {number[]} values */
       proofBatch(values){
         proofBatchRpcCalls++;
@@ -102,7 +107,7 @@ async function main(){
     },
     authorizeRpc:authorizedSession,
     authorizeOperation(request,method,args){
-      if(method!=='proofSum'&&method!=='proofBatch')return true;
+      if(method!=='proofSum'&&method!=='proofBatch'&&method!=='proofZero')return true;
       const header=request.headers['x-webauthn-proof'];
       if(typeof header!=='string'||!publicKey)return false;
       try{
@@ -120,7 +125,7 @@ async function main(){
         if(record.session!==sessionToken(request)||record.method!==method||
            args.length!==1)return false;
         const requested=args[0];
-        if(method==='proofSum') {
+        if(method==='proofSum'||method==='proofZero') {
           if(typeof record.value!=='number'||requested!==record.value)return false;
         } else {
           if(!Array.isArray(record.value)||!Array.isArray(requested)||
@@ -188,7 +193,7 @@ async function main(){
         }
         const requested=body.args[0];
         const method=body.method;
-        if(method==='proofSum') {
+        if(method==='proofSum'||method==='proofZero') {
           if(typeof requested!=='number'||!Number.isSafeInteger(requested)){
             response.writeHead(400).end();return;
           }
@@ -438,11 +443,11 @@ async function main(){
      * browser WebAuthn API; optionally submit it through same-origin fetch.
      * @param {number|number[]} value
      * @param {number|number[]|null} submitValue
-     * @param {'proofSum'|'proofBatch'} [method]
+     * @param {'proofSum'|'proofBatch'|'proofZero'} [method]
      * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
      */
     async function browserSignedOperation(value,submitValue,method='proofSum'){
-      return page.evaluate(async({rp,rawId,value,submitValue,method})=>{
+      return page.evaluate(async({rp,rawId,value,submitValue,method,negativeZero})=>{
         const decode=encoded=>{
           const binary=atob(encoded);
           return Uint8Array.from(binary,character=>character.charCodeAt(0));
@@ -454,7 +459,8 @@ async function main(){
         };
         const challengeResponse=await fetch('/proof-challenge',{
           method:'POST',headers:{'content-type':'application/json'},
-          body:JSON.stringify({method,args:[value]})
+          body:'{"method":'+JSON.stringify(method)+',"args":['+
+            (negativeZero?'-0':JSON.stringify(value))+']}'
         });
         if(!challengeResponse.ok)throw Error('Operation challenge denied');
         const issued=await challengeResponse.json();
@@ -484,7 +490,8 @@ async function main(){
           body:JSON.stringify({method,args:[submitValue]})
         });
         return {proof,status:response.status,body:await response.json(),signingWallMs};
-      },{rp:rpId,rawId:registration,value,submitValue,method});
+      },{rp:rpId,rawId:registration,value,submitValue,method,
+        negativeZero:typeof value==='number'&&Object.is(value,-0)});
     }
 
     const authorizedProof=await browserSignedOperation(7,7);
@@ -605,6 +612,26 @@ async function main(){
       exportedCookie.value,'proofSum',8,signedForOtherInput.proof);
     assert.equal(copiedSubstituted.status,403);
     assert.equal(proofRpcCalls,1);
+    // Raw JSON has distinct -0 and 0 numeric values after JSON.parse.
+    // This sign-sensitive private method demonstrates that a credential proof
+    // issued for -0 must not authorize +0 even when JS === says equal.
+    const signedZero=await browserSignedOperation(-0,null,'proofZero');
+    const zeroProof=JSON.parse(Buffer.from(signedZero.proof,'base64').toString('utf8'));
+    const recordedZero=operationChallenges.get(zeroProof.challengeId)?.value;
+    assert.ok(Object.is(recordedZero,-0),'Challenge must preserve raw -0');
+    const substitutedZero=await copiedOriginRpc(
+      exportedCookie.value,'proofZero',0,signedZero.proof);
+    console.log('SCO_WEBAUTHN_SIGNED_ZERO '+JSON.stringify({
+      issued:'-0',submitted:'+0',recordedNegativeZero:true,
+      substitutedStatus:substitutedZero.status,
+      substitutedBody:substitutedZero.body,
+      privateCalls:proofZeroRpcCalls
+    }));
+    assert.equal(substitutedZero.status,403,
+      'A valid WebAuthn proof bound to -0 must not authorize +0');
+    assert.equal(proofZeroRpcCalls,0,
+      'An argument-sign change must not execute the private method');
+
     const signedTampered=await browserSignedOperation(7,null);
     const modifiedProof=JSON.parse(Buffer.from(signedTampered.proof,'base64').toString('utf8'));
     modifiedProof.signature=Buffer.alloc(64).toString('base64');
