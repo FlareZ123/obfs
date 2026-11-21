@@ -75,6 +75,28 @@ One local Node v22.16.0 Linux run produced:
 
 The rank-two sample's maximum observed orbit length was 15, and rank three's was 47. In the exhaustive n=3 identity-affine population the residual span dimension was computed from every table entry before deciding eligibility, so it tests the **entire qualifying population for that fixed affine core**, including cases with singular M. The pseudorandom 32-bit tests exercise both repaired singular and full-rank interpolation under unknown dense affine wrappers. Exhaustive validation at n=3 and finite randomized n=32 checks support the implementation, while the theorem rests on the algebraic proof above.
 
+### Corollary: shallow compositions of low-rank nonlinear layers remain low-rank
+
+Suppose F₁(x)=c₁⊕A₁x⊕η₁(x) and F₂(z)=c₂⊕A₂z⊕η₂(z) are permutations with invertible A₁,A₂ and output residual subspaces W₁,W₂ of ranks ≤r₁,≤r₂. Expand the composition:
+
+```text
+F2(F1(x)) =
+  (c2 XOR A2(c1)) XOR (A2 A1)(x)
+  XOR A2(eta1(x)) XOR eta2(F1(x)).
+```
+
+The new residual lies in A₂(W₁)+W₂, of dimension ≤r₁+r₂; the linear core A₂A₁ remains invertible. By induction, a composition of k such layers has nonlinear output rank ≤sum(r_i), independent of interactions between the layers and independent affine wrappers. The theorem therefore inverts a chosen target with ≤n+1+2^min(n,2 sum(r_i)) oracle queries. For k rank-one layers at n=32, the respective conservative caps are 49 (k=2), 97 (k=3) and 289 (k=4).
+
+**Independent candidate family test:** [sims/low-rank-affine-layer-composition.js](../sims/low-rank-affine-layer-composition.js) generates each 32-bit rank-one shear by modifying the highest bit according to a nonlinear function of the lower 31 bits, then applies independent invertible binary input/output matrices and translations. Its shears are bijective because the control ignores the modified bit. Compositions use different random wrappers and controls. The attacker sees only the composed oracle. Fixed seed `0x7a1a2026`, exact remote blob `b1c4b5d8f66a8f90495e25de46f4cedfd126374b`, commit `498a4656a5a70697580d70a2e2414a9b1e5ba44d`, verified byte-equal to local tested code.
+
+| Composed rank-one layers | Recovered targets | Interpolation nullities | Max distinct queries | Bound |
+|---|---:|---|---:|---:|
+| 2 layers | 1,024 / 1,024 | d=0:390, d=1:564, d=2:70 | **49** | 49 |
+| 3 layers | 1,024 / 1,024 | d=0:335, d=1:583, d=2:103, d=3:3 | 86 | 97 |
+| 4 layers | 256 / 256 | d=0:77, d=1:149, d=2:29, d=3:1, d=4:0 | 97 | 289 |
+
+The two-layer family reached an orbit length of 16 and exactly the conservative upper query bound 49 for this algorithm. This tests a more complex stacked adversarial construction than the single-rank shear from the established result. **It does not establish the bound as information-theoretically optimal**. Complexity still grows exponentially with the sum of output residual ranks and is not a general inversion method for arbitrary high-rank nonlinear permutations.
+
 ### Independent exhaustive check of the matrix-repair lemma
 
 A second small script, [sims/low-rank-matrix-repair-exhaustive.js](../sims/low-rank-matrix-repair-exhaustive.js), separately computes matrix rank by enumerating **all possible images**, rather than reusing the target attack's pivot rank routine. It checks every 2×2, 3×3 and 4×4 binary matrix, verifying actual invertibility of T, exactly d changed columns, rank(T XOR M)≤d, and linear inversion of every possible input vector.
