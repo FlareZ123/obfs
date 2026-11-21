@@ -13,7 +13,8 @@ function example(){
   const node={
     sha256:hashes,protectedFunctions:3,
     minifiedStaticRecovery:{recovered:3},
-    publishedStaticRecovery:{recovered:3},
+    publishedStaticRecovery:{recovered:3,comparisons:12288},
+    matchedStaticDecision:{attackAdvantage:/** @type {const} */('contradicted'),measurementReady:true},
     candidateDecision:{attackAdvantage:/** @type {const} */('contradicted')},
     rows:[1,50,1000,10000].map(events=>({
       events,timingMs:{
@@ -116,6 +117,26 @@ test('absent independent attacker recovery remains inconclusive even with low CP
   assert.equal(verdict.staticAttackerVerdict,'inconclusive');
   assert.equal(verdict.candidateChoice,'inconclusive');
   assert.equal(verdict.releaseVerdict,'RESEARCH-INCONCLUSIVE');
+});
+
+test('a nondecisive zero-query static recovery cannot certify reconstruction',()=>{
+  const [node,browser]=example();
+  node.matchedStaticDecision.attackAdvantage='inconclusive';
+  const report=evaluateFourWayCrossRuntime(node,browser);
+  assert.equal(report.staticAttackerVerdict,'inconclusive');
+  assert.equal(report.candidateChoice,'inconclusive');
+  assert.equal(report.releaseVerdict,'RESEARCH-INCONCLUSIVE');
+});
+
+test('missing or too-small static held-out verification cannot pass the join',()=>{
+  const [node,browser]=example();
+  node.publishedStaticRecovery.comparisons=3;
+  assert.equal(evaluateFourWayCrossRuntime(node,browser).staticAttackerVerdict,
+    'inconclusive');
+  node.publishedStaticRecovery.comparisons=12288;
+  node.matchedStaticDecision.measurementReady=false;
+  assert.equal(evaluateFourWayCrossRuntime(node,browser).staticAttackerVerdict,
+    'inconclusive');
 });
 
 test('strict budget breach in a Node short session remains visible',()=>{
