@@ -85,9 +85,21 @@ function clone(oracle,bits,draw,delta=1e-10){
   }
   const bound=Math.ceil(Math.log(delta)/Math.log(43/64));
   let a=0,b=0,c=0,w=0,trials=0;
+  let quadraticA=0,quadraticB=0,hasQuadraticPair=false;
   for(;trials<bound;trials++){
     const pa=draw()&mask,pb=draw()&mask,pc=draw()&mask;
     const v=T(pa,pb,pc);
+    // The third-derivative cube already contains all three quadratic
+    // pair differences. Observe a polar witness at zero *extra* oracle
+    // cost for the eventual cubic-free fallback.
+    if(!hasQuadraticPair){
+      for(const [x,y] of [[pa,pb],[pa,pc],[pb,pc]]){
+        if(B(x,y)!==0){
+          quadraticA=x;quadraticB=y;hasQuadraticPair=true;
+          break;
+        }
+      }
+    }
     if(v){
       a=pa>>>0;b=pb>>>0;c=pc>>>0;w=v;trials++;break;
     }
@@ -113,13 +125,21 @@ function clone(oracle,bits,draw,delta=1e-10){
     return {bits,base,linear,degree:3,quadratic:[],p,q,r,
       h12,h13,h23,h123,queries:seen.size,trials};
   }
-  // A genuine degree<=2 projected rank-three polar form has an
-  // effective quotient of dimension at most three. The independent
-  // two-anchor peer learner recovers its complete alternating Gram
-  // form using <=2n signature values after a nonzero random pair.
-  // If a true cubic was missed, the entire failure event is already
-  // bounded by the preceding independent-uniform triple search.
-  const quadraticModel=learnQuadratic(ask,bits,draw,delta);
+  // With no cubic, each random triple's three cached polar pairs
+  // are jointly all zero with probability at most 11/32 when the
+  // quadratic part is nonzero. After the same t independent triples,
+  // the missed-quadratic event is <=(11/32)^t; this is strictly below
+  // the already enforced cubic-miss bound (43/64)^t. A witnessed pair
+  // is supplied directly to the independent Gram learner, skipping
+  // its otherwise redundant random-pair search. The witness is known,
+  // so this deterministic handoff does not rely on the peer sampler.
+  let quadraticModel;
+  if(hasQuadraticPair){
+    let draws=0;
+    const knownPair=()=> (draws++&1)?quadraticB:quadraticA;
+    quadraticModel=learnQuadratic(ask,bits,knownPair,delta);
+    assert.ok(quadraticModel.rank>=2);
+  }
   /** @type {number[][]} */
   const quadratic=[];
   for(let i=0;i<bits;i++){
@@ -128,15 +148,15 @@ function clone(oracle,bits,draw,delta=1e-10){
     const a=(1<<i)>>>0;
     for(let j=i+1;j<bits;j++){
       const b=(1<<j)>>>0;
-      row.push((evaluateQuadratic(quadraticModel,0)^
-        evaluateQuadratic(quadraticModel,a)^
-        evaluateQuadratic(quadraticModel,b)^
-        evaluateQuadratic(quadraticModel,(a^b)>>>0))>>>0);
+      row.push(quadraticModel?
+        (evaluateQuadratic(quadraticModel,0)^
+          evaluateQuadratic(quadraticModel,a)^
+          evaluateQuadratic(quadraticModel,b)^
+          evaluateQuadratic(quadraticModel,(a^b)>>>0))>>>0:0);
     }
     quadratic.push(row);
   }
-  const pairBound=Math.ceil(Math.log(delta)/Math.log(5/8));
-  assert.ok(seen.size <= (bits+1)+7*bound+3*pairBound+2*bits);
+  assert.ok(seen.size <= (bits+1)+7*bound+2*bits);
   return {bits,base,linear:basis,degree:2,quadratic,
     p:[],q:[],r:[],h12:0,h13:0,h23:0,h123:0,
     queries:seen.size,trials};
@@ -262,7 +282,7 @@ function main(){
       assert.equal(evaluate(snapshot,x),F(x),'32-bit held-out output mismatch');
       bigHeldouts++;
     }
-    assert.ok(calls<=650);
+    assert.ok(calls<=631);
     if(m.degree===3)bigCubic++;else bigQuadratic++;
     if(isNoninjective)noninjective++;
     maxQueries=Math.max(maxQueries,calls);
@@ -275,8 +295,8 @@ function main(){
       cubic:smallCubic,quadratic:smallQuadratic},
     width32:{cases:bigCases,heldoutOutputs:bigHeldouts,
       cubic:bigCubic,quadratic:bigQuadratic,deliberatelyNoninjective:noninjective,
-      maxQueries,maxTripleTrials:maxTrials,confidenceQueryCap:650},
-    probability:'Conditional exclusive branches: (43/64)^58 or (5/8)^49 < 1e-10',
+      maxQueries,maxTripleTrials:maxTrials,confidenceQueryCap:631},
+    probability:'Conditional cubic miss (43/64)^58, cubic-free quadratic miss (11/32)^58, both below 1e-10',
     note:'Fixed-seed transcripts are reproducibility tests; they are not the probability proof'};
   console.log(JSON.stringify(summary,null,2));
   return summary;
