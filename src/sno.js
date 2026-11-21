@@ -52,13 +52,15 @@ function createSnoLauncher(files,entry) {
     if(seen.has(key))throw new TypeError('Duplicate SNO file: '+name);
     seen.add(key);
     const code=file.code;
-    if(/\.(?:js|mjs|cjs)$/.test(name)) {
-      if(Buffer.isBuffer(code)&&!isUtf8(code)){
-        throw new TypeError('Invalid UTF-8 JavaScript source: '+name);
-      }
-      if(typeof code==='string'&&/[\uD800-\uDFFF]/u.test(code)){
-        throw new TypeError(name+' JavaScript source contains unpaired surrogate');
-      }
+    // The launcher entry is always executable JavaScript. Other .js paths
+    // can be deliberately reviewed opaque Buffers in the direct API, which
+    // has no sourceType metadata; keep those byte-exact assets admissible.
+    if(name===checkedEntry&&Buffer.isBuffer(code)&&!isUtf8(code)){
+      throw new TypeError('Invalid UTF-8 JavaScript source: '+name);
+    }
+    if(/\.(?:js|mjs|cjs)$/.test(name)&&typeof code==='string'&&
+       /[\uD800-\uDFFF]/u.test(code)){
+      throw new TypeError(name+' JavaScript source contains unpaired surrogate');
     }
     manifest.push([name,createHash('sha256').update(code).digest('hex')]);
   }
