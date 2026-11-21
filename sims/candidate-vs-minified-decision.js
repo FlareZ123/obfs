@@ -6,11 +6,14 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * A falsifiable comparison of one candidate and a conventional minifier
  * against the SAME frozen protected application. This is an experiment
  * classifier, never a general obfuscation release or security guarantee.
+ * Zero oracle calls is valid for a source-only attack. Positive support
+ * requires a predeclared held-out verification count; a short or missing
+ * commitment remains inconclusive.
  *
  * @typedef {'supported'|'contradicted'|'inconclusive'} Decision
  * @typedef {{
  *   protocol:string,
- *   oracleCalls:number, // zero is valid for source-only reconstruction
+ *   oracleCalls:number,
  *   attempted:boolean,
  *   cloneSucceeded:boolean,
  *   verifiedHeldoutComparisons:number,
@@ -27,7 +30,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   frozenSameApplication:boolean,
  *   nativeOutputAndHostTraceParity:boolean,
  *   protectedFunctions:number,
- *   requiredHeldoutComparisons?:number, // preregistered threshold for positive claims
+ *   requiredHeldoutComparisons?:number,
  *   conventionalControl:MatchedAttack,
  *   protectedCandidate:MatchedAttack,
  *   sessionPairs:Array<{native:number[],candidate:number[]}>
