@@ -643,17 +643,25 @@ function createScoHandler(sourceFiles,options={}) {
       }
       try {
         const nonce=randomBytes(24).toString('hex');
-        const result=obfuscateFiles([confirmedFile],{
+        // The compiler injects an executable host guard whose potential
+        // uncaught Error is source-visible. Run the source-only spelling
+        // variation on the original file before guard generation, so the
+        // generated guard cannot accidentally disable all safe variants.
+        // Existing source-observation checks still refuse the original file.
+        const input=interfileSourceObserver ? confirmedFile : {
+          ...confirmedFile,
+          code:varyLiteralSpellings(/** @type {string} */ (confirmedFile.code),
+            confirmedFile.sourceType,nonce)
+        };
+        const result=obfuscateFiles([input],{
           mode:'sco',seed:nonce,allowedHosts:policy.allowedHosts,
           properties:!interfileSourceObserver,identifiers:!interfileSourceObserver
         });
         const output=/** @type {string} */ (result.files[0].code);
-        const varied=interfileSourceObserver ? output :
-          varyLiteralSpellings(output,confirmedFile.sourceType,nonce);
         response.writeHead(200,{'content-type':'text/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'});
         // The per-request seed is private server state. Publishing it would
         // let source-only adversaries verify candidate hashed names offline.
-        response.end(varied);
+        response.end(output);
       } catch (error) {
         response.writeHead(500,{'content-type':'text/plain; charset=utf-8'});
         response.end('Obfuscation failed');

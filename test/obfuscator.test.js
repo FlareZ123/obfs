@@ -162,13 +162,14 @@ test('SCO returns distinct obfuscation on repeated legitimate requests',async()=
         }).on('error',reject);
       });
     }
-    const first=await get('www.example.org');
-    const second=await get('www.example.org');
-    assert.equal(first.status,200);
-    assert.equal(second.status,200);
-    assert.notEqual(first.body,second.body);
+    const responses=await Promise.all(
+      Array.from({length:4},()=>get('www.example.org')));
+    for(const response of responses)assert.equal(response.status,200);
+    // The spelling mask is random: two requests have a finite chance of
+    // matching even when the per-request variant mechanism is healthy.
+    assert.ok(new Set(responses.map(response=>response.body)).size>1);
     const context={location:{hostname:'www.example.org'}};
-    vm.runInNewContext(first.body,context);
+    vm.runInNewContext(responses[0].body,context);
     assert.equal(context.value,'long-long-value');
     assert.equal((await get('other.example.org')).status,403);
   } finally {await new Promise(resolve=>server.close(resolve));}
