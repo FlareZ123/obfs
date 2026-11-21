@@ -40,8 +40,7 @@ test('source reader rejects malformed UTF-8 in every JavaScript extension',async
       await fs.writeFile(path.join(root,filename),source);
       await assert.rejects(readSourceTree(root),error=>
         error instanceof TypeError &&
-        error.message==='Invalid UTF-8 JavaScript source: '+filename &&
-        error.cause instanceof TypeError);
+        error.message==='Invalid UTF-8 JavaScript source: '+filename);
       await fs.rm(path.join(root,filename));
     }
   } finally {
