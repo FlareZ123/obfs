@@ -391,6 +391,41 @@ async function main(){
           throw Error('Mixed held-out selective property proof mismatch '+i);
         exactHeldoutInputs++;
       }
+      /** @type {{native:number[],compiled:number[],reserved:number[]}} */
+      const mixedTiming={native:[],compiled:[],reserved:[]};
+      /** @param {(a:number)=>[number,string[],number]} fn */
+      function timedMixed(fn){
+        let checksum=0;
+        const start=performance.now();
+        for(let i=0;i<100000;i++){
+          const result=fn(i);
+          checksum^=result[0]^result[2]^result[1].length;
+        }
+        const ms=performance.now()-start;
+        if(!Number.isFinite(ms)||ms<=0)throw Error('Invalid mixed work time');
+        return {ms,checksum};
+      }
+      const mixedOrders=[
+        ['native','compiled','reserved'],
+        ['reserved','compiled','native'],
+        ['compiled','native','reserved'],
+        ['native','reserved','compiled'],
+        ['compiled','reserved','native'],
+        ['reserved','native','compiled']
+      ];
+      for(let trial=0;trial<12;trial++){
+        /** @type {number|undefined} */
+        let sum;
+        for(const variant of mixedOrders[trial%mixedOrders.length]){
+          const fn=variant==='native'?mixedNative.run:
+            variant==='compiled'?mixedCandidate.run:mixedReserve.run;
+          const result=timedMixed(fn);
+          if(sum!==undefined&&sum!==result.checksum)
+            throw Error('Mixed native/proof/reserved checksum divergence');
+          sum=result.checksum;
+          mixedTiming[/** @type {'native'|'compiled'|'reserved'} */ (variant)].push(result.ms);
+        }
+      }
       return {trace:{
         typedInputs:parity,exactHeldoutInputs,
         exactHeldoutParity:true,hostCallbacks:collected.length,
@@ -400,7 +435,7 @@ async function main(){
         sameGraphPrivateOwnersRewritten:1,
         sameGraphReflectedOwnersPreserved:1,
         sameGraphMangleKeyMismatches:mixedUnsafeKeyMismatches
-      },time};
+      },time,mixedTiming};
     });
     assert.equal(data.trace.typedInputs,4096);
     assert.equal(data.trace.sameGraphMangleKeyMismatches,4096);
@@ -414,6 +449,8 @@ async function main(){
     assert.equal(data.trace.transitiveParity,true);
     assert.equal(data.trace.benchmarkChecksumsMatched,true);
     const bound=pairedBudgetBound(data.time.native,data.time.compiled);
+    const mixedBound=pairedBudgetBound(data.mixedTiming.native,data.mixedTiming.compiled);
+    const mixedReservedBound=pairedBudgetBound(data.mixedTiming.reserved,data.mixedTiming.compiled);
     const minifiedBound=pairedBudgetBound(data.time.minified,data.time.compiled);
     const mangledBound=pairedBudgetBound(data.time.mangled,data.time.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
@@ -427,6 +464,9 @@ async function main(){
       reflectiveKeyParity:true,
       staticLabelEvidence,
       sameGraphMixedOwnerResults:{
+        protectedVsNative:mixedBound,
+        protectedVsSafeReservedEsbuild:mixedReservedBound,
+        mixedTimingMs:data.mixedTiming,
         privateRenamed:2,reflectedRenamed:0,
         esbuildPrivateRenamed:2,esbuildReflectedRenamed:2,
         reservedEsbuildPrivateRenamed:0,reservedEsbuildReflectedRenamed:0,
