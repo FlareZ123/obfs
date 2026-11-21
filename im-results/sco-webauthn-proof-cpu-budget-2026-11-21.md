@@ -23,7 +23,7 @@ The second [source-pinned CI 44877508685](https://github.com/FlareZ123/obfs/acti
 
 ## Final server-only CPU medians
 
-<escape>|</escape> Platform | Small original µs/call | Small with proof µs/call | Small ratio | Coarse original µs/call | Coarse with proof µs/call | Coarse ratio |
+| Platform | Small original µs/call | Small with proof µs/call | Small ratio | Coarse original µs/call | Coarse with proof µs/call | Coarse ratio |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | Ubuntu, Intel Xeon Platinum 8573C | 0.6770 | 75.4617 | **111.46x** | 350.2479 | 422.5750 | **1.2065x** |
 | Windows, AMD EPYC 7763 | 0.9688 | 92.2813 | **95.26x** | 389.5833 | 487.5000 | **1.2513x** |
