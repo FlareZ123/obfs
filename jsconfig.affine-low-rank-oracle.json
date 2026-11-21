@@ -1,0 +1,7 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/affine-low-rank-oracle.js",
+    "test/affine-low-rank-oracle.test.js"
+  ]
+}
