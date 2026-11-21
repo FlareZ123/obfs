@@ -55,6 +55,36 @@ The self-contained Node 22.16.0 CommonJS witness `sims/low-rank-affine-nonpermut
 
 These finite observations validate the witness algebra on the sampled cases, not the theoretical probability claim. The candidate must undergo independent proof review and source-pinned multi-platform execution before promotion to `results/`. No source-code secrecy, 2.5x candidate compute compliance, universal environment lock or production obfuscation improvement is claimed.
 
+## 32-bit randomized source-path check and bit-width correctness
+
+The original `learn` implementation was written for the initial
+width-12 exhaustible domain. A subsequent full-width audit revealed
+two **real 32-bit JavaScript bitwise traps**: `1 << 32` wraps
+its shift count to zero, and `1 << 31` produces a signed input
+address. The executable witness now draws from
+`crypto.randomInt(0,2**n)` and canonicalizes all input addresses
+and oracle outputs as unsigned 32-bit values, with an explicit
+`1 <= n <= 32` range check. Deterministic `learnLowDegree`
+already normalized its addresses in the earlier 32-bit version.
+
+A fixed-seed input/output rank-two projected 32-bit fixture uses
+two independent dense nonlinear output masks, with their projections
+chosen to make the map **genuinely non-bijective**. The corrected
+`learn` observed **130** distinct training addresses (33 affine
+basis plus 97 uniform-seeded residual training samples), including
+**49** addresses with the high input bit set. Across **1,024**
+held-out target checks an independent reference enumerated the
+four known output-displacement coset points and classified
+**771 reachable and 253 unreachable** correctly, with at most
+four affine-envelope candidates checked per target. The PRNG used
+for the reproducible fixture is deterministic; these observations
+do **not** prove the theorem's independent-uniform failure tail.
+A separate default `node:crypto.randomInt` identity-oracle smoke
+test confirms the actual 32-bit cryptographic sampler path executes
+and computes zero residual, without asserting any random output
+sequence. This expanded source has local Node 22.16.0 verification
+and awaits source-pinned Windows/Ubuntu strict-JSDoc CI.
+
 ## Generalization: singular affine core and observable envelope nullity
 
 The previous representation need not have invertible `A` for
