@@ -1652,6 +1652,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   /** @type {Map<string,import('./ast').AstNode[]>} */
   const descriptorBindings=new Map();
   walk(ast,node=>{
+    if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+       node.init&&isObjectIntrinsic(node.init)){
+      for(const property of node.id.properties){
+        if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(key==='create')objectCreateAliases.add(property.value.name);
+      }
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
@@ -1736,7 +1745,30 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           descriptorHasSensitiveGetter(property.value);
       });
   }
-  let mutated=opaqueReflectiveSensitiveWrite;
+  // A descriptor map can also be assembled by property assignments, spread,
+  // Object.assign or a later reflection call. When source-visible Object.create
+  // is present alongside a sensitive accessor, the finite inline-map proof
+  // cannot establish an innocuous destination. Decline eager decoding.
+  let sensitiveCreateContext=objectCreateAliases.size>0;
+  let sensitiveAccessorWrite=false;
+  walk(ast,node=>{
+    if(node.type==='MemberExpression'&&directObjectCreate(node)){
+      sensitiveCreateContext=true;
+    }
+    if(node.type==='Property'){
+      const key=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.value))sensitiveAccessorWrite=true;
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'){
+      const key=memberName(node.left);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.right))sensitiveAccessorWrite=true;
+    }
+  });
+  let mutated=opaqueReflectiveSensitiveWrite||
+    sensitiveCreateContext&&sensitiveAccessorWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
