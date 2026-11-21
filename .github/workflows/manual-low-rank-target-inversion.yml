@@ -27,5 +27,7 @@ jobs:
         run: node --test test/public-residual-independent-review.test.js
       - name: Independent seeded 5/6-bit multi-repair and inverse-space verification
         run: node --test test/public-residual-width5-6-independent.test.js
+      - name: Independent full-target r-equals-nullity width-8/10 regression
+        run: node --test test/public-residual-maximal-nullity8-10.test.js
       - name: Project JSDoc type safety
         run: npm run typecheck
