@@ -95,3 +95,32 @@ test('Legacy manifest-only SCO path has no source evidence for host effects',()=
   assert.deepEqual(emitted.clientFile.privateModulePaths,['private/engine.mjs']);
   assert.equal(emitted.privateSourceDigests,undefined);
 });
+
+test('Private static dependencies refuse unproved cross-realm browser host APIs',()=>{
+  const sensitive=[
+    'return fetch("./client-resource.json").then(response=>response.status);',
+    'const load=fetch;return load("./client-resource.json");',
+    'return new Worker("./private/worker.mjs",{type:"module"});',
+    'return new WebSocket("wss://example.invalid/feed");',
+    'return new XMLHttpRequest();',
+    'return new EventSource("/events");',
+    'return new BroadcastChannel("shared-state");',
+    'return new MessageChannel();'
+  ];
+  for(const body of sensitive){
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency contains unproved cross-realm host API/u,
+        body+' / transitive='+transitive);
+    }
+  }
+});
+
+test('Host API spellings remain permitted as inert private-record property labels',()=>{
+  const body='const record={fetch:41,Worker:1,WebSocket:0};'+
+    'return record.fetch+record.Worker+record.WebSocket;';
+  for(const transitive of [false,true]){
+    const emitted=partitionGraph(body,transitive);
+    assert.deepEqual(emitted.privateNames,['protectedOp']);
+  }
+});
