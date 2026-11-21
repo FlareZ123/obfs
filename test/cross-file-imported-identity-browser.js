@@ -88,9 +88,10 @@ function compile(input){
  * all ESM source files so property renamings remain consistent between them.
  * The explicit regex is a manual whole-graph policy, not a reflection proof.
  * @param {Input[]} input
+ * @param {boolean} [reserveSharedKeys] Keep both shared fields for a reflective owner.
  * @returns {Promise<Output[]>}
  */
-async function mangleGraph(input){
+async function mangleGraph(input,reserveSharedKeys=false){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esbuild-mangle-'));
   try{
     for(const file of input)
@@ -105,7 +106,9 @@ async function mangleGraph(input){
       platform:'browser',format:'esm',target:'es2022',
       minify:true,legalComments:'none',
       mangleProps:/^(secretField|otherField)$/,
-      mangleCache:{secretField:'a',otherField:'b'}
+      mangleCache:reserveSharedKeys ?
+        {secretField:false,otherField:false} :
+        {secretField:'a',otherField:'b'}
     });
     const files=result.outputFiles??[];
     assert.equal(files.length,input.length);
@@ -182,17 +185,24 @@ async function main(){
     path:file.path,code:String(file.code)
   }));
   const mixedMangled=await mangleGraph(mixed);
+  const mixedReserved=await mangleGraph(mixed,true);
   const privateNative=mixed.find(file=>file.path==='private-state.mjs');
   const privateCompiled=mixedCompiled.find(file=>file.path==='private-state.mjs');
   const publicCompiled=mixedCompiled.find(file=>file.path==='public-state.mjs');
   const publicMangled=mixedMangled.find(file=>file.path==='public-state.mjs');
-  assert.ok(privateNative&&privateCompiled&&publicCompiled&&publicMangled);
+  const privateReserved=mixedReserved.find(file=>file.path==='private-state.mjs');
+  const publicReserved=mixedReserved.find(file=>file.path==='public-state.mjs');
+  assert.ok(privateNative&&privateCompiled&&publicCompiled&&publicMangled&&
+    privateReserved&&publicReserved);
   assert.match(privateNative.code,/secretField|otherField/u);
   assert.doesNotMatch(privateCompiled.code,/secretField|otherField/u);
   assert.match(publicCompiled.code,/secretField|otherField/u);
   assert.doesNotMatch(publicMangled.code,/secretField|otherField/u);
+  assert.match(privateReserved.code,/secretField|otherField/u);
+  assert.match(publicReserved.code,/secretField|otherField/u);
   for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
-    [['native',mixed],['compiled',mixedCompiled],['mangled',mixedMangled]])){
+    [['native',mixed],['compiled',mixedCompiled],['mangled',mixedMangled],
+      ['reserved',mixedReserved]])){
     for(const file of files){
       assets.set('/mixed/'+variant+'/'+file.path,{
         body:file.code,type:'text/javascript; charset=utf-8'
@@ -266,12 +276,15 @@ async function main(){
       const mixedNativePath='/mixed/native/entry.mjs';
       const mixedCompiledPath='/mixed/compiled/entry.mjs';
       const mixedMangledPath='/mixed/mangled/entry.mjs';
+      const mixedReservedPath='/mixed/reserved/entry.mjs';
       const mixedNative=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
         await import(mixedNativePath));
       const mixedCandidate=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
         await import(mixedCompiledPath));
       const mixedMangle=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
         await import(mixedMangledPath));
+      const mixedReserve=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import(mixedReservedPath));
       let mixedUnsafeKeyMismatches=0;
       let parity=0;
       for(let i=0;i<4096;i++){
@@ -294,8 +307,10 @@ async function main(){
           throw Error('Configured esbuild reflective negative mismatch at '+i);
         const mixedBefore=mixedNative.run(i);
         const mixedAfter=mixedCandidate.run(i);
+        const mixedSafelyReserved=mixedReserve.run(i);
         const mixedUnsafe=mixedMangle.run(i);
-        if(JSON.stringify(mixedBefore)!==JSON.stringify(mixedAfter))
+        if(JSON.stringify(mixedBefore)!==JSON.stringify(mixedAfter)||
+           JSON.stringify(mixedBefore)!==JSON.stringify(mixedSafelyReserved))
           throw Error('Mixed real-app graph native/compiler mismatch at '+i);
         if(!Object.is(mixedBefore[0],mixedUnsafe[0])||
            !Object.is(mixedBefore[2],mixedUnsafe[2])||
@@ -366,8 +381,10 @@ async function main(){
           throw Error('Exact browser held-out output mismatch '+i);
         const expectedMixed=mixedNative.run(i);
         const compiledMixed=mixedCandidate.run(i);
+        const reservedMixed=mixedReserve.run(i);
         const unsafeMixed=mixedMangle.run(i);
         if(JSON.stringify(expectedMixed)!==JSON.stringify(compiledMixed)||
+           JSON.stringify(expectedMixed)!==JSON.stringify(reservedMixed)||
            !Object.is(expectedMixed[0],unsafeMixed[0])||
            !Object.is(expectedMixed[2],unsafeMixed[2])||
            JSON.stringify(expectedMixed[1])===JSON.stringify(unsafeMixed[1]))
@@ -412,6 +429,7 @@ async function main(){
       sameGraphMixedOwnerResults:{
         privateRenamed:2,reflectedRenamed:0,
         esbuildPrivateRenamed:2,esbuildReflectedRenamed:2,
+        reservedEsbuildPrivateRenamed:0,reservedEsbuildReflectedRenamed:0,
         observedMangledKeyMismatches:data.trace.sameGraphMangleKeyMismatches,
         heldoutParityInputs:data.trace.exactHeldoutInputs
       },
