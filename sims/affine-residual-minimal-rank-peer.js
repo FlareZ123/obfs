@@ -117,6 +117,34 @@ function affineConjugate(outputs) {
     linear(outgoing, outputs[linear(incoming, x) ^ 5]) ^ 6);
 }
 
+/**
+ * For every q from the 9 affine-basis inputs through 254 of 256 points,
+ * construct a pair of different permutations giving exactly the same
+ * q-query transcript. One is affine identity (residual rank zero), while
+ * the other swaps two remaining inputs (residual rank one).
+ * @returns {number}
+ */
+function noncertifyingTranscripts() {
+  const n = 8;
+  const domain = 2 ** n;
+  const basisInputs = [0, ...Array.from({length: n}, (_, i) => 2 ** i)];
+  const queriedOrder = [...basisInputs, ...Array.from({length: domain}, (_, x) => x)
+    .filter(x => !basisInputs.includes(x))];
+  let checked = 0;
+  for (let q = n + 1; q <= domain - 2; q++) {
+    const a = queriedOrder[q];
+    const b = queriedOrder[q + 1];
+    const alternative = Array.from({length: domain}, (_, x) => x);
+    [alternative[a], alternative[b]] = [alternative[b], alternative[a]];
+    for (const input of queriedOrder.slice(0, q)) assert.equal(alternative[input], input);
+    assert.equal(new Set(alternative).size, domain);
+    assert.equal(interpolationRank(alternative, n), 1);
+    checked++;
+  }
+  assert.equal(checked, 246);
+  return checked;
+}
+
 function main() {
   const matrices = allInvertibleMatrices3();
   const classes = Array(4).fill(0);
@@ -136,11 +164,12 @@ function main() {
   assert.equal(permutationsChecked, 40320);
   assert.deepEqual(classes, [1344, 9408, 18816, 10752]);
   assert.equal(minimalRankChecks, 128);
+  const spoofedTranscriptLengths = noncertifyingTranscripts();
   process.stdout.write(JSON.stringify({
     width: 3, permutationsChecked, minimalRankChecks,
     parallelogramIdentityChecks: permutationsChecked,
     affineCoordinateInvarianceChecks: permutationsChecked,
-    rankDistribution: classes
+    rankDistribution: classes, spoofedTranscriptLengths
   }) + '\n');
 }
 
