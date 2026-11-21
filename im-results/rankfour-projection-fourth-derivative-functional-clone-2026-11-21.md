@@ -240,3 +240,54 @@ performance or deployed defense promises. Academic
 novelty remains unverified, so this material belongs
 in intermediate results; the overall three-mode
 strong-obfuscation release remains **RELEASE-BLOCKED**.
+
+
+## Same-source unrestricted quartic baseline
+
+To test an **identical source function** rather than comparing only
+two theoretical learning-class formulas, the independently authored
+[matched 32-bit executable](../sims/rankfour-projected-vs-generic-quartic-matched.js)
+trains the specialized rank-four projected learner and the existing
+unrestricted degree-four ANF full-functional learner on each
+of the same **eight** fixed functions. The source set contains
+two genuine quartic, two cubic-or-lower, two deliberately
+singular and noninjective quartic, and two affine controls.
+All use hidden rank-four projected input forms and vector-valued
+four-bit lookup tables. Each learner has its own live callback
+during training, and the callback is disabled before an
+identical set of 128 previously unseen inputs per function
+is evaluated offline.
+
+| Metric | Rank-four projected learner | Generic unrestricted quartic |
+| --- | ---: | ---: |
+| Source functions | 8 | 8 |
+| Verified identical held-out outputs per method | 1,024 | 1,024 |
+| Minimum chosen evaluations in one source | 496 | 41,449 |
+| Maximum chosen evaluations in one source | 6,434 | 41,449 |
+| **Total** chosen evaluations | **27,750** | **331,592** |
+| Wrong held-out outputs | 0 | 0 |
+
+The specialized learner saves **303,842** chosen oracle
+evaluations, or **91.63%** across this particular matched
+source set. The generic learner used **11.95 times** as
+many chosen evaluations in aggregate. The fallback quartic-zero
+cases exhausted the conservative 6,434 cap, whereas
+observed quartic cases needed 496-511 calls. For this
+source-aware attacker comparison, the price of the broader
+unrestricted polynomial source class is directly visible.
+
+The [source-pinned Ubuntu and Windows CI run
+44960530618](https://github.com/FlareZ123/obfs/actions/runs/44960530618),
+at immutable head
+22a936fccca27146d188dc7225222ac2cdd8be90,
+passed the matched benchmark, rank-four full-domain verifier,
+all earlier research steps, and strict JSDoc type checking on
+both platforms. This is matched **chosen-query cost**, and
+does not evaluate obfuscator-vs-minifier protection, source
+reconstruction, runtime slowdowns, network cost or the
+required 2.5x compute ceiling.
+
+The tested result is a negative candidate-selection
+criterion. It does not establish academic originality
+or a production obfuscation scheme, and remains in
+intermediate results.
