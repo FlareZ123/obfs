@@ -85,4 +85,4 @@ All **1,386 chosen-target inversions** recovered their exact preimages. The scri
 
 The actual linear algebra and combinatorial construction support the general proposition for all r≥3; the code provides finite regression evidence only. No claim follows about a general 2.5x JS runtime guarantee, resistance to source recovery, server authorization, or commercial release. This result is useful for **rejecting** public low-residual-rank protection ideas, since a singular interpolant cannot by itself rescue them.
 
-Cross-platform execution: to be linked after a source-pinned CI run completes.
+Cross-platform execution: [manual low-rank inversion run 44930392228](https://github.com/FlareZ123/obfs/actions/runs/44930392228) completed successfully on both Ubuntu and Windows at exact executable SHA `65429fc36e37dcfc2a6a37b10d753c8873d58bc6`, including the new explicit-construction test, existing inversion regressions, and strict JSDoc checking.
