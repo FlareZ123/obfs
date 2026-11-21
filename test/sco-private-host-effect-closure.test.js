@@ -124,3 +124,29 @@ test('Host API spellings remain permitted as inert private-record property label
     assert.deepEqual(emitted.privateNames,['protectedOp']);
   }
 });
+
+test('Selected SCO refuses direct private exports and helpers with migrated host APIs',()=>{
+  const cases=[
+    'export async function protectedOp(){return fetch("./client-data.json");}',
+    'function helper(){return fetch("./client-data.json");}'+
+      'export async function protectedOp(){return helper();}',
+    'export async function protectedOp(){return new Worker("./worker.mjs");}',
+    'function helper(){return new WebSocket("wss://example.invalid/stream");}'+
+      'export async function protectedOp(){return helper();}'
+  ];
+  for(const source of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:source+'export function visible(){return 7;}'},
+      {seed:'sco-direct-cross-realm-host-api-20261121',privateNames:['protectedOp']}
+    ),/Private SCO (?:export|helper) contains unproved cross-realm host API/u,source);
+  }
+  const inert='export async function protectedOp(){'+
+    'const record={fetch:41,Worker:1};return record.fetch+record.Worker;}'+
+    'export function visible(){return 7;}';
+  const partition=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',code:inert},
+    {seed:'sco-direct-inert-host-api-label-20261121',privateNames:['protectedOp']}
+  );
+  assert.deepEqual(partition.privateNames,['protectedOp']);
+});
