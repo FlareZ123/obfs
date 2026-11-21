@@ -69,6 +69,8 @@ jobs:
         run: node sims/rankthree-quadratic-polarization-peer.js
       - name: Independent exact-rank-four quadratic 503-query full clone
         run: node sims/rankfour-quadratic-polarization-peer.js
+      - name: Adaptive exact-rank four five six quadratic offline oracle cloning
+        run: node sims/rank4-6-quadratic-adaptive-polar-clone.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
