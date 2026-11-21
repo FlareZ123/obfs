@@ -15,12 +15,16 @@ passed its evidence harness on Ubuntu and Windows at
 reconstructing a selected COO math module, bypassing scoped SNO integrity,
 relaying same-account SCO outputs, and observing strict >2.5× compute pairs.
 These are bounded negative findings, not a full correctness integration.
-The most recently cited **full correctness** integration remains
+A source-pinned **full correctness** integration,
+[21 November run 44937061584](https://github.com/FlareZ123/obfs/actions/runs/44937061584)
+at `77f9e0e4b6c84e5b42ec8a2ac39396a401159c7d`, passed its documented
+Node 22 Linux/Windows and Ubuntu Chromium checks. It verifies that exact
+earlier native UTF-8 input candidate and does not cover subsequent commits
+or arbitrary workloads. The historical
 [18 November run 44278347784](https://github.com/FlareZ123/obfs/actions/runs/44278347784)
-at `03e155c0a5e01878acc3a98ff8faa1d44f337d5a`, which passed its
-documented Node 22 Linux/Windows and Ubuntu Chromium checks. Neither run
-certifies later executable commits or arbitrary workloads. Dependencies and
-runner environments are not yet a frozen byte-reproducible security receipt.
+at `03e155c0a5e01878acc3a98ff8faa1d44f337d5a` is another validated
+baseline. No test pin is a frozen byte-reproducible security receipt;
+dependencies and runner environments require independent freezing.
 
 ## Install and verify
 
