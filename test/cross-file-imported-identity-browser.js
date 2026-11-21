@@ -16,9 +16,13 @@ const {pairedBudgetBound}=require('../sims/paired-budget-bound');
  * caller-owned JavaScript. The unsafe ownKeys variant is a negative control.
  *
  * @param {boolean} reflective
+ * @param {number} [depth]
  * @returns {Input[]}
  */
-function graph(reflective){
+function graph(reflective,depth=1){
+  const additional=Array.from({length:depth-1},(_,i)=>
+    'const relay'+i+'='+(i===0?'forward':'relay'+(i-1))+';').join('');
+  const target=depth===1?'forward':'relay'+(depth-2);
   return [
     {path:'state.mjs',sourceType:'module',
       code:'export const state={secretField:17,otherField:5};'},
@@ -27,8 +31,8 @@ function graph(reflective){
     {path:'entry.mjs',sourceType:'module',
       code:'import {state} from "./state.mjs";'+
         'import {identity} from "./identity.mjs";'+
-        'const forward=identity;'+
-        'export function run(a){const result=forward(state);'+
+        'const forward=identity;'+additional+
+        'export function run(a){const result='+target+'(state);'+
         (reflective?'return [Object.keys(result),result.secretField+a];':
           'return (result.secretField+a)^result.otherField;')+'}'}
   ];
@@ -60,9 +64,9 @@ async function main(){
     ['/index.html',{body:'<!doctype html><html><head><meta charset="utf-8"></head><body>Cross-file identity proof</body></html>',
       type:'text/html; charset=utf-8'}]
   ]);
-  for(const reflective of [false,true]){
-    const name=reflective?'reflective':'positive';
-    const original=graph(reflective),compiled=compile(original);
+  for(const [name,reflective,depth] of /** @type {[string,boolean,number][]} */ (
+    [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
+    const original=graph(reflective,depth),compiled=compile(original);
     for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
       [['native',original],['compiled',compiled]])){
       for(const file of files)
@@ -106,12 +110,18 @@ async function main(){
       const expected=(/** @type {string} */ (JSON.stringify(['secretField','otherField'])));
       const positiveNative='/positive/native/entry.mjs';
       const positiveCompiled='/positive/compiled/entry.mjs';
+      const transitiveNative='/transitive/native/entry.mjs';
+      const transitiveCompiled='/transitive/compiled/entry.mjs';
       const negativeNative='/reflective/native/entry.mjs';
       const negativeCompiled='/reflective/compiled/entry.mjs';
       const baseline=/** @type {{run:(a:number)=>number}} */(
         await import(positiveNative));
       const protectedGraph=/** @type {{run:(a:number)=>number}} */ (
         await import(positiveCompiled));
+      const transitiveBaseline=/** @type {{run:(a:number)=>number}} */ (
+        await import(transitiveNative));
+      const transitiveCandidate=/** @type {{run:(a:number)=>number}} */ (
+        await import(transitiveCompiled));
       const reflectiveBaseline=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeNative));
       const reflectiveCandidate=/** @type {{run:(a:number)=>[string[],number]}} */ (
@@ -121,6 +131,8 @@ async function main(){
         const native=baseline.run(i);
         if(!Object.is(native,protectedGraph.run(i)))
           throw Error('Browser cross-file positive mismatch at '+i);
+        if(!Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
+          throw Error('Browser transitive alias differential mismatch at '+i);
         const reflected=reflectiveBaseline.run(i);
         const transformed=reflectiveCandidate.run(i);
         if(JSON.stringify(reflected)!==JSON.stringify(transformed)||
@@ -169,7 +181,7 @@ async function main(){
       }
       return {trace:{
         typedInputs:parity,hostCallbacks:collected.length,
-        outputParity:true,reflectiveRefusalParity:true,
+        outputParity:true,transitiveParity:true,reflectiveRefusalParity:true,
         benchmarkChecksumsMatched:true
       },time};
     });
@@ -177,14 +189,17 @@ async function main(){
     assert.ok(data.trace.hostCallbacks>0);
     assert.equal(data.trace.outputParity,true);
     assert.equal(data.trace.reflectiveRefusalParity,true);
+    assert.equal(data.trace.transitiveParity,true);
     assert.equal(data.trace.benchmarkChecksumsMatched,true);
     const bound=pairedBudgetBound(data.time.native,data.time.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
       version:await browser.version(),
       positiveFieldsRenamed:2,
+      transitiveFieldsRenamed:2,
       reflectiveFieldsRenamed:0,
       cases:4096,callbackCount:data.trace.hostCallbacks,
-      fullOutputParity:true,reflexiveKeyParity:true,
+      fullOutputParity:true,transitiveOutputParity:true,
+      reflectiveKeyParity:true,
       nativeVsCompiled:bound,
       strictObservedBreaches:bound.samplePairs-bound.observedPairsWithinBudget,
       timingMs:data.time,
