@@ -123,6 +123,48 @@ any arbitrary browser, cold session, hot kernel, or user input. Keep
 Node selected-work and Chromium whole-application boundaries distinct;
 one cannot replace the other or justify strong protection release.
 
+## Additional equal-trust Chromium selected-kernel control
+
+**Pinned extension:** [workflow 44943009179](https://github.com/FlareZ123/obfs/actions/runs/44943009179),
+source commit `3c66e2eaccf5a3a849c2e98312eba62ee3900691`,
+both Ubuntu/Windows jobs green, including Ubuntu Chrome 157.0.8103.78,
+strict JSDoc and the same four source hashes cited above.
+
+The second browser evaluation extends rather than replaces the full
+application work measurement. It resolves the public `kernel.mjs`
+module by its served ESM URL and invokes both selected functions in
+a 200,000-iteration typed-Int32 loop **per variant and per trial**,
+after 16,384 untimed selected-kernel warmup iterations and the
+original 10,000-event callback workload. Checksums of the selected
+kernel work are compared across all four independent variants.
+There were **9,600,000 checked selected-kernel iterations** in total
+(four variants × 12 trial groups × 200,000 iterations), plus the
+original 480,000 exact application/callback-trace checks.
+
+| Real Chromium sample (12 paired trials) | Wasm/native ratio of medians | Wasm/minified ratio of medians | Native strict breaches |
+| --- | ---: | ---: | ---: |
+| Full callback-heavy application, 10,000 events | 0.9796× | 1.0667× | 0/12 |
+| Direct selected-kernel loop, 200,000 iterations | 1.3056× | 1.0682× | **1/12** |
+
+The selected-kernel measured medians were 5.40 ms native, 6.60 ms
+minified and 7.05 ms Wasm, with a two-sided variation across trials.
+The reported one-sided upper sample median-ratio bounds were 1.6418×
+relative to native and 1.2941× relative to minified. One observed
+selected-kernel pair exceeded the strict 2.5× native ceiling:
+the first native trial measured 1.1 ms against 11.5 ms Wasm. That
+trial is likely sensitive to warmup/JIT order and should not be
+interpreted as typical steady-state runtime; equally, a strict
+all-execution budget cannot discard unfavorable observed pairs
+without a prespecified exclusion rule.
+
+The earlier immutable browser run 44942599211 measured 1.0227×
+for full application work and 0/12 strict breaches. The new pinned
+run's approximately 0.98× whole-application median is another
+bounded sample, not evidence of a universal speedup. Results on
+both browser runs agree on executable source-only reconstruction.
+No generic anti-analysis, anti-tamper, or strict all-workload runtime
+advantage is demonstrated.
+
 ## Threat-model interpretation
 
 A COO attacker can download the entire public artifact and instrument the
