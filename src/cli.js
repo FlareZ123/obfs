@@ -136,7 +136,18 @@ async function readSourceTree(root) {
       else if(item.isFile()) {
         const sourceType = /\.(?:js|cjs|mjs)$/.test(item.name) ? undefined : 'asset';
         const data = await fs.readFile(path.join(root,relative));
-        const code = sourceType === 'asset' ? data : data.toString('utf8');
+        /** @type {string|Buffer} */
+        let code = data;
+        if (sourceType !== 'asset') {
+          // Buffer#toString silently substitutes U+FFFD for malformed UTF-8.
+          // Preserve a valid BOM, and decline source bytes that cannot be
+          // represented losslessly before any transform or output write.
+          try {
+            code = new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(data);
+          } catch (error) {
+            throw new TypeError('Invalid UTF-8 JavaScript source: '+relative,{cause:error});
+          }
+        }
         results.push({path:relative,code,sourceType});
       }
     }
