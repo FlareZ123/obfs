@@ -31,5 +31,9 @@ jobs:
         run: node --test test/public-residual-maximal-nullity8-10.test.js
       - name: Explicit extremal residual-rank construction and inversion
         run: node --test test/public-residual-extremal-construction.test.js
+      - name: Independent rank-r coset-cycle verifier
+        run: node sims/affine-low-rank-peer-check.js
+      - name: Independent verifier strict JSDoc
+        run: npx --no-install tsc -p jsconfig.affine-low-rank-peer.json
       - name: Project JSDoc type safety
         run: npm run typecheck
