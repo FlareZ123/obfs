@@ -99,6 +99,40 @@ pins the same steps on Ubuntu and Windows. Full-suite release gating
 and independent hostile-browser scenarios remain separate evidence
 obligations.
 
+## Source-pinned real Chromium compatibility
+
+[Source-pinned full targeted run 44944930019](https://github.com/FlareZ123/obfs/actions/runs/44944930019)
+at commit `362fbc9c4e97d0f94fec9b7c308656492720e1f1` completed successfully on
+**both Ubuntu and Windows** for all 26 Node identity-alias tests plus strict
+core/targeted JSDoc. Ubuntu additionally passed
+`test/cross-file-imported-identity-browser.js` under actual
+Chrome 157.0.8103.78, serving the distributed `state.mjs`,
+`identity.mjs` and `entry.mjs` modules over localhost HTTP.
+
+The browser positive actually rewrites **2/2 private fields**; the
+`Object.keys` reflective-owner negative refuses all rewrites.
+Both native and protected variants returned identical values for
+**4,096** typed inputs under each case. The separate test host
+accepted 384 primitive callbacks without receiving the owner object.
+
+Twelve alternated-order, 100,000-call real-browser work comparisons
+reported a protected/native ratio of measured medians of about
+**1.000×**, with **0/12** observed >2.5× protected/native pairs.
+It is a browser- and workload-specific microbenchmark of property
+access and arithmetic, not a cold startup test or a universal
+performance bound. No private owner was transferred to the public
+callback. A new unknown host callback that can inspect the private
+object must invalidate the closed-world assumption.
+
+The initially dispatched browser-extended gate
+[44944855303](https://github.com/FlareZ123/obfs/actions/runs/44944855303)
+was **red in strict JSDoc** due to the newly introduced browser
+test's implicit callback parameter types and `unknown` recorded
+callback count. They were corrected in the target test without
+changing the compiler, and the green run above validates those
+corrections. This earlier red run is a harness typing failure,
+not a behavioral compiler regression.
+
 ## Proof mechanism and limitations
 
 `proveLocalObject` already receives `importedIdentityFunctions`
