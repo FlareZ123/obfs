@@ -100,7 +100,7 @@ function learn(oracle,bits,draw,delta=1e-10){
       /** @type {Signature} */
       const trial=[0,0,0];
       for(let i=0;i<columns.length;i++)if((mask>>>i)&1){
-        for(let j=0;j<3;j++)trial[j]^=columns[i][j];
+        for(let j=0;j<3;j++)trial[j]=(trial[j]^columns[i][j])>>>0;
       }
       if(trial.every((x,i)=>x===value[i]))return mask;
     }
