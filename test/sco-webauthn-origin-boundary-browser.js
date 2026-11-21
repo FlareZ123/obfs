@@ -61,20 +61,71 @@ async function main(){
   const rpId='localhost';
   /** @type {Set<string>} */
   const activeSessions=new Set();
+  /** @type {Map<string,{challenge:Buffer,value:number,session:string}>} */
+  const operationChallenges=new Map();
   let privateRpcCalls=0;
+  let proofRpcCalls=0;
+  /**
+   * @param {http.IncomingMessage} request
+   * @returns {string|null}
+   */
+  function sessionToken(request){
+    const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
+      .exec(request.headers.cookie??'');
+    return match?.[1]??null;
+  }
+  /** @param {http.IncomingMessage} request @returns {boolean} */
+  function authorizedSession(request){
+    const token=sessionToken(request);
+    return token!==null&&activeSessions.has(token);
+  }
   const scoHandler=createScoHandler([
     {path:'facade.js',code:'globalThis.obfsWebAuthnTest=true;',sourceType:'script'}
   ],{
     allowedHosts:['localhost'],
     publicPaths:['facade.js'],
-    remoteMethods:{protectedSum(value){
-      privateRpcCalls++;
-      return (Number(value)*17+29)>>>0;
-    }},
-    authorizeRpc(request){
-      const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
-        .exec(request.headers.cookie??'');
-      return match!==null&&activeSessions.has(match[1]);
+    remoteMethods:{
+      protectedSum(value){
+        privateRpcCalls++;
+        return (Number(value)*17+29)>>>0;
+      },
+      proofSum(value){
+        proofRpcCalls++;
+        return (Number(value)*17+29)>>>0;
+      }
+    },
+    authorizeRpc:authorizedSession,
+    authorizeOperation(request,method,args){
+      if(method!=='proofSum')return true;
+      const header=request.headers['x-webauthn-proof'];
+      if(typeof header!=='string'||!publicKey)return false;
+      try{
+        const proof=/** @type {{
+          challengeId?:unknown,rawId?:unknown,clientData?:unknown,
+          authenticatorData?:unknown,signature?:unknown
+        }} */(JSON.parse(Buffer.from(header,'base64').toString('utf8')));
+        if(typeof proof.challengeId!=='string'||typeof proof.rawId!=='string'||
+           typeof proof.clientData!=='string'||typeof proof.authenticatorData!=='string'||
+           typeof proof.signature!=='string'||proof.rawId!==credentialId)return false;
+        const record=operationChallenges.get(proof.challengeId);
+        if(!record)return false;
+        // Consume the one-use challenge even on argument mismatch or bad proof.
+        operationChallenges.delete(proof.challengeId);
+        if(record.session!==sessionToken(request)||args.length!==1||
+           args[0]!==record.value)return false;
+        const clientData=Buffer.from(proof.clientData,'base64');
+        const authenticatorData=Buffer.from(proof.authenticatorData,'base64');
+        const signature=Buffer.from(proof.signature,'base64');
+        verifyClientData(clientData,'webauthn.get',record.challenge,
+          'http://localhost:'+port);
+        if(authenticatorData.length<37)return false;
+        const rpHash=createHash('sha256').update(rpId).digest();
+        if(!timingSafeEqual(authenticatorData.subarray(0,32),rpHash))return false;
+        if((authenticatorData[32]&0x05)!==0x05)return false;
+        const clientHash=createHash('sha256').update(clientData).digest();
+        return verify('sha256',Buffer.concat([authenticatorData,clientHash]),
+          publicKey,signature);
+      }catch{return false;}
     }
   });
   /** @type {Map<string,Buffer>} */
@@ -108,6 +159,27 @@ async function main(){
         challenges.set(id,challenge);
         response.writeHead(200,{'content-type':'application/json','cache-control':'no-store'})
           .end(JSON.stringify({id,challenge:[...challenge]}));
+        return;
+      }
+      if(url.pathname==='/proof-challenge'&&request.method==='POST'){
+        const token=sessionToken(request);
+        if(token===null||!activeSessions.has(token)){
+          response.writeHead(403).end();return;
+        }
+        const body=/** @type {{method?:unknown,args?:unknown}} */(
+          JSON.parse(await readBody(request))
+        );
+        if(body.method!=='proofSum'||!Array.isArray(body.args)||
+           body.args.length!==1||typeof body.args[0]!=='number'||
+           !Number.isSafeInteger(body.args[0])){
+          response.writeHead(400).end();return;
+        }
+        const id=randomBytes(12).toString('hex');
+        const challenge=randomBytes(32);
+        operationChallenges.set(id,{challenge,value:body.args[0],session:token});
+        response.writeHead(200,{
+          'content-type':'application/json','cache-control':'no-store'
+        }).end(JSON.stringify({id,challenge:[...challenge]}));
         return;
       }
       if(url.pathname==='/register'&&request.method==='POST'){
