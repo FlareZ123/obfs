@@ -6,10 +6,10 @@
 
 For every integer `r >= 3`, there exists an explicitly constructible permutation `F: GF(2)^(2r) -> GF(2)^(2r)` such that:
 
-1. The public affine interpolant `M(x) = F(x) xor F(0) xor L(x)` uses `L(e_i) = F(e_i) xor F(0)` and its **linear part** `L` has rank `r` and nullity `r`.
-2. The residual space `R = span{F(x) xor F(0) xor L(x):x}` has dimension exactly `r`.
+1. The public affine interpolant `M` is the linear map defined on each standard basis vector by `M(e_i) = F(e_i) xor F(0)`. It has rank `r` and nullity `r`.
+2. The residual space `R = span{F(x) xor F(0) xor M(x):x}` has dimension exactly `r`.
 
-Hereafter `M` denotes the linear interpolation map `L`, as in the draft deterministic inversion theorem. The construction attains the extremal identity `dim ker M = dim R = r`; its public linear interpolation is singular in all permitted nonlinear directions.
+This notation matches the draft deterministic inversion theorem. The construction attains the extremal identity `dim ker M = dim R = r`; its public linear interpolation is singular in all permitted nonlinear directions.
 
 For `r=1,2`, no permutation on `2r` bits can have a public affine interpolant of rank `r`: injectivity forces the `2r` nonzero vectors `F(e_i) xor F(0)` to be distinct, but an r-dimensional image contains only `2^r - 1` nonzero vectors. For r=1,2 the inequalities `2r > 2^r - 1` hold. This establishes the minimal r for the stated family.
 
