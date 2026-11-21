@@ -57,6 +57,8 @@ jobs:
         run: node sims/rankthree-polarization-oracle-clone.js
       - name: Recover private rank-three code behavior from authenticated SCO HTTP RPC
         run: node sims/sco-rankthree-631-live-clone.js
+      - name: Reconstruct private rank-six quadratic via authorized randomized SCO HTTP RPC
+        run: node sims/sco-rank6-adaptive-real-http-clone.js
       - name: Matched rank-three projected versus generic cubic functional clone
         run: node sims/rankthree-projected-vs-generic-cubic-matched.js
       - name: Exhaustive vector-polar triple miss probability verifier
