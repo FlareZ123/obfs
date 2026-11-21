@@ -16,6 +16,7 @@ test('529 authenticated SCO calls permit complete offline quadratic clone',{
   assert.equal(result.privateIdentifiersPublished,false);
   assert.equal(result.offlineAfterServerClose,true);
   assert.equal(result.cubicNegativeAtSeven,true);
+  assert.ok(result.nonzeroQuadraticCoefficients>0);
   assert.match(result.sourceSha256,/^[0-9a-f]{64}$/u);
   assert.match(result.transcriptSha256,/^[0-9a-f]{64}$/u);
   assert.ok(result.originalBytes>0&&result.publishedBytes>0);
