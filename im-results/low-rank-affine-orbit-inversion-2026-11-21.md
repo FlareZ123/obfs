@@ -75,6 +75,14 @@ One local Node v22.16.0 Linux run produced:
 
 The rank-two sample's maximum observed orbit length was 15, and rank three's was 47. In the exhaustive n=3 identity-affine population the residual span dimension was computed from every table entry before deciding eligibility, so it tests the **entire qualifying population for that fixed affine core**, including cases with singular M. The pseudorandom 32-bit tests exercise both repaired singular and full-rank interpolation under unknown dense affine wrappers. Exhaustive validation at n=3 and finite randomized n=32 checks support the implementation, while the theorem rests on the algebraic proof above.
 
+### Separate-language oracle-inversion cross-check
+
+To reduce common-mode errors with the unsigned-bitwise JavaScript pivot and inverse solver, [sims/low-rank-affine-orbit-independent-small.py](../sims/low-rank-affine-orbit-independent-small.py) implements the attack afresh in Python's standard library. It computes matrix rank by complete enumeration of all linear-combination images, selects maximal independent observed columns by combinations, and inverts each repaired finite matrix through a complete value-to-input lookup table. The oracle-cycle logic is written separately. It also explicitly enumerates the residual output span rather than relying on a bit-elimination rank routine.
+
+One local Python 3 run recovered **57,856 / 57,856** exhaustive qualifying n=3 rank-two targets from all 40,320 eight-point permutations, agreeing independently with the Node reproducer's 7,232 eligible tables and d distribution (49,152 full-rank / 8,704 d=1). Under a distinct seeded random generator (`0x1A1B2026`), it also recovered **32,000 / 32,000** targets across 2,000 random n=4 permutation tables formed by hidden invertible input/output binary matrices, independent affine translations and independent four-element coset permutations. These tables were verified bijective and to have residual output span dimension at most 2. Its largest observed n=4 query count was 12, below the theorem cap 21.
+
+The exact remote Python source blob `4b9badc2f3257aaa04cddd224274dda2f45ac2e1` matches the locally executed file, committed as `b4b2b9d09f6defd13ff222a19a23697f6d1f86aa`. Run it with `python sims/low-rank-affine-orbit-independent-small.py` with no package dependencies. This is a genuinely separate algorithm implementation, albeit written by the same researcher; independent-person peer review remains outstanding.
+
 ### Corollary: shallow compositions of low-rank nonlinear layers remain low-rank
 
 Suppose F₁(x)=c₁⊕A₁x⊕η₁(x) and F₂(z)=c₂⊕A₂z⊕η₂(z) are permutations with invertible A₁,A₂ and output residual subspaces W₁,W₂ of ranks ≤r₁,≤r₂. Expand the composition:
