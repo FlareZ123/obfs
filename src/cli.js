@@ -163,7 +163,12 @@ function entryUsesEsmPackage(files,entry) {
   for (;;) {
     const location=path.posix.join(directory,'package.json');
     const pkg=files.find(file=>file.path===location);
-    if (pkg) return JSON.parse(String(pkg.code)).type==='module';
+    if (pkg) {
+      if(Buffer.isBuffer(pkg.code)&&!isUtf8(pkg.code)) {
+        throw new TypeError('Invalid UTF-8 package metadata: '+location);
+      }
+      return JSON.parse(String(pkg.code)).type==='module';
+    }
     if (directory==='.') return false;
     directory=path.posix.dirname(directory);
   }
