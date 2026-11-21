@@ -57,6 +57,21 @@ Reproduce with \`node sims/low-rank-orbit-independent-review.js\`; the script pr
 
 The existing [Manual low-rank target inversion run 44958888722](https://github.com/FlareZ123/obfs/actions/runs/44958888722) **completed successfully** on 21 November 2026 at immutable source \`fb6c94d76cc7872a32930e303314868ea7a4968d\`, after the independent script, workflow invocation step and strict peer JSDoc inclusion had been committed. Its Ubuntu and Windows matrix jobs completed successfully, including the independently authored review step and existing low-rank theorem regressions. This is source-pinned execution evidence for the recorded implementation and tests, rather than a general security or novelty guarantee. The review was also sent to Agent 1 for mathematical scrutiny.
 
+## Extended independent output-rank four and five controls
+
+The linear-algebra proof above applies to **any** finite output residual rank (r), not just two or three. The reproducer now constructs independent nonlinear AND terms for **each** of the r low bits in a triangular bijective permutation, wraps it in two unknown invertible 32×32 binary linear maps and an affine constant, and tests (r=2,3,4,5). Each triangular map has an r-dimensional nonlinear displacement span before output wrapping: the disjoint higher-bit AND pairs permit all r coordinate basis outputs.
+
+In the same seeded sample, **96 independently generated oracles × eight targets** were tested per rank; every target was recovered exactly. The new ranks yielded:
+
+| Output residual rank r | Exact recoveries | Largest distinct chosen requests | Largest observed orbit steps | Guaranteed cap from proof |
+| ---: | ---: | ---: | ---: | ---: |
+| 4 | 768 / 768 | **96** | 63 | **289** |
+| 5 | 768 / 768 | **160** | 127 | **1,057** |
+
+The rank-two and rank-three original seeded populations remain unchanged and continue to pass at maxima 48 and 64 queries. Across all **3,072 width-32** target inversions, no failure was observed. The theoretical caps are (33+2^{2r}); they are bounds for **inverting a supplied target on a permutation**, not bounds for cloning an entire arbitrary function. The rank-five 1,057-query cap exceeds the generic 529-query bound for **learning an arbitrary quadratic 32-bit function**, but the latter has a stronger degree-two source promise and solves a different reconstruction task. Source-source and attack objectives must not be conflated.
+
+The extension ran locally under Node.js 22.16.0 and passed strict JSDoc. The earlier two-platform 44958888722 run predates these additional rank-four/five fixture cases; a new source-pinned CI result is required before attributing this extension to Ubuntu and Windows.
+
 ## Decision and limits
 
 **Assessment:** the algebraic proof survives independent review and the bounded exact experiments support it. This is corroboration of a **negative candidate-selection result**: merely restricting nonlinear output displacement to rank two or three cannot be treated as a strong secret-permutation target-inversion barrier when an adversary is allowed the claimed chosen-oracle queries.
