@@ -4,6 +4,7 @@ const {createHash} = require('node:crypto');
 const path = require('node:path');
 const {isUtf8} = require('node:buffer');
 const {safePath} = require('./core');
+const {createPathInventory,registerFilePath} = require('./portable-paths');
 
 /**
  * SNO bootloader: one executable entry point; verifies all artifacts once,
@@ -64,14 +65,12 @@ function createSnoLauncher(files,entry) {
   }
   // A Linux checkout can contain canonically equivalent Unicode names that
   // address the same APFS file on macOS; refuse an ambiguous SNO manifest.
-  const seen=new Set();
+  const paths=createPathInventory();
   /** @type {[string,string][]} */
   const manifest=[];
   for(const file of snapshots) {
     const name=safePath(file.path);
-    const key=name.normalize('NFC').toLowerCase();
-    if(seen.has(key))throw new TypeError('Duplicate SNO file: '+name);
-    seen.add(key);
+    registerFilePath(paths,name,'Duplicate SNO file: ');
     const code=file.code;
     // The launcher entry is always executable JavaScript. Other .js paths
     // can be deliberately reviewed opaque Buffers in the direct API, which

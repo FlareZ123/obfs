@@ -7,6 +7,7 @@ const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
+const {createPathInventory,registerFilePath} = require('./portable-paths');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
@@ -1843,15 +1844,13 @@ function obfuscateFiles(files, options = {}) {
   if (!['coo','sco','sno'].includes(mode)) throw new TypeError(`Unknown mode ${mode}`);
   if (mode === 'sno' && options.allowedHosts?.length) throw new TypeError('Browser host locking does not apply to SNO');
   const seed = options.seed ?? randomBytes(24).toString('hex');
-  const seen = new Set();
+  const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
   const prepared = files.map(file => {
     const filename = safePath(file.path);
-    // Windows case aliases and macOS APFS canonical Unicode equivalents
-    // must not become two output paths for one filesystem entry.
-    const collisionKey = filename.normalize('NFC').toLowerCase();
-    if (seen.has(collisionKey)) throw new TypeError(`Duplicate file ${filename}`);
-    seen.add(collisionKey);
+    // Validate the entire emitted tree, including ancestors that can alias
+    // on other filesystems even when the full file paths differ.
+    registerFilePath(paths,filename);
     // Snapshot caller-controlled data once. Re-reading a code getter or
     // retaining a mutable Buffer after a reviewed digest check would let
     // the caller publish different bytes from those actually approved.

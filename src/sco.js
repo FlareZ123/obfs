@@ -30,6 +30,7 @@ const assetMediaTypes=new Map([
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
+const {createPathInventory,registerFilePath} = require('./portable-paths');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
@@ -446,14 +447,10 @@ function createScoHandler(sourceFiles,options={}) {
     if(!Array.isArray(declaredPublicPaths)){
       throw new TypeError('SCO publicPaths must be an array');
     }
-    const seenPublic=new Set();
+    const publicPaths=createPathInventory();
     for(const item of snapshotMetadataEntries(declaredPublicPaths)){
       const filename=safePath(item);
-      const key=filename.normalize('NFC').toLowerCase();
-      if(seenPublic.has(key)){
-        throw new TypeError('Duplicate SCO publicPaths entry: '+filename);
-      }
-      seenPublic.add(key);
+      registerFilePath(publicPaths,filename,'Duplicate SCO publicPaths entry: ');
       publicAllowlist.add(filename);
     }
   }
@@ -498,7 +495,7 @@ function createScoHandler(sourceFiles,options={}) {
   // Validate the public route namespace before creating the HTTP handler.
   // Exact duplicates silently overwrite Map values, and case-folded aliases
   // may collide when the source group is deployed on Windows.
-  const seen=new Set();
+  const paths=createPathInventory();
   /** @type {import('./cross-properties').SourceFile[]} */
   const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
@@ -507,7 +504,7 @@ function createScoHandler(sourceFiles,options={}) {
       throw new TypeError('SCO source is not in publicPaths: '+filename);
     }
     if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
-    if(seen.has(collisionKey))throw new TypeError('Duplicate file '+filename);
+    registerFilePath(paths,filename);
     // Snapshot caller-controlled source exactly once before publication
     // policy checks and source scanning. This prevents a getter that returns
     // different values on successive reads from invalidating source proofs.
@@ -522,7 +519,6 @@ function createScoHandler(sourceFiles,options={}) {
     if(privateOriginalDigests.has(createHash('sha256').update(code).digest('hex'))){
       throw new TypeError('SCO must not serve original private graph source: '+filename);
     }
-    seen.add(collisionKey);
     const sourceType=file.sourceType ??
       (filename.endsWith('.mjs')?'module':filename.endsWith('.cjs')?'commonjs':'script');
     if(!['module','script','commonjs','asset'].includes(sourceType)){
