@@ -48,14 +48,22 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   caveat:string
  * }}
  */
+/** @param {unknown} value @returns {boolean} */
+function isCanonicalSha256(value){
+  return typeof value==='string'&&/^[0-9a-f]{64}$/u.test(value);
+}
+
 function compareCandidateEvidence(evidence){
   const pairedFamilywise=familywiseBudgetBounds(evidence.sessionPairs);
   const control=evidence.conventionalControl;
   const candidate=evidence.protectedCandidate;
-  const measurementReady=evidence.frozenSameApplication&&
+  const measurementReady=evidence.frozenSameApplication===true&&
     Number.isSafeInteger(evidence.protectedFunctions)&&evidence.protectedFunctions>0&&
-    control.attempted&&candidate.attempted&&
-    control.protocol.length>0&&control.protocol===candidate.protocol&&
+    control.attempted===true&&candidate.attempted===true&&
+    typeof control.cloneSucceeded==='boolean'&&
+    typeof candidate.cloneSucceeded==='boolean'&&
+    typeof control.protocol==='string'&&control.protocol.length>0&&
+    control.protocol===candidate.protocol&&
     Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
     control.oracleCalls===candidate.oracleCalls&&
     Number.isSafeInteger(control.verifiedHeldoutComparisons)&&
@@ -76,14 +84,11 @@ function compareCandidateEvidence(evidence){
     control.attackCompleted===true&&candidate.attackCompleted===true&&
     candidate.failureCause==='precommitted-budget-exhausted'&&
     control.cloneSucceeded===true&&candidate.cloneSucceeded===false&&
-    typeof control.selectedFunctionSetDigest==='string'&&
-    control.selectedFunctionSetDigest.length===64&&
+    isCanonicalSha256(control.selectedFunctionSetDigest)&&
     control.selectedFunctionSetDigest===candidate.selectedFunctionSetDigest&&
-    typeof control.verifierCaseDigest==='string'&&
-    control.verifierCaseDigest.length===64&&
+    isCanonicalSha256(control.verifierCaseDigest)&&
     control.verifierCaseDigest===candidate.verifierCaseDigest&&
-    typeof control.methodCommitmentDigest==='string'&&
-    control.methodCommitmentDigest.length===64&&
+    isCanonicalSha256(control.methodCommitmentDigest)&&
     control.methodCommitmentDigest===candidate.methodCommitmentDigest&&
     typeof control.preparationBudgetMs==='number'&&
     Number.isFinite(control.preparationBudgetMs)&&control.preparationBudgetMs>0&&
