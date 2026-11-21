@@ -129,8 +129,8 @@ function verify(d,n,gram,draw){
     const witnessGram=gramSubsets.map(s=>{
       if(s.length===d&&s.every(i=>i<d))return w;
       const missing=Array.from({length:d},(_,i)=>i).find(i=>!s.includes(i));
-      assert.notEqual(missing,undefined);
-      const value=sigBasis[d]>>BigInt(32*(/** @type {number} */ (missing)));
+      if(missing===undefined)throw new Error('Missing Gram signature coordinate');
+      const value=sigBasis[d]>>BigInt(32*missing);
       return Number(value&0xffffffffn)>>>0;
     });
     for(let sample=0;sample<25;sample++){
