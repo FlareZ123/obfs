@@ -149,7 +149,7 @@ test('SNO loader checks every file before running one CommonJS entry',async()=>{
 });
 
 test('SCO returns distinct obfuscation on repeated legitimate requests',async()=>{
-  const handler=createScoHandler([{path:'a.js',code:`globalThis.value='long-long-value';`,sourceType:'script'}],{routePrefix:'/obfs/',allowedHosts:['www.example.org']});
+  const handler=createScoHandler([{path:'a.js',code:`const privateValue='long-long-value';globalThis.value=privateValue;`,sourceType:'script'}],{routePrefix:'/obfs/',allowedHosts:['www.example.org']});
   const server=http.createServer(handler);
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
   try {
