@@ -60,7 +60,7 @@ function linearRank(values){return reduce(values.map(x=>BigInt(x>>>0))).rank;}
 /**
  * Upper bound for failing to reach an exact-rank k radical certificate after
  * n independent adaptive pair probes. First success adds two anchors with
- * probability at least 3/8; later success at signature rank r occurs with
+ * probability at least (1-2^-k)/2; later success at signature rank r occurs with
  * probability at least (1-2^(-(k-r)))/2, and increases rank by >=1.
  *
  * @param {number} n
@@ -73,7 +73,7 @@ function missBound(n,rank){
   for(let t=0;t<n;t++){
     const next=probabilities.slice();
     for(let stage=0;stage<rank-1;stage++){
-      const p=stage===0?3/8:(1-2**(-(rank-(stage+1))))/2;
+      const p=stage===0?(1-2**(-rank))/2:(1-2**(-(rank-(stage+1))))/2;
       next[stage]-=probabilities[stage]*p;
       next[stage+1]+=probabilities[stage]*p;
     }
@@ -229,7 +229,7 @@ function intrinsicRank(F,bits){
 }
 /** @returns {object} */
 function main(){
-  assert.deepEqual([4,5,6].map(k=>maxTrials(1e-10, /** @type {4|5|6} */ (k))),[88,91,94]);
+  assert.deepEqual([4,5,6].map(k=>maxTrials(1e-10, /** @type {4|5|6} */ (k))),[87,90,92]);
   const sourceDraw=seeded(0x4f562026);
   /** @type {Array<{rank:number,finiteCases:number,finiteOutputs:number,wideCases:number,heldouts:number,maxQueries:number,bound:number,tail:number}>} */
   const evidence=[];
