@@ -774,6 +774,43 @@ async function main(){
     assert.equal(afterRevocation.status,403);
     assert.equal(privateRpcCalls,2);
 
+    const reloginStatus=await sameOriginAssertion('concurrent-batch-replay');
+    assert.equal(reloginStatus,200);
+    assert.equal(acceptedAssertions,3);
+    const renewedCookies=await page.browserContext().cookies([allowedOrigin]);
+    const renewedCookie=renewedCookies.find(cookie=>cookie.name==='webauthn_session');
+    assert.ok(renewedCookie?.httpOnly);
+    assert.notEqual(renewedCookie.value,exportedCookie.value);
+    const signedConcurrentBatch=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const beforeConcurrentPrivateCalls=proofBatchRpcCalls;
+    const simultaneous=await Promise.all(Array.from({length:8},()=>
+      copiedOriginRpc(renewedCookie.value,'proofBatch',
+        batchValues,signedConcurrentBatch.proof)));
+    const successes=simultaneous.filter(result=>result.status===200);
+    const denials=simultaneous.filter(result=>result.status===403);
+    assert.equal(successes.length,1,'at most one successful replayed batch');
+    assert.equal(denials.length,7,'seven replayed assertions must be denied');
+    assert.deepEqual(successes[0].body,{ok:true,value:batchExpected});
+    for(const denied of denials) {
+      assert.deepEqual(denied.body,{ok:false,error:'Forbidden'});
+    }
+    assert.equal(proofBatchRpcCalls,beforeConcurrentPrivateCalls+1);
+    const finalConcurrentReplay=await copiedOriginRpc(
+      renewedCookie.value,'proofBatch',batchValues,signedConcurrentBatch.proof);
+    assert.equal(finalConcurrentReplay.status,403);
+    assert.equal(proofBatchRpcCalls,beforeConcurrentPrivateCalls+1);
+    console.log('SCO_WEBAUTHN_BATCH_RACE '+JSON.stringify({
+      node:process.version,platform:process.platform,
+      concurrentRequests:simultaneous.length,
+      sharedProofSignedAtAllowedOrigin:true,
+      authorizedPrivateExecutions:proofBatchRpcCalls-beforeConcurrentPrivateCalls,
+      accepted:successes.length,denied:denials.length,
+      responseStatuses:simultaneous.map(result=>result.status),
+      finalSequentialReplayStatus:finalConcurrentReplay.status,
+      oneUseRecordOwner:'same trusted Node SCO handler'
+    }));
+
     console.log('SCO_WEBAUTHN_ORIGIN_BOUNDARY '+JSON.stringify({
       node:process.version,
       platform:process.platform,
@@ -816,6 +853,10 @@ async function main(){
       consumedAssertionReplayStatus:reusedAssertion.status,
       publicFacadeExposesPrivateMethod:false,
       revokedCopiedSessionStatus:afterRevocation.status,
+      concurrentIdenticalSignedBatchRequests:simultaneous.length,
+      concurrentSignedBatchAccepted:successes.length,
+      concurrentSignedBatchDenied:denials.length,
+      concurrentSignedBatchReplayStatus:finalConcurrentReplay.status,
       implication:'WebAuthn RP-binding prevents copied-origin credential assertions, but a conventional post-admission HttpOnly bearer session remains portable through raw HTTP under hostile-client control.'
     }));
   }finally{
