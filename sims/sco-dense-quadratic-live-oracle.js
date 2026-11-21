@@ -60,7 +60,7 @@ function randomPrivateQuadratic(){
  *   recoveredCoefficients:number,coefficientsExactlyRecovered:boolean,
  *   nonlinearOutputRank:number,sourceBytes:number,publicBytes:number,
  *   privateSourceSha256:string,transcriptSha256:string,
- *   528QueryAmbiguity:boolean,serverOfflineBeforeHoldout:boolean
+ *   lastPairAmbiguityAt528Queries:boolean,serverOfflineBeforeHoldout:boolean
  * }>}
  */
 async function runDenseChallenge(){
@@ -182,7 +182,7 @@ async function runDenseChallenge(){
       publicBytes:Buffer.byteLength(publishedSource),
       privateSourceSha256:createHash('sha256').update(source).digest('hex'),
       transcriptSha256:learned.transcriptSha256,
-      528QueryAmbiguity:query528FailsAtLast,serverOfflineBeforeHoldout
+      lastPairAmbiguityAt528Queries:query528FailsAtLast,serverOfflineBeforeHoldout
     };
   }finally{
     if(server){
