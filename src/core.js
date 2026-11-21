@@ -2097,6 +2097,17 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       mutated=true;
       return;
     }
+    // A source-visible descriptor map may cross a module boundary as the
+    // second argument to an imported or otherwise opaque callable. The
+    // native target could be Object.create or Object.defineProperties;
+    // refuse eager decoding unless the destination is proved harmless.
+    // A harmless Number.prototype descriptor remains independently eligible.
+    if(node.type==='CallExpression'&&node.arguments[1]&&
+       (objectCreateMayExposeDecoder(node.arguments[1])||
+        isDecoderGetterMap(node.arguments[1]))) {
+      mutated=true;
+      return;
+    }
     // When a native constructor escapes through a container or unknown
     // call target, interprocedural effects cannot be proven from the local
     // graph. Require a source-visible sensitive accessor before declining.
