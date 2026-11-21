@@ -1644,71 +1644,99 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
-  // Track finite, statically visible routes to Object.create. A detached or
-  // bound factory can install the same accessor descriptors as a direct call.
-  // The summary is monotonic: ambiguous reassignment can reduce decoder yield
-  // but cannot silently excuse a known potential intrinsic escape.
-  /** @type {Set<string>} */
-  const objectCreateAliases=new Set();
-  /** @type {Map<string,Set<string>>} */
-  const objectCreateHolderFields=new Map();
+  // Track possible positions of the Object.create descriptor argument after
+  // local aliases, object fields, and partial Function.prototype.bind calls.
+  // Bound counts are capped at two: subsequent arguments cannot replace a
+  // descriptor already supplied at index one. This finite lattice converges
+  // even when a mutable function variable is repeatedly rebound to itself.
+  /** @type {Map<string,Set<number>>} */
+  const objectCreateAliasCounts=new Map();
+  /** @type {Map<string,Map<string,Set<number>>>} */
+  const objectCreateHolderCounts=new Map();
   /**
    * @param {import('./ast').AstNode} value
-   * @returns {boolean}
+   * @returns {number[]}
    */
-  function isObjectCreateCallable(value) {
-    if(value.type==='Identifier')return objectCreateAliases.has(value.name);
-    if(value.type==='MemberExpression') {
-      if(isObjectIntrinsic(value.object)&&memberName(value)==='create')return true;
-      return value.object.type==='Identifier'&&
-        objectCreateHolderFields.get(value.object.name)?.has(memberName(value)??'')===true;
+  function createBoundCounts(value) {
+    if(value.type==='Identifier') {
+      return [...(objectCreateAliasCounts.get(value.name)??[])];
     }
-    return value.type==='CallExpression'&&
-      value.callee.type==='MemberExpression'&&
-      memberName(value.callee)==='bind'&&
-      isObjectCreateCallable(value.callee.object);
+    if(value.type==='MemberExpression') {
+      if(isObjectIntrinsic(value.object)&&memberName(value)==='create')return [0];
+      if(value.object.type==='Identifier') {
+        return [...(objectCreateHolderCounts.get(value.object.name)?.get(
+          memberName(value)??'')??[])];
+      }
+      return [];
+    }
+    if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+       memberName(value.callee)==='bind') {
+      const prebound=Math.max(0,value.arguments.length-1);
+      return createBoundCounts(value.callee.object).map(
+        (/** @type {number} */ count)=>Math.min(2,count+prebound));
+    }
+    return [];
   }
   /**
-   * @param {string} objectName
-   * @param {string} field
+   * @param {string} name
+   * @param {number} count
    * @returns {boolean}
    */
-  function addCreateHolderField(objectName,field) {
-    let fields=objectCreateHolderFields.get(objectName);
-    if(!fields) {
-      fields=new Set();
-      objectCreateHolderFields.set(objectName,fields);
+  function addCreateAliasCount(name,count) {
+    let counts=objectCreateAliasCounts.get(name);
+    if(!counts) {
+      counts=new Set();
+      objectCreateAliasCounts.set(name,counts);
     }
-    if(fields.has(field))return false;
-    fields.add(field);
+    if(counts.has(count))return false;
+    counts.add(count);
+    return true;
+  }
+  /**
+   * @param {string} name
+   * @param {string} field
+   * @param {number} count
+   * @returns {boolean}
+   */
+  function addCreateHolderCount(name,field,count) {
+    let fields=objectCreateHolderCounts.get(name);
+    if(!fields) {
+      fields=new Map();
+      objectCreateHolderCounts.set(name,fields);
+    }
+    let counts=fields.get(field);
+    if(!counts) {
+      counts=new Set();
+      fields.set(field,counts);
+    }
+    if(counts.has(count))return false;
+    counts.add(count);
     return true;
   }
   let discoveredCreateAlias;
   do {
     discoveredCreateAlias=false;
     walk(ast,node=>{
-      /** @param {string} name */
-      function addAlias(name) {
-        if(!objectCreateAliases.has(name)){
-          objectCreateAliases.add(name);
-          discoveredCreateAlias=true;
-        }
-      }
       if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
          node.init&&isObjectIntrinsic(node.init)) {
         for(const property of node.id.properties) {
           if(property.type!=='Property'||property.value.type!=='Identifier')continue;
           const key=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(key==='create')addAlias(property.value.name);
+          if(key==='create'&&addCreateAliasCount(property.value.name,0)) {
+            discoveredCreateAlias=true;
+          }
         }
       }
       if(node.type==='AssignmentExpression'&&node.operator==='='&&
-         node.left.type==='MemberExpression'&&node.left.object.type==='Identifier'&&
-         isObjectCreateCallable(node.right)) {
+         node.left.type==='MemberExpression'&&node.left.object.type==='Identifier') {
         const field=memberName(node.left);
-        if(field!==null&&addCreateHolderField(node.left.object.name,field)) {
-          discoveredCreateAlias=true;
+        if(field!==null) {
+          for(const count of createBoundCounts(node.right)) {
+            if(addCreateHolderCount(node.left.object.name,field,count)) {
+              discoveredCreateAlias=true;
+            }
+          }
         }
       }
       let name;
@@ -1722,19 +1750,24 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         value=node.right;
       }
       if(!name||!value)return;
-      if(isObjectCreateCallable(value))addAlias(name);
+      for(const count of createBoundCounts(value)) {
+        if(addCreateAliasCount(name,count))discoveredCreateAlias=true;
+      }
       if(value.type==='Identifier') {
-        for(const field of objectCreateHolderFields.get(value.name)??[]) {
-          if(addCreateHolderField(name,field))discoveredCreateAlias=true;
+        for(const [field,counts] of objectCreateHolderCounts.get(value.name)??[]) {
+          for(const count of counts) {
+            if(addCreateHolderCount(name,field,count))discoveredCreateAlias=true;
+          }
         }
       }
       if(value.type==='ObjectExpression') {
         for(const property of value.properties) {
-          if(property.type!=='Property'||!isObjectCreateCallable(property.value))continue;
+          if(property.type!=='Property')continue;
           const field=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(field!==null&&addCreateHolderField(name,field)) {
-            discoveredCreateAlias=true;
+          if(field===null)continue;
+          for(const count of createBoundCounts(property.value)) {
+            if(addCreateHolderCount(name,field,count))discoveredCreateAlias=true;
           }
         }
       }
@@ -1742,27 +1775,38 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   } while(discoveredCreateAlias);
   /**
    * @param {import('./ast').AstNode} node
-   * @returns {import('./ast').AstNode|null}
+   * @returns {import('./ast').AstNode[]}
    */
-  function objectCreateDescriptorArgument(node) {
-    if(node.type!=='CallExpression')return null;
-    if(isObjectCreateCallable(node.callee))return node.arguments[1]??null;
-    if(node.callee.type!=='MemberExpression')return null;
-    const method=memberName(node.callee);
-    const receiver=node.callee.object;
-    if(method==='call'&&isObjectCreateCallable(receiver)) {
-      return node.arguments[2]??null;
+  function objectCreateDescriptorArguments(node) {
+    if(node.type!=='CallExpression')return [];
+    let counts=createBoundCounts(node.callee);
+    let args=node.arguments;
+    let offset=0;
+    if(counts.length===0&&node.callee.type==='MemberExpression') {
+      const method=memberName(node.callee);
+      const receiver=node.callee.object;
+      if(method==='call'||method==='bind') {
+        counts=createBoundCounts(receiver);
+        offset=1;
+      } else if(method==='apply') {
+        counts=createBoundCounts(receiver);
+        if(counts.length===0&&isReflectIntrinsic(receiver)&&node.arguments[0]) {
+          counts=createBoundCounts(node.arguments[0]);
+          const argumentArray=node.arguments[2];
+          args=argumentArray?.type==='ArrayExpression'?argumentArray.elements:[];
+        } else {
+          const argumentArray=node.arguments[1];
+          args=argumentArray?.type==='ArrayExpression'?argumentArray.elements:[];
+        }
+      }
     }
-    if(method==='apply'&&isObjectCreateCallable(receiver)) {
-      const args=node.arguments[1];
-      return args?.type==='ArrayExpression'?args.elements[1]??null:null;
+    /** @type {import('./ast').AstNode[]} */
+    const candidates=[];
+    for(const count of counts) {
+      const candidate=args[1-count+offset];
+      if(candidate)candidates.push(candidate);
     }
-    if(method==='apply'&&isReflectIntrinsic(receiver)&&
-       node.arguments[0]&&isObjectCreateCallable(node.arguments[0])) {
-      const args=node.arguments[2];
-      return args?.type==='ArrayExpression'?args.elements[1]??null:null;
-    }
-    return null;
+    return candidates;
   }
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
@@ -1773,18 +1817,19 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     // Object.create installs accessor descriptors during construction. A
     // getter may expose String.prototype to an otherwise untracked receiver,
     // allowing a later write to corrupt the eager string decoder.
-    const createDescriptors=objectCreateDescriptorArgument(node);
-    if(createDescriptors?.type==='ObjectExpression'&&
-       createDescriptors.properties.some(
-         (/** @type {import('./ast').AstNode} */ property)=>
-           property.type==='Property'&&property.value.type==='ObjectExpression'&&
-           property.value.properties.some(
-             (/** @type {import('./ast').AstNode} */ descriptor)=>
-               descriptor.type==='Property'&&
-               (descriptor.computed?staticString(descriptor.key):
-                 descriptor.key.type==='Identifier'?descriptor.key.name:
-                   staticString(descriptor.key))==='get'&&
-               proxyGetMayReturnDecoderIntrinsic(descriptor.value)))) {
+    if(objectCreateDescriptorArguments(node).some(
+         (/** @type {import('./ast').AstNode} */ createDescriptors)=>
+           createDescriptors.type==='ObjectExpression'&&
+           createDescriptors.properties.some(
+             (/** @type {import('./ast').AstNode} */ property)=>
+               property.type==='Property'&&property.value.type==='ObjectExpression'&&
+               property.value.properties.some(
+                 (/** @type {import('./ast').AstNode} */ descriptor)=>
+                   descriptor.type==='Property'&&
+                   (descriptor.computed?staticString(descriptor.key):
+                     descriptor.key.type==='Identifier'?descriptor.key.name:
+                       staticString(descriptor.key))==='get'&&
+                   proxyGetMayReturnDecoderIntrinsic(descriptor.value))))) {
       mutated=true;
       return;
     }
