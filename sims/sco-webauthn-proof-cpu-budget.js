@@ -81,16 +81,19 @@ function nativeKernel(input,rounds){
  * @param {boolean} protectedOperation
  * @param {ReturnType<typeof createSignedProofs>} fixtures
  * @param {number} [aggregation]
+ * @param {number} [proofBatchSize]
  * @returns {{cpuUs:number,wallMs:number,checksum:number}}
  */
-function runBatch(rounds,operations,protectedOperation,fixtures,aggregation=1){
+function runBatch(rounds,operations,protectedOperation,fixtures,aggregation=1,proofBatchSize=1){
   const cpuBefore=process.cpuUsage();
   const start=process.hrtime.bigint();
   let checksum=0;
   for(let repeat=0;repeat<aggregation;repeat++){
     let batchChecksum=0;
     for(let i=0;i<operations;i++){
-      if(protectedOperation&&!verifySignedProof(fixtures[i&15])){
+      const absoluteIndex=repeat*operations+i;
+      if(protectedOperation&&absoluteIndex%proofBatchSize===0&&
+         !verifySignedProof(fixtures[absoluteIndex&15])){
         throw new Error('Cryptographic proof verification failed');
       }
       batchChecksum^=nativeKernel(i+1,rounds);
@@ -125,14 +128,15 @@ function median(values){
  * @param {number} operations
  * @param {ReturnType<typeof createSignedProofs>} fixtures
  * @param {number} aggregation
+ * @param {number} [proofBatchSize]
  */
-function profile(name,rounds,operations,fixtures,aggregation){
+function profile(name,rounds,operations,fixtures,aggregation,proofBatchSize=1){
   /** @type {Pair[]} */
   const pairs=[];
   for(let index=0;index<7;index++){
     const originalFirst=index%2===0;
-    const first=runBatch(rounds,operations,!originalFirst,fixtures,aggregation);
-    const second=runBatch(rounds,operations,originalFirst,fixtures,aggregation);
+    const first=runBatch(rounds,operations,!originalFirst,fixtures,aggregation,proofBatchSize);
+    const second=runBatch(rounds,operations,originalFirst,fixtures,aggregation,proofBatchSize);
     const original=originalFirst?first:second;
     const proof=originalFirst?second:first;
     assert.equal(proof.checksum,original.checksum,'paired output parity');
@@ -143,7 +147,7 @@ function profile(name,rounds,operations,fixtures,aggregation){
   const proofCpuMedian=median(pairs.map(p=>p.proof.cpuUs));
   const timedOperations=operations*aggregation;
   return {
-    name,rounds,operations,aggregation,timedOperations,repeats:7,
+    name,rounds,operations,aggregation,timedOperations,proofBatchSize,repeats:7,
     originalCpuUsPerOperation:nativeCpuMedian/timedOperations,
     proofCpuUsPerOperation:proofCpuMedian/timedOperations,
     serverCpuRatio:proofCpuMedian/nativeCpuMedian,
@@ -182,4 +186,4 @@ if(require.main===module){
   process.stdout.write('SCO_WEBAUTHN_SERVER_CPU '+JSON.stringify(runBudgetProbe())+'\n');
 }
 
-module.exports={runBudgetProbe,nativeKernel};
+module.exports={runBudgetProbe,nativeKernel,createSignedProofs,verifySignedProof,runBatch,profile};

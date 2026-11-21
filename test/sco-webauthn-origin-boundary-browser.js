@@ -61,10 +61,11 @@ async function main(){
   const rpId='localhost';
   /** @type {Set<string>} */
   const activeSessions=new Set();
-  /** @type {Map<string,{challenge:Buffer,value:number,session:string}>} */
+  /** @type {Map<string,{challenge:Buffer,value:number|number[],method:'proofSum'|'proofBatch',session:string}>} */
   const operationChallenges=new Map();
   let privateRpcCalls=0;
   let proofRpcCalls=0;
+  let proofBatchRpcCalls=0;
   /**
    * @param {http.IncomingMessage} request
    * @returns {string|null}
@@ -92,11 +93,16 @@ async function main(){
       proofSum(value){
         proofRpcCalls++;
         return (Number(value)*17+29)>>>0;
+      },
+      /** @param {number[]} values */
+      proofBatch(values){
+        proofBatchRpcCalls++;
+        return values.map(value=>(Number(value)*17+29)>>>0);
       }
     },
     authorizeRpc:authorizedSession,
     authorizeOperation(request,method,args){
-      if(method!=='proofSum')return true;
+      if(method!=='proofSum'&&method!=='proofBatch')return true;
       const header=request.headers['x-webauthn-proof'];
       if(typeof header!=='string'||!publicKey)return false;
       try{
@@ -111,8 +117,16 @@ async function main(){
         if(!record)return false;
         // Consume the one-use challenge even on argument mismatch or bad proof.
         operationChallenges.delete(proof.challengeId);
-        if(record.session!==sessionToken(request)||args.length!==1||
-           args[0]!==record.value)return false;
+        if(record.session!==sessionToken(request)||record.method!==method||
+           args.length!==1)return false;
+        const requested=args[0];
+        if(method==='proofSum') {
+          if(typeof record.value!=='number'||requested!==record.value)return false;
+        } else {
+          if(!Array.isArray(record.value)||!Array.isArray(requested)||
+             requested.length!==128||!record.value.every((value,index)=>
+               requested[index]===value))return false;
+        }
         const clientData=Buffer.from(proof.clientData,'base64');
         const authenticatorData=Buffer.from(proof.authenticatorData,'base64');
         const signature=Buffer.from(proof.signature,'base64');
@@ -169,14 +183,28 @@ async function main(){
         const body=/** @type {{method?:unknown,args?:unknown}} */(
           JSON.parse(await readBody(request))
         );
-        if(body.method!=='proofSum'||!Array.isArray(body.args)||
-           body.args.length!==1||typeof body.args[0]!=='number'||
-           !Number.isSafeInteger(body.args[0])){
+        if(!Array.isArray(body.args)||body.args.length!==1){
+          response.writeHead(400).end();return;
+        }
+        const requested=body.args[0];
+        const method=body.method;
+        if(method==='proofSum') {
+          if(typeof requested!=='number'||!Number.isSafeInteger(requested)){
+            response.writeHead(400).end();return;
+          }
+        } else if(method==='proofBatch') {
+          if(!Array.isArray(requested)||requested.length!==128||
+             !requested.every(value=>typeof value==='number'&&
+               Number.isSafeInteger(value))){
+            response.writeHead(400).end();return;
+          }
+        } else {
           response.writeHead(400).end();return;
         }
         const id=randomBytes(12).toString('hex');
         const challenge=randomBytes(32);
-        operationChallenges.set(id,{challenge,value:body.args[0],session:token});
+        const value=Array.isArray(requested)?requested.slice():requested;
+        operationChallenges.set(id,{challenge,value,method,session:token});
         response.writeHead(200,{
           'content-type':'application/json','cache-control':'no-store'
         }).end(JSON.stringify({id,challenge:[...challenge]}));
@@ -391,7 +419,7 @@ async function main(){
     const publicFacade=await fetch(allowedOrigin+'/obfs/facade.js');
     assert.equal(publicFacade.status,200);
     const servedSource=await publicFacade.text();
-    assert.doesNotMatch(servedSource,/protectedSum|webauthn_session|Number\(value\)/u);
+    assert.doesNotMatch(servedSource,/protectedSum|proofSum|proofBatch|webauthn_session|Number\(value\)/u);
     assert.ok(lastAcceptedAssertion);
     const reusedAssertion=await fetch(allowedOrigin+'/verify',{
       method:'POST',headers:{'content-type':'application/json'},
@@ -408,12 +436,13 @@ async function main(){
     /**
      * Sign an operation-specific, one-use server challenge through the real
      * browser WebAuthn API; optionally submit it through same-origin fetch.
-     * @param {number} value
-     * @param {number|null} submitValue
+     * @param {number|number[]} value
+     * @param {number|number[]|null} submitValue
+     * @param {'proofSum'|'proofBatch'} [method]
      * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
      */
-    async function browserSignedOperation(value,submitValue){
-      return page.evaluate(async({rp,rawId,value,submitValue})=>{
+    async function browserSignedOperation(value,submitValue,method='proofSum'){
+      return page.evaluate(async({rp,rawId,value,submitValue,method})=>{
         const decode=encoded=>{
           const binary=atob(encoded);
           return Uint8Array.from(binary,character=>character.charCodeAt(0));
@@ -425,7 +454,7 @@ async function main(){
         };
         const challengeResponse=await fetch('/proof-challenge',{
           method:'POST',headers:{'content-type':'application/json'},
-          body:JSON.stringify({method:'proofSum',args:[value]})
+          body:JSON.stringify({method,args:[value]})
         });
         if(!challengeResponse.ok)throw Error('Operation challenge denied');
         const issued=await challengeResponse.json();
@@ -452,10 +481,10 @@ async function main(){
             'content-type':'application/json',
             'x-webauthn-proof':proof
           },
-          body:JSON.stringify({method:'proofSum',args:[submitValue]})
+          body:JSON.stringify({method,args:[submitValue]})
         });
         return {proof,status:response.status,body:await response.json(),signingWallMs};
-      },{rp:rpId,rawId:registration,value,submitValue});
+      },{rp:rpId,rawId:registration,value,submitValue,method});
     }
 
     const authorizedProof=await browserSignedOperation(7,7);
@@ -463,6 +492,14 @@ async function main(){
     assert.deepEqual(authorizedProof.body,{ok:true,value:148});
     assert.equal(proofRpcCalls,1);
     assert.ok(authorizedProof.signingWallMs>0);
+
+    const batchValues=Array.from({length:128},(_,index)=>index-64);
+    const batchExpected=batchValues.map(value=>(value*17+29)>>>0);
+    const authorizedBatch=await browserSignedOperation(
+      batchValues,batchValues,'proofBatch');
+    assert.equal(authorizedBatch.status,200);
+    assert.deepEqual(authorizedBatch.body,{ok:true,value:batchExpected});
+    assert.equal(proofBatchRpcCalls,1);
 
     await cdp.send('WebAuthn.setUserVerified',{
       authenticatorId:added.authenticatorId,
@@ -519,7 +556,7 @@ async function main(){
     /**
      * @param {string|undefined} token
      * @param {string} [method]
-     * @param {number} [value]
+     * @param {number|number[]} [value]
      * @param {string} [proof]
      * @returns {Promise<{status:number,body:unknown}>}
      */
@@ -591,6 +628,40 @@ async function main(){
     assert.equal(copiedReplay.status,403);
     assert.equal(proofRpcCalls,2);
 
+    const batchNoProof=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues);
+    assert.equal(batchNoProof.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+    const signedBatchMutation=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const mutatedBatch=batchValues.slice();
+    mutatedBatch[63]++;
+    const batchArgumentMutation=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',mutatedBatch,signedBatchMutation.proof);
+    assert.equal(batchArgumentMutation.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+
+    const signedBatchPermutation=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const shuffledBatch=batchValues.slice();
+    [shuffledBatch[13],shuffledBatch[14]]=[shuffledBatch[14],shuffledBatch[13]];
+    const batchOrderSwap=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',shuffledBatch,signedBatchPermutation.proof);
+    assert.equal(batchOrderSwap.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+
+    const signedBatchRelay=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const copiedFreshBatch=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues,signedBatchRelay.proof);
+    assert.equal(copiedFreshBatch.status,200);
+    assert.deepEqual(copiedFreshBatch.body,{ok:true,value:batchExpected});
+    assert.equal(proofBatchRpcCalls,2);
+    const copiedBatchReplay=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues,signedBatchRelay.proof);
+    assert.equal(copiedBatchReplay.status,403);
+    assert.equal(proofBatchRpcCalls,2);
+
     const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
     const revokedValidProof=await copiedOriginRpc(
@@ -615,6 +686,15 @@ async function main(){
       acceptedAssertions,
       privateRpcCalls,
       proofRpcCalls,
+      proofBatchRpcCalls,
+      authorizedBatchCount:batchValues.length,
+      authorizedBatchStatus:authorizedBatch.status,
+      copiedBatchWithoutProofStatus:batchNoProof.status,
+      copiedBatchArgumentMutationStatus:batchArgumentMutation.status,
+      copiedBatchReorderedStatus:batchOrderSwap.status,
+      copiedBatchFreshAuthorizedProofStatus:copiedFreshBatch.status,
+      copiedBatchSignedProofReplayStatus:copiedBatchReplay.status,
+      copiedBatchOutputsMatchNative:true,
       authorizedPrivateRpcStatus:authorized.status,
       authorizedProofRpcStatus:authorizedProof.status,
       copiedOriginProofWithoutAssertionStatus:copiedNoProof.status,
