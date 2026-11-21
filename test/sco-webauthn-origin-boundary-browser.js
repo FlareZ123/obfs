@@ -662,6 +662,108 @@ async function main(){
     assert.equal(copiedBatchReplay.status,403);
     assert.equal(proofBatchRpcCalls,2);
 
+    /**
+     * Measure exactly the same 32 x 128 arithmetic map either in the browser
+     * or by fresh operation-bound WebAuthn proof plus real private SCO RPC.
+     * These wall timings include browser and transport latency, and are not
+     * a measurement of the project's 2.5x compute-CPU constraint.
+     * @param {'native'|'protected'} mode
+     * @returns {Promise<{mode:string,wallMs:number,checksum:number}>}
+     */
+    async function sessionWallSample(mode){
+      return page.evaluate(async({mode,values,rp,rawId})=>{
+        const decode=base64=>{
+          const binary=atob(base64);
+          return Uint8Array.from(binary,ch=>ch.charCodeAt(0));
+        };
+        const encode=buffer=>{
+          let binary='';
+          for(const byte of new Uint8Array(buffer))binary+=String.fromCharCode(byte);
+          return btoa(binary);
+        };
+        let checksum=0;
+        const start=performance.now();
+        for(let sample=0;sample<32;sample++){
+          let output;
+          if(mode==='native'){
+            output=values.map(value=>(Number(value)*17+29)>>>0);
+          } else {
+            const challengeResponse=await fetch('/proof-challenge',{
+              method:'POST',headers:{'content-type':'application/json'},
+              body:JSON.stringify({method:'proofBatch',args:[values]})
+            });
+            if(!challengeResponse.ok)throw Error('Batch challenge failed');
+            const issued=await challengeResponse.json();
+            const credential=await navigator.credentials.get({publicKey:{
+              challenge:new Uint8Array(issued.challenge),rpId:rp,
+              allowCredentials:[{type:'public-key',id:decode(rawId)}],
+              userVerification:'required',timeout:10000
+            }});
+            if(!(credential instanceof PublicKeyCredential))
+              throw Error('Missing WebAuthn batch credential');
+            const assertion=credential.response;
+            if(!(assertion instanceof AuthenticatorAssertionResponse))
+              throw Error('Invalid WebAuthn batch assertion');
+            const proof=btoa(JSON.stringify({
+              challengeId:issued.id,rawId:encode(credential.rawId),
+              clientData:encode(assertion.clientDataJSON),
+              authenticatorData:encode(assertion.authenticatorData),
+              signature:encode(assertion.signature)
+            }));
+            const reply=await fetch('/obfs/rpc',{
+              method:'POST',headers:{
+                'content-type':'application/json','x-webauthn-proof':proof
+              },
+              body:JSON.stringify({method:'proofBatch',args:[values]})
+            });
+            if(!reply.ok)throw Error('Authenticated private batch denied');
+            const json=await reply.json();
+            if(json.ok!==true||!Array.isArray(json.value))
+              throw Error('Unexpected private batch response');
+            output=json.value;
+          }
+          if(output.length!==128)throw Error('Wrong batch length');
+          for(let index=0;index<128;index++){
+            const expected=(Number(values[index])*17+29)>>>0;
+            if(output[index]!==expected)
+              throw Error('Mismatched native output at index '+index);
+            checksum=(checksum+((output[index]^sample)|0))|0;
+          }
+        }
+        return {mode,wallMs:performance.now()-start,checksum};
+      },{mode,values:batchValues,rp:rpId,rawId:registration});
+    }
+    await sessionWallSample('native');
+    await sessionWallSample('protected');
+    /** @type {{original:{mode:string,wallMs:number,checksum:number},proof:{mode:string,wallMs:number,checksum:number}}[]} */
+    const sessionWallPairs=[];
+    for(let pairIndex=0;pairIndex<5;pairIndex++){
+      const originalFirst=pairIndex%2===0;
+      const first=await sessionWallSample(originalFirst?'native':'protected');
+      const second=await sessionWallSample(originalFirst?'protected':'native');
+      const original=originalFirst?first:second;
+      const proof=originalFirst?second:first;
+      assert.equal(proof.checksum,original.checksum);
+      assert.ok(original.wallMs>0&&proof.wallMs>0);
+      sessionWallPairs.push({original,proof});
+    }
+    assert.equal(proofBatchRpcCalls,2+32+5*32);
+    const medianWall=/** @param {number[]} v */(v)=>
+      v.slice().sort((a,b)=>a-b)[Math.floor(v.length/2)];
+    const nativeMedianMs=medianWall(sessionWallPairs.map(p=>p.original.wallMs));
+    const proofMedianMs=medianWall(sessionWallPairs.map(p=>p.proof.wallMs));
+    const wallRatio=proofMedianMs/nativeMedianMs;
+    console.log('SCO_WEBAUTHN_BATCH_WALL '+JSON.stringify({
+      node:process.version,platform:process.platform,
+      source:'real-Chromium-32x128-matched-arithmetic',
+      securityBoundOperation:'proofBatch',
+      warmedUp:true,operationsPerTimedSample:32*128,
+      signedProofsPerProtectedSample:32,
+      pairs:sessionWallPairs,nativeMedianMs,proofMedianMs,wallRatio,
+      meets2_5xWall:wallRatio<=2.5,
+      claim:'wall elapsed includes WebAuthn signing, challenge and RPC; excludes signup and login; cannot establish compute CPU ratio'
+    }));
+
     const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
     const revokedValidProof=await copiedOriginRpc(
