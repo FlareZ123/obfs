@@ -171,4 +171,111 @@ function invertLowRankPermutation(oracle,target,options){
   throw new RangeError('Oracle violates promised permutation or rank bound');
 }
 
-module.exports={invertLowRankPermutation};
+
+/**
+ * @typedef {{
+ *   bits:number,rankBound:number,maxOrbitCalls?:number
+ * }} DeterministicOptions
+ * @typedef {{
+ *   preimage:number,oracleCalls:number,interpolationCalls:number,
+ *   orbitCalls:number,nullity:number,completionDirections:number,
+ *   provenOrbitUpperBound:number
+ * }} DeterministicInversionResult
+ */
+
+/**
+ * Deterministically invert a promised permutation with output displacement
+ * rank <= rankBound from a forward oracle, without random sampling.
+ *
+ * After n+1 queries form the public affine interpolant M. Replace each
+ * dependent column M_i with M_i XOR e_j for a standard-basis direction e_j
+ * outside the currently spanned columns. The completed H is invertible and
+ * rank(H-M)<=d, where d is the observable nullity of M.
+ *
+ * The unknown nonlinear displacement D(x)=F(x) XOR F(0) XOR M*x lies in an
+ * output subspace of dimension at most rankBound. Consequently
+ * H^-1(F(x) XOR F(0)) XOR x lies in a fixed subspace of dimension <=r+d.
+ * Iteration from H^-1(target XOR F(0)) stays in a permutation cycle of at
+ * most min(2**bits,2**(r+d)) states and returns the exact predecessor.
+ *
+ * The promise cannot be certified from a few oracle queries. This routine
+ * caps large orbits at 65,536 by default; a caller can explicitly increase
+ * that limit for an expensive bound. A cap hit throws rather than guessing.
+ *
+ * @param {UInt32Oracle} oracle
+ * @param {number} target
+ * @param {DeterministicOptions} options
+ * @returns {DeterministicInversionResult}
+ */
+function invertLowRankDeterministic(oracle,target,options){
+  const {bits,rankBound}=options;
+  if(!Number.isSafeInteger(bits)||bits<1||bits>32||
+     !Number.isSafeInteger(rankBound)||rankBound<0||
+     rankBound>Math.min(bits,16)){
+    throw new RangeError('Expected 1..32 bits and rankBound 0..min(16,bits)');
+  }
+  const range=2**bits;
+  if(!Number.isSafeInteger(target)||target<0||target>=range)
+    throw new RangeError('Target outside n-bit domain');
+
+  let oracleCalls=0;
+  /** @param {number} input @returns {number} */
+  const query=input=>{
+    oracleCalls++;
+    const value=oracle(input);
+    if(!Number.isSafeInteger(value)||value<0||value>=range)
+      throw new TypeError('Oracle must return unsigned n-bit integers');
+    return value>>>0;
+  };
+  const constant=query(0);
+  const columns=Array.from({length:bits},(_,bit)=>
+    (query((1<<bit)>>>0)^constant)>>>0);
+  const basis=Array(bits).fill(0);
+  /** @type {number[]} */
+  const freeColumns=[];
+  for(let bit=0;bit<bits;bit++){
+    if(!extendBasis(basis,columns[bit],bits))freeColumns.push(bit);
+  }
+  const nullity=freeColumns.length;
+  if(nullity>rankBound)throw new RangeError('Oracle exceeds promised rank bound');
+
+  const completed=columns.slice();
+  for(const column of freeColumns){
+    let filled=false;
+    for(let bit=0;bit<bits;bit++){
+      const direction=(1<<bit)>>>0;
+      if(extendBasis(basis,direction,bits)){
+        completed[column]=(columns[column]^direction)>>>0;
+        filled=true;
+        break;
+      }
+    }
+    if(!filled)throw new Error('Could not extend affine interpolant');
+  }
+  const inverse=inverseColumns(completed);
+  const provenOrbitUpperBound=2**Math.min(bits,rankBound+nullity);
+  const maxOrbitCalls=options.maxOrbitCalls??
+    Math.min(provenOrbitUpperBound,65536);
+  if(!Number.isSafeInteger(maxOrbitCalls)||maxOrbitCalls<1||
+     maxOrbitCalls>provenOrbitUpperBound){
+    throw new RangeError('Invalid deterministic orbit call cap');
+  }
+
+  const wanted=applyColumns(inverse,(target^constant)>>>0);
+  let current=wanted;
+  for(let step=1;step<=maxOrbitCalls;step++){
+    const next=applyColumns(inverse,(query(current)^constant)>>>0);
+    if(next===wanted){
+      return {
+        preimage:current,oracleCalls,interpolationCalls:bits+1,
+        orbitCalls:step,nullity,completionDirections:nullity,
+        provenOrbitUpperBound
+      };
+    }
+    current=next;
+  }
+  throw new RangeError('Deterministic orbit cap or rank promise exhausted');
+}
+
+module.exports={invertLowRankPermutation,invertLowRankDeterministic};
+
