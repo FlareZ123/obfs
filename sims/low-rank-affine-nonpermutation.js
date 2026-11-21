@@ -69,7 +69,7 @@ function newSpan(bits) {
   return {pivots: Array(bits).fill(0), vectors: []};
 }
 
-/** @param {number} value @returns {number} */
+/** @param {bigint} value @returns {number} */
 function parityBig(value) {
   let p = 0;
   while (value) {
@@ -198,6 +198,7 @@ function invertibleRows(n, random) {
  */
 function generate(n, r, kind, random) {
   const A = invertibleRows(n, random);
+  /** @type {number[]} */
   const V = [];
   const rankV = newSpan(n);
   while (V.length < r) {
