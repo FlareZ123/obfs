@@ -51,6 +51,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Behavioral and adversarial suites with compact failure diagnostics
         run: node --test --test-reporter=spec test/*.test.js
+      - name: Isolated exhaustive width-four low-rank oracle inversion
+        run: node --test sims/affine-low-rank-exhaustive.test.js
       - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
@@ -78,6 +80,9 @@ jobs:
       - name: Strict JSDoc for external corpus research tools
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck:external
+      - name: Strict JSDoc for low-rank affine inversion tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node node_modules/typescript/bin/tsc -p jsconfig.affine-low-rank-oracle.json
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
