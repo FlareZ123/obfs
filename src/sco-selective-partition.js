@@ -65,6 +65,8 @@ function usesUnprovedCrossRealmHostApi(body){
   walk(body,(node,parent,key)=>{
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
        !isStaticKey(parent,key)&&
+       !['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier']
+         .includes(parent?.type??'')&&
        !(parent?.type==='VariableDeclarator'&&key==='id')&&
        !(parent?.type==='FunctionDeclaration'&&key==='id')){
       observed=true;
