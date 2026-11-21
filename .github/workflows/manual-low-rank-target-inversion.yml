@@ -43,6 +43,8 @@ jobs:
         run: node sims/quadratic-radical-peer-check.js
       - name: Matched 1100-query cap for quadratic versus residual methods
         run: node sims/quadratic-radical-public-residual-cap.js
+      - name: Public-only quadratic functional cloning
+        run: node sims/quadratic-functional-clone-peer-check.js
       - name: Quadratic radical strict JSDoc
         run: npx --no-install tsc -p jsconfig.quadratic-radical.json
       - name: Project JSDoc type safety
