@@ -52,7 +52,7 @@ The standalone CommonJS/JSDoc learner is [`sims/rankfive-top-quartic-functional-
 
 The first real full-width CI fixture exposed a signed 32-bit submask indexing mistake in the lower-degree Möbius map. It was fixed by normalizing the subset lookup key with `>>>0` in commit [`169295e4e0c429adc86c600a63871e05b3b995cd`](https://github.com/FlareZ123/obfs/commit/169295e4e0c429adc86c600a63871e05b3b995cd). This demonstrates the value of actual n32 fixtures beyond finite small-width tests.
 
-On the corrected source at fixed seed `0x4a202611`, the [Ubuntu job of GitHub Actions 44962587060](https://github.com/FlareZ123/obfs/actions/runs/44962587060) succeeded. Explicit test results:
+On the corrected source at fixed seed `0x4a202611`, both **Ubuntu and Windows** jobs of [GitHub Actions 44962587060](https://github.com/FlareZ123/obfs/actions/runs/44962587060) passed, including strict JSDoc and the quartic full-clone step, at exact source SHA `169295e4e0c429adc86c600a63871e05b3b995cd`. Explicit test results:
 
 | Test | Corrected implementation observation |
 | --- | ---: |
@@ -66,7 +66,7 @@ On the corrected source at fixed seed `0x4a202611`, the [Ubuntu job of GitHub Ac
 | Conditional n32 source-class high-confidence cap | **6,882** |
 | Observed mismatches | **0** |
 
-The oracle callback is explicitly disabled before heldout evaluation, and the learned model is converted through JSON with the coefficient map restored. The source is enrolled in the existing strict JSDoc project and the original Windows/Ubuntu low-rank workflow without creating new CI jobs or a new workflow. The source-pinned two-platform conclusion should be taken from the workflow run's completed job status; at this report's creation the corrected Ubuntu job was already green and Windows was still processing.
+The oracle callback is explicitly disabled before heldout evaluation, and the learned model is converted through JSON with the coefficient map restored. The source is enrolled in the existing strict JSDoc project and the original Windows/Ubuntu low-rank workflow without creating new CI jobs or a new workflow. Both corrected operating-system jobs completed successfully at the source-pinned SHA above.
 
 ## Security-performance interpretation
 
