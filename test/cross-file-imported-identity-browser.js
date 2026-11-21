@@ -174,42 +174,57 @@ async function main(){
       {waitUntil:'domcontentloaded',timeout:45000});
     const data=await page.evaluate(async()=>{
       /** @type {Timings} */
-      const time={native:[],minified:[],compiled:[]};
+      const time={native:[],minified:[],mangled:[],compiled:[]};
       const expected=(/** @type {string} */ (JSON.stringify(['secretField','otherField'])));
       const positiveNative='/positive/native/entry.mjs';
       const positiveMinified='/positive/minified/entry.mjs';
+      const positiveMangled='/positive/mangled/entry.mjs';
       const positiveCompiled='/positive/compiled/entry.mjs';
       const transitiveNative='/transitive/native/entry.mjs';
+      const transitiveMangled='/transitive/mangled/entry.mjs';
       const transitiveCompiled='/transitive/compiled/entry.mjs';
       const negativeNative='/reflective/native/entry.mjs';
+      const negativeMangled='/reflective/mangled/entry.mjs';
       const negativeCompiled='/reflective/compiled/entry.mjs';
       const baseline=/** @type {{run:(a:number)=>number}} */(
         await import(positiveNative));
       const ordinaryMinified=/** @type {{run:(a:number)=>number}} */ (
         await import(positiveMinified));
+      const configuredMangled=/** @type {{run:(a:number)=>number}} */ (
+        await import(positiveMangled));
       const protectedGraph=/** @type {{run:(a:number)=>number}} */ (
         await import(positiveCompiled));
       const transitiveBaseline=/** @type {{run:(a:number)=>number}} */ (
         await import(transitiveNative));
+      const transitiveMangle=/** @type {{run:(a:number)=>number}} */ (
+        await import(transitiveMangled));
       const transitiveCandidate=/** @type {{run:(a:number)=>number}} */ (
         await import(transitiveCompiled));
       const reflectiveBaseline=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeNative));
+      const reflectiveMangle=/** @type {{run:(a:number)=>[string[],number]}} */ (
+        await import(negativeMangled));
       const reflectiveCandidate=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeCompiled));
       let parity=0;
       for(let i=0;i<4096;i++){
         const native=baseline.run(i);
         if(!Object.is(native,protectedGraph.run(i))||
-           !Object.is(native,ordinaryMinified.run(i)))
+           !Object.is(native,ordinaryMinified.run(i))||
+           !Object.is(native,configuredMangled.run(i)))
           throw Error('Browser cross-file positive or minifier mismatch at '+i);
-        if(!Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
+        if(!Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i))||
+           !Object.is(transitiveBaseline.run(i),transitiveMangle.run(i)))
           throw Error('Browser transitive alias differential mismatch at '+i);
         const reflected=reflectiveBaseline.run(i);
         const transformed=reflectiveCandidate.run(i);
+        const unsafeMangled=reflectiveMangle.run(i);
         if(JSON.stringify(reflected)!==JSON.stringify(transformed)||
             JSON.stringify(reflected[0])!==expected)
           throw Error('Browser reflective refusal mismatch at '+i);
+        if(JSON.stringify(unsafeMangled[0])===expected||
+           !Object.is(unsafeMangled[1],reflected[1]))
+          throw Error('Configured esbuild reflective negative mismatch at '+i);
         parity++;
       }
       // Source-visible host APIs only consume values. An external observer of
@@ -237,15 +252,14 @@ async function main(){
       for(let i=0;i<4;i++){
         timed(baseline.run,65536);
         timed(ordinaryMinified.run,65536);
+        timed(configuredMangled.run,65536);
         timed(protectedGraph.run,65536);
       }
       const orders=[
-        ['native','minified','compiled'],
-        ['compiled','minified','native'],
-        ['minified','native','compiled'],
-        ['compiled','native','minified'],
-        ['native','compiled','minified'],
-        ['minified','compiled','native']
+        ['native','minified','mangled','compiled'],
+        ['compiled','mangled','minified','native'],
+        ['minified','native','compiled','mangled'],
+        ['mangled','compiled','native','minified']
       ];
       for(let trial=0;trial<12;trial++){
         const order=orders[trial%orders.length];
@@ -253,12 +267,13 @@ async function main(){
         let checksum;
         for(const variant of order){
           const fn=variant==='native'?baseline.run:
-            variant==='minified'?ordinaryMinified.run:protectedGraph.run;
+            variant==='minified'?ordinaryMinified.run:
+            variant==='mangled'?configuredMangled.run:protectedGraph.run;
           const result=timed(fn,100000);
           if(checksum!==undefined&&result.checksum!==checksum)
             throw Error('Browser benchmark checksum mismatch '+variant);
           if(checksum===undefined)checksum=result.checksum;
-          time[/** @type {'native'|'minified'|'compiled'} */ (variant)].push(result.ms);
+          time[/** @type {'native'|'minified'|'mangled'|'compiled'} */ (variant)].push(result.ms);
         }
       }
       // Validate every held-out browser output after timing, so a matching
@@ -267,7 +282,9 @@ async function main(){
       for(let i=0;i<100000;i++){
         const expectedValue=baseline.run(i);
         if(!Object.is(expectedValue,ordinaryMinified.run(i))||
+           !Object.is(expectedValue,configuredMangled.run(i))||
            !Object.is(expectedValue,protectedGraph.run(i))||
+           !Object.is(transitiveBaseline.run(i),transitiveMangle.run(i))||
            !Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
           throw Error('Exact browser held-out output mismatch '+i);
         exactHeldoutInputs++;
@@ -276,7 +293,8 @@ async function main(){
         typedInputs:parity,exactHeldoutInputs,
         exactHeldoutParity:true,hostCallbacks:collected.length,
         outputParity:true,transitiveParity:true,reflectiveRefusalParity:true,
-        benchmarkChecksumsMatched:true
+        benchmarkChecksumsMatched:true,
+        configuredMangleReflectedKeysChanged:true
       },time};
     });
     assert.equal(data.trace.typedInputs,4096);
@@ -289,6 +307,7 @@ async function main(){
     assert.equal(data.trace.benchmarkChecksumsMatched,true);
     const bound=pairedBudgetBound(data.time.native,data.time.compiled);
     const minifiedBound=pairedBudgetBound(data.time.minified,data.time.compiled);
+    const mangledBound=pairedBudgetBound(data.time.mangled,data.time.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
       version:await browser.version(),
       positiveFieldsRenamed:2,
@@ -301,10 +320,12 @@ async function main(){
       staticLabelEvidence,
       nativeVsCompiled:bound,
       minifiedVsCompiled:minifiedBound,
+      mangledVsCompiled:mangledBound,
       strictObservedBreaches:bound.samplePairs-bound.observedPairsWithinBudget,
       strictObservedMinifiedBreaches:minifiedBound.samplePairs-minifiedBound.observedPairsWithinBudget,
+      strictObservedMangledBreaches:mangledBound.samplePairs-mangledBound.observedPairsWithinBudget,
       timingMs:data.time,
-      caveat:'The minified graph is unbundled ES2022 esbuild with properties preserved. The graph is closed under the compiler declaration; hostile outside consumers can inspect the published state module. The 12-pair browser loop is a bounded performance sample.'
+      caveat:'One esbuild build call with explicit mangleProps removes both source labels on positive graphs but changes observed Object.keys in the reflective negative, whereas the conservative compiler refuses that rewrite. Default esbuild minification preserves labels. Configured esbuild needs an external whole-graph safety policy. Hostile COO clients can inspect every distributed source. Browser warm runtime work excludes compilation and cold-start costs.'
     }));
   }finally{
     try{if(browser)await browser.close();}
