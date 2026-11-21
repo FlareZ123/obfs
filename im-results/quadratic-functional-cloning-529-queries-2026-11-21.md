@@ -44,6 +44,6 @@ The executable sample tests a finite number of full-rank 32-bit inputs; the exac
 
 ## Source-pinned verification and status
 
-Cross-platform manual test gates run these models on Ubuntu and Windows, alongside the previous quadratic-radical verifier and strict dedicated and project-wide JSDoc type checks. Record the exact green run and source commit only after both jobs have completed; the source under this heading is a live intermediate result.
+**Source-pinned two-platform proof-of-work:** [manual run 44937676585](https://github.com/FlareZ123/obfs/actions/runs/44937676585), SHA `762238265fa4afa86f79df6f2ee408df4fb61ff3`, passed the **Ubuntu and Windows** functional-clone test, 322,560 exact exhaustive width-three outputs, 16,384 held-out high-rank 32-bit outputs, **128/128 local model-only inversions with the protected server disabled**, the independent radical and matched-query tests, dedicated strict JSDoc and project-wide JSDoc. This is the source pin for every concrete sample count above.
 
 The result should guide the project toward rejecting stateless, low-degree candidate functions even when their output bit-mixing looks complex, their nonlinear output rank is maximal, or they use hidden invertible affine wrappers. The user-defined three-mode obfuscator still **fails the full strong-protection release criteria**. This attack does not establish general source reconstruction, unauthorized host execution, unrestricted JS semantic equivalence, integrity bypass, or the required 2.5× protected-code runtime budget.
