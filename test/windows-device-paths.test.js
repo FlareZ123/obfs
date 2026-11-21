@@ -100,9 +100,9 @@ test('ordinary device-like filenames remain eligible for publication',()=>{
     'auxiliary/file.js','console .txt','nonconsole/COM0extra.txt'
   ];
   for(const file of candidates)assert.equal(safePath(file),file);
-  const files=candidates.map(name=>({
-    path:name,code:Buffer.from([3,0xff]),sourceType:/** @type {const} */('asset')
-  }));
+  const files=candidates.map(name=>name.endsWith('.js') ?
+    {path:name,code:'module.exports=1;',sourceType:/** @type {const} */('commonjs')} :
+    {path:name,code:Buffer.from([3,0xff]),sourceType:/** @type {const} */('asset')});
   for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     assert.deepEqual(obfuscateFiles(files,{mode,seed:'dos-device-controls'}).files.map(f=>f.path),
       candidates,mode);
