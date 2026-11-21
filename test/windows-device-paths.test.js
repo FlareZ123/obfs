@@ -22,3 +22,49 @@ test('Windows reserved device names include ISO-8859-1 superscript digits',()=>{
     assert.equal(safePath(candidate),candidate);
   }
 });
+
+
+test('DOS 8.3 tilde-number spellings are conservatively refused at all output boundaries',()=>{
+  const {createSnoLauncher,createScoHandler}=require('../src');
+  const entry={path:'entry.cjs',code:'module.exports=17;',sourceType:/** @type {const} */('commonjs')};
+  const longName={path:'privateLongOriginal.mjs',code:Buffer.from([13,37]),sourceType:/** @type {const} */('asset')};
+  const aliases=[
+    'PRIVAT~1.MJS','SECRET~1.CJS','ABCDEF~1.JS','LONGFI~9.JS',
+    'assets/PRIVAT~1.MJS','ASSETS~1/image.png',
+    'nested/asset~0.png'
+  ];
+  for(const name of aliases) {
+    assert.throws(()=>safePath(name),/Unsafe Windows short-name alias segment/,name);
+    const files=[entry,longName,{path:name,code:Buffer.from([4,5]),sourceType:/** @type {const} */('asset')}];
+    for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+      assert.throws(()=>obfuscateFiles(files,{mode}),/Unsafe Windows short-name alias segment/,
+        mode+' '+name);
+    }
+    assert.throws(()=>createSnoLauncher(files,'entry.cjs'),
+      /Unsafe Windows short-name alias segment/,name);
+    assert.throws(()=>createScoHandler(files.slice(1)),
+      /Unsafe Windows short-name alias segment/,name);
+    assert.throws(()=>createScoHandler([longName],{publicPaths:[name]}),
+      /Unsafe Windows short-name alias segment/,name);
+  }
+});
+
+test('ordinary tilde names and a true long filename preserve safe output admission',()=>{
+  const {createSnoLauncher,createScoHandler}=require('../src');
+  const names=['asset~draft.png','assets/backup~v2/file.png','asset~1x.png','notes~.md'];
+  for(const name of names)assert.equal(safePath(name),name);
+  const entry={path:'entry.cjs',code:'module.exports=17;',sourceType:/** @type {const} */('commonjs')};
+  const files=[entry,...names.map(name=>({
+    path:name,code:Buffer.from([0x0,0xf1,0x34]),
+    sourceType:/** @type {const} */('asset')
+  })),{
+    path:'privateLongOriginal.mjs',code:Buffer.from([0x44,0x55]),
+    sourceType:/** @type {const} */('asset')
+  }];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const compiled=obfuscateFiles(files,{mode,seed:'shortname-alias-safe-control'});
+    assert.deepEqual(compiled.files.map(file=>file.path),files.map(file=>file.path));
+  }
+  assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
+  assert.doesNotThrow(()=>createScoHandler(files.slice(1)));
+});
