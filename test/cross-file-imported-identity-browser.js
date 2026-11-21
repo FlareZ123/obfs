@@ -78,9 +78,11 @@ async function main(){
         minify:true,legalComments:'none'
       })).code
     })));
-    const hasSourceLabels=/** @param {Input[]|Output[]} files */(
-      files=>['secretField','otherField'].every(name=>
-        files.some(file=>file.code.includes(name))));
+    /** @param {Input[]|Output[]} files @returns {boolean} */
+    function hasSourceLabels(files){
+      return ['secretField','otherField'].every(name=>
+        files.some(file=>file.code.includes(name)));
+    }
     assert.equal(hasSourceLabels(original),true);
     assert.equal(hasSourceLabels(minified),true,
       'Normal esbuild property preservation should leave both semantic labels');
