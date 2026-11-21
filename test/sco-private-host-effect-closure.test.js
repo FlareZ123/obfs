@@ -133,6 +133,10 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
       'export async function protectedOp(){return helper();}',
     'export async function protectedOp(){return new Worker("./worker.mjs");}',
     'export async function protectedOp(){return new Request("./client-data.json").url;}',
+    'export async function protectedOp(){console.info("CLIENT_LOG");return 7;}',
+    'function helper(){console.warn("CLIENT_LOG");return 7;}'+
+      'export async function protectedOp(){return helper();}',
+    'export async function protectedOp(){debugger;return 7;}',
     'function helper(){return new WebSocket("wss://example.invalid/stream");}'+
       'export async function protectedOp(){return helper();}'
   ];
@@ -144,8 +148,9 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
     ),/Private SCO export or helper contains unproved cross-realm host API/u,source);
   }
   const inert='export async function protectedOp(){'+
-    'const record={fetch:41,Request:0,Worker:1};'+
-    'return record.fetch+record.Request+record.Worker;}'+
+    'const record={fetch:41,Request:0,Worker:1,console:0,debugger:0};'+
+    'return record.fetch+record.Request+record.Worker+'+
+    'record.console+record.debugger;}'+
     'export function visible(){return 7;}';
   const partition=partitionScoSelectedAsyncExports(
     {path:'mixed.mjs',sourceType:'module',code:inert},
