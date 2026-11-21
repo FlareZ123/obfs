@@ -16,14 +16,16 @@ function topBit(x){let value=x,bit=-1;while(value){value>>=1n;bit++;}return bit;
 /**
  * @param {(x:number)=>number} oracle A promised degree<=2 full oracle
  * @param {number} n
- * @param {number} maxProjectionRank Required externally justified upper bound,
- *   at most 3. Incorrect rank promises can yield silently wrong early clones.
+ * @param {number|null} maxProjectionRank Required externally justified upper
+ *   bound 0..3, or null for exact full quadratic ANF. An incorrect bound can
+ *   yield silently wrong early clones.
  * @returns {{evaluate:(x:number)=>number,queries:number,early:boolean,rank:number,pivots:number}}
  */
 function cloneQuadratic(oracle,n,maxProjectionRank){
   assert.ok(Number.isInteger(n)&&n>=1&&n<=32,'input bit width must be 1..32');
-  assert.ok(Number.isInteger(maxProjectionRank)&&maxProjectionRank>=0&&
-    maxProjectionRank<=Math.min(3,n),'explicit rank promise 0..3 is required');
+  assert.ok(maxProjectionRank===null||(Number.isInteger(maxProjectionRank)&&
+    maxProjectionRank>=0&&maxProjectionRank<=Math.min(3,n)),
+    'explicit rank promise 0..3 or null for generic is required');
   /** @type {Map<number,number>} */
   const cache=new Map();
   /** @param {number} x @returns {number} */
@@ -47,6 +49,7 @@ function cloneQuadratic(oracle,n,maxProjectionRank){
       const v=coefficient(i,pivot);
       pair[i][pivot]=v;pair[pivot][i]=v;
     }
+    if(maxProjectionRank===null)continue;
     const signatures=Array.from({length:n},(_,i)=>{
       let s=0n;
       for(let j=0;j<=pivot;j++)s|=BigInt(pair[i][j])<<BigInt(32*j);
@@ -103,7 +106,7 @@ function cloneQuadratic(oracle,n,maxProjectionRank){
     };
   }
   return {
-    early:false,rank:observedRank,pivots:n,queries:cache.size,
+    early:false,rank:maxProjectionRank===null?-1:observedRank,pivots:n,queries:cache.size,
     evaluate:x=>{
       let v=base;
       for(let i=0;i<n;i++)if((x>>>i)&1){
