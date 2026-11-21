@@ -43,6 +43,32 @@ function graph(reflective,depth=1){
   ];
 }
 
+/**
+ * One combined ESM distribution with two unrelated owners sharing identical
+ * field names. The first owner is private and accessed through an identity
+ * alias; the second is reflected to the public API.
+ *
+ * @returns {Input[]}
+ */
+function mixedGraph(){
+  return [
+    {path:'private-state.mjs',sourceType:'module',
+      code:'export const secret={secretField:17,otherField:5};'},
+    {path:'public-state.mjs',sourceType:'module',
+      code:'export const visible={secretField:23,otherField:7};'},
+    {path:'identity.mjs',sourceType:'module',
+      code:'export const identity=x=>x;'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {secret} from "./private-state.mjs";'+
+        'import {visible} from "./public-state.mjs";'+
+        'import {identity} from "./identity.mjs";'+
+        'const forward=identity;'+
+        'export function run(a){const local=forward(secret);'+
+        'return [(local.secretField+a)^local.otherField,'+
+        'Object.keys(visible),visible.secretField+a];}'}
+  ];
+}
+
 /** @param {Input[]} input @returns {Output[]} */
 function compile(input){
   const built=obfuscateFiles(input,{
