@@ -1650,6 +1650,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // getters to avoid changing the decoder when they expose String.prototype.
   // This summary is monotonic and may conservatively refuse on reassignment.
   const objectCreateAliases=new Set();
+  const sensitiveCreateGetterDescriptors=new Set();
   const sensitiveCreateDescriptorMaps=new Set();
   const sensitiveCreateDescriptorFactories=new Set();
   /**
@@ -1657,6 +1658,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function sensitiveCreateGetter(descriptor) {
+    if(descriptor.type==='Identifier') {
+      return sensitiveCreateGetterDescriptors.has(descriptor.name);
+    }
     if(descriptor.type!=='ObjectExpression')return false;
     return descriptor.properties.some((/** @type {import('./ast').AstNode} */ field)=>{
       if(field.type!=='Property')return false;
@@ -1731,6 +1735,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(value.type==='MemberExpression'&&isObjectIntrinsic(value.object)&&
          memberName(value)==='create'||value.type==='Identifier'&&
          objectCreateAliases.has(value.name))add(objectCreateAliases,name);
+      if(sensitiveCreateGetter(value))add(sensitiveCreateGetterDescriptors,name);
       if(sensitiveCreateDescriptorMap(value))add(sensitiveCreateDescriptorMaps,name);
       if(functionReturnsSensitiveCreateDescriptorMap(value)) {
         add(sensitiveCreateDescriptorFactories,name);
