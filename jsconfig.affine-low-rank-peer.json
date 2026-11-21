@@ -15,6 +15,7 @@
   "include": [
     "sims/affine-low-rank-peer-check.js",
     "sims/affine-low-rank-method-comparison.js",
-    "sims/affine-residual-minimal-rank-peer.js"
+    "sims/affine-residual-minimal-rank-peer.js",
+    "sims/low-rank-affine-nonpermutation.js"
   ]
 }
