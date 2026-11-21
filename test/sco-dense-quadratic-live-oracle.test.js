@@ -35,3 +35,23 @@ test('authenticated SCO dense source: 529 calls recover 529 coefficients offline
   assert.match(result.transcriptSha256,/^[0-9a-f]{64}$/u);
   console.log('SCO_DENSE_QUADRATIC_AUTHENTICATED '+JSON.stringify(result));
 });
+
+
+test('independent attacker process clones private dense SCO source from HTTP alone',{
+  timeout:120000
+},async()=>{
+  const result=await runDenseChallenge({processIsolatedClient:true});
+  assert.equal(result.processIsolatedClient,true);
+  assert.equal(result.queries,529);
+  assert.equal(result.privateCalls,529);
+  assert.equal(result.deniedStatus,403);
+  assert.equal(result.protectedIdentifiersServed,false);
+  assert.equal(result.recoveredCoefficients,529);
+  assert.equal(result.coefficientsExactlyRecovered,true);
+  assert.equal(result.nonlinearOutputRank,32);
+  assert.equal(result.lastPairAmbiguityAt528Queries,true);
+  assert.equal(result.serverOfflineBeforeHoldout,true);
+  assert.equal(result.heldOut,1028);
+  assert.equal(result.matched,1028);
+  console.log('SCO_DENSE_SEPARATE_PROCESS_ATTACK '+JSON.stringify(result));
+});
