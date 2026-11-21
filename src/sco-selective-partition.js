@@ -58,11 +58,12 @@ function isStaticKey(parent,key){
  */
 function usesUnprovedCrossRealmHostApi(body){
   const hostApis=new Set([
-    'fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
+    'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel'
   ]);
   let observed=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='DebuggerStatement')observed=true;
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
        !isStaticKey(parent,key)&&
        !['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier']
