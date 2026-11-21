@@ -176,3 +176,27 @@ for(const [name,observed] of /** @type {[string,string][]} */ ([
       'console.log(JSON.stringify(['+observed+',record.secretField]));'));
   });
 }
+
+
+test('explicit named ESM reexport carries a proven identity through an immutable local chain',async()=>{
+  const entry='import {state} from "./state.mjs";'+
+    'import {relay} from "./relay.mjs";'+
+    'const first=relay;const second=first;'+
+    'const result=second(state);'+
+    'console.log(JSON.stringify([result.secretField,result.otherField]));';
+  const files=graph(fn,entry);
+  files.splice(2,0,{path:'relay.mjs',sourceType:'module',
+    code:'export {identity as relay} from "./identity.mjs";'});
+  await expectRewritten('named ESM reexport',files);
+});
+
+test('ambiguous export-star helper path remains conservative',async()=>{
+  const entry='import {state} from "./state.mjs";'+
+    'import {identity} from "./relay.mjs";'+
+    'const first=identity;const second=first;'+
+    'const result=second(state);console.log(result.secretField);';
+  const files=graph(fn,entry);
+  files.splice(2,0,{path:'relay.mjs',sourceType:'module',
+    code:'export * from "./identity.mjs";'});
+  await expectRefused('export-star helper path',files);
+});
