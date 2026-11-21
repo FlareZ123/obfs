@@ -24,6 +24,8 @@
     "sims/low-rank-nonbijective-offline-clone-bridge.js",
     "sims/low-rank-singular-envelope-peer-width3.js",
     "sims/ranktwo-polarization-oracle-clone.js",
-    "sims/rankthree-polarization-oracle-clone.js"
+    "sims/rankthree-polarization-oracle-clone.js",
+    "sims/low-rank-nonbijective-independent-peer.js",
+    "sims/rankthree-quadratic-polarization-peer.js"
   ]
 }
