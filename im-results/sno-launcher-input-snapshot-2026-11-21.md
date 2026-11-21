@@ -23,3 +23,8 @@ The exact source/test commit is pinned on branch `agent4/sno-snapshot-utf16-pari
 ## Limitations
 
 A one-pass snapshot is a deterministic internal value boundary. It is not an atomic snapshot of a caller's entire mutable collection: an earlier getter may change a later entry before that later index is read, and a hostile runtime can change memory or the filesystem after build output. These constraints are explicit. It adds compiler-time Buffer copies and no new protected-runtime instrumentation, so it does not itself establish a universal protected-code 2.5× claim. The project's primary full-control adversary security release remains blocked.
+
+
+## Validation run
+
+Source-pinned full Ubuntu/Windows Node 22 + Ubuntu Chromium run [44939555102](https://github.com/FlareZ123/obfs/actions/runs/44939555102), exact `c7841502d304bdb1f0781fd6b460e796704f1120`, was still executing when this section was added. The later full text-asset preflight candidate `d869759be31c8aa2a175ecc16a7ab72b5f987157` also includes this snapshot and has a separate [run 44939896026](https://github.com/FlareZ123/obfs/actions/runs/44939896026). Keep job conclusions distinct and source-pinned.
