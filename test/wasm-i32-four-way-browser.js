@@ -85,6 +85,8 @@ async function main(){
       /** @type {Record<'native'|'minified'|'wasm'|'reconstructed',number[]>} */
       const work={native:[],minified:[],wasm:[],reconstructed:[]};
       /** @type {Record<'native'|'minified'|'wasm'|'reconstructed',number[]>} */
+      const selectedKernelWork={native:[],minified:[],wasm:[],reconstructed:[]};
+      /** @type {Record<'native'|'minified'|'wasm'|'reconstructed',number[]>} */
       const firstUse={native:[],minified:[],wasm:[],reconstructed:[]};
       /** @type {Record<'native'|'minified'|'wasm'|'reconstructed',number[]>} */
       const importLatency={native:[],minified:[],wasm:[],reconstructed:[]};
@@ -101,10 +103,32 @@ async function main(){
         d:(i>>>3)&31,
         label:'event-'+i+(i%47===0?'終':'')
       }));
-      let comparisons=0;
+      /**
+       * Direct selected-kernel work uses precisely the same typed input
+       * contract while removing the bridge's string/array callback cost.
+       * The checksum is observed and compared across all four variants.
+       * @param {(a:number,b:number,c:number,d:number)=>number} scramble
+       * @param {(x:number)=>number} mask
+       * @param {number} rounds
+       * @returns {number}
+       */
+      function selectedWork(scramble,mask,rounds){
+        let checksum=0;
+        for(let i=0;i<rounds;i++){
+          const a=Math.imul(i^0x9bf34621,0x9e3779b1)|0;
+          const b=Math.imul(i+71,1664525)|0;
+          const c=Math.imul(i+149,1013904223)|0;
+          const d=(i>>>3)&31;
+          checksum^=(scramble(a,b,c,d)^mask(a))|0;
+        }
+        return checksum;
+      }
+      let comparisons=0,selectedComparisons=0;
       for(let trial=0;trial<12;trial++){
         /** @type {string|undefined} */
         let reference;
+        /** @type {number|undefined} */
+        let selectedReference;
         for(const variant of orders[trial%orders.length]){
           const start=performance.now();
           const app=/** @type {{run:(a:number,b:number,c:number,d:number,label:string)=>string}} */(
@@ -139,6 +163,20 @@ async function main(){
           if(reference!==undefined && observed!==reference)
             throw Error('Four-way Chromium output or host callback mismatch '+variant+'/'+trial);
           if(reference===undefined)reference=observed;
+          const kernel=/** @type {{
+            scramble:(a:number,b:number,c:number,d:number)=>number,
+            mask:(x:number)=>number
+          }} */ (await import('/'+variant+'/10000/'+trial+'/kernel.mjs'));
+          selectedWork(kernel.scramble,kernel.mask,16384);
+          const selectedStart=performance.now();
+          const selectedChecksum=selectedWork(kernel.scramble,kernel.mask,200000);
+          const selectedEnd=performance.now();
+          if(selectedReference!==undefined&&selectedChecksum!==selectedReference)
+            throw Error('Four-way selected-kernel checksum mismatch '+variant+'/'+trial);
+          if(selectedReference===undefined)selectedReference=selectedChecksum;
+          selectedKernelWork[/** @type {'native'|'minified'|'wasm'|'reconstructed'} */(variant)]
+            .push(selectedEnd-selectedStart);
+          selectedComparisons+=200000;
           importLatency[/** @type {'native'|'minified'|'wasm'|'reconstructed'} */(variant)]
             .push(imported-start);
           firstUse[/** @type {'native'|'minified'|'wasm'|'reconstructed'} */(variant)]
@@ -149,13 +187,18 @@ async function main(){
         }
       }
       return {clockProbeMs,clockSum,trialPairs:12,eventsPerTrial:10000,
+        selectedKernelCallsPerVariant:200000,
+        selectedKernelComparisons:selectedComparisons,
         comparedVariantCalls:comparisons,fullOutputAndCallbackParity:true,
-        timings:{importLatency,firstUse,work}};
+        selectedKernelChecksumParity:true,
+        timings:{importLatency,firstUse,work,selectedKernelWork}};
     });
     assert.equal(measured.trialPairs,12);
     assert.equal(measured.eventsPerTrial,10000);
     assert.equal(measured.comparedVariantCalls,480000);
+    assert.equal(measured.selectedKernelComparisons,9600000);
     assert.equal(measured.fullOutputAndCallbackParity,true);
+    assert.equal(measured.selectedKernelChecksumParity,true);
     assert.ok(measured.clockProbeMs>=0.1);
     const w=measured.timings.work;
     for(const name of /** @type {Variant[]} */(
@@ -165,18 +208,32 @@ async function main(){
     }
     const vsNative=pairedBudgetBound(w.native,w.wasm);
     const vsMinified=pairedBudgetBound(w.minified,w.wasm);
+    const selected=measured.timings.selectedKernelWork;
+    for(const name of /** @type {Variant[]} */(
+      ['native','minified','wasm','reconstructed'])){
+      assert.equal(selected[name].length,12);
+      assert.ok(selected[name].every(value=>Number.isFinite(value)&&value>0));
+    }
+    const kernelVsNative=pairedBudgetBound(selected.native,selected.wasm);
+    const kernelVsMinified=pairedBudgetBound(selected.minified,selected.wasm);
     const report={
       browser:'Chromium',version,platform:process.platform,
       hashes:graphHashes,sourceRecoveredFunctions:recoveredFunctions,
       clockProbeMs:measured.clockProbeMs,
       pairedWorkload:'12 counterbalanced trials; 10000 typed Int32 events and host callbacks each',
       matchedFullOutputAndCallbackParity:true,
+      selectedKernelChecksumParity:true,
       computeBoundary:'synchronous application work after import and 1024-call warmup',
+      selectedKernelBoundary:'200000 pure selected-kernel calls after 16384-call warmup, without external callbacks',
       nonComputeLatency:'module HTTP imports recorded separately; first-use compilation recorded separately',
       wasmVsNative:vsNative,wasmVsMinified:vsMinified,
+      selectedKernelVsNative:kernelVsNative,
+      selectedKernelVsMinified:kernelVsMinified,
       strictObservedBreaches:{
         native:vsNative.samplePairs-vsNative.observedPairsWithinBudget,
-        minified:vsMinified.samplePairs-vsMinified.observedPairsWithinBudget
+        minified:vsMinified.samplePairs-vsMinified.observedPairsWithinBudget,
+        selectedKernelNative:kernelVsNative.samplePairs-kernelVsNative.observedPairsWithinBudget,
+        selectedKernelMinified:kernelVsMinified.samplePairs-kernelVsMinified.observedPairsWithinBudget
       },
       timingMs:measured.timings,
       caveat:'Browser samples are a fixed local workload. They cannot establish a universal 2.5x bound or resist source-only Wasm reconstruction.'
