@@ -47,6 +47,10 @@ The query caps follow \(Q\le(n+1)+3t+kn+\binom{k}{2}\) at \(n=32\), counting at 
 
 The calculations agree with a second independent local Python \`fractions.Fraction\` implementation using the same mathematically defined rank states. Because the rational witness lives in an exact integer count space, the result is not a fixed-seed Monte Carlo observation and does not depend on 32-bit numerical floating-point tail rounding.
 
+## Source-pinned two-platform verification
+
+The existing [manual low-rank theorem workflow 44962415571](https://github.com/FlareZ123/obfs/actions/runs/44962415571) completed **successfully** on Ubuntu and Windows at immutable source `dd073110f71db7e2868a7909df328681745d596d`. It executed this standalone exact BigInt rational verifier, the adaptive polar learner's existing checks and the strict JSDoc gate. Its independent integer-count output matched each exact minimum trial count, prior-step threshold failure, and 428/473/516 query cap. An earlier run at `76548b6ab2cb8fcffec2edfc4fb82ce27de98777` executed the math script successfully but failed the shared TypeScript gate in an unrelated newly committed tensor test; the one-line nullability guard at `sims/vector-top-tensor-quotient-peer.js` was subsequently corrected. The latest green source pin supersedes that incomplete CI validation.
+
 ## Scope of approval
 
 The exact arithmetic **supports** the previously stated rank-4/5/6 upper bounds when all conditional assumptions hold. It does not establish that the source radical codimension equals the claimed k; the proof is conditional on that promise. Incorrect higher-rank hints can silently pass an incomplete signature certificate, as independently demonstrated in [the rank-three false-hint census](quadratic-rank-hint-validation-2026-11-21.md). Incorrect lower-rank hints can cause the algorithm to return an explicit uncertified result. Fixed-degree and stationary-oracle premises also matter.
