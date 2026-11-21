@@ -93,7 +93,9 @@ function main() {
     maxCandidates: 0,
     minNonzeroResidualFunctionalSupport: 8,
     witnessMax: /** @type {{A:number[],U:number[],V:number[],encoded:number,target:number,rankM:number,rankW:number}|null} */ (null),
-    sampleLowerBoundChecks: 0
+    sampleLowerBoundChecks: 0,
+    exactSamplingQueries: Math.ceil(4 * Math.log(3 / 0.01)),
+    maxExactSpanFailureProbability: 0
   };
 
   for (const A of As) {
@@ -144,6 +146,27 @@ function main() {
                 Math.min(counts.minNonzeroResidualFunctionalSupport, support);
             }
           }
+
+          // Exact independent-uniform q-draw failure, evaluated by all
+          // proper subspaces of W. For a plane, the three one-dimensional
+          // subspaces intersect pairwise only in {0}.
+          const frequencies = Array(8).fill(0);
+          for (const value of residual) frequencies[value]++;
+          const q = counts.exactSamplingQueries;
+          let missProbability = 0;
+          if (rankW === 1) {
+            missProbability = (frequencies[0] / 8) ** q;
+          } else if (rankW === 2) {
+            let lineSum = 0;
+            for (let w = 1; w < 8; w++) {
+              if (!(Wmask & (1 << w))) continue;
+              lineSum += ((frequencies[0] + frequencies[w]) / 8) ** q;
+            }
+            missProbability = lineSum - 2 * (frequencies[0] / 8) ** q;
+          }
+          assert.ok(missProbability >= -1e-12 && missProbability <= 0.01);
+          counts.maxExactSpanFailureProbability = Math.max(
+            counts.maxExactSpanFailureProbability, missProbability);
 
           for (let y = 0; y < 8; y++) {
             const reachable = (imageMask & (1 << y)) !== 0;
