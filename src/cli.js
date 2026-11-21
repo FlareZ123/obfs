@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const http = require('node:http');
+const {isUtf8} = require('node:buffer');
 const {obfuscateFiles,createSnoLauncher,createScoHandler} = require('./index');
 const {atomicWrite} = require('./atomic');
 const {safePath} = require('./core');
@@ -136,18 +137,12 @@ async function readSourceTree(root) {
       else if(item.isFile()) {
         const sourceType = /\.(?:js|cjs|mjs)$/.test(item.name) ? undefined : 'asset';
         const data = await fs.readFile(path.join(root,relative));
-        /** @type {string|Buffer} */
-        let code = data;
-        if (sourceType !== 'asset') {
-          // Buffer#toString silently substitutes U+FFFD for malformed UTF-8.
-          // Preserve a valid BOM, and decline source bytes that cannot be
-          // represented losslessly before any transform or output write.
-          try {
-            code = new TextDecoder('utf-8',{fatal:true,ignoreBOM:true}).decode(data);
-          } catch (error) {
-            throw new TypeError('Invalid UTF-8 JavaScript source: '+relative,{cause:error});
-          }
+        // Buffer#toString silently substitutes U+FFFD for malformed UTF-8.
+        // Validate first; preserving valid BOMs and opaque asset bytes.
+        if(sourceType!=='asset'&&!isUtf8(data)) {
+          throw new TypeError('Invalid UTF-8 JavaScript source: '+relative);
         }
+        const code=sourceType==='asset'?data:data.toString('utf8');
         results.push({path:relative,code,sourceType});
       }
     }
