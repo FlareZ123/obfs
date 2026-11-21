@@ -100,3 +100,52 @@ test('normalizer handles marker-free source and refuses invalid input',()=>{
   assert.equal(normalizeScoVariant("const x='text';"),'const x="text";');
   assert.throws(()=>normalizeScoVariant(/** @type {any} */ (null)),/served JS string/);
 });
+
+
+test('host-locked SCO variants remain statically equivalent after source-only normalization',async()=>{
+  const original="const privateToken='recoverable-client-string-1234567890';globalThis.out=privateToken;";
+  const handler=createScoHandler([{path:'entry.js',sourceType:'script',code:original}],{
+    routePrefix:'/obfs/',allowedHosts:['www.example.org']
+  });
+  const server=http.createServer(handler);
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  try {
+    const address=server.address();
+    if(!address||typeof address==='string')throw new Error('Expected listening TCP server');
+    /** @returns {Promise<{status:number,body:string}>} */
+    function request() {
+      return new Promise((resolve,reject)=>{
+        http.get({
+          host:'127.0.0.1',port:address.port,path:'/obfs/entry.js',
+          headers:{Host:'www.example.org'}
+        },response=>{
+          const chunks=[];
+          response.setEncoding('utf8');
+          response.on('data',chunk=>chunks.push(chunk));
+          response.on('end',()=>resolve({
+            status:/** @type {number} */(response.statusCode),
+            body:chunks.join('')
+          }));
+        }).on('error',reject);
+      });
+    }
+    const results=await Promise.all(Array.from({length:4},request));
+    assert.ok(results.every(({status})=>status===200));
+    const variants=results.map(({body})=>body);
+    assert.ok(new Set(variants).size>1,'A normal eligible source should still vary per request');
+    const normalized=variants.map(body=>normalizeScoVariant(body,'script'));
+    assert.equal(new Set(normalized).size,1,
+      'Host guarding and string-escape randomization are normalized with no seed');
+    for(const code of [...variants,normalized[0]]){
+      const allowed={location:{hostname:'www.example.org'}};
+      vm.runInNewContext(code,allowed,{timeout:1000});
+      assert.equal(allowed.out,'recoverable-client-string-1234567890');
+      const denied={location:{hostname:'elsewhere.example.org'}};
+      assert.throws(()=>vm.runInNewContext(code,denied,{timeout:1000}),/Unauthorized execution host/);
+      assert.equal(denied.out,undefined);
+    }
+    assert.ok(normalized[0].includes('"recoverable-client-string-1234567890"'));
+  }finally {
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+  }
+});
