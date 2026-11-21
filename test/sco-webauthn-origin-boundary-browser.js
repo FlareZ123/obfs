@@ -126,11 +126,11 @@ async function main(){
            args.length!==1)return false;
         const requested=args[0];
         if(method==='proofSum'||method==='proofZero') {
-          if(typeof record.value!=='number'||requested!==record.value)return false;
+          if(typeof record.value!=='number'||!Object.is(requested,record.value))return false;
         } else {
           if(!Array.isArray(record.value)||!Array.isArray(requested)||
              requested.length!==128||!record.value.every((value,index)=>
-               requested[index]===value))return false;
+               Object.is(requested[index],value)))return false;
         }
         const clientData=Buffer.from(proof.clientData,'base64');
         const authenticatorData=Buffer.from(proof.authenticatorData,'base64');
@@ -568,7 +568,9 @@ async function main(){
      * @returns {Promise<{status:number,body:unknown}>}
      */
     async function copiedOriginRpc(token,method='protectedSum',value=7,proof){
-      const body=JSON.stringify({method,args:[value]});
+      const body=method==='proofZero'&&Object.is(value,-0)?
+        '{"method":"proofZero","args":[-0]}':
+        JSON.stringify({method,args:[value]});
       return new Promise((resolve,reject)=>{
         const request=http.request({
           hostname:'127.0.0.1',port,path:'/obfs/rpc',method:'POST',
@@ -631,6 +633,20 @@ async function main(){
       'A valid WebAuthn proof bound to -0 must not authorize +0');
     assert.equal(proofZeroRpcCalls,0,
       'An argument-sign change must not execute the private method');
+
+    const freshZeroAllowed=await browserSignedOperation(0,null,'proofZero');
+    const exactPositiveZero=await copiedOriginRpc(
+      exportedCookie.value,'proofZero',0,freshZeroAllowed.proof);
+    assert.equal(exactPositiveZero.status,200);
+    assert.deepEqual(exactPositiveZero.body,{ok:true,value:'positive-zero'});
+    assert.equal(proofZeroRpcCalls,1);
+
+    const freshNegativeZero=await browserSignedOperation(-0,null,'proofZero');
+    const exactNegativeZero=await copiedOriginRpc(
+      exportedCookie.value,'proofZero',-0,freshNegativeZero.proof);
+    assert.equal(exactNegativeZero.status,200);
+    assert.deepEqual(exactNegativeZero.body,{ok:true,value:'negative-zero'});
+    assert.equal(proofZeroRpcCalls,2);
 
     const signedTampered=await browserSignedOperation(7,null);
     const modifiedProof=JSON.parse(Buffer.from(signedTampered.proof,'base64').toString('utf8'));
