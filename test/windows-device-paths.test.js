@@ -27,7 +27,7 @@ test('Windows reserved device names include ISO-8859-1 superscript digits',()=>{
 test('DOS 8.3 tilde-number spellings are conservatively refused at all output boundaries',()=>{
   const {createSnoLauncher,createScoHandler}=require('../src');
   const entry={path:'entry.cjs',code:'module.exports=17;',sourceType:/** @type {const} */('commonjs')};
-  const longName={path:'privateLongOriginal.mjs',code:Buffer.from([13,37]),sourceType:/** @type {const} */('asset')};
+  const longName={path:'privateLongOriginal.mjs',code:'export const marker=7;',sourceType:/** @type {const} */('module')};
   const aliases=[
     'PRIVAT~1.MJS','SECRET~1.CJS','ABCDEF~1.JS','LONGFI~9.JS',
     'assets/PRIVAT~1.MJS','ASSETS~1/image.png',
@@ -58,8 +58,8 @@ test('ordinary tilde names and a true long filename preserve safe output admissi
     path:name,code:Buffer.from([0x0,0xf1,0x34]),
     sourceType:/** @type {const} */('asset')
   })),{
-    path:'privateLongOriginal.mjs',code:Buffer.from([0x44,0x55]),
-    sourceType:/** @type {const} */('asset')
+    path:'privateLongOriginal.mjs',code:'export const marker=7;',
+    sourceType:/** @type {const} */('module')
   }];
   for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     const compiled=obfuscateFiles(files,{mode,seed:'shortname-alias-safe-control'});
