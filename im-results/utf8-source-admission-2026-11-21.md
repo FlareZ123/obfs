@@ -20,3 +20,9 @@ The CLI and independent direct SNO launcher API also consult `package.json` when
 ## Implications
 
 Rejecting ambiguous malformed input is a conservative build-contract improvement that prevents accidental silent source substitution. The project remains release-blocked for the primary adversarial objective. Node API validation overhead occurs during compilation, outside the protected application's runtime; no universal 2.5× runtime claim follows. The independently documented full-control COO/SNO attackers and same-account SCO relay are unaffected.
+
+
+## 21 November validation update
+
+- The earlier native `isUtf8` candidate at `77f9e0e4b6c84e5b42ec8a2ac39396a401159c7d` passed both full Node 22 jobs, JSDoc, benchmarks and Ubuntu Chromium in [44937061584](https://github.com/FlareZ123/obfs/actions/runs/44937061584).
+- The expanded byte-class and package-scope candidate at `6c639d3d1efc6125ed7cb8ffdc160cfca793c66f` ran in [44937302595](https://github.com/FlareZ123/obfs/actions/runs/44937302595). Ubuntu completed successfully. Windows had **4,091 pass, four skip, one fail**, in unchanged `test/sco-webauthn-proof-cpu-budget.test.js` because `sims/sco-webauthn-proof-cpu-budget.js:143` asserted positive `process.cpuUsage` for every pair and observed a resolution failure. Both Windows JSDoc steps and sampled performance profiles passed. The blind-audit artifact upload error followed from the failed test step and was secondary. This is not a green two-OS integration; it also does not attribute the CPU clock failure to the UTF-8 patch. The separate later source-fidelity combined candidate is pinned on `agent4/source-fidelity-portability-20261121`.
