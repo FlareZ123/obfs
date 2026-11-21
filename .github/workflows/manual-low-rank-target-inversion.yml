@@ -57,6 +57,8 @@ jobs:
         run: node sims/rankthree-polarization-oracle-clone.js
       - name: Independent rank-three quadratic 244-query full clone
         run: node sims/rankthree-quadratic-polarization-peer.js
+      - name: Rank-three quadratic bilinear early clone and fallback
+        run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
