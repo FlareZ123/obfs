@@ -1377,6 +1377,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // Proxy get traps can return a mutable decoder intrinsic through a property
   // read whose syntactic owner is an otherwise innocent proxy object. Track
   // finite handlers and local factories before the final mutation scan.
+  const sensitiveProxyGetTraps=new Set();
   const sensitiveProxyHandlers=new Set();
   const sensitiveProxyHandlerFactories=new Set();
   /**
@@ -1384,7 +1385,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function proxyGetMayReturnDecoderIntrinsic(fn) {
-    if(fn.type==='Identifier')return returnedSensitiveFunctions.has(fn.name);
+    if(fn.type==='Identifier')return returnedSensitiveFunctions.has(fn.name)||
+      sensitiveProxyGetTraps.has(fn.name);
     if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type))return false;
     if(fn.body.type!=='BlockStatement')return containsDecoderIntrinsic(fn.body);
     let found=false;
@@ -1449,6 +1451,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(!target.has(name)){target.add(name);discoveredProxyHandler=true;}
       }
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         proxyGetMayReturnDecoderIntrinsic(node)) {
+        add(sensitiveProxyGetTraps,node.id.name);
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
          functionReturnsSensitiveProxyHandler(node)) {
         add(sensitiveProxyHandlerFactories,node.id.name);
       }
@@ -1463,6 +1469,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         value=node.right;
       }
       if(name&&value) {
+        if(value.type==='Identifier'&&sensitiveProxyGetTraps.has(value.name)||
+           ['FunctionExpression','ArrowFunctionExpression'].includes(value.type)&&
+             proxyGetMayReturnDecoderIntrinsic(value)) {
+          add(sensitiveProxyGetTraps,name);
+        }
         if(proxyHandlerHasSensitiveGet(value))add(sensitiveProxyHandlers,name);
         if(functionReturnsSensitiveProxyHandler(value)) {
           add(sensitiveProxyHandlerFactories,name);
