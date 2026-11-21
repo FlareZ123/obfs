@@ -25,3 +25,8 @@ No source secrecy, hostile-runtime resistance, universal URL locking, or protect
 ## Direct SNO coverage
 
 The standalone SNO launcher API also writes an integrity manifest from caller-supplied text/Buffer bytes; with a raw isolated surrogate, UTF-8 output would differ from the in-memory source. It now validates the CommonJS entry Buffer with Node `isUtf8` and refuses raw unpaired surrogates in JS-named string inputs, while preserving opaque Buffer assets that happen to carry a `.js` suffix because that direct API lacks `sourceType` metadata. The existing NFC collision loop and the hash construction share one manifest pass. Implemented at `9901f7403700834f436c01fa3a9f781086fb34e6` and refined at `2bec983c01ce0a5bc1a116d70fb49f64f325d04e`; direct SNO negatives and positive runtime equality added at `9423ed8cf7d67b383a50ec5a13f9bac2e894d1c9`. Combined pinned source for validation: `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`.
+
+
+## Successful integrated validation
+
+The exact combined source `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`, which includes compiler, direct SCO, direct SNO source-string admission and the regression cases described above, passed the full Node 22 Linux/Windows and Ubuntu Chromium workflow [44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755). The separate raw source-tree filename and package BOM changes were developed later; this pin does not validate those additions.
