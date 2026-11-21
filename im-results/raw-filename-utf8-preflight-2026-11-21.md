@@ -20,3 +20,8 @@ This does not establish a race-proof directory walk: another process that contro
 ## Pending source-pinned full gate
 
 Combined native raw-filename check and single-BOM SNO package-scope tests are pinned at `be6a51b6b190c560d864cf146b4e4d55d69faef9` on `agent4/raw-filename-bom-parity-20261121`, [manual full run 44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826). Do not infer a pass until both job conclusions are read.
+
+
+## Full source-pinned validation
+
+[Run 44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826) completed **success** on both Node 22 Ubuntu and Windows jobs, including its JSDoc and browser steps, against exact candidate `be6a51b6b190c560d864cf146b4e4d55d69faef9`. The POSIX malformed-name test is explicitly skipped on Windows, whose filename APIs follow a different contract. This validates the bounded fix on Linux and the valid-Unicode positive on both runners; it does not constitute a hostile filesystem race proof.
