@@ -41,6 +41,15 @@ function createSnoLauncher(files,entry) {
       directory=path.posix.dirname(directory);
     }
   }
+  // A Linux checkout can contain canonically equivalent Unicode names that
+  // address the same APFS file on macOS; refuse an ambiguous SNO manifest.
+  const seen=new Set();
+  for(const file of files) {
+    const name=safePath(file.path);
+    const key=name.normalize('NFC').toLowerCase();
+    if(seen.has(key))throw new TypeError('Duplicate SNO file: '+name);
+    seen.add(key);
+  }
   const manifest = files.map(file => [safePath(file.path), createHash('sha256').update(file.code).digest('hex')]);
   return `'use strict';\n` +
     `const fs=require('node:fs');const crypto=require('node:crypto');const path=require('node:path');\n` +
