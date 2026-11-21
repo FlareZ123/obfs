@@ -231,4 +231,4 @@ if(require.main===module)run().then(async report=>{
   process.stdout.write('WASM_I32_FOUR_WAY_MINIFIED '+output+'\n');
 }).catch(error=>{console.error(error);process.exitCode=1;});
 
-module.exports={prepare,run};
+module.exports={prepare,run,records,graphHash};
