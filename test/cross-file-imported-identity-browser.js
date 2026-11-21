@@ -65,6 +65,8 @@ async function main(){
     ['/index.html',{body:'<!doctype html><html><head><meta charset="utf-8"></head><body>Cross-file identity proof</body></html>',
       type:'text/html; charset=utf-8'}]
   ]);
+  /** @type {{caseName:string,ordinaryMinifiedLabelsVisible:boolean,protectedLabelsVisible:boolean}[]} */
+  const staticLabelEvidence=[];
   for(const [name,reflective,depth] of /** @type {[string,boolean,number][]} */ (
     [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
     const original=graph(reflective,depth),compiled=compile(original);
@@ -76,6 +78,18 @@ async function main(){
         minify:true,legalComments:'none'
       })).code
     })));
+    const hasSourceLabels=/** @param {Input[]|Output[]} files */(
+      files=>['secretField','otherField'].every(name=>
+        files.some(file=>file.code.includes(name))));
+    assert.equal(hasSourceLabels(original),true);
+    assert.equal(hasSourceLabels(minified),true,
+      'Normal esbuild property preservation should leave both semantic labels');
+    assert.equal(hasSourceLabels(compiled),reflective,
+      'Proved private labels should vanish; reflective labels must survive');
+    staticLabelEvidence.push({
+      caseName:name,ordinaryMinifiedLabelsVisible:true,
+      protectedLabelsVisible:reflective
+    });
     for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
       [['native',original],['minified',minified],['compiled',compiled]])){
       for(const file of files)
@@ -224,6 +238,7 @@ async function main(){
       cases:4096,callbackCount:data.trace.hostCallbacks,
       fullOutputParity:true,transitiveOutputParity:true,
       reflectiveKeyParity:true,
+      staticLabelEvidence,
       nativeVsCompiled:bound,
       minifiedVsCompiled:minifiedBound,
       strictObservedBreaches:bound.samplePairs-bound.observedPairsWithinBudget,
