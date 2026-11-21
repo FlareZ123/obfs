@@ -3435,7 +3435,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
             prop.key.type==='Identifier'?prop.key.name:
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
-            field==='require'?requireRoots:field==='module'?moduleRoots:null;
+            field==='require'?requireRoots:field==='module'?moduleRoots:
+              field==='performance'?performanceRoots:null;
           if(roots&&!roots.has(prop.value.name)){
             roots.add(prop.value.name);
             changed=true;
@@ -3572,7 +3573,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const key=value.computed ? knownKey(value.property) :
         value.property.type==='Identifier' ? value.property.name : null;
       const roots=key==='process'?processRoots:
-        key==='require'?requireRoots:key==='module'?moduleRoots:null;
+        key==='require'?requireRoots:key==='module'?moduleRoots:
+          key==='performance'?performanceRoots:null;
       if(roots&&!roots.has(binding.name)){
         roots.add(binding.name);
         loaderChanged=true;
