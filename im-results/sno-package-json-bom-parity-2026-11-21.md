@@ -22,3 +22,8 @@ This improves Node package-scope compatibility under the existing SNO one-entry 
 ## Pending source-pinned full gate
 
 The exact source/test candidate `be6a51b6b190c560d864cf146b4e4d55d69faef9` is pinned on `agent4/raw-filename-bom-parity-20261121`. The full Linux/Windows Node 22 and Ubuntu Chromium run is [44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826), queued when this note was added. The earlier complete [44938381755](https://github.com/FlareZ123/obfs/actions/runs/44938381755) was green but did **not** include this BOM correction.
+
+
+## Full source-pinned validation
+
+[Run 44939045826](https://github.com/FlareZ123/obfs/actions/runs/44939045826) completed **success** on Node 22 Ubuntu and Windows jobs, with strict JSDoc and browser integration, at exact source `be6a51b6b190c560d864cf146b4e4d55d69faef9`. The single-BOM direct-launcher and native-vs-SNO nested-package differential tests are included in that pin. Later direct SNO snapshot changes require their own source-pinned CI.
