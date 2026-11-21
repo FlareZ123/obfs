@@ -218,13 +218,27 @@ async function main(){
           time[/** @type {'native'|'minified'|'compiled'} */ (variant)].push(result.ms);
         }
       }
+      // Validate every held-out browser output after timing, so a matching
+      // XOR checksum cannot conceal sporadic semantic divergence.
+      let exactHeldoutInputs=0;
+      for(let i=0;i<100000;i++){
+        const expectedValue=baseline.run(i);
+        if(!Object.is(expectedValue,ordinaryMinified.run(i))||
+           !Object.is(expectedValue,protectedGraph.run(i))||
+           !Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
+          throw Error('Exact browser held-out output mismatch '+i);
+        exactHeldoutInputs++;
+      }
       return {trace:{
-        typedInputs:parity,hostCallbacks:collected.length,
+        typedInputs:parity,exactHeldoutInputs,
+        exactHeldoutParity:true,hostCallbacks:collected.length,
         outputParity:true,transitiveParity:true,reflectiveRefusalParity:true,
         benchmarkChecksumsMatched:true
       },time};
     });
     assert.equal(data.trace.typedInputs,4096);
+    assert.equal(data.trace.exactHeldoutInputs,100000);
+    assert.equal(data.trace.exactHeldoutParity,true);
     assert.ok(data.trace.hostCallbacks>0);
     assert.equal(data.trace.outputParity,true);
     assert.equal(data.trace.reflectiveRefusalParity,true);
@@ -237,7 +251,8 @@ async function main(){
       positiveFieldsRenamed:2,
       transitiveFieldsRenamed:2,
       reflectiveFieldsRenamed:0,
-      cases:4096,callbackCount:data.trace.hostCallbacks,
+      cases:4096,exactHeldoutInputs:data.trace.exactHeldoutInputs,
+      exactHeldoutParity:true,callbackCount:data.trace.hostCallbacks,
       fullOutputParity:true,transitiveOutputParity:true,
       reflectiveKeyParity:true,
       staticLabelEvidence,
