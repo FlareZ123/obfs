@@ -46,14 +46,14 @@ async function bundleMangled(files) {
   const built=await build({
     entryPoints:['entry.mjs'],outfile:'bundle.mjs',
     bundle:true,write:false,platform:'browser',format:'esm',target:'es2022',
-    minify:true,legalComments:'none',mangleProps:/Field$/u,
+    minify:true,legalComments:'none',mangleProps:/Field$/,
     plugins:[{name:'closed-graph',setup(plugin){
-      plugin.onResolve({filter:/./u},args=>{
+      plugin.onResolve({filter:/./},args=>{
         const path=args.path.startsWith('./')?args.path.slice(2):args.path;
         if(!source.has(path))return {errors:[{text:'Unknown graph module: '+path}]};
         return {path,namespace:'closed-graph'};
       });
-      plugin.onLoad({filter:/./u,namespace:'closed-graph'},args=>({
+      plugin.onLoad({filter:/./,namespace:'closed-graph'},args=>({
         contents:source.get(args.path),loader:'js'
       }));
     }}]
