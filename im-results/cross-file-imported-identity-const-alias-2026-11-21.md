@@ -133,6 +133,53 @@ changing the compiler, and the green run above validates those
 corrections. This earlier red run is a harness typing failure,
 not a behavioral compiler regression.
 
+## Transitive immutable relay fixed-point (source-pinned)
+
+The first bounded extension admitted direct `const invoke=identity`.
+The next experiment asked whether an *acyclic source-ordered chain* of
+immutable local aliases can be admitted with the same conservative
+function-value escape proof:
+
+```js
+const one=identity;
+const two=one;
+const three=two;
+const record=three(state);
+console.log(record.secretField);
+```
+
+**Red evidence:** [44945100969](https://github.com/FlareZ123/obfs/actions/runs/44945100969)
+at immutable source `beb4cf693d233dff40ce61ff8ef8d7c1ad829534`
+produced **32 passing / two positive-yield failures** among 34
+targeted tests on Ubuntu and Windows. Both new positives had zero
+protected fields renamed, while all 12 prior/new unsafe-use negatives
+retained their refusal behavior. Browser and strict JSDoc steps stayed
+green except the expected positive test failures.
+
+**Green evidence:** [44945175055](https://github.com/FlareZ123/obfs/actions/runs/44945175055)
+at source `a6faf54d3395a3a693f277fb42663dd672bed2da` passed
+**34/34** targeted regression tests on Ubuntu and Windows, strict core
+and targeted JSDoc, and Ubuntu real Chromium 157 semantics/CPU
+comparison. Two new transitive positives each rewrite both proven
+fields and match original Node ESM stdout. Six transitive unsafe
+variants refuse all rewrites and preserve stdout: mutable leaf alias,
+function-source observation, owner reflection, `.call` adaptation,
+opaque holder invocation and `new` construction.
+
+The implementation walks top-level immutable declarators in source
+execution order, so an alias is added only when its initializer
+already references an admitted identity or prior immutable alias.
+It uses the original direct-call function-summary checker and
+removes a descendant alias if any intermediate source summary
+becomes inadmissible, repeating until no unsupported descendants
+remain. This bounded acyclic dataflow is reproducible and avoids
+rewriting arbitrary higher-order function graphs.
+
+The three-module cross-file source model, host assumptions, and
+source-only recoverability limitations remain unchanged. A targeted
+34/34 pass is not a general property-proof theorem. A full integration
+gate on the exact transitive revision is still a separate requirement.
+
 ## Proof mechanism and limitations
 
 `proveLocalObject` already receives `importedIdentityFunctions`
