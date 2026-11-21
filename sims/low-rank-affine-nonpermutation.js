@@ -256,6 +256,50 @@ function outOfPromiseControl() {
     sampledResidualRank:learned.residual.length};
 }
 
+/**
+ * A black-box rank-two *output*-only lower-bound witness at width eight.
+ * The baseline lacks output zero; each hidden variant maps one candidate
+ * address to zero and otherwise has an identical public input/output map.
+ * All variants retain A=I and nonlinear output span rank at most two.
+ * @returns {{bits:number,hiddenLocations:number,fullTruthTableEvaluations:number,basisTranscriptMatches:number,unqueriedLocationsAfter30:number}}
+ */
+function outputRankTwoLowerBoundWitness() {
+  const bits=8, domain=1<<bits;
+  const baseline=/** @param {number} x */(x)=>x===0?1:x;
+  const hiddenLocations=Array.from({length:domain},(_,x)=>x)
+    .filter(x=>x!==0 && (x & (x-1))!==0);
+  const basisQueries=[0,...Array.from({length:bits},(_,i)=>1<<i)];
+  const sampleQueries=[...basisQueries,...hiddenLocations.slice(0,30)];
+  let fullTruthTableEvaluations=0,basisTranscriptMatches=0;
+  const seenBaseline=new Uint16Array(domain);
+  for(let x=0;x<domain;x++)seenBaseline[baseline(x)]++;
+  assert.equal(seenBaseline[0],0);
+  for(const hidden of hiddenLocations){
+    const oracle=/** @param {number} x */(x)=>x===0?1:x===hidden?0:x;
+    const seen=new Uint16Array(domain);
+    const span=newSpan(bits);
+    for(let x=0;x<domain;x++){
+      const value=oracle(x);
+      seen[value]++;
+      addToSpan(span,value^x);
+      fullTruthTableEvaluations++;
+    }
+    assert.equal(seen[0],1);
+    assert.equal(span.vectors.length,2);
+    for(const q of basisQueries){
+      assert.equal(oracle(q),baseline(q));
+      basisTranscriptMatches++;
+    }
+    if(!sampleQueries.includes(hidden)){
+      for(const q of sampleQueries)assert.equal(oracle(q),baseline(q));
+    }
+  }
+  assert.equal(hiddenLocations.length,domain-bits-1);
+  return {bits,hiddenLocations:hiddenLocations.length,
+    fullTruthTableEvaluations,basisTranscriptMatches,
+    unqueriedLocationsAfter30:hiddenLocations.length-30};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -315,11 +359,12 @@ function main() {
     totalQueries,maxQueries,maxCandidates,nonbijective,noImageChecks,allTargetChecks,
     meanQueryBudget:totalQueries/cases,
     delta,independentExecutable:__filename,
-    outOfPromiseCounterexample:outOfPromiseControl()};
+    outOfPromiseCounterexample:outOfPromiseControl(),
+    rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
 
 if (require.main===module) main();
 module.exports={learn,invert,generate,applyRows,applyColumns,solveAffinePreimageCandidates,
-  outOfPromiseControl,main};
+  outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
