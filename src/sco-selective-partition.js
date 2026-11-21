@@ -830,6 +830,25 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static dependency cannot migrate console host effects: '+filename);
       }
     });
+    // The browser supplies page-relative URL resolution, worker lifecycles
+    // and event channels that a separate Node server cannot faithfully
+    // reproduce by merely executing the same function text. Refuse references
+    // to these ambient APIs in private dependencies, including aliases such
+    // as "const load=fetch". Inert property labels remain available. This is
+    // deliberately conservative about locally shadowed API names.
+    const crossRealmHostApis=new Set([
+      'fetch','Worker','WebSocket','XMLHttpRequest','EventSource',
+      'BroadcastChannel','MessageChannel'
+    ]);
+    walk(ast,(node,parent,key)=>{
+      if(node.type==='Identifier'&&crossRealmHostApis.has(node.name)&&
+         !isStaticKey(parent,key)&&
+         !(parent?.type==='VariableDeclarator'&&key==='id')&&
+         !(parent?.type==='FunctionDeclaration'&&key==='id')){
+        throw new TypeError(
+          'SCO private static dependency contains unproved cross-realm host API: '+filename);
+      }
+    });
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
