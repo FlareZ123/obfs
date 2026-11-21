@@ -124,6 +124,58 @@ test('hidden input/output coordinates preserve rank-one inverse bound',()=>{
   }
 });
 
+/**
+ * A 32-bit permutation with three independent hidden displacement directions.
+ * Each pair is swapped, and every other 32-bit word is fixed. The first
+ * three public affine columns are collapsed onto later columns, giving
+ * exact interpolant nullity three despite valid permutation semantics.
+ * @param {number} input
+ * @returns {number}
+ */
+function sparseRankThree(input){
+  switch(input){
+    case 1:return 72;
+    case 72:return 1;
+    case 2:return 144;
+    case 144:return 2;
+    case 4:return 288;
+    case 288:return 4;
+    default:return input>>>0;
+  }
+}
+
+test('32-bit rank-three singular affine interpolation without random sampling',()=>{
+  const random=seeded(0x3f80a329);
+  for(let sample=0;sample<16;sample++){
+    const outgoing=invertible(32,random);
+    const translation=random();
+    /** @param {number} input @returns {number} */
+    const oracle=input=>
+      (linear(outgoing,sparseRankThree(input))^translation)>>>0;
+    for(const input of [0,1,72,2,144,4,288,3,7,511,0xffffffff,
+      random(),random()]){
+      const result=verify32(oracle,input,3);
+      assert.equal(result.nullity,3);
+      assert.equal(result.provenOrbitUpperBound,64);
+      assert.ok(result.oracleCalls<=97);
+    }
+  }
+});
+
+test('32-bit rank-three sparse support survives hidden affine input maps',()=>{
+  const random=seeded(0x7d2590bc);
+  for(let sample=0;sample<16;sample++){
+    const incoming=invertible(32,random);
+    const outgoing=invertible(32,random);
+    const translation=random();
+    /** @param {number} input @returns {number} */
+    const oracle=input=>
+      (linear(outgoing,sparseRankThree(linear(incoming,input)))^translation)>>>0;
+    for(const input of [0,1,2,3,4,7,0xffffffff,random(),random()])
+      verify32(oracle,input,3);
+  }
+});
+
 test('rank promise and budget caps cause explicit refusal',()=>{
   assert.throws(()=>invertLowRankDeterministic(transposed,0,{
     bits:32,rankBound:0
