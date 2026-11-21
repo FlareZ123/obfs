@@ -101,8 +101,6 @@ async function main(){
     await page.goto('http://127.0.0.1:'+address.port+'/index.html',
       {waitUntil:'domcontentloaded',timeout:45000});
     const data=await page.evaluate(async()=>{
-      /** @type {Record<string,unknown>} */
-      const trace={};
       /** @type {Timings} */
       const time={native:[],compiled:[]};
       const expected=(/** @type {string} */ (JSON.stringify(['secretField','otherField'])));
@@ -138,6 +136,7 @@ async function main(){
         /** @param {number} value */
         accept(value){collected.push(value);}
       };
+      /** @param {(value:number)=>number} fn @param {number} iterations */
       function timed(fn,iterations){
         let checksum=0;
         const start=performance.now();
@@ -168,12 +167,11 @@ async function main(){
           time[/** @type {'native'|'compiled'} */ (variant)].push(result.ms);
         }
       }
-      trace.typedInputs=parity;
-      trace.hostCallbacks=collected.length;
-      trace.outputParity=true;
-      trace.reflectiveRefusalParity=true;
-      trace.benchmarkChecksumsMatched=true;
-      return {trace,time};
+      return {trace:{
+        typedInputs:parity,hostCallbacks:collected.length,
+        outputParity:true,reflectiveRefusalParity:true,
+        benchmarkChecksumsMatched:true
+      },time};
     });
     assert.equal(data.trace.typedInputs,4096);
     assert.ok(data.trace.hostCallbacks>0);
