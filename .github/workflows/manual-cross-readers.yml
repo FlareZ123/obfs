@@ -46,6 +46,8 @@ jobs:
       # The historical computed-refusal ablation is source-anchored to a
       # removed compiler clause and cannot run against modern main; its pinned
       # counterfactual evidence remains in sims/computed-refusal-ablation.js.
+      - name: Reproduce Unicode file-name collision on actual Windows filesystem
+        run: node --test --test-reporter=spec test/windows-unicode-filecase.test.js
       - name: Strict external researcher and diagnostic JSDoc
         run: npx tsc -p jsconfig.external.json
       - name: Strict JSDoc type safety
