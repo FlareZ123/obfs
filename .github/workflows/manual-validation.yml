@@ -51,6 +51,8 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Behavioral and adversarial suites with compact failure diagnostics
         run: node --test --test-reporter=spec test/*.test.js
+      - name: Isolated exhaustive width-four low-rank oracle inversion
+        run: node --test sims/affine-low-rank-exhaustive.test.js
       - name: Source-paired direct-alias compiler A/B with byte-identical output requirement
         if: ${{ inputs.alias_proof_ab && steps.install.outcome == 'success' }}
         env:
