@@ -112,9 +112,23 @@ if(require.main===module) {
   // This process has no access to the original fixture or obfuscator library.
   const served=fs.readFileSync(0,'utf8');
   const result=recoverSpellingMask(served);
+  // Emit compact mismatch coordinates for source-pinned attack-harness
+  // regressions. Context is from public, independently served JavaScript.
+  let offset=0;
+  while(offset<served.length&&offset<result.reconstructed.length&&
+        served.charCodeAt(offset)===result.reconstructed.charCodeAt(offset))offset++;
+  const firstDifference=result.matched?-1:offset;
+  const from=Math.max(0,offset-48);
+  const to=offset+96;
   process.stdout.write(JSON.stringify({mask:result.mask,matched:result.matched,
     eligible:result.eligible,anchor:result.anchor,
-    predictedDigest:createHash('sha256').update(result.reconstructed).digest('hex')})+'\n');
+    predictedDigest:createHash('sha256').update(result.reconstructed).digest('hex'),
+    ...(result.matched?{}:{
+      firstDifference,servedLength:served.length,
+      reconstructedLength:result.reconstructed.length,
+      servedExcerpt:served.slice(from,to),
+      reconstructedExcerpt:result.reconstructed.slice(from,to)
+    })})+'\n');
 }
 
 module.exports={recoverSpellingMask};
