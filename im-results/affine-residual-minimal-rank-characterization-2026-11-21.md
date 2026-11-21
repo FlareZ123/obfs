@@ -37,6 +37,24 @@ The bracket is a second-order finite difference of `F` at base point `b`, and eq
 
 The permutation premise matters for the attainability proof: a constant function has zero affine-additivity defect rank, yet subtracting any invertible linear map leaves full-rank residual variation. The equality is not asserted for such nonpermutations.
 
+## Equivalent nonlinear algebraic-normal-form coefficient rank
+
+Expand each output vector's Boolean algebraic normal form (ANF):
+
+`F(x)=c_empty xor sum_i c_i*x_i xor sum_{|S|>=2} c_S * product_{i in S} x_i`,
+
+where each coefficient `c_S` is an `n`-bit **output vector** and multiplication is over `GF(2)`. The basis interpolant removes precisely the constant and linear coefficients. Hence
+
+`D(x)=sum_{|S|>=2} c_S * product_{i in S} x_i`.
+
+Every evaluated residual is a linear combination of the nonlinear coefficient vectors. Conversely, the Boolean Möbius/Zeta transform is invertible, and each coefficient `c_S` is an XOR of residual evaluations at characteristic vectors of subsets of `S`. Thus their spans are **identical** and
+
+`r_F=rank_{GF(2)}{c_S:|S|>=2}`.
+
+This identity holds for **all** vectorial Boolean functions, even when the stronger statement about an *invertible* baseline requires a permutation. It supplies a direct algebraic route for exact candidate analysis when a tractable ANF or symbolic expression is already available. Full truth-table conversion costs exponential resources at large bit widths; the theorem does not promise an efficient generic symbolic extractor.
+
+The independent verifier now performs the complete output-vector Möbius transform on **all 40,320 width-three permutations** and checks equality with the interpolation and parallelogram-defect ranks. The finite computation supplements the general linear-algebra proof and the dual output-mask result below.
+
 ## Equivalent affine output-component characterization
 
 Let `R_F^perp` be the dual space of output masks `lambda in GF(2)^n` orthogonal to every vector in `R_F`. Then
