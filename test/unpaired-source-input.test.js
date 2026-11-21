@@ -98,7 +98,7 @@ test('text assets with raw isolated surrogate characters fail closed in all thre
 });
 
 test('explicit JSON unicode escapes remain byte-identical textual assets',()=>{
-  const text=String.raw`{"note":"\\ud800"}`;
+  const text=String.raw`{"note":"\ud800"}`;
   for(const mode of modes){
     const result=obfuscateFiles([
       {path:'notice.json',code:text,sourceType:'asset'}
