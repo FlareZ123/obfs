@@ -165,6 +165,87 @@ both browser runs agree on executable source-only reconstruction.
 No generic anti-analysis, anti-tamper, or strict all-workload runtime
 advantage is demonstrated.
 
+## Fresh-process four-way Node validation (stronger startup control)
+
+[Full Ubuntu/Windows workflow 44943621143](https://github.com/FlareZ123/obfs/actions/runs/44943621143)
+at immutable source `56d3e9cc100df991896ef687abfd023e7297c1d8`
+completed with zero failed steps, including the new fresh-process
+experiment, Chrome 157 browser integration, and both strict JSDoc
+projects. The exact source digests for all four delivered variants
+remain identical to the earlier Node/browser experiments.
+
+`sims/wasm-i32-four-way-fresh-process.js` runs
+`sims/wasm-i32-four-way-child.cjs` in a newly spawned **Node process
+for every variant and matched trial**. It evaluates 1, 50, 1,000 and
+10,000 event workloads under 12 rotating-order trial pairs, or
+**192 separate processes per operating system** (384 total). This
+eliminates reused Node import caches and same-process per-variant
+JIT feedback as a direct source of the previous four-way data.
+Each child receives exact equal precomputed typed inputs over stdin,
+loads its graph, and evaluates the identical module's host callback
+contract. Exact full output and callback trace hashes matched across
+all four variants on both operating systems.
+
+The child measures three separate regions: ESM import/evaluation,
+synchronous application work, and their sum. The parent separately
+records process startup + IPC + child wall time. The latter includes
+noncompute costs and is **not** substituted for the protected/native
+compute budget.
+
+| Calls in each fresh process | Ubuntu protected/native work medians | Ubuntu strict paired breaches | Windows protected/native work medians | Windows strict paired breaches |
+| ---: | ---: | ---: | ---: | ---: |
+| 1 | **5.9080×** | **12/12** | **6.1435×** | **12/12** |
+| 50 | **2.9805×** | **12/12** | **3.0646×** | **11/12** |
+| 1,000 | 1.6761× | 0/12 | 1.7418× | 0/12 |
+| 10,000 | 1.0900× | 0/12 | 1.1477× | 0/12 |
+
+At one call the child-work native/Wasm median times were
+0.0638/0.3771 ms on Ubuntu and 0.1049/0.6441 ms on Windows.
+At 50 calls, native/Wasm medians were 0.1579/0.4706 ms on
+Ubuntu and 0.2509/0.7691 ms on Windows. All measured one-call
+pairs across both OS breached strict 2.5×; 23/24 measured
+50-call pairs also breached. These are **actual observed
+workload-specific runtime counterexamples**, with the limitation that
+sub-millisecond timers and JIT initialization are noisy.
+
+There were **zero observed strict child-import+work or process-wall
+breaches** in this particular 48-pair per-OS matrix. That is expected
+dilution from ESM loading and fresh process startup, and does not
+invalidate the separate runtime-work veto. Client-side COO first-use
+compilation is runtime computation and cannot take the server-only
+initialization exception established for SNO/SCO environments.
+
+This stronger process isolation qualifies earlier same-process
+numeric ratios without changing the bottom-line security decision:
+the public Wasm kernels remain statically reconstructable, and strict
+2.5× work compliance is empirically false for this particular short
+session fixture.
+
+## Per-closure Chromium replication
+
+[Full workflow 44943331420](https://github.com/FlareZ123/obfs/actions/runs/44943331420)
+at source `5a7e95633636a06134e91b9a36261458263a7d5d`
+repeated the real Chrome 157 four-way CPU comparison using one
+distinct closed-over selected-kernel runner per variant. This avoids
+putting all four JavaScript/Wasm function objects through a single
+polymorphic invocation site. Chrome still matched all full application
+traces and isolated-kernel checksums. Its selected-kernel
+Wasm/native ratio of medians was **1.2735×**,
+Wasm/minified **1.1920×**, with **one** observed strict paired
+native breach. The 10,000-event callback-heavy app ratio was
+**0.9623×** with zero strict paired native breaches. The first-trial
+outlier survived this adjustment, so it cannot responsibly be
+attributed solely to the earlier shared call site.
+
+V8's [function architecture documentation](https://chromium.googlesource.com/v8/v8/+/refs/heads/main/docs/runtime/function-architecture.md)
+describes feedback-vector allocation for closures, supporting
+why variant-specific feedback is a reasonable benchmark control.
+[Chrome's high-precision timer documentation](https://developer.chrome.com/blog/cross-origin-isolated-hr-timers)
+states a coarsened 100-microsecond `performance.now()` resolution
+for ordinary non-isolated pages, corresponding to the observed 0.1 ms
+increment grid. These documents explain **possible confounders**;
+the actual ratios above remain experimental measurements.
+
 ## Threat-model interpretation
 
 A COO attacker can download the entire public artifact and instrument the
