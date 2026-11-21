@@ -177,8 +177,8 @@ rewriting arbitrary higher-order function graphs.
 
 The three-module cross-file source model, host assumptions, and
 source-only recoverability limitations remain unchanged. A targeted
-34/34 pass is not a general property-proof theorem. A full integration
-gate on the exact transitive revision is still a separate requirement.
+34/34 pass is not a general property-proof theorem. The broader source-pinned
+integration below supplies independent repository-scale compatibility evidence.
 
 ## Three-graph Chrome extension and deterministic owner-flow corpus
 
@@ -216,6 +216,59 @@ at `d913f8584df685e901311ac80475e2d15588554b`
 also passed 36/36 on both OS plus strict JSDoc and Chrome.
 No second broad manual source-pin was needed until the transitive
 revision had passed those targeted gates.
+
+## Full integration and ordinary-minifier cost control
+
+[Full Linux/Windows 4,152-case integration 44945630288](https://github.com/FlareZ123/obfs/actions/runs/44945630288)
+at frozen source `5c7d66371eeb218772f5b2780692708dd1300a38`
+passed with no failures: Ubuntu **4,151 pass, one skip**,
+Windows **4,147 pass, five skips**. Both JSDoc suites, adversarial
+tests and benchmarking steps succeeded; Ubuntu's three existing
+Chromium cross-module/host-lock integrations succeeded.
+This pin includes the source-ordered transitive fix, linear descendant
+invalidation and the 128-case deterministic ESM corpus. It predates
+the additional ancestor-observation and esbuild comparator assertions,
+which are covered by later targeted immutable pins.
+
+[Source-pinned equal-trust Chrome 157 comparison 44946047157](https://github.com/FlareZ123/obfs/actions/runs/44946047157)
+at `33766e1f602347068351addbfad6cce62cb13acf`
+ran the **exact same three-file graph** in native ESM, ordinary
+esbuild `minify:true` ES2022 (unbundled, no property mangling),
+and the compiler's closed-world private-property output.
+It tested both one-hop and three-hop private relays, plus the
+reflected-owner refusal. The original/minified/protected positive
+functions matched on 4,096 browser inputs and all benchmark
+checksums; the reflective refusal preserved its native keys.
+
+Across 12 rotating-order 100,000-call Chrome trials, the
+protected/native and protected/ordinary-minified ratios of
+measured medians were approximately **1.000×** each, with
+**0/12** strict >2.5× matched pairs against both controls.
+The browser timer returned medians around **0.9 ms** for all three
+variants. This small-app, microsecond-scale measurement can
+show absence of a large measured cost in these pairs; the
+0.1 ms coarsened timer resolution makes small differences
+poorly resolved.
+
+The newer
+[source-pinned public label-surface check 44946388865](https://github.com/FlareZ123/obfs/actions/runs/44946388865)
+at `e7c5342a4c9984398e9b3397b6f3e841f44da453`
+passed on both OS (strict JSDoc, 39/39 focused Node tests
+and real Chrome 157). It requires both original semantic private
+field names to remain visible in default unbundled esbuild minification
+and verifies that **neither label survives** in the positive
+one-hop or transitive protected output. In the reflective-owner
+negative, the renamer refuses and **both labels remain**.
+This is a precisely bounded *syntactic source-label reduction*;
+ordinary esbuild can optionally mangle properties when configured,
+and field-label removal cannot establish semantic-program secrecy.
+
+Official language references for the dataflow restriction:
+[ECMAScript 2026 lexical declarations](https://tc39.es/ecma262/2026/multipage/ecmascript-language-statements-and-declarations.html)
+and [MDN static ESM imports](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import).
+They support immutable local `const` binding and read-only
+import semantics; they do **not** validate arbitrary application
+closed-world assumptions.
 
 ## Proof mechanism and limitations
 
