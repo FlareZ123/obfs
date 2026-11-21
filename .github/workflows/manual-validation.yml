@@ -78,6 +78,9 @@ jobs:
       - name: Strict JSDoc for external corpus research tools
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run typecheck:external
+      - name: Strict JSDoc for low-rank affine inversion tests
+        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        run: node node_modules/typescript/bin/tsc -p jsconfig.affine-low-rank-oracle.json
       - name: Performance sample
         if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: npm run benchmark
