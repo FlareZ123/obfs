@@ -43,7 +43,11 @@ function safePath(file) {
     throw new TypeError(`Unsafe non-well-formed Unicode file path: ${file}`);
   }
   for (const segment of file.split('/')) {
-    if (/[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(segment)) {
+    // Windows treats these names as DOS devices, including console handles.
+    // Space before an extension can also leave a device stem. Conservative
+    // refusal is preferable to writing source bytes to a device endpoint.
+    if (/[. ]$/u.test(segment) ||
+        /^(?:con|prn|aux|nul|conin\$|conout\$|com[0-9¹²³]|lpt[0-9¹²³]) *(?:\.|$)/iu.test(segment)) {
       throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
     }
     // On NTFS, LONGNAME.MJS can also resolve through LONGNA~1.MJS.

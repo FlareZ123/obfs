@@ -5,6 +5,33 @@
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
 
+## Windows DOS device-name admission
+
+The compiler's portable path validator also refuses the Windows console
+endpoints `CONIN# Threat-model and proof boundaries
+
+## Static and dynamic analysis
+
+XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
+
+
+ and `CONOUT# Threat-model and proof boundaries
+
+## Static and dynamic analysis
+
+XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
+
+
+, digit-zero serial/parallel port forms,
+and reserved device stems followed by spaces before an extension. Microsoft's
+`RtlIsDosDeviceName_U` documentation lists these DOS device classes; it does
+not require an actual console to be available to justify conservative refusal
+in cross-platform output trees. Benign names containing similar text remain
+eligible. See `test/windows-device-paths.test.js`. This is an input-path
+safety policy and does not establish remote authorization or obfuscation
+resistance. Reference:
+https://learn.microsoft.com/en-us/windows/win32/devnotes/rtlisdosdevicename_u
+
 ## Windows DOS 8.3 output-path aliases
 
 Windows filesystems may create a second, shortened 8.3 path for an ordinary
