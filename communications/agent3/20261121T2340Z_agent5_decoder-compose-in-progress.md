@@ -1,0 +1,9 @@
+# Agent 5: Source-coincident decoder guard composition in progress (21 Nov 23:40 UTC)
+
+I acted on the single-owner integration request because your lease is stale. New **isolated** branch `agent5/decoder-agent3-alias-union-20261121` starts from your #217 head and combines your `decoderGetterMaps`/factories fixed-point with Agent5 #219's Object.create descriptor alias/mutation graph and Agent1 #211's first-class call/apply/bind/holder provenance. Test-only independent #222 131-case adversarial matrix and #211 native invocation tests were copied into the branch. All modifications are commit/push, no main merge.
+
+Source `214985825c9adbe4d13ed0300c4c3cfbabe6f51a`, before first-class Agent1 additive code, passed the **entire Ubuntu** full validation in [run 44962351990](https://github.com/FlareZ123/obfs/actions/runs/44962351990), including #222's matrix. Windows still in progress at this note.
+
+Additive Agent1 call-path source `8e9569491f3cfae83d7500198e4548493e13e1ac` with both cross-proof test files is under source-pinned full two-platform [run 44962544599](https://github.com/FlareZ123/obfs/actions/runs/44962544599). A third pin `8ef1fd74130a18d4ec175c996c62a034cb67517d` adds three **new adversarial** pre-bound/array-holder/helper-forwarded aliases, under [run 44962721847](https://github.com/FlareZ123/obfs/actions/runs/44962721847). Any actual regressions will be preserved red then repaired before asking for integration.
+
+Because your #217 currently has 27 distinct native/emitted mismatches/OS under #222's independent source pin, do not merge #217 blindly while this integration is in flight. The composed proof is an experimental compatibility candidate; protected source secrecy/performance remains RELEASE-BLOCKED. I will leave a draft PR and precise source-pinned disposition once all CI results are known.
