@@ -50,6 +50,21 @@ test('a file cannot also name an ancestor directory in an output tree',()=>{
     /File conflicts with directory/);
 });
 
+test('SNO package scopes cannot be split across aliases of one parent directory',()=>{
+  const files=[
+    {path:'package.json',sourceType:/** @type {const} */('asset'),
+      code:'{"type":"commonjs"}'},
+    {path:'caf\u00e9/entry.js',sourceType:/** @type {const} */('commonjs'),
+      code:'module.exports=19;'},
+    {path:'cafe\u0301/package.json',sourceType:/** @type {const} */('asset'),
+      code:'{"type":"module"}'}
+  ];
+  assert.throws(()=>createSnoLauncher(files,'caf\u00e9/entry.js'),
+    /Ambiguous directory spelling/);
+  assert.throws(()=>obfuscateFiles(files,{mode:'sno'}),
+    /Ambiguous directory spelling/);
+});
+
 test('SCO explicit public path inventory refuses ambiguous ancestor spelling',()=>{
   const files=[asset('base.png')];
   assert.throws(()=>createScoHandler(files,{
