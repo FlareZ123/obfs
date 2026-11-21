@@ -41,7 +41,7 @@ const cases=[
   ['direct accessor', 'get(){return TARGET.prototype;}'],
   ['arrow accessor', 'get:()=>TARGET.prototype'],
   ['data descriptor', 'value:TARGET.prototype'],
-  ['nested descriptor factory', 'get:function(){return TARGET.prototype;}']
+  ['function-expression accessor', 'get:function(){return TARGET.prototype;}']
 ];
 
 for(const [name,descriptor] of cases) {
@@ -60,17 +60,17 @@ for(const [name,descriptor] of cases) {
         });
         const target=output.files.find(file=>file.path==='target.cjs');
         assert.ok(target,'transformed target must be present');
-        assert.equal(target.metrics.literals,safe?1:0,
-          'decoder must decline only the mutable intrinsic case');
         const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-object-create-'));
         try {
           const native=await execute(path.join(root,'native'),input);
           const emitted=await execute(path.join(root,'emitted'),output.files);
           assert.equal(native.status,0,native.stderr);
-          assert.deepEqual(emitted,native);
+          assert.deepEqual(emitted,native,'native/emitted program behavior diverged');
         } finally {
           await fs.rm(root,{recursive:true,force:true});
         }
+        assert.equal(target.metrics.literals,safe?1:0,
+          'decoder must decline only the mutable intrinsic case');
       });
     }
   }
