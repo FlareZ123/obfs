@@ -28,6 +28,7 @@
     "sims/rankthree-quadratic-bilinear-shortcut.js",
     "sims/rankthree-random-basis-attack.js",
     "sims/rankthree-uniform-gl4-peer.js",
+    "sims/sco-rankthree-random-basis-live.js",
     "sims/low-rank-nonbijective-independent-peer.js",
     "sims/rankthree-quadratic-polarization-peer.js",
     "sims/rankthree-projected-vs-generic-cubic-matched.js",
