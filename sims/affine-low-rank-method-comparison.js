@@ -52,7 +52,7 @@ function singularFibre(rank) {
   const result = Array(size).fill(-1);
   result[0] = 0;
   // For rank 3, span(1,2,3) has rank 2.
-  // For rank 5, span(1,2,3,4,5) has rank 3.
+  // Rank 5 uses a 3-dimensional span; rank 8 uses a 4-dimensional span.
   for (let bit = 0; bit < rank; bit++) {
     result[2 ** bit] = bit + 1;
   }
@@ -157,11 +157,11 @@ function main() {
   /** @type {Row[]} */
   const rows = [];
   for (const rank of [1, 2, 3, 5, 8]) rows.push(evaluate(rank, false));
-  for (const rank of [3, 5]) rows.push(evaluate(rank, true));
-  assert.equal(rows.reduce((sum, row) => sum + row.targets, 0), 672);
+  for (const rank of [3, 5, 8]) rows.push(evaluate(rank, true));
+  assert.equal(rows.reduce((sum, row) => sum + row.targets, 0), 768);
   for (const row of rows) {
     if (row.family === 'singular') {
-      assert.equal(row.nullityMin, row.rank === 3 ? 1 : 2);
+      assert.equal(row.nullityMin, row.rank === 3 ? 1 : row.rank === 5 ? 2 : 4);
       assert.equal(row.nullityMax, row.nullityMin);
     }
   }
