@@ -1651,7 +1651,27 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const objectCreateAliases=new Set();
   /** @type {Map<string,import('./ast').AstNode[]>} */
   const descriptorBindings=new Map();
+  /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorMemberWrites=new Map();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const objectAssignSources=new Map();
   walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='MemberExpression'&&
+       node.left.object.type==='Identifier'){
+      const name=node.left.object.name;
+      const entries=descriptorMemberWrites.get(name)??[];
+      entries.push({key:memberName(node.left),value:node.right});
+      descriptorMemberWrites.set(name,entries);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='assign'&&
+       node.arguments[0]?.type==='Identifier'){
+      const name=node.arguments[0].name;
+      const entries=objectAssignSources.get(name)??[];
+      entries.push(...node.arguments.slice(1));
+      objectAssignSources.set(name,entries);
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
        node.init&&isObjectIntrinsic(node.init)){
       for(const property of node.id.properties){
@@ -1702,7 +1722,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
       const found=(descriptorBindings.get(expression.name)??[]).some(
-        source=>descriptorHasSensitiveGetter(source,visited));
+        source=>descriptorHasSensitiveGetter(source,visited))||
+        (descriptorMemberWrites.get(expression.name)??[]).some(
+          write=>(write.key===null||write.key==='get')&&
+            proxyGetMayReturnDecoderIntrinsic(write.value));
       visited.delete(expression.name);
       return found;
     }
@@ -1732,9 +1755,20 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(visited.has(expression.name))return false;
       visited.add(expression.name);
       const found=(descriptorBindings.get(expression.name)??[]).some(
-        source=>objectCreateMayExposeDecoder(source,visited));
+        source=>objectCreateMayExposeDecoder(source,visited))||
+        (descriptorMemberWrites.get(expression.name)??[]).some(
+          write=>descriptorHasSensitiveGetter(write.value))||
+        (objectAssignSources.get(expression.name)??[]).some(
+          source=>objectCreateMayExposeDecoder(source,visited));
       visited.delete(expression.name);
       return found;
+    }
+    if(expression.type==='CallExpression'&&
+       expression.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(expression.callee.object)&&
+       memberName(expression.callee)==='assign'){
+      return expression.arguments.some(
+        source=>objectCreateMayExposeDecoder(source,visited));
     }
     if(expression.type!=='ObjectExpression')return false;
     return expression.properties.some(
@@ -1745,15 +1779,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           descriptorHasSensitiveGetter(property.value);
       });
   }
-  // A descriptor map can also be assembled by property assignments, spread,
-  // Object.assign or a later reflection call. When source-visible Object.create
-  // is present alongside a sensitive accessor, the finite inline-map proof
-  // cannot establish an innocuous destination. Decline eager decoding.
-  let sensitiveCreateContext=objectCreateAliases.size>0;
+  // First-class calls through unmodeled method hooks can install arbitrary
+  // descriptors. Explicit empty maps are independently proved safe, so
+  // unrelated accessor definitions retain their own encoding opportunity.
+  let unmodeledCreateReference=false;
   let sensitiveAccessorWrite=false;
-  walk(ast,node=>{
+  walk(ast,(node,parent)=>{
     if(node.type==='MemberExpression'&&directObjectCreate(node)){
-      sensitiveCreateContext=true;
+      if(!(parent?.type==='CallExpression'&&parent.callee===node) &&
+         !(parent?.type==='VariableDeclarator'&&parent.init===node&&
+           parent.id.type==='Identifier'))unmodeledCreateReference=true;
     }
     if(node.type==='Property'){
       const key=node.computed?staticString(node.key):
@@ -1769,7 +1804,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   });
   /** @type {boolean} */
   let mutated=opaqueReflectiveSensitiveWrite||
-    sensitiveCreateContext&&sensitiveAccessorWrite;
+    unmodeledCreateReference&&sensitiveAccessorWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
