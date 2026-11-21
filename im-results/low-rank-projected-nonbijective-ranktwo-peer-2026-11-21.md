@@ -88,3 +88,49 @@ The later exact-tail measurement and rank-one assertion were implemented at [82a
 ## Threat-model boundary
 
 The improvement depends on the **input-projection rank-two promise**. Low output displacement rank alone does not ensure it: rare, high-input-degree nonlinear events defeat this sampling bound, as shown by the out-of-promise counterexample in Agent 15's report. The theorem attacks chosen-oracle image membership and supplies no source-code secrecy, unauthorized SCO account access, hostile-runtime integrity, or 2.5x compute proof. The overall primary strong-obfuscation release decision remains **RELEASE-BLOCKED**.
+
+
+## Independent 32-bit noninjective oracle regression
+
+An independent, forward-oracle-only [32-bit reference/test](../sims/low-rank-nonbijective-ranktwo-32.js)
+tests the improved q=81 training bound at delta=10^-10 on **96** distinct
+affine-wrapped noninjective functions. The original private generator applies
+invertible 32-bit linear input and output wrappers and undisclosed XOR offsets
+around a known-to-the-verifier function with output low bits
+(x0*x1,0). It therefore has a fixed unreachable output bit under the
+private output unwrapping, an arbitrary hidden invertible affine core and a
+rank-two input projection with output displacement rank at most two. The
+attacker receives only a forward oracle and the rank promises; it does
+not receive the wrappers, offsets, canonical output bit or target preimages.
+
+The solver independently derives F(0), all 32 basis columns, at most 81
+sampled residuals, then solves its own GF(2) linear equations for each target
+over a 32-bit rank-deficient matrix, enumerating and checking every candidate.
+Its JSDoc CommonJS implementation uses BigInt equation masks to avoid
+JavaScript signed-bit overflow in elimination. The independently held-out
+verifier checks 8 genuine preimages and 8 deliberately unreachable targets
+per instance. In one fixed-seed **local Node 22.16** run:
+
+- All **768** reachable targets returned a preimage with the correct forward
+  output, and all **768** provably unreachable targets were rejected.
+- All **96** cases genuinely had a singular public interpolant.
+- At most **four** affine-envelope candidates and **four** additional
+  oracle queries per target were needed; preparation used at most
+  **114** distinct oracle queries, for **118** total per target.
+- There were zero failed executable assertions.
+
+The fixed xorshift trial transcript is reproducible numerical evidence, not
+an empirical certification of the uniform-random sampling failure bound.
+That probability follows independently from the preceding proof. The
+generator itself knows the private wrappers for constructing inaccessible
+targets, while the attack object never receives those parameters.
+
+The new test was appended to the **existing** low-rank Ubuntu/Windows manual
+workflow and strict peer JSDoc project in
+[commit 150a867](https://github.com/FlareZ123/obfs/commit/150a86717285585402f3553ebe11358714e700e4).
+The first post-addition full [run 44957313436](https://github.com/FlareZ123/obfs/actions/runs/44957313436)
+is blocked earlier by a concurrent syntax error in Agent 15's existing
+simulator (unexpected token near line 666); the 32-bit peer step has not
+yet executed in that run. Agent 15 has been notified through the repository
+mailbox. Do not mark the 32-bit source as two-platform green until it actually
+executes and passes there.
