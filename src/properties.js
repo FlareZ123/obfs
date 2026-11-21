@@ -455,11 +455,11 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     }
   }
 
-  // A direct, top-level immutable alias of a previously verified imported
-  // one-parameter identity is itself a proven direct-call identity. This
-  // admits const invoke=importedIdentity; invoke(owner) without exposing
-  // arbitrary function-value transport or mutable local relay bindings.
-  // A bare identifier initializer performs no user-visible getter call.
+  // A uniquely bound, top-level const alias may forward a previously
+  // proved imported pure identity or another earlier proven immutable alias.
+  // Walking declaration order rules out TDZ/forward references and cycles.
+  // Each identifier initializer is an inert reference to a stable function;
+  // all uses are independently checked for direct-call-only ownership.
   /** @type {Map<string,string>} */
   const immutableImportedIdentityAliases=new Map();
   for(const statement of ast.body) {
@@ -467,7 +467,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     for(const decl of statement.declarations) {
       if(decl.id.type!=='Identifier'||decl.init?.type!=='Identifier'||
          bindings.get(decl.id.name)!==1||
-         importedIdentityFunctions.get(decl.init.name)!==0||
+         importedIdentityFunctions.get(decl.init.name)!==0&&
+           !immutableImportedIdentityAliases.has(decl.init.name)||
          functions.has(decl.id.name))continue;
       immutableImportedIdentityAliases.set(decl.id.name,decl.init.name);
       functions.set(decl.id.name,{
@@ -649,6 +650,19 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
     if (!(parent?.type === 'CallExpression' && key === 'callee')) unusableFunctions.add(node.name);
   }
   for (const name of unusableFunctions) functions.delete(name);
+  // If an intermediate relay is rejected for an opaque/value escape, none
+  // of its downstream immutable aliases may keep the identity summary.
+  // Top-level const initialization forms a finite, acyclic source-order DAG.
+  let removedRelay;
+  do {
+    removedRelay=false;
+    for(const [alias,source] of immutableImportedIdentityAliases) {
+      if(functions.has(alias)&&!functions.has(source)) {
+        functions.delete(alias);
+        removedRelay=true;
+      }
+    }
+  } while(removedRelay);
 
   const aliases = new Set([rootName]);
   /**
