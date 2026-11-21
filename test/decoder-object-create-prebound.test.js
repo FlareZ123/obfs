@@ -51,7 +51,19 @@ const cases=[
   ['call on prebound factory',
     'const box=Object.create.bind(null,null).call(null,DESCRIPTORS);'],
   ['captured bound apply positive route',
-    'const make=Object.create.bind(null);const box=make.apply(null,[null,DESCRIPTORS]);']
+    'const make=Object.create.bind(null);const box=make.apply(null,[null,DESCRIPTORS]);'],
+  ['detached Reflect.apply alias',
+    'const invoke=Reflect.apply;const box=invoke(Object.create,null,[null,DESCRIPTORS]);'],
+  ['destructured Reflect.apply alias',
+    'const {apply:invoke}=Reflect;const box=invoke(Object.create,null,[null,DESCRIPTORS]);'],
+  ['bound Reflect.apply alias',
+    'const invoke=Reflect.apply.bind(Reflect);const box=invoke(Object.create,null,[null,DESCRIPTORS]);'],
+  ['object-held Reflect.apply alias',
+    'const holder={invoke:Reflect.apply};const box=holder.invoke(Object.create,null,[null,DESCRIPTORS]);'],
+  ['prebound Reflect.apply target alias',
+    'const invoke=Reflect.apply.bind(null,Object.create,null);const box=invoke([null,DESCRIPTORS]);'],
+  ['detached Function.prototype.apply method',
+    'const invoke=Function.prototype.apply;const box=invoke.call(Object.create,null,[null,DESCRIPTORS]);']
 ];
 
 for(const [name,expression] of cases) {
