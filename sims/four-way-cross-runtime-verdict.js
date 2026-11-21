@@ -9,7 +9,8 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   sha256:Record<Variant,string>,
  *   protectedFunctions:number,
  *   minifiedStaticRecovery:{recovered:number},
- *   publishedStaticRecovery:{recovered:number},
+ *   publishedStaticRecovery:{recovered:number,comparisons:number},
+ *   matchedStaticDecision:{attackAdvantage:'supported'|'contradicted'|'inconclusive',measurementReady:boolean},
  *   candidateDecision:{attackAdvantage:'supported'|'contradicted'|'inconclusive'},
  *   rows:Array<{events:number,timingMs:VariantTimes}>
  * }} NodeFourWay
@@ -101,6 +102,9 @@ function evaluateFourWayCrossRuntime(node,browser){
   const staticAttackerVerdict=node.protectedFunctions===3&&
     node.minifiedStaticRecovery.recovered===3&&
     node.publishedStaticRecovery.recovered===3&&
+    node.publishedStaticRecovery.comparisons>=3*4096&&
+    node.matchedStaticDecision.measurementReady===true&&
+    node.matchedStaticDecision.attackAdvantage==='contradicted'&&
     node.candidateDecision.attackAdvantage==='contradicted'?
       'reconstructed':'inconclusive';
   const candidateChoice=staticAttackerVerdict==='reconstructed'?
@@ -111,7 +115,7 @@ function evaluateFourWayCrossRuntime(node,browser){
     sourceHashesMatch:true,
     matchedSampleBoundaries:named.map(row=>row.name),familywise,
     strictComputeBudget,staticAttackerVerdict,candidateChoice,releaseVerdict,
-    caveat:'This matched Node/Chromium evidence is limited to the fixed ESM graph, selected attacker, observed trials and local Chrome runner. The full browser CPU-only cold work excludes HTTP/import latency, while Node fresh-session cost includes Node import. A median estimate never proves an all-input 2.5x ceiling; a complete runtime adversary can still inspect public JS.'
+    caveat:'This matched Node/Chromium evidence includes both zero-oracle source-only recovery and three-query functional cloning of the exact delivered graph. It is limited to the fixed ESM graph, selected attacker, observed trials and local Chrome runner. The full browser CPU-only cold work excludes HTTP/import latency, while Node fresh-session cost includes Node import. A median estimate never proves an all-input 2.5x ceiling; a complete runtime adversary can still inspect public JS.'
   };
 }
 
