@@ -55,6 +55,62 @@ The self-contained Node 22.16.0 CommonJS witness `sims/low-rank-affine-nonpermut
 
 These finite observations validate the witness algebra on the sampled cases, not the theoretical probability claim. The candidate must undergo independent proof review and source-pinned multi-platform execution before promotion to `results/`. No source-code secrecy, 2.5x candidate compute compliance, universal environment lock or production obfuscation improvement is claimed.
 
+## Deterministic extension: low algebraic degree plus low output rank
+
+An exact, seedless alternative recovers the complete residual span when
+`F(x)=b XOR A*x XOR U*h(x)`, `A` is invertible, `rank(U)<=r`,
+and every coordinate of the otherwise arbitrary Boolean vector `h(x)`
+has algebraic degree at most `d>=1`. The input functions may depend on
+**all** `n` input bits; no low-dimensional projection `V` is required.
+The original `h(Vx)` input-rank-`r` promise implies `d<=r`, so this
+also derandomizes the preceding image-membership criterion, at higher query
+cost for some parameters.
+
+After the affine-basis queries, evaluate each binary input vector of
+Hamming weight `2,...,d` exactly once and span their observed residual
+vectors `R(x)=F(x) XOR F(0) XOR Mx`. Every coordinate of `R` has a
+unique algebraic normal form of degree at most `d`; its coefficients
+are determined by values at Hamming weights at most `d`, using the
+Boolean Möbius inversion formula
+`a_S = XOR_{T subset S} R(1_T)`.
+Hence each possible `R(x)` lies in the span of these observed values.
+Weights zero and one have residual zero by construction, so
+**the residual span is complete deterministically** after exactly
+`sum_{j=2}^d binom(n,j)` extra chosen inputs. The same
+affine-envelope elimination proves at most `2^r` candidates per output,
+and checking those candidates returns a genuine preimage or establishes
+that the target is outside the image.
+
+A conservative total upper bound, counting training and candidate probes,
+is therefore
+
+`Q <= sum_{j=0}^d binom(n,j) + 2^r`.
+
+At `n=32` with `d=r`, this is **35** calls for `r=1`,
+**533** for `r=2`, and **5,497** for `r=3`. This is a
+deterministic, conditional oracle-call bound, with no claim about the
+instruction cost of the full solver or universal JavaScript behavior.
+Known-degree Boolean interpolation is standard, and the repository already
+has separate bounded-degree *functional-cloning* attacks; the refinement
+here couples a complete residual span to small-coset
+**non-injective image membership**. Novelty needs independent review.
+
+The new `learnLowDegree` implementation is in the **same**
+`sims/low-rank-affine-nonpermutation.js` witness. Its local deterministic
+source-only run checked **180** independent original
+input-projection fixtures and **12** additional full-input quadratic,
+rank-two output-displacement fixtures. Exact full-domain truth tables
+established the observed residual span was globally complete, and
+**17,700** direct image-membership classifications agreed with independent
+truth tables. All 12 quadratic specimens had no nonzero direction with
+constant derivative, certified by their degree-two structure and
+basis-derivative checks; consequently none admits an alternate
+lower-rank input projection in an affine-plus-projected form. The largest
+observed conservative training-plus-candidate query count was **307**
+(the width-12 `d=3,r=3` worst-case bound). These are locally
+reproducible observations; two-platform strict-JSDoc CI and independent
+mathematical review must still be recorded for this expanded source.
+
 ## Matching negative control: output rank two alone permits exponential image-membership uncertainty
 
 This is an elementary forward-oracle lower-bound construction, **not a
