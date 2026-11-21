@@ -270,6 +270,52 @@ They support immutable local `const` binding and read-only
 import semantics; they do **not** validate arbitrary application
 closed-world assumptions.
 
+## Combined held-out and named-barrel gate
+
+[Final held-out Chrome/minifier gate 44946472523](https://github.com/FlareZ123/obfs/actions/runs/44946472523)
+at exact source `b07db5878423f15f553f415c1a234752b55be553`
+passed Ubuntu/Windows strict JSDoc and **39/39 targeted**
+Node tests, plus Ubuntu real Chromium 157.
+
+The source loader separately serves native, ordinary unbundled
+esbuild minification, and property-proof output of the positive
+one-hop, positive three-hop and reflective-negative graphs.
+Both private source labels disappear from either protected positive
+public graph, while both remain visible under default esbuild
+minification. The reflective negative retains both names
+in every version. This syntactic property reduction is observed
+with exact public emitted source on this run.
+
+In addition to 4,096 browser inputs per graph, the experiment
+checked **100,000 exact held-out inputs**, after the timing region,
+against native/minified/protected one-hop functions and native/protected
+three-hop functions. Every output matched; 576 primitive host callback
+invocations were observed. Protected/native and
+protected/minified measured median ratios on the 12-pair, 100,000-call
+work region were **1.1667×** and **1.0769×**, with
+**0/12** strict >2.5× paired breaches versus either comparator.
+With sub-millisecond work medians and a 0.1 ms page-timer grid,
+these ratios are noisy and cannot justify general throughput
+claims. The only bounded positive finding is semantic name
+removal with exact held-out functional preservation.
+
+The later
+[41/41 targeted Linux/Windows ESM proof 44946683013](https://github.com/FlareZ123/obfs/actions/runs/44946683013)
+at immutable source `b083aadc2eaa25c8e3fa133c7bd0cf3ec89cd0bf`
+adds a four-module **source-explicit named identity reexport**
+followed by a two-hop local `const` chain, preserving two renamed
+fields and exact runtime output. Its export-star negative leaves
+the original fields unchanged. Both OS targeted gates, strict JSDoc
+and real Ubuntu Chrome succeeded. A wildcard reexport is not
+automatically treated as an imported immutable identity.
+
+**Decision:** this is a correctness-first, syntactic-label
+obfuscation feature. The source-only attacker controls the
+published graph, and stronger security relative to a properly
+configured property-mangling minifier or general reconstruction
+has **not** been established. The repository's primary strong
+release remains **RELEASE-BLOCKED**.
+
 ## Proof mechanism and limitations
 
 `proveLocalObject` already receives `importedIdentityFunctions`
