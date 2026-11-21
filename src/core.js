@@ -1644,28 +1644,189 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
-  let mutated=opaqueReflectiveSensitiveWrite;
+  // Object.create can be held in a local variable and its descriptor map
+  // can be constructed before the call. Track the finite source-visible
+  // aliases without assuming an opaque or computed descriptor name is safe.
+  /** @type {Set<string>} */
+  const objectCreateAliases=new Set();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const descriptorBindings=new Map();
+  /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorMemberWrites=new Map();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const objectAssignSources=new Map();
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='MemberExpression'&&
+       node.left.object.type==='Identifier'){
+      const name=node.left.object.name;
+      const entries=descriptorMemberWrites.get(name)??[];
+      entries.push({key:memberName(node.left),value:node.right});
+      descriptorMemberWrites.set(name,entries);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='assign'&&
+       node.arguments[0]?.type==='Identifier'){
+      const name=node.arguments[0].name;
+      const entries=objectAssignSources.get(name)??[];
+      entries.push(...node.arguments.slice(1));
+      objectAssignSources.set(name,entries);
+    }
+    const pattern=node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+      node.init&&isObjectIntrinsic(node.init)?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&isObjectIntrinsic(node.right)?node.left:null;
+    if(pattern){
+      for(const property of pattern.properties){
+        if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(key==='create')objectCreateAliases.add(property.value.name);
+      }
+    }
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
+      const entries=descriptorBindings.get(node.id.name)??[];
+      entries.push(node.init);
+      descriptorBindings.set(node.id.name,entries);
+    } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+              node.left.type==='Identifier') {
+      const entries=descriptorBindings.get(node.left.name)??[];
+      entries.push(node.right);
+      descriptorBindings.set(node.left.name,entries);
+    }
+  });
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function directObjectCreate(expression) {
+    return expression.type==='MemberExpression'&&
+      isObjectIntrinsic(expression.object)&&memberName(expression)==='create';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function callsObjectCreate(expression) {
+    if(directObjectCreate(expression)||
+       expression.type==='Identifier'&&objectCreateAliases.has(expression.name))return true;
+    if(expression.type==='SequenceExpression'&&expression.expressions.length){
+      return callsObjectCreate(expression.expressions[expression.expressions.length-1]);
+    }
+    return false;
+  }
+  let createAliasFound;
+  do {
+    createAliasFound=false;
+    for(const [name,expressions] of descriptorBindings){
+      if(objectCreateAliases.has(name))continue;
+      if(expressions.some(expression=>directObjectCreate(expression)||
+        expression.type==='Identifier'&&objectCreateAliases.has(expression.name))) {
+        objectCreateAliases.add(name);
+        createAliasFound=true;
+      }
+    }
+  } while(createAliasFound);
+  /**
+   * Prove whether a finite descriptor value may expose decoder state via
+   * an accessor. Unknown descriptor expressions remain unproved and are
+   * handled by the broader conservative mutation scanner.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='Identifier'){
+      if(visited.has(expression.name))return false;
+      visited.add(expression.name);
+      const found=(descriptorBindings.get(expression.name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source,visited))||
+        (descriptorMemberWrites.get(expression.name)??[]).some(
+          write=>(write.key===null||write.key==='get')&&
+            proxyGetMayReturnDecoderIntrinsic(write.value));
+      visited.delete(expression.name);
+      return found;
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ descriptor)=>{
+        if(descriptor.type==='SpreadElement') {
+          return descriptorHasSensitiveGetter(descriptor.argument,visited);
+        }
+        if(descriptor.type!=='Property')return false;
+        const key=descriptor.computed?staticString(descriptor.key):
+          descriptor.key.type==='Identifier'?descriptor.key.name:
+            staticString(descriptor.key);
+        return (key===null||key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(descriptor.value);
+      });
+  }
+  /**
+   * Object.create's outer map may use a computed property name. The name
+   * cannot make a decoder-sensitive accessor harmless if it is later read.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoder(expression,visited=new Set()){
+    if(expression.type==='Identifier'){
+      if(visited.has(expression.name))return false;
+      visited.add(expression.name);
+      const found=(descriptorBindings.get(expression.name)??[]).some(
+        source=>objectCreateMayExposeDecoder(source,visited))||
+        (descriptorMemberWrites.get(expression.name)??[]).some(
+          write=>descriptorHasSensitiveGetter(write.value))||
+        (objectAssignSources.get(expression.name)??[]).some(
+          source=>objectCreateMayExposeDecoder(source,visited));
+      visited.delete(expression.name);
+      return found;
+    }
+    if(expression.type==='CallExpression'&&
+       expression.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(expression.callee.object)&&
+       memberName(expression.callee)==='assign'){
+      return expression.arguments.some(
+        (/** @type {import('./ast').AstNode} */ source)=>
+          objectCreateMayExposeDecoder(source,visited));
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement')return objectCreateMayExposeDecoder(
+          property.argument,visited);
+        return property.type==='Property'&&
+          descriptorHasSensitiveGetter(property.value);
+      });
+  }
+  // First-class calls through unmodeled method hooks can install arbitrary
+  // descriptors. Explicit empty maps are independently proved safe, so
+  // unrelated accessor definitions retain their own encoding opportunity.
+  let unmodeledCreateReference=false;
+  let sensitiveAccessorWrite=false;
+  walk(ast,(node,parent)=>{
+    if(node.type==='MemberExpression'&&directObjectCreate(node)){
+      if(!(parent?.type==='CallExpression'&&parent.callee===node) &&
+         !(parent?.type==='VariableDeclarator'&&parent.init===node&&
+           parent.id.type==='Identifier'))unmodeledCreateReference=true;
+    }
+    if(node.type==='Property'){
+      const key=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.value))sensitiveAccessorWrite=true;
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'){
+      const key=memberName(node.left);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.right))sensitiveAccessorWrite=true;
+    }
+  });
+  /** @type {boolean} */
+  let mutated=opaqueReflectiveSensitiveWrite||
+    unmodeledCreateReference&&sensitiveAccessorWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
       return;
     }
-    // Object.create installs accessor descriptors during construction. A
-    // getter may expose String.prototype to an otherwise untracked receiver,
-    // allowing a later write to corrupt the eager string decoder.
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
-       node.arguments[1]?.type==='ObjectExpression'&&
-       node.arguments[1].properties.some(
-         (/** @type {import('./ast').AstNode} */ property)=>
-           property.type==='Property'&&property.value.type==='ObjectExpression'&&
-           property.value.properties.some(
-             (/** @type {import('./ast').AstNode} */ descriptor)=>
-               descriptor.type==='Property'&&
-               (descriptor.computed?staticString(descriptor.key):
-                 descriptor.key.type==='Identifier'?descriptor.key.name:
-                   staticString(descriptor.key))==='get'&&
-               proxyGetMayReturnDecoderIntrinsic(descriptor.value)))) {
+    // Object.create's computed descriptor names and first-class aliases
+    // can surface a sensitive getter before another file's decoder loads.
+    if(node.type==='CallExpression'&&callsObjectCreate(node.callee)&&
+       node.arguments[1]&&objectCreateMayExposeDecoder(node.arguments[1])) {
       mutated=true;
       return;
     }
