@@ -75,6 +75,8 @@ jobs:
         run: node sims/rankthree-random-basis-attack.js
       - name: Exhaustive ideal-uniform GL4 quadratic clone and tail probability
         run: node sims/rankthree-uniform-gl4-peer.js
+      - name: Authorized SCO rank-three quadratic live offline clone
+        run: node sims/sco-rankthree-random-basis-live.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
