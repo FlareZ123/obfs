@@ -263,6 +263,13 @@ async function main(){
         await import(negativeMangled));
       const reflectiveCandidate=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeCompiled));
+      const mixedNative=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import('/mixed/native/entry.mjs'));
+      const mixedCandidate=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import('/mixed/compiled/entry.mjs'));
+      const mixedMangle=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import('/mixed/mangled/entry.mjs'));
+      let mixedUnsafeKeyMismatches=0;
       let parity=0;
       for(let i=0;i<4096;i++){
         const native=baseline.run(i);
@@ -282,6 +289,16 @@ async function main(){
         if(JSON.stringify(unsafeMangled[0])===expected||
            !Object.is(unsafeMangled[1],reflected[1]))
           throw Error('Configured esbuild reflective negative mismatch at '+i);
+        const mixedBefore=mixedNative.run(i);
+        const mixedAfter=mixedCandidate.run(i);
+        const mixedUnsafe=mixedMangle.run(i);
+        if(JSON.stringify(mixedBefore)!==JSON.stringify(mixedAfter))
+          throw Error('Mixed real-app graph native/compiler mismatch at '+i);
+        if(!Object.is(mixedBefore[0],mixedUnsafe[0])||
+           !Object.is(mixedBefore[2],mixedUnsafe[2])||
+           JSON.stringify(mixedBefore[1])===JSON.stringify(mixedUnsafe[1]))
+          throw Error('Mixed esbuild control did not alter only reflected keys at '+i);
+        mixedUnsafeKeyMismatches++;
         parity++;
       }
       // Source-visible host APIs only consume values. An external observer of
@@ -344,6 +361,14 @@ async function main(){
            !Object.is(transitiveBaseline.run(i),transitiveMangle.run(i))||
            !Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
           throw Error('Exact browser held-out output mismatch '+i);
+        const expectedMixed=mixedNative.run(i);
+        const compiledMixed=mixedCandidate.run(i);
+        const unsafeMixed=mixedMangle.run(i);
+        if(JSON.stringify(expectedMixed)!==JSON.stringify(compiledMixed)||
+           !Object.is(expectedMixed[0],unsafeMixed[0])||
+           !Object.is(expectedMixed[2],unsafeMixed[2])||
+           JSON.stringify(expectedMixed[1])===JSON.stringify(unsafeMixed[1]))
+          throw Error('Mixed held-out selective property proof mismatch '+i);
         exactHeldoutInputs++;
       }
       return {trace:{
@@ -351,10 +376,16 @@ async function main(){
         exactHeldoutParity:true,hostCallbacks:collected.length,
         outputParity:true,transitiveParity:true,reflectiveRefusalParity:true,
         benchmarkChecksumsMatched:true,
-        configuredMangleReflectedKeysChanged:true
+        configuredMangleReflectedKeysChanged:true,
+        sameGraphPrivateOwnersRewritten:1,
+        sameGraphReflectedOwnersPreserved:1,
+        sameGraphMangleKeyMismatches:mixedUnsafeKeyMismatches
       },time};
     });
     assert.equal(data.trace.typedInputs,4096);
+    assert.equal(data.trace.sameGraphMangleKeyMismatches,4096);
+    assert.equal(data.trace.sameGraphPrivateOwnersRewritten,1);
+    assert.equal(data.trace.sameGraphReflectedOwnersPreserved,1);
     assert.equal(data.trace.exactHeldoutInputs,100000);
     assert.equal(data.trace.exactHeldoutParity,true);
     assert.ok(data.trace.hostCallbacks>0);
@@ -375,6 +406,12 @@ async function main(){
       fullOutputParity:true,transitiveOutputParity:true,
       reflectiveKeyParity:true,
       staticLabelEvidence,
+      sameGraphMixedOwnerResults:{
+        privateRenamed:2,reflectedRenamed:0,
+        esbuildPrivateRenamed:2,esbuildReflectedRenamed:2,
+        observedMangledKeyMismatches:data.trace.sameGraphMangleKeyMismatches,
+        heldoutParityInputs:data.trace.exactHeldoutInputs
+      },
       nativeVsCompiled:bound,
       minifiedVsCompiled:minifiedBound,
       mangledVsCompiled:mangledBound,
