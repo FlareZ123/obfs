@@ -257,6 +257,7 @@ function main(){
     wide++;wideMax=Math.max(wideMax,m.queries);
   }
   let rankThreeRefused=false;
+  /** @param {number} x @returns {number} */
   const lower=x=>((x&3)===3?1:0)>>>0;
   try{clone(lower,4,seeded(7));}catch(e){
     if(e instanceof RangeError)rankThreeRefused=true;
