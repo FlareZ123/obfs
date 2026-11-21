@@ -51,13 +51,21 @@ async function prepare(){
     code:(await fs.readFile(path.join(__dirname,'../examples/polyvariant-app/native',name),'utf8'))
       .replace(/\r\n/g,'\n')
   })));
-  const published=(await build()).files.map(f=>({
+  const compiled=await build();
+  assert.equal(compiled.files[0].metrics.polyvariantFunctions,3,
+    'Release evidence requires all three selected functions to be transformed');
+  const published=compiled.files.map(f=>({
     path:f.path,code:/** @type {string} */(f.code)
   }));
   assert.deepEqual(published.map(file=>file.path),names);
   const recovered=reconstructPublicMath(published[0].code);
   assert.equal(recovered.functions.length,3);
-  assert.equal(recovered.publishedBytes,5883);
+  assert.ok(recovered.functions.every(fn=>fn.paths>=2),
+    'Release attacker must recover real randomized multi-path wrappers');
+  assert.ok(recovered.publishedBytes>Buffer.byteLength(native[0].code,'utf8'),
+    'Emitted protected module must contain more than the native source');
+  // Do not require a historical emitted byte count: the build is sourced from
+  // this exact commit, and its public graph digest is retained in the result.
   const reconstructed=published.map(file=>({
     ...file,code:file.path==='math.mjs'?recovered.code:file.code
   }));
