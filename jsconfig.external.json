@@ -1,6 +1,9 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/decoder-object-create-aliased-map.test.js",
+    "test/decoder-object-create-invocation.test.js",
+    "test/decoder-object-create-aliased-browser.js",
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
     "sims/source-island-cache-browser-witness.js",
