@@ -191,7 +191,33 @@ async function main(){
           comparisons+=records.length;
         }
       }
+      // Exact held-out native-versus-three-variant Int32 differential is
+      // intentionally AFTER all timing. It tests every selected function
+      // result, rather than relying only on a collision-prone XOR checksum.
+      const finalKernels=/** @type {Array<{
+        scramble:(a:number,b:number,c:number,d:number)=>number,
+        mask:(x:number)=>number
+      }>} */ (await Promise.all(variants.map(name=>
+        import('/'+name+'/10000/11/kernel.mjs'))));
+      let exactKernelComparisons=0;
+      for(let i=0;i<200000;i++){
+        const a=Math.imul(i^0x9bf34621,0x9e3779b1)|0;
+        const b=Math.imul(i+71,1664525)|0;
+        const c=Math.imul(i+149,1013904223)|0;
+        const d=(i>>>3)&31;
+        const expectedScramble=finalKernels[0].scramble(a,b,c,d);
+        const expectedMask=finalKernels[0].mask(a);
+        for(let variantIndex=1;variantIndex<finalKernels.length;variantIndex++){
+          const candidate=finalKernels[variantIndex];
+          if(!Object.is(candidate.scramble(a,b,c,d),expectedScramble)||
+             !Object.is(candidate.mask(a),expectedMask))
+            throw Error('Exact held-out Chromium kernel mismatch '+variantIndex+'/'+i);
+          exactKernelComparisons+=2;
+        }
+      }
       return {clockProbeMs,clockSum,trialPairs:12,eventsPerTrial:10000,
+        exactKernelInputs:200000,
+        exactKernelComparisons,exactKernelParity:true,
         selectedKernelCallsPerVariant:200000,
         selectedKernelComparisons:selectedComparisons,
         comparedVariantCalls:comparisons,fullOutputAndCallbackParity:true,
@@ -202,6 +228,9 @@ async function main(){
     assert.equal(measured.eventsPerTrial,10000);
     assert.equal(measured.comparedVariantCalls,480000);
     assert.equal(measured.selectedKernelComparisons,9600000);
+    assert.equal(measured.exactKernelInputs,200000);
+    assert.equal(measured.exactKernelComparisons,1200000);
+    assert.equal(measured.exactKernelParity,true);
     assert.equal(measured.fullOutputAndCallbackParity,true);
     assert.equal(measured.selectedKernelChecksumParity,true);
     assert.ok(measured.clockProbeMs>=0.1);
@@ -228,6 +257,9 @@ async function main(){
       pairedWorkload:'12 counterbalanced trials; 10000 typed Int32 events and host callbacks each',
       matchedFullOutputAndCallbackParity:true,
       selectedKernelChecksumParity:true,
+      exactHeldOutKernelParity:true,
+      exactHeldOutKernelInputs:measured.exactKernelInputs,
+      exactHeldOutKernelComparisons:measured.exactKernelComparisons,
       computeBoundary:'synchronous application work after import and 1024-call warmup',
       selectedKernelBoundary:'200000 pure selected-kernel calls after 16384-call warmup, without external callbacks',
       nonComputeLatency:'module HTTP imports recorded separately; first-use compilation recorded separately',
