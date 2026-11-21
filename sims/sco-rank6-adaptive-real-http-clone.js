@@ -14,17 +14,29 @@ const TOKEN='authorized-rank-six-study';
  */
 function privateSource(){
   return [
-    'const OBFS_PRIVATE_MASKS=[0xc7639c15,0x32e67ad1,0xe5ab17c2,0x4692ed7f,0x1fa37cc9,0x8bc9a203];',
-    'const OBFS_PRIVATE_PAIRS=[0x21a5e4f3,0x56cd81ab,0xc57e1439];',
+    'const OBFS_PRIVATE_MASK0=0xc7639c15;' ,
+    'const OBFS_PRIVATE_MASK1=0x32e67ad1;',
+    'const OBFS_PRIVATE_MASK2=0xe5ab17c2;',
+    'const OBFS_PRIVATE_MASK3=0x4692ed7f;',
+    'const OBFS_PRIVATE_MASK4=0x1fa37cc9;',
+    'const OBFS_PRIVATE_MASK5=0x8bc9a203;'
+    'const OBFS_PRIVATE_PAIR0=0x21a5e4f3;',
+    'const OBFS_PRIVATE_PAIR1=0x56cd81ab;',
+    'const OBFS_PRIVATE_PAIR2=0xc57e1439;'
     'const OBFS_PRIVATE_OFFSET=0x5a9bc7e1;',
     'function obfsPrivateParity(x){x^=x>>>16;x^=x>>>8;x^=x>>>4;x^=x>>>2;x^=x>>>1;return x&1;}',
     'export async function protectedRankSix(value){',
     '  const x=value>>>0;',
-    '  const z=OBFS_PRIVATE_MASKS.map(mask=>obfsPrivateParity(mask&x));',
+    '  const z0=obfsPrivateParity(OBFS_PRIVATE_MASK0&x);',
+    '  const z1=obfsPrivateParity(OBFS_PRIVATE_MASK1&x);',
+    '  const z2=obfsPrivateParity(OBFS_PRIVATE_MASK2&x);',
+    '  const z3=obfsPrivateParity(OBFS_PRIVATE_MASK3&x);',
+    '  const z4=obfsPrivateParity(OBFS_PRIVATE_MASK4&x);',
+    '  const z5=obfsPrivateParity(OBFS_PRIVATE_MASK5&x);'
     '  let y=(x^((x<<7)|(x>>>25))^OBFS_PRIVATE_OFFSET)>>>0;',
-    '  if(z[0]&z[1])y^=OBFS_PRIVATE_PAIRS[0];',
-    '  if(z[2]&z[3])y^=OBFS_PRIVATE_PAIRS[1];',
-    '  if(z[4]&z[5])y^=OBFS_PRIVATE_PAIRS[2];',
+    '  if(z0&z1)y^=OBFS_PRIVATE_PAIR0;',
+    '  if(z2&z3)y^=OBFS_PRIVATE_PAIR1;',
+    '  if(z4&z5)y^=OBFS_PRIVATE_PAIR2;',
     '  return y>>>0;',
     '}',
     'export function publicIdentity(value){return value>>>0;}'
@@ -99,7 +111,7 @@ async function runChallenge(){
   const selected=partitionScoSelectedAsyncExports({
     path:'mixed.mjs',sourceType:'module',code:privateCode
   },{seed:'sco-rank-six-adaptive-real-http',privateNames:['protectedRankSix']});
-  const leaked=/OBFS_PRIVATE_MASKS|OBFS_PRIVATE_PAIRS|OBFS_PRIVATE_OFFSET/u
+  const leaked=/OBFS_PRIVATE_MASK|OBFS_PRIVATE_PAIR|OBFS_PRIVATE_OFFSET/u
     .test(selected.clientFile.code);
   assert.equal(leaked,false);
   const original=await import('data:text/javascript,'+encodeURIComponent(privateCode));
