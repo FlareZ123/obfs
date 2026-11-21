@@ -1768,7 +1768,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        isObjectIntrinsic(expression.callee.object)&&
        memberName(expression.callee)==='assign'){
       return expression.arguments.some(
-        source=>objectCreateMayExposeDecoder(source,visited));
+        (/** @type {import('./ast').AstNode} */ source)=>
+          objectCreateMayExposeDecoder(source,visited));
     }
     if(expression.type!=='ObjectExpression')return false;
     return expression.properties.some(
