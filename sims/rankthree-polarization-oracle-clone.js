@@ -1,5 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
+const {clone:learnQuadratic,evaluate:evaluateQuadratic}=
+  require('./rankthree-quadratic-polarization-peer');
 
 /** @typedef {{bits:number,base:number,linear:number[],degree:2|3,
   quadratic:number[][],p:number[],q:number[],r:number[],
@@ -111,17 +113,30 @@ function clone(oracle,bits,draw,delta=1e-10){
     return {bits,base,linear,degree:3,quadratic:[],p,q,r,
       h12,h13,h23,h123,queries:seen.size,trials};
   }
+  // A genuine degree<=2 projected rank-three polar form has an
+  // effective quotient of dimension at most three. The independent
+  // two-anchor peer learner recovers its complete alternating Gram
+  // form using <=2n signature values after a nonzero random pair.
+  // If a true cubic was missed, the entire failure event is already
+  // bounded by the preceding independent-uniform triple search.
+  const quadraticModel=learnQuadratic(ask,bits,draw,delta);
   /** @type {number[][]} */
   const quadratic=[];
   for(let i=0;i<bits;i++){
     /** @type {number[]} */
     const row=[];
+    const a=(1<<i)>>>0;
     for(let j=i+1;j<bits;j++){
-      row.push(B((1<<i)>>>0,(1<<j)>>>0));
+      const b=(1<<j)>>>0;
+      row.push((evaluateQuadratic(quadraticModel,0)^
+        evaluateQuadratic(quadraticModel,a)^
+        evaluateQuadratic(quadraticModel,b)^
+        evaluateQuadratic(quadraticModel,(a^b)>>>0))>>>0);
     }
     quadratic.push(row);
   }
-  assert.ok(seen.size <= (bits+1)+7*bound+bits*(bits-1)/2);
+  const pairBound=Math.ceil(Math.log(delta)/Math.log(5/8));
+  assert.ok(seen.size <= (bits+1)+7*bound+3*pairBound+2*bits);
   return {bits,base,linear:basis,degree:2,quadratic,
     p:[],q:[],r:[],h12:0,h13:0,h23:0,h123:0,
     queries:seen.size,trials};
@@ -247,7 +262,7 @@ function main(){
       assert.equal(evaluate(snapshot,x),F(x),'32-bit held-out output mismatch');
       bigHeldouts++;
     }
-    assert.ok(calls<=935);
+    assert.ok(calls<=650);
     if(m.degree===3)bigCubic++;else bigQuadratic++;
     if(isNoninjective)noninjective++;
     maxQueries=Math.max(maxQueries,calls);
@@ -260,8 +275,8 @@ function main(){
       cubic:smallCubic,quadratic:smallQuadratic},
     width32:{cases:bigCases,heldoutOutputs:bigHeldouts,
       cubic:bigCubic,quadratic:bigQuadratic,deliberatelyNoninjective:noninjective,
-      maxQueries,maxTripleTrials:maxTrials,confidenceQueryCap:935},
-    probability:'(43/64)^58 < 1e-10 for independent-uniform triple probes',
+      maxQueries,maxTripleTrials:maxTrials,confidenceQueryCap:650},
+    probability:'Conditional exclusive branches: (43/64)^58 or (5/8)^49 < 1e-10',
     note:'Fixed-seed transcripts are reproducibility tests; they are not the probability proof'};
   console.log(JSON.stringify(summary,null,2));
   return summary;
