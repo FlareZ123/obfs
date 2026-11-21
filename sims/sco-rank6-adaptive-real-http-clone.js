@@ -19,10 +19,10 @@ function privateSource(){
     'const OBFS_PRIVATE_MASK2=0xe5ab17c2;',
     'const OBFS_PRIVATE_MASK3=0x4692ed7f;',
     'const OBFS_PRIVATE_MASK4=0x1fa37cc9;',
-    'const OBFS_PRIVATE_MASK5=0x8bc9a203;'
+    'const OBFS_PRIVATE_MASK5=0x8bc9a203;',
     'const OBFS_PRIVATE_PAIR0=0x21a5e4f3;',
     'const OBFS_PRIVATE_PAIR1=0x56cd81ab;',
-    'const OBFS_PRIVATE_PAIR2=0xc57e1439;'
+    'const OBFS_PRIVATE_PAIR2=0xc57e1439;',
     'const OBFS_PRIVATE_OFFSET=0x5a9bc7e1;',
     'function obfsPrivateParity(x){x^=x>>>16;x^=x>>>8;x^=x>>>4;x^=x>>>2;x^=x>>>1;return x&1;}',
     'export async function protectedRankSix(value){',
@@ -32,7 +32,7 @@ function privateSource(){
     '  const z2=obfsPrivateParity(OBFS_PRIVATE_MASK2&x);',
     '  const z3=obfsPrivateParity(OBFS_PRIVATE_MASK3&x);',
     '  const z4=obfsPrivateParity(OBFS_PRIVATE_MASK4&x);',
-    '  const z5=obfsPrivateParity(OBFS_PRIVATE_MASK5&x);'
+    '  const z5=obfsPrivateParity(OBFS_PRIVATE_MASK5&x);',
     '  let y=(x^((x<<7)|(x>>>25))^OBFS_PRIVATE_OFFSET)>>>0;',
     '  if(z0&z1)y^=OBFS_PRIVATE_PAIR0;',
     '  if(z2&z3)y^=OBFS_PRIVATE_PAIR1;',
