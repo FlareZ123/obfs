@@ -181,7 +181,7 @@ function affineOutputMaskDimension(outputs, bits) {
  * multiplier is an exactly invertible permutation. If the function *form*
  * is known, one oracle query at 1 reveals its unknown constant; modular
  * inversion then recovers every target without additional oracle calls.
- * @returns {{sampledRankLowerBound:number,heldoutTargets:number,identifiedConstant:number}}
+ * @returns {{exactResidualRank:number,heldoutTargets:number,identifiedConstant:number}}
  */
 function highRankEasyInverse() {
   const factor = 0x9e3779b1;
@@ -201,8 +201,28 @@ function highRankEasyInverse() {
     const x = next();
     residuals.push((oracle(x) ^ linear(columns, x)) >>> 0);
   }
-  const sampledRankLowerBound = rank(residuals, 32);
-  assert.equal(sampledRankLowerBound, 27);
+  // All five low output bits are affine because factor mod 32 is 17:
+  // (17*x mod 32) = x XOR ((x&1)<<4), with no bit-5 carry retained.
+  for (let x = 0; x < 32; x++) {
+    assert.equal(oracle(x) & 31, (x ^ ((x & 1) << 4)) & 31);
+  }
+  for (const residual of residuals) assert.equal(residual & 31, 0);
+
+  // A full-rank witness uses only 27 specified public inputs. The first
+  // residual has least nonzero bit 5; every subsequent residual is a
+  // one-bit left shift, giving distinct least nonzero bits 5 through 31.
+  const directWitness = Array.from({length: 27}, (_, k) => {
+    const input = (17 * (2 ** k)) >>> 0;
+    return (oracle(input) ^ linear(columns, input)) >>> 0;
+  });
+  assert.equal(directWitness[0], 0xfceff660);
+  directWitness.forEach((value, k) => {
+    assert.equal(value, (directWitness[0] << k) >>> 0);
+    assert.equal((value & -value) >>> 0, (2 ** (k + 5)) >>> 0);
+  });
+  assert.equal(rank(directWitness, 32), 27);
+  assert.equal(rank(residuals, 32), 27);
+  const exactResidualRank = 27;
 
   // Under the explicit public *odd multiplication* family promise,
   // recovering the multiplier needs only a single chosen query.
@@ -216,7 +236,7 @@ function highRankEasyInverse() {
     const input = next();
     assert.equal(Math.imul(oracle(input), inverse) >>> 0, input);
   }
-  return {sampledRankLowerBound, heldoutTargets: 64, identifiedConstant};
+  return {exactResidualRank, heldoutTargets: 64, identifiedConstant};
 }
 
 function main() {
