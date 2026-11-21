@@ -94,7 +94,7 @@ function clone(oracle,n,draw,delta=1e-10){
     for(const x of masks(n,weight)){
       let coefficient=ask(x);
       for(let subset=(x-1)&x;subset!==x;subset=(subset-1)&x){
-        coefficient^=/** @type {number} */ (base.get(subset));
+        coefficient^=/** @type {number} */ (base.get(subset>>>0));
         if(subset===0)break;
       }
       base.set(x>>>0,coefficient>>>0);
