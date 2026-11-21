@@ -95,7 +95,8 @@ async function main() {
       properties:false,identifiers:false,
       seed:'browser-object-create-alias/'+fixture.name});
     const target=emitted.files.find(file=>file.path==='target.mjs');
-    assert.equal(target?.metrics.literals,fixture.safe?1:0,
+    assert.ok(target,'Expected emitted target module');
+    assert.equal(target.metrics.literals,fixture.safe?1:0,
       fixture.name+' transform yield');
     const originalOutput=await runBrowser(native);
     const emittedOutput=await runBrowser(emitted.files);
