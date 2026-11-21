@@ -45,6 +45,36 @@ function interpolationRank(outputs, bits) {
   return rank(residuals, bits);
 }
 
+/**
+ * Compute the exact vector-valued Boolean algebraic normal form by the
+ * GF(2) zeta/Mobius transform; collect all degree-two-and-higher
+ * coefficient vectors. Their span equals the residual span.
+ * @param {number[]} outputs
+ * @param {number} bits
+ * @returns {number}
+ */
+function nonlinearAnfCoefficientRank(outputs, bits) {
+  const coefficients = outputs.slice();
+  for (let bit = 0; bit < bits; bit++) {
+    for (let mask = 0; mask < 2 ** bits; mask++) {
+      if ((mask >>> bit) & 1) {
+        coefficients[mask] = (coefficients[mask] ^ coefficients[mask ^ (2 ** bit)]) >>> 0;
+      }
+    }
+  }
+  /** @param {number} mask @returns {number} */
+  function countBits(mask) {
+    let bitsSet = 0;
+    let x = mask;
+    while (x !== 0) {
+      x &= x - 1;
+      bitsSet++;
+    }
+    return bitsSet;
+  }
+  return rank(coefficients.filter((_, mask) => countBits(mask) >= 2), bits);
+}
+
 /** @param {number[]} outputs @param {number} bits @returns {number} */
 function parallelogramRank(outputs, bits) {
   const values = [];
@@ -247,6 +277,7 @@ function main() {
   for (const f of permutations([0, 1, 2, 3, 4, 5, 6, 7])) {
     const observed = interpolationRank(f, 3);
     assert.equal(parallelogramRank(f, 3), observed);
+    assert.equal(nonlinearAnfCoefficientRank(f, 3), observed);
     assert.equal(affineOutputMaskDimension(f, 3), 3 - observed);
     assert.equal(interpolationRank(affineConjugate(f), 3), observed);
     classes[observed]++;
