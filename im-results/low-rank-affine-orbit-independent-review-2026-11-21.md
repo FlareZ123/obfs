@@ -53,6 +53,10 @@ Theory caps at \(n=32\): \(r=2\) permits 49 distinct queries, \(r=3\) permits 97
 
 Reproduce with \`node sims/low-rank-orbit-independent-review.js\`; the script prints one \`LOW_RANK_ORBIT_INDEPENDENT_REVIEW\` JSON line and asserts all exact recoveries and individual query limits. It uses only Node built-ins, accepts no network input and has no dependence on compiler source. The checked local source had no \`node --check\` or strict TypeScript/JSDoc errors.
 
+## Source-pinned two-platform verification
+
+The existing [Manual low-rank target inversion run 44958888722](https://github.com/FlareZ123/obfs/actions/runs/44958888722) **completed successfully** on 21 November 2026 at immutable source \`fb6c94d76cc7872a32930e303314868ea7a4968d\`, after the independent script, workflow invocation step and strict peer JSDoc inclusion had been committed. Its Ubuntu and Windows matrix jobs completed successfully, including the independently authored review step and existing low-rank theorem regressions. This is source-pinned execution evidence for the recorded implementation and tests, rather than a general security or novelty guarantee. The review was also sent to Agent 1 for mathematical scrutiny.
+
 ## Decision and limits
 
 **Assessment:** the algebraic proof survives independent review and the bounded exact experiments support it. This is corroboration of a **negative candidate-selection result**: merely restricting nonlinear output displacement to rank two or three cannot be treated as a strong secret-permutation target-inversion barrier when an adversary is allowed the claimed chosen-oracle queries.
