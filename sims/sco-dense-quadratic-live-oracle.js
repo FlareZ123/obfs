@@ -3,6 +3,10 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {randomBytes,createHash}=require('node:crypto');
+const {execFile}=require('node:child_process');
+const {promisify}=require('node:util');
+const path=require('node:path');
+const execFileAsync=promisify(execFile);
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 const {cloneAuthorizedQuadratic}=require('./sco-quadratic-529-live-clone');
 const {masksOfWeight,evaluateBoundedDegreeModel}=
@@ -60,10 +64,13 @@ function randomPrivateQuadratic(){
  *   recoveredCoefficients:number,coefficientsExactlyRecovered:boolean,
  *   nonlinearOutputRank:number,sourceBytes:number,publicBytes:number,
  *   privateSourceSha256:string,transcriptSha256:string,
- *   lastPairAmbiguityAt528Queries:boolean,serverOfflineBeforeHoldout:boolean
+ *   lastPairAmbiguityAt528Queries:boolean,serverOfflineBeforeHoldout:boolean,
+ *   processIsolatedClient:boolean
  * }>}
+ * @param {{processIsolatedClient?:boolean}} [options]
  */
-async function runDenseChallenge(){
+async function runDenseChallenge(options={}){
+  const processIsolatedClient=options.processIsolatedClient===true;
   const {coefficients,source}=randomPrivateQuadratic();
   const selected=partitionScoSelectedAsyncExports({
     path:'mixed.mjs',sourceType:'module',code:source
@@ -121,9 +128,25 @@ async function runDenseChallenge(){
       /export async function protectedDense\([^)]*\)\{return await [\w$]+\("([^"]+)",\[\.\.\.arguments\]\);\}/u);
     assert.ok(route?.[1],'Published dense private method route not recoverable');
     assert.equal(route[1],selected.methodNames.protectedDense);
-    const learned=await cloneAuthorizedQuadratic({
-      origin,method:route[1],credential:TOKEN
-    });
+    /** @type {Awaited<ReturnType<typeof cloneAuthorizedQuadratic>>} */
+    let learned;
+    if(processIsolatedClient){
+      // The original random coefficients and private ESM remain exclusively
+      // in the parent process heap; the child receives only HTTP access.
+      const {stdout}=await execFileAsync(process.execPath,[
+        path.join(__dirname,'sco-dense-remote-client.cjs'),origin,TOKEN
+      ],{maxBuffer:512*1024,timeout:120000});
+      /** @type {Awaited<ReturnType<typeof cloneAuthorizedQuadratic>> & {sourceSha256:string}} */
+      const childResult=JSON.parse(stdout);
+      assert.equal(childResult.sourceSha256,
+        createHash('sha256').update(delivered).digest('hex'),
+        'Isolated attacker did not learn from served public ESM');
+      learned=childResult;
+    }else{
+      learned=await cloneAuthorizedQuadratic({
+        origin,method:route[1],credential:TOKEN
+      });
+    }
     assert.equal(learned.queryCount,529);
     assert.equal(privateCalls,529);
     const originalCoefficientOrder=learned.model.coefficients.map(([,value])=>value);
@@ -182,7 +205,8 @@ async function runDenseChallenge(){
       publicBytes:Buffer.byteLength(publishedSource),
       privateSourceSha256:createHash('sha256').update(source).digest('hex'),
       transcriptSha256:learned.transcriptSha256,
-      lastPairAmbiguityAt528Queries:query528FailsAtLast,serverOfflineBeforeHoldout
+      lastPairAmbiguityAt528Queries:query528FailsAtLast,serverOfflineBeforeHoldout,
+      processIsolatedClient
     };
   }finally{
     if(server){
