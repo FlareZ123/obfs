@@ -37,6 +37,18 @@ The bracket is a second-order finite difference of `F` at base point `b`, and eq
 
 The permutation premise matters for the attainability proof: a constant function has zero affine-additivity defect rank, yet subtracting any invertible linear map leaves full-rank residual variation. The equality is not asserted for such nonpermutations.
 
+## Equivalent affine output-component characterization
+
+Let `R_F^perp` be the dual space of output masks `lambda in GF(2)^n` orthogonal to every vector in `R_F`. Then
+
+`lambda in R_F^perp` iff the scalar Boolean function `x |-> lambda dot F(x)` is affine.
+
+Indeed, orthogonality to every affine-additivity defect is exactly the assertion that `lambda dot (F(x) xor F(0))` is additive on input XOR; over `GF(2)`, additivity is linearity. Thus the set of affine output masks has dimension **`n-r_F`**, including any dependencies among visibly non-affine output coordinates.
+
+Consequently a 32-bit permutation whose intrinsic residual rank is at most three has at least **29 linearly independent output combinations that are perfectly affine**. This is a structural reason the chosen-query reconstruction and target-inversion attacks can quotient away most of the input and output dimensions. It is an algebraic property of fixed-width functions, without establishing practical full-code reconstruction.
+
+The independent verifier enumerates **all eight scalar output masks for all 40,320 three-bit permutations**, confirming that the logarithm of the number of affine masks equals `3-r_F` in every case. This is another mathematically independent way to audit the residual-rank metric.
+
 ## Reproducible independent evidence
 
 [`sims/affine-residual-minimal-rank-peer.js`](../sims/affine-residual-minimal-rank-peer.js) enumerates all 40,320 permutations on 3 bits and checks both `dim span D=dim span B_F` and invariance under an independently chosen, nontrivial invertible input/output affine conjugation for every permutation. For 128 deterministically spaced permutations it **independently enumerates all 168 invertible 3×3 matrices** to compute the minimum attainable nonlinear displacement rank, which equals the public rank in all 128. The public rank distribution over the full 40,320 permutations is:
