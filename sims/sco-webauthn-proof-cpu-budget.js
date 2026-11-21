@@ -168,7 +168,7 @@ function runBudgetProbe(){
   runBatch(250000,2,true,fixtures);
   const profiles=[
     profile('small-500-round',500,4000,fixtures,8),
-    profile('coarse-250000-round',250000,60,fixtures,1)
+    profile('coarse-250000-round',250000,60,fixtures,8)
   ];
   return {
     node:process.version,platform:process.platform,arch:process.arch,
