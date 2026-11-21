@@ -145,13 +145,20 @@ function profile(name,rounds,operations,fixtures,aggregation,proofBatchSize=1){
   }
   const nativeCpuMedian=median(pairs.map(p=>p.original.cpuUs));
   const proofCpuMedian=median(pairs.map(p=>p.proof.cpuUs));
+  const pairedRatios=pairs.map(pair=>pair.proof.cpuUs/pair.original.cpuUs);
+  const pairBreachesOver2_5x=pairedRatios.filter(ratio=>ratio>2.5).length;
   const timedOperations=operations*aggregation;
   return {
     name,rounds,operations,aggregation,timedOperations,proofBatchSize,repeats:7,
     originalCpuUsPerOperation:nativeCpuMedian/timedOperations,
     proofCpuUsPerOperation:proofCpuMedian/timedOperations,
     serverCpuRatio:proofCpuMedian/nativeCpuMedian,
+    // Historical ratio-of-medians field, never the strict release criterion.
     serverCpuWithin2_5x:proofCpuMedian<=2.5*nativeCpuMedian,
+    pairedRatios,
+    maxPairRatio:Math.max(...pairedRatios),
+    pairBreachesOver2_5x,
+    strictAllPairsWithin2_5x:pairBreachesOver2_5x===0,
     samples:pairs
   };
 }
