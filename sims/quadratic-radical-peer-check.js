@@ -207,7 +207,10 @@ function main() {
     width3CodimDistribution: [0, 0, 0, 0],
     width4Targets: 0, highRank32Targets: 0,
     width32MinQueries: 1e9, width32MaxQueries: 0,
-    width32RadicalDimension: 24, width32NonlinearOutputRank: 24
+    width32RadicalDimension: 24, width32NonlinearOutputRank: 24,
+    fullOutputRank32Targets: 0, fullRank32MinQueries: 1e9,
+    fullRank32MaxQueries: 0, fullRank32Codimension: 9,
+    fullRank32OutputResidualRank: 32
   };
   let count = 0;
   for (const perm of permutations([0, 1, 2, 3, 4, 5, 6, 7])) {
@@ -265,6 +268,29 @@ function main() {
       summary.highRank32Targets++;
     }
   }
+  // Cube in GF(2^9) has degree two, is bijective because 3 is
+  // coprime to 2^9-1, and its polar vectors span all nine outputs.
+  const cubes = Array.from({length: 512}, (_, x) => cubeGF9(x));
+  assert.equal(new Set(cubes).size, 512);
+  assert.ok(isQuadratic(cubes, 9));
+  assert.equal(quadraticOutputRank(cubeGF9, 9), 9);
+  for (let instance = 0; instance < 5; instance++) {
+    const oracle = hiddenFullRank32(random());
+    assert.equal(quadraticOutputRank(oracle, 32), 32);
+    for (let sample = 0; sample < 8; sample++) {
+      const input = random();
+      const result = invertQuadraticPermutation(oracle, oracle(input), {
+        bits: 32, maxCodimension: 9, maxQueries: 1100
+      });
+      assert.equal(result.preimage, input);
+      assert.equal(result.codimension, 9);
+      assert.equal(result.radicalDimension, 23);
+      summary.fullOutputRank32Targets++;
+      summary.fullRank32MinQueries = Math.min(summary.fullRank32MinQueries, result.queryCount);
+      summary.fullRank32MaxQueries = Math.max(summary.fullRank32MaxQueries, result.queryCount);
+    }
+  }
+  assert.equal(summary.fullOutputRank32Targets, 40);
   assert.equal(summary.width4Targets, 1600);
   assert.equal(summary.highRank32Targets, 80);
   // A degree-three triangular bijection does not satisfy the theorem:
@@ -291,4 +317,4 @@ function main() {
 }
 
 if (require.main === module) main();
-module.exports = {hidden32, isQuadratic};
+module.exports = {hidden32, hiddenFullRank32, isQuadratic};
