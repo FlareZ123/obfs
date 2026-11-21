@@ -68,6 +68,33 @@ Scoped repair validation:
   live browser. These runs are bounded observations on frozen source
   programs, not a general conformance proof.
 
+## Additional independent call-shape challenge
+
+The follow-up source at `23fe241c50c4bc072b0e06717ac8816de687abe1`
+[44944002109](https://github.com/FlareZ123/obfs/actions/runs/44944002109)
+ran 131 Node tests and four Chromium cases against seven additional
+call/descriptor factory spellings on both OSes. It was **122/131
+passing** per OS. Six of the nine failures were actual native-vs-emitted
+runtime divergence from `let create;({create}=Object)` and
+`(0,create)(null,descriptors)`, three cases across SCO/COO/SNO each.
+The remaining three computed-key destructure **Number positive**
+failures showed zero transform yield rather than different runtime
+output; the broader scanner conservatively declined this unproved
+dynamic capture.
+
+The incremental guard now recognizes assignment destructuring and
+sequence-expression final callees. The computed destructuring positive
+test explicitly expects zero encoded literals while retaining native
+output equivalence. Source
+`51c7bbfa05b0ead33172ce330259a3b6e32045b7` passed
+[44944153579](https://github.com/FlareZ123/obfs/actions/runs/44944153579):
+**131/131 targeted Node parity/yield tests**, strict JSDoc on Ubuntu
+and Windows, plus four Chromium ESM live fixtures on Ubuntu.
+The separate alternative call-shape analysis on Agent 1's
+`agent1/object-create-alias-red-20261121` branch overlaps this work;
+reviewer integration should prefer the narrowest complete proof, and
+avoid duplicating independent workflow families.
+
 ## Method and replay
 
 The differential test is
