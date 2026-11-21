@@ -1699,7 +1699,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
+       isObjectIntrinsic(node.callee.object)&&
+       (memberName(node.callee)==='create'||
+        memberName(node.callee)==='defineProperties')&&
        node.arguments[1]?.type==='Identifier'&&
        decoderGetterMaps.has(node.arguments[1].name)) {
       mutated=true;
