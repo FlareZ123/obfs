@@ -64,6 +64,16 @@ for(const [name,source] of [
   });
 }
 
+test('prototype mutation with escaping getter is conservatively source-preserved',()=>{
+  const source='Object.defineProperty(Object.prototype,"secretField",'+
+    '{get(){throw Error("inherited");}});'+
+    'const bag={secretField:3};module.exports="secretField" in bag;';
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    const output=compare(source,0,mode);
+    assert.equal(output,source);
+  }
+});
+
 for(const [name,source] of [
   ['unknown inherited membership',
     'const bag={secretField:3};module.exports="toString" in bag;'],
