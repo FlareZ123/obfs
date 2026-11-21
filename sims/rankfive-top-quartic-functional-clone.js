@@ -211,7 +211,7 @@ function source(n,draw,quarticActive){
   }
   const outputs=quarticActive?[draw()&mask,draw()&mask,draw()&mask,draw()&mask,draw()&mask]:
     [0,0,0,0,0];
-  if(quarticActive&&outputs.every(x=>x===0))outputs[0]=1;
+  if(quarticActive&&outputs.reduce((x,y)=>x|y,0)===0)outputs[0]=1;
   const offset=draw()&mask;
   return x=>{
     let value=offset^linear(affine,x);
