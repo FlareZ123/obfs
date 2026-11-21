@@ -26,6 +26,7 @@ function digest(value) {
   return createHash('sha256').update(value).digest('hex');
 }
 
+/** @type {Array<[string,string,Array<[string,'module'|'commonjs',string]>]>} */
 const cases=[
   ['cjs-create-double-alias','entry.cjs',[
     ['entry.cjs','commonjs','require("./mutator.cjs");process.stdout.write(require("./target.cjs"));'],
