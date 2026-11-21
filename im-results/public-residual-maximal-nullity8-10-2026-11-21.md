@@ -34,4 +34,4 @@ Combined local Node.js 22.16.0 fixed-seed observations:
 
 The finite experiment focuses on deliberately constructed maximal-nullity permutations and all their targets. It strengthens regression coverage for the high-deficiency branch of a proposed inversion method, without proving the universal theorem or addressing arbitrary JavaScript program reconstruction. Candidate confidentiality, unauthorized environment admission, and the universal 2.5x runtime requirement remain separately unproved.
 
-Cross-platform source-pinned workflow: record exact Ubuntu/Windows run and JSDoc result after completion.
+Cross-platform source-pinned workflow: [manual low-rank inversion run 44929832113](https://github.com/FlareZ123/obfs/actions/runs/44929832113) completed successfully at executable SHA `548248f0a4c200ded9695c9b2b4fdc07574dbba7`. Both Ubuntu and Windows passed the new 14,336-target regression, earlier rank-inversion tests and strict JSDoc type checking.
