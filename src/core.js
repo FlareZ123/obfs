@@ -1680,6 +1680,34 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       property.type==='Property'&&
       isDecoderGetterDescriptor(property.value));
   }
+  /**
+   * Recognize a local synchronous factory whose direct return supplies an
+   * accessor descriptor map. This also handles function-valued CJS exports.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMapFactory(value) {
+    if(value.type==='Identifier')return decoderGetterMapFactories.has(value.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(value.type)||value.async||value.generator)return false;
+    if(value.body.type!=='BlockStatement')return isDecoderGetterMap(value.body);
+    return value.body.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ReturnStatement'&&statement.argument&&
+      isDecoderGetterMap(statement.argument));
+  }
+  /**
+   * Exported first-class getters or factories can be invoked by a later
+   * required module. The factory's own AST has no direct native sink.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function exportsDecoderGetterMap(value) {
+    if(isDecoderGetterDescriptor(value)||isDecoderGetterMap(value)||
+       isDecoderGetterMapFactory(value))return true;
+    return value.type==='ObjectExpression'&&
+      value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+        property.type==='Property'&&exportsDecoderGetterMap(property.value));
+  }
   let decoderDescriptorChanged;
   do {
     decoderDescriptorChanged=false;
@@ -1716,10 +1744,20 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         decoderGetterMaps.add(name);
         decoderDescriptorChanged=true;
       }
+      if(isDecoderGetterMapFactory(value)&&!decoderGetterMapFactories.has(name)) {
+        decoderGetterMapFactories.add(name);
+        decoderDescriptorChanged=true;
+      }
     });
   }while(decoderDescriptorChanged);
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
+    if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
+       node.operator==='='&&isCommonJsExportTarget(node.left)&&
+       exportsDecoderGetterMap(node.right)) {
+      mutated=true;
+      return;
+    }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
        isObjectIntrinsic(node.callee.object)&&
        (memberName(node.callee)==='create'||
