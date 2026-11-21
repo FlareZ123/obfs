@@ -18,6 +18,7 @@
     "sims/affine-low-rank-method-comparison.js",
     "sims/affine-residual-minimal-rank-peer.js",
     "sims/low-rank-affine-nonpermutation.js",
-    "sims/low-rank-nonbijective-peer-width3.js"
+    "sims/low-rank-nonbijective-peer-width3.js",
+    "sims/low-rank-nonbijective-ranktwo-32.js"
   ]
 }
