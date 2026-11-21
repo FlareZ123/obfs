@@ -75,6 +75,8 @@ jobs:
         run: node sims/rankfour-quadratic-polarization-peer.js
       - name: Adaptive exact-rank four five six quadratic offline oracle cloning
         run: node sims/rank4-6-quadratic-adaptive-polar-clone.js
+      - name: Independent vector top-degree tensor quotient signature Gram reconstruction
+        run: node sims/vector-top-tensor-quotient-peer.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
