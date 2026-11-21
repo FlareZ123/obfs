@@ -21,6 +21,9 @@ There is a Las Vegas exact inverter with at most \(2^r\) post-setup orbit querie
 
 where \(k=n-\operatorname{rank}(M)\le r\), \(M\) is a known affine interpolant constructed in the first \(n+1\) queries, and the summation is zero when \(k=0\). The algorithm returns the exact preimage \(s=F^{-1}(y)\) for **every target** with probability one over an unbounded sequence of independent uniform samples; if the sampling phase is stopped after \(k+t\) independent uniform draws, its failure probability is strictly less than \(2^{-t}\) (for integer \(t\ge0\)). Under a finite implementation cap, failure is explicitly reported instead of inventing a preimage.
 
+For the random quotient phase, the expected sample count simplifies to 
+\(k+\sum_{i=1}^{k}(2^i-1)^{-1}\). The infinite excess constant is the [Erdős–Borwein constant](https://oeis.org/A065442), \(1.606695152415291763\ldots\), so the stated \(k+1.607\) bound is strict for every finite \(k\). This is a standard random-spanning calculation; its use here depends on the preceding quotient-uniformity proof.
+
 The bound is useful for **low rank**: at 32 bits and \(r=3\), \(k\le3\), giving fewer than \(32+1+4.477+8=45.477\) expected queries. No statement is made for arbitrary output-rank \(r\approx n\), for non-permutations, or when chosen-input access is absent.
 
 ## Constructive proof
