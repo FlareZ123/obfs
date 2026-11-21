@@ -239,6 +239,8 @@ extend the above source-pinned claims. Independent mathematical review
 remains necessary.
 
 
+**Explicit false degree declaration.** The executable control `outOfDegreePromiseControl` builds the rank-one mapping `F(x)=x XOR (x_1*x_2*x_3)e_0` on 12 bits. It is a bijection, with exactly algebraic degree three. Every affine-basis and Hamming-weight-two residual is zero, so declaring `d=2` makes the deterministic learner incorrectly report output `0x0e` unreachable even though `F(0x0f)=0x0e`. Declaring the correct `d=3` recovers the missing residual direction and its exact preimage. This is a falsifier for **using the degree bound without proof**, outside the positive theorem's declared promise. It demonstrates that a successful finite training transcript cannot certify the degree hypothesis.
+
 ## Matching negative control: output rank two alone permits exponential image-membership uncertainty
 
 This is an elementary forward-oracle lower-bound construction, **not a
