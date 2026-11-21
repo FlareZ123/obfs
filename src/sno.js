@@ -32,7 +32,9 @@ function createSnoLauncher(files,entry) {
         if(Buffer.isBuffer(packageFile.code)&&!isUtf8(packageFile.code)) {
           throw new TypeError('Invalid UTF-8 package metadata: '+packageName);
         }
-        if (JSON.parse(String(packageFile.code)).type==='module') {
+        // Node accepts one UTF-8 BOM at the start of package.json.
+        const json=String(packageFile.code);
+        if (JSON.parse(json.charCodeAt(0)===0xfeff?json.slice(1):json).type==='module') {
           throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');
         }
         break;
