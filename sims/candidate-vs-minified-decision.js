@@ -6,6 +6,9 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  * A falsifiable comparison of one candidate and a conventional minifier
  * against the SAME frozen protected application. This is an experiment
  * classifier, never a general obfuscation release or security guarantee.
+ * Zero oracle calls is valid for a source-only attack. Positive support
+ * requires a predeclared held-out verification count; a short or missing
+ * commitment remains inconclusive.
  *
  * @typedef {'supported'|'contradicted'|'inconclusive'} Decision
  * @typedef {{
@@ -27,6 +30,7 @@ const {familywiseBudgetBounds}=require('./familywise-budget-bound');
  *   frozenSameApplication:boolean,
  *   nativeOutputAndHostTraceParity:boolean,
  *   protectedFunctions:number,
+ *   requiredHeldoutComparisons?:number,
  *   conventionalControl:MatchedAttack,
  *   protectedCandidate:MatchedAttack,
  *   sessionPairs:Array<{native:number[],candidate:number[]}>
@@ -52,7 +56,8 @@ function compareCandidateEvidence(evidence){
     Number.isInteger(evidence.protectedFunctions)&&evidence.protectedFunctions>0&&
     control.attempted&&candidate.attempted&&
     control.protocol.length>0&&control.protocol===candidate.protocol&&
-    control.oracleCalls===candidate.oracleCalls&&control.oracleCalls>0&&
+    Number.isSafeInteger(control.oracleCalls)&&control.oracleCalls>=0&&
+    control.oracleCalls===candidate.oracleCalls&&
     control.verifiedHeldoutComparisons>=evidence.protectedFunctions&&
     control.verifiedHeldoutComparisons===candidate.verifiedHeldoutComparisons;
   // A positive claim requires a completed, precommitted, equally resourced
@@ -61,6 +66,10 @@ function compareCandidateEvidence(evidence){
   // authenticated artifacts: the experimenter must verify the commitments.
   const positiveEvidenceReady=measurementReady&&
     evidence.nativeOutputAndHostTraceParity===true&&
+    typeof evidence.requiredHeldoutComparisons==='number'&&
+    Number.isSafeInteger(evidence.requiredHeldoutComparisons)&&
+    evidence.requiredHeldoutComparisons>=evidence.protectedFunctions&&
+    control.verifiedHeldoutComparisons>=evidence.requiredHeldoutComparisons&&
     control.verifiedSelectedFunctions===evidence.protectedFunctions&&
     candidate.verifiedSelectedFunctions===evidence.protectedFunctions&&
     control.attackCompleted===true&&candidate.attackCompleted===true&&

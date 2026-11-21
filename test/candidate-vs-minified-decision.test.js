@@ -41,6 +41,7 @@ test('both versions cloned by identical attack gives no measured advantage',()=>
  */
 function recordMatchedCompletedAttack(input){
   for(const attack of [input.conventionalControl,input.protectedCandidate]){
+    input.requiredHeldoutComparisons=12288;
     attack.verifiedSelectedFunctions=3;
     attack.selectedFunctionSetDigest='a'.repeat(64);
     attack.verifierCaseDigest='b'.repeat(64);
@@ -53,6 +54,61 @@ function recordMatchedCompletedAttack(input){
   input.protectedCandidate.cloneSucceeded=false;
   input.protectedCandidate.failureCause='precommitted-budget-exhausted';
 }
+
+test('zero-query static-only source reconstruction is a valid matched attack',()=>{
+  const input=example();
+  input.conventionalControl.protocol='source-only/AST-reconstruction';
+  input.protectedCandidate.protocol='source-only/AST-reconstruction';
+  input.conventionalControl.oracleCalls=0;
+  input.protectedCandidate.oracleCalls=0;
+  const report=compareCandidateEvidence(input);
+  assert.equal(report.measurementReady,true);
+  assert.equal(report.attackAdvantage,'contradicted');
+  assert.equal(report.verdict,'contradicted');
+});
+
+test('zero-query static-only candidate failure needs the same positive evidence',()=>{
+  const input=example();
+  recordMatchedCompletedAttack(input);
+  input.conventionalControl.oracleCalls=0;
+  input.protectedCandidate.oracleCalls=0;
+  input.conventionalControl.protocol='source-only/frozen-normalizer';
+  input.protectedCandidate.protocol='source-only/frozen-normalizer';
+  assert.equal(compareCandidateEvidence(input).attackAdvantage,'supported');
+});
+
+test('oracle count must be a nonnegative safe integer and identical in both arms',()=>{
+  for(const count of [-1,0.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1]){
+    const input=example();
+    input.conventionalControl.oracleCalls=count;
+    input.protectedCandidate.oracleCalls=count;
+    assert.equal(compareCandidateEvidence(input).measurementReady,false,String(count));
+  }
+  const unequal=example();
+  unequal.conventionalControl.oracleCalls=0;
+  assert.equal(compareCandidateEvidence(unequal).measurementReady,false);
+});
+
+test('positive claim requires a declared, satisfied held-out verification floor',()=>{
+  const missing=example();
+  recordMatchedCompletedAttack(missing);
+  delete missing.requiredHeldoutComparisons;
+  assert.equal(compareCandidateEvidence(missing).attackAdvantage,'inconclusive');
+  const short=example();
+  recordMatchedCompletedAttack(short);
+  short.conventionalControl.verifiedHeldoutComparisons=3;
+  short.protectedCandidate.verifiedHeldoutComparisons=3;
+  assert.equal(compareCandidateEvidence(short).measurementReady,true);
+  assert.equal(compareCandidateEvidence(short).attackAdvantage,'inconclusive');
+  const below=example();
+  recordMatchedCompletedAttack(below);
+  below.requiredHeldoutComparisons=12289;
+  assert.equal(compareCandidateEvidence(below).attackAdvantage,'inconclusive');
+  const invalid=example();
+  recordMatchedCompletedAttack(invalid);
+  invalid.requiredHeldoutComparisons=2.5;
+  assert.equal(compareCandidateEvidence(invalid).attackAdvantage,'inconclusive');
+});
 
 test('unsupported candidate failure does not establish a positive advantage',()=>{
   const input=example();
