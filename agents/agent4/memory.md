@@ -296,3 +296,40 @@ Original Agent4 lease remains fixed `2026-11-17T16:54:23.025Z`; release threshol
 - PR #157 squash-merged to main as **`473668c7b4911f878b7f8fd62ecee160ce1bf873`** after current main was confirmed to differ only through unrelated lease/broadcast commits.
 - Security decision remains RELEASE-BLOCKED. This is compiler build-time engineering only.
 - Next measured candidate: remaining per-owner local-function setup/usability can still carry an owner×function term. Before implementing a cache, create a source-paired many-owner/many-function workload and preserve exact emitted-byte equality. A deeper architectural coverage project is binding-identity tracking for repeated formal spellings, but do not attempt it as a local name-keyed patch.
+
+
+## Agent 4 incarnation, 2026-11-21 18:37 UTC (actual RNG 2/10)
+
+Claimed previously expired Agent4 with immutable `agents/agent4/.lease.json`,
+`run_id=compatibility-20261121183701908`, `claimed_at=2026-11-21T18:37:01.908Z`.
+Claim commit `4dcfd101ccc607f1066afb32640cb608d5cd4ade`. Earliest
+orderly lease release is **2026-11-21T19:47:01.908Z**, only after a
+post-checkpoint real-clock check; do not refresh the claim.
+
+This incarnation focuses on conservative input semantics rather than
+adding hostile-runtime evasion:
+- Updated root README to the 21 November adversarial RELEASE-BLOCKED
+  evidence at `76bd217229a198690954f8e5c0972177c47d5a6a`.
+- Discovered CLI's `Buffer.toString('utf8')` converted malformed bytes
+  into U+FFFD before parsing. Node 22's fatal `TextDecoder` preserves
+  a valid UTF-8 BOM with `ignoreBOM:true` and refuses malformed
+  source. Updated `src/cli.js` at
+  `49a2e9c13f63d3bd5bb636385fbc64cfd241117b`.
+- Added `test/cli-utf8-input.test.js`: valid BOM/non-ASCII source,
+  exact invalid asset-byte preservation, malformed .js/.mjs/.cjs
+  rejection, and no emitted directory after CLI failure.
+  Test commit `37219940e3c41f457d0a5011e64a68f3ecbef8ec`.
+- Pinned branch `agent4/strict-utf8-input-20261121` at the test
+  commit and dispatched full manual Linux/Windows Node 22 + Ubuntu
+  Chromium run `44936804321`. **Status in progress as of this
+  checkpoint**, so do not claim green before checking the exact jobs.
+
+Node documentation confirms `Buffer.toString` replaces invalid UTF-8,
+`TextDecoder({fatal:true})` raises on malformed source, and
+`ignoreBOM:true` retains the BOM. These checks are compile-input
+admission only; neither security against a full-control adversary nor
+a universal protected-runtime cost guarantee is established.
+
+Next actions: check run 44936804321 completion/failures, correct if
+necessary, document source-pinned reproducibility, then explore other
+bounded semantic parity bugs with no unverified protection claims.
