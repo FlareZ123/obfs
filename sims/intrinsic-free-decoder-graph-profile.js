@@ -44,7 +44,7 @@ function dictionary(value){
  * Test a three-file CJS graph under earlier user-code monkeypatching.
  * Temporary files are exclusively created and published via atomic rename.
  * @param {string} code
- * @returns {{times:number[],medianMs:number,sum:number}}
+ * @returns {{times:number[],cpuTimes:number[],medianMs:number,medianCpuMs:number,sum:number}}
  */
 function runGraph(code){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'obfs-dictionary-graph-'));
@@ -62,14 +62,18 @@ function runGraph(code){
     write('entry.cjs',
       `require('./mutator.cjs');const use=require('./target.cjs');`+
       `let sum=0;for(let w=0;w<5;w++)for(let i=0;i<20000;i++)sum+=use(i);`+
-      `const times=[];for(let t=0;t<9;t++){`+
-      `const start=process.hrtime.bigint();let check=0;`+
+      `const times=[],cpuTimes=[];for(let t=0;t<9;t++){`+
+      `const start=process.hrtime.bigint(),cpuStart=process.cpuUsage();let check=0;`+
       `for(let i=0;i<2000000;i++)check+=use(i);`+
       `const duration=Number(process.hrtime.bigint()-start)/1e6;`+
-      `if(!Number.isFinite(duration)||duration<=0)throw Error('invalid duration');`+
-      `times.push(duration);sum+=check;}`+
-      `times.sort((a,b)=>a-b);`+
-      `process.stdout.write(JSON.stringify({times,medianMs:times[4],sum}));`);
+      `const usage=process.cpuUsage(cpuStart);`+
+      `const cpuMs=(usage.user+usage.system)/1000;`+
+      `if(!Number.isFinite(duration)||duration<=0||`+
+      `!Number.isFinite(cpuMs)||cpuMs<=0)throw Error('invalid timing');`+
+      `times.push(duration);cpuTimes.push(cpuMs);sum+=check;}`+
+      `times.sort((a,b)=>a-b);cpuTimes.sort((a,b)=>a-b);`+
+      `process.stdout.write(JSON.stringify({times,cpuTimes,`+
+      `medianMs:times[4],medianCpuMs:cpuTimes[4],sum}));`);
     const child=spawnSync(process.execPath,[path.join(root,'entry.cjs')],{
       encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:1024*1024
     });
@@ -98,7 +102,7 @@ function main(){
     ['alias','native','direct'],
     ['direct','alias','native']
   ];
-  /** @type {Array<{nativeMs:number,directMs:number,aliasMs:number,directRatio:number,aliasRatio:number}>} */
+  /** @type {Array<{nativeMs:number,directMs:number,aliasMs:number,directRatio:number,aliasRatio:number,nativeCpuMs:number,directCpuMs:number,aliasCpuMs:number,directCpuRatio:number,aliasCpuRatio:number}>} */
   const pairs=[];
   for(let trial=0;trial<9;trial++){
     /** @type {Map<string,number>} */
@@ -110,19 +114,28 @@ function main(){
       if(checksum!==undefined)assert.equal(output.sum,checksum);
       checksum=output.sum;
       times.set(name,output.medianMs);
+      times.set(name+'-cpu',output.medianCpuMs);
     }
     const nativeMs=times.get('native');
     const directMs=times.get('direct');
     const aliasMs=times.get('alias');
-    assert.ok(nativeMs!==undefined&&directMs!==undefined&&aliasMs!==undefined);
+    const nativeCpuMs=times.get('native-cpu');
+    const directCpuMs=times.get('direct-cpu');
+    const aliasCpuMs=times.get('alias-cpu');
+    assert.ok(nativeMs!==undefined&&directMs!==undefined&&aliasMs!==undefined&&
+      nativeCpuMs!==undefined&&directCpuMs!==undefined&&aliasCpuMs!==undefined);
     pairs.push({
-      nativeMs,directMs,aliasMs,
+      nativeMs,directMs,aliasMs,nativeCpuMs,directCpuMs,aliasCpuMs,
       directRatio:directMs/nativeMs,
-      aliasRatio:aliasMs/nativeMs
+      aliasRatio:aliasMs/nativeMs,
+      directCpuRatio:directCpuMs/nativeCpuMs,
+      aliasCpuRatio:aliasCpuMs/nativeCpuMs
     });
   }
   const directRatios=pairs.map(p=>p.directRatio).sort((a,b)=>a-b);
   const aliasRatios=pairs.map(p=>p.aliasRatio).sort((a,b)=>a-b);
+  const directCpuRatios=pairs.map(p=>p.directCpuRatio).sort((a,b)=>a-b);
+  const aliasCpuRatios=pairs.map(p=>p.aliasCpuRatio).sort((a,b)=>a-b);
   console.log(JSON.stringify({
     node:process.version,environment:process.platform,utf16Units:data.length,
     sourceBytes:Buffer.byteLength(source),
@@ -131,9 +144,13 @@ function main(){
     pairs,
     medianDirectRatio:directRatios[4],
     medianAliasRatio:aliasRatios[4],
+    medianDirectCpuRatio:directCpuRatios[4],
+    medianAliasCpuRatio:aliasCpuRatios[4],
     strictDirectBreaches:pairs.filter(p=>p.directRatio>2.5).length,
     strictAliasBreaches:pairs.filter(p=>p.aliasRatio>2.5).length,
-    caveat:'One three-file SNO-like source graph. Initialization excluded from timed loop; '+
+    strictDirectCpuBreaches:pairs.filter(p=>p.directCpuRatio>2.5).length,
+    strictAliasCpuBreaches:pairs.filter(p=>p.aliasCpuRatio>2.5).length,
+    caveat:'One three-file SNO-like source graph. Paired hot-loop process CPU user+system and elapsed wall timings; initialization excluded from timed loop; '+
       'each trial is a separate Node process. No compiler integration, browser, '+
       'source secrecy, representative application or universal 2.5x proof.'
   }));
