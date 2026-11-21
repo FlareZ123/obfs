@@ -81,8 +81,14 @@ function main(){
   assert.equal(predicted3,10752n);
   assert.equal(projectionSpan[3],Number(predicted3));
   assert.equal(projectionSpan[4],matrices);
+  // For this full wedge-output rank-3 B, two independent quotient vectors
+  // already give an injective joint polarization signature.
+  const predictedTwo=BigInt(matrices)*4n/5n;
+  assert.equal(certificatePivot[2],Number(predictedTwo));
+  assert.equal(certificatePivot[3],matrices-Number(predictedTwo));
   console.log('UNIFORM_GL4_ORACLE '+JSON.stringify({
     matrices,heldouts,early,maxCalls,projectionSpan,certificatePivot,
+    predictedTwo:Number(predictedTwo),formalProbability2:'4/5',
     predicted3:Number(predicted3),formalProbability3:'8/15',
     note:'Uniform enumeration of all invertible 4x4 binary matrices; quotient projection uses first three input coordinates'
   }));
