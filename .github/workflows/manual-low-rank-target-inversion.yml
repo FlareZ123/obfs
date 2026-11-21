@@ -61,6 +61,8 @@ jobs:
         run: node sims/rankthree-projected-vs-generic-cubic-matched.js
       - name: Exhaustive vector-polar triple miss probability verifier
         run: node sims/rankthree-polar-triple-independent-check.js
+      - name: Rank-four projected fourth derivative full oracle clone
+        run: node sims/rankfour-projected-fourth-derivative-oracle-clone.js
       - name: Independent rank-three quadratic 244-query full clone
         run: node sims/rankthree-quadratic-polarization-peer.js
       - name: Rank-three quadratic bilinear early clone and fallback
