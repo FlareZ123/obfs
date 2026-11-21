@@ -25,3 +25,11 @@ Run on Ubuntu and Windows in an existing manually-dispatched workflow with a foc
 ## Threat-model limit
 
 This measurement does not investigate cryptographic soundness, same-origin online relay, authenticator hardware/user presence, browser CPU, session transport, process startup, cross-account contention, or arbitrary JS behavior. Those dimensions are evaluated separately in the repository. The underlying operation-bound proof boundary is still only a prototype.
+
+## Explicit post-red instrument-resolution amendment (21 November 2026, before rerun)
+
+The first source-pinned [Ubuntu/Windows attempt 44877376674](https://github.com/FlareZ123/obfs/actions/runs/44877376674) produced complete Linux output but Windows rejected a **zero** `process.cpuUsage` delta in a single 4,000-call original batch (`measurement resolution`). The experiment did not reach a Windows ratio estimate. This is a measurement-system failure, not an observed semantic or security failure.
+
+To obtain an interpretable Windows CPU delta while preserving the preregistered **exact 500 rounds per call, 4,000 calls per batch**, the next version will group **eight contiguous copies of that exact small batch** inside one timer interval. Each of the seven alternating A/B *samples* now contains 32,000 original or protected calls. The same aggregation applies on Linux, with the aggregation count reported. No kernel rounds, per-batch operations, proof verifier, or decision threshold changes. The coarse 250,000-round x60-call measurement remains unchanged because it did not show resolution failure. The original Linux receipt (0.77325 and 86.7965 CPU microseconds per operation, 112.25x small; 388.4167 and 471.9833 CPU microseconds, 1.215x coarse) remains unedited and must be referenced separately. This follow-up is a **new source-pinned measurement protocol**, not a rewrite of the initial preregistration or a retroactive success claim.
+
+The Windows timer explanation is a hypothesis supported by the zero delta; do not assert a specific Windows clock quantum without a dedicated clock-resolution probe. Preserve raw output, whether positive or negative.
