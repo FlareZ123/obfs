@@ -41,7 +41,7 @@ const cases=[
   ['direct accessor', 'get(){return TARGET.prototype;}'],
   ['arrow accessor', 'get:()=>TARGET.prototype'],
   ['data descriptor', 'value:TARGET.prototype'],
-  ['nested descriptor factory', 'get:function(){return TARGET.prototype;}']
+  ['function-expression accessor', 'get:function(){return TARGET.prototype;}']
 ];
 
 for(const [name,descriptor] of cases) {
