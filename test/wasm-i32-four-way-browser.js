@@ -106,8 +106,9 @@ async function main(){
       /**
        * Each delivered variant receives a separate closed-over work function,
        * avoiding one polymorphic JS call site shared across native, minified,
-       * Wasm and reconstructed functions. A shared call site distorted the
-       * initial sample through cross-variant JIT inline-cache state.
+       * Wasm and reconstructed functions. A shared call site could mix
+       * inline-cache feedback across variants; closure isolation avoids
+       * that confound, although first-trial variability still remains.
        * @param {(a:number,b:number,c:number,d:number)=>number} scramble
        * @param {(x:number)=>number} mask
        * @returns {(rounds:number)=>number}
