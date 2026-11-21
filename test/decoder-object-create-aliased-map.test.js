@@ -107,3 +107,22 @@ for(const [name,mutator] of variants) {
     }
   }
 }
+
+test('unrelated String getter and empty Object.create retain positive decoder work',async()=>{
+  const input=graph(
+    'const unused={get(){return String.prototype}};'+
+    'const box=Object.create(null,{});box.unrelated=17;');
+  for(const mode of /** @type {const} */(['coo','sno'])){
+    const out=obfuscateFiles(input,{mode,strings:true,identifiers:false,
+      properties:false,seed:'object-create-precision-positive'});
+    const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-create-independent-'));
+    try{
+      assert.deepEqual(await execute(path.join(root,'native'),input),
+        await execute(path.join(root,'emitted'),out.files));
+    } finally {
+      await fs.rm(root,{recursive:true,force:true});
+    }
+    assert.equal(out.files.find(file=>file.path==='target.cjs')?.metrics.literals,1,
+      mode+' must retain genuine encoding for unrelated getter');
+  }
+});
