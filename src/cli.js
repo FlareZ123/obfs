@@ -179,7 +179,10 @@ function entryUsesEsmPackage(files,entry) {
       if(Buffer.isBuffer(pkg.code)&&!isUtf8(pkg.code)) {
         throw new TypeError('Invalid UTF-8 package metadata: '+location);
       }
-      return JSON.parse(String(pkg.code)).type==='module';
+      // Node's package-scope reader accepts one leading UTF-8 BOM.
+      // JSON.parse on a JS string would otherwise reject that valid input.
+      const json=String(pkg.code);
+      return JSON.parse(json.charCodeAt(0)===0xfeff?json.slice(1):json).type==='module';
     }
     if (directory==='.') return false;
     directory=path.posix.dirname(directory);
