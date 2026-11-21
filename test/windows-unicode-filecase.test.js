@@ -9,7 +9,8 @@ const {obfuscateFiles}=require('../src');
 
 for(const [first,second] of [
   ['s.cjs','\u017f.cjs'],
-  ['i.cjs','\u0131.cjs']
+  ['i.cjs','\u0131.cjs'],
+  ['\u03c2.cjs','\u03c3.cjs']
 ]) {
   test('case-insensitive Windows output preflight must refuse Unicode-alias files '+first+'/'+second,
     async t=>{
