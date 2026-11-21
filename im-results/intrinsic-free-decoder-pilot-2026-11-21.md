@@ -56,6 +56,19 @@ One local run's **nine paired ratios** (transformed/native) were:
 
 Medians of the nine ratios were approximately **2.169×** (direct table) and **2.252×** (alias). The alias had **2/9 strict observed over-budget pairs** despite equivalent output. A separate preceding direct-table-only trial observed **1/9 strict over-budget pairs** and a median ratio around **2.103×**. Each subprocess used internal median timing; pairs come from different processes. Runner scheduling/JIT effects matter, and these samples establish neither a population confidence bound nor general compliance.
 
+## Follow-up: process CPU is independently measured
+
+The graph simulator was extended at source `bedf47747e5316d1690b24d8e9396229195ab757` to record `process.cpuUsage(start)` user+system microseconds and elapsed wall time **for the same completed hot loop**. Node 22 documents this differential CPU API in [process.cpuUsage](https://nodejs.org/download/release/v22.17.0/docs/api/process.html#processcpuusagepreviousvalue). Each subprocess records nine separate calls and reports both medians, keeping the process initialization outside the hot loop. One process handles each variant in a balanced nine-pair schedule, so different variants are still compared across separate processes.
+
+Two more independent local Node 22.16 Linux nine-pair runs (measurements from a near-equivalent local development mirror, **not exact GitHub source-pinned CI**) produced:
+
+| Local run | Direct lookup CPU median | Direct strict CPU breaches | Decoded-alias CPU median | Alias strict CPU breaches |
+|---|---:|---:|---:|---:|
+| Trial A | 2.22757× | 3/9 | 2.01675× | 0/9 |
+| Trial B | 2.21793× | 1/9 | 2.09800× | 0/9 |
+
+This is more appropriate to the prompt's compute budget than wall time alone. Even the revised sample keeps strict hot-work violations for the repeated-table-lookup variant, while the alias remains insufficiently tested across other workloads. Trial A included one **4.65654×** process CPU pair. The runner and JIT behavior are variable, and neither the medians nor absence of breaches in a finite alias sample proves universal compliance. A further assessment should include a minified same-trust control and an exact immutable source runner.
+
 ## Decision
 
 **No promotion to the primary strong-obfuscation candidate.** Zero-query static reconstruction succeeds, client startup strictly exceeds the budget on tested short cases, and selected SNO-like work remains near the budget with strict local breaches. The proposed code is a narrow intrinsic-independent correctness option rather than a confidentiality mechanism.
