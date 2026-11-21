@@ -95,7 +95,7 @@ test('POSIX source filename bytes reject malformed UTF-8 before aliasing U+FFFD'
     await fs.writeFile(bad,'module.exports=1;',{flag:'wx'});
     await atomicWrite(path.join(root,'bad-\ufffd.js'),'module.exports=2;');
     await assert.rejects(readSourceTree(root),
-      /Invalid UTF-8 source filename in \\.: /);
+      /Invalid UTF-8 source filename in \.: /);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
