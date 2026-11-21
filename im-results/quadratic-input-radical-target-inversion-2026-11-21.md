@@ -50,6 +50,19 @@ The rank-output-only worst-case attack parameter would be `2^24=16,777,216`; the
 
 **First cross-platform CI:** [manual run 44936737513](https://github.com/FlareZ123/obfs/actions/runs/44936737513), source `51ae0e8addd2c2c0c078ea97cd9e6b534baba86e`, executed the exhaustive 322,560+1,600+80 exact test populations, strict JSDoc and the pre-existing output-rank inversion suite. The newer checker source additionally asserts the exact output rank24 on all hidden32 permutations; a later pinned run covers that increment.
 
+## Matched source-level algorithm comparison at fixed query cap
+
+The actual earlier output-residual target inverter [`sims/public-affine-residual-target-inverter32.js`](../sims/public-affine-residual-target-inverter32.js) was run on the same hidden quadratic/rank-24 family under the same per-target **1,100 distinct forward-oracle-address cap**, in [`sims/quadratic-radical-public-residual-cap.js`](../sims/quadratic-radical-public-residual-cap.js). Six independent 32-bit hidden affine-wrapped instances × four target inputs each produced the following source-pinned, two-platform result:
+
+| Method | Exact targets within cap | Observed distinct oracle-address usage |
+| --- | ---: | ---: |
+| New quadratic-input radical inverter (given valid source-level quadratic promise) | **24/24** | 16,007 total, maximum 770 |
+| Earlier generic public-output-residual target-growth inverter (no quadratic promise) | **0/24** | all 24 trials exhausted exactly 1,100 addresses (26,400 total) |
+
+Both Ubuntu and Windows jobs passed at [run 44937077964](https://github.com/FlareZ123/obfs/actions/runs/44937077964), immutable source `6769c8a1408e52709e3e4398b8d503aa6570d736`, with strictly typed comparator, independent code and the previous low-rank regressions.
+
+**Interpret narrowly:** This is a *query-capped comparison of the shipped experimental solvers on these 24 instances*. The older method's cap exhaustion is a finite sampled outcome; its published `2^r` target-inversion theorem remains valid with more queries. The new method receives the additional strong **global quadratic-degree promise**, which the old generic solver does not assume. This different side-information is the central reason the algorithms cannot be called apples-to-apples general security candidates. Both exploit forward chosen queries, and a source-aware attacker can sometimes extract even more from the known quadratic grammar.
+
 ## Related literature and boundaries
 
 The second-order derivative `B` of a quadratic vectorial Boolean function and its bilinear radical/linear kernel are classical. Nyberg, [*Modifications of bijective S-Boxes with linear structures*](https://doi.org/10.1007/s12095-023-00631-9) (2023), Section 2, discusses affine decomposition along constant-derivative input structures, and Carlet and Villa, [*On cubic-like bent Boolean functions*](https://doi.org/10.1007/s10801-025-01415-5) (2025), discusses vectorial/Boolean derivatives and linear kernels in a broader context. A dedicated prior-art review is required before any claims about originality of this particular query algorithm, query accounting or 32-bit construction.
