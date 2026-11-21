@@ -314,3 +314,50 @@ for(const [label,observer] of [
     }
   });
 }
+
+for(const [label,observer] of [
+  ['resource timing by type',
+    'const timing=performance.getEntriesByType("resource");'+
+    'console.log(timing.find(row=>row.name.endsWith("/state.mjs"))?.decodedBodySize);'],
+  ['all resource timing entries',
+    'console.log(performance.getEntries().filter(row=>row.entryType==="resource"));'],
+  ['aliased resource timing by name',
+    'const p=performance;console.log(p.getEntriesByName("state.mjs"));'],
+  ['destructured resource timing function',
+    'const {getEntriesByType:read}=performance;console.log(read("resource"));'],
+  ['asynchronous resource observer',
+    'const observer=new PerformanceObserver(()=>{});'+
+    'observer.observe({entryTypes:["resource"]});'],
+  ['ResourceTiming decoded size field',
+    'console.log(row.decodedBodySize);'],
+  ['ResourceTiming encoded size field',
+    'console.log(row["encodedBodySize"]);'],
+  ['ResourceTiming transfer size field',
+    'console.log(row.transferSize);']
+]) {
+  test('browser ResourceTiming source-byte metadata veto: '+label,()=>{
+    const files=graph(observer+'console.log(state.secretField);');
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+      const result=obfuscateFiles(files,{
+        mode,closedWorld:true,seed:'resource-observer/'+mode+'/'+label,
+        properties:true,strings:false,identifiers:true
+      });
+      assert.equal(result.crossFile.properties,0,
+        'The original JS module byte length is externally observable in '+mode);
+      assert.deepEqual(result.files.map(file=>file.code),files.map(file=>file.code));
+    }
+  });
+}
+
+test('unrelated performance.now measurement retains real private-field rewrite',()=>{
+  const files=graph(
+    'const start=performance.now();'+
+    'console.log(state.secretField,Number.isFinite(start));'
+  );
+  const result=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'resource-time-inert-positive',
+    properties:true,strings:false,identifiers:false
+  });
+  assert.equal(result.crossFile.properties,1,
+    'An unrelated elapsed-time measurement does not expose source bytes');
+});
