@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const {learnQuadraticOracle, evaluateQuadraticModel} =
   require('./quadratic-oracle-functional-clone');
 const {hidden32, hiddenFullRank32} = require('./quadratic-radical-peer-check');
+const {invertQuadraticPermutation} = require('./quadratic-radical-target-inversion');
 
 /** @param {number} seed @returns {()=>number} */
 function rng(seed) {
@@ -59,6 +60,7 @@ function main() {
     width3QueriesEach: 7, fullRank32Instances: 0,
     fullRank32HeldoutOutputs: 0, fullRank32PublicResidualRank: 32,
     rank24Instances: 0, rank24HeldoutOutputs: 0,
+    fullRank32OfflineInversions: 0, rank24OfflineInversions: 0,
     width32TrainingQueriesEach: 529, nonquadraticSpoofTrainingQueries: 37,
     nonquadraticSpoofHiddenMismatches: 0
   };
@@ -105,6 +107,16 @@ function main() {
         assert.equal(evaluateQuadraticModel(published, x), oracle(x));
         if (kind === 'rank32') summary.fullRank32HeldoutOutputs++;
         else summary.rank24HeldoutOutputs++;
+        if (k < 8) {
+          // The inversion attack now queries only the reconstructed
+          // local model. Live server access remains disabled after training.
+          const inverted = invertQuadraticPermutation(
+            candidate => evaluateQuadraticModel(published, candidate), oracle(x),
+            {bits: 32, maxCodimension: kind === 'rank32' ? 9 : 8, maxQueries: 1100});
+          assert.equal(inverted.preimage, x);
+          if (kind === 'rank32') summary.fullRank32OfflineInversions++;
+          else summary.rank24OfflineInversions++;
+        }
       }
       assert.equal(serverCalls, 529);
       if (kind === 'rank32') summary.fullRank32Instances++;
@@ -130,6 +142,8 @@ function main() {
   assert.equal(summary.width3OutputsVerified, 322560);
   assert.equal(summary.fullRank32HeldoutOutputs, 8192);
   assert.equal(summary.rank24HeldoutOutputs, 8192);
+  assert.equal(summary.fullRank32OfflineInversions, 64);
+  assert.equal(summary.rank24OfflineInversions, 64);
   process.stdout.write(JSON.stringify(summary) + '\n');
 }
 
