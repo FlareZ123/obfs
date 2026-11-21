@@ -135,6 +135,79 @@ function countBits(x) {
   return count;
 }
 
+/**
+ * Independent finite-dimensional information lower-bound control.
+ * For 128 seeded distinct 15-query transcripts on a 5-bit domain,
+ * construct a nonzero degree<=2 polynomial that vanishes on every
+ * queried input by finding a nontrivial kernel of its 15x16 evaluation
+ * matrix. Such a polynomial is indistinguishable from zero until an
+ * unqueried input is tested.
+ * @returns {number}
+ */
+function lowerBoundCollisions() {
+  /** @type {number[]} */
+  const monomials = [0];
+  for (let i = 0; i < 5; i++) monomials.push(2 ** i);
+  for (let i = 0; i < 5; i++) {
+    for (let j = i + 1; j < 5; j++) monomials.push((2 ** i) ^ (2 ** j));
+  }
+  assert.equal(monomials.length, 16);
+  const next = rng(0x59a32f1e);
+  let collisions = 0;
+  for (let attempt = 0; attempt < 128; attempt++) {
+    const order = Array.from({length: 32}, (_,i) => i);
+    for (let i = order.length - 1; i > 0; i--) {
+      const j = next() % (i + 1);
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    const visited = order.slice(0, 15);
+    const rows = visited.map(x => monomials.reduce((mask, m, index) =>
+      mask | (((x & m) === m ? 1 : 0) << index), 0));
+    const pivotColumns = [];
+    let rank = 0;
+    for (let c = 0; c < 16; c++) {
+      const selected = rows.findIndex((r,i) => i >= rank && ((r >>> c) & 1));
+      if (selected === -1) continue;
+      [rows[rank], rows[selected]] = [rows[selected], rows[rank]];
+      for (let i = 0; i < rows.length; i++) {
+        if (i !== rank && ((rows[i] >>> c) & 1)) rows[i] ^= rows[rank];
+      }
+      pivotColumns.push(c);
+      rank++;
+    }
+    const free = Array.from({length: 16}, (_,i) => i)
+      .find(c => !pivotColumns.includes(c));
+    assert.notEqual(free, undefined);
+    /** @type {number} */
+    const freeColumn = /** @type {number} */ (free);
+    let coefficients = 1 << freeColumn;
+    /** @param {number} mask @returns {number} */
+    function parity(mask) {
+      let x = mask;
+      x ^= x >>> 8;
+      x ^= x >>> 4;
+      x ^= x >>> 2;
+      x ^= x >>> 1;
+      return x & 1;
+    }
+    for (let i = pivotColumns.length - 1; i >= 0; i--) {
+      if (parity(rows[i] & coefficients)) coefficients |= 1 << pivotColumns[i];
+    }
+    /** @param {number} input @returns {number} */
+    function polynomial(input) {
+      let out = 0;
+      for (let i = 0; i < monomials.length; i++) {
+        if (((coefficients >>> i) & 1) && (input & monomials[i]) === monomials[i]) out ^= 1;
+      }
+      return out;
+    }
+    assert.ok(visited.every(x => polynomial(x) === 0));
+    assert.ok(Array.from({length: 32}, (_,x) => x).some(x => polynomial(x) !== 0));
+    collisions++;
+  }
+  return collisions;
+}
+
 function main() {
   const next = rng(0x775390e1);
   const report = {
@@ -142,7 +215,8 @@ function main() {
     cubicInstances: 0, quarticInstances: 0,
     cubicHeldoutOutputs: 0, quarticHeldoutOutputs: 0,
     cubicResidualRank: 32, quarticResidualRank: 32,
-    spoofDegree4Queries: 163, spoofHiddenMismatches: 0
+    spoofDegree4Queries: 163, spoofHiddenMismatches: 0,
+    adaptiveTranscriptCollisions: 0
   };
   for (const degree of /** @type {const} */([3,4])) {
     for (let instance = 0; instance < 2; instance++) {
@@ -185,6 +259,8 @@ function main() {
     if (evaluateBoundedDegreeModel(modified, x) !== real) report.spoofHiddenMismatches++;
   }
   assert.equal(report.spoofHiddenMismatches, 2);
+  report.adaptiveTranscriptCollisions = lowerBoundCollisions();
+  assert.equal(report.adaptiveTranscriptCollisions, 128);
   assert.equal(report.cubicHeldoutOutputs, 512);
   assert.equal(report.quarticHeldoutOutputs, 256);
   process.stdout.write(JSON.stringify(report) + '\n');
