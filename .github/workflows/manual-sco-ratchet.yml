@@ -2,12 +2,18 @@ name: Manual SCO stateful-ratchet architecture evaluation
 
 on:
   workflow_dispatch:
+    inputs:
+      webauthn_boundary_only:
+        description: Run only the real-Chromium WebAuthn-to-SCO bearer-session boundary
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   ratchet:
+    if: ${{ !inputs.webauthn_boundary_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -74,3 +80,23 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-webauthn-origin-boundary-browser.js
+
+  webauthn-boundary:
+    if: ${{ inputs.webauthn_boundary_only }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Browser WebAuthn origin, session, and real SCO RPC boundary
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-webauthn-origin-boundary-browser.js
+      - name: Strict project JSDoc
+        run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external

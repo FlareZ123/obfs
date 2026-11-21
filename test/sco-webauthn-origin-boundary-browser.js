@@ -6,6 +6,7 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {randomBytes,createHash,createPublicKey,verify,timingSafeEqual}=require('node:crypto');
 const puppeteer=require('puppeteer-core');
+const {createScoHandler}=require('../src/sco');
 
 /**
  * Resolve a PATH command because puppeteer-core requires an executable path,
@@ -58,17 +59,41 @@ function verifyClientData(clientData,expectedType,expectedChallenge,expectedOrig
  */
 async function main(){
   const rpId='localhost';
+  /** @type {Set<string>} */
+  const activeSessions=new Set();
+  let privateRpcCalls=0;
+  const scoHandler=createScoHandler([
+    {path:'facade.js',code:'globalThis.obfsWebAuthnTest=true;',sourceType:'script'}
+  ],{
+    allowedHosts:['localhost'],
+    publicPaths:['facade.js'],
+    remoteMethods:{protectedSum(value){
+      privateRpcCalls++;
+      return (Number(value)*17+29)>>>0;
+    }},
+    authorizeRpc(request){
+      const match=/(?:^|;\s*)webauthn_session=([0-9a-f]{64})(?:;|$)/u
+        .exec(request.headers.cookie??'');
+      return match!==null&&activeSessions.has(match[1]);
+    }
+  });
   /** @type {Map<string,Buffer>} */
   const challenges=new Map();
   /** @type {import('node:crypto').KeyObject|null} */
   let publicKey=null;
   let credentialId='';
   let acceptedAssertions=0;
+  /** @type {string|null} */
+  let lastAcceptedAssertion=null;
   let port=0;
 
   const server=http.createServer(async(request,response)=>{
     try{
       const url=new URL(request.url??'/','http://localhost');
+      if(url.pathname.startsWith('/obfs/')){
+        scoHandler(request,response);
+        return;
+      }
       if(url.pathname==='/blank'){
         response.writeHead(200,{
           'content-type':'text/html; charset=utf-8',
@@ -142,7 +167,14 @@ async function main(){
         }
         challenges.delete(body.challengeId);
         acceptedAssertions++;
-        response.writeHead(200,{'content-type':'application/json'}).end('{"ok":true}');
+        lastAcceptedAssertion=JSON.stringify(body);
+        const session=randomBytes(32).toString('hex');
+        activeSessions.add(session);
+        response.writeHead(200,{
+          'content-type':'application/json',
+          'cache-control':'no-store',
+          'set-cookie':'webauthn_session='+session+'; HttpOnly; SameSite=Strict; Path=/'
+        }).end('{"ok":true}');
         return;
       }
       response.writeHead(404).end();
@@ -271,6 +303,36 @@ async function main(){
     assert.equal(honestStatus,200);
     assert.equal(hostileSameOriginStatus,200);
 
+    const authorized=await page.evaluate(async()=>{
+      const jsCookie=document.cookie;
+      const response=await fetch('/obfs/rpc',{
+        method:'POST',credentials:'same-origin',
+        headers:{'content-type':'application/json'},
+        body:JSON.stringify({method:'protectedSum',args:[7]})
+      });
+      return {jsCookie,status:response.status,body:await response.json()};
+    });
+    assert.equal(authorized.jsCookie,'','HttpOnly must not be exposed to page JS');
+    assert.equal(authorized.status,200);
+    assert.deepEqual(authorized.body,{ok:true,value:148});
+    assert.equal(privateRpcCalls,1);
+    const publicFacade=await fetch(allowedOrigin+'/obfs/facade.js');
+    assert.equal(publicFacade.status,200);
+    const servedSource=await publicFacade.text();
+    assert.doesNotMatch(servedSource,/protectedSum|webauthn_session|Number\(value\)/u);
+    assert.ok(lastAcceptedAssertion);
+    const reusedAssertion=await fetch(allowedOrigin+'/verify',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:lastAcceptedAssertion
+    });
+    assert.equal(reusedAssertion.status,403,'consumed WebAuthn challenge replay');
+    assert.equal(acceptedAssertions,2);
+
+    const debuggerCookies=await page.browserContext().cookies([allowedOrigin]);
+    const exportedCookie=debuggerCookies.find(cookie=>cookie.name==='webauthn_session');
+    assert.ok(exportedCookie?.httpOnly,'DevTools must observe HttpOnly bearer');
+    assert.match(exportedCookie.value,/^[0-9a-f]{64}$/u);
+
     await cdp.send('WebAuthn.setUserVerified',{
       authenticatorId:added.authenticatorId,
       isUserVerified:false
@@ -323,6 +385,44 @@ async function main(){
     assert.equal(crossOriginResult,'SecurityError');
     assert.equal(acceptedAssertions,2);
 
+    /**
+     * @param {string|undefined} token
+     * @returns {Promise<{status:number,body:unknown}>}
+     */
+    async function copiedOriginRpc(token){
+      const body=JSON.stringify({method:'protectedSum',args:[7]});
+      return new Promise((resolve,reject)=>{
+        const request=http.request({
+          hostname:'127.0.0.1',port,path:'/obfs/rpc',method:'POST',
+          headers:{
+            host:'localhost:'+port,
+            'content-type':'application/json',
+            'content-length':Buffer.byteLength(body),
+            ...(token?{cookie:'webauthn_session='+token}:{})
+          }
+        },async response=>{
+          try{
+            const raw=await readBody(response);
+            resolve({status:response.statusCode??0,body:JSON.parse(raw)});
+          }catch(error){reject(error);}
+        });
+        request.once('error',reject);
+        request.end(body);
+      });
+    }
+    const withoutBearer=await copiedOriginRpc(undefined);
+    assert.equal(withoutBearer.status,403);
+    assert.deepEqual(withoutBearer.body,{ok:false,error:'Forbidden'});
+    assert.equal(privateRpcCalls,1);
+    const copiedBearer=await copiedOriginRpc(exportedCookie.value);
+    assert.equal(copiedBearer.status,200);
+    assert.deepEqual(copiedBearer.body,authorized.body);
+    assert.equal(privateRpcCalls,2);
+    activeSessions.delete(exportedCookie.value);
+    const afterRevocation=await copiedOriginRpc(exportedCookie.value);
+    assert.equal(afterRevocation.status,403);
+    assert.equal(privateRpcCalls,2);
+
     console.log('SCO_WEBAUTHN_ORIGIN_BOUNDARY '+JSON.stringify({
       node:process.version,
       platform:process.platform,
@@ -335,7 +435,17 @@ async function main(){
       userVerificationRequired:true,
       failedUserVerificationResult:uvRequiredResult,
       acceptedAssertions,
-      implication:'WebAuthn enforces the RP/origin boundary, while hostile code already executing at the authorized origin can still request fresh assertions when the authenticator ceremony succeeds.'
+      privateRpcCalls,
+      authorizedPrivateRpcStatus:authorized.status,
+      pageJavascriptCookieVisible:authorized.jsCookie.length>0,
+      debuggerCanExportHttpOnlySession:true,
+      copiedOriginWithoutSessionStatus:withoutBearer.status,
+      copiedOriginWithSessionStatus:copiedBearer.status,
+      copiedOriginBodyMatchesAuthorized:JSON.stringify(copiedBearer.body)===JSON.stringify(authorized.body),
+      consumedAssertionReplayStatus:reusedAssertion.status,
+      publicFacadeExposesPrivateMethod:false,
+      revokedCopiedSessionStatus:afterRevocation.status,
+      implication:'WebAuthn RP-binding prevents copied-origin credential assertions, but a conventional post-admission HttpOnly bearer session remains portable through raw HTTP under hostile-client control.'
     }));
   }finally{
     if(browser)await browser.close();
