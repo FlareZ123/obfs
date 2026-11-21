@@ -20,6 +20,7 @@
     "sims/low-rank-affine-nonpermutation.js",
     "sims/low-rank-nonbijective-peer-width3.js",
     "sims/low-rank-nonbijective-ranktwo-32.js",
-    "sims/low-rank-nonbijective-offline-clone-bridge.js"
+    "sims/low-rank-nonbijective-offline-clone-bridge.js",
+    "sims/low-rank-singular-envelope-peer-width3.js"
   ]
 }
