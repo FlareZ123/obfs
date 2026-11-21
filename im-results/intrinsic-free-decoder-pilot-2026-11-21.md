@@ -34,7 +34,7 @@ One local 9-context × 100-executions-per-context component median trial, millis
 | Mixed 20 | 0.00062 | 0.00940 | 0.00392 | 6.30× |
 | Unicode 2,000 | 0.00061 | 0.13312 | 0.06854 | 112.95× |
 
-These samples are noisy and intentionally execute decoding for every measured invocation. They are component startup diagnostics, not a whole-application overhead model. **Every observed dictionary/direct startup pair strictly exceeds 2.5×**, making a blanket COO client-startup deployment untenable under the prompt's strict budget.
+These samples are noisy and intentionally execute decoding for every measured invocation. They are component startup diagnostics, not a whole-application overhead model. **All five reported median dictionary/direct startup ratios strictly exceed 2.5×**. This finite sample rejects blanket COO client-startup approval; it makes no assertion about every individual trial or every possible input.
 
 ## Cross-file hot-loop observations
 
