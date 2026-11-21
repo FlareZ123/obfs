@@ -91,22 +91,29 @@ test('ES module exports retain their callable name and arity',async()=>{
 });
 
 test('VM does not depend on mutable Array prototype helpers',()=>{
-  const source=[
-    'function compute(a,b){return (a^b)+17;}',
-    'module.exports=compute;',
-    'Array.prototype.push=function(){throw Error("push is patched");};',
-    'Array.prototype.pop=function(){throw Error("pop is patched");};',
-    'Array.prototype[Symbol.iterator]=function(){throw Error("iterator is patched");};'
-  ].join('\n');
+  const source='function compute(a,b){return (a^b)+17;}module.exports=compute;';
   const output=virtualizeExpressionFunctions(source,'commonjs',{
     seed:'expr-vm/patched-array',names:['compute']
   });
   assert.equal(output.functions,1);
+  const patches=[
+    'Array.prototype.push=function(){throw Error("push is patched");};',
+    'Array.prototype.pop=function(){throw Error("pop is patched");};',
+    'Array.prototype[Symbol.iterator]=function(){throw Error("iterator is patched");};'
+  ].join('\n');
+  // Compile a source-observer-free function and patch the execution realm
+  // afterward. Source-level host mutations are independently refused below.
   const native=fromCommonJs(source);
-  const compiled=fromCommonJs(output.code);
+  const compiled=fromCommonJs(patches+'\n'+output.code);
   for(const [a,b] of [[1,2],[17,-9],[0,0]]) {
     assert.equal(compiled(a,b),native(a,b));
   }
+  const unsafe=source+'\n'+patches;
+  const declined=virtualizeExpressionFunctions(unsafe,'commonjs',{
+    seed:'expr-vm/host-mutation-refusal',names:['compute']
+  });
+  assert.equal(declined.functions,0);
+  assert.equal(declined.code,unsafe);
 });
 
 test('VM declines source-observing, dynamic-scope and unsupported expressions',()=>{
