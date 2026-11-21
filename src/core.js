@@ -1377,6 +1377,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // Proxy get traps can return a mutable decoder intrinsic through a property
   // read whose syntactic owner is an otherwise innocent proxy object. Track
   // finite handlers and local factories before the final mutation scan.
+  const proxyConstructorNames=new Set(['Proxy']);
+  const proxyRevocableNames=new Set();
   const sensitiveProxyGetTraps=new Set();
   const sensitiveProxyHandlers=new Set();
   const sensitiveProxyHandlerFactories=new Set();
@@ -1469,6 +1471,18 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         value=node.right;
       }
       if(name&&value) {
+        if(value.type==='Identifier'&&proxyConstructorNames.has(value.name)||
+           value.type==='MemberExpression'&&isGlobal(value.object)&&
+             memberName(value)==='Proxy') {
+          add(proxyConstructorNames,name);
+        }
+        if(value.type==='Identifier'&&proxyRevocableNames.has(value.name)||
+           value.type==='MemberExpression'&&memberName(value)==='revocable'&&
+             (value.object.type==='Identifier'&&proxyConstructorNames.has(value.object.name)||
+              value.object.type==='MemberExpression'&&isGlobal(value.object.object)&&
+                memberName(value.object)==='Proxy')) {
+          add(proxyRevocableNames,name);
+        }
         if(value.type==='Identifier'&&sensitiveProxyGetTraps.has(value.name)||
            ['FunctionExpression','ArrowFunctionExpression'].includes(value.type)&&
              proxyGetMayReturnDecoderIntrinsic(value)) {
@@ -1488,12 +1502,12 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   function createsSensitiveProxy(node) {
     if(node.type!=='NewExpression'&&node.type!=='CallExpression')return false;
     const callee=node.callee;
-    const direct=callee.type==='Identifier'&&callee.name==='Proxy'||
+    const direct=callee.type==='Identifier'&&proxyConstructorNames.has(callee.name)||
       callee.type==='MemberExpression'&&isGlobal(callee.object)&&
         memberName(callee)==='Proxy';
-    const revocable=callee.type==='MemberExpression'&&
-      memberName(callee)==='revocable'&&
-      (callee.object.type==='Identifier'&&callee.object.name==='Proxy'||
+    const revocable=callee.type==='Identifier'&&proxyRevocableNames.has(callee.name)||
+      callee.type==='MemberExpression'&&memberName(callee)==='revocable'&&
+      (callee.object.type==='Identifier'&&proxyConstructorNames.has(callee.object.name)||
        callee.object.type==='MemberExpression'&&isGlobal(callee.object.object)&&
          memberName(callee.object)==='Proxy');
     return Boolean((direct||revocable)&&node.arguments[1]&&
