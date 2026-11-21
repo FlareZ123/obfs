@@ -25,5 +25,10 @@ jobs:
         run: |
           npm run typecheck
           npx tsc -p jsconfig.cross-identity.json
+      - name: Real Chromium immutable import alias and reflection refusal
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/cross-file-imported-identity-browser.js
       - name: Identity alias positive and unsafe refusal differentials
         run: node --test test/cross-file-identity-return.test.js test/cross-file-imported-identity-alias.test.js
