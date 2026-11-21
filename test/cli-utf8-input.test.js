@@ -15,11 +15,13 @@ test('source reader preserves UTF-8 BOM, non-ASCII JavaScript, and raw asset byt
     const original='\ufeffconst π="雪☃";\r\n';
     const asset=Buffer.from([0x00,0xff,0xfe,0x80,0x42]);
     await atomicWrite(path.join(root,'entry.mjs'),Buffer.from(original,'utf8'));
+    await atomicWrite(path.join(root,'caf\u00e9.mjs'),'export const value=17;');
     await atomicWrite(path.join(root,'opaque.bin'),asset);
     const files=await readSourceTree(root);
     const script=files.find(file=>file.path==='entry.mjs');
     const opaque=files.find(file=>file.path==='opaque.bin');
     assert.equal(script?.code,original);
+    assert.equal(files.find(file=>file.path==='caf\u00e9.mjs')?.code,'export const value=17;');
     assert.equal(opaque?.sourceType,'asset');
     assert.ok(Buffer.isBuffer(opaque?.code));
     assert.deepEqual(opaque.code,asset);
@@ -73,6 +75,27 @@ test('CLI rejects lossy input before creating the output tree',async()=>{
     assert.notEqual(invocation.status,0);
     assert.match(invocation.stderr,/Invalid UTF-8 JavaScript source: entry\.js/);
     await assert.rejects(fs.stat(output),{code:'ENOENT'});
+  } finally {
+    await fs.rm(root,{recursive:true,force:true});
+  }
+});
+
+
+test('POSIX source filename bytes reject malformed UTF-8 before aliasing U+FFFD',{
+  skip:process.platform==='win32'
+},async()=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-utf8-filename-'));
+  try {
+    const bad=Buffer.concat([
+      Buffer.from(root+path.sep+'bad-','utf8'),
+      Buffer.from([0xff]),
+      Buffer.from('.js','utf8')
+    ]);
+    // A tiny one-off fixture must be created through its raw byte path.
+    await fs.writeFile(bad,'module.exports=1;',{flag:'wx'});
+    await atomicWrite(path.join(root,'bad-\ufffd.js'),'module.exports=2;');
+    await assert.rejects(readSourceTree(root),
+      /Invalid UTF-8 source filename in \\.: /);
   } finally {
     await fs.rm(root,{recursive:true,force:true});
   }
