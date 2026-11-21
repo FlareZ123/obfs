@@ -7,14 +7,15 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {readSourceTree}=require('../src/cli');
+const {atomicWrite}=require('../src/atomic');
 
 test('source reader preserves UTF-8 BOM, non-ASCII JavaScript, and raw asset bytes',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-utf8-valid-'));
   try {
     const original='\ufeffconst π="雪☃";\r\n';
     const asset=Buffer.from([0x00,0xff,0xfe,0x80,0x42]);
-    await fs.writeFile(path.join(root,'entry.mjs'),Buffer.from(original,'utf8'));
-    await fs.writeFile(path.join(root,'opaque.bin'),asset);
+    await atomicWrite(path.join(root,'entry.mjs'),Buffer.from(original,'utf8'));
+    await atomicWrite(path.join(root,'opaque.bin'),asset);
     const files=await readSourceTree(root);
     const script=files.find(file=>file.path==='entry.mjs');
     const opaque=files.find(file=>file.path==='opaque.bin');
@@ -30,18 +31,28 @@ test('source reader preserves UTF-8 BOM, non-ASCII JavaScript, and raw asset byt
 test('source reader rejects malformed UTF-8 in every JavaScript extension',async()=>{
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-utf8-invalid-'));
   try {
+    const invalidSequences=[
+      [0xc3,0x28],       // invalid continuation
+      [0xe2,0x82],       // truncated sequence
+      [0xc0,0xaf],       // overlong encoding
+      [0xed,0xa0,0x80],  // UTF-8 encoding of a surrogate
+      [0xf4,0x90,0x80,0x80], // above Unicode maximum
+      [0x80]            // stray continuation
+    ];
     for(const extension of ['js','mjs','cjs']) {
       const filename='entry.'+extension;
-      const source=Buffer.concat([
-        Buffer.from('const text="','utf8'),
-        Buffer.from([0xc3,0x28]),
-        Buffer.from('";\n','utf8')
-      ]);
-      await fs.writeFile(path.join(root,filename),source);
-      await assert.rejects(readSourceTree(root),error=>
-        error instanceof TypeError &&
-        error.message==='Invalid UTF-8 JavaScript source: '+filename);
-      await fs.rm(path.join(root,filename));
+      for(const sequence of invalidSequences) {
+        const source=Buffer.concat([
+          Buffer.from('const text="','utf8'),
+          Buffer.from(sequence),
+          Buffer.from('";\\n','utf8')
+        ]);
+        await atomicWrite(path.join(root,filename),source);
+        await assert.rejects(readSourceTree(root),error=>
+          error instanceof TypeError &&
+          error.message==='Invalid UTF-8 JavaScript source: '+filename);
+        await fs.rm(path.join(root,filename));
+      }
     }
   } finally {
     await fs.rm(root,{recursive:true,force:true});
@@ -53,7 +64,7 @@ test('CLI rejects lossy input before creating the output tree',async()=>{
   try {
     const input=path.join(root,'input'),output=path.join(root,'output');
     await fs.mkdir(input);
-    await fs.writeFile(path.join(input,'entry.js'),
+    await atomicWrite(path.join(input,'entry.js'),
       Buffer.from([0x63,0x6f,0x6e,0x73,0x74,0x20,0x78,0x3d,0xff,0x3b]));
     const invocation=spawnSync(process.execPath,[
       path.join(__dirname,'../bin/coo.js'),
