@@ -114,3 +114,49 @@ for(const [name,entry] of /** @type {[string,string][]} */ ([
     await expectRefused(name,files);
   });
 }
+
+
+test('three-hop immutable function aliases forward the proven ESM owner',async()=>{
+  await expectRewritten('three-hop transitive alias',graph(fn,
+    'import {state} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const one=identity;const two=one;const three=two;'+
+    'const result=three(state);'+
+    'console.log(JSON.stringify([result.secretField,result.otherField]));'));
+});
+
+test('two-hop aliases and direct calls preserve multiple owner reads',async()=>{
+  await expectRewritten('two-hop mixed calls',graph(arrow,
+    'import {state} from "./state.mjs";'+
+    'import {identity} from "./identity.mjs";'+
+    'const first=identity;const second=first;'+
+    'const a=first(state);const b=second(state);'+
+    'console.log(JSON.stringify([a.secretField,b.otherField]));'));
+});
+
+for(const [name,entry] of /** @type {[string,string][]} */ ([
+  ['transitive mutable alias',
+    'const one=identity;const two=one;let third=two;'+
+    'console.log(third(state).secretField);'],
+  ['transitive function source observation',
+    'const one=identity;const two=one;const third=two;'+
+    'console.log(third.toString(),third(state).secretField);'],
+  ['transitive reflection of owner',
+    'const one=identity;const two=one;'+
+    'console.log(Object.keys(state),two(state).secretField);'],
+  ['transitive unknown receiver invocation',
+    'const one=identity;const two=one;'+
+    'console.log(two.call(null,state).secretField);'],
+  ['transitive object-method escape',
+    'const one=identity;const two=one;const holder={call:two};'+
+    'console.log(holder.call(state).secretField);'],
+  ['transitive constructor invocation',
+    'const one=identity;const two=one;const instance=new two(state);'+
+    'console.log(instance.secretField);']
+])) {
+  test('transitive identity alias remains conservative: '+name,async()=>{
+    await expectRefused(name,graph(fn,
+      'import {state} from "./state.mjs";'+
+      'import {identity} from "./identity.mjs";'+entry));
+  });
+}
