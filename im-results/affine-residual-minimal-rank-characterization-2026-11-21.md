@@ -52,6 +52,18 @@ The rank-zero class has `8 × |GL(3,2)|=8×168=1,344` affine permutations, provi
 
 **Immutable CI:** [manual Ubuntu/Windows run 44935344156](https://github.com/FlareZ123/obfs/actions/runs/44935344156), source `211d4d3199dba60d67d00fb8f881aaf044de9dd4`, completed successfully on both platforms. The independent structural verifier, its strict JSDoc gate, exact original rank-r peer inverter, matched earlier-algorithm comparison, and previously enrolled low-rank regression suites all passed. The test corpus is a finite computational witness for width three; the general proof above does the mathematical work for arbitrary `n`.
 
+## Exact finite-query noncertification and sparsity control
+
+For `n>=3`, a deterministic adaptive oracle tester that has received the first `q<=2^n-2` answers of an affine identity permutation **cannot certify that the true residual rank is zero**: select two inputs `a,b` absent from its query transcript, and define the alternative permutation to swap exactly `a,b`, fixing all other inputs. Every recorded answer remains identical. The identity has rank zero; the alternative has rank **one** because its displacement is always either zero or the fixed vector `a xor b`, and it cannot be affine (a non-identity affine permutation on `GF(2)^n` fixes at most half of its points, while a transposition fixes `2^n-2`). Thus zero-error affine-versus-nonaffine certification on unrestricted permutation oracles requires **at least `2^n-1` distinct queries** in the worst case. At `2^n-1`, bijectivity fixes the final unqueried output, so the entire mapping is determined.
+
+For a transposed pair chosen uniformly among the `2^n` points, a tester making `q` distinct choices has probability of detecting a discrepancy
+
+`1 - ((2^n-q)(2^n-q-1))/(2^n(2^n-1))`.
+
+Until detection every answer is identity, so adaptivity cannot improve this random-pair detection probability. At `n=32` and `q=33` (the 0-and-basis interpolation queries), this is approximately `1.536682242390952e-8`: virtually all random isolated two-point swaps evade such a sparse probe. This is a counterexample to interpreting a low *sampled* rank as a proof of global low rank.
+
+The independent checker now tests **all 246 prefix lengths from 9 through 254** of an eight-bit query order that starts with the nine interpolation basis addresses. For each prefix, the code constructs an explicit rank-one transposition on two unqueried points, proves transcript equality and permutation bijectivity, and computes the full rank one. These 246 controls are additional to its all-permutation three-bit audit. Their updated two-platform source pin will be recorded when the extended workflow completes.
+
 ## Implications and limitations
 
 This gives a mathematically intrinsic **exact** nonlinear output-rank score for permutations. A measured defect span of dimension greater than a proposed rank bound proves that bound false, even without source. Conversely a finite low observed rank is inconclusive because unqueried points can introduce new defect directions. Deterministic or adaptive sparse query attacks against candidate transforms must not treat small sampled rank as proof of a low-rank promise. No single scalar proves obfuscation resistance.
