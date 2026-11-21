@@ -198,8 +198,7 @@ function main() {
   /** @param {number} x @returns {number} */
   const sparseTransposition = x => x === 7 ? 11 : x === 11 ? 7 : x;
   for (let i = 0; i < 256; i++) {
-    if (i === 0 || ((i & (i - 1)) === 0) ||
-        ((i & (i - 1) & (i - 2)) === 0 && i.toString(2).replaceAll('0','').length <= 2)) {
+    if (i.toString(2).replaceAll('0','').length <= 2) {
       assert.equal(sparseTransposition(i), i);
     }
   }
