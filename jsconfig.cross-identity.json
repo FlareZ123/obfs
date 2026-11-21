@@ -4,6 +4,7 @@
     "test/cross-file-identity-return.test.js",
     "test/cross-file-imported-identity-browser.js",
     "test/cross-file-imported-identity-fuzz.test.js",
-    "test/cross-file-imported-identity-alias.test.js"
+    "test/cross-file-imported-identity-alias.test.js",
+    "test/cross-file-property-mangle-control.js"
   ]
 }
