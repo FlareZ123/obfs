@@ -61,6 +61,10 @@ For 32-bit controls, the same hash-coordinate seed is used with the candidate ra
   
 The 32-bit tests are concrete seeded/CSPRNG observations, while the mathematical \((3/4)^{81}\) bound applies to independent uniform challenges. They are complementary types of evidence.
 
+## Source-pinned Linux and Windows verification
+
+The existing [low-rank two-platform workflow 44961792517](https://github.com/FlareZ123/obfs/actions/runs/44961792517) completed **successfully** at immutable source `c9632ac38d5dbca887ad657dbf66edcdada88018`, including the new validated learner, false-promise exhaustive census, existing attack peers and strict JSDoc. The two OS logs agree on all exhaustive controls and the true-rank-three 175-query result. The false-rank-three test exhibits expected challenge randomness: **Ubuntu rejected after two validation challenges and consumed 597 distinct calls; Windows rejected after one challenge and consumed 596 calls**. Both then completed generic ANF and passed their 4,096 post-training heldout checks. No deterministic equality of those CSPRNG draws was assumed.
+
 ## Security and compatibility limits
 
 This repair reduces the danger of silently treating an *unknown rank* as a true rank promise in a degree-two attack-side learner. It does not prove a source is quadratic, protect against dynamically changing legitimate oracle output, or authorize collection of 610 requests from a production service. The underlying oracle access remains the approved user’s valid SCO RPC credential. It is a research improvement in **black-box attack correctness**, not an obfuscator security improvement or source-code reconstruction.
