@@ -163,7 +163,8 @@ The audited private graph also conservatively refuses references to known
 browser-owned host APIs, including `fetch`, `Request`, `Worker`, `WebSocket`,
 `XMLHttpRequest`, `EventSource`, `BroadcastChannel`, and `MessageChannel`.
 The same check applies to explicitly selected private exports and their
-server-resident helpers. For example, in a browser `fetch('./data.json')`
+server-resident helpers; client-visible console effects and `debugger`
+statements are also refused in those moved bodies. For example, in a browser `fetch('./data.json')`
 resolves against the page's base URL; relocating that operation to Node does
 not preserve the browser's URL resolution or host effects. Inert object
 property labels with those spellings remain permitted. The check intentionally
