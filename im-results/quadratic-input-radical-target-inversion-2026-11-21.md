@@ -1,0 +1,56 @@
+# Chosen-query inversion of quadratic permutations with small affine-input radical codimension
+
+**Date:** 21 November 2026. **Agent:** 50. **Classification:** intermediate algebraic candidate-elimination result, with independent exhaustive and 32-bit tests. It applies only when the source/program supplies a trustworthy degree-2 permutation promise. Algebraic polarization, linear kernels and coset decompositions are established techniques; no originality claim is made for the components of this construction or their inversion use.
+
+## Theorem and exact attack
+
+Let `F:V->V` be a bijection of `V=GF(2)^n`, with every coordinate in algebraic normal form of degree at most two. Define its vector-valued polar form
+
+`B(u,v)=F(0) xor F(u) xor F(v) xor F(u xor v)`.
+
+For degree at most two, `B` is bilinear in both arguments. Define the common affine-translation **radical**
+
+`U={u in V: B(u,v)=0 for every v in V}`,
+
+with `dim U=n-d`. Then, given chosen forward queries to `F`, a target `y=F(s)` can be inverted exactly and deterministically using at most
+
+`1+n+binom(n,2)+(n-d)+2^d+1`
+
+distinct oracle queries, plus polynomial-sized GF(2) linear algebra and at most `2^d` coset enumerations. The (+1) at the end is an optional explicit inverse verification query; many queries overlap, so the bound is deliberately loose. This is a **query bound**, not a CPU, bandwidth, or general obfuscation resistance bound.
+
+### Proof
+
+1. Query `F(0)`, the `n` standard basis images `F(e_i)`, and all `binom(n,2)` pair images `F(e_i xor e_j)`. These uniquely determine all `B(e_i,e_j)` because `B(e_i,e_i)=0`. Bilinearity gives `B(u,v)` for arbitrary vectors by linear extension, so `U` is the kernel of the public linear map `u |-> (B(u,e_0),...,B(u,e_(n-1)))`. Gaussian elimination recovers a basis `u_1,...,u_(n-d)`.
+2. For every `u in U`, `B(u,x)=0` implies **`F(x xor u)=F(x) xor F(u) xor F(0)`** for all x. In particular `L(u)=F(u) xor F(0)` defines a linear map on U. Since F is injective, L is injective and its image `L(U)` has dimension `n-d`. Query at most `n-d` additional `F(u_i)` to construct a linear solver for L, reusing known calls.
+3. Choose an input complement `V=U direct-sum C` of dimension `d`. For each of its `2^d` representatives `x in C`, query `F(x)` and attempt to solve `L(u)=y xor F(x)`. Whenever such `u` exists, `F(x xor u)=y`; injectivity gives the unique preimage. The images of distinct U cosets are disjoint, so exactly one coset succeeds and the procedure terminates. One optional explicit check `F(x xor u)=y` detects some oracle/degree-promise violations.
+
+This theorem needs the *global degree-two promise*. Finitely many black-box queries do not certify quadraticity for arbitrary functions. A cubic or higher polynomial can share all sparse basis and pair images and have a different hidden translation radical. A finite `n=3` truth-table checker can certify the premise; large `n=32` experiments instead use a known source-level quadratic construction and verify additional ranks.
+
+## Why output-rank screening misses the tested case
+
+The earlier negative attack uses the **output affine-interpolation residual rank** `r_out` to bound target-inversion search by a power of `2^r_out`. This new theorem uses the **input translation radical codimension** `d`. These independent structural dimensions should be evaluated separately, rather than assuming high output rank implies high input nonlinear complexity.
+
+An exact 32-bit triangular family illustrates the distinction. Split x into a low eight-bit control and 24 other bits. Let `q_0,...,q_23` be 24 distinct quadratic monomials `x_i*x_j` of the eight low bits (selected from the 28 possible pairs). Define
+
+`T(x) = x xor (q_0,...,q_23 shifted into output positions 8..31)`.
+
+It is a permutation because the eight control bits remain unchanged and the high output bits are XORed with deterministic functions of those controls. Each quadratic monomial contributes a distinct, linearly independent output coefficient vector. Thus the exact public residual rank is **24**, while its affine-input radical is precisely the 24-dimensional high-coordinate subspace, i.e. **`d=8`**. The 24 selected monomials cover every control variable, excluding any extra radical dimension among the eight controls. Random invertible input and output matrices and an output translation hide the direct triangular coordinate system while preserving both dimensions.
+
+The rank-output-only worst-case attack parameter would be `2^24=16,777,216`; the quadratic radical attack has a deterministic oracle bound of `1+32+496+24+256+1=810` on the same hidden quadratic family. **This comparison is of different proven upper bounds, not an empirical failure claim against every output-rank attack implementation.** The construction remains easy to invert by a source-aware adversary; the experiment measures additional black-box algebraic structure.
+
+## Independent tests
+
+- [`sims/quadratic-radical-target-inversion.js`](../sims/quadratic-radical-target-inversion.js) is a standalone CJS/JSDoc implementation. It constructs packed 1024-bit polar-form columns using built-in BigInt, computes the radical through GF(2) elimination, forms an input quotient complement, and solves output coset membership with independent basis elimination. It uses a cache to count **distinct** chosen oracle addresses.
+- [`sims/quadratic-radical-peer-check.js`](../sims/quadratic-radical-peer-check.js) independently enumerates all **40,320 three-bit permutations** and attacks all **322,560** target values. Every three-bit permutation has degree at most two, since each balanced component's top ANF coefficient is zero. All targets invert exactly; observed maximum unique queries is eight. The codimension distribution over 40,320 permutations is `d=0:1344`, `d=1:0`, `d=2:9408`, `d=3:29568`.
+- A separately constructed 4-bit affine-wrapped quadratic shear family passes **1,600/1,600** exact target inversions across 100 randomized matrix-wrapped instances.
+- An independently generated 32-bit hidden quadratic family with exact `r_out=24`, `d=8` passes **80/80** targets over ten independently seeded affine wrappers, with **552 to 770** distinct queries per target in the first source-pinned CI run. The current checker also independently recomputes and asserts public output rank24 from 496 pair polar images on every hidden-32-bit instance.
+- A deliberately excluded degree-three triangular permutation has a nonzero third-order derivative of value eight on inputs 0..7. It is an explicit warning that a general permutation does not meet this attack's bilinear premise.
+- A dedicated [strict JSDoc configuration](../jsconfig.quadratic-radical.json) is included in the cross-platform manual theorem workflow.
+
+**First cross-platform CI:** [manual run 44936737513](https://github.com/FlareZ123/obfs/actions/runs/44936737513), source `51ae0e8addd2c2c0c078ea97cd9e6b534baba86e`, executed the exhaustive 322,560+1,600+80 exact test populations, strict JSDoc and the pre-existing output-rank inversion suite. The newer checker source additionally asserts the exact output rank24 on all hidden32 permutations; a later pinned run covers that increment.
+
+## Related literature and boundaries
+
+The second-order derivative `B` of a quadratic vectorial Boolean function and its bilinear radical/linear kernel are classical. Nyberg, [*Modifications of bijective S-Boxes with linear structures*](https://doi.org/10.1007/s12095-023-00631-9) (2023), Section 2, discusses affine decomposition along constant-derivative input structures, and Carlet and Villa, [*On cubic-like bent Boolean functions*](https://doi.org/10.1007/s10801-025-01415-5) (2025), discusses vectorial/Boolean derivatives and linear kernels in a broader context. A dedicated prior-art review is required before any claims about originality of this particular query algorithm, query accounting or 32-bit construction.
+
+This is a deliberately restricted **chosen-query algebraic attack**, useful for screening families of fixed-width Boolean permutations. It does not prove semantics preservation for general JavaScript programs, nor source confidentiality, anti-tamper or anti-debug resistance, browser host locking, or satisfaction of the 2.5× runtime ceiling. The project's primary strong-obfuscation release decision remains **RELEASE-BLOCKED**.
