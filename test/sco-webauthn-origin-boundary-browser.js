@@ -316,6 +316,10 @@ async function main(){
     assert.equal(authorized.status,200);
     assert.deepEqual(authorized.body,{ok:true,value:148});
     assert.equal(privateRpcCalls,1);
+    const publicFacade=await fetch(allowedOrigin+'/obfs/facade.js');
+    assert.equal(publicFacade.status,200);
+    const servedSource=await publicFacade.text();
+    assert.doesNotMatch(servedSource,/protectedSum|webauthn_session|Number\(value\)/u);
     assert.ok(lastAcceptedAssertion);
     const reusedAssertion=await fetch(allowedOrigin+'/verify',{
       method:'POST',headers:{'content-type':'application/json'},
@@ -414,6 +418,10 @@ async function main(){
     assert.equal(copiedBearer.status,200);
     assert.deepEqual(copiedBearer.body,authorized.body);
     assert.equal(privateRpcCalls,2);
+    activeSessions.delete(exportedCookie.value);
+    const afterRevocation=await copiedOriginRpc(exportedCookie.value);
+    assert.equal(afterRevocation.status,403);
+    assert.equal(privateRpcCalls,2);
 
     console.log('SCO_WEBAUTHN_ORIGIN_BOUNDARY '+JSON.stringify({
       node:process.version,
@@ -435,6 +443,8 @@ async function main(){
       copiedOriginWithSessionStatus:copiedBearer.status,
       copiedOriginBodyMatchesAuthorized:JSON.stringify(copiedBearer.body)===JSON.stringify(authorized.body),
       consumedAssertionReplayStatus:reusedAssertion.status,
+      publicFacadeExposesPrivateMethod:false,
+      revokedCopiedSessionStatus:afterRevocation.status,
       implication:'WebAuthn RP-binding prevents copied-origin credential assertions, but a conventional post-admission HttpOnly bearer session remains portable through raw HTTP under hostile-client control.'
     }));
   }finally{
