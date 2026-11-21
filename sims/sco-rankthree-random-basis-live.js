@@ -127,8 +127,6 @@ async function runConventionalControl(source,method,expected){
   const address=server.address();
   assert.ok(address&&typeof address!=='string');
   const origin='http://127.0.0.1:'+address.port;
-  /** @type {ReturnType<typeof learn>|undefined} */
-  let pending;
   /** @type {Awaited<ReturnType<typeof learn>>|undefined} */
   let fitted;
   let deniedStatus=0;
@@ -139,8 +137,7 @@ async function runConventionalControl(source,method,expected){
     });
     deniedStatus=denied.status;
     assert.equal(deniedStatus,403);
-    pending=learn({origin,method,credential:TOKEN});
-    fitted=await pending;
+    fitted=await learn({origin,method,credential:TOKEN});
     assert.equal(fitted.queryCount,expected.queryCount);
     assert.equal(fitted.transcriptSha256,expected.transcriptSha256);
     assert.equal(executions,fitted.queryCount);
@@ -178,7 +175,12 @@ async function runConventionalControl(source,method,expected){
  *   matched:number,pivots:number,early:boolean,deniedStatus:number,
  *   publishedBytes:number,privateSourceBytes:number,
  *   publicSecretLeaked:boolean,offlineAfterClose:boolean,
- *   sourceSha256:string,transcriptSha256:string}>}
+ *   sourceSha256:string,transcriptSha256:string,
+ *   conventionalQueries:number,conventionalExecutions:number,
+ *   conventionalMatched:number,conventionalHeldouts:number,
+ *   conventionalMinifiedBytes:number,conventionalDenial:number,
+ *   conventionalTranscriptMatches:boolean,
+ *   conventionalMinifiedSha256:string}>}
  */
 async function main(){
   const source=[
@@ -270,12 +272,23 @@ async function main(){
     }
     assert.equal(matched,heldouts);
     assert.equal(privateExecutions,learned.queryCount,'Offline clone made a private RPC');
+    const control=await runConventionalControl(source,match[1],{
+      queryCount:learned.queryCount,transcriptSha256:learned.transcriptSha256
+    });
     const result={
       queries:learned.queryCount,privateExecutions,
       heldouts,matched,pivots:learned.pivots,early:learned.early,
       deniedStatus:denied.status,publishedBytes:Buffer.byteLength(publicCode),
       privateSourceBytes:Buffer.byteLength(source),
       publicSecretLeaked,offlineAfterClose:true,
+      conventionalQueries:control.queries,
+      conventionalExecutions:control.executions,
+      conventionalMatched:control.matched,
+      conventionalHeldouts:control.heldouts,
+      conventionalMinifiedBytes:control.minifiedBytes,
+      conventionalDenial:control.deniedStatus,
+      conventionalTranscriptMatches:control.transcriptSha256===learned.transcriptSha256,
+      conventionalMinifiedSha256:control.minifiedSha256,
       sourceSha256:createHash('sha256').update(source).digest('hex'),
       transcriptSha256:learned.transcriptSha256
     };
