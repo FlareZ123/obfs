@@ -1767,6 +1767,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
          proxyGetMayReturnDecoderIntrinsic(node.right))sensitiveAccessorWrite=true;
     }
   });
+  /** @type {boolean} */
   let mutated=opaqueReflectiveSensitiveWrite||
     sensitiveCreateContext&&sensitiveAccessorWrite;
   walk(ast,(node,parent)=>{
