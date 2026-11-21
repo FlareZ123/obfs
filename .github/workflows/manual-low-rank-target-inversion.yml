@@ -23,5 +23,7 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Low-rank target-inversion regressions
         run: node --test --test-reporter=spec test/low-rank-maximal-deficiency-inversion.test.js test/low-rank-target-guided-subspace-growth.test.js test/low-rank-exhaustive-width3.test.js test/public-affine-residual-target-inverter32.test.js
+      - name: Independent exhaustive and seeded 4-bit peer verification
+        run: node --test test/public-residual-independent-review.test.js
       - name: Project JSDoc type safety
         run: npm run typecheck
