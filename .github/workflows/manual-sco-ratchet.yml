@@ -7,13 +7,17 @@ on:
         description: Run only the real-Chromium WebAuthn-to-SCO bearer-session boundary
         type: boolean
         default: false
+      proof_cpu_only:
+        description: Compare server-only WebAuthn proof verification CPU for small and coarse workloads
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
 jobs:
   ratchet:
-    if: ${{ !inputs.webauthn_boundary_only }}
+    if: ${{ !inputs.webauthn_boundary_only && !inputs.proof_cpu_only }}
     strategy:
       fail-fast: false
       matrix:
@@ -82,7 +86,7 @@ jobs:
         run: node test/sco-webauthn-origin-boundary-browser.js
 
   webauthn-boundary:
-    if: ${{ inputs.webauthn_boundary_only }}
+    if: ${{ inputs.webauthn_boundary_only && !inputs.proof_cpu_only }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -98,5 +102,25 @@ jobs:
         run: node test/sco-webauthn-origin-boundary-browser.js
       - name: Strict project JSDoc
         run: npm run typecheck
+      - name: Strict external JSDoc
+        run: npm run typecheck:external
+
+  webauthn-proof-cpu:
+    if: ${{ inputs.proof_cpu_only }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install declared dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Paired Node server-only proof verification CPU ratio
+        run: node --test test/sco-webauthn-proof-cpu-budget.test.js
       - name: Strict external JSDoc
         run: npm run typecheck:external
