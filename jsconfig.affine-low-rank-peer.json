@@ -17,6 +17,7 @@
     "sims/low-rank-affine-layer-composition.js",
     "sims/affine-low-rank-method-comparison.js",
     "sims/affine-residual-minimal-rank-peer.js",
-    "sims/low-rank-affine-nonpermutation.js"
+    "sims/low-rank-affine-nonpermutation.js",
+    "sims/low-rank-nonbijective-peer-width3.js"
   ]
 }
