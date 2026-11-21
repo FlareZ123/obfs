@@ -6,17 +6,17 @@
 
 Let V = GF(2)^n and suppose an unknown **permutation** F:V→V can be represented as
 
-[
-F(x)=coplus A xoplus eta(x),
-]
+$
+F(x)=c\oplus Ax\oplus\eta(x)
+$
 
 where A is an unknown invertible binary linear map, c is an unknown translation, and all values of an otherwise arbitrary nonlinear function η:V→V lie in some unknown binary linear subspace W of dimension at most r. An attacker knows n and an upper bound r, can choose inputs to an exact deterministic F oracle, and is given y=F(s).
 
 There is a deterministic chosen-query attack recovering the unique s with at most
 
-[
-n+1+2^{min(n,r+d)}le n+1+2^{min(n,2r)}
-]
+$
+n+1+2^{\min(n,r+d)}\le n+1+2^{\min(n,2r)}
+$
 
 distinct oracle queries, where d is the nullity of the publicly observed affine interpolation matrix M defined below. In particular d≤r. The attack does not learn A, c, η or W.
 
@@ -32,17 +32,17 @@ At n=32, rank r=2 gives a worst-case bound of 49 distinct oracle calls. Rank r=3
 
 4. Consider the residual R(x)=F(x)⊕q⊕T x. Expand its definition:
 
-[
-R(x)=(Aoplus T)xopluseta(x)opluseta(0).
-]
+$
+R(x)=(A\oplus T)x\oplus\eta(x)\oplus\eta(0)
+$
 
 Since A⊕T=(A⊕M)⊕(M⊕T), the image of A⊕T lies in W+im(M⊕T). Thus every R(x) lies in one fixed, unknown subspace W' with dimension at most r+d.
 
 5. Define the publicly callable permutation G(x)=T⁻¹(F(x)⊕q). Because T and F are invertible, G is a permutation. Moreover,
 
-[
-G(x)=xoplus T^{-1}R(x),
-]
+$
+G(x)=x\oplus T^{-1}R(x)
+$
 
 so G(x)⊕x lies in U=T⁻¹(W'), a fixed subspace with dim(U)≤r+d. Every affine coset x+U is invariant under G. Since G is a permutation, it decomposes each coset into disjoint cycles of length at most |U|≤2^{min(n,r+d)}.
 
