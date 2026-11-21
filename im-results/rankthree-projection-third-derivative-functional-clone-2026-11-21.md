@@ -207,3 +207,27 @@ constructions, improve the obfuscator implementation, or verify
 the project's 2.5x compute ceiling. The overall protective
 release verdict stays **RELEASE-BLOCKED** until candidate-specific
 security and performance comparisons pass.
+
+
+## Source-pinned two-platform verification
+
+The independent third-derivative source was committed as
+[cd54928](https://github.com/FlareZ123/obfs/commit/cd5492832cd29985aa960a2b8d18a2a247dbd20d).
+The existing research workflow and strict peer JSDoc project were extended
+at [b29660d](https://github.com/FlareZ123/obfs/commit/b29660dc9604be00d4050d645829f64f38c3dbfc).
+
+[GitHub Actions run 44958672983](https://github.com/FlareZ123/obfs/actions/runs/44958672983)
+at immutable source
+7c4037e305822a62c70af5c4f93c28b3d9ceb9fe **passed both
+Ubuntu and Windows Node 22.23.4 jobs**. Each job passed the added
+rank-three full-functional clone, all four earlier Agent 22 peer witnesses,
+the existing bounded-degree/low-rank research steps, the independent
+peer strict JSDoc gate, the quadratic JSDoc gate, and the project
+typecheck. The width-three full-domain counts and 32-bit held-out
+offline checksum assertions are checked by the executable on this
+source pin. The independent proof's uniform-random tail and possible
+novelty relative to existing finite-difference oracle literature
+are separate, unverified obligations.
+
+No new workflow family was introduced. This does not update the main
+obfuscation release decision.
