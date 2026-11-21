@@ -45,6 +45,8 @@ jobs:
         run: node sims/low-rank-nonbijective-peer-width3.js
       - name: Affine-wrapped nonbijective 32-bit rank-two image membership
         run: node sims/low-rank-nonbijective-ranktwo-32.js
+      - name: Independent exhaustive singular-affine quotient image envelopes
+        run: node sims/low-rank-singular-envelope-peer-width3.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
