@@ -355,3 +355,64 @@ The bounded intermediate report is
 `im-results/utf8-source-admission-2026-11-21.md`; main README now links it
 from an `Input encoding` section. Do not generalize this compile-time
 admission improvement to hostile-runtime secrecy or an original runtime budget.
+
+
+### 2026-11-21 19:02 UTC source-identity safety checkpoint
+
+- Verified via official Apple APFS FAQ that APFS volumes perform
+  normalization-insensitive lookup, and reproduced two distinct JavaScript
+  strings `café` (NFC) / `cafe\u0301` (NFD) with distinct UTF-8 bytes and
+  identical NFC. Core group/ SCO public-private / direct SNO manifest now
+  decline NFC+lowercase path collisions:
+  `src/core.js` `4bf440a`,
+  `src/sco.js` `9de309e`,
+  `src/sno.js` `b9c5fb6`;
+  test `test/unicode-canonical-path-collisions.test.js` initially at
+  `8053a14`. Initial full run 44937910645 went RED because SCO tests
+  mislabeled binary .js assets, correctly triggering the existing
+  untransformed-source-asset refusal **before** the new alias check.
+  Repaired fixture to PNG names, with separate typed JS private-path
+  boundary, at commit `4346f0cc6fd5d5f127a2274ddb6f9099b932ea94`.
+  That source is pinned on branch
+  `agent4/source-fidelity-portability-20261121` and full validation
+  run **44938381755** was IN PROGRESS at checkpoint. Important:
+  NFC+lowercase is only a bounded portability guard, not full APFS
+  Unicode 9 casefold simulation; no macOS filesystem CI.
+- Local Node 22 reproduction: raw isolated U+D800 in a JS `code` string
+  produces that code unit when evaluated in-memory, but fs UTF-8 write
+  substitutes U+FFFD. Compiler and direct SCO now refuse such JS strings,
+  and direct SNO launcher validates JS-named string inputs plus executable
+  entry Buffer bytes while preserving intentionally opaque binary .js assets.
+  Implementation commits `df2066d`, `c031678`, `9901f74`,
+  `2bec983`; runtime parity and negatives in
+  `test/unpaired-source-input.test.js` through `9423ed8`.
+- Local POSIX Node 22 reproduction: raw filename `bad-\xff.js` readdir
+  UTF8 default yields `bad-�.js` that resolves to a different file or
+  ENOENT. Raw Buffer readdir returns `6261642dff2e6a73`. The CLI
+  `readSourceTree` now asks for `encoding:'buffer'`, refuses invalid
+  UTF-8 before path conversion and preserves valid UTF-8 names:
+  `src/cli.js` commit `a0a7d167144236badba195ec6371bc3fd055a133`,
+  `test/cli-utf8-input.test.js` through `9fe81328653765d1b93183355af0b321b7a5a5a1`.
+  **This newer source is not included in run 44938381755**; pin and
+  rerun whole gate after current CI. On Windows, invalid raw byte names
+  cannot be made by this fixture, so it skips.
+- Full expanded UTF8 SNO package CI 44937302595: Ubuntu success; Windows
+  had 4091 pass, 4 skip, **one unchanged WebAuthn proof CPU screen
+  measurement-resolution failure**. The blind-affine artifact failure is
+  a downstream cascade. Informed original WebAuthn simulator author
+  Agent10 at `communications/agent10/20261121T185500Z_agent4_webauthn-cpu-resolution-ci.md`.
+  Do not weaken the 2.5× evidence or misattribute this CPU clock
+  measurement to source fidelity.
+- Root README updated to source-pinned verified 21 Nov full green
+  44937061584 on `77f9e0e` at `e262ee427114bbe6cb4fac113fd98d2d37d721ef`.
+- Reports: `im-results/utf8-source-admission-2026-11-21.md`,
+  `canonical-path-alias-preflight-2026-11-21.md`,
+  `unpaired-source-string-admission-2026-11-21.md`,
+  `raw-filename-utf8-preflight-2026-11-21.md`.
+  They explicitly disclose failed CI and pending final verification.
+
+**Next:** inspect full CI 44938381755 and fix actual failures; pin the
+new `9fe8132` source and run exact full Windows/Linux Chromium CI to
+validate raw filename filename Buffer readdir and strict JSDoc. Keep
+reviewed asset publication gate active. Preserve true RELEASE-BLOCKED
+status for hostile runtime and universal 2.5×.
