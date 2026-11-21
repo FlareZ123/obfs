@@ -99,6 +99,88 @@ function hidden32(seed) {
 }
 
 /**
+ * Multiplication in GF(2^9), modulo the irreducible polynomial
+ * x^9+x^4+1 (binary 0x211).
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+function gf9Multiply(a, b) {
+  let result = 0;
+  for (let bit = 0; bit < 9; bit++) {
+    if (b & 1) result ^= a;
+    b >>>= 1;
+    a <<= 1;
+    if (a & 512) a ^= 0x211;
+  }
+  return result & 511;
+}
+
+/** @param {number} x @returns {number} */
+function cubeGF9(x) {
+  return gf9Multiply(gf9Multiply(x, x), x);
+}
+
+/**
+ * Pick nine independent output-polynomial polar directions. Reserve
+ * their input monomials so the remaining 23 selected monomials can
+ * occupy high output bits and increase the combined rank to 32.
+ * @returns {number[][]}
+ */
+function quadraticPairsForFullOutputRank() {
+  /** @type {number[][]} */
+  const allPairs = [];
+  /** @type {number[][]} */
+  const witnesses = [];
+  /** @type {number[]} */
+  const polarImages = [];
+  for (let i = 0; i < 9; i++) {
+    for (let j = i + 1; j < 9; j++) {
+      allPairs.push([i, j]);
+      const image = cubeGF9(2 ** i) ^ cubeGF9(2 ** j) ^ cubeGF9((2 ** i) ^ (2 ** j));
+      if (basis([...polarImages, image], 9).length > polarImages.length) {
+        polarImages.push(image);
+        witnesses.push([i, j]);
+      }
+    }
+  }
+  assert.equal(allPairs.length, 36);
+  assert.equal(polarImages.length, 9);
+  const excluded = new Set(witnesses.map(([a, b]) => a * 9 + b));
+  const other = allPairs.filter(([a, b]) => !excluded.has(a * 9 + b));
+  assert.equal(other.length, 27);
+  return other.slice(0, 23);
+}
+
+const fullRankPairs = quadraticPairsForFullOutputRank();
+
+/**
+ * A source-known family of quadratic permutations whose output residual
+ * rank is the *maximum* 32, while the common input radical dimension
+ * remains 23. Hidden affine input/output wrappers retain both invariants.
+ * @param {number} seed
+ * @returns {(input:number)=>number}
+ */
+function hiddenFullRank32(seed) {
+  const next = seeded(seed);
+  const incoming = invertible(32, next);
+  const outgoing = invertible(32, next);
+  const offset = next();
+  return x => {
+    const mapped = linear(incoming, x);
+    const lower = mapped & 511;
+    let quadratics = 0;
+    for (let k = 0; k < fullRankPairs.length; k++) {
+      const [i, j] = fullRankPairs[k];
+      if (((lower >>> i) & 1) && ((lower >>> j) & 1)) quadratics ^= 2 ** k;
+    }
+    const upper = (mapped >>> 9) ^ quadratics;
+    const value = (cubeGF9(lower) | (upper << 9)) >>> 0;
+    return (linear(outgoing, value) ^ offset) >>> 0;
+  };
+}
+
+/**
  * For a promised quadratic function, the span of its pairwise polar
  * vectors is exactly the output interpolation residual span.
  * @param {(x:number)=>number} oracle
