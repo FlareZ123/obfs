@@ -82,7 +82,7 @@ certificate of the input-rank hypothesis.
 
 More generally, a rank-`s` input projection has only
 `2^s-s-1` nonlinear Boolean ANF monomials. Each
-vector coefficient belongs to `im U), so
+vector coefficient belongs to `im U`, so
 `dim W<=min(rank U,2^s-s-1)`. In the union-bound
 part of the original proof, one may replace the factor
 `2^r-1` by `2^d-1` with
