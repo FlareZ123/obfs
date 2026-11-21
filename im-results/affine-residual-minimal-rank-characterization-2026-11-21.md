@@ -35,6 +35,8 @@ For any invertible linear maps `P,Q` and translations `b,d`, let `G(x)=Q F(Px xo
 
 The bracket is a second-order finite difference of `F` at base point `b`, and equals `B_F(b xor Pu,Pv) xor B_F(b,Pv)`. Thus it lies in `R_F`. Applying the same argument to the inverse coordinate transform gives `R_G=Q(R_F)`, so **`r_G=r_F`**. This means invertible affine wrappers can rotate the nonlinear displacement space but cannot change the minimum nonlinear output rank.
 
+This defect-rank invariance also holds under the standard **extended-affine (EA)** transformation `G(x)=Q F(Px xor b) xor Lx xor d`, where `L` is any linear map, because every affine `Lx xor d` term cancels in the four-output defect. The defect-rank equality holds whether or not the EA-transformed `G` remains a permutation, while the minimum-*invertible*-baseline equality still requires bijectivity. The checker includes an independently chosen nonzero linear output addend for every width-three permutation and verifies the invariant again. This invariant should be understood in the existing Boolean-function EA-equivalence literature, not promoted as a first discovery.
+
 The permutation premise matters for the attainability proof: a constant function has zero affine-additivity defect rank, yet subtracting any invertible linear map leaves full-rank residual variation. The equality is not asserted for such nonpermutations.
 
 ## Equivalent nonlinear algebraic-normal-form coefficient rank
