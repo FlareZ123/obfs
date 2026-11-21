@@ -89,6 +89,8 @@ jobs:
         run: node sims/ranktwo-quadratic-competitor.js
       - name: Exhaustive degree-two false-rank validation and exact fallback
         run: node sims/quadratic-rank-validated-offline.js
+      - name: Independent exact rational tails for rank-four to six adaptive polar learning
+        run: node sims/rankk-exact-tail-fraction-peer.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
