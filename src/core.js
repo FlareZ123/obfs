@@ -1390,14 +1390,16 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(fn.type==='Identifier')return returnedSensitiveFunctions.has(fn.name)||
       sensitiveProxyGetTraps.has(fn.name);
     if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type))return false;
-    if(fn.body.type!=='BlockStatement')return containsDecoderIntrinsic(fn.body);
+    if(fn.body.type!=='BlockStatement')return containsDecoderIntrinsic(fn.body)||
+      proxyGetMayReturnDecoderIntrinsic(fn.body);
     let found=false;
     walk(fn.body,(node,_parent,_key,ancestors)=>{
       if(found||node.type!=='ReturnStatement'||!node.argument)return;
       if(ancestors.some((/** @type {import('./ast').AstNode} */ owner)=>
         ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
          'ClassDeclaration','ClassExpression'].includes(owner.type)))return;
-      if(containsDecoderIntrinsic(node.argument))found=true;
+      if(containsDecoderIntrinsic(node.argument)||
+         proxyGetMayReturnDecoderIntrinsic(node.argument))found=true;
     });
     return found;
   }
@@ -1444,6 +1446,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     });
     return found;
   }
+  /**
+   * Proxy handlers can be populated by reflection after creation. A
+   * descriptor's value, or an accessor returning the trap, may expose the
+   * decoder-sensitive getter without a get method in the initial literal.
+   * @param {import('./ast').AstNode} descriptor
+   * @returns {boolean}
+   */
+  function proxyDescriptorHasSensitiveGet(descriptor) {
+    if(descriptor.type!=='ObjectExpression')return false;
+    return descriptor.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+      if(property.type!=='Property')return false;
+      const key=property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key);
+      return (key===null||key==='value'||key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(property.value);
+    });
+  }
   let discoveredProxyHandler;
   do {
     discoveredProxyHandler=false;
@@ -1451,6 +1470,47 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       /** @param {Set<string>} target @param {string} name */
       function add(target,name) {
         if(!target.has(name)){target.add(name);discoveredProxyHandler=true;}
+      }
+      if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'&&
+         (pathMemberName(node.left)===null||pathMemberName(node.left)==='get')&&
+         node.left.object.type==='Identifier'&&
+         proxyGetMayReturnDecoderIntrinsic(node.right)) {
+        add(sensitiveProxyHandlers,node.left.object.name);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+         node.arguments[0]?.type==='Identifier') {
+        const target=node.arguments[0];
+        const receiver=node.callee.object;
+        const method=memberName(node.callee);
+        const key=node.arguments[1]?staticString(node.arguments[1]):null;
+        let sensitiveWrite=false;
+        if(isReflectIntrinsic(receiver)&&method==='set'&&
+           (key===null||key==='get')&&node.arguments[2]&&
+           proxyGetMayReturnDecoderIntrinsic(node.arguments[2])) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='assign'&&
+           node.arguments.slice(1).some((/** @type {import('./ast').AstNode} */ source)=>
+             proxyHandlerHasSensitiveGet(source))) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='defineProperty'&&
+           (key===null||key==='get')&&node.arguments[2]&&
+           proxyDescriptorHasSensitiveGet(node.arguments[2])) {
+          sensitiveWrite=true;
+        }
+        if(isObjectIntrinsic(receiver)&&method==='defineProperties'&&
+           node.arguments[1]?.type==='ObjectExpression'&&
+           node.arguments[1].properties.some((/** @type {import('./ast').AstNode} */ property)=>{
+             if(property.type!=='Property')return false;
+             const propertyKey=property.computed?staticString(property.key):
+               property.key.type==='Identifier'?property.key.name:staticString(property.key);
+             return (propertyKey===null||propertyKey==='get')&&
+               proxyDescriptorHasSensitiveGet(property.value);
+           })) {
+          sensitiveWrite=true;
+        }
+        if(sensitiveWrite)add(sensitiveProxyHandlers,target.name);
       }
       if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
          proxyGetMayReturnDecoderIntrinsic(node)) {
@@ -1471,6 +1531,9 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         value=node.right;
       }
       if(name&&value) {
+        if(value.type==='Identifier'&&sensitiveProxyHandlers.has(name)) {
+          add(sensitiveProxyHandlers,value.name);
+        }
         if(value.type==='Identifier'&&proxyConstructorNames.has(value.name)||
            value.type==='MemberExpression'&&isGlobal(value.object)&&
              memberName(value)==='Proxy') {
