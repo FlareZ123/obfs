@@ -204,6 +204,20 @@ function learnLowDegree(oracle,n,degreeBound) {
 }
 
 /**
+ * Public nullity of the affine residual envelope B=[M | W]. Every
+ * nonempty consistent target envelope has exactly 2^nullity possible
+ * preimage inputs because W's basis columns are independent.
+ * @param {{columns:number[],residual:number[]}} learned
+ * @returns {number}
+ */
+function envelopeNullity(learned) {
+  const bits=learned.columns.length;
+  const span=newSpan(bits);
+  for(const column of [...learned.columns,...learned.residual])addToSpan(span,column);
+  return bits+learned.residual.length-span.vectors.length;
+}
+
+/**
  * @param {(x:number)=>number} oracle
  * @param {{base:number,columns:number[],residual:number[]}} learned
  * @param {number} target
@@ -342,10 +356,12 @@ function outputRankTwoLowerBoundWitness() {
  * independent of the input-projection-rank condition.
  * @param {number} n
  * @param {()=>number} random
+ * @param {number} zeroOutputRows
  * @returns {(x:number)=>number}
  */
-function generateQuadratic(n,random) {
+function generateQuadratic(n,random,zeroOutputRows=0) {
   const A=invertibleRows(n,random);
+  for(let row=n-zeroOutputRows;row<n;row++)A[row]=0;
   /** @type {number[]} */
   const U=[];
   const basis=newSpan(n);
@@ -524,6 +540,8 @@ function width3ExhaustiveNonbijective() {
       if(seen.some(count=>count!==1))nonbijectiveMaps++;
       const learned=learnLowDegree(oracle,bits,2);
       assert.equal(learned.observed.size,7);
+      const publicNullity=envelopeNullity(learned);
+      assert.ok(publicNullity<=2);
       const span=newSpan(bits);
       for(const column of learned.columns)addToSpan(span,column);
       if(span.vectors.length<bits)singularInterpolants++;
@@ -533,6 +551,7 @@ function width3ExhaustiveNonbijective() {
           `width3 U=${outputs.join(',')} V=${inputRows.join(',')} g=${truth} y=${target}`);
         if(verdict.answer!==null)assert.equal(oracle(verdict.answer),target);
         assert.ok(verdict.candidates<=4);
+        if(verdict.candidates)assert.equal(verdict.candidates,2**publicNullity);
         maxCandidateCount=Math.max(maxCandidateCount,verdict.candidates);
         classifiedTargets++;
       }
@@ -543,6 +562,47 @@ function width3ExhaustiveNonbijective() {
   assert.equal(oracleMaps,42*42*256);
   return {bits,outputBases:outputBases.length,inputProjections,oracleMaps,
     classifiedTargets,nonbijectiveMaps,singularInterpolants,maxCandidateCount};
+}
+
+/**
+ * Relax A invertibility: a hidden affine nullity k adds at most k
+ * dimensions to the rank-r nonlinear image-membership candidate coset.
+ * The exact candidate count is computable as nullity of public [M W].
+ * @returns {{singularAffineFixtures:number,fullOutputChecks:number,targetChecks:number,nonbijectiveFixtures:number,maxEnvelopeNullity:number,maxCandidateCount:number}}
+ */
+function singularAffineDegreeWitness() {
+  const n=12,rank=2;
+  let singularAffineFixtures=0,fullOutputChecks=0,targetChecks=0;
+  let nonbijectiveFixtures=0,maxEnvelopeNullity=0,maxCandidateCount=0;
+  for(const affineNullity of [1,2])for(let instance=0;instance<12;instance++){
+    const random=randomFromSeed(0x62ea17b^Math.imul(affineNullity,0x66cc11)^
+      Math.imul(instance+1,0x28d23b));
+    const oracle=generateQuadratic(n,random,affineNullity);
+    const learned=learnLowDegree(oracle,n,2);
+    const publicNullity=envelopeNullity(learned);
+    assert.ok(publicNullity<=rank+affineNullity);
+    maxEnvelopeNullity=Math.max(maxEnvelopeNullity,publicNullity);
+    const seen=new Uint16Array(1<<n);
+    for(let x=0;x<(1<<n);x++)seen[oracle(x)]++;
+    if(seen.some(v=>v!==1))nonbijectiveFixtures++;
+    const allTargets=instance<2;
+    const targets=allTargets?Array.from({length:1<<n},(_,i)=>i):
+      [0,1,0x1ac,0x5af,0x999,0xfff];
+    for(const y of targets){
+      const verdict=invert(oracle,learned,y);
+      assert.equal(verdict.answer===null,seen[y]===0);
+      if(verdict.answer!==null)assert.equal(oracle(verdict.answer),y);
+      if(verdict.candidates)assert.equal(verdict.candidates,2**publicNullity);
+      assert.ok(verdict.candidates<=2**(rank+affineNullity));
+      maxCandidateCount=Math.max(maxCandidateCount,verdict.candidates);
+      targetChecks++;
+      if(allTargets)fullOutputChecks++;
+    }
+    singularAffineFixtures++;
+  }
+  assert.ok(nonbijectiveFixtures>0);
+  return {singularAffineFixtures,fullOutputChecks,targetChecks,
+    nonbijectiveFixtures,maxEnvelopeNullity,maxCandidateCount};
 }
 
 /** @returns {object} */
@@ -608,7 +668,8 @@ function main() {
     rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness(),
     deterministicDegree:deterministicDegreeWitness(),
     width32Deterministic:width32DeterministicQuadratic(),
-    width3Exhaustive:width3ExhaustiveNonbijective()};
+    width3Exhaustive:width3ExhaustiveNonbijective(),
+    singularAffine:singularAffineDegreeWitness()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
@@ -616,6 +677,6 @@ function main() {
 if (require.main===module) main();
 module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
   deterministicDegreeWitness,width32DeterministicQuadratic,
-  width3ExhaustiveNonbijective,applyRows,applyColumns,
-  solveAffinePreimageCandidates,
+  width3ExhaustiveNonbijective,singularAffineDegreeWitness,envelopeNullity,
+  applyRows,applyColumns,solveAffinePreimageCandidates,
   outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
