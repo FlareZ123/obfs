@@ -18,8 +18,8 @@ test('paired server-only WebAuthn signature verification CPU screen',()=>{
   assert.equal(result.limits.networkCpuIncluded,false);
   assert.deepEqual(result.profiles.map(p=>p.repeats),[7,7]);
   assert.deepEqual(result.profiles.map(p=>p.operations),[4000,60]);
-  assert.deepEqual(result.profiles.map(p=>p.aggregation),[8,1]);
-  assert.deepEqual(result.profiles.map(p=>p.timedOperations),[32000,60]);
+  assert.deepEqual(result.profiles.map(p=>p.aggregation),[8,8]);
+  assert.deepEqual(result.profiles.map(p=>p.timedOperations),[32000,480]);
   for(const p of result.profiles){
     assert.equal(p.samples.length,7);
     assert.ok(p.serverCpuRatio>0&&Number.isFinite(p.serverCpuRatio));
