@@ -55,7 +55,16 @@ const cases=[
   ['native method destructuring',
     'const {create}=Object;const box=create(null,DESCRIPTORS);'],
   ['two-hop captured alias',
-    'const make=Object.create;const alias=make;const box=alias(null,DESCRIPTORS);']
+    'const make=Object.create;const alias=make;const box=alias(null,DESCRIPTORS);'],
+  ['prebound descriptor map',
+    'const create=Object.create;const maker=create.bind(null,null,DESCRIPTORS);'+
+    'const box=maker();'],
+  ['captured method in array holder',
+    'const create=Object.create;const methods=[create];'+
+    'const box=methods[0](null,DESCRIPTORS);'],
+  ['captured method in local helper',
+    'const create=Object.create;const helper=fn=>fn(null,DESCRIPTORS);'+
+    'const box=helper(create);']
 ];
 
 for(const [name,expression] of cases) {
