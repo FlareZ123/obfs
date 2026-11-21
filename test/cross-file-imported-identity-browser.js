@@ -263,12 +263,15 @@ async function main(){
         await import(negativeMangled));
       const reflectiveCandidate=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeCompiled));
+      const mixedNativePath='/mixed/native/entry.mjs';
+      const mixedCompiledPath='/mixed/compiled/entry.mjs';
+      const mixedMangledPath='/mixed/mangled/entry.mjs';
       const mixedNative=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
-        await import('/mixed/native/entry.mjs'));
+        await import(mixedNativePath));
       const mixedCandidate=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
-        await import('/mixed/compiled/entry.mjs'));
+        await import(mixedCompiledPath));
       const mixedMangle=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
-        await import('/mixed/mangled/entry.mjs'));
+        await import(mixedMangledPath));
       let mixedUnsafeKeyMismatches=0;
       let parity=0;
       for(let i=0;i<4096;i++){
