@@ -38,6 +38,26 @@ It is a permutation because the eight control bits remain unchanged and the high
 
 The rank-output-only worst-case attack parameter would be `2^24=16,777,216`; the quadratic radical attack has a deterministic oracle bound of `1+32+496+24+256+1=810` on the same hidden quadratic family. **This comparison is of different proven upper bounds, not an empirical failure claim against every output-rank attack implementation.** The construction remains easy to invert by a source-aware adversary; the experiment measures additional black-box algebraic structure.
 
+## Full nonlinear output rank 32, still low affine-input codimension
+
+The rank-24 triangular pilot can be strengthened to a **full nonlinear output residual rank of 32**, while retaining a 23-dimensional common affine-input radical. This is a more decisive counterexample to using output-rank screening alone.
+
+Use the finite field `K=GF(2^9)` defined by the irreducible polynomial `t^9+t^4+1` (binary `0x211`). The map `P(z)=z^3` is a **quadratic permutation** of the 512 elements because squaring is GF(2)-linear, multiplication is bilinear, and `gcd(3,511)=1`. Its bilinear polar form `B_P(u,v)=u^2 v xor u v^2` has trivial common radical: for any `u!=0`, choose a distinct nonzero `v!=u` to obtain a nonzero polar image. The 36 public basis-pair polar vectors include nine linearly independent directions spanning the entire nine-bit output.
+
+Choose nine such independent input-basis pairs as *reserved witnesses*. The remaining 27 basis pairs provide at least 23 distinct quadratic monomials `q_0,...,q_22`. For an input split `x=(z,h)` with nine-bit `z` and 23-bit `h`, define
+
+`T(z,h) = (P(z), h xor (q_0(z),...,q_22(z)))`.
+
+The full 32-bit map is bijective because P is, and the 23 high bits can be recovered after z. It is still degree two. For the nine reserved basis pairs, polar differences have **zero upper output component** and span nine lower output directions. For each of the 23 selected monomials, its polar difference has a unique upper output bit, giving 23 more linearly independent directions modulo the lower span. Thus the **exact output nonlinear residual rank is `r_out=32`**, the maximum possible: there are **zero nontrivial affine scalar output masks**.
+
+Yet all 23 high input directions have constant derivative, and the nine-bit field permutation has no nonzero input radical. Therefore the common radical is exactly dimension23, **`d=9`**. The promised quadratic chosen-query inverter needs at most
+
+`1+32+binom(32,2)+23+2^9+1=1065`
+
+distinct forward-oracle addresses per target. Arbitrary independently sampled **invertible affine input and output wrappers** preserve the maximum output rank and radical codimension while concealing the two-layer coordinate arrangement.
+
+The independent checker validates that `z^3` is bijective and degree two on all 512 field elements, computes its exact public rank9, constructs ten distinct input/output matrices for the two 32-bit arms, and checks `r_out=32` via public polar queries on all five full-rank instances. On **40/40** hidden full-output-rank targets it recovered the exact preimage using **553–1,013** distinct chosen forward queries, all within the conservative 1,065 bound. This is a black-box algebraic candidate-elimination result even at maximum output rank, provided the global source-level quadratic promise is valid.
+
 ## Independent tests
 
 - [`sims/quadratic-radical-target-inversion.js`](../sims/quadratic-radical-target-inversion.js) is a standalone CJS/JSDoc implementation. It constructs packed 1024-bit polar-form columns using built-in BigInt, computes the radical through GF(2) elimination, forms an input quotient complement, and solves output coset membership with independent basis elimination. It uses a cache to count **distinct** chosen oracle addresses.
