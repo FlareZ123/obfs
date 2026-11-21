@@ -73,10 +73,17 @@ is written, instead of being silently substituted with U+FFFD. Valid UTF-8
 byte-order marks and Unicode text are preserved. Assets retain their exact
 original bytes, including binary data; when SNO consults a `package.json`
 file to determine the nearest Node module scope, that metadata must also be
-valid UTF-8. This is a conservative build-admission rule and may reject
-historically accepted malformed files. It does not make local obfuscated
-code immune to a controlling runtime. See the
-[reproducibility and regression record](im-results/utf8-source-admission-2026-11-21.md).
+valid UTF-8. One leading package.json BOM is accepted, matching Node's package
+scope reader. The CLI validates raw directory-entry name bytes before their
+UTF-8 conversion to avoid ambiguous replacement-character filenames.
+Programmatic JavaScript source strings containing isolated raw UTF-16
+surrogates are refused; spell intended runtime surrogate values as JS escapes.
+This is a conservative build-admission rule and may reject historically
+accepted malformed files. It does not make local obfuscated code immune to a
+controlling runtime. See the
+[source-byte admission record](im-results/utf8-source-admission-2026-11-21.md),
+[raw filename investigation](im-results/raw-filename-utf8-preflight-2026-11-21.md),
+and [Node package BOM parity](im-results/sno-package-json-bom-parity-2026-11-21.md).
 
 ## Entrypoints
 
