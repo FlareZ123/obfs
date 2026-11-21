@@ -11,6 +11,8 @@
     "sims/sco-selective-challenge.js",
     "sims/sco-quadratic-529-live-clone.js",
     "sims/sco-quadratic-two-query.js",
+    "sims/sco-dense-quadratic-live-oracle.js",
+    "test/sco-dense-quadratic-live-oracle.test.js",
     "test/sco-quadratic-529-live-clone.test.js",
     "sims/sco-selected-graph-budget.js",
     "sims/sco-selected-graph-attacker.js",
