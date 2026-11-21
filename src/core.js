@@ -2092,7 +2092,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
        memberName(node.callee)==='bind'&&
        isObjectCreateCallable(node.callee.object)&&
        node.arguments.slice(1).some(
-         argument=>objectCreateMayExposeDecoder(argument)||
+         (/** @type {import('./ast').AstNode} */ argument)=>objectCreateMayExposeDecoder(argument)||
            isDecoderGetterMap(argument))) {
       mutated=true;
       return;
@@ -2101,13 +2101,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     // call target, interprocedural effects cannot be proven from the local
     // graph. Require a source-visible sensitive accessor before declining.
     if(sensitiveAccessorWrite&&node.type==='ArrayExpression'&&
-       node.elements.some(element=>element&&isObjectCreateCallable(element))) {
+       node.elements.some((/** @type {import('./ast').AstNode|null} */ element)=>
+         element&&isObjectCreateCallable(element))) {
       mutated=true;
       return;
     }
     if(sensitiveAccessorWrite&&
        (node.type==='CallExpression'||node.type==='NewExpression')&&
-       node.arguments.some(argument=>isObjectCreateCallable(argument))) {
+       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
+         isObjectCreateCallable(argument))) {
       mutated=true;
       return;
     }
