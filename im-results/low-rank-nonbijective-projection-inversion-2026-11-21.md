@@ -175,6 +175,55 @@ avoid a generic `2^n` exhaustive preimage search after cloning.
 No independent adversarial advantage over ordinary minification,
 production tamper resistance, or strict2.5× runtime is implied.
 
+### Tight full-cloning query bound even for rank-one nonbijective functions
+
+The `D`-query interpolation requirement is not merely a
+full-output-rank artifact. Fix the public affine core `A=I`,
+public output direction `U=e_0`, and let
+`F_h(x)=x XOR e_0*h(x)` for arbitrary scalar degree-at-most-two
+Boolean polynomial `h` in `n>=3` inputs. There are exactly
+`D=1+n+binom(n,2)` independent ANF coefficients.
+Distinct h produce distinct F. Because `A` and `U` are
+**public**, each forward output reveals exactly one unknown Boolean
+value `h(x)`; adaptive `q`-query transcripts have at most
+`2^q` possible response sequences.
+
+For any fixed values of the remaining input coordinates, the two
+inputs differing only in bit zero map to distinct outputs precisely
+when `h(x XOR e_0) XOR h(x)=0`. That derivative equals the
+affine function `a_{e_0} XOR sum_{j=1}^{n-1}a_{e_0+e_j}x_j`.
+It vanishes identically if and only if all **n** stated
+coefficients are zero. Thus exactly `2^(D-n)` functions in
+this family are bijections, and the remaining
+`N=2^D-2^(D-n) > 2^(D-1)` are genuinely nonbijective.
+A deterministic adaptive forward-oracle algorithm claiming an
+**exact full functional clone** on *every* nonbijective family
+member must distinguish all N maps, requiring `q>=D`.
+The same conclusion holds for any randomized bounded-query
+algorithm with worst-case exact cloning success at least
+`99%`: averaging over uniform family members, each fixed
+random-tape decision tree succeeds on at most `2^q` of N
+possible functions. For `q<=D-1`, that fraction is at
+most `1/[2(1-2^(-n))]<=4/7<0.99`.
+
+At `n=32,d=2`, **529** chosen Boolean-value observations
+are therefore information-theoretically necessary and sufficient
+for exact complete cloning within this public, nonlinear rank-one,
+nonbijective family. This lower bound applies to **cloning the
+entire function**. It is *not* a 529-query lower bound for
+deciding the image of one target or finding one preimage.
+
+The offline-bridge executable independently exhausts
+all `2^D` scalar degree-two coefficient assignments for
+`n=3,4,5`, computes the actual full truth table and
+bijection status for each, and checks respectively:
+`112/128`, `1,920/2,048`, and
+`63,488/65,536` are nonbijective, matching
+`2^D-2^(D-n)` exactly. This is a finite sanity check
+of the cardinality and uniqueness argument. It does not
+make ordinary linear-algebra counting a novel cryptographic
+hardness assumption.
+
 ## 32-bit randomized source-path check and bit-width correctness
 
 The original `learn` implementation was written for the initial
