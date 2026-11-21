@@ -76,6 +76,14 @@ Until detection every answer is identity, so adaptivity cannot improve this rand
 
 The independent checker now tests **all 246 prefix lengths from 9 through 254** of an eight-bit query order that starts with the nine interpolation basis addresses. For each prefix, the code constructs an explicit rank-one transposition on two unqueried points, proves transcript equality and permutation bijectivity, and computes the full rank one. These 246 controls are additional to its all-permutation three-bit audit. Their updated two-platform source pin will be recorded when the extended workflow completes.
 
+## High-rank rejection is a necessary filter only
+
+A separate source-transparent 32-bit permutation `F(x)=Math.imul(x,0x9e3779b1)>>>0` provides a **high-rank but easily inverted** control. The multiplier is odd, so multiplication is a bijection modulo `2^32`. The independent verifier collects 512 fixed-seed interpolation residuals and finds **27 linearly independent nonlinear output directions** (a rigorous lower bound of 27 on the full residual rank). Thus this candidate decisively evades any proposed *low* output-rank bound of 26 or less.
+
+Yet if the attacker knows the source-level *odd modular multiplication* family, **one chosen query `F(1)` reveals the entire multiplier**. A five-step Newton inversion modulo `2^32` computes its inverse coefficient, and the verifier checks exact recovery of 64 independently chosen target preimages. That attack uses no further oracle queries once the multiplier is recovered. Distinguish this family-specific reconstruction from generic black-box inversion of an unknown permutation.
+
+The contrast is deliberate: small residual rank certifies a candidate weakness under chosen-query access, while a large residual rank alone gives **no positive security lower bound** against source-aware algebraic attacks. This control is an explicit warning against using output-rank screening as a release metric without independent reconstruction and runtime adversaries.
+
 ## Implications and limitations
 
 This gives a mathematically intrinsic **exact** nonlinear output-rank score for permutations. A measured defect span of dimension greater than a proposed rank bound proves that bound false, even without source. Conversely a finite low observed rank is inconclusive because unqueried points can introduce new defect directions. Deterministic or adaptive sparse query attacks against candidate transforms must not treat small sampled rank as proof of a low-rank promise. No single scalar proves obfuscation resistance.
