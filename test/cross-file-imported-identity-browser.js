@@ -169,6 +169,36 @@ async function main(){
           {body:file.code,type:'text/javascript; charset=utf-8'});
     }
   }
+  const mixed=mixedGraph();
+  const mixedBuilt=obfuscateFiles(mixed,{
+    mode:'coo',closedWorld:true,properties:true,
+    identifiers:false,strings:false,
+    seed:'same-graph-private-vs-reflected-owner'
+  });
+  assert.equal(mixedBuilt.crossFile.objects,1,
+    'Private owner should be provably renamed despite reflected sibling');
+  assert.equal(mixedBuilt.crossFile.properties,2);
+  const mixedCompiled=mixedBuilt.files.map(file=>({
+    path:file.path,code:String(file.code)
+  }));
+  const mixedMangled=await mangleGraph(mixed);
+  const privateNative=mixed.find(file=>file.path==='private-state.mjs');
+  const privateCompiled=mixedCompiled.find(file=>file.path==='private-state.mjs');
+  const publicCompiled=mixedCompiled.find(file=>file.path==='public-state.mjs');
+  const publicMangled=mixedMangled.find(file=>file.path==='public-state.mjs');
+  assert.ok(privateNative&&privateCompiled&&publicCompiled&&publicMangled);
+  assert.match(privateNative.code,/secretField|otherField/u);
+  assert.doesNotMatch(privateCompiled.code,/secretField|otherField/u);
+  assert.match(publicCompiled.code,/secretField|otherField/u);
+  assert.doesNotMatch(publicMangled.code,/secretField|otherField/u);
+  for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
+    [['native',mixed],['compiled',mixedCompiled],['mangled',mixedMangled]])){
+    for(const file of files){
+      assets.set('/mixed/'+variant+'/'+file.path,{
+        body:file.code,type:'text/javascript; charset=utf-8'
+      });
+    }
+  }
   const server=http.createServer((request,response)=>{
     const asset=assets.get(request.url??'');
     if(request.method!=='GET'||!asset){response.writeHead(404).end();return;}
