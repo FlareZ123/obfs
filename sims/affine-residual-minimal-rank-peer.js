@@ -176,6 +176,49 @@ function affineOutputMaskDimension(outputs, bits) {
   return Math.log2(count);
 }
 
+/**
+ * High sampled residual rank is not proof of hard inversion. The odd 32-bit
+ * multiplier is an exactly invertible permutation. If the function *form*
+ * is known, one oracle query at 1 reveals its unknown constant; modular
+ * inversion then recovers every target without additional oracle calls.
+ * @returns {{sampledRankLowerBound:number,heldoutTargets:number,identifiedConstant:number}}
+ */
+function highRankEasyInverse() {
+  const factor = 0x9e3779b1;
+  /** @param {number} x @returns {number} */
+  const oracle = x => Math.imul(x, factor) >>> 0;
+  const columns = Array.from({length: 32}, (_, bit) => oracle((2 ** bit) >>> 0));
+  let state = 0x31a69b73;
+  /** @returns {number} */
+  function next() {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    return state >>> 0;
+  }
+  const residuals = [];
+  for (let i = 0; i < 512; i++) {
+    const x = next();
+    residuals.push((oracle(x) ^ linear(columns, x)) >>> 0);
+  }
+  const sampledRankLowerBound = rank(residuals, 32);
+  assert.equal(sampledRankLowerBound, 27);
+
+  // Under the explicit public *odd multiplication* family promise,
+  // recovering the multiplier needs only a single chosen query.
+  const identifiedConstant = oracle(1);
+  let inverse = identifiedConstant;
+  for (let i = 0; i < 5; i++) {
+    inverse = Math.imul(inverse, 2 - Math.imul(identifiedConstant, inverse)) >>> 0;
+  }
+  assert.equal(Math.imul(identifiedConstant, inverse) >>> 0, 1);
+  for (let i = 0; i < 64; i++) {
+    const input = next();
+    assert.equal(Math.imul(oracle(input), inverse) >>> 0, input);
+  }
+  return {sampledRankLowerBound, heldoutTargets: 64, identifiedConstant};
+}
+
 function main() {
   const matrices = allInvertibleMatrices3();
   const classes = Array(4).fill(0);
@@ -197,11 +240,12 @@ function main() {
   assert.deepEqual(classes, [1344, 9408, 18816, 10752]);
   assert.equal(minimalRankChecks, 128);
   const spoofedTranscriptLengths = noncertifyingTranscripts();
+  const highRankControl = highRankEasyInverse();
   process.stdout.write(JSON.stringify({
     width: 3, permutationsChecked, minimalRankChecks,
     parallelogramIdentityChecks: permutationsChecked,
     affineCoordinateInvarianceChecks: permutationsChecked,
-    rankDistribution: classes, spoofedTranscriptLengths
+    rankDistribution: classes, spoofedTranscriptLengths, highRankControl
   }) + '\n');
 }
 
