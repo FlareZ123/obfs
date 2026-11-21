@@ -1,7 +1,27 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {recover,apply,randomInvertible}=require('./low-rank-affine-orbit-inversion.js');
+const {invertLowRankDeterministic}=require('./affine-low-rank-oracle.js');
+
+/** @param {number[]} columns @param {number} input @returns {number} */
+function apply(columns,input){
+  let value=0;
+  for(let bit=0;bit<columns.length;bit++)if((input>>>bit)&1)value^=columns[bit];
+  return value>>>0;
+}
+
+/** @param {number} n @param {()=>number} rng @returns {number[]} */
+function randomInvertible(n,rng){
+  const cols=Array.from({length:n},(_,i)=>(1<<i)>>>0);
+  for(let j=0;j<12*n;j++){
+    const a=rng()%n;let b=rng()%(n-1);
+    if(b>=a)b++;
+    cols[a]=(cols[a]^cols[b])>>>0;
+    if((rng()&7)===0){const temp=cols[a];cols[a]=cols[b];cols[b]=temp;}
+  }
+  return cols;
+}
+
 
 /** @param {number} seed @returns {()=>number} */
 function random(seed){
@@ -46,14 +66,14 @@ function run(layers,trials,rng){
   for(let i=0;i<trials;i++){
     const F=compose(layers,rng);
     const secret=rng(),target=F(secret);
-    const found=recover(F,32,layers,target);
+    const found=invertLowRankDeterministic(F,target,{bits:32,rankBound:layers});
     assert.equal(found.preimage,secret);
     assert.equal(F(found.preimage),target);
     const bound=33+2**(2*layers);
-    assert.ok(found.queries<=bound);
+    assert.ok(found.oracleCalls<=bound);
     distribution[found.nullity]++;
-    maxQueries=Math.max(maxQueries,found.queries);
-    maxOrbit=Math.max(maxOrbit,found.orbitLength);
+    maxQueries=Math.max(maxQueries,found.oracleCalls);
+    maxOrbit=Math.max(maxOrbit,found.orbitCalls);
   }
   return {layers,trials,distribution,maxQueries,maxOrbit,queryCap:33+2**(2*layers)};
 }
