@@ -96,3 +96,40 @@ test('existing canonical full-path duplicate refusal remains in force',()=>{
     assert.throws(()=>obfuscateFiles(files,{mode}),/Duplicate file/);
   }
 });
+
+
+test('uppercase-equivalent Unicode directory names cannot split an output tree',()=>{
+  const examples=[
+    ['σ','ς'], // Greek sigma and final sigma
+    ['s','ſ']  // Latin s and long s
+  ];
+  for(const [first,second] of examples) {
+    assert.notEqual(first.toLowerCase(),second.toLowerCase());
+    assert.equal(first.toUpperCase(),second.toUpperCase());
+    assertRejectedTree('assets/'+first+'/a.png','assets/'+second+'/b.png',
+      /Ambiguous directory spelling/);
+  }
+});
+
+test('uppercase-equivalent Unicode filenames cannot overwrite each other',()=>{
+  for(const [first,second] of [['σ','ς'],['s','ſ']]) {
+    const files=[entry,asset('assets/'+first+'.png'),asset('assets/'+second+'.png')];
+    for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+      assert.throws(()=>obfuscateFiles(files,{mode}),/Duplicate file/);
+    }
+    assert.throws(()=>createSnoLauncher(files,'entry.cjs'),/Duplicate SNO file/);
+    assert.throws(()=>createScoHandler(files.slice(1)),/Duplicate file/);
+  }
+});
+
+test('lowercase-only aliases remain refused and distinct Unicode siblings emit',()=>{
+  assertRejectedTree('assets/ẞ/a.png','assets/ß/b.png',
+    /Ambiguous directory spelling/);
+  const files=[entry,asset('assets/σ/a.png'),asset('assets/τ/b.png')];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    const output=obfuscateFiles(files,{mode,seed:'greek-distinct-positive'});
+    assert.deepEqual(output.files.map(file=>file.path),files.map(file=>file.path));
+  }
+  assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
+  assert.doesNotThrow(()=>createScoHandler(files.slice(1)));
+});
