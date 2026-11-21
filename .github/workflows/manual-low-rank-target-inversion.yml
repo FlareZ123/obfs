@@ -69,6 +69,8 @@ jobs:
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
         run: node sims/rankthree-random-basis-attack.js
+      - name: Exhaustive ideal-uniform GL4 quadratic clone and tail probability
+        run: node sims/rankthree-uniform-gl4-peer.js
       - name: Bounded-degree full clone to offline nonbijective inversion
         run: node sims/low-rank-nonbijective-offline-clone-bridge.js
       - name: Independent verifier strict JSDoc
