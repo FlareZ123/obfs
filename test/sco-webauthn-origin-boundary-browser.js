@@ -447,7 +447,7 @@ async function main(){
      * @returns {Promise<{proof:string,status:number|null,body:unknown,signingWallMs:number}>}
      */
     async function browserSignedOperation(value,submitValue,method='proofSum'){
-      return page.evaluate(async({rp,rawId,value,submitValue,method,negativeZero})=>{
+      return page.evaluate(async({rp,rawId,value,submitValue,method,negativeZero,negativeZeroIndices})=>{
         const decode=encoded=>{
           const binary=atob(encoded);
           return Uint8Array.from(binary,character=>character.charCodeAt(0));
@@ -460,7 +460,9 @@ async function main(){
         const challengeResponse=await fetch('/proof-challenge',{
           method:'POST',headers:{'content-type':'application/json'},
           body:'{"method":'+JSON.stringify(method)+',"args":['+
-            (negativeZero?'-0':JSON.stringify(value))+']}'
+            (Array.isArray(value)?'['+value.map((item,index)=>
+              negativeZeroIndices.includes(index)?'-0':JSON.stringify(item)).join(',')+']':
+              negativeZero?'-0':JSON.stringify(value))+']}'
         });
         if(!challengeResponse.ok)throw Error('Operation challenge denied');
         const issued=await challengeResponse.json();
@@ -491,7 +493,9 @@ async function main(){
         });
         return {proof,status:response.status,body:await response.json(),signingWallMs};
       },{rp:rpId,rawId:registration,value,submitValue,method,
-        negativeZero:typeof value==='number'&&Object.is(value,-0)});
+        negativeZero:typeof value==='number'&&Object.is(value,-0),
+        negativeZeroIndices:Array.isArray(value)?value.flatMap((item,index)=>
+          Object.is(item,-0)?[index]:[]):[]});
     }
 
     const authorizedProof=await browserSignedOperation(7,7);
@@ -568,9 +572,11 @@ async function main(){
      * @returns {Promise<{status:number,body:unknown}>}
      */
     async function copiedOriginRpc(token,method='protectedSum',value=7,proof){
-      const body=method==='proofZero'&&Object.is(value,-0)?
-        '{"method":"proofZero","args":[-0]}':
-        JSON.stringify({method,args:[value]});
+      /** @param {number} item @returns {string} */
+      const literal=item=>Object.is(item,-0)?'-0':JSON.stringify(item);
+      const encoded=Array.isArray(value)?
+        '['+value.map(literal).join(',')+']':literal(value);
+      const body='{"method":'+JSON.stringify(method)+',"args":['+encoded+']}';
       return new Promise((resolve,reject)=>{
         const request=http.request({
           hostname:'127.0.0.1',port,path:'/obfs/rpc',method:'POST',
@@ -806,6 +812,33 @@ async function main(){
       meets2_5xWall:wallRatio<=2.5,
       claim:'wall elapsed includes WebAuthn signing, challenge and RPC; excludes signup and login; cannot establish compute CPU ratio'
     }));
+
+    // The vector verifier must also bind signed zero at every element,
+    // even when the surrounding operation remains the same 128-value batch.
+    const batchSignedZero=batchValues.slice();
+    batchSignedZero[17]=-0;
+    const signedZeroBatch=await browserSignedOperation(
+      batchSignedZero,null,'proofBatch');
+    const batchProofRecord=JSON.parse(
+      Buffer.from(signedZeroBatch.proof,'base64').toString('utf8'));
+    const recordedBatch=operationChallenges.get(batchProofRecord.challengeId)?.value;
+    assert.ok(Array.isArray(recordedBatch) && Object.is(recordedBatch[17],-0));
+    const mismatchedBatch=batchSignedZero.slice();
+    mismatchedBatch[17]=0;
+    const privateBeforeBatch=proofBatchRpcCalls;
+    const substitutedBatch=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',mismatchedBatch,signedZeroBatch.proof);
+    assert.equal(substitutedBatch.status,403);
+    assert.equal(proofBatchRpcCalls,privateBeforeBatch);
+
+    const signedValidZeroBatch=await browserSignedOperation(
+      batchSignedZero,null,'proofBatch');
+    const validZeroBatch=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchSignedZero,signedValidZeroBatch.proof);
+    assert.equal(validZeroBatch.status,200);
+    assert.deepEqual(validZeroBatch.body,{ok:true,value:
+      batchSignedZero.map(value=>(value*17+29)>>>0)});
+    assert.equal(proofBatchRpcCalls,privateBeforeBatch+1);
 
     const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
