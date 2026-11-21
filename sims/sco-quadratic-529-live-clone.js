@@ -65,13 +65,15 @@ async function cloneAuthorizedQuadratic(access){
  *   transcriptSha256:string,privateExecutions:number,deniedStatus:number,
  *   originalBytes:number,publishedBytes:number,
  *   privateIdentifiersPublished:boolean,cubicNegativeAtSeven:boolean,
+ *   nonzeroQuadraticCoefficients:number,
  *   offlineAfterServerClose:boolean
  * }>}
  */
 async function runChallenge(){
-  const raw=randomBytes(6);
+  const raw=randomBytes(2);
   const a=1+raw[0]%31;
-  const b=1+raw[1]%31;
+  // Distinct shifts prevent a degenerate constant private function.
+  const b=1+(a+raw[1]%30)%31;
   const constant=randomBytes(4).readUInt32BE(0);
   const source=[
     'const OBFS_PRIVATE_ROTATE_A='+a+';',
@@ -143,6 +145,9 @@ async function runChallenge(){
       origin,method:selected.methodNames.protectedQuadratic,credential:TOKEN
     });
     assert.equal(privateExecutions,529);
+    const nonzeroQuadraticCoefficients=recovered.model.coefficients
+      .slice(33).filter(([,value])=>value!==0).length;
+    assert.ok(nonzeroQuadraticCoefficients>0,'Expected genuine degree-two target');
     const closed=server;
     /** @type {Promise<void>} */
     const done=new Promise((resolve,reject)=>
@@ -177,6 +182,7 @@ async function runChallenge(){
       originalBytes:Buffer.byteLength(source),
       publishedBytes:Buffer.byteLength(publicCode),
       privateIdentifiersPublished:leaked,cubicNegativeAtSeven,
+      nonzeroQuadraticCoefficients,
       offlineAfterServerClose
     };
   }finally{
