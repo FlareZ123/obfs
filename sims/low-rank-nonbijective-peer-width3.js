@@ -92,7 +92,7 @@ function main() {
     affineCandidateChecks: 0,
     maxCandidates: 0,
     minNonzeroResidualFunctionalSupport: 8,
-    witnessMax: null,
+    witnessMax: /** @type {{A:number[],U:number[],V:number[],encoded:number,target:number,rankM:number,rankW:number}|null} */ (null),
     sampleLowerBoundChecks: 0
   };
 
