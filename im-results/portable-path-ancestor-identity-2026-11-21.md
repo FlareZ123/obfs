@@ -49,8 +49,14 @@ passed on both operating systems including strict JSDoc and related
 existing file-path/Node package-scope regressions.
 
 This is an executable before/after witness, not a proof of full equivalence
-on arbitrary programs. The complete integration workflow is separately
-dispatched, and conclusions about its result require its exact run/sha.
+on arbitrary programs. The source-pinned
+[full integration 44942628389](https://github.com/FlareZ123/obfs/actions/runs/44942628389)
+also completed successfully on Ubuntu and Windows at the exact patched
+implementation and test source `60dbb3fb90a1c2aac942f6c9f25cfdeb891ea40e`.
+That gate includes the existing Node behavior/adversarial suites, JSDoc checks,
+sampled benchmarks and Ubuntu Chromium integrations. It is an integration
+result for that immutable commit, rather than a universal correctness,
+security or 2.5× budget proof.
 
 ## Implementation
 
