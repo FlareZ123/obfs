@@ -57,3 +57,20 @@ test('explicit escape spelling and valid astral pairs remain eligible',()=>{
     }
   }
 });
+
+
+test('default string encoding preserves escaped isolated UTF-16 units on publication',()=>{
+  const source='module.exports="left\\ud800right";';
+  const nativeValue=new Function('module',source+'return module.exports;')({exports:null});
+  assert.equal(nativeValue.charCodeAt(4),0xd800);
+  for(const mode of modes){
+    const out=obfuscateFiles([
+      {path:'entry.cjs',code:source,sourceType:'commonjs'}
+    ],{mode,seed:'escaped-surrogate-encoder-default',identifiers:false,properties:false});
+    const emitted=out.files[0].code;
+    assert.equal(typeof emitted,'string');
+    assert.equal(Buffer.from(emitted,'utf8').toString('utf8'),emitted);
+    const published=new Function('module',emitted+'return module.exports;')({exports:null});
+    assert.equal(published,nativeValue);
+  }
+});
