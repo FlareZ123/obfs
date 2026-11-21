@@ -15,11 +15,30 @@ const {safePath} = require('./core');
  */
 function createSnoLauncher(files,entry) {
   const checkedEntry = safePath(entry);
+  if(!Array.isArray(files))throw new TypeError('SNO files must be an array');
+  // Read each indexed caller entry and its bytes exactly once. A package
+  // scope getter, filename getter or mutable Buffer cannot describe a
+  // different manifest after the entry or package checks have run.
+  /** @type {{path:string,code:string|Buffer}[]} */
+  const snapshots=[];
+  const length=files.length;
+  for(let index=0;index<length;index++){
+    const file=files[index];
+    if(!file||typeof file!=='object'){
+      throw new TypeError('SNO files must contain indexed file records');
+    }
+    const name=safePath(file.path);
+    const supplied=file.code;
+    if(typeof supplied!=='string'&&!Buffer.isBuffer(supplied)){
+      throw new TypeError(name+' content must be a string or Buffer');
+    }
+    snapshots.push({path:name,code:Buffer.isBuffer(supplied)?Buffer.from(supplied):supplied});
+  }
   // Root launcher path cannot also be a protected input file.
-  if (files.some(file => safePath(file.path).toLowerCase() === 'sno-entry.cjs')) {
+  if (snapshots.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
     throw new Error('SNO launcher path is reserved: sno-entry.cjs');
   }
-  if (!files.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);
+  if (!snapshots.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);
   if (!/\.(?:cjs|js)$/.test(checkedEntry)) throw new Error('SNO entry must be a CommonJS .cjs or .js file');
   // A nested package.json overrides its parent scope for a .js entry.
   // The direct API must reject this too, not only the CLI preflight.
@@ -27,7 +46,7 @@ function createSnoLauncher(files,entry) {
     let directory=path.posix.dirname(checkedEntry);
     for (;;) {
       const packageName=path.posix.join(directory,'package.json');
-      const packageFile=files.find(file=>file.path===packageName);
+      const packageFile=snapshots.find(file=>file.path===packageName);
       if (packageFile) {
         if(Buffer.isBuffer(packageFile.code)&&!isUtf8(packageFile.code)) {
           throw new TypeError('Invalid UTF-8 package metadata: '+packageName);
@@ -48,7 +67,7 @@ function createSnoLauncher(files,entry) {
   const seen=new Set();
   /** @type {[string,string][]} */
   const manifest=[];
-  for(const file of files) {
+  for(const file of snapshots) {
     const name=safePath(file.path);
     const key=name.normalize('NFC').toLowerCase();
     if(seen.has(key))throw new TypeError('Duplicate SNO file: '+name);
