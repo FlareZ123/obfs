@@ -10,7 +10,7 @@ Let \(V=\mathrm{GF}(2)^n\), and suppose the hidden oracle is a **permutation** \
 F(x)=c\oplus A(x)\oplus W(g(x)),
 \]
 
-where \(A\in GL(n,2)\), \(W\) is any linear map whose image has dimension at most \(r\), and \(g\) is **completely arbitrary**. Its nonlinear output coordinates can interact, be state-dependent within the purely functional oracle, and have unknown/high algebraic degree. The attacker knows only \(n\), an upper bound \(r\), a target \(y\), and has chosen-input access to \(F\).
+where \(A\in GL(n,2)\), \(W\) is any linear map whose image has dimension at most \(r\), and \(g\) is **completely arbitrary**. Its nonlinear output coordinates can interact and depend arbitrarily on the complete input vector, with unknown/high algebraic degree. The oracle must be a fixed deterministic function across all queries. The attacker knows only \(n\), an upper bound \(r\), a target \(y\), and has chosen-input access to \(F\).
 
 There is a Las Vegas exact inverter with at most \(2^r\) post-setup orbit queries and expected total oracle calls
 
