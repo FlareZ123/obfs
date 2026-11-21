@@ -16,10 +16,14 @@ function topBit(x){let value=x,bit=-1;while(value){value>>=1n;bit++;}return bit;
 /**
  * @param {(x:number)=>number} oracle A promised degree<=2 full oracle
  * @param {number} n
- * @param {number} maxProjectionRank
+ * @param {number} maxProjectionRank Required externally justified upper bound,
+ *   at most 3. Incorrect rank promises can yield silently wrong early clones.
  * @returns {{evaluate:(x:number)=>number,queries:number,early:boolean,rank:number,pivots:number}}
  */
-function cloneQuadratic(oracle,n,maxProjectionRank=3){
+function cloneQuadratic(oracle,n,maxProjectionRank){
+  assert.ok(Number.isInteger(n)&&n>=1&&n<=32,'input bit width must be 1..32');
+  assert.ok(Number.isInteger(maxProjectionRank)&&maxProjectionRank>=0&&
+    maxProjectionRank<=Math.min(3,n),'explicit rank promise 0..3 is required');
   /** @type {Map<number,number>} */
   const cache=new Map();
   /** @param {number} x @returns {number} */
