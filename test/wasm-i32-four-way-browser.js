@@ -104,24 +104,27 @@ async function main(){
         label:'event-'+i+(i%47===0?'終':'')
       }));
       /**
-       * Direct selected-kernel work uses precisely the same typed input
-       * contract while removing the bridge's string/array callback cost.
-       * The checksum is observed and compared across all four variants.
+       * Each delivered variant receives a separate closed-over work function,
+       * avoiding one polymorphic JS call site shared across native, minified,
+       * Wasm and reconstructed functions. A shared call site distorted the
+       * initial sample through cross-variant JIT inline-cache state.
        * @param {(a:number,b:number,c:number,d:number)=>number} scramble
        * @param {(x:number)=>number} mask
-       * @param {number} rounds
-       * @returns {number}
+       * @returns {(rounds:number)=>number}
        */
-      function selectedWork(scramble,mask,rounds){
-        let checksum=0;
-        for(let i=0;i<rounds;i++){
-          const a=Math.imul(i^0x9bf34621,0x9e3779b1)|0;
-          const b=Math.imul(i+71,1664525)|0;
-          const c=Math.imul(i+149,1013904223)|0;
-          const d=(i>>>3)&31;
-          checksum^=(scramble(a,b,c,d)^mask(a))|0;
-        }
-        return checksum;
+      function selectedRunner(scramble,mask){
+        /** @param {number} rounds @returns {number} */
+        return function runSelected(rounds){
+          let checksum=0;
+          for(let i=0;i<rounds;i++){
+            const a=Math.imul(i^0x9bf34621,0x9e3779b1)|0;
+            const b=Math.imul(i+71,1664525)|0;
+            const c=Math.imul(i+149,1013904223)|0;
+            const d=(i>>>3)&31;
+            checksum^=(scramble(a,b,c,d)^mask(a))|0;
+          }
+          return checksum;
+        };
       }
       let comparisons=0,selectedComparisons=0;
       for(let trial=0;trial<12;trial++){
@@ -167,9 +170,10 @@ async function main(){
             scramble:(a:number,b:number,c:number,d:number)=>number,
             mask:(x:number)=>number
           }} */ (await import('/'+variant+'/10000/'+trial+'/kernel.mjs'));
-          selectedWork(kernel.scramble,kernel.mask,16384);
+          const runSelected=selectedRunner(kernel.scramble,kernel.mask);
+          runSelected(16384);
           const selectedStart=performance.now();
-          const selectedChecksum=selectedWork(kernel.scramble,kernel.mask,200000);
+          const selectedChecksum=runSelected(200000);
           const selectedEnd=performance.now();
           if(selectedReference!==undefined&&selectedChecksum!==selectedReference)
             throw Error('Four-way selected-kernel checksum mismatch '+variant+'/'+trial);
