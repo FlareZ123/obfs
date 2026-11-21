@@ -663,7 +663,7 @@ function width32ProjectedRankWitness(){
 function outOfDegreePromiseControl() {
   const n=12;
   /** @param {number} x @returns {number} */
-  const F=x=>x^(((((x>>>1)&1)&((x>>>2)&1)&((x>>>3)&1))?1:0);
+  const F=x=>x^(((((x>>>1)&1)&((x>>>2)&1)&((x>>>3)&1))?1:0));
   const misclassifiedTarget=0x0e, hiddenPreimage=0x0f;
   const incomplete=learnLowDegree(F,n,2);
   assert.equal(incomplete.residual.length,0);
