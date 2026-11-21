@@ -1644,28 +1644,112 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
+
+  // Object.create accepts a descriptor map, including maps returned by local
+  // functions and referenced through local aliases. Trace precisely known
+  // getters to avoid changing the decoder when they expose String.prototype.
+  // This summary is monotonic and may conservatively refuse on reassignment.
+  const objectCreateAliases=new Set();
+  const sensitiveCreateDescriptorMaps=new Set();
+  const sensitiveCreateDescriptorFactories=new Set();
+  /**
+   * @param {import('./ast').AstNode} descriptor
+   * @returns {boolean}
+   */
+  function sensitiveCreateGetter(descriptor) {
+    if(descriptor.type!=='ObjectExpression')return false;
+    return descriptor.properties.some((/** @type {import('./ast').AstNode} */ field)=>{
+      if(field.type!=='Property')return false;
+      const key=field.computed?staticString(field.key):
+        field.key.type==='Identifier'?field.key.name:staticString(field.key);
+      return (key===null||key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(field.value);
+    });
+  }
+  /**
+   * @param {import('./ast').AstNode} map
+   * @returns {boolean}
+   */
+  function sensitiveCreateDescriptorMap(map) {
+    if(map.type==='Identifier')return sensitiveCreateDescriptorMaps.has(map.name);
+    if(map.type==='CallExpression'&&map.callee.type==='Identifier') {
+      return sensitiveCreateDescriptorFactories.has(map.callee.name);
+    }
+    if(map.type==='SequenceExpression')return map.expressions.some(
+      (/** @type {import('./ast').AstNode} */ part)=>sensitiveCreateDescriptorMap(part));
+    if(map.type==='ConditionalExpression')return (
+      sensitiveCreateDescriptorMap(map.consequent)||
+      sensitiveCreateDescriptorMap(map.alternate));
+    if(map.type==='LogicalExpression')return (
+      sensitiveCreateDescriptorMap(map.left)||sensitiveCreateDescriptorMap(map.right));
+    if(map.type!=='ObjectExpression')return false;
+    return map.properties.some((/** @type {import('./ast').AstNode} */ field)=>
+      field.type==='SpreadElement'&&sensitiveCreateDescriptorMap(field.argument)||
+      field.type==='Property'&&sensitiveCreateGetter(field.value));
+  }
+  /**
+   * @param {import('./ast').AstNode} fn
+   * @returns {boolean}
+   */
+  function functionReturnsSensitiveCreateDescriptorMap(fn) {
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
+       fn.async||fn.generator)return false;
+    if(fn.body.type!=='BlockStatement')return sensitiveCreateDescriptorMap(fn.body);
+    let found=false;
+    walk(fn.body,(node,_parent,_key,ancestors)=>{
+      if(found||node.type!=='ReturnStatement'||!node.argument)return;
+      if(ancestors.some((/** @type {import('./ast').AstNode} */ owner)=>
+        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+         'ClassDeclaration','ClassExpression'].includes(owner.type)))return;
+      if(sensitiveCreateDescriptorMap(node.argument))found=true;
+    });
+    return found;
+  }
+  let discoveredCreateDescriptor;
+  do {
+    discoveredCreateDescriptor=false;
+    walk(ast,node=>{
+      /** @param {Set<string>} target @param {string} name */
+      function add(target,name) {
+        if(!target.has(name)){target.add(name);discoveredCreateDescriptor=true;}
+      }
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         functionReturnsSensitiveCreateDescriptorMap(node)) {
+        add(sensitiveCreateDescriptorFactories,node.id.name);
+      }
+      let name;
+      let value;
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier') {
+        name=node.id.name;
+        value=node.init;
+      } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+                node.left.type==='Identifier') {
+        name=node.left.name;
+        value=node.right;
+      }
+      if(!name||!value)return;
+      if(value.type==='MemberExpression'&&isObjectIntrinsic(value.object)&&
+         memberName(value)==='create'||value.type==='Identifier'&&
+         objectCreateAliases.has(value.name))add(objectCreateAliases,name);
+      if(sensitiveCreateDescriptorMap(value))add(sensitiveCreateDescriptorMaps,name);
+      if(functionReturnsSensitiveCreateDescriptorMap(value)) {
+        add(sensitiveCreateDescriptorFactories,name);
+      }
+    });
+  } while(discoveredCreateDescriptor);
   let mutated=opaqueReflectiveSensitiveWrite;
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
       return;
     }
-    // Object.create installs accessor descriptors during construction. A
-    // getter may expose String.prototype to an otherwise untracked receiver,
-    // allowing a later write to corrupt the eager string decoder.
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'&&
-       node.arguments[1]?.type==='ObjectExpression'&&
-       node.arguments[1].properties.some(
-         (/** @type {import('./ast').AstNode} */ property)=>
-           property.type==='Property'&&property.value.type==='ObjectExpression'&&
-           property.value.properties.some(
-             (/** @type {import('./ast').AstNode} */ descriptor)=>
-               descriptor.type==='Property'&&
-               (descriptor.computed?staticString(descriptor.key):
-                 descriptor.key.type==='Identifier'?descriptor.key.name:
-                   staticString(descriptor.key))==='get'&&
-               proxyGetMayReturnDecoderIntrinsic(descriptor.value)))) {
+    // A captured Object.create factory or a local descriptor-map alias can
+    // install a getter that exposes a mutable decoder intrinsic.
+    if(node.type==='CallExpression'&&node.arguments[1]&&
+       (node.callee.type==='MemberExpression'&&
+          isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='create'||
+        node.callee.type==='Identifier'&&objectCreateAliases.has(node.callee.name))&&
+       sensitiveCreateDescriptorMap(node.arguments[1])) {
       mutated=true;
       return;
     }
