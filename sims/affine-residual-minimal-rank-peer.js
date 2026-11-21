@@ -280,6 +280,11 @@ function main() {
     assert.equal(nonlinearAnfCoefficientRank(f, 3), observed);
     assert.equal(affineOutputMaskDimension(f, 3), 3 - observed);
     assert.equal(interpolationRank(affineConjugate(f), 3), observed);
+    // EA output addition cancels in all second-order derivatives even if
+    // the resulting vectorial map is not itself a permutation.
+    const conjugate = affineConjugate(f);
+    const ea = conjugate.map((value, x) => value ^ linear([1, 5, 7], x));
+    assert.equal(interpolationRank(ea, 3), observed);
     classes[observed]++;
     if (permutationsChecked % 317 === 0) {
       assert.equal(bruteMinimalRank(f, matrices), observed);
