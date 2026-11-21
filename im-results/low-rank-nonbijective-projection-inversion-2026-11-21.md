@@ -209,7 +209,14 @@ controls for the family, not a general theorem proof by enumeration.
 
 The result rules out an input-projection-free extension of the
 `O(2^r)` non-injective image-membership decision criterion at fixed
-output rank `r=2`. It does not conflict with the separate,
+output rank `r=2`. **Do not confuse this oracle lower bound with
+obfuscation security:** an attacker holding published COO files or
+full-control SNO filesystem/memory can read an explicitly encoded hidden
+location or instrument its check. Even for SCO private code, the
+specified unlimited authorized request model, side channels and
+unmodeled static leakage require separate attack and runtime-cost
+comparisons. The lower bound considers *only forward black-box
+evaluation* of a particular promised family, and charges all queries. It does not conflict with the separate,
 already-established **permutation** inversion attacks, whose
 bijectivity promise excludes the negative baseline here.
 
