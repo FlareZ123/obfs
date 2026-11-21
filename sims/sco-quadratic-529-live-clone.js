@@ -58,8 +58,8 @@ async function cloneAuthorizedQuadratic(access){
 /**
  * End-to-end test: the trusted SCO server keeps a different, randomly chosen
  * degree-two Boolean function body in private source. An authenticated
- * adversary learns its full 32-bit input/output behavior through 529 public
- * RPC observations. The trusted server is then shut down before any held-out
+ * adversary learns its full 32-bit input/output behavior through 529 generic
+ * degree-two observations or two source-family-aware observations. The trusted server is then shut down before any held-out
  * verification against the offline model. No source or secret recovery claim.
  *
  * @returns {Promise<{
@@ -127,10 +127,11 @@ async function runChallenge(options={}){
         /** @type {number} */ (args[0])>=0&&
         /** @type {number} */ (args[0])<2**32
     }));
+    const activeServer=server;
     /** @type {Promise<void>} */
     const ready=new Promise((resolve,reject)=>{
-      server.once('error',reject);
-      server.listen(0,'127.0.0.1',()=>resolve());
+      activeServer.once('error',reject);
+      activeServer.listen(0,'127.0.0.1',()=>resolve());
     });
     await ready;
     const address=server.address();
@@ -227,9 +228,10 @@ async function runChallenge(options={}){
     };
   }finally{
     if(server){
+      const remainingServer=server;
       /** @type {Promise<void>} */
       const done=new Promise((resolve,reject)=>
-        server.close(error=>error?reject(error):resolve()));
+        remainingServer.close(error=>error?reject(error):resolve()));
       await done;
     }
   }
