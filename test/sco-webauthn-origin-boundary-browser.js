@@ -568,7 +568,19 @@ async function main(){
       exportedCookie.value,'proofSum',8,signedForOtherInput.proof);
     assert.equal(copiedSubstituted.status,403);
     assert.equal(proofRpcCalls,1);
+    const signedTampered=await browserSignedOperation(7,null);
+    const modifiedProof=JSON.parse(Buffer.from(signedTampered.proof,'base64').toString('utf8'));
+    modifiedProof.signature=Buffer.alloc(64).toString('base64');
+    const badProof=Buffer.from(JSON.stringify(modifiedProof)).toString('base64');
+    const copiedBadSignature=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,badProof);
+    assert.equal(copiedBadSignature.status,403);
+    assert.equal(proofRpcCalls,1);
+
     const signedAndForwarded=await browserSignedOperation(7,null);
+    const copiedFreshWithoutSession=await copiedOriginRpc(
+      undefined,'proofSum',7,signedAndForwarded.proof);
+    assert.equal(copiedFreshWithoutSession.status,403);
     const copiedFreshProof=await copiedOriginRpc(
       exportedCookie.value,'proofSum',7,signedAndForwarded.proof);
     assert.equal(copiedFreshProof.status,200);
@@ -579,7 +591,12 @@ async function main(){
     assert.equal(copiedReplay.status,403);
     assert.equal(proofRpcCalls,2);
 
+    const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
+    const revokedValidProof=await copiedOriginRpc(
+      exportedCookie.value,'proofSum',7,signedBeforeRevocation.proof);
+    assert.equal(revokedValidProof.status,403);
+    assert.equal(proofRpcCalls,2);
     const afterRevocation=await copiedOriginRpc(exportedCookie.value);
     assert.equal(afterRevocation.status,403);
     assert.equal(privateRpcCalls,2);
@@ -605,6 +622,9 @@ async function main(){
       copiedOriginArgumentSubstitutionStatus:copiedSubstituted.status,
       copiedOriginFreshAuthorizedProofStatus:copiedFreshProof.status,
       copiedOriginFreshProofReplayStatus:copiedReplay.status,
+      copiedOriginBadSignatureStatus:copiedBadSignature.status,
+      copiedOriginFreshProofWithoutSessionStatus:copiedFreshWithoutSession.status,
+      revokedSessionWithUnusedValidProofStatus:revokedValidProof.status,
       observedBrowserSigningWallMs:authorizedProof.signingWallMs,
       pageJavascriptCookieVisible:authorized.jsCookie.length>0,
       debuggerCanExportHttpOnlySession:true,
