@@ -2,6 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const path = require('node:path');
+const {isUtf8} = require('node:buffer');
 const {safePath} = require('./core');
 
 /**
@@ -28,6 +29,9 @@ function createSnoLauncher(files,entry) {
       const packageName=path.posix.join(directory,'package.json');
       const packageFile=files.find(file=>file.path===packageName);
       if (packageFile) {
+        if(Buffer.isBuffer(packageFile.code)&&!isUtf8(packageFile.code)) {
+          throw new TypeError('Invalid UTF-8 package metadata: '+packageName);
+        }
         if (JSON.parse(String(packageFile.code)).type==='module') {
           throw new Error('SNO CommonJS launcher cannot require an ESM .js entry; use .cjs');
         }
