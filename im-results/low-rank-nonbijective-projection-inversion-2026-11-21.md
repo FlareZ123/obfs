@@ -134,6 +134,25 @@ forward queries and the rank/degree promises, with neither the affine
 core nor the output directions supplied. This validates a genuinely
 noninjective 32-bit non-projection instance locally.
 
+A new **full parameter enumeration** at width three checks
+all **42** ordered independent rank-two input projections,
+all **42** independent output bases, and every one of
+the **256** possible two-bit to two-bit nonlinear truth tables,
+for **451,584** represented functions at public `A=I,b=0`.
+It checks **all eight targets per function**, totaling **3,612,672**
+exact classification comparisons against independently enumerated
+8-point output truth tables. Of the parameterizations,
+**379,008** are nonbijective and **261,504** have a singular
+public affine interpolant. Each deterministic learner makes exactly
+seven degree-two training observations, with at most four candidate
+inputs subsequently checked. This fully enumerates that finite
+low-rank input/output projection parameter space, with repetitions
+allowed between equivalent representations. It does not exhaust all
+32-bit or arbitrary JavaScript mappings, and it does not test a
+different hidden full-rank A directly. Locally this expanded complete
+standalone witness took about five seconds on Node 22.16.0; a matching
+Windows/Ubuntu source-pinned CI result is still required.
+
 The original deterministic width-12 source including 192 finite
 fixtures passed source-pinned Ubuntu/Windows Node 22 and strict JSDoc
 in [manual run 44955704794](https://github.com/FlareZ123/obfs/actions/runs/44955704794)
