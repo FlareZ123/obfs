@@ -24,7 +24,7 @@ function source(index){
     'if(host.gate(a)){',
     "host.tick('yes');",
     'a=(a+host.step('+b+'))|0;',
-    'if(host.fault(a)){throw host.makeError(a);}',
+    'if(host.fault(a)){host.makeError(a);return (a+b)|0;}',
     '}else{',
     "host.tick('no');",
     'b=(b+host.step('+a+'))|0;',
@@ -176,4 +176,20 @@ test('independent hostile-host callback and exceptional-iterator compatibility o
   }
   assert.equal(fused,48);
   assert.equal(checked,48*16*2*3);
+});
+
+test('host-visible explicit throw refuses compact native CFG rewrite',()=>{
+  const unsafe=source(0).replace(
+    'host.makeError(a);return (a+b)|0;',
+    'throw host.makeError(a);'
+  );
+  assert.match(unsafe,/throw host\.makeError/u);
+  for(const compactCases of [false,true]){
+    const output=flattenStatementFlow(unsafe,'commonjs',{
+      seed:'host-visible-throw-refusal',names:['f'],compactCases
+    });
+    assert.equal(output.functions,0);
+    assert.equal(output.declined,1);
+    assert.equal(output.code,unsafe);
+  }
 });
