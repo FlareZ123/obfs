@@ -83,6 +83,8 @@ async function main(){
   let publicKey=null;
   let credentialId='';
   let acceptedAssertions=0;
+  /** @type {string|null} */
+  let lastAcceptedAssertion=null;
   let port=0;
 
   const server=http.createServer(async(request,response)=>{
@@ -165,6 +167,7 @@ async function main(){
         }
         challenges.delete(body.challengeId);
         acceptedAssertions++;
+        lastAcceptedAssertion=JSON.stringify(body);
         const session=randomBytes(32).toString('hex');
         activeSessions.add(session);
         response.writeHead(200,{
@@ -313,6 +316,13 @@ async function main(){
     assert.equal(authorized.status,200);
     assert.deepEqual(authorized.body,{ok:true,value:148});
     assert.equal(privateRpcCalls,1);
+    assert.ok(lastAcceptedAssertion);
+    const reusedAssertion=await fetch(allowedOrigin+'/verify',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:lastAcceptedAssertion
+    });
+    assert.equal(reusedAssertion.status,403,'consumed WebAuthn challenge replay');
+    assert.equal(acceptedAssertions,2);
 
     const debuggerCookies=await page.browserContext().cookies([allowedOrigin]);
     const exportedCookie=debuggerCookies.find(cookie=>cookie.name==='webauthn_session');
@@ -424,6 +434,7 @@ async function main(){
       copiedOriginWithoutSessionStatus:withoutBearer.status,
       copiedOriginWithSessionStatus:copiedBearer.status,
       copiedOriginBodyMatchesAuthorized:JSON.stringify(copiedBearer.body)===JSON.stringify(authorized.body),
+      consumedAssertionReplayStatus:reusedAssertion.status,
       implication:'WebAuthn RP-binding prevents copied-origin credential assertions, but a conventional post-admission HttpOnly bearer session remains portable through raw HTTP under hostile-client control.'
     }));
   }finally{
