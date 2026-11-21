@@ -102,6 +102,46 @@ function sourceOnlyReference(target) {
   return null;
 }
 
+/**
+ * Exhaust every input and target of a degree-two, 8-bit noninjective
+ * function with a singular affine core (nullity two) and rank-two
+ * quadratic output displacement. The observable envelope has nullity
+ * four, so local candidate enumeration reaches sixteen inputs.
+ * @returns {{bits:number,degree:number,trainingCalls:number,targets:number,reachable:number,unreachable:number,maxCandidates:number}}
+ */
+function singularOfflineControl() {
+  /** @param {number} x @returns {number} */
+  const F=x=>(((x&63)<<2)^
+    ((((x&1)&&((x>>>4)&1))?1:0)<<2)^
+    (((((x>>>1)&1)&&((x>>>5)&1))?1:0)<<3))>>>0;
+  let live=true,trainingCalls=0;
+  const model=learnBoundedDegreeOracle(x=>{
+    if(!live)throw new Error('Singular control made an extra live query');
+    trainingCalls++;
+    return F(x);
+  },8,2);
+  live=false;
+  assert.equal(trainingCalls,37);
+  const envelope=makeOfflineEnvelope(model);
+  assert.equal(envelope.residual.length,2);
+  /** @type {Map<number,number>} */
+  const image=new Map();
+  for(let x=0;x<256;x++)image.set(F(x),x);
+  let reachable=0,unreachable=0,maxCandidates=0;
+  for(let y=0;y<256;y++){
+    const result=offlineInvert(envelope,y);
+    const has=image.has(y);
+    assert.equal(result.answer!==null,has);
+    if(result.answer!==null){assert.equal(F(result.answer),y);reachable++;}
+    else unreachable++;
+    maxCandidates=Math.max(maxCandidates,result.candidates);
+    assert.equal(result.candidates,((y&3)===0)?16:0);
+  }
+  assert.equal(maxCandidates,16);
+  assert.equal(trainingCalls,37);
+  return {bits:8,degree:2,trainingCalls,targets:256,reachable,unreachable,maxCandidates};
+}
+
 /** @returns {object} */
 function main(){
   let attackerQueries=0,live=true;
@@ -134,10 +174,12 @@ function main(){
     attackerFittingQueries:attackerQueries,postTrainingOracleCalls:0,
     publicCoefficientCount:model.coefficients.length,
     observedNonlinearResidualRank:envelope.residual.length,
-    classifiedTargets:2048,reachable,unreachable,maxCandidates};
+    classifiedTargets:2048,reachable,unreachable,maxCandidates,
+    singularOfflineControl:singularOfflineControl()};
   console.log(JSON.stringify(summary));
   return summary;
 }
 
 if(require.main===module)main();
-module.exports={makeOfflineEnvelope,offlineInvert,originalQuadratic,main};
+module.exports={makeOfflineEnvelope,offlineInvert,originalQuadratic,
+  singularOfflineControl,main};
