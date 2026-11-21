@@ -51,11 +51,12 @@ test('a file cannot also name an ancestor directory in an output tree',()=>{
 });
 
 test('SCO explicit public path inventory refuses ambiguous ancestor spelling',()=>{
-  assert.throws(()=>createScoHandler([entry],{
-    publicPaths:['assets/Icons/a.png','assets/icons/b.png']
+  const files=[asset('base.png')];
+  assert.throws(()=>createScoHandler(files,{
+    publicPaths:['base.png','assets/Icons/a.png','assets/icons/b.png']
   }),/Ambiguous directory spelling/);
-  assert.throws(()=>createScoHandler([entry],{
-    publicPaths:['assets/item.png','assets/item.png/child.png']
+  assert.throws(()=>createScoHandler(files,{
+    publicPaths:['base.png','assets/item.png','assets/item.png/child.png']
   }),/File conflicts with directory/);
 });
 
