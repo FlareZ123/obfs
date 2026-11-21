@@ -3568,6 +3568,28 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           node.left.type==='Identifier' ? node.left : null;
       const value=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
+      // Verified computed strings can first resolve globalThis[key] into a
+      // Performance alias here. Propagate that alias to simple later bindings.
+      if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+         performanceRoots.has(value.name) &&
+         !performanceRoots.has(binding.name)){
+        performanceRoots.add(binding.name);
+        loaderChanged=true;
+      }
+      const pattern=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      if(pattern?.type==='ObjectPattern' && value?.type==='Identifier' &&
+         globals.has(value.name)){
+        for(const property of pattern.properties){
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed ? knownKey(property.key) :
+            property.key.type==='Identifier'?property.key.name:null;
+          if(key==='performance'&&!performanceRoots.has(property.value.name)){
+            performanceRoots.add(property.value.name);
+            loaderChanged=true;
+          }
+        }
+      }
       if(binding?.type!=='Identifier'||value?.type!=='MemberExpression'||
          value.object.type!=='Identifier'||!globals.has(value.object.name))return;
       const key=value.computed ? knownKey(value.property) :
