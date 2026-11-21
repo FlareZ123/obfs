@@ -11,7 +11,10 @@ const {
  * @returns {{
  *   node:string,platform:string,cpuModel:string,
  *   limits:{browserSigningIncluded:boolean,challengeSerializationIncluded:boolean},
- *   profiles:ReturnType<typeof profile>[]
+ *   profiles:ReturnType<typeof profile>[],
+ *   placebo:{samples:{firstCpuUs:number,secondCpuUs:number}[],
+ *     pairedRatios:number[],strictBreachesOver2_5x:number,
+ *     maxPairRatio:number}
  * }}
  */
 function runBatchedBudgetProbe(){
@@ -23,11 +26,28 @@ function runBatchedBudgetProbe(){
     profile('small-batch-32',500,4000,fixtures,32,32),
     profile('small-batch-128',500,4000,fixtures,32,128)
   ];
+  /** @type {{firstCpuUs:number,secondCpuUs:number}[]} */
+  const placeboSamples=[];
+  for(let index=0;index<7;index++){
+    const first=runBatch(500,4000,false,fixtures,32);
+    const second=runBatch(500,4000,false,fixtures,32);
+    assert.equal(first.checksum,second.checksum);
+    assert.ok(first.cpuUs>0&&second.cpuUs>0);
+    placeboSamples.push({firstCpuUs:first.cpuUs,secondCpuUs:second.cpuUs});
+  }
+  const placeboRatios=placeboSamples.map(pair=>
+    pair.secondCpuUs/pair.firstCpuUs);
   return {
     node:process.version,platform:process.platform,
     cpuModel:os.cpus()[0]?.model??'unknown',
     limits:{browserSigningIncluded:false,challengeSerializationIncluded:false},
-    profiles:results
+    profiles:results,
+    placebo:{
+      samples:placeboSamples,
+      pairedRatios:placeboRatios,
+      strictBreachesOver2_5x:placeboRatios.filter(ratio=>ratio>2.5).length,
+      maxPairRatio:Math.max(...placeboRatios)
+    }
   };
 }
 
