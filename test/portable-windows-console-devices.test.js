@@ -16,16 +16,15 @@ const entry={path:'entry.cjs',sourceType:/** @type {const} */('commonjs'),
   code:'module.exports=17;'};
 
 for(const device of ['CONIN$','CONOUT$','conin$','CoNoUt$']){
-  test('portable inventory refuses bare Win32 console device '+device,()=>{
+  test('prefixed Win32 console device spelling is a valid ordinary asset '+device,()=>{
     const files=[entry,asset('assets/'+device)];
     for(const mode of /** @type {const} */(['coo','sno','sco'])){
-      assert.throws(()=>obfuscateFiles(files,{mode}),
-        /Unsafe Windows filename segment/,mode);
+      const output=obfuscateFiles(files,{mode});
+      assert.deepEqual(output.files.map(file=>file.path),
+        files.map(file=>file.path));
     }
-    assert.throws(()=>createSnoLauncher(files,'entry.cjs'),
-      /Unsafe Windows filename segment/);
-    assert.throws(()=>createScoHandler(files.slice(1)),
-      /Unsafe Windows filename segment/);
+    assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
+    assert.doesNotThrow(()=>createScoHandler(files.slice(1)));
   });
 }
 
@@ -38,7 +37,7 @@ test('non-bare console names retain positive acceptance',()=>{
   }
 });
 
-test('Windows Node filesystem treats bare CONIN$/CONOUT$ as device names',async(t)=>{
+test('Windows Node filesystem treats directory-prefixed CONIN$/CONOUT$ as ordinary files',async(t)=>{
   if(process.platform!=='win32')return t.skip('Windows-only native Win32 path audit');
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-condevice-'));
   try{
@@ -60,6 +59,9 @@ test('Windows Node filesystem treats bare CONIN$/CONOUT$ as device names',async(
       }
       console.log('WIN32_DEVICE_PATH_AUDIT '+JSON.stringify({
         device,writeError,lstatError,readback}));
+      assert.equal(writeError,undefined,device+' should be writable with a parent directory');
+      assert.equal(lstatError,undefined,device+' should be stat-able with a parent directory');
+      assert.equal(readback,'witness',device+' should round trip verbatim');
     }
   }finally{
     await fs.rm(root,{recursive:true,force:true});
