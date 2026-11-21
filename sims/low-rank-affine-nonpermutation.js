@@ -2,8 +2,8 @@
 
 /**
  * Chosen-query inversion of F(x)=b XOR A*x XOR U*g(V*x) over GF(2).
- * This standalone proof witness uses n<=16 so its finite domain can be
- * independently exhausted. There are no imports from the obfuscator.
+ * This standalone proof witness exhausts small finite domains and also
+ * checks selected unsigned 32-bit oracles. It does not import the obfuscator.
  */
 const assert = require('node:assert/strict');
 const {randomInt}=require('node:crypto');
@@ -147,20 +147,24 @@ function solveAffinePreimageCandidates(columns, rhs, n) {
  *   Deterministic seeded test generators prove only their fixed transcript.
  * @returns {{base:number,columns:number[],residual:number[],observed:Map<number,number>,samples:number}}
  */
-function learn(oracle, n, rankBound, failureProbability, random = () => randomInt(0,1<<n)) {
+function learn(oracle, n, rankBound, failureProbability, random = () => randomInt(0,2**n)) {
+  if(!Number.isInteger(n)||n<1||n>32)throw new RangeError('Expected 1..32 GF(2) bits');
+  const mask=n===32?0xffffffff:2**n-1;
+  /** @type {Map<number,number>} */
   const observed = new Map();
   /** @param {number} x */
   function ask(x) {
-    if (!observed.has(x)) observed.set(x, oracle(x));
-    return /** @type {number} */ (observed.get(x));
+    const key=x>>>0;
+    if (!observed.has(key)) observed.set(key, oracle(key)>>>0);
+    return /** @type {number} */ (observed.get(key));
   }
   const base = ask(0);
-  const columns = Array.from({length:n}, (_,i) => ask(1 << i) ^ base);
+  const columns = Array.from({length:n}, (_,i) => ask((2**i)>>>0) ^ base);
   const residual = newSpan(n);
   const samples = rankBound ? Math.ceil(2 ** rankBound *
     Math.log((2 ** rankBound - 1) / failureProbability)) : 0;
   for (let i = 0; i < samples; i++) {
-    const x = random() & ((1 << n) - 1);
+    const x=((random()>>>0)&mask)>>>0;
     const rest = ask(x) ^ base ^ applyColumns(columns, x);
     addToSpan(residual, rest);
   }
@@ -605,6 +609,51 @@ function singularAffineDegreeWitness() {
     nonbijectiveFixtures,maxEnvelopeNullity,maxCandidateCount};
 }
 
+/**
+ * Exercise the uniformly random learner at the full 32-bit width under
+ * a genuine rank-two input projection and independent output masks.
+ * A separate crypto-default smoke oracle has zero residual and cannot
+ * fail its truth check even if the random samples vary across CI runs.
+ * @returns {{bits:number,cryptoSmokeSamples:number,rankBound:number,trainingQueries:number,heldoutTargetChecks:number,reachable:number,unreachable:number,highBitSampled:number,maxCandidateCount:number}}
+ */
+function width32ProjectedRankWitness(){
+  const bits=32,rankBound=2;
+  const inputMasks=[0x55aa55aa,0x0f0f0f0f];
+  const outputMasks=[0x9e3779bb,0x85ebca6f];
+  /** @param {number} x @returns {number} */
+  function projectedOracle(x){
+    const z=parity(x&inputMasks[0])|(parity(x&inputMasks[1])<<1);
+    return (x^(z===3?outputMasks[0]:0)^(z===2?outputMasks[1]:0))>>>0;
+  }
+  const cryptoSmoke=learn(x=>x>>>0,bits,1,1e-8);
+  assert.equal(cryptoSmoke.residual.length,0);
+  const training=learn(projectedOracle,bits,rankBound,1e-10,
+    randomFromSeed(0x4cf7e5b1));
+  assert.ok(training.residual.length<=rankBound);
+  const highBitSampled=Array.from(training.observed.keys())
+    .filter(x=>(x>>>31)!==0).length;
+  assert.ok(highBitSampled>0);
+  let reachable=0,unreachable=0,maxCandidateCount=0;
+  const random=randomFromSeed(0x714bc52e);
+  const heldoutTargetChecks=1024;
+  for(let i=0;i<heldoutTargetChecks;i++){
+    const x=random();
+    const target=i%2===0?projectedOracle(x):x;
+    const reference=[target,target^outputMasks[0],target^outputMasks[1],
+      target^outputMasks[0]^outputMasks[1]];
+    const expected=reference.some(candidate=>projectedOracle(candidate>>>0)===target);
+    const verdict=invert(projectedOracle,training,target);
+    assert.equal(verdict.answer!==null,expected);
+    if(verdict.answer!==null)assert.equal(projectedOracle(verdict.answer),target);
+    maxCandidateCount=Math.max(maxCandidateCount,verdict.candidates);
+    if(expected)reachable++;else unreachable++;
+  }
+  assert.ok(reachable>0&&unreachable>0);
+  return {bits,cryptoSmokeSamples:cryptoSmoke.samples,rankBound,
+    trainingQueries:training.observed.size,heldoutTargetChecks,
+    reachable,unreachable,highBitSampled,maxCandidateCount};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -669,7 +718,8 @@ function main() {
     deterministicDegree:deterministicDegreeWitness(),
     width32Deterministic:width32DeterministicQuadratic(),
     width3Exhaustive:width3ExhaustiveNonbijective(),
-    singularAffine:singularAffineDegreeWitness()};
+    singularAffine:singularAffineDegreeWitness(),
+    width32Projected:width32ProjectedRankWitness()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
@@ -677,6 +727,7 @@ function main() {
 if (require.main===module) main();
 module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
   deterministicDegreeWitness,width32DeterministicQuadratic,
-  width3ExhaustiveNonbijective,singularAffineDegreeWitness,envelopeNullity,
+  width3ExhaustiveNonbijective,singularAffineDegreeWitness,
+  width32ProjectedRankWitness,envelopeNullity,
   applyRows,applyColumns,solveAffinePreimageCandidates,
   outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
