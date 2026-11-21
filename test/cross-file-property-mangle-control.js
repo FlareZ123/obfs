@@ -143,12 +143,18 @@ async function main(){
     await page.goto('http://127.0.0.1:'+address.port+'/index.html',
       {waitUntil:'domcontentloaded',timeout:45000});
     const data=await page.evaluate(async()=>{
-      const n=await import('/positive/native/entry.mjs');
-      const p=await import('/positive/protected/entry.mjs');
-      const m=await import('/positive/mangled/bundle.mjs');
-      const rn=await import('/reflective/native/entry.mjs');
-      const rp=await import('/reflective/protected/entry.mjs');
-      const rm=await import('/reflective/mangled/bundle.mjs');
+      const positiveNative='/positive/native/entry.mjs';
+      const positiveProtected='/positive/protected/entry.mjs';
+      const positiveMangled='/positive/mangled/bundle.mjs';
+      const reflectiveNative='/reflective/native/entry.mjs';
+      const reflectiveProtected='/reflective/protected/entry.mjs';
+      const reflectiveMangled='/reflective/mangled/bundle.mjs';
+      const n=/** @type {{run:(a:number)=>number}} */ (await import(positiveNative));
+      const p=/** @type {{run:(a:number)=>number}} */ (await import(positiveProtected));
+      const m=/** @type {{run:(a:number)=>number}} */ (await import(positiveMangled));
+      const rn=/** @type {{run:(a:number)=>[string[],number]}} */ (await import(reflectiveNative));
+      const rp=/** @type {{run:(a:number)=>[string[],number]}} */ (await import(reflectiveProtected));
+      const rm=/** @type {{run:(a:number)=>[string[],number]}} */ (await import(reflectiveMangled));
       const reflected=JSON.stringify(rn.run(0));
       if(JSON.stringify(rp.run(0))!==reflected)
         throw Error('Proof-based reflective refusal changed semantics');
