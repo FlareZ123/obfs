@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const http=require('node:http');
 const {createHash}=require('node:crypto');
+const {transform}=require('esbuild');
 const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=require('../src');
 const {cloneInHashBasis}=require('./rankthree-random-basis-attack');
 
@@ -73,6 +74,98 @@ async function learn(access){
       transcript.update(JSON.stringify([error.input,value])+'\n');
     }
   }
+}
+
+/**
+ * Same-trust conventional private API: minified ESM is loaded only on the
+ * trusted server and exposed through the identical authenticated RPC surface.
+ * This tests whether the obfuscator creates any extra functional-oracle
+ * cloning barrier beyond ordinary private backend placement.
+ *
+ * @param {string} source
+ * @param {string} method
+ * @param {{queryCount:number,transcriptSha256:string}} expected
+ * @returns {Promise<{queries:number,executions:number,deniedStatus:number,
+ *   minifiedBytes:number,minifiedSha256:string,transcriptSha256:string,
+ *   matched:number,heldouts:number,offlineAfterClose:boolean}>}
+ */
+async function runConventionalControl(source,method,expected){
+  const minified=(await transform(source,{
+    format:'esm',loader:'js',minify:true,target:'es2022'
+  })).code;
+  const module=await import('data:text/javascript,'+encodeURIComponent(minified));
+  let executions=0;
+  const server=http.createServer(async(req,res)=>{
+    if(req.method!=='POST'||req.url!=='/obfs/rpc'||
+       req.headers['x-demo-session']!==TOKEN){
+      res.statusCode=403;
+      res.end(JSON.stringify({ok:false}));
+      return;
+    }
+    let body='';
+    for await(const chunk of req)body+=String(chunk);
+    /** @type {{method?:unknown,args?:unknown}} */
+    const message=JSON.parse(body);
+    if(message.method!==method||!Array.isArray(message.args)||
+       message.args.length!==1||!Number.isInteger(message.args[0])||
+       message.args[0]<0||message.args[0]>=2**32){
+      res.statusCode=403;
+      res.end(JSON.stringify({ok:false}));
+      return;
+    }
+    const value=await module.protectedRank3(message.args[0]);
+    executions++;
+    res.setHeader('content-type','application/json');
+    res.end(JSON.stringify({ok:true,value}));
+  });
+  /** @type {Promise<void>} */
+  const ready=new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve());
+  });
+  await ready;
+  const address=server.address();
+  assert.ok(address&&typeof address!=='string');
+  const origin='http://127.0.0.1:'+address.port;
+  /** @type {ReturnType<typeof learn>|undefined} */
+  let pending;
+  /** @type {Awaited<ReturnType<typeof learn>>|undefined} */
+  let fitted;
+  let deniedStatus=0;
+  try{
+    const denied=await fetch(origin+'/obfs/rpc',{
+      method:'POST',headers:{'content-type':'application/json'},
+      body:JSON.stringify({method,args:[7]})
+    });
+    deniedStatus=denied.status;
+    assert.equal(deniedStatus,403);
+    pending=learn({origin,method,credential:TOKEN});
+    fitted=await pending;
+    assert.equal(fitted.queryCount,expected.queryCount);
+    assert.equal(fitted.transcriptSha256,expected.transcriptSha256);
+    assert.equal(executions,fitted.queryCount);
+  }finally{
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await closed;
+  }
+  assert.ok(fitted);
+  let matched=0,heldouts=0;
+  for(let i=0;heldouts<1028;i++){
+    const input=createHash('sha256').update('conventional-heldout-'+i)
+      .digest().readUInt32BE(0);
+    if(fitted.observed.has(input))continue;
+    if(fitted.evaluate(input)===await module.protectedRank3(input))matched++;
+    heldouts++;
+  }
+  assert.equal(matched,heldouts);
+  assert.equal(executions,fitted.queryCount);
+  return {
+    queries:fitted.queryCount,executions,deniedStatus,
+    minifiedBytes:Buffer.byteLength(minified),
+    minifiedSha256:createHash('sha256').update(minified).digest('hex'),
+    transcriptSha256:fitted.transcriptSha256,matched,heldouts,offlineAfterClose:true
+  };
 }
 
 /**
