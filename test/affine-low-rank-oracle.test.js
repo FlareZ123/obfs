@@ -230,3 +230,23 @@ test('all 331,776 four-fiber rank-two permutations at width four',()=>{
   }
   assert.equal(verified,5308416);
 });
+
+test('near worst-case 65,519-state orbit at 32 bits and rank bound 16',()=>{
+  const lowMask=0xffff;
+  /** @param {number} low @returns {boolean} */
+  const fixed=low=>low===0||(low&(low-1))===0;
+  /** @param {number} input @returns {number} */
+  const oracle=input=>{
+    const low=input&lowMask;
+    if(fixed(low))return input>>>0;
+    let successor=(low+1)&lowMask;
+    while(fixed(successor))successor=(successor+1)&lowMask;
+    return ((input&0xffff0000)|successor)>>>0;
+  };
+  assert.equal(oracle(3),5);
+  const result=invertLowRankPermutation(oracle,5,{bits:32,rankBound:16});
+  assert.equal(result.preimage,3);
+  assert.equal(result.nullity,0);
+  assert.equal(result.cycleLength,65519);
+  assert.equal(result.oracleCalls,65552);
+});
