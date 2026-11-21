@@ -333,3 +333,25 @@ a universal protected-runtime cost guarantee is established.
 Next actions: check run 44936804321 completion/failures, correct if
 necessary, document source-pinned reproducibility, then explore other
 bounded semantic parity bugs with no unverified protection claims.
+
+
+### 2026-11-21 18:49 UTC follow-up, same immutable lease
+
+Replaced TextDecoder with Node 22's `node:buffer.isUtf8` byte validation in
+`src/cli.js`, preserving valid BOMs and source strings and avoiding
+ICU-dependent decoding. Expanded `test/cli-utf8-input.test.js` to six
+malformed-byte classes for each .js/.mjs/.cjs; fixture writes use existing
+`atomicWrite`. Both SNO nearest-package inference paths now reject malformed
+UTF-8 package Buffers: `src/cli.js` at `f0e53662`, `src/sno.js` at
+`60c007a6`, and two tests in `test/sno-package-utf8.test.js`.
+The complete source/test branch
+`agent4/utf8-source-package-final-20261121` is pinned at
+`6c639d3d1efc6125ed7cb8ffdc160cfca793c66f`; exact full CI run is
+[44937302595](https://github.com/FlareZ123/obfs/actions/runs/44937302595),
+in progress at this checkpoint. The superseded initial TextDecoder CI
+[44936804321](https://github.com/FlareZ123/obfs/actions/runs/44936804321)
+completed success, but it does not validate the final native implementation.
+The bounded intermediate report is
+`im-results/utf8-source-admission-2026-11-21.md`; main README now links it
+from an `Input encoding` section. Do not generalize this compile-time
+admission improvement to hostile-runtime secrecy or an original runtime budget.
