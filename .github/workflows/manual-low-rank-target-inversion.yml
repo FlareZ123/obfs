@@ -35,6 +35,8 @@ jobs:
         run: node sims/affine-low-rank-peer-check.js
       - name: Matched rank-r versus public-residual oracle calls
         run: node sims/affine-low-rank-method-comparison.js
+      - name: Intrinsic affine-residual rank exact small-domain verifier
+        run: node sims/affine-residual-minimal-rank-peer.js
       - name: Independent verifier strict JSDoc
         run: npx --no-install tsc -p jsconfig.affine-low-rank-peer.json
       - name: Project JSDoc type safety
