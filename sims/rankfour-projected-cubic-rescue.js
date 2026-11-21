@@ -238,7 +238,7 @@ function main(){
     const quadratic=Array.from({length:6},()=>draw());
     const cubic=Array.from({length:4},()=>draw());
     if(trial%3===0)cubic.fill(0);
-    else if(cubic.every(x=>x===0))cubic[0]=1;
+    else if(cubic.reduce((x,y)=>x|y,0)===0)cubic[0]=1;
     const offset=draw();
     /** @param {number} x @returns {number} */
     const F=x=>{
