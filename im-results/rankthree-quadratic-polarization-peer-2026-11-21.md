@@ -81,13 +81,17 @@ The script checks its own call count and the 244 conservative cap for every n32 
 
 ## Relation to stronger rank-three cubic-or-quadratic clone
 
-Agent 22's [rank-three projected full-functional cloning](rankthree-projection-third-derivative-functional-clone-2026-11-21.md) first tests the third derivative. A successful cubic witness gives a complete model by his method. On the **truly quadratic** branch, replacing its generic C(n,2) pair interpolation with the source above improves the conservative 32-bit attack cap.
+Agent 22's [rank-three projected full-functional cloning](rankthree-projection-third-derivative-functional-clone-2026-11-21.md) first tests the third derivative. A successful cubic witness gives a complete model by his method. On the **truly quadratic** branch, this independently verified rank-three Gram learner replaces generic C(n,2) pair interpolation.
 
-With 58 independent uniform triple probes for the cubic stage and 49 independent pairs for the quadratic fallback, the *whole degree<=3, input-projection-rank<=3* source family has a **650-oracle-call** conservative upper bound at `delta=10^-10` under a shared cache:
+**Subsequent improvement:** Agent 22 observed that every randomly chosen third-derivative triple already queries all eight vertices of the corresponding affine cube, so all three pair polarizations `B(a,b)`, `B(a,c)`, `B(b,c)` are available without extra calls. Keep the earliest nonzero pair as the quadratic fallback witness. For a nonzero scalar alternating rank-two projection, all three pair polarizations vanish on exactly **22 of the 64** ordered triples in `GF(2)^2`; this is `11/32` per trial. A nonzero vector-valued B has at least that scalar witness, so its non-detection probability is bounded by `(11/32)^t`. Independent uniform triple probes with `t=58` give `(11/32)^58 = 1.2649605940688723e-27` for a truly quadratic nonaffine function. The cubic-witness miss probability is `(43/64)^58 = 9.610189081665655e-11`. These risks apply to **mutually exclusive fixed source classes** (cubic-nonzero versus cubic-zero), so their maximum remains below `10^-10`.
 
-`33+7*58+3*49+2*32=650`.
+A fully shared cache and deterministic handoff to the quadratic peer therefore yield a stronger conditional *whole degree<=3, input-projection-rank<=3* full-clone cap of **631 chosen values** at `n=32, delta=10^-10`:
 
-The error events are **case-exclusive for a fixed F**: nonzero cubic functions can only be failed by the missed-cubic-witness event; exactly zero cubic functions have no risk in the cubic stage and can only be failed by the quadratic-witness event. Therefore each phase may individually use the full delta without summing two independent failure probabilities. Agent 22 independently checked this correction in `communications/agent11/20261121T2253Z_agent22_rankthree-fallback-proof-and-confidence.md`. This report documents the quadratic attack and the **derived** 650 combined bound; it does not claim a combined executable build has yet been tested.
+`33 affine basis + 7*58 triple-cube probes + 6*32 cubic-coordinate probes = 631`.
+
+The quadratic fallback uses only 2n coordinate probes and fits under the same cap. This exceeds our initial standalone scope, but validates an application of its two-anchor Gram construction. The integrated implementation is [`sims/rankthree-polarization-oracle-clone.js`](../sims/rankthree-polarization-oracle-clone.js), commit `d6e5c02f2cc616ace5ada9477e5f7b33c910dbb1`. Its source-pinned [GitHub Actions run 44959286105](https://github.com/FlareZ123/obfs/actions/runs/44959286105) succeeded on both Ubuntu and Windows, including independent rank-three quadratic regression and strict JSDoc. I separately enumerated all 64 projected triples and confirmed the 22/64 count in `communications/agent22/20261121T2258Z_agent11_verify-triple-pair-reuse.md`.
+
+The **earlier 650-query composition** used an independent extra random-pair stage and remains a valid looser bound. It is superseded by this cache-reuse 631-query construction. Both conclusions require exactly the fixed low-rank source family and fresh independent uniform sampling for their stated probability, beyond the fixed-seed CI transcripts.
 
 ## Relevance and boundaries
 
