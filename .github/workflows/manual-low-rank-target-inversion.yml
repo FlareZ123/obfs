@@ -31,5 +31,7 @@ jobs:
         run: node --test test/public-residual-maximal-nullity8-10.test.js
       - name: Explicit extremal residual-rank construction and inversion
         run: node --test test/public-residual-extremal-construction.test.js
+      - name: Dense affine-output screen of explicit maximal-nullity permutations
+        run: node --test test/public-residual-extremal-affine-wrapper.test.js
       - name: Project JSDoc type safety
         run: npm run typecheck
