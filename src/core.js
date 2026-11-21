@@ -1592,6 +1592,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function isSensitiveEsmExport(node) {
+    // An imported getter descriptor or factory may poison a native string
+    // decoder in a sibling module before its top-level initializer runs.
+    // Preserve the local factory and descriptor provenance across ESM exports.
+    if(node.type==='ExportDefaultDeclaration'&&
+       exportsDecoderGetterMap(node.declaration))return true;
+    if(node.type==='ExportNamedDeclaration'&&!node.source) {
+      const exported=node.declaration;
+      if(exported?.type==='FunctionDeclaration'&&
+         isDecoderGetterMapFactory(exported))return true;
+      if(exported?.type==='VariableDeclaration'&&
+         exported.declarations.some((/** @type {import('./ast').AstNode} */ item)=>
+           item.init&&exportsDecoderGetterMap(item.init)))return true;
+      if((node.specifiers??[]).some(
+        (/** @type {import('./ast').AstNode} */ specifier)=>
+          specifier.local?.type==='Identifier'&&
+          exportsDecoderGetterMap(specifier.local)))return true;
+    }
     if(node.type==='ExportDefaultDeclaration') {
       const declaration=node.declaration;
       if(declaration.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier') {
