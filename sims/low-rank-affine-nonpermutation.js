@@ -231,6 +231,31 @@ function generate(n, r, kind, random) {
   return x => (b ^ applyRows(A, x) ^ applyColumns(U, g[applyRows(V,x)])) >>> 0;
 }
 
+/**
+ * Deliberately violate the low-dimensional *input* projection promise.
+ * Two rare modifications live in a two-dimensional output subspace, but
+ * detecting their support needs many input coordinates. A deterministic
+ * sampler that misses both produces an incomplete residual span and an
+ * incorrect image-membership answer. This is an out-of-promise negative
+ * control, not a random-tail falsification under the promised model.
+ * @returns {{inputProjectionPromiseBroken:true,hiddenPreimage:number,missedTarget:number,sampledResidualRank:number}}
+ */
+function outOfPromiseControl() {
+  const n=12;
+  const hiddenPreimage=0x5a8;
+  const missedTarget=hiddenPreimage^1;
+  const movedAgain=hiddenPreimage^2;
+  /** @param {number} x @returns {number} */
+  const oracle=x=>x===hiddenPreimage?missedTarget:x===missedTarget?movedAgain:x;
+  const learned=learn(oracle,n,2,1e-10,()=>0);
+  assert.equal(learned.residual.length,0);
+  assert.equal(oracle(hiddenPreimage),missedTarget);
+  assert.equal(oracle(missedTarget),movedAgain);
+  assert.equal(invert(oracle,learned,missedTarget).answer,null);
+  return {inputProjectionPromiseBroken:true,hiddenPreimage,missedTarget,
+    sampledResidualRank:learned.residual.length};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -289,10 +314,12 @@ function main() {
   const result={cases,n,rankBounds:rValues,nontrivial,singular,noTrainingTarget,
     totalQueries,maxQueries,maxCandidates,nonbijective,noImageChecks,allTargetChecks,
     meanQueryBudget:totalQueries/cases,
-    delta,independentExecutable:__filename};
+    delta,independentExecutable:__filename,
+    outOfPromiseCounterexample:outOfPromiseControl()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
 
 if (require.main===module) main();
-module.exports={learn,invert,generate,applyRows,applyColumns,solveAffinePreimageCandidates,main};
+module.exports={learn,invert,generate,applyRows,applyColumns,solveAffinePreimageCandidates,
+  outOfPromiseControl,main};
