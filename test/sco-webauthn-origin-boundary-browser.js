@@ -628,6 +628,40 @@ async function main(){
     assert.equal(copiedReplay.status,403);
     assert.equal(proofRpcCalls,2);
 
+    const batchNoProof=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues);
+    assert.equal(batchNoProof.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+    const signedBatchMutation=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const mutatedBatch=batchValues.slice();
+    mutatedBatch[63]++;
+    const batchArgumentMutation=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',mutatedBatch,signedBatchMutation.proof);
+    assert.equal(batchArgumentMutation.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+
+    const signedBatchPermutation=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const shuffledBatch=batchValues.slice();
+    [shuffledBatch[13],shuffledBatch[14]]=[shuffledBatch[14],shuffledBatch[13]];
+    const batchOrderSwap=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',shuffledBatch,signedBatchPermutation.proof);
+    assert.equal(batchOrderSwap.status,403);
+    assert.equal(proofBatchRpcCalls,1);
+
+    const signedBatchRelay=await browserSignedOperation(
+      batchValues,null,'proofBatch');
+    const copiedFreshBatch=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues,signedBatchRelay.proof);
+    assert.equal(copiedFreshBatch.status,200);
+    assert.deepEqual(copiedFreshBatch.body,{ok:true,value:batchExpected});
+    assert.equal(proofBatchRpcCalls,2);
+    const copiedBatchReplay=await copiedOriginRpc(
+      exportedCookie.value,'proofBatch',batchValues,signedBatchRelay.proof);
+    assert.equal(copiedBatchReplay.status,403);
+    assert.equal(proofBatchRpcCalls,2);
+
     const signedBeforeRevocation=await browserSignedOperation(7,null);
     activeSessions.delete(exportedCookie.value);
     const revokedValidProof=await copiedOriginRpc(
@@ -652,6 +686,15 @@ async function main(){
       acceptedAssertions,
       privateRpcCalls,
       proofRpcCalls,
+      proofBatchRpcCalls,
+      authorizedBatchCount:batchValues.length,
+      authorizedBatchStatus:authorizedBatch.status,
+      copiedBatchWithoutProofStatus:batchNoProof.status,
+      copiedBatchArgumentMutationStatus:batchArgumentMutation.status,
+      copiedBatchReorderedStatus:batchOrderSwap.status,
+      copiedBatchFreshAuthorizedProofStatus:copiedFreshBatch.status,
+      copiedBatchSignedProofReplayStatus:copiedBatchReplay.status,
+      copiedBatchOutputsMatchNative:true,
       authorizedPrivateRpcStatus:authorized.status,
       authorizedProofRpcStatus:authorizedProof.status,
       copiedOriginProofWithoutAssertionStatus:copiedNoProof.status,
