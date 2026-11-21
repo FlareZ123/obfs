@@ -46,6 +46,14 @@ function safePath(file) {
     if (/[. ]$/u.test(segment) || /^(?:con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/iu.test(segment)) {
       throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
     }
+    // On NTFS, LONGNAME.MJS can also resolve through LONGNA~1.MJS.
+    // Deny common 8.3 alias spellings at build admission, including nested
+    // directory components, before Windows output writes or source routing.
+    // Short-name generation is volume-dependent, so this is a conservative
+    // policy rather than a complete filesystem-identity proof.
+    if (/~[0-9]+(?=\.|$)/u.test(segment)) {
+      throw new TypeError(`Unsafe Windows short-name alias segment: ${segment}`);
+    }
   }
   const normalized = path.posix.normalize(file);
   if (normalized === '..' || normalized.startsWith('../') || normalized === '.' || normalized !== file) {

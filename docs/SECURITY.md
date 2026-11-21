@@ -4,6 +4,28 @@
 
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
+
+## Windows DOS 8.3 output-path aliases
+
+Windows filesystems may create a second, shortened 8.3 path for an ordinary
+long filename. For example, a source-pinned Windows filesystem probe observed
+`privateLongOriginal.mjs` also readable through `PRIVAT~1.MJS` while the
+Linux runner kept such paths distinct. The compiler, direct SNO launcher and
+SCO publication preflight now conservatively reject supplied filename or
+directory components containing `~` followed by decimal digits before a
+period or component end. This guards common short-alias spellings even when
+the input was prepared on a filesystem with different name semantics.
+
+The check intentionally refuses some independent filenames, and 8.3 name
+creation and spelling are filesystem- and volume-dependent. A verified 8.3
+pattern does not imply every possible short-name alias is covered. Validate
+output deployments on their actual filesystem and deny external mutation of
+the trusted build directory. This is an output-path correctness safeguard;
+it gives no independent protection against a filesystem-owning SNO attacker,
+a hostile browser or online SCO relay. The empirical probe is
+`sims/windows-shortname-alias-probe.js` and the admission regressions are in
+`test/windows-device-paths.test.js`.
+
 ## SCO JSON-wire semantics and bounded batch work
 
 The current generated server-controlled async RPC facades use `JSON.stringify` for arguments and `response.json()` for returned values. An RPC boundary therefore proves at most **JSON-wire-value equality** unless the integrator separately restricts every input and output to a verified JSON-compatible domain. JSON may omit own `undefined` fields, replace nonfinite numbers, change negative zero, lose object reference identity and prototypes, and fail on BigInt or cyclic data. The [real HTTP negative witness](../test/sco-json-shape-contract.test.js) finds that the private application returns an own `value:undefined` field that disappears from the published facade's object even while serialized outputs match. This is a scoped semantic limitation, not a server authorization bypass. A caller relying on `Reflect.ownKeys`, property ownership, special numeric values or aliasing must demand a different admitted boundary or an explicitly specified richer transport; do not label arbitrary remote JavaScript return values 1:1 compatible.

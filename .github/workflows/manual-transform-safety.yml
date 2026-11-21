@@ -44,6 +44,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/statement-flow-browser.js
+      - name: Portable path tree, reserved Windows names and DOS shortname admission
+        run: node --test test/portable-path-tree.test.js test/windows-device-paths.test.js
       - name: Cross-mode UTF-8 path alias and Unicode namespace safety
         run: node --test test/utf8-path-alias.test.js
       - name: Nested output junction must not redirect generated source files
