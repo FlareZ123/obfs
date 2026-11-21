@@ -174,7 +174,12 @@ function verifyStructure(values) {
 /** @param {boolean} [quiet] */
 function run(quiet = false) {
   const rng = random(0x8a11d065);
-  const configurations = [{width:5,cases:240},{width:6,cases:160}];
+  const configurations = [
+    {width:5,cases:240,kind:'structured'},
+    {width:6,cases:160,kind:'structured'},
+    {width:5,cases:160,kind:'arbitrary'},
+    {width:6,cases:96,kind:'arbitrary'}
+  ];
   let cases = 0;
   let targets = 0;
   let initiallySingular = 0;
@@ -182,7 +187,7 @@ function run(quiet = false) {
   let maxRepairs = 0;
   let maxExpansions = 0;
   const ranks = new Map();
-  for (const {width, cases:count} of configurations) {
+  for (const {width, cases:count, kind} of configurations) {
     const size = 1 << width;
     for (let i = 0; i < count; i++) {
       const input = randomLinear(width,rng);
@@ -191,12 +196,13 @@ function run(quiet = false) {
       const innerHigh = width===6 ? permutation(8,rng) : null;
       const a = rng() % size;
       const b = rng() % size;
-      const values = Array.from({length:size}, (_,x) => {
-        const value = apply(input,x) ^ a;
-        const low = innerLow[value & 7];
-        const high = innerHigh ? innerHigh[value >>> 3] << 3 : value & ~7;
-        return apply(output,low | high) ^ b;
-      });
+      const values = kind==='arbitrary' ? permutation(size,rng) :
+        Array.from({length:size}, (_,x) => {
+          const value = apply(input,x) ^ a;
+          const low = innerLow[value & 7];
+          const high = innerHigh ? innerHigh[value >>> 3] << 3 : value & ~7;
+          return apply(output,low | high) ^ b;
+        });
       assert.equal(new Set(values).size,size);
       const {r,singular} = verifyStructure(values);
       if (singular) initiallySingular++;
