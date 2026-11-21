@@ -2,7 +2,7 @@
 
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {obfuscateFiles,createScoHandler}=require('../src');
+const {obfuscateFiles,createScoHandler,createSnoLauncher}=require('../src');
 
 /** @type {Array<'coo'|'sno'|'sco'>} */
 const modes=['coo','sno','sco'];
@@ -30,6 +30,15 @@ test('direct SCO handler also refuses raw unpaired source before any HTTP route'
   assert.throws(()=>createScoHandler([
     {path:'entry.js',code:'globalThis.result="'+isolated+'";',sourceType:'script'}
   ]),/JavaScript source contains unpaired surrogate/);
+});
+
+test('direct SNO launcher refuses malformed executable entry text and bytes',()=>{
+  assert.throws(()=>createSnoLauncher([{
+    path:'entry.cjs',code:original
+  }],'entry.cjs'),/JavaScript source contains unpaired surrogate/);
+  assert.throws(()=>createSnoLauncher([{
+    path:'entry.cjs',code:Buffer.from([0xff,0xfe,0x00])
+  }],'entry.cjs'),/Invalid UTF-8 JavaScript source: entry\\.cjs/);
 });
 
 test('explicit escape spelling and valid astral pairs remain eligible',()=>{
