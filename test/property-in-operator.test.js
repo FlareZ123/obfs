@@ -54,10 +54,7 @@ for(const [name,source] of [
     'function check(input){return "secretField" in input;}const bag={secretField:3};module.exports=check(bag);'],
   ['membership before lexical initialization retains TDZ exception',
     'let output;try{output="secretField" in bag;}catch(error){output=error.name;}'+
-    'const bag={secretField:3};module.exports=output;'],
-  ['native prototype accessor is still shadowed by existing own key',
-    'Object.defineProperty(Object.prototype,"secretField",{get(){throw Error("inherited");}});'+
-    'const bag={secretField:3};module.exports="secretField" in bag;']
+    'const bag={secretField:3};module.exports=output;']
 ]) {
   test('proven own membership rewrites local fields in '+name,()=>{
     for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])){
@@ -66,6 +63,16 @@ for(const [name,source] of [
     }
   });
 }
+
+test('prototype mutation with escaping getter is conservatively source-preserved',()=>{
+  const source='Object.defineProperty(Object.prototype,"secretField",'+
+    '{get(){throw Error("inherited");}});'+
+    'const bag={secretField:3};module.exports="secretField" in bag;';
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    const output=compare(source,0,mode);
+    assert.equal(output,source);
+  }
+});
 
 for(const [name,source] of [
   ['unknown inherited membership',
