@@ -496,6 +496,55 @@ function width32DeterministicQuadratic() {
     reachable,unreachable,maxCandidateCount};
 }
 
+/**
+ * Exhaust the complete 2-bit -> 2-bit nonlinear truth table for each
+ * rank-two 3-bit input projection and all independent output bases.
+ * The omitted high-weight training point is never queried in advance.
+ * @returns {{bits:number,outputBases:number,inputProjections:number,oracleMaps:number,classifiedTargets:number,nonbijectiveMaps:number,singularInterpolants:number,maxCandidateCount:number}}
+ */
+function width3ExhaustiveNonbijective() {
+  const bits=3,domain=1<<bits;
+  /** @type {number[][]} */
+  const outputBases=[];
+  for(let left=1;left<domain;left++)for(let right=1;right<domain;right++){
+    if(left!==right)outputBases.push([left,right]);
+  }
+  let oracleMaps=0,classifiedTargets=0,nonbijectiveMaps=0,singularInterpolants=0,maxCandidateCount=0;
+  let inputProjections=0;
+  for(let left=1;left<domain;left++)for(let right=1;right<domain;right++){
+    if(left===right)continue;
+    const inputRows=[left,right];
+    inputProjections++;
+    const projections=Array.from({length:domain},(_,x)=>applyRows(inputRows,x));
+    for(const outputs of outputBases)for(let truth=0;truth<256;truth++){
+      /** @param {number} x @returns {number} */
+      const oracle=x=>x^applyColumns(outputs,(truth>>>(2*projections[x]))&3);
+      const seen=new Uint8Array(domain);
+      for(let x=0;x<domain;x++)seen[oracle(x)]++;
+      if(seen.some(count=>count!==1))nonbijectiveMaps++;
+      const learned=learnLowDegree(oracle,bits,2);
+      assert.equal(learned.observed.size,7);
+      const span=newSpan(bits);
+      for(const column of learned.columns)addToSpan(span,column);
+      if(span.vectors.length<bits)singularInterpolants++;
+      for(let target=0;target<domain;target++){
+        const verdict=invert(oracle,learned,target);
+        assert.equal(verdict.answer===null,seen[target]===0,
+          `width3 U=${outputs.join(',')} V=${inputRows.join(',')} g=${truth} y=${target}`);
+        if(verdict.answer!==null)assert.equal(oracle(verdict.answer),target);
+        assert.ok(verdict.candidates<=4);
+        maxCandidateCount=Math.max(maxCandidateCount,verdict.candidates);
+        classifiedTargets++;
+      }
+      oracleMaps++;
+    }
+  }
+  assert.equal(inputProjections,42);
+  assert.equal(oracleMaps,42*42*256);
+  return {bits,outputBases:outputBases.length,inputProjections,oracleMaps,
+    classifiedTargets,nonbijectiveMaps,singularInterpolants,maxCandidateCount};
+}
+
 /** @returns {object} */
 function main() {
   const n=12, delta=1e-10, rValues=[1,2,3];
@@ -558,13 +607,15 @@ function main() {
     outOfPromiseCounterexample:outOfPromiseControl(),
     rankTwoOutputOnlyLowerBound:outputRankTwoLowerBoundWitness(),
     deterministicDegree:deterministicDegreeWitness(),
-    width32Deterministic:width32DeterministicQuadratic()};
+    width32Deterministic:width32DeterministicQuadratic(),
+    width3Exhaustive:width3ExhaustiveNonbijective()};
   console.log(JSON.stringify(result,null,2));
   return result;
 }
 
 if (require.main===module) main();
 module.exports={learn,learnLowDegree,invert,generate,generateQuadratic,
-  deterministicDegreeWitness,width32DeterministicQuadratic,applyRows,applyColumns,
+  deterministicDegreeWitness,width32DeterministicQuadratic,
+  width3ExhaustiveNonbijective,applyRows,applyColumns,
   solveAffinePreimageCandidates,
   outOfPromiseControl,outputRankTwoLowerBoundWitness,main};
