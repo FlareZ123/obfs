@@ -20,6 +20,6 @@ The integration test now requests four authorized variants and asserts at least 
 
 - Red: [manual cross-reader run 44928133463](https://github.com/FlareZ123/obfs/actions/runs/44928133463), both OS failed only the existing SCO variant assertion (other focused source tests passed).
 - First code-only green: [manual cross-reader run 44928877513](https://github.com/FlareZ123/obfs/actions/runs/44928877513), on exact source `ed7eb438469be11b5869b31a76ba505a83fae03c`, including the original per-request variant test on Ubuntu and Windows.
-- Final run with four-request collision-robust regression: record the exact run and source when available.
+- Final run with four-request collision-robust regression: [manual cross-reader run 44929020760](https://github.com/FlareZ123/obfs/actions/runs/44929020760) completed successfully on **both Ubuntu and Windows** at exact executable SHA `06cc3c6a3c2d2fb79bfe634649a85d77e0438324`. The wider suite includes native/emitted ESM host locks, SNO loader integrity, SCO HTTP policy and project JSDoc on both platforms.
 
 This repair restores one experimentally required SCO behavior for the recognized safe source family. It neither proves that randomized escaped literals resist normalization nor changes the trusted-server and authorized-request-relay threat boundaries. The main strong-protection release remains blocked.
