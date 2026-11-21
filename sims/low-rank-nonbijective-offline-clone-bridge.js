@@ -142,6 +142,45 @@ function singularOfflineControl() {
   return {bits:8,degree:2,trainingCalls,targets:256,reachable,unreachable,maxCandidates};
 }
 
+/**
+ * Exhaust a narrow rank-one quadratic family to independently audit the
+ * exact information-theoretic full-cloning query lower bound. The public
+ * affine core is identity and the public displacement direction is bit 0;
+ * only one unpredictable Boolean response bit remains per oracle call.
+ * @returns {{cases:Array<{bits:number,dimension:number,functions:number,bijective:number,nonbijective:number}>}}
+ */
+function quadraticCloneCountingControl() {
+  /** @type {{bits:number,dimension:number,functions:number,bijective:number,nonbijective:number}[]} */
+  const cases=[];
+  for(const bits of [3,4,5]) {
+    const monomials=[0];
+    for(let i=0;i<bits;i++)monomials.push(1<<i);
+    for(let i=0;i<bits;i++)for(let j=i+1;j<bits;j++)monomials.push((1<<i)|(1<<j));
+    const dimension=monomials.length;
+    let bijective=0,nonbijective=0;
+    for(let coefficients=0;coefficients<2**dimension;coefficients++){
+      const seen=new Uint8Array(1<<bits);
+      let collided=false;
+      for(let x=0;x<(1<<bits);x++){
+        let nonlinearBit=0;
+        for(let i=0;i<dimension;i++){
+          if(((coefficients>>>i)&1)&&((x&monomials[i])===monomials[i]))nonlinearBit^=1;
+        }
+        const y=x^nonlinearBit;
+        if(seen[y])collided=true;
+        seen[y]=1;
+      }
+      if(collided)nonbijective++;
+      else bijective++;
+    }
+    assert.equal(bijective,2**(dimension-bits));
+    assert.equal(nonbijective,2**dimension-bijective);
+    assert.ok(nonbijective>2**(dimension-1));
+    cases.push({bits,dimension,functions:2**dimension,bijective,nonbijective});
+  }
+  return {cases};
+}
+
 /** @returns {object} */
 function main(){
   let attackerQueries=0,live=true;
@@ -175,11 +214,12 @@ function main(){
     publicCoefficientCount:model.coefficients.length,
     observedNonlinearResidualRank:envelope.residual.length,
     classifiedTargets:2048,reachable,unreachable,maxCandidates,
-    singularOfflineControl:singularOfflineControl()};
+    singularOfflineControl:singularOfflineControl(),
+    quadraticRankOneCloneLowerBound:quadraticCloneCountingControl()};
   console.log(JSON.stringify(summary));
   return summary;
 }
 
 if(require.main===module)main();
 module.exports={makeOfflineEnvelope,offlineInvert,originalQuadratic,
-  singularOfflineControl,main};
+  singularOfflineControl,quadraticCloneCountingControl,main};
