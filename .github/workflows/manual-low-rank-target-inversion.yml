@@ -41,6 +41,8 @@ jobs:
         run: node sims/affine-residual-minimal-rank-peer.js
       - name: Nonbijective low-rank image-membership witness
         run: node sims/low-rank-affine-nonpermutation.js
+      - name: Exhaustive independent nonbijective rank-two width-three peer
+        run: node sims/low-rank-nonbijective-peer-width3.js
       - name: Independent verifier strict JSDoc
         run: npx --no-install tsc -p jsconfig.affine-low-rank-peer.json
       - name: Quadratic radical exhaustive oracle attack
