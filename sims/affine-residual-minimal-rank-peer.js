@@ -145,6 +145,37 @@ function noncertifyingTranscripts() {
   return checked;
 }
 
+/**
+ * Count all masks giving scalar affine output components. There are exactly
+ * 2^(n-residualRank) such masks, including the zero mask.
+ * @param {number[]} outputs
+ * @param {number} bits
+ * @returns {number}
+ */
+function affineOutputMaskDimension(outputs, bits) {
+  const base = outputs[0];
+  const interpolant = Array.from({length: bits}, (_, bit) =>
+    (outputs[2 ** bit] ^ base) >>> 0);
+  let count = 0;
+  /** @param {number} value @returns {number} */
+  function parity(value) {
+    let x = value >>> 0;
+    x ^= x >>> 16;
+    x ^= x >>> 8;
+    x ^= x >>> 4;
+    x ^= x >>> 2;
+    x ^= x >>> 1;
+    return x & 1;
+  }
+  for (let mask = 0; mask < 2 ** bits; mask++) {
+    const affine = outputs.every((value, x) =>
+      parity(mask & value) === parity(mask & (base ^ linear(interpolant, x))));
+    if (affine) count++;
+  }
+  assert.equal(Math.log2(count), Math.floor(Math.log2(count)));
+  return Math.log2(count);
+}
+
 function main() {
   const matrices = allInvertibleMatrices3();
   const classes = Array(4).fill(0);
@@ -153,6 +184,7 @@ function main() {
   for (const f of permutations([0, 1, 2, 3, 4, 5, 6, 7])) {
     const observed = interpolationRank(f, 3);
     assert.equal(parallelogramRank(f, 3), observed);
+    assert.equal(affineOutputMaskDimension(f, 3), 3 - observed);
     assert.equal(interpolationRank(affineConjugate(f), 3), observed);
     classes[observed]++;
     if (permutationsChecked % 317 === 0) {
