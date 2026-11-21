@@ -271,6 +271,19 @@ The programmatic API is `require('./src')`, exporting `virtualizeExpressionGraph
 
 **Source disclosure:** COO, SCO, and SNO refuse `.map` sidecar assets, source-map JSON payloads regardless of filename, and real JavaScript `sourceMappingURL` directives, including inline `data:` maps. They also refuse CSS `sourceMappingURL` block comments in standalone `.css` files and in HTML/SVG `<style>` elements; these annotations can otherwise publish the original source inside a base64 map. SVG animation `values` URL sequences are checked state by state. They also refuse executable JavaScript and transpiler input files such as `.js`, `.jsx`, `.ts`, `.tsx`, and `.vue` when supplied as opaque assets. A standards-compliant HTML preflight (`parse5@7.3.0`) refuses static HTML assets containing inline scripts, event handlers, `srcdoc`, or embedded executable URLs while preserving files that reference external transformed scripts. An XML-conformant SVG preflight (`saxes@6.0.0`) similarly refuses embedded SVG scripts, event handlers, executable links and malformed or ambiguous SVG source while preserving static artwork. Remove original-source sidecars and source-map references before obfuscation. A source map can contain the original program in `sourcesContent`; see `docs/SECURITY.md` for the policy, compatibility consequences, and remaining asset-disclosure gaps.
 
+
+**21 November equal-trust Wasm/minifier control:** A
+[source-pinned four-way ESM evaluation](im-results/wasm-i32-four-way-minified-2026-11-21.md)
+compares native JavaScript, esbuild minification, public Wasm and independent
+source-only native reconstruction. Both selected kernels were recovered from
+public output. Whole-app result and external callback traces matched on
+Windows/Linux Node 22 and Chrome 157. Short selected Node work incurred
+>2.5× sampled overhead, while the browser's 10,000-event callback-heavy
+application reported a 1.023× measured median ratio and 0/12 strict paired
+breaches. These findings keep the experimental backend in the RELEASE-BLOCKED
+research category.
+
+
 ## Important limitations
 
 The experimental `--closed-world` property proof relies on an explicit deployment/environment contract beyond the declared ESM import graph. Source-visible intrinsic assignments, descriptor aliases, opaque host callbacks and Proxy traps have all produced real native-versus-generated key-spelling regressions in the regression matrix. Read the [property proof envelope and red/green acceptance lanes](docs/CLOSED_WORLD_PROPERTY_PROOF.md) before treating any cross-file property rewrite as compatible with a target host. A correct refusal preserves semantics but adds no protected-work coverage.
