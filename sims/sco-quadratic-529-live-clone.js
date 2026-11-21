@@ -7,6 +7,7 @@ const {partitionScoSelectedAsyncExports,bindScoModuleExports,createScoHandler}=r
 const {masksOfWeight,learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
   require('./bounded-degree-oracle-functional-clone');
 const {basis}=require('./quadratic-radical-target-inversion');
+const {cloneKnownFamily,evaluateKnownFamily}=require('./sco-quadratic-two-query');
 
 const TOKEN='authorized-quadratic-study-session';
 
@@ -67,10 +68,13 @@ async function cloneAuthorizedQuadratic(access){
  *   originalBytes:number,publishedBytes:number,
  *   privateIdentifiersPublished:boolean,cubicNegativeAtSeven:boolean,
  *   nonzeroQuadraticCoefficients:number,nonlinearOutputRank:number,
- *   offlineAfterServerClose:boolean
+ *   offlineAfterServerClose:boolean,sourceFamilyAware:boolean,
+ *   sourceFamilyCandidatePairs:number
  * }>}
+ * @param {{sourceFamilyAware?:boolean}} [options]
  */
-async function runChallenge(){
+async function runChallenge(options={}){
+  const sourceFamilyAware=options.sourceFamilyAware===true;
   const raw=randomBytes(2);
   let a=1+raw[0]%31;
   // Avoid the (8,16,24) shift subfamily with output residual rank 24.
@@ -152,14 +156,36 @@ async function runChallenge(){
     assert.ok(route?.[1],'Published facade method route not recoverable');
     const publicMethod=route[1];
     assert.equal(publicMethod,selected.methodNames.protectedQuadratic);
-    const recovered=await cloneAuthorizedQuadratic({
-      origin,method:publicMethod,credential:TOKEN
-    });
-    assert.equal(privateExecutions,529);
-    const nonzeroQuadraticCoefficients=recovered.model.coefficients
+    const access={origin,method:publicMethod,credential:TOKEN};
+    /** @type {ReturnType<typeof learnBoundedDegreeOracle>} */
+    let learnedModel;
+    /** @type {(input:number)=>number} */
+    let offlineEvaluate;
+    let queryCount=0;
+    let transcriptSha256='';
+    let sourceFamilyCandidatePairs=0;
+    if(sourceFamilyAware){
+      const recovered=await cloneKnownFamily(access);
+      queryCount=recovered.queryCount;
+      transcriptSha256=recovered.transcriptSha256;
+      sourceFamilyCandidatePairs=recovered.candidatePairs;
+      offlineEvaluate=input=>evaluateKnownFamily(input,recovered.model);
+      learnedModel=learnBoundedDegreeOracle(offlineEvaluate,32,2);
+      // This verifier alone retains the hidden source parameters; the
+      // attacker inferred them from its two legitimate RPC responses.
+      assert.deepEqual(recovered.model,{a,b,offset:constant});
+    }else{
+      const recovered=await cloneAuthorizedQuadratic(access);
+      queryCount=recovered.queryCount;
+      transcriptSha256=recovered.transcriptSha256;
+      learnedModel=recovered.model;
+      offlineEvaluate=input=>evaluateBoundedDegreeModel(learnedModel,input);
+    }
+    assert.equal(privateExecutions,queryCount);
+    const nonzeroQuadraticCoefficients=learnedModel.coefficients
       .slice(33).filter(([,value])=>value!==0).length;
     assert.ok(nonzeroQuadraticCoefficients>0,'Expected genuine degree-two target');
-    const nonlinearOutputRank=basis(recovered.model.coefficients.slice(33)
+    const nonlinearOutputRank=basis(learnedModel.coefficients.slice(33)
       .map(([,value])=>value),32).length;
     assert.equal(nonlinearOutputRank,32,'Expected full quadratic output rank');
     const closed=server;
@@ -177,11 +203,11 @@ async function runChallenge(){
     }
     let matched=0;
     for(const input of selectedInputs){
-      if(evaluateBoundedDegreeModel(recovered.model,input)===
+      if(offlineEvaluate(input)===
           await original.protectedQuadratic(input))matched++;
     }
     assert.equal(matched,selectedInputs.length);
-    assert.equal(privateExecutions,529,'Offline verifier made unexpected RPC call');
+    assert.equal(privateExecutions,queryCount,'Offline verifier made unexpected RPC call');
     // An intentionally cubic function agrees with its zero quadratic model
     // on every <=2-weight fitting query, but fails on the unqueried 0b111.
     const cubic=learnBoundedDegreeOracle(input=>
@@ -189,15 +215,15 @@ async function runChallenge(){
     const cubicNegativeAtSeven=evaluateBoundedDegreeModel(cubic,7)!==1;
     assert.equal(cubicNegativeAtSeven,true);
     return {
-      queries:recovered.queryCount,heldout:selectedInputs.length,matched,
+      queries:queryCount,heldout:selectedInputs.length,matched,
       sourceSha256:createHash('sha256').update(source).digest('hex'),
-      transcriptSha256:recovered.transcriptSha256,
+      transcriptSha256,
       privateExecutions,deniedStatus:denied.status,
       originalBytes:Buffer.byteLength(source),
       publishedBytes:Buffer.byteLength(publicCode),
       privateIdentifiersPublished:leaked,cubicNegativeAtSeven,
       nonzeroQuadraticCoefficients,nonlinearOutputRank,
-      offlineAfterServerClose
+      offlineAfterServerClose,sourceFamilyAware,sourceFamilyCandidatePairs
     };
   }finally{
     if(server){
