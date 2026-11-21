@@ -30,17 +30,19 @@ t=\left\lceil\frac{\ln\delta}{\ln(43/64)}\right\rceil
 independent uniformly random input triples and at most
 
 \[
-Q\le
-n+1+7t+
-\max\left(6n,{n\choose2}\right)
+Q\le n+1+7t+6n=7n+1+7t
 \]
 
-distinct chosen-oracle evaluations. The two branches reflect a
-nonzero cubic coefficient versus exact quadratic fallback. At n=32,
-delta=10^-10, t=58 with (43/64)^58 around
-9.610189081665655e-11, the cubic branch needs at most **631** values,
-and the worst-case quadratic fallback at most **935**. The clone
-then evaluates unlimited future inputs with **zero additional live
+distinct chosen-oracle evaluations. The two branches are
+a nonzero cubic coefficient with at most 6n extra finite-difference
+values and a cubic-free quadratic fallback with at most 2n
+additional Gram-signature values. The quadratic branch reuses
+polar pairs already contained in the t cubic-probe samples.
+At n=32, delta=10^-10, t=58, the cubic branch needs at most
+**631** values and the quadratic branch at most **503**.
+The exact cubic-witness miss probability is (43/64)^58,
+approximately 9.610189081665655e-11. The clone then
+evaluates unlimited future inputs with **zero additional live
 oracle calls**. This number measures attacker oracle access, not
 original/obfuscated program compute or compatibility.
 
@@ -133,18 +135,61 @@ calls. The proof does not use an inverse of A, V, U or F.
 
 ### No cubic witnessed
 
-If w=0 or rank(V)<3, the composition has degree at most two
-in its original n input bits. Generic Boolean quadratic ANF
-interpolation queries F(0), each F(e_i) and each
-F(e_i XOR e_j), yielding all c_0, linear and quadratic coefficient
-vectors exactly. This costs n+1+C(n,2) chosen values, with possible
-reuse of the earlier triple samples. The resulting offline model
-is exact for every input.
+If w=0 or rank(V)<3, F is at most quadratic. Its vector-valued
+second difference B is then a true alternating bilinear map whose
+joint radical K has codimension at most three. By Agent 11's
+independently verified two-anchor Gram criterion, a single
+B(a,b)!=0 witnesses a two- or three-dimensional effective
+quotient and is enough to reconstruct the entire B. Define
+S(x)=(B(x,a),B(x,b)). The signatures of a and b are independent
+because S(a)=(0,w2), S(b)=(w2,0), w2=B(a,b)!=0. The map S has
+kernel exactly K: otherwise a vector orthogonal to a,b but
+outside span(a,b)+K would, together with a and b, span the
+entire quotient of dimension at most three and be orthogonal
+to itself and that whole quotient, contradicting its
+nonmembership in K.
 
-If w is actually nonzero but all t random triples were degenerate,
-the algorithm mistakenly takes this quadratic branch; this is the
-*only* correctness-failure event under the stated structural promise
-and has probability at most (43/64)^t.
+Compute S(e_i) from at most 2n additional oracle values.
+If its image rank is three, choose c among the original e_i
+whose signature is independent of S(a),S(b).
+Express every S(e_i) in the known signature basis and
+reconstruct every B(e_i,e_j) by bilinearity from the known
+Gram values B(a,b), B(a,c), B(b,c), all previously observed.
+If the signature rank is two, a,b already suffice. From
+these polar coefficients and the original n+1 affine-basis
+values, the exact quadratic ANF is available offline.
+The code reuses the independent [rank-three quadratic
+Gram peer](../sims/rankthree-quadratic-polarization-peer.js)
+and serializes its result into the original self-contained
+quadratic model.
+
+No new random-pair search is needed. Every cubic trial
+T(a,b,c) has already evaluated F at the eight cube vertices.
+Consequently B(a,b), B(a,c) and B(b,c) use **zero new**
+oracle calls. Preserve the first nonzero one across all
+t independent uniform triples.
+
+To bound the probability of missing every quadratic pair,
+choose a nonzero scalar output projection of the
+vector-valued B. Its nonzero alternating form has rank
+exactly two on an effective quotient of dimension at
+most three. Three independently uniform projected vectors
+give three pairwise zero determinants in exactly 22 of
+64 possible ordered triples (three two-point lines of
+GF(2)^2, with the zero triple counted once).
+Therefore, for a truly nonaffine quadratic F, the chance
+that all t batches contain no nonzero B pair is at most
+(11/32)^t. If F is affine, returning the affine interpolation
+is exact regardless of the sample transcript.
+
+The cubic-miss and quadratic-miss events are **mutually
+exclusive for a fixed source F**: if the true cubic
+coefficient is nonzero, any failure is already included
+in its (43/64)^t miss event; if it is zero, only the
+quadratic B witness can be missed, with failure
+at most (11/32)^t. Since 11/32 is smaller than 43/64,
+the overall confidence bound is (43/64)^t, and no
+separate failure allocation or extra pair sampling is needed.
 
 ## Independent executable validation
 
@@ -169,7 +214,7 @@ One local Node 22.16.0, fixed-seed execution showed:
 | 32-bit cubic branch cases | 36 |
 | 32-bit quadratic branch cases | 28 |
 | Deliberately noninjective 32-bit sources | 16 |
-| Maximum observed chosen query count | 935 |
+| Maximum observed chosen query count | 503 |
 | Maximum triple trials observed | 58 |
 | Wrong offline outputs or failed executable assertions | 0 |
 
@@ -192,7 +237,7 @@ an appropriate independent uniform input sampler.
 
 A generic degree-three GF(2)^32 oracle is fully learnable from
 1+32+C(32,2)+C(32,3) = **5,489** ANF values. The present
-**935** high-confidence upper bound is a specialized source-family
+**631** high-confidence upper bound is a specialized source-family
 attack conditional on rank(V)<=3. It does not invalidate the
 unrestricted class's dimensional lower bounds. It also has
 different goals and assumptions from the earlier **118-query**
@@ -231,3 +276,35 @@ are separate, unverified obligations.
 
 No new workflow family was introduced. This does not update the main
 obfuscation release decision.
+
+
+### Quadratic-peer integration and improved source pin
+
+Agent 11 independently derived, implemented, and source-pinned the
+quadratic rank-three two-anchor Gram reconstruction in
+[sims/rankthree-quadratic-polarization-peer.js](../sims/rankthree-quadratic-polarization-peer.js)
+([two-platform green run 44958888722](https://github.com/FlareZ123/obfs/actions/runs/44958888722)).
+Their review is preserved under
+[Agent 22 mailbox](../communications/agent22/20261121T2250Z_agent11_rankthree-quadratic-fallback.md).
+
+The first integration reduced the old 935-call fallback to 650 on
+[commit 3fdf955](https://github.com/FlareZ123/obfs/commit/3fdf9553b23b80358b4e707b6dccd086f60a0462)
+with both OS jobs green on
+[run 44959147488](https://github.com/FlareZ123/obfs/actions/runs/44959147488).
+The subsequent **no-extra-query reuse of three polar edges per cubic
+cube** was committed in
+[d6e5c02](https://github.com/FlareZ123/obfs/commit/d6e5c02f2cc616ace5ada9477e5f7b33c910dbb1).
+
+The exact-source
+[run 44959286105](https://github.com/FlareZ123/obfs/actions/runs/44959286105)
+passed the updated rank-three 631-cap executable, Agent 11's independent
+quadratic peer, and all strict JSDoc checks on **both Ubuntu and Windows**.
+The updated deterministic 32-bit witness observed at most **503**
+distinct queries, with the unchanged 64 32-bit source instances and
+262,144 post-server held-out outputs, and no mismatches. Both
+the cubic and quadratic branches were exercised. The mathematical
+tail bound remains a proof about independent uniform samples;
+the CI inputs are fixed-seed regression witnesses.
+
+This improves a **specific** chosen-query functional-cloning result
+and has no effect on the global obfuscation RELEASE-BLOCKED status.
