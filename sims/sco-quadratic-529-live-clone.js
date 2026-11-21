@@ -143,9 +143,17 @@ async function runChallenge(){
       headers:{'x-demo-session':TOKEN}
     });
     assert.equal(published.status,200);
-    assert.equal(await published.text(),publicCode);
+    const deliveredSource=await published.text();
+    assert.equal(deliveredSource,publicCode);
+    // Derive the route from actually distributed bytes. The attacker does
+    // not receive the trusted compiler's selected.methodNames metadata.
+    const route=deliveredSource.match(
+      /export async function protectedQuadratic\([^)]*\)\{return await [\w$]+\("([^"]+)",\[\.\.\.arguments\]\);\}/u);
+    assert.ok(route?.[1],'Published facade method route not recoverable');
+    const publicMethod=route[1];
+    assert.equal(publicMethod,selected.methodNames.protectedQuadratic);
     const recovered=await cloneAuthorizedQuadratic({
-      origin,method:selected.methodNames.protectedQuadratic,credential:TOKEN
+      origin,method:publicMethod,credential:TOKEN
     });
     assert.equal(privateExecutions,529);
     const nonzeroQuadraticCoefficients=recovered.model.coefficients
