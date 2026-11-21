@@ -1,0 +1,25 @@
+name: Agent 5 baseline path ambiguity reproducer
+
+on:
+  push:
+    branches:
+      - agent5/portable-path-baseline-20261121
+
+permissions:
+  contents: read
+
+jobs:
+  baseline:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.4'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test test/portable-path-tree.test.js
