@@ -55,6 +55,8 @@ jobs:
         run: node sims/ranktwo-polarization-oracle-clone.js
       - name: Rank-three projected cubic-or-quadratic offline oracle clone
         run: node sims/rankthree-polarization-oracle-clone.js
+      - name: Recover private rank-three code behavior from authenticated SCO HTTP RPC
+        run: node sims/sco-rankthree-631-live-clone.js
       - name: Matched rank-three projected versus generic cubic functional clone
         run: node sims/rankthree-projected-vs-generic-cubic-matched.js
       - name: Independent rank-three quadratic 244-query full clone
