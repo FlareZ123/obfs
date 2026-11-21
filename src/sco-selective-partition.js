@@ -48,6 +48,32 @@ function isStaticKey(parent,key){
 }
 
 /**
+ * Browser-relative network requests, workers and event channels depend on
+ * host-owned state whose semantics are not preserved by moving code into a
+ * Node server. Keep this syntactic admission conservative when local names
+ * shadow globals. Inert object-property keys do not count as API references.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedCrossRealmHostApi(body){
+  const hostApis=new Set([
+    'fetch','Worker','WebSocket','XMLHttpRequest','EventSource',
+    'BroadcastChannel','MessageChannel'
+  ]);
+  let observed=false;
+  walk(body,(node,parent,key)=>{
+    if(node.type==='Identifier'&&hostApis.has(node.name)&&
+       !isStaticKey(parent,key)&&
+       !(parent?.type==='VariableDeclarator'&&key==='id')&&
+       !(parent?.type==='FunctionDeclaration'&&key==='id')){
+      observed=true;
+    }
+  });
+  return observed;
+}
+
+/**
  * Admit only a direct Node.js process.env property read with an explicit
  * static UPPER_SNAKE_CASE key. The private original module runs on the server;
  * this opt-in never copies the environment variable into a client facade.
@@ -830,25 +856,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static dependency cannot migrate console host effects: '+filename);
       }
     });
-    // The browser supplies page-relative URL resolution, worker lifecycles
-    // and event channels that a separate Node server cannot faithfully
-    // reproduce by merely executing the same function text. Refuse references
-    // to these ambient APIs in private dependencies, including aliases such
-    // as "const load=fetch". Inert property labels remain available. This is
-    // deliberately conservative about locally shadowed API names.
-    const crossRealmHostApis=new Set([
-      'fetch','Worker','WebSocket','XMLHttpRequest','EventSource',
-      'BroadcastChannel','MessageChannel'
-    ]);
-    walk(ast,(node,parent,key)=>{
-      if(node.type==='Identifier'&&crossRealmHostApis.has(node.name)&&
-         !isStaticKey(parent,key)&&
-         !(parent?.type==='VariableDeclarator'&&key==='id')&&
-         !(parent?.type==='FunctionDeclaration'&&key==='id')){
-        throw new TypeError(
-          'SCO private static dependency contains unproved cross-realm host API: '+filename);
-      }
-    });
+    if(usesUnprovedCrossRealmHostApi(ast)){
+      throw new TypeError(
+        'SCO private static dependency contains unproved cross-realm host API: '+filename);
+    }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
@@ -1558,6 +1569,9 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   for(const body of privateBodies){
+    if(usesUnprovedCrossRealmHostApi(body)){
+      throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
+    }
     const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
       throw new TypeError('Selective SCO cannot partition realm-local '+realmEffect+' access');
