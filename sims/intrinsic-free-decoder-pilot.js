@@ -100,6 +100,7 @@ function medianExecutionMilliseconds(program){
 
 /** @returns {void} */
 function main(){
+  /** @type {Array<[string,string]>} */
   const cases=[
     ['ascii-64',('abcdefghijklmnopqrstuvwxyz0123456789ABCD').repeat(2).slice(0,64)],
     ['ascii-2048',('abcdefghijklmnopqrstuvwxyz0123456789ABCD').repeat(52).slice(0,2048)],
@@ -113,8 +114,11 @@ function main(){
       xor:nativeDecoder(value),
       dictionary:indexedDictionaryDecoder(value)
     };
+    /** @type {Record<string,boolean>} */
     const correct={};
+    /** @type {Record<string,number>} */
     const byteLengths={};
+    /** @type {Record<string,number>} */
     const medianMs={};
     for(const [kind,program] of Object.entries(programs)){
       correct[kind]=preservedWhenPatched(program,value);
