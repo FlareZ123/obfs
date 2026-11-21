@@ -79,9 +79,10 @@ function createSnoLauncher(files,entry) {
     if(name===checkedEntry&&Buffer.isBuffer(code)&&!isUtf8(code)){
       throw new TypeError('Invalid UTF-8 JavaScript source: '+name);
     }
-    if(/\.(?:js|mjs|cjs)$/.test(name)&&typeof code==='string'&&
-       /[\uD800-\uDFFF]/u.test(code)){
-      throw new TypeError(name+' JavaScript source contains unpaired surrogate');
+    if(typeof code==='string'&&/[\uD800-\uDFFF]/u.test(code)){
+      throw new TypeError(name+
+        (/\.(?:js|mjs|cjs)$/.test(name)?' JavaScript source':' text asset')+
+        ' contains unpaired surrogate');
     }
     manifest.push([name,createHash('sha256').update(code).digest('hex')]);
   }
