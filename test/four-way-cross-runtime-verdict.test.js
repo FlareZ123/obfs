@@ -147,3 +147,13 @@ test('strict budget breach in a Node short session remains visible',()=>{
   assert.equal(verdict.familywise.observedOverBudgetPairs,1);
   assert.equal(verdict.releaseVerdict,'RELEASE-BLOCKED');
 });
+
+test('paired but malformed source digests are not proof of matching published bytes',()=>{
+  for(const bad of ['z'.repeat(64),'A'.repeat(64),'a'.repeat(63)+' ']){
+    const [node,browser]=example();
+    node.sha256.published=bad;
+    browser.sourceSha256.published=bad;
+    assert.throws(()=>evaluateFourWayCrossRuntime(node,browser),
+      /graph SHA-256 mismatch: published/u,bad.slice(0,2));
+  }
+});
