@@ -31,4 +31,4 @@ jobs:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/cross-file-imported-identity-browser.js
       - name: Identity alias positive and unsafe refusal differentials
-        run: node --test test/cross-file-identity-return.test.js test/cross-file-imported-identity-alias.test.js
+        run: node --test test/cross-file-identity-return.test.js test/cross-file-imported-identity-alias.test.js test/cross-file-imported-identity-fuzz.test.js
