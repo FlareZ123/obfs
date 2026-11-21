@@ -57,7 +57,7 @@ function main(){
   const draw=seeded(0x8f395f2d);
   /** @type {Array<{kind:string,models:number,heldouts:number,polar:ReturnType<typeof describe>,exact:ReturnType<typeof describe>,polarWins:number,exactWins:number,ties:number}>} */
   const groups=[];
-  for(const kind of /** @type {const} */ (['generic','late','affine'])){
+  for(const kind of /** @type {Array<'generic'|'late'|'affine'>} */ (['generic','late','affine'])){
     /** @type {number[]} */
     const legacyCosts=[];
     /** @type {number[]} */
