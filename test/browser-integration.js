@@ -117,7 +117,8 @@ async function main(){
       code:'import {state} from "./reflection-state.mjs";'+
         'const value=Reflect.get(state,"secretValue")+state.otherValue;'+
         'const own=Object.hasOwn(state,"otherValue");'+
-        'if(value!==41||!own)throw new Error("reflection mismatch");'}
+        'document.getElementById("answer").textContent='+
+        '(value===41&&own?"reflection-ok":"reflection-fail");'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-direct-reflection',
     identifiers:false,strings:false});
   assert.equal(reflectionSet.crossFile.properties,2);
@@ -263,7 +264,7 @@ async function main(){
   content.set('/module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/entry.mjs"></script></body></html>');
   content.set('/js-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/js-entry.js"></script></body></html>');
   content.set('/default-module.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/default-entry.mjs"></script></body></html>');
-  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module">import "/reflection-entry.mjs";document.getElementById("answer").textContent="reflection-ok";</script></body></html>');
+  content.set('/reflection.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/reflection-entry.mjs"></script></body></html>');
   content.set('/cycle.html','<!doctype html><html><body><div id="answer">initial</div><script type="module" src="/cycle-a.mjs"></script></body></html>');
   content.set('/reader.html','<!doctype html><html><body><div id="answer">initial</div>'+
     '<script>window.hostApi={accept:function(value){document.getElementById("answer").textContent=String(value)}};</script>'+
