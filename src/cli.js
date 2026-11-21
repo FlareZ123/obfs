@@ -127,15 +127,27 @@ async function readSourceTree(root) {
   const results = [];
   /** @param {string} directory */
   async function read(directory) {
-    const entries = await fs.readdir(path.join(root,directory),{withFileTypes:true});
-    entries.sort((a,b)=>a.name.localeCompare(b.name,'en'));
+    // Raw filename bytes must be checked before conversion to a path.
+    // Default UTF-8 readdir would replace invalid bytes with U+FFFD and
+    // could alias a different, valid replacement-character filename.
+    const entries = await fs.readdir(path.join(root,directory),{
+      withFileTypes:true,encoding:'buffer'
+    });
     for(const item of entries) {
-      if (item.name.toLowerCase() === 'node_modules' || item.name.toLowerCase() === '.git') continue;
-      const relative = path.posix.join(directory,item.name);
+      if(!Buffer.isBuffer(item.name)||!isUtf8(item.name)) {
+        throw new TypeError('Invalid UTF-8 source filename in '+(directory||'.')+
+          ': '+Buffer.from(item.name).toString('hex'));
+      }
+    }
+    entries.sort((a,b)=>String(a.name).localeCompare(String(b.name),'en'));
+    for(const item of entries) {
+      const name=String(item.name);
+      if (name.toLowerCase() === 'node_modules' || name.toLowerCase() === '.git') continue;
+      const relative = path.posix.join(directory,name);
       if (item.isSymbolicLink()) throw new Error(`Symlink in source tree: ${relative}`);
       if(item.isDirectory()) await read(relative);
       else if(item.isFile()) {
-        const sourceType = /\.(?:js|cjs|mjs)$/.test(item.name) ? undefined : 'asset';
+        const sourceType = /\.(?:js|cjs|mjs)$/.test(name) ? undefined : 'asset';
         const data = await fs.readFile(path.join(root,relative));
         // Buffer#toString silently substitutes U+FFFD for malformed UTF-8.
         // Validate first; preserving valid BOMs and opaque asset bytes.
