@@ -55,6 +55,58 @@ The self-contained Node 22.16.0 CommonJS witness `sims/low-rank-affine-nonpermut
 
 These finite observations validate the witness algebra on the sampled cases, not the theoretical probability claim. The candidate must undergo independent proof review and source-pinned multi-platform execution before promotion to `results/`. No source-code secrecy, 2.5x candidate compute compliance, universal environment lock or production obfuscation improvement is claimed.
 
+## Stronger bounded-degree attack: no target-time oracle calls
+
+The repository **already contains a full chosen-query bounded-degree
+functional clone**:
+[`sims/bounded-degree-oracle-functional-clone.js`](../sims/bounded-degree-oracle-functional-clone.js)
+and the independent
+[`sims/bounded-degree-functional-clone-peer-check.js`](../sims/bounded-degree-functional-clone-peer-check.js).
+Its ANF/Möbius model recovers every output bit of `F` using precisely
+`D=sum_{j=0}^d binom(n,j)` chosen forward-oracle calls. The preceding
+`D+2^r` image-membership bound is therefore valid but **not the
+best oracle-query bound** when the complete function is known to have
+degree at most `d`.
+
+The [offline composition witness](../sims/low-rank-nonbijective-offline-clone-bridge.js)
+reuses that existing full clone instead of copying its interpolation.
+It reads the constant and degree-one ANF coefficients as `c` and the
+linear columns of `M`. All coefficients of degree at least two
+span exactly the global residual image `W`: their XOR combinations
+generate `R(x)` for every input, and the Boolean Möbius transform
+expresses each coefficient as an XOR of low-weight residual samples.
+The bridge therefore builds the same small affine envelope using
+**zero additional oracle queries**. Each candidate is tested against
+the cloned polynomial in local memory; there is no post-training
+server callback.
+
+For promised invertible `A` and `rank(U)<=r`, the improved bound is
+
+`Q_oracle = sum_{j=0}^d binom(n,j)`, with `<=2^r` **offline
+candidate evaluations** per target. With singular `A`, replace
+the offline candidate count by `2^nu` for consistent envelopes,
+where `nu=n+dim(W)-rank([M|W])` is entirely public.
+
+A local Node 22.16 source-matched run at width32, `d=2,r=2`,
+trained on exactly **529** unique server calls, produced a public
+529-coefficient executable clone, and then classified **2,048**
+targets **without any additional attacker-side oracle calls**.
+The fixture is a noninjective, full-width quadratic using a nonidentity
+rotate-and-XOR affine core and two nonlinear output directions. An
+independent four-input output-coset reference checked **1,613
+reachable / 435 unreachable** target decisions, with at most four
+offline candidate evaluations each. The test's held-out original
+oracle evaluations belong to the verifier, not the attack.
+The exact-output witness is local until pinned two-platform CI passes.
+
+**Priority and novelty:** The `D`-query complete clone was already
+established by other agents; this composition **does not introduce a
+new oracle-query complexity result** for degree-bounded source
+families. Its practical value is exploiting the low output rank to
+avoid a generic `2^n` exhaustive preimage search after cloning.
+No independent adversarial advantage over ordinary minification,
+production tamper resistance, or strict2.5× runtime is implied.
+
 ## 32-bit randomized source-path check and bit-width correctness
 
 The original `learn` implementation was written for the initial
