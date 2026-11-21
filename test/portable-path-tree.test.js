@@ -30,7 +30,7 @@ function assertRejectedTree(first,second,expected) {
     }
     assert.throws(()=>createSnoLauncher(files,'entry.cjs'),expected,
       'direct SNO '+pair.join(', '));
-    assert.throws(()=>createScoHandler(files),expected,
+    assert.throws(()=>createScoHandler(files.slice(1)),expected,
       'direct SCO '+pair.join(', '));
   }
 }
@@ -67,15 +67,15 @@ test('genuinely distinct sibling paths preserve positive emission and route beha
       files.map(file=>file.path),mode);
   }
   assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
-  assert.doesNotThrow(()=>createScoHandler(files,{
-    publicPaths:files.map(file=>file.path)
+  assert.doesNotThrow(()=>createScoHandler(files.slice(1),{
+    publicPaths:files.slice(1).map(file=>file.path)
   }));
 });
 
 test('existing canonical full-path duplicate refusal remains in force',()=>{
   const files=[entry,asset('assets/caf\u00e9.png'),asset('assets/cafe\u0301.png')];
   assert.throws(()=>createSnoLauncher(files,'entry.cjs'),/Duplicate SNO file/);
-  assert.throws(()=>createScoHandler(files),/Duplicate file/);
+  assert.throws(()=>createScoHandler(files.slice(1)),/Duplicate file/);
   for(const mode of /** @type {const} */(['coo','sno','sco'])) {
     assert.throws(()=>obfuscateFiles(files,{mode}),/Duplicate file/);
   }
