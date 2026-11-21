@@ -110,6 +110,24 @@ test('positive claim requires a declared, satisfied held-out verification floor'
   assert.equal(compareCandidateEvidence(invalid).attackAdvantage,'inconclusive');
 });
 
+test('non-finite, fractional or unsafe held-out counts cannot establish positive evidence',()=>{
+  const invalidCounts=[-1,0.5,NaN,Infinity,Number.MAX_SAFE_INTEGER+1];
+  for(const count of invalidCounts){
+    const input=example();
+    recordMatchedCompletedAttack(input);
+    input.conventionalControl.verifiedHeldoutComparisons=count;
+    input.protectedCandidate.verifiedHeldoutComparisons=count;
+    const report=compareCandidateEvidence(input);
+    assert.equal(report.measurementReady,false,String(count));
+    assert.equal(report.attackAdvantage,'inconclusive',String(count));
+    assert.equal(report.verdict,'inconclusive',String(count));
+  }
+  const unsafeProtected=example();
+  recordMatchedCompletedAttack(unsafeProtected);
+  unsafeProtected.protectedFunctions=Number.MAX_SAFE_INTEGER+1;
+  assert.equal(compareCandidateEvidence(unsafeProtected).measurementReady,false);
+});
+
 test('unsupported candidate failure does not establish a positive advantage',()=>{
   const input=example();
   input.protectedCandidate.cloneSucceeded=false;
