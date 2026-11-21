@@ -68,3 +68,43 @@ test('ordinary tilde names and a true long filename preserve safe output admissi
   assert.doesNotThrow(()=>createSnoLauncher(files,'entry.cjs'));
   assert.doesNotThrow(()=>createScoHandler(files.slice(1)));
 });
+
+
+test('Windows console devices, port-zero variants and padded device stems refuse',()=>{
+  const {createSnoLauncher,createScoHandler}=require('../src');
+  const rejected=[
+    'CONIN$','CONOUT$','conin$.txt','conout$.txt',
+    'COM0','lpt0.log','CON .txt','AuX  .data','PRN .txt',
+    'nested/CONOUT$/file.txt','nested/LPT0 /sample.js','nested/COM¹ .mjs'
+  ];
+  for(const name of rejected) {
+    assert.throws(()=>safePath(name),/Unsafe Windows filename segment/,name);
+    const files=[
+      {path:'entry.cjs',code:'module.exports=17;',sourceType:/** @type {const} */('commonjs')},
+      {path:name,code:Buffer.from([0x22,0x33]),sourceType:/** @type {const} */('asset')}
+    ];
+    for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+      assert.throws(()=>obfuscateFiles(files,{mode}),
+        /Unsafe Windows filename segment/,mode+' '+name);
+    }
+    assert.throws(()=>createSnoLauncher(files,'entry.cjs'),
+      /Unsafe Windows filename segment/,name);
+    assert.throws(()=>createScoHandler(files.slice(1)),
+      /Unsafe Windows filename segment/,name);
+  }
+});
+
+test('ordinary device-like filenames remain eligible for publication',()=>{
+  const candidates=[
+    'coninside.txt','conoutbound.txt','com10.js','lpt10.dat','com⁴.txt',
+    'auxiliary/file.js','console .txt','nonconsole/COM0extra.txt'
+  ];
+  for(const file of candidates)assert.equal(safePath(file),file);
+  const files=candidates.map(name=>({
+    path:name,code:Buffer.from([3,0xff]),sourceType:/** @type {const} */('asset')
+  }));
+  for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+    assert.deepEqual(obfuscateFiles(files,{mode,seed:'dos-device-controls'}).files.map(f=>f.path),
+      candidates,mode);
+  }
+});
