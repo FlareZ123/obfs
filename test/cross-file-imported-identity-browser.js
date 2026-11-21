@@ -43,6 +43,32 @@ function graph(reflective,depth=1){
   ];
 }
 
+/**
+ * One combined ESM distribution with two unrelated owners sharing identical
+ * field names. The first owner is private and accessed through an identity
+ * alias; the second is reflected to the public API.
+ *
+ * @returns {Input[]}
+ */
+function mixedGraph(){
+  return [
+    {path:'private-state.mjs',sourceType:'module',
+      code:'export const secret={secretField:17,otherField:5};'},
+    {path:'public-state.mjs',sourceType:'module',
+      code:'export const visible={secretField:23,otherField:7};'},
+    {path:'identity.mjs',sourceType:'module',
+      code:'export const identity=x=>x;'},
+    {path:'entry.mjs',sourceType:'module',
+      code:'import {secret} from "./private-state.mjs";'+
+        'import {visible} from "./public-state.mjs";'+
+        'import {identity} from "./identity.mjs";'+
+        'const forward=identity;'+
+        'export function run(a){const local=forward(secret);'+
+        'return [(local.secretField+a)^local.otherField,'+
+        'Object.keys(visible),visible.secretField+a];}'}
+  ];
+}
+
 /** @param {Input[]} input @returns {Output[]} */
 function compile(input){
   const built=obfuscateFiles(input,{
@@ -62,9 +88,10 @@ function compile(input){
  * all ESM source files so property renamings remain consistent between them.
  * The explicit regex is a manual whole-graph policy, not a reflection proof.
  * @param {Input[]} input
+ * @param {boolean} [reserveSharedKeys] Keep both shared fields for a reflective owner.
  * @returns {Promise<Output[]>}
  */
-async function mangleGraph(input){
+async function mangleGraph(input,reserveSharedKeys=false){
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esbuild-mangle-'));
   try{
     for(const file of input)
@@ -79,7 +106,9 @@ async function mangleGraph(input){
       platform:'browser',format:'esm',target:'es2022',
       minify:true,legalComments:'none',
       mangleProps:/^(secretField|otherField)$/,
-      mangleCache:{secretField:'a',otherField:'b'}
+      mangleCache:reserveSharedKeys ?
+        {secretField:false,otherField:false} :
+        {secretField:'a',otherField:'b'}
     });
     const files=result.outputFiles??[];
     assert.equal(files.length,input.length);
@@ -141,6 +170,43 @@ async function main(){
       for(const file of files)
         assets.set('/'+name+'/'+variant+'/'+file.path,
           {body:file.code,type:'text/javascript; charset=utf-8'});
+    }
+  }
+  const mixed=mixedGraph();
+  const mixedBuilt=obfuscateFiles(mixed,{
+    mode:'coo',closedWorld:true,properties:true,
+    identifiers:false,strings:false,
+    seed:'same-graph-private-vs-reflected-owner'
+  });
+  assert.equal(mixedBuilt.crossFile.objects,1,
+    'Private owner should be provably renamed despite reflected sibling');
+  assert.equal(mixedBuilt.crossFile.properties,2);
+  const mixedCompiled=mixedBuilt.files.map(file=>({
+    path:file.path,code:String(file.code)
+  }));
+  const mixedMangled=await mangleGraph(mixed);
+  const mixedReserved=await mangleGraph(mixed,true);
+  const privateNative=mixed.find(file=>file.path==='private-state.mjs');
+  const privateCompiled=mixedCompiled.find(file=>file.path==='private-state.mjs');
+  const publicCompiled=mixedCompiled.find(file=>file.path==='public-state.mjs');
+  const publicMangled=mixedMangled.find(file=>file.path==='public-state.mjs');
+  const privateReserved=mixedReserved.find(file=>file.path==='private-state.mjs');
+  const publicReserved=mixedReserved.find(file=>file.path==='public-state.mjs');
+  assert.ok(privateNative&&privateCompiled&&publicCompiled&&publicMangled&&
+    privateReserved&&publicReserved);
+  assert.match(privateNative.code,/secretField|otherField/u);
+  assert.doesNotMatch(privateCompiled.code,/secretField|otherField/u);
+  assert.match(publicCompiled.code,/secretField|otherField/u);
+  assert.doesNotMatch(publicMangled.code,/secretField|otherField/u);
+  assert.match(privateReserved.code,/secretField|otherField/u);
+  assert.match(publicReserved.code,/secretField|otherField/u);
+  for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
+    [['native',mixed],['compiled',mixedCompiled],['mangled',mixedMangled],
+      ['reserved',mixedReserved]])){
+    for(const file of files){
+      assets.set('/mixed/'+variant+'/'+file.path,{
+        body:file.code,type:'text/javascript; charset=utf-8'
+      });
     }
   }
   const server=http.createServer((request,response)=>{
@@ -207,6 +273,19 @@ async function main(){
         await import(negativeMangled));
       const reflectiveCandidate=/** @type {{run:(a:number)=>[string[],number]}} */ (
         await import(negativeCompiled));
+      const mixedNativePath='/mixed/native/entry.mjs';
+      const mixedCompiledPath='/mixed/compiled/entry.mjs';
+      const mixedMangledPath='/mixed/mangled/entry.mjs';
+      const mixedReservedPath='/mixed/reserved/entry.mjs';
+      const mixedNative=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import(mixedNativePath));
+      const mixedCandidate=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import(mixedCompiledPath));
+      const mixedMangle=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import(mixedMangledPath));
+      const mixedReserve=/** @type {{run:(a:number)=>[number,string[],number]}} */ (
+        await import(mixedReservedPath));
+      let mixedUnsafeKeyMismatches=0;
       let parity=0;
       for(let i=0;i<4096;i++){
         const native=baseline.run(i);
@@ -226,6 +305,18 @@ async function main(){
         if(JSON.stringify(unsafeMangled[0])===expected||
            !Object.is(unsafeMangled[1],reflected[1]))
           throw Error('Configured esbuild reflective negative mismatch at '+i);
+        const mixedBefore=mixedNative.run(i);
+        const mixedAfter=mixedCandidate.run(i);
+        const mixedSafelyReserved=mixedReserve.run(i);
+        const mixedUnsafe=mixedMangle.run(i);
+        if(JSON.stringify(mixedBefore)!==JSON.stringify(mixedAfter)||
+           JSON.stringify(mixedBefore)!==JSON.stringify(mixedSafelyReserved))
+          throw Error('Mixed real-app graph native/compiler mismatch at '+i);
+        if(!Object.is(mixedBefore[0],mixedUnsafe[0])||
+           !Object.is(mixedBefore[2],mixedUnsafe[2])||
+           JSON.stringify(mixedBefore[1])===JSON.stringify(mixedUnsafe[1]))
+          throw Error('Mixed esbuild control did not alter only reflected keys at '+i);
+        mixedUnsafeKeyMismatches++;
         parity++;
       }
       // Source-visible host APIs only consume values. An external observer of
@@ -288,17 +379,68 @@ async function main(){
            !Object.is(transitiveBaseline.run(i),transitiveMangle.run(i))||
            !Object.is(transitiveBaseline.run(i),transitiveCandidate.run(i)))
           throw Error('Exact browser held-out output mismatch '+i);
+        const expectedMixed=mixedNative.run(i);
+        const compiledMixed=mixedCandidate.run(i);
+        const reservedMixed=mixedReserve.run(i);
+        const unsafeMixed=mixedMangle.run(i);
+        if(JSON.stringify(expectedMixed)!==JSON.stringify(compiledMixed)||
+           JSON.stringify(expectedMixed)!==JSON.stringify(reservedMixed)||
+           !Object.is(expectedMixed[0],unsafeMixed[0])||
+           !Object.is(expectedMixed[2],unsafeMixed[2])||
+           JSON.stringify(expectedMixed[1])===JSON.stringify(unsafeMixed[1]))
+          throw Error('Mixed held-out selective property proof mismatch '+i);
         exactHeldoutInputs++;
+      }
+      /** @type {{native:number[],compiled:number[],reserved:number[]}} */
+      const mixedTiming={native:[],compiled:[],reserved:[]};
+      /** @param {(a:number)=>[number,string[],number]} fn */
+      function timedMixed(fn){
+        let checksum=0;
+        const start=performance.now();
+        for(let i=0;i<100000;i++){
+          const result=fn(i);
+          checksum^=result[0]^result[2]^result[1].length;
+        }
+        const ms=performance.now()-start;
+        if(!Number.isFinite(ms)||ms<=0)throw Error('Invalid mixed work time');
+        return {ms,checksum};
+      }
+      const mixedOrders=[
+        ['native','compiled','reserved'],
+        ['reserved','compiled','native'],
+        ['compiled','native','reserved'],
+        ['native','reserved','compiled'],
+        ['compiled','reserved','native'],
+        ['reserved','native','compiled']
+      ];
+      for(let trial=0;trial<12;trial++){
+        /** @type {number|undefined} */
+        let sum;
+        for(const variant of mixedOrders[trial%mixedOrders.length]){
+          const fn=variant==='native'?mixedNative.run:
+            variant==='compiled'?mixedCandidate.run:mixedReserve.run;
+          const result=timedMixed(fn);
+          if(sum!==undefined&&sum!==result.checksum)
+            throw Error('Mixed native/proof/reserved checksum divergence');
+          sum=result.checksum;
+          mixedTiming[/** @type {'native'|'compiled'|'reserved'} */ (variant)].push(result.ms);
+        }
       }
       return {trace:{
         typedInputs:parity,exactHeldoutInputs,
         exactHeldoutParity:true,hostCallbacks:collected.length,
         outputParity:true,transitiveParity:true,reflectiveRefusalParity:true,
         benchmarkChecksumsMatched:true,
-        configuredMangleReflectedKeysChanged:true
-      },time};
+        configuredMangleReflectedKeysChanged:true,
+        sameGraphPrivateOwnersRewritten:1,
+        sameGraphReflectedOwnersPreserved:1,
+        sameGraphMangleKeyMismatches:mixedUnsafeKeyMismatches
+      },time,mixedTiming};
     });
     assert.equal(data.trace.typedInputs,4096);
+    assert.equal(data.trace.sameGraphMangleKeyMismatches,4096);
+    assert.equal(data.trace.sameGraphPrivateOwnersRewritten,1);
+    assert.equal(data.trace.sameGraphReflectedOwnersPreserved,1);
     assert.equal(data.trace.exactHeldoutInputs,100000);
     assert.equal(data.trace.exactHeldoutParity,true);
     assert.ok(data.trace.hostCallbacks>0);
@@ -307,6 +449,8 @@ async function main(){
     assert.equal(data.trace.transitiveParity,true);
     assert.equal(data.trace.benchmarkChecksumsMatched,true);
     const bound=pairedBudgetBound(data.time.native,data.time.compiled);
+    const mixedBound=pairedBudgetBound(data.mixedTiming.native,data.mixedTiming.compiled);
+    const mixedReservedBound=pairedBudgetBound(data.mixedTiming.reserved,data.mixedTiming.compiled);
     const minifiedBound=pairedBudgetBound(data.time.minified,data.time.compiled);
     const mangledBound=pairedBudgetBound(data.time.mangled,data.time.compiled);
     console.log('CROSS_FILE_IMPORTED_IDENTITY_CHROMIUM '+JSON.stringify({
@@ -319,6 +463,16 @@ async function main(){
       fullOutputParity:true,transitiveOutputParity:true,
       reflectiveKeyParity:true,
       staticLabelEvidence,
+      sameGraphMixedOwnerResults:{
+        protectedVsNative:mixedBound,
+        protectedVsSafeReservedEsbuild:mixedReservedBound,
+        mixedTimingMs:data.mixedTiming,
+        privateRenamed:2,reflectedRenamed:0,
+        esbuildPrivateRenamed:2,esbuildReflectedRenamed:2,
+        reservedEsbuildPrivateRenamed:0,reservedEsbuildReflectedRenamed:0,
+        observedMangledKeyMismatches:data.trace.sameGraphMangleKeyMismatches,
+        heldoutParityInputs:data.trace.exactHeldoutInputs
+      },
       nativeVsCompiled:bound,
       minifiedVsCompiled:minifiedBound,
       mangledVsCompiled:mangledBound,
