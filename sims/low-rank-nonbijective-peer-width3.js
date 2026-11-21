@@ -128,7 +128,7 @@ function main() {
           let countW = 0;
           for (let w = Wmask; w; w &= w - 1) countW++;
           const rankW = Math.log2(countW);
-          assert.ok(Number.isInteger(rankW) && rankW <= 2);
+          assert.ok(Number.isInteger(rankW) && rankW <= 1);
           if (rankW > 0) counts.nonzeroResidual++;
           if (rank(M) < 3) counts.singularInterpolant++;
           let imageMask = 0;
