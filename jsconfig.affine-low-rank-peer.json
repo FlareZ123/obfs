@@ -15,6 +15,7 @@
   "include": [
     "sims/affine-low-rank-peer-check.js",
     "sims/low-rank-orbit-independent-review.js",
+    "sims/low-rank-affine-singular-base-peer.js",
     "sims/low-rank-affine-layer-composition.js",
     "sims/affine-low-rank-method-comparison.js",
     "sims/affine-residual-minimal-rank-peer.js",
