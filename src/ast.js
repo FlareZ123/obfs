@@ -3366,6 +3366,9 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     'getEntries','getEntriesByType','getEntriesByName',
     'decodedBodySize','encodedBodySize','transferSize']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Resource timing methods can be called through a mutable property name
+  // on performance itself, or a simple alias of globalThis.performance.
+  const performanceRoots=new Set(['performance']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -3391,7 +3394,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3446,7 +3449,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         const name=initial.computed ? staticString(initial.property) :
           initial.property.type==='Identifier' ? initial.property.name : null;
         const roots=name==='process' ? processRoots :
-          name==='require' ? requireRoots : name==='module' ? moduleRoots : null;
+          name==='require' ? requireRoots : name==='module' ? moduleRoots :
+            name==='performance'?performanceRoots:null;
         if(roots && !roots.has(binding.name)) {
           roots.add(binding.name);
           changed=true;
@@ -3517,6 +3521,20 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     const literal=staticString(property);
     if(literal!==null)return literal;
     return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
+  }
+  /**
+   * A simple ambient Performance root, including globalThis.performance,
+   * can expose ESM byte sizes through an unknown computed method selection.
+   * @param {AstNode} receiver
+   * @returns {boolean}
+   */
+  function canReadPerformanceRoot(receiver) {
+    if(receiver.type==='Identifier')return performanceRoots.has(receiver.name);
+    if(receiver.type!=='MemberExpression'||receiver.object.type!=='Identifier'||
+       !globals.has(receiver.object.name))return false;
+    const key=receiver.computed ? knownKey(receiver.property) :
+      receiver.property.type==='Identifier'?receiver.property.name:null;
+    return key==='performance';
   }
   /** @param {string} receiver @param {string|null} key @returns {boolean} */
   function canReachLoader(receiver,key) {
@@ -3680,7 +3698,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
-         node.object.type==='Identifier' && globals.has(node.object.name)) {
+           (node.object.type==='Identifier' && globals.has(node.object.name) ||
+            canReadPerformanceRoot(node.object))) {
         observed=true;
       }
       // Cached modules, parent/child links, and the process main module
@@ -3695,6 +3714,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
          (target===null||browserReaders.has(target)||
           ['require','process','module','getBuiltinModule',
             'createRequire'].includes(target)) ||
+         canReadPerformanceRoot(root) &&
+           (target===null||browserReaders.has(target)) ||
          canReadLoaderRoot(root,target) ||
          isProcessModuleRequire(root) && canReachLoader('process',target)) {
         observed=true;
