@@ -61,6 +61,19 @@ new pinned check.
 
 **Historical validation (2026-11-15):** The previously pinned [full Node 22 Linux/Windows gate 43763467336](https://github.com/FlareZ123/obfs/actions/runs/43763467336) passed at exact source `81ef6ffc7238c92401254f38d5adb8f02dd37a29`: **1,076 passed, 0 failed, 1 skipped out of 1,077 Node tests on each OS**. Both strict JSDoc suites, sampled benchmarks, and 14 Ubuntu Chromium browser fixtures passed. The same immutable source also passed the [targeted SCO gate 43760746861](https://github.com/FlareZ123/obfs/actions/runs/43760746861), including real Chromium with a literal or runtime-injected Node environment secret. This builds on the earlier [source-spelled TypeError coverage repair](im-results/property-coverage-source-spelling-reconciliation-2026-11-15.md). The historical [five-failure triage](im-results/manual-validation-triage-2026-11-15.md) predates that repair. No full-control tamper-resistance proof follows from a passing integration suite. Authenticated online SCO relaying remains possible, and the measured one-call workload exceeds 2.5×; see the [private-constant threat/cost report](im-results/sco-private-primitive-constants-2026-11-15.md).
 
+## Input encoding
+
+CLI input-tree reads require valid UTF-8 bytes for `.js`, `.mjs` and
+`.cjs` sources. Invalid sequences are rejected before any output directory
+is written, instead of being silently substituted with U+FFFD. Valid UTF-8
+byte-order marks and Unicode text are preserved. Assets retain their exact
+original bytes, including binary data; when SNO consults a `package.json`
+file to determine the nearest Node module scope, that metadata must also be
+valid UTF-8. This is a conservative build-admission rule and may reject
+historically accepted malformed files. It does not make local obfuscated
+code immune to a controlling runtime. See the
+[reproducibility and regression record](im-results/utf8-source-admission-2026-11-21.md).
+
 ## Entrypoints
 
 `bin/coo.js` transforms a directory into static browser files, preserving relative ESM import paths and non-JavaScript assets. Example:
