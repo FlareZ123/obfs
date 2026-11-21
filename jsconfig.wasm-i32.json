@@ -5,6 +5,8 @@
     "sims/wasm-i32-static-recover.js",
     "sims/wasm-i32-native-rebuild.js",
     "sims/wasm-i32-esm-native-rebuild.js",
+    "sims/wasm-i32-four-way-child.cjs",
+    "sims/wasm-i32-four-way-fresh-process.js",
     "sims/wasm-i32-four-way-minified.js",
     "sims/wasm-i32-esm-rebuild-profile.js",
     "sims/wasm-i32-cold-counterexample.js",
