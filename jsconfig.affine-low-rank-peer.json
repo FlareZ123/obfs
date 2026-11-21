@@ -31,6 +31,7 @@
     "sims/rankthree-quadratic-polarization-peer.js",
     "sims/rankthree-projected-vs-generic-cubic-matched.js",
     "sims/sco-rankthree-631-live-clone.js",
-    "sims/rankthree-polar-triple-independent-check.js"
+    "sims/rankthree-polar-triple-independent-check.js",
+    "sims/rankfour-projected-fourth-derivative-oracle-clone.js"
   ]
 }
