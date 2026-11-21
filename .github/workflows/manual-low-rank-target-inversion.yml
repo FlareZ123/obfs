@@ -45,6 +45,8 @@ jobs:
         run: node sims/quadratic-radical-public-residual-cap.js
       - name: Public-only quadratic functional cloning
         run: node sims/quadratic-functional-clone-peer-check.js
+      - name: Cubic and quartic public-only exact functional clone
+        run: node sims/bounded-degree-functional-clone-peer-check.js
       - name: Quadratic radical strict JSDoc
         run: npx --no-install tsc -p jsconfig.quadratic-radical.json
       - name: Project JSDoc type safety
