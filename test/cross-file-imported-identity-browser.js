@@ -2,14 +2,18 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
+const fs=require('node:fs/promises');
+const os=require('node:os');
+const path=require('node:path');
 const puppeteer=require('puppeteer-core');
-const {transform}=require('esbuild');
+const {build,transform}=require('esbuild');
 const {obfuscateFiles}=require('../src');
+const {atomicWrite}=require('../src/atomic');
 const {pairedBudgetBound}=require('../sims/paired-budget-bound');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Input */
 /** @typedef {{path:string,code:string}} Output */
-/** @typedef {{native:number[],minified:number[],compiled:number[]}} Timings */
+/** @typedef {{native:number[],minified:number[],mangled:number[],compiled:number[]}} Timings */
 
 /**
  * A browser-valid cross-file identity-forwarding graph. Public host callbacks
@@ -54,6 +58,42 @@ function compile(input){
 }
 
 /**
+ * Opt-in property-mangling esbuild control. One build invocation receives
+ * all ESM source files so property renamings remain consistent between them.
+ * The explicit regex is a manual whole-graph policy, not a reflection proof.
+ * @param {Input[]} input
+ * @returns {Promise<Output[]>}
+ */
+async function mangleGraph(input){
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esbuild-mangle-'));
+  try{
+    for(const file of input)
+      await atomicWrite(path.join(root,file.path),file.code);
+    const result=await build({
+      absWorkingDir:root,
+      entryPoints:input.map(file=>file.path),
+      outbase:root,
+      outdir:path.join(root,'out'),
+      outExtension:{'.js':'.mjs'},
+      bundle:false,write:false,
+      platform:'browser',format:'esm',target:'es2022',
+      minify:true,legalComments:'none',
+      mangleProps:/^(secretField|otherField)$/
+    });
+    const files=result.outputFiles??[];
+    assert.equal(files.length,input.length);
+    const emitted=files.map(file=>({
+      path:path.basename(file.path),code:file.text
+    }));
+    assert.deepEqual(emitted.map(file=>file.path).sort(),
+      input.map(file=>file.path).sort());
+    return emitted;
+  }finally{
+    await fs.rm(root,{recursive:true,force:true});
+  }
+}
+
+/**
  * Test the exact same native/published ESM graph and a reflexive-key
  * rejection in real Chrome. Timed work includes only repeated pure
  * entry calls, not compilation, import, input creation or callback hashing.
@@ -65,11 +105,12 @@ async function main(){
     ['/index.html',{body:'<!doctype html><html><head><meta charset="utf-8"></head><body>Cross-file identity proof</body></html>',
       type:'text/html; charset=utf-8'}]
   ]);
-  /** @type {{caseName:string,ordinaryMinifiedLabelsVisible:boolean,protectedLabelsVisible:boolean}[]} */
+  /** @type {{caseName:string,ordinaryMinifiedLabelsVisible:boolean,mangledLabelsVisible:boolean,protectedLabelsVisible:boolean}[]} */
   const staticLabelEvidence=[];
   for(const [name,reflective,depth] of /** @type {[string,boolean,number][]} */ (
     [['positive',false,1],['transitive',false,3],['reflective',true,1]])){
     const original=graph(reflective,depth),compiled=compile(original);
+    const mangled=await mangleGraph(original);
     /** @type {Output[]} */
     const minified=await Promise.all(original.map(async file=>({
       path:file.path,
@@ -86,14 +127,16 @@ async function main(){
     assert.equal(hasSourceLabels(original),true);
     assert.equal(hasSourceLabels(minified),true,
       'Normal esbuild property preservation should leave both semantic labels');
+    assert.equal(hasSourceLabels(mangled),false,
+      'Configured esbuild property mangling should remove both labels');
     assert.equal(hasSourceLabels(compiled),reflective,
       'Proved private labels should vanish; reflective labels must survive');
     staticLabelEvidence.push({
       caseName:name,ordinaryMinifiedLabelsVisible:true,
-      protectedLabelsVisible:reflective
+      mangledLabelsVisible:false,protectedLabelsVisible:reflective
     });
     for(const [variant,files] of /** @type {[string,Input[]|Output[]][]} */ (
-      [['native',original],['minified',minified],['compiled',compiled]])){
+      [['native',original],['minified',minified],['mangled',mangled],['compiled',compiled]])){
       for(const file of files)
         assets.set('/'+name+'/'+variant+'/'+file.path,
           {body:file.code,type:'text/javascript; charset=utf-8'});
