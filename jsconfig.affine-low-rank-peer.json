@@ -44,6 +44,7 @@
     "sims/rankfour-projected-cubic-rescue.js",
     "sims/sco-rank6-adaptive-real-http-clone.js",
     "sims/vector-top-tensor-quotient-peer.js",
-    "sims/rankfive-top-quartic-functional-clone.js"
+    "sims/rankfive-top-quartic-functional-clone.js",
+    "sims/sco-vs-native-rank6-matched-oracle.js"
   ]
 }
