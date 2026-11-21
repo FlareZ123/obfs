@@ -23,16 +23,25 @@ test('attacker rebuild is derived only from published math bytes',async()=>{
 test('full COO app parity and paired runtime evidence survive independent public-source reconstruction',{
   timeout:120000
 },async()=>{
+  const {variants,originalSha256,publishedSha256,reconstructedSha256}=await prepare();
+  /** @type {Record<'native'|'published'|'reconstructed',number>} */
+  const expectedBytes={
+    native:variants.native.reduce((total,file)=>total+Buffer.byteLength(file.code),0),
+    published:variants.published.reduce((total,file)=>total+Buffer.byteLength(file.code),0),
+    reconstructed:variants.reconstructed.reduce((total,file)=>total+Buffer.byteLength(file.code),0)
+  };
   const result=await runEvidence();
+  assert.deepEqual(result.sourceHashes,{
+    native:originalSha256,published:publishedSha256,reconstructed:reconstructedSha256
+  },'Timed sessions must execute the same source graph as their provenance pin');
   assert.equal(result.functionRecovery,3);
   assert.equal(result.rounds,9);
   assert.equal(result.programs,3);
   assert.deepEqual(result.rows.map(row=>row.events),[1,50,1000,10000]);
   for(const row of result.rows){
     assert.equal(row.comparisons,27);
-    assert.deepEqual(row.sourceBytes,{
-      native:2467,published:7518,reconstructed:2362
-    });
+    assert.deepEqual(row.sourceBytes,expectedBytes,
+      'Benchmark source-byte metrics must match the actual emitted graph');
     assert.equal(row.publishedVsNative.samplePairs,9);
     assert.equal(row.reconstructedVsNative.samplePairs,9);
     for(const kind of ['native','published','reconstructed']){

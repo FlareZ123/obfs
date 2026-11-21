@@ -41,7 +41,7 @@ function statements(depth,count){
     }else if(variant===1){
       out+='return y+'+(1+pick(7))+';';
     }else if(variant===2){
-      out+='throw (y|0);';
+      out+='return (y|0);';
     }else{
       out+=updates[pick(updates.length)];
     }
@@ -62,7 +62,7 @@ function outcome(fn,value){
   }
 }
 
-test('seeded nested CFG source-only reconstruction preserves returns and throws',()=>{
+test('seeded nested CFG source-only reconstruction preserves early returns',()=>{
   let checked=0;
   let transformed=0;
   let earlyTerminals=0;
@@ -70,7 +70,7 @@ test('seeded nested CFG source-only reconstruction preserves returns and throws'
     const source='function f(x){var y=x|0;' +
       'if((y&1)!==0){y=(y+1)|0;}else{y=(y-2)|0;}' +
       statements(0,1+pick(12)) + 'return y|0;}';
-    if(source.includes('throw (y|0)'))earlyTerminals++;
+    if(source.includes('return (y|0)'))earlyTerminals++;
     const original=load(source);
     for(const compactCases of [false,true]){
       const encoded=flattenStatementFlow(source,'commonjs',{
@@ -96,4 +96,17 @@ test('seeded nested CFG source-only reconstruction preserves returns and throws'
   assert.equal(transformed,320);
   assert.equal(checked,9280);
   assert.ok(earlyTerminals>=50,'Generated corpus omitted early termination');
+});
+
+test('escaping explicit throw keeps source intact in both CFG backends',()=>{
+  const source='function f(x){var y=x|0;if(x>0){throw (y|0);}'+
+    'else{y=(y+2)|0;}return y;}';
+  for(const compactCases of [false,true]){
+    const output=flattenStatementFlow(source,'commonjs',{
+      seed:'explicit-throw-source-refusal',names:['f'],compactCases
+    });
+    assert.equal(output.functions,0);
+    assert.equal(output.declined,1);
+    assert.equal(output.code,source);
+  }
 });

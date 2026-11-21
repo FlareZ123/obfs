@@ -50,7 +50,7 @@ function graph(seed,random){
     'c=(c+'+k[8]+')|0;',
     '}',
     'for(var i=0;i<'+(k[9]%4+1)+';i++){c=(c+i)|0;}',
-    'if((a&15)==='+(k[10]%16)+'){throw Error("fault-'+seed+'");}',
+    'if((a&15)==='+(k[10]%16)+'){hook("fault");return (a^b)|0;}',
     'if(c>'+((seed%3)*101-50)+'){',
     "hook('high');",
     'return (Math.imul(c,3)^a)|0;',
@@ -87,7 +87,7 @@ function observe(fn,value,flag){
   }
 }
 
-test('seeded 96-program compact CFG differential, exceptions and seedless static recovery',()=>{
+test('seeded 96-program compact CFG differential, early returns and seedless static recovery',()=>{
   const random=rng();
   let checked=0,compressed=0;
   const input=[-2147483648,-1024,-127,-1,0,1,7,31,127,1024,2147483647,
@@ -118,4 +118,17 @@ test('seeded 96-program compact CFG differential, exceptions and seedless static
   }
   assert.equal(compressed,96,'Every constructed graph contains a fusible linear chain');
   assert.equal(checked,96*2*input.length*3);
+});
+
+test('escaping explicit throw declines native CFG source rewrite',()=>{
+  const source='function f(x){var y=x|0;if(x){throw Error("fault");}'+
+    'else{y=(y+3)|0;}return y;}';
+  for(const compactCases of [false,true]){
+    const output=flattenStatementFlow(source,'commonjs',{
+      seed:'host-visible-throw',names:['f'],compactCases
+    });
+    assert.equal(output.functions,0);
+    assert.equal(output.declined,1);
+    assert.equal(output.code,source);
+  }
 });
