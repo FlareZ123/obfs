@@ -95,7 +95,9 @@ function main() {
     witnessMax: /** @type {{A:number[],U:number[],V:number[],encoded:number,target:number,rankM:number,rankW:number}|null} */ (null),
     sampleLowerBoundChecks: 0,
     exactSamplingQueries: Math.ceil(4 * Math.log(3 / 0.01)),
-    maxExactSpanFailureProbability: 0
+    maxExactSpanFailureProbability: 0,
+    maxExactSpanFailureQ16: 0,
+    maxExactSpanFailureQ17: 0
   };
 
   for (const A of As) {
@@ -152,21 +154,31 @@ function main() {
           // subspaces intersect pairwise only in {0}.
           const frequencies = Array(8).fill(0);
           for (const value of residual) frequencies[value]++;
-          const q = counts.exactSamplingQueries;
-          let missProbability = 0;
-          if (rankW === 1) {
-            missProbability = (frequencies[0] / 8) ** q;
-          } else if (rankW === 2) {
-            let lineSum = 0;
-            for (let w = 1; w < 8; w++) {
-              if (!(Wmask & (1 << w))) continue;
-              lineSum += ((frequencies[0] + frequencies[w]) / 8) ** q;
+          for (const q of [16, 17, counts.exactSamplingQueries]) {
+            let missProbability = 0;
+            if (rankW === 1) {
+              missProbability = (frequencies[0] / 8) ** q;
+            } else if (rankW === 2) {
+              let lineSum = 0;
+              for (let w = 1; w < 8; w++) {
+                if (!(Wmask & (1 << w))) continue;
+                lineSum += ((frequencies[0] + frequencies[w]) / 8) ** q;
+              }
+              missProbability = lineSum - 2 * (frequencies[0] / 8) ** q;
             }
-            missProbability = lineSum - 2 * (frequencies[0] / 8) ** q;
+            assert.ok(missProbability >= -1e-12);
+            if (q === 16) {
+              counts.maxExactSpanFailureQ16 = Math.max(
+                counts.maxExactSpanFailureQ16, missProbability);
+            } else if (q === 17) {
+              counts.maxExactSpanFailureQ17 = Math.max(
+                counts.maxExactSpanFailureQ17, missProbability);
+            } else {
+              assert.ok(missProbability <= 0.01);
+              counts.maxExactSpanFailureProbability = Math.max(
+                counts.maxExactSpanFailureProbability, missProbability);
+            }
           }
-          assert.ok(missProbability >= -1e-12 && missProbability <= 0.01);
-          counts.maxExactSpanFailureProbability = Math.max(
-            counts.maxExactSpanFailureProbability, missProbability);
 
           for (let y = 0; y < 8; y++) {
             const reachable = (imageMask & (1 << y)) !== 0;
@@ -201,6 +213,8 @@ function main() {
   assert.ok(counts.singularInterpolant > 0);
   assert.ok(counts.nonzeroResidual > 0);
   assert.equal(counts.minNonzeroResidualFunctionalSupport, 2);
+  assert.ok(counts.maxExactSpanFailureQ16 > 0.01);
+  assert.ok(counts.maxExactSpanFailureQ17 < 0.01);
   console.log(JSON.stringify({
     theorem: 'Nonbijective GF(2)^3 affine plus rank-two projected correction',
     family: 'All GL(3,2), seven input and output planes, 256 nonlinear tables; b=0 WLOG',
