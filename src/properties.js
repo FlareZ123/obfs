@@ -1143,6 +1143,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
@@ -1263,7 +1264,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * @param {Map<string,number>} [bindings]
  * @returns {Set<AstNode>}
  */
-function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
+function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='script') {
   const privateCallables=collectPrivateDirectCallables(ast,bindings);
   const sourceBodies=new Set([
     'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
@@ -1273,7 +1274,15 @@ function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
   const exposed=new Set();
   walk(ast,(node,parent,key,ancestors)=>{
     if(!sourceBodies.has(node.type))return;
-    if(node.type==='ClassDeclaration'||node.type==='ClassExpression'||
+    const nestedInCallable=ancestors.some(ancestor=>
+      ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(ancestor.type));
+    const topLevelScriptCallable=sourceType==='script'&&!nestedInCallable&&(
+      node.type==='FunctionDeclaration'||
+      ((node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression')&&
+       parent?.type==='VariableDeclarator'&&
+       ancestors[ancestors.length-2]?.type==='VariableDeclaration'&&
+       ancestors[ancestors.length-3]?.type==='Program'));
+    if(topLevelScriptCallable||node.type==='ClassDeclaration'||node.type==='ClassExpression'||
        ancestors.some(ancestor=>exposed.has(ancestor))||
        !privateCallables.has(node))exposed.add(node);
   });

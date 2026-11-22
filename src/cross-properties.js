@@ -2071,7 +2071,7 @@ function renameCrossFileProperties(files,seed) {
     if ((file.sourceType ?? (file.path.endsWith('.mjs') ? 'module' : 'script'))==='module' && typeof file.code==='string') {
       const ast=parse(file.code,'module');
       const bindings=collectBindings(ast);
-      const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+      const sourceExposedBodies=collectSourceExposedBodies(ast,bindings,'module');
       /** @type {WeakSet<AstNode>} */
       const sourceExposedEdits=new WeakSet();
       walk(ast,(node,parent,key,ancestors)=>{
