@@ -10,7 +10,10 @@ test('Agent 20 random anchor attackers and tests have strict JSDoc semantics',()
     '../sims/random-affine-anchor-coverage.js',
     '../sims/hybrid-reanchor-cegar-attack.js',
     '../sims/compatible-linear-baseline-reanchor.js',
+    '../sims/compatible-linear-baseline-width3-peer.js',
+    '../sims/sparse-triangular-fixedpoint-width3-peer.js',
     'compatible-linear-baseline-reanchor.test.js',
+    'compatible-linear-baseline-width3.test.js',
     'hybrid-reanchor-cegar-attack.test.js',
     'random-affine-anchor-compatible-inversion.test.js',
     'random-affine-anchor-coverage.test.js'
