@@ -12,8 +12,10 @@ const {extractPublicWasm,recoverAllPublicWasmExpressions,
 // A raw regex would incorrectly treat the comment as executable Wasm code.
 const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1,2,3]))\n'+
   "'use strict';\n"+
-  'function first(a){return ((a^137)&255);}\n'+
-  'function second(b,c){return (((b|c)^31)<<1);}\n'+
+  'function firstKernel(a){return ((a^137)&255);}\n'+
+  'function secondKernel(b,c){return (((b|c)^31)<<1);}\n'+
+  'function first(a){return firstKernel(a);}\n'+
+  'function second(b,c){return secondKernel(b,c);}\n'+
   'module.exports={first,second};\n';
 
 /**
@@ -44,7 +46,7 @@ test('public-only attacker selects both actual Wasm modules despite earlier deco
   let variants=0,checks=0;
   for(let seed=0;seed<12;seed++){
     const lowered=lowerWasmI32Functions(source,'commonjs',{
-      seed:'decoy-multi-'+seed,names:['first','second']
+      seed:'decoy-multi-'+seed,names:['firstKernel','secondKernel']
     });
     assert.equal(lowered.functions,2);
     const decoy=lowered.code.indexOf('Uint8Array.from([1,2,3])');
@@ -84,7 +86,7 @@ test('COO and SNO emitted multi-function files remain independently recoverable'
       const result=obfuscateFiles([{path:'kernel.cjs',
         sourceType:'commonjs',code:source}],{
         mode,seed,closedWorld:true,
-        experimentalWasmI32:{'kernel.cjs':['first','second']},
+        experimentalWasmI32:{'kernel.cjs':['firstKernel','secondKernel']},
         strings:false,properties:false,identifiers:false
       });
       const emitted=result.files[0];
