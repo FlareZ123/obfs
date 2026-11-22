@@ -253,3 +253,38 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       }
     });
 }
+
+
+const destructuredMemberReadAliasWrite =
+  'const descriptors={ref:{}};const {ref:entry}=descriptors;'+
+  'entry.get=function(){return TARGET.prototype};'+
+  'const box=Object.create(null,descriptors);';
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('destructured Object.create descriptor value alias: '+mode+' '+intrinsic,
+      async()=>{
+        const mutator=destructuredMemberReadAliasWrite.replace('TARGET',intrinsic)+
+          (intrinsic==='String'?
+            'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;');
+        const input=graph(mutator);
+        const output=obfuscateFiles(input,{
+          mode,strings:true,identifiers:false,properties:false,
+          seed:'agent5-destructured-entry/'+mode+'/'+intrinsic
+        });
+        const target=output.files.find(file=>file.path==='target.cjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-destructured-entry-'));
+        try{
+          const native=await execute(path.join(root,'native'),input);
+          const encoded=await execute(path.join(root,'emitted'),output.files);
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(encoded,native,'native/emitted destructured entry alias');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'String getter must suppress decoder while Number still encodes');
+      });
+  }
+}
