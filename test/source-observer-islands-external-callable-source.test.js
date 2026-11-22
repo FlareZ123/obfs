@@ -67,8 +67,8 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(result.crossFile.properties,0);
     assert.equal(result.files.reduce((n,file)=>n+file.metrics.bindings,0),0);
     assert.equal(result.files.reduce((n,file)=>n+file.metrics.literals,0),0);
-    const expectedEntry=await execute(originals,'entry.mjs',entry.code);
-    const actualEntry=await execute(result.files,'entry.mjs',entry.code);
+    const expectedEntry=await execute(originals,'entry.mjs',String(entry.code));
+    const actualEntry=await execute(result.files,'entry.mjs',String(entry.code));
     assert.equal(actualEntry,expectedEntry);
     const expectedExternal=await execute(originals,'outside.mjs',outside);
     const actualExternal=await execute(result.files,'outside.mjs',outside);
