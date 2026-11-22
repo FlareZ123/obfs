@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
+const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand,collectExportedCallableNodes} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -145,6 +145,13 @@ function renameLocalIdentifiers(source,ast,options) {
     const {name,scope,identifier}=candidate;
     if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
+    // Exported callables can be inspected by an importer with Function#toString,
+    // even when this module contains no explicit source-observer call. Do not
+    // rename a binding if its declaration or any reference occurs in an
+    // externally source-visible callable. This also protects captured
+    // top-level bindings whose spelling appears inside the callable source.
+    if(identifiers.some(item=>item.node.name===name &&
+        (item.node===identifier||item.ancestors.some(ancestor=>sourceExposedCallables.has(ancestor))))) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
     // reference occurs lexically before the declaration or in its initializer.
