@@ -67,9 +67,10 @@ test('an initial own literal key shadows a same-named inherited getter',()=>{
     module.exports=a.secretField;`,1);
 });
 
-test('Object.hasOwn observes original own-key spelling',()=>{
+test('Object.hasOwn preserves unknown external lookup-key semantics',()=>{
   compare(`'use strict';const a={secretField:11};
-    module.exports=[Object.hasOwn(a,"secretField"),a.secretField];`,0);
+    const key=module.activeKey||"secretField";
+    module.exports=[Object.hasOwn(a,key),key,a.secretField];`,0);
 });
 
 test('Object.getOwnPropertyDescriptors exposes own-key spelling',()=>{
@@ -78,10 +79,11 @@ test('Object.getOwnPropertyDescriptors exposes own-key spelling',()=>{
     module.exports=[Object.keys(descriptors),descriptors.secretField.value];`,0);
 });
 
-test('Reflect.getOwnPropertyDescriptor observes static original key',()=>{
+test('Reflect.getOwnPropertyDescriptor preserves unknown external lookup key',()=>{
   compare(`'use strict';const a={secretField:13};
-    const descriptor=Reflect.getOwnPropertyDescriptor(a,"secretField");
-    module.exports=descriptor&&descriptor.value;`,0);
+    const key=module.activeKey||"secretField";
+    const descriptor=Reflect.getOwnPropertyDescriptor(a,key);
+    module.exports=[key,descriptor&&descriptor.value];`,0);
 });
 
 test('Reflect.ownKeys exposes own-key spelling',()=>{
