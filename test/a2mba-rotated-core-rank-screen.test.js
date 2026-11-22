@@ -16,6 +16,7 @@ test('rotated-core public 32-bit projection has full rank but preserves native s
   const result=runScreen();
   assert.equal(result.baseline.rank,32);
   assert.equal(result.fullBaseline.rank,32);
+  assert.deepEqual(result.certificate,{pairs:32,rank:32});
   assert.equal(result.fullBaseline.observations,12224);
   assert.equal(result.degenerateSlice.rank,0);
   assert.deepEqual(result.rotations.map(record=>record.rotation),[1,8,16,31]);
