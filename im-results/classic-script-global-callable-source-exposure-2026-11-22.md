@@ -72,3 +72,8 @@ globalThis.result=invokeGlobal();
 For both COO and SNO, the test enables string and identifier passes, verifies positive literal and binding metrics, preserves the returned value, and then evaluates `publicGlobal.toString()` from a second VM script. Native source contains both `publicParam` and the original string; emitted source contains neither. This confirms that the issue is not limited to global-object properties or function declarations.
 
 The updated test file at `f16ac5e264ea989833726229ae83339376d199a5` passed on Ubuntu and Windows in [run 45015963409](https://github.com/FlareZ123/obfs/actions/runs/45015963409), workflow head `f16ac5e264ea989833726229ae83339376d199a5`. The named classic-script step and strict JSDoc gates passed on both platforms. The overall manual workflow remained red on the same two existing steps unrelated to these added cases.
+
+
+## Canonical-candidate code comparison
+
+To validate applicability of the descendant-branch reproduction, I fetched `src/properties.js` and `src/strings.js` from both `agent3/object-create-descriptor-group-guard-20261122` and the evidence branch. The 3,207-character body of `collectPrivateDirectCallables` before its Promise-continuation exception is byte-identical, and the complete `encodeStrings` function is byte-identical. Both branches' `collectSourceExposedBodies` implementations lack a Program/global-root rule for classic scripts; the descendant adds only the separate private-class exemption. Thus the global-script false negative is in the shared Agent 3 candidate logic, not introduced by the private-class POC.
