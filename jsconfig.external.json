@@ -233,7 +233,9 @@
     "sims/factory-destructuring-paired-session.js",
     "test/low-output-residual-cycle-independent.test.js",
     "sims/low-output-residual-common-basis-peercheck.js",
-    "test/common-basis-existence.test.js"
+    "test/common-basis-existence.test.js",
+    "sims/low-output-common-basis-repair.js",
+    "test/common-basis-random-repair.test.js"
   ],
   "exclude": [
     "node_modules"
