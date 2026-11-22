@@ -4101,18 +4101,26 @@ function collectExportedCallableNodes(ast) {
     return isModuleExports(node)||
       node.type==='MemberExpression'&&isCjsExportObject(node.object);
   }
+  /** @param {AstNode|null|undefined} node @returns {string|null} */
+  function rootBinding(node) {
+    let current=node;
+    while(current&&(current.type==='MemberExpression'||current.type==='ChainExpression')) {
+      current=current.type==='ChainExpression'?current.expression:current.object;
+    }
+    return current?.type==='Identifier'?current.name:null;
+  }
   /** @type {Set<string>} */
   const exportedObjectBindings=new Set([...exported,'exports']);
   walk(ast,node=>{
-    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
-       node.init&&(isCjsExportObject(node.init)||
-         node.init.type==='Identifier'&&exportedObjectBindings.has(node.init.name))) {
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init&&
+       (isCjsExportObject(node.init)||
+        exportedObjectBindings.has(rootBinding(node.init)??''))) {
       exportedObjectBindings.add(node.id.name);
     }
     if(node.type==='AssignmentExpression'&&node.operator==='='&&
        node.left.type==='Identifier'&&
        (isCjsExportObject(node.right)||
-        node.right.type==='Identifier'&&exportedObjectBindings.has(node.right.name))) {
+        exportedObjectBindings.has(rootBinding(node.right)??''))) {
       exportedObjectBindings.add(node.left.name);
     }
     if(node.type==='AssignmentExpression'&&node.operator==='=') {
@@ -4123,8 +4131,7 @@ function collectExportedCallableNodes(ast) {
         markValue(node.right,0);
       }
       if(node.left.type==='MemberExpression'&&
-         node.left.object.type==='Identifier'&&
-         exportedObjectBindings.has(node.left.object.name)) {
+         exportedObjectBindings.has(rootBinding(node.left)??'')) {
         markValue(node.right,0);
       }
     }
@@ -4134,15 +4141,13 @@ function collectExportedCallableNodes(ast) {
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
       if(method==='assign'&&node.arguments[0]&&
          (isCjsExportObject(node.arguments[0])||
-          node.arguments[0].type==='Identifier'&&
-            exportedObjectBindings.has(node.arguments[0].name))) {
+          exportedObjectBindings.has(rootBinding(node.arguments[0])??''))) {
         for(const argument of node.arguments.slice(1))markValue(argument,0);
       }
       if((method==='defineProperty'||method==='defineProperties')&&
          node.arguments[0]&&
          (isCjsExportObject(node.arguments[0])||
-          node.arguments[0].type==='Identifier'&&
-            exportedObjectBindings.has(node.arguments[0].name))) {
+          exportedObjectBindings.has(rootBinding(node.arguments[0])??''))) {
         const descriptor=node.arguments[method==='defineProperty'?2:1];
         if(descriptor)markValue(descriptor,0);
       }
@@ -4154,16 +4159,16 @@ function collectExportedCallableNodes(ast) {
   do {
     aliasChanged=false;
     walk(ast,node=>{
-      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
-         node.init?.type==='Identifier') {
-        if(exportedObjectBindings.has(node.init.name)&&
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init) {
+        const root=rootBinding(node.init);
+        if(root&&exportedObjectBindings.has(root)&&
            !exportedObjectBindings.has(node.id.name)) {
           exportedObjectBindings.add(node.id.name);
           aliasChanged=true;
         }
-        if(exportedObjectBindings.has(node.id.name)&&
-           !exportedObjectBindings.has(node.init.name)) {
-          exportedObjectBindings.add(node.init.name);
+        if(exportedObjectBindings.has(node.id.name)&&root&&
+           !exportedObjectBindings.has(root)) {
+          exportedObjectBindings.add(root);
           aliasChanged=true;
         }
       }
@@ -4171,19 +4176,19 @@ function collectExportedCallableNodes(ast) {
   } while(aliasChanged);
   walk(ast,node=>{
     if(node.type==='AssignmentExpression'&&node.operator==='='&&
-       node.left.type==='MemberExpression'&&node.left.object.type==='Identifier'&&
-       exportedObjectBindings.has(node.left.object.name))markValue(node.right,0);
+       node.left.type==='MemberExpression'&&
+       exportedObjectBindings.has(rootBinding(node.left)??''))markValue(node.right,0);
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
        node.callee.object.type==='Identifier'&&node.callee.object.name==='Object') {
       const method=node.callee.computed?staticString(node.callee.property):
         node.callee.property.type==='Identifier'?node.callee.property.name:null;
-      if(method==='assign'&&node.arguments[0]?.type==='Identifier'&&
-         exportedObjectBindings.has(node.arguments[0].name)) {
+      if(method==='assign'&&node.arguments[0]&&
+         exportedObjectBindings.has(rootBinding(node.arguments[0])??'')) {
         for(const argument of node.arguments.slice(1))markValue(argument,0);
       }
       if((method==='defineProperty'||method==='defineProperties')&&
-         node.arguments[0]?.type==='Identifier'&&
-         exportedObjectBindings.has(node.arguments[0].name)) {
+         node.arguments[0]&&
+         exportedObjectBindings.has(rootBinding(node.arguments[0])??'')) {
         const descriptor=node.arguments[method==='defineProperty'?2:1];
         if(descriptor)markValue(descriptor,0);
       }
