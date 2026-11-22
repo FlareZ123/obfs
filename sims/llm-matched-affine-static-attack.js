@@ -105,7 +105,7 @@ function minifiedOffset(publicFunction){
  * @param {string} source
  * @returns {void}
  */
-function assertStaticMinifiedModule(source){
+function assertStaticPublicModule(source){
   const program=/** @type {import('../src/ast').AstNode} */(
     acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'})
   );
@@ -166,7 +166,7 @@ function attackPublishedSource(source){
   let kind;
   if(source.includes('_ap_input_')&&source.includes('switch(')){
     kind='generated';
-    assertStaticMinifiedModule(source);
+    assertStaticPublicModule(source);
     for(const name of targetNames){
       const learned=recoverSymbolicAffine(source,name,'module');
       if(learned.cases!==2)throw new Error('Missing two public paths');
@@ -174,7 +174,7 @@ function attackPublishedSource(source){
     }
   }else{
     kind='esbuild-minified';
-    assertStaticMinifiedModule(source);
+    assertStaticPublicModule(source);
     const parsed=recoverMinifiedPublicMath(source);
     for(const fn of parsed.functions){
       if(!targetNames.includes(fn.name)||Object.hasOwn(offsets,fn.name))
