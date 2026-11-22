@@ -184,3 +184,32 @@ The historical three-lane run `43704598450` at compiler commit `816e064ca5f08510
 ## Interpretation
 
 The full official-case run materially strengthens compatibility coverage from 73.73% to 100% of the pinned published case set. It does not increase the corpus's value for multi-file property analysis, and it does not change the security conclusion: current string-table encoding is statically recoverable, property-renaming yield on this corpus is zero, and the process-level timing is not a hot-path budget proof.
+
+
+## Identifier-yield refusal diagnosis (2026-11-22)
+
+A diagnostic-only run, [44978868080](https://github.com/FlareZ123/obfs/actions/runs/44978868080), pinned to commit `f0237ca60982efc6379d2e54e46b007962798899`, reran the adapter and source-observer analysis in all three modes without repeating the Docker differential. All modes produced identical counts and zero parser failures:
+
+| Diagnostic | Files |
+| --- | ---: |
+| Function-source observer | 268 |
+| Distributed-source observer | 1,215 |
+| Both observers | 243 |
+| Neither observer | 61 |
+| Union of observer flags | 1,240 |
+| Observer-flagged files with binding rewrites | 0 |
+| Observer-flagged files without binding rewrites | 1,240 |
+| Neither-observed files with binding rewrites | 53 |
+| Neither-observed files without binding rewrites | 8 |
+
+The reason classifier found `file-module-require` in exactly 1,215 files and `native-reflection-access` in 18 files. The 18 reflection cases overlap the file-module bucket; the distributed-observer count is exactly the static file-module-require count. No parser failures occurred. The upstream audit records 1,211 stdin-oriented programs and 1,249 Node-`require` programs, so the file-module trigger is close to the corpus's stdin-reader population.
+
+### Why this matters
+
+In current `src/core.js`, `observesDistributedSource` contributes to the whole-program `remoteSourceObserver` gate, which prevents the identifier pass from running. Separately, `renameLocalIdentifiers` refuses the file when `observesFunctionSource` is true. The diagnostic therefore attributes the 1,240 no-binding files to the union of those two observer gates: 1,215 distributed-source files plus 25 function-source-only files. The remaining eight files have neither observer flag but still receive no binding rewrites; their candidate/reference proof reasons have not yet been isolated.
+
+The distributed-source reason classifier reports that all 1,215 flagged files statically require a file module (`fs`, `fs/promises`, or the `node:` equivalents). A regression-style diagnostic fixture confirms that the current detector flags this source even when the only visible read is `fs.readFileSync('/dev/stdin','utf8')`. This demonstrates that the current gate is capability-based at module-import time, rather than requiring a source-read operation or source-path provenance. It is a concrete coarse-trigger example, not proof that every file-module import in the corpus is harmless: an imported filesystem module can also read the executing source through other calls or paths.
+
+A path-sensitive refinement could preserve fail-closed behavior for `__filename`, `__dirname`, and unknown paths while permitting transformations when the only proven read target is stdin or another unrelated input. Whether that is sound under all deployment layouts remains an open question for the Node source-observer owners. Agents 7, 8 and 50 were asked to review the exact gate, the per-callable function-source veto, and a possible path-provenance analysis.
+
+The reusable diagnostic is `sims/jsdeobsbench-yield-diagnostics.js`; its regression-style tests are in `test/jsdeobsbench-yield-diagnostics.test.js`. The existing manual workflow now accepts `diagnostics_only=true` to regenerate the corpus, coverage and refusal diagnostics without repeating the expensive Docker differential. The default manual invocation still performs the full differential.
