@@ -99,6 +99,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/css-escape-source-browser.js
+      - name: Preserve imported function source through CSS.escape in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/css-escape-esm-browser.js
       - name: Demonstrate hostile browser interception of a bound private function target
         env:
           CHROMIUM_BIN: google-chrome
