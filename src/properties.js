@@ -1191,7 +1191,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
         if(toString?.type==='MemberExpression'&&staticName(toString.property)==='toString'&&
            prototype?.type==='MemberExpression'&&staticName(prototype.property)==='prototype'&&
            prototype.object?.type==='Identifier'&&prototype.object.name==='Function'&&
-           node.arguments.some(argument=>argument.type==='ThisExpression'||
+           node.arguments.some((/** @type {AstNode} */ argument)=>argument.type==='ThisExpression'||
              (argument.type==='MemberExpression'&&argument.object?.type==='Identifier'&&
               argument.object.name==='arguments'&&staticName(argument.property)==='callee')))
           observed=true;
