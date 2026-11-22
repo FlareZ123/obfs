@@ -2,6 +2,7 @@
 
 const {parse}=require('parse5');
 const {SaxesParser}=require('saxes');
+const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
 const svgNamespace='http://www.w3.org/2000/svg';
 
@@ -238,7 +239,7 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
- * Audit HTML, XHTML, and browser-executable XML assets before their bytes are copied to an output directory
+ * Audit HTML and XHTML assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
  * @param {string} path
@@ -275,6 +276,20 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   const javascriptPaths=new Set(files.filter(file=>file.sourceType!=='asset')
     .map(file=>file.path));
   if(!javascriptPaths.size)return false;
+  // The output tree already treats NFC- and case-equivalent paths as one
+  // portable filename identity. An SRI URL may resolve to the same file on a
+  // case-insensitive/normalizing host even when its raw spelling differs.
+  /** @type {Set<string>} */
+  const distributedKeys=new Set();
+  for(const filename of javascriptPaths) {
+    for(const path of mountedPrefix?[filename,mountedPrefix+filename]:[filename]) {
+      for(const key of portableKeys(path))distributedKeys.add(key);
+    }
+  }
+  /** @param {string} candidate @returns {boolean} */
+  function matchesDistributedScript(candidate) {
+    return portableKeys(candidate).some(key=>distributedKeys.has(key));
+  }
 
   /**
    * The URL parser applies ./ and ../ resolution and strips query/fragment.
@@ -362,9 +377,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     for(const address of pinnedUrls) {
       for(const candidateBase of bases) {
         const target=targetPath(address,candidateBase);
-        if(target!==null&&(javascriptPaths.has(target)||
-            mountedPrefix&&target.startsWith(mountedPrefix)&&
-              javascriptPaths.has(target.slice(mountedPrefix.length))))
+        if(target!==null&&matchesDistributedScript(target))
           return true;
       }
     }
@@ -422,10 +435,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
           // rather than assuming a static base was active at fetch time.
           for(const candidateBase of [documentBase,base]){
             const target=targetPath(address,candidateBase);
-            if(target!==null&&
-               (javascriptPaths.has(target) ||
-                mountedPrefix && target.startsWith(mountedPrefix) &&
-                  javascriptPaths.has(target.slice(mountedPrefix.length)))){
+            if(target!==null&&matchesDistributedScript(target)){
               observed=true;return;
             }
           }
