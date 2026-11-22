@@ -7,7 +7,7 @@ const {firstUnprovedFreeReference}=require('../src/sco-free-references');
 const {partitionScoSelectedAsyncExports}=require('../src');
 
 /** @type {Set<string>} */
-const shared=new Set(['Math','Object','Number','undefined','globalThis']);
+const shared=new Set(['Math','Object','Number','String','undefined','globalThis']);
 
 /**
  * Parse the actual ESTree body of a selected ESM function.
