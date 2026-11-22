@@ -53,13 +53,14 @@ test('hostile bind interception recovers actual private target source despite so
   });
   assert.equal(emitted.files[0].metrics.properties,2,
     'the attacker must recover a genuinely rewritten private record');
-  assert.doesNotMatch(emitted.files[0].code,/secretField|otherField/u);
+  const protectedCode=/** @type {string} */ (emitted.files[0].code);
+  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-interception-'));
   try{
     const nativePath=path.join(folder,'native.mjs');
     const protectedPath=path.join(folder,'protected.mjs');
     await atomicWrite(nativePath,source);
-    await atomicWrite(protectedPath,emitted.files[0].code);
+    await atomicWrite(protectedPath,protectedCode);
     const native=captureBoundTargets(pathToFileURL(nativePath).href);
     const protectedResult=captureBoundTargets(pathToFileURL(protectedPath).href);
     assert.equal(native.value,protectedResult.value);
