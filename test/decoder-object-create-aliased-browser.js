@@ -91,6 +91,56 @@ async function main() {
       mutation:'const descriptors={};const alias=descriptors;'+
         'alias.ref={get(){return Number.prototype}};'+
         'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'descriptor entry getter through member-read alias',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'entry.get=function(){return String.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor entry getter through member-read Number alias',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'entry.get=function(){return Number.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'descriptor entry Object.assign getter alias',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.assign(entry,{get:function(){return String.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor entry Object.assign Number alias',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.assign(entry,{get:function(){return Number.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'destructured descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const {ref:entry}=descriptors;'+
+        'entry.get=function(){return String.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'destructured descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const {ref:entry}=descriptors;'+
+        'entry.get=function(){return Number.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'factory-returned descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'function build(){return {get:function(){return String.prototype}};}'+
+        'Object.assign(entry,build());const box=Object.create(null,descriptors);'+
+        'box.ref.charCodeAt=()=>0;'},
+    {name:'factory-returned descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'function build(){return {get:function(){return Number.prototype}};}'+
+        'Object.assign(entry,build());const box=Object.create(null,descriptors);'+
+        'box.ref.unrelated=1;'},
+    {name:'reflected Object.defineProperty descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.defineProperty(entry,"get",{value:function(){return String.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'reflected Object.defineProperty descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.defineProperty(entry,"get",{value:function(){return Number.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'reflected Reflect.set descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Reflect.set(entry,"get",function(){return String.prototype});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'reflected Reflect.set descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Reflect.set(entry,"get",function(){return Number.prototype});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
     {name:'prebound prototype with invocation-time descriptor map',safe:false,
       mutation:'const maker=Object.create.bind(null,null);'+
         'const box=maker({ref:{get(){return String.prototype}}});'+
