@@ -86,8 +86,8 @@ test('apparently unrelated Reflect alias assignment can invoke a host inherited 
     mode:'coo',closedWorld:true,seed:'inherited-reflect-marker-host-20261122',
     identifiers:false,strings:false,properties:true
   });
-  assert.equal(output.crossFile.properties,0,
-    'Without a closed host prototype, apparent unrelated writes cannot prove native method stability');
   assert.equal(await execute(output.files,true),observed,
     'External inherited setter must preserve dynamic-import source-visible owner keys');
+  assert.equal(output.crossFile.properties,0,
+    'Without a closed host prototype, apparent unrelated writes cannot prove native method stability');
 });
