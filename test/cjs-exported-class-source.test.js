@@ -21,7 +21,8 @@ async function loadFromOutside(source, importer) {
   try {
     const filename = path.join(directory, 'entry.cjs');
     await atomicWrite(filename, source);
-    const child = spawnSync(process.execPath, ['-e', importer, filename], {
+    const child = spawnSync(process.execPath, ['-e',
+      'const intrinsicFunctionSource=Function.prototype.toString;'+importer,filename], {
       encoding: 'utf8', timeout: 10000
     });
     assert.ifError(child.error);
@@ -68,8 +69,8 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
         const importer = 'const entry=require(process.argv[1]);' +
           'const C=' + fixture.selector + ';' +
           'process.stdout.write(JSON.stringify({' +
-          'result:new C().value(),classSource:C.toString(),' +
-          'methodSource:C.prototype.value.toString()}));';
+          'result:new C().value(),classSource:intrinsicFunctionSource.call(C),' +
+          'methodSource:intrinsicFunctionSource.call(C.prototype.value)}));';
         const native = await loadFromOutside(original, importer);
         const emitted = await loadFromOutside(transformed.code, importer);
         assert.equal(JSON.parse(native).result, 7);
@@ -92,8 +93,8 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       const importer = 'const entry=require(process.argv[1]);' +
         'const instance=' + fixture.selector + ';' +
         'process.stdout.write(JSON.stringify({' +
-        'result:instance.value(),classSource:instance.constructor.toString(),' +
-        'methodSource:instance.value.toString()}));';
+        'result:instance.value(),classSource:intrinsicFunctionSource.call(instance.constructor),' +
+        'methodSource:intrinsicFunctionSource.call(instance.value)}));';
       const native = await loadFromOutside(original, importer);
       const emitted = await loadFromOutside(transformed.code, importer);
       assert.equal(JSON.parse(native).result, 7);
@@ -122,11 +123,11 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
     {name: 'public constructor', assignment: 'module.exports={Reader};',
       importer: 'const C=require(process.argv[1]).Reader;' +
         'process.stdout.write(JSON.stringify({result:new C().value(),' +
-        'classSource:C.toString(),methodSource:C.prototype.value.toString()}));'},
+        'classSource:intrinsicFunctionSource.call(C),methodSource:intrinsicFunctionSource.call(C.prototype.value)}));'},
     {name: 'public instance', assignment: 'module.exports=new Reader();',
       importer: 'const x=require(process.argv[1]);' +
         'process.stdout.write(JSON.stringify({result:x.value(),' +
-        'classSource:x.constructor.toString(),methodSource:x.value.toString()}));'}
+        'classSource:intrinsicFunctionSource.call(x.constructor),methodSource:intrinsicFunctionSource.call(x.value)}));'}
   ]) {
     test(mode + ' experimental Symbol backend preserves exported class source: ' +
       fixture.name, async () => {
@@ -162,8 +163,8 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       const transformed = compile(original, mode);
       const importer = 'const make=require(process.argv[1]);const instance=make();' +
         'process.stdout.write(JSON.stringify({result:instance.value(),' +
-        'factorySource:make.toString(),classSource:instance.constructor.toString(),' +
-        'methodSource:instance.value.toString()}));';
+        'factorySource:intrinsicFunctionSource.call(make),classSource:intrinsicFunctionSource.call(instance.constructor),' +
+        'methodSource:intrinsicFunctionSource.call(instance.value)}));';
       const native = await loadFromOutside(original, importer);
       const emitted = await loadFromOutside(transformed.code, importer);
       assert.equal(JSON.parse(native).result, 7);
@@ -177,7 +178,7 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       const original = classBody + 'module.exports=()=>new Reader().value();';
       const transformed = compile(original, mode);
       const importer = 'const fn=require(process.argv[1]);' +
-        'process.stdout.write(JSON.stringify({result:fn(),source:fn.toString()}));';
+        'process.stdout.write(JSON.stringify({result:fn(),source:intrinsicFunctionSource.call(fn)}));';
       const native = await loadFromOutside(original, importer);
       const emitted = await loadFromOutside(transformed.code, importer);
       assert.equal(JSON.parse(native).result, 7);
@@ -195,11 +196,11 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       source: 'const owner={privateField:7};function read(){return owner.privateField;}' +
         'module.exports=read;',
       importer: 'const fn=require(process.argv[1]);' +
-        'process.stdout.write(JSON.stringify({value:fn(),source:fn.toString()}));'},
+        'process.stdout.write(JSON.stringify({value:fn(),source:intrinsicFunctionSource.call(fn)}));'},
     {name: 'exported object method',
       source: 'const owner={privateField:7};module.exports={read(){return owner.privateField;}};',
       importer: 'const obj=require(process.argv[1]);' +
-        'process.stdout.write(JSON.stringify({value:obj.read(),source:obj.read.toString()}));'}
+        'process.stdout.write(JSON.stringify({value:obj.read(),source:intrinsicFunctionSource.call(obj.read)}));'}
   ]) {
     test(mode + ' direct exported function source must remain observable: ' +
       fixture.name, async () => {
