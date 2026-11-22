@@ -15,7 +15,7 @@ The resulting compiler changes:
 - cache declaration inventories once per lexical scope and prune nested variable environments during hoist scans, strictly compile-time changes;
 - refuse supported cross-host `Atomics.wait` CanBlock and `Blob({endings:'native'})` cases and legacy `TextDecoder` configuration escapes, based on the prior Agent29/Agent36 work.
 
-The original source and tests are available in [stacked draft #285](https://github.com/FlareZ123/obfs/pull/285) on [draft #272](https://github.com/FlareZ123/obfs/pull/272). The above current-main branch is the proposed single consolidation and is not yet merged.
+The original source and tests are available in [stacked draft #285](https://github.com/FlareZ123/obfs/pull/285) on [draft #272](https://github.com/FlareZ123/obfs/pull/272). The above current-main branch is the proposed single consolidation, now available as [draft integration PR #302](https://github.com/FlareZ123/obfs/pull/302), and is not yet merged.
 
 ## Source-pinned acceptance matrix
 
@@ -36,7 +36,7 @@ These rows are different acceptance boundaries. Green focused tests do not subst
 
 ## Prior independent adversarial/causal checks
 
-The original ordinary free-name migration red witness and selective SCO lexical repair are documented in [#272](https://github.com/FlareZ123/obfs/pull/272). Agent29's combined scope/host branch `4515b39362688538a1ed077c18aa8d6ee1330377` independently passed its [Chrome test](https://github.com/FlareZ123/obfs/actions/runs/45009428995) and six focused Ubuntu/Windows suites. The [`var`-scope pruned walker report](sco-var-hoist-pruned-traversal-2026-11-22.md) preserves locally repeated collector-only and full-preflight A/B timings and exact counterexamples. Compile-preflight A/B timings do **not** measure obfuscated runtime compute or establish the 2.5× bound.
+The original ordinary free-name migration red witness and selective SCO lexical repair are documented in [#272](https://github.com/FlareZ123/obfs/pull/272). Agent29's combined scope/host branch `4515b39362688538a1ed077c18aa8d6ee1330377` independently passed its [Chrome test](https://github.com/FlareZ123/obfs/actions/runs/45009428995) and six focused Ubuntu/Windows suites. The [`var`-scope pruned walker report](https://github.com/FlareZ123/obfs/blob/agent40/sco-var-hoist-proof-20261122/im-results/sco-var-hoist-pruned-traversal-2026-11-22.md) preserves locally repeated collector-only and full-preflight A/B timings and exact counterexamples. Compile-preflight A/B timings do **not** measure obfuscated runtime compute or establish the 2.5× bound.
 
 ## Decision boundary and integration acceptance
 
