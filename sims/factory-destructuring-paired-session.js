@@ -17,9 +17,12 @@ const {atomicWrite}=require('../src/atomic');
  * This two-file graph runs one genuinely imported, private factory object.
  * No source text, external JSON object identity or filesystem state is relied
  * on by the protected function.
+ * @param {number} [iterations]
  * @returns {import('../src/core').SourceFile[]}
  */
-function fixture() {
+function fixture(iterations=11000000) {
+  if(!Number.isSafeInteger(iterations)||iterations<1)
+    throw new RangeError('Expected positive integer protected iteration count');
   const state='const make=()=>({privateScore:17,weight:13});export const owner=make();';
   const entry=[
     'import {owner} from "./state.mjs";',
@@ -37,7 +40,7 @@ function fixture() {
     'for(let i=0;i<5;i++)work(100000);',
     'const begin=process.cpuUsage();',
     'const start=performance.now();',
-    'const answer=work(11000000);',
+    'const answer=work('+iterations+');',
     'const hotMs=performance.now()-start;',
     'const hot=process.cpuUsage(begin);',
     'const session=process.cpuUsage();',
@@ -136,13 +139,14 @@ function compare(control,candidate,repetitions) {
  * Evaluate all modes against original source, ordinary equal-trust esbuild
  * minification, and an unmodified native/native placebo. Preserve raw
  * samples and strict per-pair violations, including negative observations.
- * @returns {Promise<{node:string,platform:string,sourceFiles:number,rows:{
+ * @returns {Promise<{node:string,platform:string,sourceFiles:number,iterations:number,rows:{
  *  mode:Mode,protectedKeys:number,nativeBytes:number,obfuscatedBytes:number,minifiedBytes:number,
  *  emitted:ReturnType<typeof compare>,minified:ReturnType<typeof compare>,
  *  placebo:ReturnType<typeof compare>}[]}>}
  */
 async function run() {
-  const original=fixture();
+  const iterations=Number(process.env.OBFS_FACTORY_WORK_COUNT??11000000);
+  const original=fixture(iterations);
   const minified=original.map(file=>({
     path:file.path,sourceType:/** @type {'module'} */ ('module'),
     code:transformSync(/** @type {string} */ (file.code),{
@@ -180,7 +184,7 @@ async function run() {
         placebo:compare(nativePath,nativePath,8)
       });
     }
-    return {node:process.version,platform:process.platform,sourceFiles:original.length,rows};
+    return {node:process.version,platform:process.platform,sourceFiles:original.length,iterations,rows};
   }finally {
     await fs.rm(root,{recursive:true,force:true});
   }
