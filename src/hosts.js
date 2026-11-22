@@ -77,4 +77,34 @@ function routingHostname(header) {
   }
 }
 
-module.exports={canonicalAllowedHosts,routingHostname};
+/**
+ * Create an owned, bounded positive cache for the SCO HTTP Host routing
+ * prefilter. A normal browser sends the same Host value on successive
+ * requests, so its previously validated spelling can be reused without a
+ * fresh WHATWG URL parse. Disallowed or malformed headers are never cached,
+ * preventing callers from filling the cache with rejected values.
+ *
+ * This is a routing optimization. It is not an authentication cache:
+ * application authorization callbacks must still run on every request.
+ *
+ * @param {ReadonlySet<string>} allowed
+ * @returns {(header:string)=>boolean}
+ */
+function createRoutingHostResolver(allowed) {
+  const permitted=new Set(allowed);
+  /** @type {Set<string>} */
+  const acceptedHeaders=new Set();
+  return header=>{
+    if(acceptedHeaders.has(header))return true;
+    const hostname=routingHostname(header);
+    if(hostname===null || !permitted.has(hostname))return false;
+    if(acceptedHeaders.size>=128) {
+      const oldest=acceptedHeaders.values().next().value;
+      if(oldest!==undefined)acceptedHeaders.delete(oldest);
+    }
+    acceptedHeaders.add(header);
+    return true;
+  };
+}
+
+module.exports={canonicalAllowedHosts,routingHostname,createRoutingHostResolver};
