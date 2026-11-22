@@ -321,7 +321,7 @@ test('ordinary local script without SRI retains explicit string obfuscation',()=
 test('SCO route-prefix-qualified SRI paths preserve the exact served script',async()=>{
   const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
   const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
-  for(const prefix of ['/obfs/','/protected/scripts/']) {
+  for(const prefix of ['/obfs/','/protected/scripts/','/obfs%23/']) {
     const html='<script src="'+prefix+'client.js" '+
       'integrity="sha256-'+integrity+'"></script>';
     const handler=createScoHandler([
