@@ -68,6 +68,22 @@ async function main() {
   const mismatches=[];
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'dom-serialization-audit-'));
   try {
+    // A benign DOM read remains a positive-yield control. Source-data
+    // compatibility guards should not silently disable every document user.
+    const benign=program('document.title',false);
+    const benignCompiled=obfuscateFiles([
+      {path:'inline.js',sourceType:'script',code:benign}
+    ],{mode:'coo',seed:'dom-serialization/benign-document-title',
+      strings:false,identifiers:true}).files[0];
+    assert.ok(typeof benignCompiled.code==='string');
+    const benignNative=await browser(dir,'document-title-native',benign,'script');
+    const benignEmitted=await browser(dir,'document-title-emitted',benignCompiled.code,'script');
+    console.log(JSON.stringify({label:'benign-document-title',native:benignNative,
+      emitted:benignEmitted,bindings:benignCompiled.metrics.bindings}));
+    assert.deepEqual(benignNative,{value:8,sourceMatch:false});
+    assert.deepEqual(benignEmitted,benignNative);
+    assert.ok(benignCompiled.metrics.bindings>0,
+      'Ordinary document.title should retain positive identifier rename yield');
     for (const [label, observation, sourceType] of observations) {
       const original=program(observation,false);
       const renamedCode=program(observation,true);
