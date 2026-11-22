@@ -45,7 +45,7 @@ function page() {
 async function main() {
   const emitted=obfuscateFiles(INPUT,{
     mode:'coo',closedWorld:true,seed:'chromium-source-private-positive',
-    strings:true,identifiers:true,properties:true
+    strings:true,identifiers:true,properties:true,preservePublicCallableSource:true
   });
   const privateFile=emitted.files.find(file=>file.path==='private.mjs');
   const publicFile=emitted.files.find(file=>file.path==='entry.mjs');
