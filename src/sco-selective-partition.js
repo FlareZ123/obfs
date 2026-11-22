@@ -104,10 +104,19 @@ function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
          parent&&['FunctionDeclaration','FunctionExpression',
            'ArrowFunctionExpression','ClassExpression'].includes(parent.type)&&
            (key==='id'||key==='params'))return;
-      const enclosingFunction=inside.some((scope,index)=>
-        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
-          .includes(scope.type) &&
-        !inside.slice(0,index).some(outer=>outer.type==='CallExpression'));
+      // An unevaluated function body cannot read host state. Only a function
+      // directly invoked as the callee or tag can execute inside this typeof
+      // operand. Calls unrelated to its own function node do not prove execution.
+      const enclosingFunction=inside.some((scope,index)=>{
+        if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(scope.type))return false;
+        const containing=inside[index-1];
+        return !(containing&&(
+          (containing.type==='CallExpression'||containing.type==='NewExpression')&&
+            containing.callee===scope ||
+          containing.type==='TaggedTemplateExpression'&&containing.tag===scope
+        ));
+      });
       if(enclosingFunction)return;
       const name=read.name;
       const bindingCount=bindings.get(name)??0;
