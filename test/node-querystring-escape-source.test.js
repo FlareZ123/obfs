@@ -117,3 +117,23 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
     });
   }
 }
+
+for(const mode of /** @type {const} */(['sno','coo','sco'])) {
+  test(mode+' reports same-file private yield under native querystring observer',()=>{
+    const source="'use strict';"+
+      "function observedNativeSource(){return 'PUBLIC_QUERYSTRING_SOURCE_BODY';}"+
+      "const q=require('node:querystring');"+
+      "const privatelyHeld='INERT_PRIVATE_SAMEFILE_QUERYSTRING_20261122';"+
+      "module.exports={source:q.escape(observedNativeSource),privateValue:privatelyHeld};";
+    const emitted=obfuscateFiles([{
+      path:'querystring-yield.cjs',sourceType:'commonjs',code:source
+    }],{mode,seed:'querystring-samefile-yield/'+mode,
+      strings:true,identifiers:false,properties:false}).files[0];
+    assert.equal(JSON.stringify(execute(String(emitted.code))),
+      JSON.stringify(execute(source)));
+    console.log('QUERYSTRING_SAMEFILE_YIELD '+JSON.stringify({
+      mode,privateValuePresent:true,rewrittenLiterals:emitted.metrics.literals,
+      nativeSourceParity:true
+    }));
+  });
+}
