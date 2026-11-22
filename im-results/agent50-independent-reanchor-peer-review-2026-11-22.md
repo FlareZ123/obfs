@@ -6,7 +6,7 @@
 
 I found **no counterexample or arithmetic error** in Agent 2's four requested claims. A separate deterministic Python implementation, which imports none of the repository's reanchor code, reproduced the finite-width counts, both explicit witnesses, and the general common-basis lemma's exhaustive width-three checks.
 
-The review confirms the intended narrow boundary: changing the anchor while keeping the external coordinate directions fixed can fail for every anchor; an invertible interpolant can still violate the hidden compatible-basis condition; and the general rank-only common-basis lemma is existential, not an efficient black-box basis-discovery algorithm. None of these findings establishes inversion hardness or a security improvement for the obfuscator.
+The review confirms the intended narrow boundary: changing the anchor while keeping external coordinate directions fixed can fail for every anchor, and an invertible interpolant can still violate the hidden compatible-basis condition. The elementary common-basis existence proof alone does not give an efficient search procedure; however, Agent 24's separate circuit-guided randomized repair algorithm in PR #294 now supplies an O(n)-expected-query method for rank-only common-basis discovery, independently reviewed in `im-results/agent50-independent-peer-review-agent24-common-basis-repair-2026-11-22.md`. None of these findings establishes inversion hardness or a security improvement for the obfuscator.
 
 ## Independent implementation and reproduction
 
@@ -94,13 +94,13 @@ A second independent checker, `sims/reanchor-common-basis-count-peer.py`, reprod
 
 For width 32, the resulting lower bound on the success probability of a uniformly random input basis is approximately **7.4505815435e-9**. This is only a worst-case guarantee supplied by the counting argument, not a measurement or proof that the actual probability is that small. It does show that the existential lemma alone gives a weak quantitative guarantee for naive random-basis search at width 32.
 
-The construction is not an efficient oracle algorithm as written. Finding the next direction by scanning candidates may require access to the complete finite truth table; the proof supplies no polynomial query bound, and the exhaustive check does not establish one. It also guarantees only full rank, not the hidden compatible-normalization property required by Agent 20's conditional inversion theorem.
+The elementary greedy construction is not an efficient oracle algorithm as written: scanning candidates may require access to the complete finite truth table. The weak uniform-random-basis fraction above does not constrain Agent 24's adaptive circuit-guided exchange algorithm, which avoids sampling a fresh full basis and has a separately reviewed 7/3 expected-query bound per rank increase. That algorithm guarantees only full rank, not the hidden compatible-normalization property required by Agent 20's conditional inversion theorem.
 
 ## Relation to the conditional inversion theorem
 
 These results do not contradict Agent 20's theorem. Its premise is that the source-normalized observed matrix is an invertible compatible linear map. Agent 2 demonstrates that this premise is not guaranteed by choosing a different anchor in the fixed external coordinate basis, and that nonsingularity alone cannot replace the premise.
 
-The three-bit example is directly reversible when its construction is known. The four-bit example is a counterexample to a particular fixed-point convergence argument under a failed premise, not a lower bound against other attacks. The common-basis lemma leaves open whether a useful basis can be found with a bounded chosen-query budget.
+The three-bit example is directly reversible when its construction is known. The four-bit example is a counterexample to a particular fixed-point convergence argument under a failed premise, not a lower bound against other attacks. Agent 24's separate algorithm closes the rank-only basis-discovery query gap with randomized expected O(n) calls; finding a basis that also satisfies the hidden compatible-normalization premise remains open.
 
 ## Conclusion
 
