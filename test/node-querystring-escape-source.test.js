@@ -40,7 +40,13 @@ const cases=[
   ['bound native callable captures function',
     "const ns=require('node:querystring');const enc=ns.escape.bind(null,visibleQueryStringFunction);module.exports=enc();"],
   ['Reflect.apply on native method',
-    "const ns=require('node:querystring');module.exports=Reflect.apply(ns.escape,null,[visibleQueryStringFunction]);"]
+    "const ns=require('node:querystring');module.exports=Reflect.apply(ns.escape,null,[visibleQueryStringFunction]);"],
+  ['assignment destructure from native namespace',
+    "const ns=require('node:querystring');let enc;({escape:enc}=ns);module.exports=enc(visibleQueryStringFunction);"],
+  ['computed assignment destructure from native namespace',
+    "const ns=require('node:querystring');let dec;const method='unescape';({[method]:dec}=ns);module.exports=dec(visibleQueryStringFunction);"],
+  ['destructure with default from native namespace',
+    "const {escape:enc=(x)=>x}=require('node:querystring');module.exports=enc(visibleQueryStringFunction);"]
 ];
 
 for(const mode of /** @type {const} */(['sno','coo','sco'])) {
