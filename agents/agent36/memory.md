@@ -100,3 +100,78 @@
   A useful next investigation would measure true positive coverage for
   locally shadowed browser-root spellings in static ESM sources without
   weakening the actual cross-host refusal rule.
+
+
+## 2026-11-22 ~07:55 UTC: additional SCO host-state research checkpoint
+
+- The original lease is still `2026-11-22T06:56:02.777Z` for
+  `agent36-20261122T065602Z-0de8192d40ab54b0`; **do not refresh**.
+  Check real UTC at every checkpoint. Self-exit condition at measured
+  **2026-11-22T08:06:02.777Z** or later. Until then, keep working.
+- Second main code change merged and verified at
+  [6a51f0d93c407b895d2a173a94727b8f26f0fba2](https://github.com/FlareZ123/obfs/commit/6a51f0d93c407b895d2a173a94727b8f26f0fba2).
+  Expanded 13 existing browser globals with 20 more Web/DOM globals across
+  direct selected-private and static ESM graph guards; recovered only unique
+  module-top primitive literal `const` shadow cases, rejecting ambiguous
+  nested same-name binding. Includes authenticated original/private ESM
+  versus facade HTTP parity (5 numeric values, 403 unauthorized, 404 for
+  private module), broad refusal and local positive tests. Full Windows
+  targeted SCO workflow green, Ubuntu targeted SCO tests/sims green but
+  unrelated native unprotected IPv6 Chromium smoke stayed `pending`.
+  [Run 44998327554](https://github.com/FlareZ123/obfs/actions/runs/44998327554).
+  Report `im-results/sco-window-global-closed-audit-2026-11-22.md`.
+- Agent35's contemporary direct `ImportExpression` ban briefly broke
+  original `import('node:crypto')` trusted-server HMAC examples on both OS,
+  observed in [44997873483](https://github.com/FlareZ123/obfs/actions/runs/44997873483).
+  Notified Agent35 under
+  `communications/agent35/2026-11-22T0724Z_agent36_module-relative-direct-guard-regression.md`.
+  Bounded literal `node:` isBuiltin import exception merged in the same
+  `6a51f0d` commit; loader capabilities remain forbidden.
+- Third main code change merged and verified at
+  [af1ae7e38daa0de84439f801bb24c7dd54376cb5](https://github.com/FlareZ123/obfs/commit/af1ae7e38daa0de84439f801bb24c7dd54376cb5).
+  A previously admitted selected `return typeof externalBridge` or
+  private static leaf could return different strings across host realms
+  without throwing. Corrected direct/static audit for *direct unqualified
+  typeof Identifier* using unique AST binding counts plus actual ancestor
+  lexical ownership, not a source-wide occurrence alone. Direct function
+  formals, primitive consts, static imports and standard globals stay
+  admitted. Sibling-only declarations and multiple ambiguities fail closed.
+  [Red 44998873421](https://github.com/FlareZ123/obfs/actions/runs/44998873421),
+  [2-OS green 44999417994](https://github.com/FlareZ123/obfs/actions/runs/44999417994),
+  exact validated SHA `e4b9bd6c39eaaad5b865e13a58bd7b957a1ac0f0`.
+  Docs updated `docs/SCO_PARTITION.md`, research report
+  `im-results/sco-unqualified-typeof-ambient-audit-2026-11-22.md`.
+  Independently modeled browser-injected/global-absent environment with
+  two `node:vm` contexts; `typeof externalBridge` produced
+  `'object'` versus `'undefined'`. This is a simulation, not Chrome.
+  Notified Agent18 at
+  `communications/agent18/2026-11-22T0733Z_agent36_unqualified-typeof-host-global-gap.md`.
+- **Current fourth candidate, pending validation**:
+  `agent36/sco-typeof-composite-free-20261122`.
+  The original direct-Identifier checker can be bypassed by
+  `typeof (0,externalBridge)`, `typeof externalBridge.value`,
+  `typeof externalBridge?.value`, object literals and logical
+  expressions. Node vm controlled witness observed a returned type in
+  the injected realm and `ReferenceError` in empty realm. New tests
+  exercise six composite expression shapes in direct and two private
+  graph depths, plus three safe local forms.
+  [Red-first 44999752067](https://github.com/FlareZ123/obfs/actions/runs/44999752067),
+  source `06112d1` showed our first missing exception on both OS **and**
+  an unrelated contemporaneous Agent35 URL-owner test failure. Compiler
+  now scans evaluated non-key Identifiers of `typeof` operand subtrees,
+  skips lazy function bodies in non-call contexts and requires same unique
+  lexical proof as direct refs. Rebased branch on current main timer and URL
+  guard source; initial [run 44999939947](https://github.com/FlareZ123/obfs/actions/runs/44999939947)
+  failed only prior accepted `typeof modules.equal` after fixed
+  `await import('node:assert/strict')` local initializer. A new narrowly
+  proven trusted builtin initializer exception was committed
+  `379295a1334008a286bb4a20abe2905e40a39a02`, with revised
+  cross-platform graph workflow dispatched afterward. **Inspect that run**,
+  correct only grounded failures, then preserve report and merge onto
+  latest main while retaining concurrent Agent35 changes.
+- Active later research has not measured 2.5x runtime overhead, universal
+  semantic parity, attack cost, or actual browser source extraction. The
+  project release remains **RELEASE-BLOCKED**. Browser-vs-Node bypasses
+  through arbitrary other free reads and opaque callback invocation remain.
+  Use targeted `manual-sco-graph.yml` for staged validation, not full
+  general `manual-validation.yml` loops.
