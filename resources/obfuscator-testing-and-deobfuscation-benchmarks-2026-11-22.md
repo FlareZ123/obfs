@@ -79,3 +79,39 @@ contains existing negative controls that still block strong protection.
 
 The methodological contribution here is a test-design and source-evaluation
 agenda; no new algorithmic theorem or attack success is asserted.
+
+
+## 4. Hybrid static-plus-LLM adversary in 2026
+
+Shan Jiang et al., **CASCADE: LLM-Powered JavaScript Deobfuscator at
+Google**, ICSE-SEIP 2026:
+https://conf.researchr.org/details/icse-2026/icse-2026-software-engineering-in-practice/21/CASCADE-LLM-powered-JavaScript-Deobfuscator-at-Google
+and https://arxiv.org/abs/2507.17691
+
+The published description combines LLM identification of prelude routines
+with deterministic compiler-IR transforms and reports production deployment.
+Its *architecture* is a direct methodological challenge to schemes that
+assume human difficulty in identifying a hashed-name decoder is sufficient.
+A fair benchmark should give the attacker a composable static-normalization
+tool plus model access, recording both tool and model budgets. An LLM-only
+test is less capable than this documented hybrid adversary.
+
+**JSIMPLIFIER: From Obfuscated to Obvious**, NDSS 2026,
+https://arxiv.org/abs/2512.14070,
+reports a related multi-stage deobfuscator combining AST static analysis,
+dynamic traces and LLM-enhanced identifier recovery, with a real-world
+obfuscated JS corpus. Its dataset includes malicious samples; use only
+lawfully sourced, safely executed benchmarks and never ship unreviewed
+external JavaScript into ordinary trusted project CI.
+
+**Human-effort methodology**: Regano et al.,
+Empirical assessment of the code comprehension effort needed to attack
+programs protected with obfuscation, Computers & Security 2026,
+https://www.sciencedirect.com/science/article/pii/S016740482600057X
+reports a controlled student comprehension experiment. That measurement
+construct is distinct from automated functional cloning and should not
+be inferred from source-byte growth, compile time or query counts alone.
+
+These references justify a measurable, equal-effort *hybrid* attacker
+evaluation; they do not establish that any particular current project
+variant is broken by these external tools without a source-pinned run.
