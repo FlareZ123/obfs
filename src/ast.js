@@ -4175,22 +4175,56 @@ function collectExportedCallableNodes(ast) {
     });
   } while(aliasChanged);
   walk(ast,node=>{
-    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+    if(node.type==='AssignmentExpression'&&
        node.left.type==='MemberExpression'&&
        exportedObjectBindings.has(rootBinding(node.left)??''))markValue(node.right,0);
-    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
-       node.callee.object.type==='Identifier'&&node.callee.object.name==='Object') {
-      const method=node.callee.computed?staticString(node.callee.property):
-        node.callee.property.type==='Identifier'?node.callee.property.name:null;
-      if(method==='assign'&&node.arguments[0]&&
-         exportedObjectBindings.has(rootBinding(node.arguments[0])??'')) {
-        for(const argument of node.arguments.slice(1))markValue(argument,0);
+    if(node.type==='NewExpression'&&
+       exportedObjectBindings.has(rootBinding(node.callee)??'')) {
+      for(const argument of node.arguments??[])markValue(
+        argument.type==='SpreadElement'?argument.argument:argument,0);
+    }
+    if(node.type==='CallExpression') {
+      const calleeRoot=rootBinding(node.callee);
+      if(calleeRoot&&exportedObjectBindings.has(calleeRoot)) {
+        for(const argument of node.arguments??[])markValue(
+          argument.type==='SpreadElement'?argument.argument:argument,0);
       }
-      if((method==='defineProperty'||method==='defineProperties')&&
-         node.arguments[0]&&
-         exportedObjectBindings.has(rootBinding(node.arguments[0])??'')) {
-        const descriptor=node.arguments[method==='defineProperty'?2:1];
-        if(descriptor)markValue(descriptor,0);
+      if(node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&node.callee.object.name==='Object') {
+        const method=node.callee.computed?staticString(node.callee.property):
+          node.callee.property.type==='Identifier'?node.callee.property.name:null;
+        const target=node.arguments[0];
+        if(method==='assign'&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')) {
+          for(const argument of node.arguments.slice(1))markValue(argument,0);
+        }
+        if((method==='defineProperty'||method==='defineProperties')&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')) {
+          const descriptor=node.arguments[method==='defineProperty'?2:1];
+          if(descriptor)markValue(descriptor,0);
+        }
+        if(method==='setPrototypeOf'&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')&&node.arguments[1]) {
+          markValue(node.arguments[1],0);
+        }
+      }
+      if(node.callee.type==='MemberExpression'&&
+         node.callee.object.type==='Identifier'&&node.callee.object.name==='Reflect') {
+        const method=node.callee.computed?staticString(node.callee.property):
+          node.callee.property.type==='Identifier'?node.callee.property.name:null;
+        const target=node.arguments[0];
+        if(method==='setPrototypeOf'&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')&&node.arguments[1]) {
+          markValue(node.arguments[1],0);
+        }
+        if(method==='set'&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')&&node.arguments[2]) {
+          markValue(node.arguments[2],0);
+        }
+        if(method==='defineProperty'&&target&&
+           exportedObjectBindings.has(rootBinding(target)??'')&&node.arguments[2]) {
+          markValue(node.arguments[2],0);
+        }
       }
     }
   });
