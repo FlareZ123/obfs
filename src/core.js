@@ -2732,19 +2732,192 @@ function obfuscateFiles(files, options = {}) {
     staticallyRequiredCommonJsTargets(cross.files):new Set();
   const importedEsmTargets=shouldEncodeStrings?
     staticallyImportedEsmTargets(cross.files):new Set();
-  const projectHasObjectCreate=shouldEncodeStrings&&cross.files.some(input=>{
-    if(input.sourceType==='asset'||typeof input.code!=='string')return false;
+  /** @type {Set<string>} */
+  const commonJsModulePaths=new Set(cross.files.filter(
+    file=>file.sourceType==='commonjs').map(file=>file.path));
+  /** @type {Set<string>} */
+  const esmModulePaths=new Set(cross.files.filter(
+    file=>file.sourceType==='module').map(file=>file.path));
+  /** @type {Set<string>} */
+  const allModulePaths=new Set([...commonJsModulePaths,...esmModulePaths]);
+  /** @type {Map<string,Set<string>>} */
+  const moduleDependencies=new Map();
+  /** @type {Set<string>} */
+  const unknownModuleDependencies=new Set();
+  /** @type {Set<string>} */
+  const projectObjectCreateFiles=new Set();
+  /** @type {Set<string>} */
+  const projectPotentialSensitiveFiles=new Set();
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {string|null}
+   */
+  function staticMemberName(node) {
+    if(node.type!=='MemberExpression')return null;
+    return node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:staticString(node.property);
+  }
+  for(const input of cross.files) {
+    if(input.sourceType==='asset'||typeof input.code!=='string')continue;
     const inputAst=parse(input.code,input.sourceType);
-    let found=false;
+    const objectAliases=new Set(['Object']);
+    const createAliases=new Set();
+    let aliasesChanged=true;
+    while(aliasesChanged) {
+      aliasesChanged=false;
+      walk(inputAst,node=>{
+        if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init) {
+          if(node.init.type==='Identifier'&&objectAliases.has(node.init.name)&&
+             !objectAliases.has(node.id.name)) {
+            objectAliases.add(node.id.name);
+            aliasesChanged=true;
+          }
+          if(node.init.type==='MemberExpression'&&
+             node.init.object.type==='Identifier'&&
+             objectAliases.has(node.init.object.name)&&
+             staticMemberName(node.init)==='create'&&!createAliases.has(node.id.name)) {
+            createAliases.add(node.id.name);
+            aliasesChanged=true;
+          }
+        }
+        if(node.type==='AssignmentExpression'&&node.operator==='='&&
+           node.left.type==='Identifier') {
+          if(node.right.type==='Identifier'&&objectAliases.has(node.right.name)&&
+             !objectAliases.has(node.left.name)) {
+            objectAliases.add(node.left.name);
+            aliasesChanged=true;
+          }
+          if(node.right.type==='MemberExpression'&&
+             node.right.object.type==='Identifier'&&
+             objectAliases.has(node.right.object.name)&&
+             staticMemberName(node.right)==='create'&&!createAliases.has(node.left.name)) {
+            createAliases.add(node.left.name);
+            aliasesChanged=true;
+          }
+        }
+        const pattern=node.type==='VariableDeclarator'&&
+          node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'&&
+          objectAliases.has(node.init.name)?node.id:
+          node.type==='AssignmentExpression'&&node.operator==='='&&
+          node.left.type==='ObjectPattern'&&node.right.type==='Identifier'&&
+          objectAliases.has(node.right.name)?node.left:null;
+        if(pattern) {
+          for(const property of pattern.properties) {
+            if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+            const key=property.computed?staticString(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if(key==='create'&&!createAliases.has(property.value.name)) {
+              createAliases.add(property.value.name);
+              aliasesChanged=true;
+            }
+          }
+        }
+      });
+    }
+    const dependencies=new Set();
+    /**
+     * @param {string} specifier
+     * @param {boolean} esm
+     */
+    function addModuleDependency(specifier,esm) {
+      if(!specifier.startsWith('./')&&!specifier.startsWith('../')) {
+        if(!specifier.startsWith('node:'))unknownModuleDependencies.add(input.path);
+        return;
+      }
+      if(/[?#%\\\\]/u.test(specifier)) {
+        unknownModuleDependencies.add(input.path);
+        return;
+      }
+      const base=path.posix.normalize(
+        path.posix.join(path.posix.dirname(input.path),specifier));
+      if(esm) {
+        if(esmModulePaths.has(base))dependencies.add(base);
+        else unknownModuleDependencies.add(input.path);
+        return;
+      }
+      const candidates=path.posix.extname(base)?[base]:
+        [base,base+'.js',base+'.cjs',base+'/index.js',base+'/index.cjs'];
+      const resolved=candidates.find(candidate=>commonJsModulePaths.has(candidate));
+      if(resolved)dependencies.add(resolved);
+      else unknownModuleDependencies.add(input.path);
+    }
     walk(inputAst,node=>{
-      if(node.type!=='MemberExpression'||node.object.type!=='Identifier'||
-         node.object.name!=='Object')return;
-      const key=node.computed?staticString(node.property):
-        node.property.type==='Identifier'?node.property.name:staticString(node.property);
-      if(key==='create')found=true;
+      if(node.type==='MemberExpression'&&node.object.type==='Identifier'&&
+         objectAliases.has(node.object.name)&&staticMemberName(node)==='create') {
+        projectObjectCreateFiles.add(input.path);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+         createAliases.has(node.callee.name)) {
+        projectObjectCreateFiles.add(input.path);
+      }
+      if(node.type==='CallExpression'&&node.callee.type==='Identifier'&&
+         node.callee.name==='require') {
+        const argument=node.arguments[0];
+        const specifier=argument?staticString(argument):null;
+        if(specifier===null)unknownModuleDependencies.add(input.path);
+        else addModuleDependency(specifier,false);
+      }
+      if(node.type==='ImportExpression') {
+        const specifier=staticString(node.source);
+        if(specifier===null)unknownModuleDependencies.add(input.path);
+        else addModuleDependency(specifier,true);
+      }
     });
-    return found;
-  });
+    if(input.sourceType==='module') {
+      for(const statement of inputAst.body??[]) {
+        if(!['ImportDeclaration','ExportNamedDeclaration','ExportAllDeclaration'].includes(statement.type)) {
+          continue;
+        }
+        if(!statement.source)continue;
+        const specifier=staticString(statement.source);
+        if(specifier===null)unknownModuleDependencies.add(input.path);
+        else addModuleDependency(specifier,true);
+      }
+    }
+    moduleDependencies.set(input.path,dependencies);
+    if(mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
+       importedEsmTargets.has(input.path),true)) {
+      projectPotentialSensitiveFiles.add(input.path);
+    }
+  }
+  /**
+   * @param {string} start
+   * @returns {Set<string>}
+   */
+  function moduleDependencyClosure(start) {
+    const visited=new Set([start]);
+    const pending=[...(moduleDependencies.get(start)??[])];
+    while(pending.length) {
+      const next=pending.pop();
+      if(visited.has(next))continue;
+      visited.add(next);
+      pending.push(...(moduleDependencies.get(next)??[]));
+    }
+    return visited;
+  }
+  const moduleClosures=new Map(
+    [...allModulePaths].map(file=>[file,moduleDependencyClosure(file)]));
+  /** @type {Set<string>} */
+  const relatedObjectCreateFiles=new Set();
+  for(const sensitiveFile of projectPotentialSensitiveFiles) {
+    if(projectObjectCreateFiles.has(sensitiveFile)) {
+      relatedObjectCreateFiles.add(sensitiveFile);
+      continue;
+    }
+    const sensitiveClosure=moduleClosures.get(sensitiveFile)??new Set([sensitiveFile]);
+    for(const objectCreateFile of projectObjectCreateFiles) {
+      if(unknownModuleDependencies.has(sensitiveFile)||
+         unknownModuleDependencies.has(objectCreateFile)) {
+        relatedObjectCreateFiles.add(sensitiveFile);
+        break;
+      }
+      const objectClosure=moduleClosures.get(objectCreateFile)??new Set([objectCreateFile]);
+      if([...sensitiveClosure].some(dependency=>objectClosure.has(dependency))) {
+        relatedObjectCreateFiles.add(sensitiveFile);
+        break;
+      }
+    }
+  }
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
@@ -2758,7 +2931,7 @@ function obfuscateFiles(files, options = {}) {
       });
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
-            importedEsmTargets.has(input.path),projectHasObjectCreate) ||
+            importedEsmTargets.has(input.path),relatedObjectCreateFiles.has(input.path)) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
