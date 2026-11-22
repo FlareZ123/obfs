@@ -41,6 +41,20 @@ At the evaluated mainline `src/ast.js` blob `fded5c8451a07dc5c249a7decdbf4eaa445
 
 Other DOM reads can preserve normal positive renaming yield, for example a benign `document.title`; a global veto on all `document` references would sacrifice valid rewrites. Covering these eight scoped variants does not establish proof for aliases, borrowed DOM methods, cross-frame traversal, DOM mutation timing, cross-module source access, or delegated callbacks. A sound broader contract needs explicit conservative treatment of unproved source-bearing DOM object graphs.
 
+## Two-file inline ESM import graph: local source observation with imported positive yield
+
+A separate [real Chromium two-module HTTP graph reproducer](../sims/browser-dom-module-graph-source-boundary.js) now exercises a realistic dependency boundary. The browser receives an HTML page with an **inline ESM entry** and a separate same-origin `lib.mjs`, which the entry imports via `import {answer} from "./lib.mjs"`. The library computes the primitive answer with an unexported private helper; its full source is served as an ordinary external JavaScript response and is **not embedded** as a script text node in this HTML document. The inline entry reads `document.documentElement.outerHTML`, which contains its own exact source, and compares the split lookup `"private"+"Number"` against its local function binding.
+
+At source `195f6e36fba3b0a4a7c72d2f8c63726d28959da2`, [run 45026967168](https://github.com/FlareZ123/obfs/actions/runs/45026967168), **Ubuntu real Chromium** job `137221995350` executed both native and COO-protected versions from an isolated localhost HTTP server. The decisive log is:
+
+```json
+{"native":{"value":8,"sourceMatch":true},"emitted":{"value":8,"sourceMatch":false},"entryMetrics":{"literals":0,"objects":0,"properties":0,"bindings":1},"libraryMetrics":{"literals":0,"objects":0,"properties":0,"bindings":2},"entryChanged":true,"libraryChanged":true}
+```
+
+The test enforced an original graph output of `8/true` and independently required **positive rewrites in both modules**. It then failed only on actual compiler-versus-native source-observation parity. The exact emitted graph retained numeric behavior while changing the entry's source spelling. An HTML host script external to the compiled input waits for `load` and serializes the result, preventing benchmark instrumentation from masquerading as a code source observer. The test fixes two module files with explicit paths and checks the actual runtime import over HTTP.
+
+**Integration consequence:** a sound source-observer guard should preserve or conservatively refuse transformations to the inline entry whose source is disclosed by the DOM. Independently imported library-local code remains eligible for useful identifier renaming under these exact observed semantics. A whole-graph blanket refusal can restore parity at the expense of this independent positive yield; any finer proof needs evidence that a module is unreachable through other source-readers. This is an admission/compatibility boundary, not incremental anti-analysis resistance. No arbitrary browser-plugin, hostile-hook, import-map, or `Function#toString` safety proof is inferred.
+
 ## Threat, compatibility and performance limitations
 
 These are **eight finite semantic mismatches**, not proof of generalized property analysis unsoundness or of an attacker resisting reverse engineering. Source reflection by the executing classic script is part of its observable program behavior. The measured 8/true versus 8/false difference makes byte-preserving transformation or explicit refusal necessary for this input under the 1:1 parity objective.
