@@ -38,7 +38,10 @@ function linear(node,parameter){
     if(node.right.type!=='Literal'||node.right.value!==0)
       throw new TypeError('Only explicit Int32 normalization is supported');
     const arg=linear(node.left,parameter);
-    return {factor:arg.factor|0,offset:arg.offset|0,normalized:true};
+    const directlyCoercedInput=node.left.type==='Identifier'&&
+      node.left.name===parameter;
+    return {factor:arg.factor|0,offset:arg.offset|0,
+      normalized:arg.normalized||directlyCoercedInput};
   }
   if(node.type==='BinaryExpression'&&(node.operator==='+'||node.operator==='-')){
     const left=linear(node.left,parameter);
