@@ -77,13 +77,34 @@ const cases=[
     ]
   },
   {
-    name:'later same-producer key remains conservatively unproved',kind:'cross',positive:false,
+    name:'later same-producer key proves an acyclic named owner',kind:'cross',positive:true,
     files:[
       {path:'state.mjs',sourceType:'module',
         code:'export const bag={secretField:41};export const key="secretField";'},
       {path:'main.mjs',sourceType:'module',
         code:'import {bag,key} from "./state.mjs";'+
           'const {[key]:value}=bag;console.log(value);'}
+    ]
+  },
+  {
+    name:'later same-producer key proves an acyclic default owner',kind:'cross',positive:true,
+    files:[
+      {path:'state.mjs',sourceType:'module',
+        code:'export default {secretField:41};export const key="secretField";'},
+      {path:'main.mjs',sourceType:'module',
+        code:'import bag,{key} from "./state.mjs";'+
+          'const {[key]:value}=bag;console.log(value);'}
+    ]
+  },
+  {
+    name:'later same-producer key declines an ESM cycle',kind:'cross',positive:false,
+    files:[
+      {path:'state.mjs',sourceType:'module',
+        code:'import "./main.mjs";export const bag={secretField:41};'+
+          'export const key="secretField";'},
+      {path:'main.mjs',sourceType:'module',
+        code:'import {bag,key} from "./state.mjs";'+
+          'export function read(){const {[key]:value}=bag;console.log(value);}read();'}
     ]
   },
   {
