@@ -21,8 +21,9 @@ function ablate(files,variant){
     if(file.path==='app.mjs'&&['reflect','both'].includes(variant)){
       const original="function inspectRecord(key) {\n  const keys=Reflect.ownKeys(schema).sort();\n  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';\n  const enumerable=Object.getOwnPropertyDescriptor(schema,key)?.enumerable===true;\n  return {keys,value,enumerable};\n}";
       const fixed="function inspectRecord(key) {\n  const keys=['auditCount','externalFormat'];\n  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';\n  const enumerable=key==='externalFormat'||key==='auditCount';\n  return {keys,value,enumerable};\n}";
+      const fixedBoth="function inspectRecord(key) {\n  const value=key==='externalFormat'?schema.externalFormat:key==='auditCount'?schema.auditCount:'<missing>';\n  const enumerable=key==='externalFormat'||key==='auditCount';\n  return {keys:[],value,enumerable};\n}";
       assert.ok(code.includes(original),'Expected dynamic record reflection in app.mjs');
-      code=code.replace(original,fixed);
+      code=code.replace(original,variant==='both'?fixedBoth:fixed);
     }
     if(file.path==='entry.mjs'&&['entry','both'].includes(variant)){
       const original="const cases=JSON.parse(process.argv[2]||'[[1,1000]]');";
@@ -121,7 +122,7 @@ async function main(){
   assert.deepEqual(rows.map(row=>row.observerPaths),[
     ['entry.mjs'],['entry.mjs'],[],[],[],[]
   ]);
-  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,2,0,2,2,2],
+  assert.deepEqual(rows.map(row=>row.propertyRenames),[0,0,0,2,2,2],
     'Plain missing keys decline; changed own-key-only and null-prototype programs retain coverage');
   process.stdout.write('APPLICATION_SOURCE_OBSERVER_ABLATION '+JSON.stringify(rows)+'\n');
   return rows;
