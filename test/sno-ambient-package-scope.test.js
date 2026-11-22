@@ -161,3 +161,38 @@ test('SNO resolves output symlink target before checking ancestor package scope'
     assert.equal(result.stdout,'43');
   });
 });
+
+test('SNO rejects an untracked nested ESM package in a reused output tree',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const output=path.join(directory,'output');
+    const stale=path.join(output,'nested','package.json');
+    await atomicWrite(path.join(input,'nested','entry.js'),'module.exports=47;');
+    await atomicWrite(stale,'{"type":"module"}');
+
+    const native=runCommonJs(path.join(input,'nested','entry.js'));
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'47');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','nested/entry.js','--out',output]),
+      /SNO output \.js inherits external ESM package scope/
+    );
+    assert.equal(await fs.readFile(stale,'utf8'),'{"type":"module"}');
+    await assert.rejects(fs.stat(path.join(output,'nested','entry.js')),{code:'ENOENT'});
+  });
+});
+
+test('SNO accepts a reused nested CommonJS package for unscoped .js',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const output=path.join(directory,'output');
+    await atomicWrite(path.join(input,'nested','entry.js'),'module.exports=53;');
+    await atomicWrite(path.join(output,'nested','package.json'),'{"type":"commonjs"}');
+
+    await main('sno',['--root',input,'--entry','nested/entry.js','--out',output]);
+    const result=runCommonJs(path.join(output,'sno-entry.cjs'));
+    assert.equal(result.status,0,result.stderr);
+    assert.equal(result.stdout,'53');
+  });
+});
