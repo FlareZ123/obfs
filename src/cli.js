@@ -426,12 +426,14 @@ async function assertSnoPackageScope(files,root,context) {
         if(content!==undefined) {
           const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
           const metadata=JSON.parse(json);
+          const ownsType=metadata && typeof metadata==='object' &&
+            !Array.isArray(metadata) && Object.hasOwn(metadata,'type');
           if(!metadata || typeof metadata!=='object' || Array.isArray(metadata) ||
-              Object.hasOwn(metadata,'type') && typeof metadata.type!=='string') {
+              ownsType && typeof metadata.type!=='string') {
             throw new TypeError('Invalid SNO '+context+' external package metadata: '+
               path.join(directory,'package.json'));
           }
-          type=metadata.type==='module'?'module':'other';
+          type=ownsType && metadata.type==='module'?'module':'other';
         } else type='missing';
         scopes.set(directory,type);
       }
