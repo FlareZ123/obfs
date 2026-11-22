@@ -3871,13 +3871,17 @@ function collectExportedCallableNodes(ast) {
   function markTree(node) {
     /** @type {AstNode[]} */
     const callables=[];
-    walk(node,(child,parent)=>{
+    walk(node,(child,parent,key,ancestors)=>{
       if(isFunction(child)||isClass(child)) {
         exposed.add(child);
         callables.push(child);
       }
       if(child.type==='Property'&&child.method)exposed.add(child);
       if(child.type==='MethodDefinition')exposed.add(child);
+      if(child.type==='PropertyDefinition'&&child.value)markValue(child.value,0);
+      if(child.type==='AssignmentExpression'&&
+         ancestors.some(ancestor=>ancestor.type==='StaticBlock')&&
+         child.left.type==='MemberExpression')markValue(child.right,0);
     });
     for(const callable of callables)inspectCallable(callable);
   }
@@ -3931,15 +3935,20 @@ function collectExportedCallableNodes(ast) {
       return;
     }
     walk(fn.body,(node,parent,key,ancestors)=>{
-      if(node.type!=='ReturnStatement'&&node.type!=='CallExpression')return;
+      if(node.type!=='ReturnStatement'&&node.type!=='CallExpression'&&
+         node.type!=='AssignmentExpression')return;
       if(ancestors.some(ancestor=>ancestor!==fn&&isFunction(ancestor)))return;
       if(node.type==='ReturnStatement') {
         if(node.argument)markValue(node.argument,0);
-      } else {
+      } else if(node.type==='CallExpression') {
         for(const argument of node.arguments??[]) {
           if(argument.type==='SpreadElement')markValue(argument.argument,0);
           else markValue(argument,0);
         }
+      } else if(node.left.type==='MemberExpression') {
+        // A public method may publish a captured callback through this, a
+        // caller-owned target, or another reachable object.
+        markValue(node.right,0);
       }
     });
   }
