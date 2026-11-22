@@ -38,6 +38,17 @@ Repeat until the output rank reaches `n`, requiring exactly `d=n-s_0` successful
 E[Q_common_basis] <= n + 1 + (7/3) d <= n + 1 + (7/3)(n-1).
 ```
 
+**Finite binary-32 sampling budget with an explicit failure bound.** The current simulator samples a uniform *raw* 32-bit input before the free membership filter. With every fixed output-span rank `s<32`, the circuit has at least three indices, so the admissible set has at least `(7/8)2^32` points; at most `2^s<=2^31` of those have output inside the span. Every independent raw trial therefore improves the basis with probability at least **`3/8`** (and fails to improve with probability at most `5/8`), counting rejected trials as failures. If an algorithm needs `d` rank improvements, the probability any stage requires more than `t` raw trials is at most `d(5/8)^t` by a union bound. Consequently, a global `d*t` raw-draw cap succeeds except with probability at most that bound. The improvement-probability bound holds conditionally on every previous successful history, so the union bound applies to the adaptive evolving basis.
+
+For binary `n=32`, the exact initial-rank lower bound below gives `d<=26`. Choose **`t=102`**, **`maxDraws=26*102=2,652`**, which gives the theorem-level refusal probability
+
+```text
+Pr[sampling cap exhausted] <= 26*(5/8)^102
+                           < 2^-64.
+```
+
+Because the algorithm caches each evaluated input, a successful run with this cap makes at most **`33+2,652=2,685` distinct forward-oracle calls** (33 calibration calls plus at most one additional call for each raw draw). The result is a bounded-failure Monte Carlo admission policy returning a **verified exact basis whenever it succeeds**. It never returns an incorrect basis after a failed cap. The original default unbounded sampler remains a probability-one Las Vegas process with linear expected queries. A deterministic pseudorandom seed used in CI **does not** justify the `2^-64` bound: that bound assumes the default cryptographically uniform independent `node:crypto.randomInt` draws and a fixed oracle independent of those draws.
+
 **Exact extremal initial-rank bound.** Because the `n` values `G(b_i)` are distinct and nonzero, an initial output span of rank `s_0` must contain at least `n` nonzero points, implying `q^(s_0)-1>=n`. Thus **`s_0>=ceil(log_q(n+1))`** and `d<=n-ceil(log_q(n+1))`. This rank bound is tight among all permutations: choose `n` distinct nonzero points spanning an `s=ceil(log_q(n+1))`-dimensional output subspace, assign these as the images of the `n` input basis vectors, map zero to zero and extend the partial injection arbitrarily to a permutation of the finite domain. Consequently a sharper universal expectation bound is
 
 ```text
