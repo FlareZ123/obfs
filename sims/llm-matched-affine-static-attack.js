@@ -97,6 +97,37 @@ function minifiedOffset(publicFunction){
 }
 
 /**
+ * Only a side-effect-free declaration/export shell is eligible for exact
+ * standalone-module reconstruction. A mutable exported binding or eager
+ * module statement could invalidate the inferred function body even if that
+ * individual declaration is a proved affine translation.
+ *
+ * @param {string} source
+ * @returns {void}
+ */
+function assertStaticMinifiedModule(source){
+  const program=/** @type {import('../src/ast').AstNode} */(
+    acorn.parse(source,{ecmaVersion:'latest',sourceType:'module'})
+  );
+  /** @param {import('../src/ast').AstNode} statement @returns {boolean} */
+  function pureDeclaration(statement){
+    if(statement.type==='FunctionDeclaration')return true;
+    return statement.type==='VariableDeclaration'&&statement.kind==='const'&&
+      statement.declarations.every((/** @type {import('../src/ast').AstNode} */ item)=>
+        item.id.type==='Identifier'&&item.init&&
+        ['FunctionExpression','ArrowFunctionExpression'].includes(item.init.type)
+      );
+  }
+  for(const statement of program.body){
+    if(pureDeclaration(statement)||statement.type==='EmptyStatement')continue;
+    if(statement.type==='ExpressionStatement'&&statement.directive)continue;
+    if(statement.type==='ExportNamedDeclaration'&&!statement.source&&
+       (!statement.declaration||pureDeclaration(statement.declaration)))continue;
+    throw new TypeError('Unproved module-time side effect or mutable binding');
+  }
+}
+
+/**
  * Independently recover the same announced Int32 translation family from
  * one distributed source, with no function execution or runtime oracle.
  * The generated branch uses an existing source-only published interpreter;
@@ -122,6 +153,7 @@ function attackPublishedSource(source){
     }
   }else{
     kind='esbuild-minified';
+    assertStaticMinifiedModule(source);
     const parsed=recoverMinifiedPublicMath(source);
     for(const fn of parsed.functions){
       if(!targetNames.includes(fn.name)||Object.hasOwn(offsets,fn.name))
