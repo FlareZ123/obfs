@@ -160,6 +160,25 @@ test('Selected SCO refuses direct private exports and helpers with migrated host
 });
 
 
+
+test('Selected SCO refuses relocated module URLs and dynamic imports in private code',()=>{
+  const cases=[
+    'export async function protectedOp(){return import.meta.url;}',
+    'function moduleUrl(){return import.meta.url;}'+
+      'export async function protectedOp(){return moduleUrl();}',
+    'export async function protectedOp(){return import("./client-data.mjs");}',
+    'function loadClient(){return import("./client-data.mjs");}'+
+      'export async function protectedOp(){return loadClient();}'
+  ];
+  for(const source of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:source+'export function visible(){return 7;}'},
+      {seed:'sco-private-relative-module-source-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved module-relative execution/u,source);
+  }
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
@@ -190,7 +209,6 @@ test('Private source audit keeps browser API spellings in inert record keys elig
     assert.deepEqual(partition.privateNames,['protectedOp']);
   }
 });
-
 
 test('SCO selected direct and static private ESM sources decline browser-only Window globals',()=>{
   const names=[
