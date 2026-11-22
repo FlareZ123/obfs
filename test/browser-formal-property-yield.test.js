@@ -8,8 +8,7 @@ test('private parameter-owner remains transformable without DOM string coercion'
     path:'parameter-owner.mjs',sourceType:'module',
     code:'function compute(payload){const owner={secretField:payload,bias:3};'+
       'return owner.secretField+owner.bias;}'+
-      'if(compute(39)!==42)throw new Error("parameter property result mismatch");'+
-      'document.getElementById("answer").textContent="42";'
+      'if(compute(39)!==42)throw new Error("parameter property result mismatch");'
   }],{mode:'coo',seed:'chrome-local-formal-owner',
     identifiers:false,strings:false,properties:true});
   assert.equal(result.files[0].metrics.objects,1);
@@ -23,8 +22,7 @@ test('cross-file shorthand parameter owner remains transformable behind a public
         'export function publicCompute(input){return compute(input);}'},
     {path:'parameter-shorthand-entry.mjs',sourceType:'module',
       code:'import {publicCompute} from "./parameter-shorthand-helper.mjs";'+
-        'if(publicCompute(39)!==42)throw new Error("parameter shorthand result mismatch");'+
-        'document.getElementById("answer").textContent="42";'}
+        'if(publicCompute(39)!==42)throw new Error("parameter shorthand result mismatch");'}
   ],{mode:'coo',closedWorld:false,seed:'chrome-local-formal-shorthand',
     identifiers:false,strings:false,properties:true});
   assert.equal(result.files.reduce((sum,file)=>sum+file.metrics.objects,0),1);
