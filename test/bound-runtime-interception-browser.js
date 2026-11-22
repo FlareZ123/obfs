@@ -38,7 +38,7 @@ function bootstrap(){
 /**
  * Check a browser that actually runs the emitted ESM code under a host that
  * pre-instruments a native method, without modifying the emitted module.
- * @returns {Promise<{browser:string,protectedKeys:number,capturedFunctions:number}>}
+ * @returns {Promise<{browser:string,refusedKeyMutations:number,capturedFunctions:number}>}
  */
 async function main(){
   const source='const owner={secretField:7,otherField:11};'+
