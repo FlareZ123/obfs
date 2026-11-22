@@ -214,3 +214,28 @@ test('deeply nested functions keep var environments disjoint and captured outer 
       invalid+'})()',{}),/v is not defined/u,'native invalid depth '+depth);
   }
 });
+
+test('switch discriminant cannot borrow lexical case bindings',async()=>{
+  const cases=[
+    'switch(v){case 1:let v=3;break;}return 11;',
+    'switch(v){case 1:const v=3;break;}return 11;',
+    'switch(v){case 1:class v{};break;}return 11;'
+  ];
+  for(const body of cases){
+    assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+      new Set(),shared,true),'v',body);
+    await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
+      body+'})()',{}),/v is not defined/u,body);
+    assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+      body+'})()',{v:1}),11,body);
+  }
+});
+
+test('switch case var remains hoisted into its discriminant scope',async()=>{
+  const body='switch(v){case undefined:var v=3;break;}return v;';
+  assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+    new Set(),shared,true),null);
+  assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+    body+'})()',{}),3);
+  assert.deepEqual(compile(body).privateNames,['protectedOp']);
+});
