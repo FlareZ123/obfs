@@ -25,6 +25,8 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/string-failed-operand-browser.js
+      - name: Reject HTML subresource integrity script source mutation
+        run: node --test test/html-asset-disclosure.test.js
       - name: Run live browser integration suite
         env:
           CHROMIUM_BIN: google-chrome
