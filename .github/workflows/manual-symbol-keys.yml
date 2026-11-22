@@ -38,6 +38,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/symbol-keys-browser.js
+      - name: Compare generated, handwritten, and minified private hot keys under Chromium CSP
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/private-key-hot-cpu-browser.js
       - name: Real Chromium own-key membership with external page API
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
