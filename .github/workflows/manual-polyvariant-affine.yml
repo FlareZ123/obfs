@@ -42,7 +42,7 @@ jobs:
       - name: Report 24 independent public-source application rebuilds
         run: node sims/polyvariant-app-heldout-seeds.js
       - name: Verify same-source randomized matched minified and protected analysis questions
-        run: node --test test/llm-matched-affine-challenge.test.js
+        run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js
       - name: Strict JSDoc for matched blind affine challenge and verifier
         run: npx tsc -p jsconfig.llm-matched-affine.json
       - name: Confirm three-query independent black-box translation clone and controls
