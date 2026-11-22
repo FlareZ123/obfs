@@ -1,6 +1,6 @@
 # Cross-file DOM script creation and opaque SRI setter keys
 
-**Status:** Source-pinned red, bounded conservative candidate awaiting full real-browser validation.
+**Status:** Source-pinned red/green cross-file SRI fix with real Chromium parity; full two-platform validation pending.
 **Modes:** COO/SCO/SNO closed-world script+ESM graph.
 **Scope:** Unknown-key SRI source-byte preservation, with explicit proof limits.
 
@@ -32,7 +32,8 @@ The candidate recognizes a literal valid-looking `sha256-`, `sha384-`, or `sha51
 - **Candidate code:** `src/ast.js` helper `looksLikeSriHash` and its four conservative fallback sites.
 - **Node test:** `test/html-asset-disclosure.test.js` cross-file factory/opaque key case across COO, SCO, SNO, with no-SRI positive controls.
 - **Native browser proof:** `test/dynamic-interfile-sri-browser.js` publishes native, observer-protected and intentionally mutated variants over HTTP and runs real Chromium, requiring native+protected execution and rejection of modified SRI bytes.
-- **Validation:** [workflow 44979798985](https://github.com/FlareZ123/obfs/actions/runs/44979798985) was running at report creation; do not infer its conclusion or exact source pin from this note.
+- **Green Chromium:** [workflow 44979798985](https://github.com/FlareZ123/obfs/actions/runs/44979798985) **passed** with real native/protected/unsafe imported-factory browser parity at source SHA `93741427f7217e0bdaa77bb3303d2546b252f094` and strict external JSDoc. Expanded [workflow 44979941946](https://github.com/FlareZ123/obfs/actions/runs/44979941946) **passed** at source SHA `52bcedf2f091d6a5093d27fe2deb93db685aec25`, with additional SHA-384 and SHA-512 imported-factory `Reflect.set` cases, all modes, and existing Chrome suites.
+- **Full validation:** Ubuntu/Windows workflow dispatched at SHA `52bcedf2f091d6a5093d27fe2deb93db685aec25`; result pending when this record was last revised.
 
 ## Security and precision limits
 
