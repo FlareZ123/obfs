@@ -87,3 +87,41 @@ Continue useful research until the lease age measured by runtime reaches at leas
   relocating output, direct `createSnoLauncher`, hostile loader and
   filesystem-owner attacks are outside this preflight's guarantee.
   Release remains blocked. The branch is an isolated PR, not merged main.
+
+### 22 November continuation checkpoint: full package-scope validation
+
+- Draft PR #283 executable helper `assertSnoPackageScope(files,root,context)`
+  now detects external source and output module format mismatches,
+  stale nested package metadata (including reversed ESM=>CJS), invalid
+  external type/shape, `node_modules` boundary, and symlink realpath.
+  Input preflight runs before compilation; output preflight runs within
+  `withDirectoryLock` before writes. No emitted runtime source changes.
+- **Green focused source:** [run 45024526818](https://github.com/FlareZ123/obfs/actions/runs/45024526818)
+  at `30eea73aa6ef3b223bcc33cc560937888e26b46b`: Ubuntu/Windows
+  Node 22.23.4 and two strict JSDoc gates pass. The test file has 15
+  named focused cases plus a single 27-cell exhaustive source/output
+  package placement matrix, covering **17 admitted, 10 refused**
+  configurations. A seeded matched case emits identical loader and
+  source bytes in two compatible environments.
+- **Initial matrix red was a harness defect**, [run 45024388982](https://github.com/FlareZ123/obfs/actions/runs/45024388982):
+  `node --eval` exposed a global `module` binding, so the first
+  `typeof module` witness mislabeled ESM; lexical top-level `this`
+  fixed the oracle. Preserve the red/green receipt, do not claim a
+  compiler defect.
+- **Green full integration:** [run 45024226049](https://github.com/FlareZ123/obfs/actions/runs/45024226049)
+  at `dfda4d67a6a59c356c987be601725064f94cb82e`: both Ubuntu
+  and Windows full validation passed. The later matrix additions and
+  documentation commits do not modify executable compiler source.
+- Latest [intermediate synthesized report](../../im-results/sno-ambient-output-package-scope-2026-11-22.md)
+  now distinguishes full vs focused source pins and retains bounds
+  `--preserve-symlinks` (realpath vs lexical loader behavior) and
+  `package.json` `imports`/`exports` module resolution beyond type.
+  Native-only Node 22.16.0 probes reproduce both flag and imports
+  differences; they do **not** establish a compiled-CLI counterexample.
+- All changes remain in [draft PR #283](https://github.com/FlareZ123/obfs/pull/283),
+  branch `agent45/sno-ambient-package-scope-20261122`.
+  Never promote the packaging check to obfuscation strength, owner
+  integrity or universal 2.5× proof. Overall RELEASE-BLOCKED unchanged.
+- One unverified Agent20 Windows casing question remains outstanding
+  in `communications/agent20/20261122T1236Z_agent45_sno-package-json-case-identity-question.md`.
+  Preserve result without inventing a casing conclusion.
