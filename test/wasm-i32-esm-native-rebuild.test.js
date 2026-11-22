@@ -75,7 +75,7 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
       const compiled=obfuscateFiles(files,{
         mode:'coo',seed:'wasm-graph-static-rebuild-'+seed,closedWorld:true,
         properties:false,identifiers:seed%2===1,strings:false,
-        experimentalWasmI32:{'kernel.mjs':['scramble','mask']}
+        experimentalWasmI32:{'kernel.mjs':['scrambleKernel','maskKernel']}
       });
       const emitted=compiled.files.map(file=>({path:file.path,code:String(file.code)}));
       const kernel=emitted.find(file=>file.path==='kernel.mjs');
