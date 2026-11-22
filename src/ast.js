@@ -535,6 +535,21 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
   const nodeBufferNamespaces=new Set();
+  // Node's built-in buffer module re-exports the native btoa coercer.
+  // Recognize named and namespace/default ESM imports before scanning
+  // calls, including local const aliases of those namespace imports.
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration'||
+       !['buffer','node:buffer'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier' &&
+         (spec.imported.name??spec.imported.value)==='btoa')
+        coercers.add(spec.local.name);
+      if(spec.type==='ImportNamespaceSpecifier'||
+         spec.type==='ImportDefaultSpecifier')
+        nodeBufferNamespaces.add(spec.local.name);
+    }
+  });
   // JSON.parse and JSON.rawJSON call ToString on their text input.
   // Their SyntaxError.message can reveal a function's original source.
   const jsonNamespaces=new Set(['JSON']);
