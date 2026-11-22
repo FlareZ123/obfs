@@ -75,9 +75,15 @@ function algebra(node,environment,depth=0){
 function block(statement,environment){
   if(statement.type==='BlockStatement'){
     const local=new Map(environment);
-    for(const child of statement.body){
-      const value=block(child,local);
-      if(value!==null)return value;
+    for(let index=0;index<statement.body.length;index++){
+      const value=block(statement.body[index],local);
+      // A later unreachable lexical declaration still shadows earlier
+      // reads from the start of this block (TDZ). Do not silently skip it.
+      if(value!==null){
+        if(index!==statement.body.length-1)
+          throw new TypeError('Unproved unreachable statement after return');
+        return value;
+      }
     }
     return null;
   }
