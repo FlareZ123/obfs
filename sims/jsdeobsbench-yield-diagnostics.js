@@ -21,6 +21,176 @@ const browserReaders=new Set(['fetch','XMLHttpRequest','FileReader','FileReaderS
   'getEntriesByName','decodedBodySize','encodedBodySize','transferSize']);
 const globalRoots=new Set(['globalThis','window','self','global']);
 
+
+const fileReadMethods=new Set(['readFile','readFileSync','createReadStream',
+  'open','openSync','read','readSync','readv','readvSync']);
+
+/**
+ * @param {any} node
+ * @returns {string|null}
+ */
+function getMemberName(node) {
+  if(!node||node.type!=='MemberExpression')return null;
+  return node.computed?staticString(node.property):
+    node.property.type==='Identifier'?node.property.name:null;
+}
+
+/**
+ * @param {any} node
+ * @returns {string|null}
+ */
+function getRequiredModule(node) {
+  if(!node||node.type!=='CallExpression'||node.callee.type!=='Identifier'||
+     node.callee.name!=='require'||!node.arguments[0])return null;
+  return staticString(node.arguments[0]);
+}
+
+/**
+ * @param {any} node
+ * @param {Set<string>} fsAliases
+ * @param {Set<string>} promiseAliases
+ * @returns {boolean}
+ */
+function isFsObject(node,fsAliases,promiseAliases) {
+  if(node?.type==='Identifier')return fsAliases.has(node.name)||promiseAliases.has(node.name);
+  if(node?.type==='MemberExpression'&&getMemberName(node)==='promises'&&
+     node.object.type==='Identifier')return fsAliases.has(node.object.name);
+  const source=getRequiredModule(node);
+  return Boolean(source&&fileModules.has(source));
+}
+
+/**
+ * Classify only obvious path provenance; unknown expressions remain unknown.
+ * @param {any} node
+ * @returns {string}
+ */
+function classifyFsPath(node) {
+  if(!node)return 'missing-path';
+  if(node.type==='Literal') {
+    if(node.value===0)return 'stdin-fd';
+    if(typeof node.value==='string') {
+      if(['/dev/stdin','/dev/fd/0','/proc/self/fd/0'].includes(node.value))return 'stdin-path';
+      return 'literal-path';
+    }
+  }
+  const literal=staticString(node);
+  if(literal!==null) {
+    if(['/dev/stdin','/dev/fd/0','/proc/self/fd/0'].includes(literal))return 'stdin-path';
+    return 'literal-path';
+  }
+  if(node.type==='Identifier') {
+    if(node.name==='__filename')return 'source-file';
+    if(node.name==='__dirname')return 'source-directory';
+    return 'dynamic-identifier';
+  }
+  if(node.type==='MemberExpression') {
+    const key=getMemberName(node);
+    if(node.object.type==='Identifier'&&node.object.name==='process'&&key==='stdin')return 'process-stdin';
+    if(node.object.type==='MemberExpression'&&node.object.object.type==='Identifier'&&
+       node.object.object.name==='process'&&getMemberName(node.object)==='argv'&&key==='1') {
+      return 'process-argv-script-path';
+    }
+    if(node.object.type==='MetaProperty'&&key==='url')return 'import-meta-url';
+    return 'dynamic-member-path';
+  }
+  if(node.type==='CallExpression') {
+    const method=getMemberName(node.callee);
+    if(['join','resolve','normalize'].includes(method??'')) {
+      const args=node.arguments.filter(arg=>arg.type!=='SpreadElement');
+      if(args.some(arg=>arg.type==='Identifier'&&['__filename','__dirname'].includes(arg.name))) {
+        return 'source-derived-composed-path';
+      }
+      if(args.some(arg=>staticString(arg)==='/dev/stdin'||staticString(arg)==='/dev/fd/0')) {
+        return 'stdin-composed-path';
+      }
+      if(args.every(arg=>staticString(arg)!==null))return 'literal-composed-path';
+      return 'dynamic-composed-path';
+    }
+    if(node.callee.type==='Identifier'&&node.callee.name==='fileURLToPath')return 'file-url-derived-path';
+    return 'dynamic-call-path';
+  }
+  return 'dynamic-or-unknown';
+}
+
+/**
+ * Bounded static alias and call scan for common fs read APIs. This does not
+ * claim complete points-to coverage; it reports observed operations only.
+ *
+ * @param {import('../src/ast').AstNode} ast
+ * @returns {{fsAliases:boolean,methods:Set<string>,paths:Set<string>,calls:number}}
+ */
+function collectFsReadCalls(ast) {
+  const fsAliases=new Set();
+  const promiseAliases=new Set();
+  const methodAliases=new Map();
+  walk(ast,node=>{
+    if(node.type==='ImportDeclaration') {
+      const source=String(node.source?.value??'');
+      if(!fileModules.has(source))return;
+      const isPromises=source.includes('promises');
+      for(const specifier of node.specifiers) {
+        if(specifier.type==='ImportDefaultSpecifier'||specifier.type==='ImportNamespaceSpecifier') {
+          (isPromises?promiseAliases:fsAliases).add(specifier.local.name);
+        } else if(specifier.type==='ImportSpecifier') {
+          const imported=specifier.imported.type==='Identifier'?specifier.imported.name:
+            String(specifier.imported.value);
+          if(imported==='promises'&&!isPromises)promiseAliases.add(specifier.local.name);
+          else if(fileReadMethods.has(imported))methodAliases.set(specifier.local.name,imported);
+        }
+      }
+    }
+    if(node.type==='VariableDeclarator') {
+      const source=getRequiredModule(node.init);
+      if(source&&fileModules.has(source)) {
+        const isPromises=source.includes('promises');
+        if(node.id.type==='Identifier') {
+          (isPromises?promiseAliases:fsAliases).add(node.id.name);
+        } else if(node.id.type==='ObjectPattern') {
+          for(const property of node.id.properties) {
+            if(property.type!=='Property')continue;
+            const imported=property.key.type==='Identifier'?property.key.name:
+              property.key.type==='Literal'?String(property.key.value):null;
+            const local=property.value.type==='Identifier'?property.value.name:null;
+            if(!imported||!local)continue;
+            if(imported==='promises'&&!isPromises)promiseAliases.add(local);
+            else if(fileReadMethods.has(imported))methodAliases.set(local,imported);
+          }
+        }
+      }
+      if(node.id.type==='Identifier'&&node.init?.type==='MemberExpression') {
+        const method=getMemberName(node.init);
+        if(method==='promises'&&node.init.object.type==='Identifier'&&fsAliases.has(node.init.object.name)) {
+          promiseAliases.add(node.id.name);
+        } else if(fileReadMethods.has(method??'')&&isFsObject(node.init.object,fsAliases,promiseAliases)) {
+          methodAliases.set(node.id.name,method);
+        }
+      }
+    }
+  });
+  const methods=new Set();
+  const paths=new Set();
+  let calls=0;
+  walk(ast,node=>{
+    if(node.type!=='CallExpression')return;
+    let method=null;
+    let moduleObject=false;
+    let pathArg=node.arguments[0]??null;
+    if(node.callee.type==='MemberExpression') {
+      method=getMemberName(node.callee);
+      moduleObject=isFsObject(node.callee.object,fsAliases,promiseAliases);
+    } else if(node.callee.type==='Identifier'&&methodAliases.has(node.callee.name)) {
+      method=methodAliases.get(node.callee.name);
+      moduleObject=true;
+    }
+    if(!moduleObject||!method||!fileReadMethods.has(method))return;
+    calls++;
+    methods.add(method);
+    paths.add(['read','readSync','readv','readvSync'].includes(method)?
+      'file-descriptor-read':classifyFsPath(pathArg));
+  });
+  return {fsAliases:fsAliases.size+promiseAliases.size>0,methods,paths,calls};
+}
+
 /**
  * Count broad syntactic source-observation surfaces that appear in the current
  * distributed-source gate. Categories intentionally overlap and are
@@ -114,6 +284,7 @@ function analyzeRows(rows,sourceType) {
     unobservedFilesWithBindings:0,
     unobservedFilesWithoutBindings:0,
     distributedReasonFiles:{},
+    fsReadDiagnostics:{filesWithFsAliases:0,filesWithRecognizedReadCalls:0,filesWithFsAliasWithoutReadCall:0,readCallFilesByMethod:{},readCallFilesByPathClass:{}},
     samples:{
       functionOnly:[],
       distributedOnly:[],
@@ -149,6 +320,12 @@ function analyzeRows(rows,sourceType) {
     const functionObserved=observesFunctionSource(ast);
     const distributedObserved=observesDistributedSource(ast);
     const reasons=collectDistributedReasons(ast);
+    const fsReads=collectFsReadCalls(ast);
+    if(fsReads.fsAliases)result.fsReadDiagnostics.filesWithFsAliases++;
+    if(fsReads.calls>0)result.fsReadDiagnostics.filesWithRecognizedReadCalls++;
+    else if(fsReads.fsAliases)result.fsReadDiagnostics.filesWithFsAliasWithoutReadCall++;
+    for(const method of fsReads.methods)result.fsReadDiagnostics.readCallFilesByMethod[method]=(result.fsReadDiagnostics.readCallFilesByMethod[method]??0)+1;
+    for(const pathClass of fsReads.paths)result.fsReadDiagnostics.readCallFilesByPathClass[pathClass]=(result.fsReadDiagnostics.readCallFilesByPathClass[pathClass]??0)+1;
     const observed=functionObserved||distributedObserved;
     const bindings=row.obfs_metrics.bindings;
     if(functionObserved)result.functionSourceObserved++;
