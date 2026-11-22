@@ -35,6 +35,17 @@ test('reflective Document writer invocation preserves pinned source bytes',()=>{
     ],options);
     assert.notEqual(harmless.files[0].code,source,
       'A proved benign reflective write must retain rewrite yield in '+mode);
+    for(const [kind,bootstrap] of /** @type {[string,string][]} */([
+      ['member apply','document.write.apply(document,["<p>no integrity</p>"]);'],
+      ['Reflect.apply','Reflect.apply(document.write,document,["<p>safe</p>"]);'],
+      ['alias call','const writer=document.write;writer.call(document,"<p>safe</p>");']
+    ])) {
+      const benignOutput=obfuscateFiles([
+        files[0],{path:'bootstrap.js',sourceType:'script',code:bootstrap},files[1]
+      ],options);
+      assert.notEqual(benignOutput.files[0].code,source,
+        kind+' with proved unrelated HTML must preserve transformation yield in '+mode);
+    }
     const unrelated=obfuscateFiles([
       files[0],{path:'bootstrap.js',sourceType:'script',
         code:'const f={call(_doc,txt){return txt;}};f.call(document,'+raw+');'},files[1]
