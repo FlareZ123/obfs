@@ -14,7 +14,7 @@ const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 /** @type {Array<{path:string,sourceType:'module',code:string}>} */
 const files=[
   {path:'kernel.mjs',sourceType:'module',
-    code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'},
+    code:'function scrambleKernel(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}export function scramble(a,b,c,d){return scrambleKernel(a,b,c,d);}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
@@ -38,7 +38,7 @@ test('COO three-file four-input Wasm maintains external API and enables seedless
   const transformed=obfuscateFiles(files,{
     mode:'coo',seed:'multi-esm-bridge-20261116',
     strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'kernel.mjs':['scramble']}
+    experimentalWasmI32:{'kernel.mjs':['scrambleKernel']}
   });
   const emitted=transformed.files.map(file=>({path:file.path,code:String(file.code)}));
   assert.equal(transformed.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,1);
