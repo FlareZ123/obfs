@@ -48,8 +48,8 @@ function directBareRequires(files) {
     if(!/\.(?:cjs|js)$/u.test(file.path)||file.sourceType==='module'||
         file.sourceType==='asset'||typeof file.code!=='string')continue;
     const ast=parse(file.code,'commonjs');
-    /** @type {Set<string>} */
-    const refs=new Set();
+    /** @type {string[]} */
+    const refs=[];
     const shadow=collectBindings(ast).has('require');
     walk(ast,node=>{
       if(node.type!=='CallExpression'||node.callee?.type!=='Identifier'||
@@ -63,11 +63,11 @@ function directBareRequires(files) {
           specifier.startsWith('/')||
           specifier.startsWith('#')||path.isAbsolute(specifier)||
           isBuiltin(specifier))return;
-      refs.add(specifier);
+      refs.push(specifier);
     });
-    if(shadow&&refs.size)throw new TypeError(
+    if(shadow&&refs.length)throw new TypeError(
       'SNO bare dependency audit cannot prove unshadowed require in '+file.path);
-    if(refs.size)entries.set(file.path,[...refs].sort());
+    if(refs.length)entries.set(file.path,refs.sort());
   }
   return entries;
 }
