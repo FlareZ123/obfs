@@ -13,12 +13,15 @@
 function canonicalAllowedHost(host) {
   if(typeof host!=='string')throw new TypeError('allowedHosts must contain strings');
   const lowercase=host.toLowerCase();
-  if(/^[a-z0-9.-]+$/u.test(lowercase))return lowercase;
-  if(/^\[[0-9a-f:.]+\]$/u.test(lowercase)) {
+  // Browser location.hostname is WHATWG-canonicalized. Normalize ASCII
+  // IPv4 spellings too: 127.1, 127.0.0.1 and 0x7f000001 all identify the
+  // same browser hostname. Retain the existing conservative input grammar.
+  if(/^[a-z0-9.-]+$/u.test(lowercase) ||
+      /^\[[0-9a-f:.]+\]$/u.test(lowercase)) {
     try {
       return new URL('http://'+lowercase).hostname.toLowerCase();
     } catch(error) {
-      // Invalid IPv6 literals are deliberately refused.
+      // Malformed numeric hosts and IPv6 literals are refused.
     }
   }
   throw new TypeError('allowedHosts must contain valid DNS names or bracketed IPv6 literals');
@@ -47,7 +50,16 @@ function canonicalAllowedHosts(hosts) {
  * @returns {string|null}
  */
 function routingHostname(header) {
-  if(!header.startsWith('['))return header.split(':')[0].toLowerCase();
+  if(!header.startsWith('[')) {
+    // Reject userinfo, path delimiters, extra colons and malformed ports;
+    // splitting at the first colon would admit invalid Host field suffixes.
+    if(!/^[a-z0-9.-]+(?::[0-9]+)?$/iu.test(header))return null;
+    try {
+      return new URL('http://'+header).hostname.toLowerCase();
+    } catch(error) {
+      return null;
+    }
+  }
   const closing=header.indexOf(']');
   if(closing<2 || !/^(?::[0-9]+)?$/u.test(header.slice(closing+1)))return null;
   try {
