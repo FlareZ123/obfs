@@ -101,3 +101,46 @@ test('function-body var does not prove a free default-parameter initializer',asy
   assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
     bound+'})()',{}),41);
 });
+
+test('class static var stays inside its own static-block environment',async()=>{
+  const allowed=[
+    ['nested-static-block','class C{static {if(false){var v=1;}this.value=v;}}return C.value;',undefined],
+    ['static-loop','class C{static {for(var v=0;v<2;v++){}this.value=v;}}return C.value;',2],
+    ['nested-static-var','class C{static {{var v=41;}this.value=v;}}return C.value;',41]
+  ];
+  const escaped=[
+    'class C{static {var v=1;}}return v;',
+    'class C{static {var v=1;}static {this.value=v;}}return C.value;'
+  ];
+  for(const [name,body,value] of allowed){
+    assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+      new Set(),shared,true),null,name);
+    assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+      body+'})()',{}),value,name);
+  }
+  for(const body of escaped){
+    assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+      new Set(),shared,true),'v',body);
+    await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
+      body+'})()',{}),/v is not defined/u,body);
+  }
+});
+
+test('outer function var can feed inner parameter defaults while its own body var cannot',async()=>{
+  const valid=[
+    ['function outer(){var v=41;function inner(x=v){var v=1;return x;}return inner();}return outer();',41],
+    ['function outer(){var v=73;const inner=(x=v)=>{var v=1;return x;};return inner();}return outer();',73],
+    ['function outer(){var v=79;const inner=(x=()=>v)=>{var v=1;return x();};return inner();}return outer();',79]
+  ];
+  for(const [body,want] of valid){
+    assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+      new Set(),shared,true),null,body);
+    assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+      body+'})()',{}),want,body);
+  }
+  const invalid='function outer(x=v){var v=41;return x;}return outer();';
+  assert.equal(firstUnprovedFreeReference(sourceBody(invalid),new Set(),
+    new Set(),shared,true),'v',invalid);
+  await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
+    invalid+'})()',{}),/v is not defined/u,invalid);
+});
