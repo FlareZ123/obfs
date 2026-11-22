@@ -1136,6 +1136,80 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * @param {{seed:string}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
+/**
+ * Prove local callables whose binding never escapes and whose every reference
+ * is a direct, non-optional call. Their source text is not externally
+ * observable through the supplied lexical graph, so source-changing passes
+ * may retain them as positive-yield targets.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} [bindings]
+ * @returns {Set<AstNode>}
+ */
+function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
+  const inventory=collectProofInventory(ast);
+  const scopes=collectBindingScopes(ast);
+  /** @type {Set<AstNode>} */
+  const permitted=new Set();
+  /**
+   * @param {string} name
+   * @param {AstNode} definition
+   * @returns {boolean}
+   */
+  function directCallOnly(name,definition) {
+    if(bindings.get(name)!==1)return false;
+    const scope=scopes.get(name);
+    if(!scope)return false;
+    for(const use of inventory.identifierUses.get(name)??[]) {
+      if(use.node===definition)continue;
+      if(!use.ancestors.includes(scope)||
+         use.parent?.type!=='CallExpression'||use.key!=='callee'||
+         use.parent.optional)return false;
+    }
+    return true;
+  }
+  for(const fn of inventory.functionDeclarations) {
+    if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
+       !directCallOnly(fn.id.name,fn.id)||
+       /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
+    permitted.add(fn);
+  }
+  for(const decl of inventory.callableDeclarators) {
+    const container=inventory.parents.get(decl);
+    if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
+       decl.id.type!=='Identifier'||!decl.init||
+       !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
+       !directCallOnly(decl.id.name,decl.id)||
+       /^Export/.test(inventory.parents.get(container)?.type??''))continue;
+    permitted.add(decl.init);
+  }
+  return permitted;
+}
+
+/**
+ * Function/class source that may escape the supplied graph is observable
+ * through Function#toString or class source formatting. A nested function is
+ * also exposed when its enclosing callable source is exposed.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} [bindings]
+ * @returns {Set<AstNode>}
+ */
+function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
+  const privateCallables=collectPrivateDirectCallables(ast,bindings);
+  const sourceBodies=new Set([
+    'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+    'ClassDeclaration','ClassExpression'
+  ]);
+  /** @type {Set<AstNode>} */
+  const exposed=new Set();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!sourceBodies.has(node.type))return;
+    if(node.type==='ClassDeclaration'||node.type==='ClassExpression'||
+       ancestors.some(ancestor=>exposed.has(ancestor))||
+       !privateCallables.has(node))exposed.add(node);
+  });
+  return exposed;
+}
+
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
@@ -1159,6 +1233,12 @@ function renameLocalProperties(source, ast, options) {
     candidates.push({node:literal,name:parent.id.name,properties});
   });
 
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  const sourceExposedEdits=new WeakSet();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
+      sourceExposedEdits.add(node);
+  });
   /** @type {import('./ast').Edit[]} */
   const edits = [];
   let objects = 0;
@@ -1166,6 +1246,11 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    if(sourceExposedEdits.has(candidate.node)||
+       candidate.properties.some(property=>sourceExposedEdits.has(property))||
+       proof.members.some(member=>sourceExposedEdits.has(member))||
+       proof.patterns.some(property=>sourceExposedEdits.has(property))||
+       proof.inChecks.some(check=>sourceExposedEdits.has(check)))continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
@@ -1202,4 +1287,4 @@ function renameLocalProperties(source, ast, options) {
   return {code:applyEdits(source,edits),objects,properties};
 }
 
-module.exports = {renameLocalProperties,collectBindings,proveLocalObject,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
+module.exports = {renameLocalProperties,collectBindings,proveLocalObject,collectPrivateDirectCallables,collectSourceExposedBodies,staticName,patternPropertyEdits,inOperatorPropertyEdits,isLiteralValue,isPrimitiveConstantExpression,ownPropertyName,singleUseFactoryObject};
