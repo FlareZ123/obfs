@@ -2117,7 +2117,7 @@ function obfuscateFiles(files, options = {}) {
     const lexicalBindings=collectBindings(ast);
     const privateDirectCallables=collectPrivateDirectCallables(ast,lexicalBindings);
     const sourceExposedBodies=collectSourceExposedBodies(ast,lexicalBindings);
-    /** @type {Set<AstNode>} */
+    /** @type {Set<import('./ast').AstNode>} */
     const unsafePrivateTargets=new Set();
     walk(ast,(node,parent,key,ancestors)=>{
       if(sourceExposedBodies.has(node)) {
