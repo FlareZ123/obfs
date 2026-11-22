@@ -175,9 +175,10 @@ function staticallyImportedEsmTargets(files) {
  * @param {import('./ast').AstNode} ast
  * @param {boolean} [rejectCommonJsExportEscape]
  * @param {boolean} [rejectEsmExportEscape]
+ * @param {boolean} [projectHasPotentialDescriptorCreate]
  * @returns {boolean}
  */
-function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false) {
+function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmExportEscape=false,projectHasPotentialDescriptorCreate=false) {
   const safeCapturedReflectGet=provenLocalReflectGetCaptures(ast);
   // A supplied binding named Object, Reflect or Array may replace the
   // presumed intrinsic. Numeric-argument prototype provenance is then unsafe.
@@ -1628,7 +1629,53 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
-  let mutated=opaqueReflectiveSensitiveWrite;
+  // Object.create descriptor maps may be assembled through nested member
+  // aliases, dynamic keys, function arguments/returns, or shared module
+  // objects. A file-local receiver analysis cannot prove those identities.
+  // If the supplied group contains a potentially descriptor-bearing native
+  // installer and this file contains a String-sensitive accessor write,
+  // decline eager decoding for the group. The empty literal map case is
+  // excluded by the project-level predicate below.
+  let sensitiveAccessorWrite=false;
+  walk(ast,node=>{
+    if(node.type==='Property') {
+      const key=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.value)) {
+        sensitiveAccessorWrite=true;
+      }
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression') {
+      const key=memberName(node.left);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.right)) {
+        sensitiveAccessorWrite=true;
+      }
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       (isObjectIntrinsic(node.callee.object)||isReflectIntrinsic(node.callee.object))&&
+       memberName(node.callee)==='defineProperty'&&node.arguments[1]&&node.arguments[2]) {
+      const key=staticString(node.arguments[1]);
+      if(key===null||key==='get') {
+        const descriptor=node.arguments[2];
+        if(descriptor.type!=='ObjectExpression') {
+          sensitiveAccessorWrite=true;
+        } else if(descriptor.properties.some(property=>{
+          if(property.type!=='Property')return true;
+          const field=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          return (field===null||field==='get'||
+            field==='value'&&proxyGetMayReturnDecoderIntrinsic(property.value)) &&
+            (field!=='value'||proxyGetMayReturnDecoderIntrinsic(property.value));
+        })) {
+          sensitiveAccessorWrite=true;
+        }
+      }
+    }
+  });
+  let mutated=opaqueReflectiveSensitiveWrite ||
+    (projectHasPotentialDescriptorCreate&&sensitiveAccessorWrite);
   walk(ast,(node,parent)=>{
     if(createsSensitiveProxy(node)) {
       mutated=true;
@@ -1964,6 +2011,75 @@ function obfuscateFiles(files, options = {}) {
     staticallyRequiredCommonJsTargets(cross.files):new Set();
   const importedEsmTargets=shouldEncodeStrings?
     staticallyImportedEsmTargets(cross.files):new Set();
+  // Detect a potentially descriptor-bearing Object.create or
+  // Object.defineProperties use anywhere in the supplied project. A direct
+  // call with a provably empty literal map cannot install a getter and must
+  // not suppress unrelated String transformations.
+  const projectHasPotentialDescriptorCreate=shouldEncodeStrings&&cross.files.some(input=>{
+    if(input.sourceType==='asset'||typeof input.code!=='string')return false;
+    const inputAst=parse(input.code,input.sourceType);
+    const objectAliases=new Set(['Object']);
+    const globalNames=new Set([
+      'globalThis','window','self','global','top','parent','frames','opener'
+    ]);
+    /** @param {import('./ast').AstNode} value @returns {boolean} */
+    function isObjectReference(value) {
+      if(value.type==='Identifier')return objectAliases.has(value.name);
+      if(value.type!=='MemberExpression')return false;
+      const key=value.computed?staticString(value.property):
+        value.property.type==='Identifier'?value.property.name:staticString(value.property);
+      return key==='Object'&&value.object.type==='Identifier'&&
+        globalNames.has(value.object.name);
+    }
+    let aliasesChanged;
+    do {
+      aliasesChanged=false;
+      walk(inputAst,node=>{
+        const declaration=node.type==='VariableDeclarator'&&
+          node.id.type==='Identifier';
+        const assignment=node.type==='AssignmentExpression'&&node.operator==='='&&
+          node.left.type==='Identifier';
+        if(!declaration&&!assignment)return;
+        const name=declaration?node.id.name:node.left.name;
+        const value=declaration?node.init:node.right;
+        if(value&&isObjectReference(value)&&!objectAliases.has(name)) {
+          objectAliases.add(name);
+          aliasesChanged=true;
+        }
+      });
+    } while(aliasesChanged);
+    let found=false;
+    const isEmptyMap=value=>Boolean(value&&(
+      value.type==='ObjectExpression'&&value.properties.length===0||
+      value.type==='ArrayExpression'&&value.elements.length===0
+    ));
+    walk(inputAst,(node,parent)=>{
+      if(node.type==='MemberExpression'&&isObjectReference(node.object)) {
+        const key=node.computed?staticString(node.property):
+          node.property.type==='Identifier'?node.property.name:staticString(node.property);
+        if(key==='create'||key==='defineProperties') {
+          if(parent?.type==='CallExpression'&&parent.callee===node) {
+            const descriptorMap=parent.arguments[1];
+            if(!descriptorMap||isEmptyMap(descriptorMap))return;
+          }
+          found=true;
+        }
+      }
+      const pattern=node.type==='VariableDeclarator'&&
+        node.id.type==='ObjectPattern'&&node.init&&isObjectReference(node.init)?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='ObjectPattern'&&isObjectReference(node.right)?node.left:null;
+      if(pattern) {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property') {found=true;continue;}
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key===null||key==='create'||key==='defineProperties')found=true;
+        }
+      }
+    });
+    return found;
+  });
   let unsafeDecoderIntrinsic=false;
   if (shouldEncodeStrings) {
     // Classic scripts share one page-global lexical environment. Reserve every
@@ -1977,7 +2093,7 @@ function obfuscateFiles(files, options = {}) {
       });
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
-            importedEsmTargets.has(input.path)) ||
+            importedEsmTargets.has(input.path),projectHasPotentialDescriptorCreate) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
