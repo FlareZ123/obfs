@@ -91,7 +91,7 @@ for(const [name,initializer] of /** @type {[string,string][]} */ ([
   ['string with source escape','"private:\\u0000value"'],
   ['boolean','true'],
   ['null','null'],
-  ['template primitive','\`prefix3\`'],
+  ['template primitive','`prefix${1+2}`'],
   ['logical primitive','0??7'],
   ['undefined primitive','void 0']
 ])) {
@@ -104,7 +104,7 @@ for(const [name,initializer] of /** @type {[string,string][]} */ ([
 
 test('default owner accepts preceding string-template primitive',async()=>{
   await expectRewritten('default template',graph(
-    'const seedValue=\`prefix20\`;'+
+    'const seedValue=`prefix${4*5}`;'+
     'export default {secretField:seedValue,otherField:5};',defaultEntry));
 });
 
