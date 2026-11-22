@@ -139,12 +139,12 @@ test('zero, five, duplicate, default, rest, destructured and effectful parameter
 });
 
 test('selected multi-parameter kernels integrate with COO ESM and SNO CommonJS',async()=>{
-  const original='export function mix(a,b,c){return ((a^b)&(c>>>2))|(b<<c);}';
+  const original='function mixKernel(a,b,c){return ((a^b)&(c>>>2))|(b<<c);}export function mix(a,b,c){return mixKernel(a,b,c);}';
   const transformed=obfuscateFiles([
     {path:'mix.mjs',sourceType:'module',code:original}
   ],{
     mode:'coo',seed:'multi-esm',strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'mix.mjs':['mix']}
+    experimentalWasmI32:{'mix.mjs':['mixKernel']}
   });
   assert.equal(transformed.files[0].metrics.wasmI32Functions,1);
   const native=await import('data:text/javascript;base64,'+Buffer.from(original).toString('base64'));
@@ -154,10 +154,10 @@ test('selected multi-parameter kernels integrate with COO ESM and SNO CommonJS',
     const args=[randomI32(),randomI32(),randomI32()];
     assert.equal(encoded.mix(...args),native.mix(...args));
   }
-  const cjs='function f(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}module.exports=f;';
+  const cjs='function fKernel(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}function f(a,b,c,d){return fKernel(a,b,c,d);}module.exports=f;';
   const sno=obfuscateFiles([{path:'f.cjs',sourceType:'commonjs',code:cjs}],{
     mode:'sno',seed:'multi-sno',strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'f.cjs':['f']}
+    experimentalWasmI32:{'f.cjs':['fKernel']}
   });
   assert.equal(sno.files[0].metrics.wasmI32Functions,1);
   const nativeCjs=load(cjs),protectedCjs=load(String(sno.files[0].code));
