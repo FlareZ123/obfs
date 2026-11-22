@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
@@ -204,6 +205,44 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
       if(node.attributes?.length||node.assertions?.length||
          !resolvesInGraph(node.source))unproved=true;
     }
+  });
+  return unproved;
+}
+
+/**
+ * A CommonJS require can load unlisted application code before a later
+ * module's ambient String decoder initializes. Accept exact in-group
+ * relative JavaScript modules and Node's ordinary native builtins.
+ * Other calls may have unknown source and side effects at runtime.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedCommonJsRequire(ast,filename,knownJavaScript) {
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type!=='CallExpression'||node.callee.type!=='Identifier'||
+       node.callee.name!=='require')return;
+    const specifier=node.arguments.length===1 ?
+      staticString(node.arguments[0]) : null;
+    if(specifier===null) {
+      unproved=true;
+      return;
+    }
+    if(isBuiltin(specifier))return;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier)) {
+      unproved=true;
+      return;
+    }
+    const base=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    const candidates=path.posix.extname(base)?[base]:
+      [base,base+'.js',base+'.cjs',base+'.mjs',
+       base+'/index.js',base+'/index.cjs',base+'/index.mjs'];
+    if(!candidates.some(candidate=>knownJavaScript.has(candidate)))unproved=true;
   });
   return unproved;
 }
@@ -2021,6 +2060,8 @@ function obfuscateFiles(files, options = {}) {
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
           hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
+          input.sourceType==='commonjs' &&
+            hasUnprovedCommonJsRequire(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
