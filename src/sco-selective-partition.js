@@ -796,6 +796,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
   /** @type {Set<string>} */
   const dateInstances=new Set();
   /** @type {Set<string>} */
+  const blobInstances=new Set();
+  /** @type {Set<string>} */
   const errorInstances=new Set();
   /** @type {Set<string>} */
   const errorFactories=new Set();
@@ -863,6 +865,13 @@ function realmStateObservation(body,checkHostConfiguration=false){
          initial.type==='Identifier'&&dateInstances.has(initial.name)){
         if(!dateInstances.has(binding.name)){
           dateInstances.add(binding.name);
+          originChanged=true;
+        }
+      }
+      if(initial.type==='NewExpression'&&isBlobConstructor(initial.callee)||
+         initial.type==='Identifier'&&blobInstances.has(initial.name)){
+        if(!blobInstances.has(binding.name)){
+          blobInstances.add(binding.name);
           originChanged=true;
         }
       }
@@ -977,7 +986,28 @@ function realmStateObservation(body,checkHostConfiguration=false){
   function writesIntrinsic(member){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function localBlobInstance(expression){
+    return expression.type==='NewExpression'&&
+        isBlobConstructor(expression.callee)||
+      expression.type==='Identifier'&&blobInstances.has(expression.name);
+  }
   walk(body,(node,parent,key,ancestors)=>{
+    // Blob instances expose their original host constructor through an
+    // inherited constructor property. Recovering it can bypass options
+    // checks through either direct member access or destructuring aliases.
+    if(checkHostConfiguration&&node.type==='MemberExpression'&&
+       keyName(node)==='constructor'&&localBlobInstance(node.object)){
+      configurationTouched=true;
+    }
+    if(checkHostConfiguration&&node.type==='VariableDeclarator'&&
+       node.id.type==='ObjectPattern'&&node.init&&
+       localBlobInstance(node.init)&&node.id.properties.some(
+         (/** @type {import('./ast').AstNode} */ property)=>
+           property.type!=='Property'||keyName(property)==='constructor'||
+           property.computed&&keyName(property)===null))){
+      configurationTouched=true;
+    }
     // Blob is host-dependent when its constructor options request native
     // newline conversion. Direct new expressions have a separate options
     // proof below. Plain local constructor aliases can be followed here;
