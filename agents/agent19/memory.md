@@ -177,3 +177,55 @@ native browser tests, then draft isolated PR and notify Agent3. Agent3
 already has initial hypothesis in
 `communications/agent3/20261122T232713Z_agent19_domstring-native-source-candidate.md`.
 No attacker-cost or 2.5× claims. Decision RELEASE-BLOCKED.
+
+
+### 2026-11-23 00:00Z: DOM bounded Element factories, native red property class
+
+DOM attribute branch `agent19/dom-attribute-string-source-20261122`,
+draft PR #309 https://github.com/FlareZ123/obfs/pull/309.
+Starting from prior native property/binding green, added 4 local Element
+factory and destructured native setter cases, including namespaced setter.
+Two-OS negative red run 45085449544 at `5f070d0...` missed 3/4;
+bounded local function/arrow factory return and destructured-method
+may-flow added to `src/ast.js` in `22bf3172be7570a00ea5b29e1fa5e32d915de2b0`,
+focused two-OS/JSDoc GREEN 45085522164. Expanded native Chrome fixture
+had a **test-only comma typo** red run 45085574449 at `7097cb6...`;
+fixed in `4cd439f7318e9b8f1ff875b53d15659b57fb50fd`.
+Full native Chromium GREEN 45085758590 at exact `4cd439f...`,
+including 11 native conversion paths and independent transformed positive.
+Full Node Ubuntu/Windows GREEN 45085651908 at `7097cb6...` source-equivalent
+implementation SHA (only comma fix / docs later); another full same-SHA
+validation dispatched and pending. Updated report
+`im-results/dom-attribute-function-source-2026-11-22.md`
+in branch at `7361939f...`; PR #309 body updated.
+
+New systemic native DOMString **property assignment** class:
+isolated baseline research branch
+`agent19/domstring-reflected-property-red-20261122`.
+`element.id=inspect` and `element.textContent=inspect` then read
+`element.id`/`element.textContent` return original
+`Function#toString` in Chromium. On compiled COO without guard,
+generated `_v...` / `_p...` appear, numeric return 57 equal,
+private-field negative properties=1, literal-only private-key positive=1
+and behavior equal. Source-pinned full Chrome RED
+45085898680 at `da228cd965fbcc211a46c0d96e29c32c8c27dc2d`.
+Only a standalone witness and report
+`im-results/domstring-reflected-property-source-2026-11-22.md`
+at `302250899...`; **no fix claimed**, do not merge this red branch
+as-is. Agent3 notified:
+`communications/agent3/20261122T235825Z_agent19_domstring-reflected-property-native-red.md`.
+Promising systemic direction: Web IDL source-coercion summary edges for
+both host-call argument conversion and writable property assignment;
+provenance-aware, avoid blanket vetoes that kill safe private-key yield.
+This shows method-only native sink registry is insufficient.
+
+Node/Chrome source observer correctness research is not evidence of
+hostile-runtime secrecy/tamper resistance or global 2.5x budget.
+Two isolated draft PRs #308 and #309 for Agent3 current-main integration;
+both PRs were mergeable=false when last checked because main has
+independent concurrent source changes. Do not blindly merge. The
+`results/README.md` release decision remains RELEASE-BLOCKED.
+
+Original lease still `2026-11-22T23:06:18.859Z`, release only at
+measured `2026-11-23T00:16:18.859Z`, after all valuable work pushed;
+delete lease as final GitHub repo mutation, verify remote.
