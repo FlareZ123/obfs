@@ -1,0 +1,536 @@
+{
+  "sourceCommit": "ec6c6a46ff022546a27de5040a117b29d0238ee3",
+  "workflowRun": 45084154048,
+  "jobId": 137398788720,
+  "test": "test/private-key-hot-cpu-browser.js",
+  "measurement": "wall clock only (performance.now), not CPU",
+  "browserVersion": "Chrome/157.0.8103.78",
+  "node": "v22.23.5",
+  "platform": "linux",
+  "compiledSource": {
+    "sha256": "43c6200aa6aef8a9493e9db632bf2e00a2bb27328d74a8cfe7f5c6bc9178900d",
+    "bytes": 154
+  },
+  "hashes": {
+    "sha256": "ac908273d3e903989fb234f73975719c95c83178967e9fb01b9218a838810bbc",
+    "bytes": 201
+  },
+  "symbols": {
+    "sha256": "cbab55b468a2e21cea33f10d7c7d404c4d6e11259fa972769bac5f3d01696e91",
+    "bytes": 290
+  },
+  "esbuild": {
+    "sha256": "20cfe5b5a4790e34a86ff231cd5334832b58c1a5169e8713faf2259824c9d58d",
+    "bytes": 120
+  },
+  "browser": "Chromium",
+  "warm": 1000000,
+  "hot": 15000000,
+  "pairs": 7,
+  "results": [
+    {
+      "variant": "hashed-string",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 82.80000000000291
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 176.79999999999563
+          },
+          "wallRatio": 2.135265700482964
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 87
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 93.89999999999418
+          },
+          "wallRatio": 1.0793103448275192
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.59999999999854
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "wallRatio": 0.9952718676122758
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "wallRatio": 1.0023809523810043
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "wallRatio": 0.9964370546318807
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 86.20000000000437
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.29999999999563
+          },
+          "wallRatio": 0.9779582366588325
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 1
+        }
+      ],
+      "medianWallRatio": 1,
+      "strictWallBreaches": 0
+    },
+    {
+      "variant": "unregistered-symbol",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 88.80000000000291
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "wallRatio": 0.9448198198198052
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.29999999999563
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.69999999999709
+          },
+          "wallRatio": 1.0047449584816308
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "wallRatio": 1
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.5
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "wallRatio": 0.995266272189418
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "wallRatio": 0.9976218787157628
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.5
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 0.995266272189332
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 85.09999999999854
+          },
+          "wallRatio": 1.0130952380952207
+        }
+      ],
+      "medianWallRatio": 0.9976218787157628,
+      "strictWallBreaches": 0
+    },
+    {
+      "variant": "handwritten-symbol",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.40000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 0.9964454976302973
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "wallRatio": 1.0023809523809177
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.29999999999563
+          },
+          "wallRatio": 1.0011876484559532
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 1
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.90000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 0.9893992932862021
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 0.9988123515439602
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.80000000000291
+          },
+          "wallRatio": 1.0095238095238441
+        }
+      ],
+      "medianWallRatio": 1,
+      "strictWallBreaches": 0
+    },
+    {
+      "variant": "handwritten-computed-string",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.59999999999854
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.5
+          },
+          "wallRatio": 0.9988179669030904
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "wallRatio": 1.002383790226512
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "wallRatio": 1.0000000000000864
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 85.39999999999418
+          },
+          "wallRatio": 1.0142517814725625
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.59999999999854
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "wallRatio": 0.9940898345154523
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.5
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "wallRatio": 0.995266272189418
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "wallRatio": 1
+        }
+      ],
+      "medianWallRatio": 1,
+      "strictWallBreaches": 0
+    },
+    {
+      "variant": "ordinary-esbuild-minified",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.30000000000291
+          },
+          "wallRatio": 1.0035714285714632
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.40000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.29999999999563
+          },
+          "wallRatio": 0.9988151658767083
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.30000000000291
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "wallRatio": 0.9988137603795276
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "wallRatio": 1.0023809523810043
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 1
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 83.90000000000146
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 1.0023837902264254
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.20000000000437
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 0.9988123515438739
+        }
+      ],
+      "medianWallRatio": 1,
+      "strictWallBreaches": 0
+    },
+    {
+      "variant": "same-code-control",
+      "pairs": [
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.80000000000291
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 0.9905660377358151
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 1.0011904761904589
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.19999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 0.9976247030879205
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 89.69999999999709
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "wallRatio": 0.9375696767001257
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.10000000000582
+          },
+          "wallRatio": 1.0011904761905455
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 91.30000000000291
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84.30000000000291
+          },
+          "wallRatio": 0.9233296823658294
+        },
+        {
+          "native": {
+            "checksum": 69218256,
+            "wallMs": 84.09999999999854
+          },
+          "emitted": {
+            "checksum": 69218256,
+            "wallMs": 84
+          },
+          "wallRatio": 0.9988109393579245
+        }
+      ],
+      "medianWallRatio": 0.9976247030879205,
+      "strictWallBreaches": 0
+    }
+  ]
+}
