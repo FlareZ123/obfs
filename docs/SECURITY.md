@@ -5,6 +5,38 @@
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
 
+## Browser DOM-visible executable source
+
+An inline classic script or inline ESM module may read the exact JavaScript
+source text embedded in its own HTML document. The current COO identifier and
+private-record property rewriters can preserve computed values while changing
+source-dependent output observed through `document.documentElement.outerHTML`,
+`innerHTML`, `XMLSerializer`, DOM text-node traversal, `Range`, or an
+imported helper receiving the browser `Document`. Even when identifiers and
+properties are disabled, an authorized `allowedHosts` wrapper can change
+observable inline source length. Source-pinned real Chromium evidence covering
+these distinct passes and benign positive controls is preserved in the
+[DOM source-observation report](../im-results/browser-dom-source-serialization-parity-2026-11-22.md)
+and [manual cross-pass acceptance run](https://github.com/FlareZ123/obfs/actions/runs/45030057373).
+The acceptance run remains red because the compiler has not integrated a
+sound general DOM source-observer guard.
+
+A source-read can pass through module imports, parameter aliases and host DOM
+serialization. A JavaScript-only graph also does not establish what additional
+source copies the surrounding HTML may expose: identical compiled modules
+behaved differently when one host mirrored an imported library's source in
+inert HTML. The current HTML asset preflight rejects that specific
+script-element mirror if supplied, but cannot establish properties of absent
+deployment assets. Until the source-observer integration is validated, require
+native-versus-emitted browser parity for applications that read embedded source,
+and refuse incompatible optional transforms instead of treating untested
+obfuscation output as equivalent. A conservative refusal may preserve
+correctness while producing zero obfuscation yield; retained positive private
+rewrites must be measured separately. These are **compatibility and admission
+limits**, with no demonstrated incremental static/dynamic reconstruction cost,
+host-lock bypass resistance or universal 2.5× runtime guarantee.
+
+
 ## Ambient decoder provenance and host-resolved module imports
 
 The eager string decoder consults mutable JavaScript intrinsics, including
