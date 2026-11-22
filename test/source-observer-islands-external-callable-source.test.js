@@ -15,7 +15,7 @@ const watched={path:'watched.mjs',sourceType:'module',
   code:'const recordA={privateA:17};const valueA=recordA.privateA;export function watched(){return valueA;}'};
 /** @type {SourceFile} */
 const independent={path:'independent.mjs',sourceType:'module',
-  code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){return valueB;}'};
+  code:'const recordB={privateB:23,otherB:19};const valueB=recordB.privateB;export function unrelated(){\\n  // this comment and whitespace are part of the observable source\\n  return valueB;\\n}'};
 /** @type {SourceFile} */
 const another={path:'another.mjs',sourceType:'module',
   code:'const recordC={privateC:43};const valueC=recordC.privateC;export function third(){return valueC;}'};
@@ -75,7 +75,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(actualExternal,expectedExternal,
       'external Function.prototype.toString.call must observe identical source');
     assert.equal(JSON.parse(actualExternal)[1],23);
-    assert.equal(JSON.parse(actualExternal)[0],'function unrelated(){return valueB;}');
+    assert.equal(JSON.parse(actualExternal)[0],'function unrelated(){\\n  // this comment and whitespace are part of the observable source\\n  return valueB;\\n}');
   });
 }
 
