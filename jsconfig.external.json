@@ -229,7 +229,8 @@
     "test/sco-sri-encoded-route-browser.js",
     "test/html-sri-filename-browser.js",
     "test/sco-free-lexical-grid.test.js",
-    "test/sco-switch-discriminant-lexical.test.js"
+    "test/sco-switch-discriminant-lexical.test.js",
+    "test/sco-free-lexical-vm-differential.test.js"
   ],
   "exclude": [
     "node_modules"
