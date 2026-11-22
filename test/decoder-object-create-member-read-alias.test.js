@@ -323,3 +323,40 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       });
   }
 }
+
+
+for(const reflected of /** @type {const} */(['defineProperty','reflectSet'])){
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    for(const intrinsic of /** @type {const} */(['String','Number'])){
+      test('reflected member-read descriptor getter '+reflected+' '+mode+' '+intrinsic,
+        async()=>{
+          const mutation=reflected==='defineProperty'?
+            'Object.defineProperty(entry,"get",{value:function(){return TARGET.prototype}});':
+            'Reflect.set(entry,"get",function(){return TARGET.prototype});';
+          const mutator='const descriptors={ref:{}};const entry=descriptors.ref;'+
+            mutation.replace('TARGET',intrinsic)+
+            'const box=Object.create(null,descriptors);'+
+            (intrinsic==='String'?
+              'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;');
+          const input=graph(mutator);
+          const output=obfuscateFiles(input,{
+            mode,strings:true,identifiers:false,properties:false,
+            seed:'agent5-reflected-member/'+reflected+'/'+mode+'/'+intrinsic
+          });
+          const target=output.files.find(file=>file.path==='target.cjs');
+          assert.ok(target);
+          const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-reflected-member-'));
+          try{
+            const native=await execute(path.join(root,'native'),input);
+            const encoded=await execute(path.join(root,'emitted'),output.files);
+            assert.equal(native.status,0,native.stderr);
+            assert.deepEqual(encoded,native,'native/emitted reflected descriptor entry');
+          }finally{
+            await fs.rm(root,{recursive:true,force:true});
+          }
+          assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+            'String getter must decline decoding while Number retains encoding');
+        });
+    }
+  }
+}
