@@ -37,7 +37,9 @@ output file is written, the compiler:
    separately controlled by package-scope admission). Named shadowing, visible lexical aliases, direct dynamic specifiers
    and direct-eval/with scope hazards are refused conservatively using
    declared-binding and AST position analysis. More indirect resolver
-   constructions remain outside this finite scanner.
+   constructions remain outside this finite scanner. Opaque or asset-
+   marked JavaScript files are refused as unverifiable, including
+   upper-case `.JS` and `.CJS` extensions that Node may execute.
 2. Requires the set of direct bare calls to be identical before and after
    obfuscation, rejecting a generated call introduced or changed by
    any selected experimental backend.
