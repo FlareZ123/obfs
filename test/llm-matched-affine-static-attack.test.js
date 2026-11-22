@@ -112,6 +112,8 @@ test('symbolic static minified parser refuses unnormalized or nonaffine expressi
   const rejected=[
     'function n(x){return (x+1)|0;}',
     'function n(x){return ((x+2)*(x-3))|0;}',
+    // Three observable ToInt32 coercions cannot be collapsed into one.
+    'function n(x){return ((((x|0)+(x|0))-(x|0))|0);}',
     'function n(x){return (x.y+3)|0;}',
     'function n(x){return (x|0)+outside|0;}',
     'function n(x){return x+1;}',
