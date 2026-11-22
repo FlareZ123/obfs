@@ -124,10 +124,10 @@ test('conditional signed/unsigned ambiguous return and impure expression trees d
 });
 
 test('conditional bitvector emit integrates with COO ESM and SNO CommonJS',async()=>{
-  const esm='export function f(a,b,c){return a?((b^c)&255):((~b)|c);}';
+  const esm='function fKernel(a,b,c){return a?((b^c)&255):((~b)|c);}export function f(a,b,c){return fKernel(a,b,c);}';
   const emitted=obfuscateFiles([{path:'conditional.mjs',sourceType:'module',code:esm}],{
     mode:'coo',seed:'conditional-esm',strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'conditional.mjs':['f']}
+    experimentalWasmI32:{'conditional.mjs':['fKernel']}
   });
   assert.equal(emitted.files[0].metrics.wasmI32Functions,1);
   const original=await import('data:text/javascript;base64,'+Buffer.from(esm).toString('base64'));
@@ -137,10 +137,10 @@ test('conditional bitvector emit integrates with COO ESM and SNO CommonJS',async
     const args=[i32(),i32(),i32()];
     assert.equal(lowered.f(...args),original.f(...args));
   }
-  const cjs='function f(a,b,c,d){return (a&1)?(b>>>c):(b>>>d);}module.exports=f;';
+  const cjs='function fKernel(a,b,c,d){return (a&1)?(b>>>c):(b>>>d);}function f(a,b,c,d){return fKernel(a,b,c,d);}module.exports=f;';
   const generated=obfuscateFiles([{path:'conditional.cjs',sourceType:'commonjs',code:cjs}],{
     mode:'sno',seed:'conditional-sno',strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'conditional.cjs':['f']}
+    experimentalWasmI32:{'conditional.cjs':['fKernel']}
   });
   assert.equal(generated.files[0].metrics.wasmI32Functions,1);
   const native=load(cjs),compiled=load(String(generated.files[0].code));
