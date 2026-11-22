@@ -39,10 +39,30 @@ const cases=[
         'const {[key]:value}=owner;console.log(value);'}]
   },
   {
-    name:'later local key is conservatively unproved',kind:'local',positive:false,
+    name:'later top-level immutable local key precedes a direct pattern',kind:'local',positive:true,
     files:[{path:'main.mjs',sourceType:'module',
       code:'const owner={secretField:41};const key="secretField";'+
         'const {[key]:value}=owner;console.log(value);'}]
+  },
+  {
+    name:'later top-level key precedes a discarded assignment pattern',kind:'local',positive:true,
+    files:[{path:'main.mjs',sourceType:'module',
+      code:'const owner={secretField:41};const key="secretField";'+
+        'let value;({[key]:value}=owner);console.log(value);'}]
+  },
+  {
+    name:'later key in a nested reader remains unproved',kind:'local',positive:false,
+    files:[{path:'main.mjs',sourceType:'module',
+      code:'const owner={secretField:41};function read(){'+
+        'const {[key]:value}=owner;return value;}'+
+        'const key="secretField";console.log(read());'}]
+  },
+  {
+    name:'top-level key access before lexical initializer preserves TDZ',kind:'local',positive:false,
+    files:[{path:'main.mjs',sourceType:'module',
+      code:'const owner={secretField:41};let value;'+
+        'try{({[key]:value}=owner)}catch(error){value=error.name;}'+
+        'const key="secretField";console.log(value);'}]
   },
   {
     name:'pattern rest exposes original enumerable field',kind:'local',positive:false,
