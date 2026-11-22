@@ -134,3 +134,67 @@ test('symbolic static minified parser refuses unnormalized or nonaffine expressi
   assert.equal(minifiedOffset('x=>(((x|0)-7)+12)|0'),5);
   assert.equal(minifiedOffset('function n(x){return ((x|0)+3)|0;}'),3);
 });
+
+test('single-read symbolic grammar preserves 300 deterministic exotic-input cases',()=>{
+  let state=0x12345678;
+  /** @returns {number} */
+  function next(){
+    state^=state<<13;
+    state^=state>>>17;
+    state^=state<<5;
+    return state>>>0;
+  }
+  /** @param {(x:unknown)=>number} fn @param {unknown} input @returns {unknown[]} */
+  function capture(fn,input){
+    try{return ['value',fn(input)];}
+    catch(error){return ['throw',error instanceof Error?error.name:String(error)];}
+  }
+  const inputs=/** @type {unknown[]} */([
+    0,1,-1,-2147483648,2147483647,4294967295,NaN,Infinity,-0,
+    1.5,'18','foo',true,false,null,undefined,12n,Symbol('input')
+  ]);
+  for(let iteration=0;iteration<300;iteration++){
+    let expression='(x|0)';
+    for(let step=0;step<7;step++){
+      const constant=next()%512;
+      expression='('+expression+(next()%2===0?'+':'-')+constant+')';
+      if(step%3===2)expression='('+expression+'|0)';
+    }
+    const source='function n(x){return ('+expression+'|0);}';
+    const offset=minifiedOffset(source);
+    // Both dynamically evaluated functions are derived from the test's own
+    // deterministic restricted grammar, never from untrusted source bytes.
+    const original=/** @type {(x:unknown)=>number} */(
+      new Function('return ('+source+')')()
+    );
+    const rebuilt=/** @type {(x:unknown)=>number} */(
+      new Function('x','return (((x|0)+('+offset+'))|0);')
+    );
+    for(const input of inputs){
+      assert.deepEqual(capture(original,input),capture(rebuilt,input),
+        'iteration='+iteration+' input='+String(input));
+    }
+    for(let caseIndex=0;caseIndex<3;caseIndex++){
+      function make(){
+        /** @type {string[]} */
+        const trace=[];
+        let count=0;
+        return {
+          trace,
+          input:{
+            /** @param {string} hint */
+            [Symbol.toPrimitive](hint){
+              trace.push(hint);
+              return ++count+caseIndex;
+            }
+          }
+        };
+      }
+      const a=make();
+      const b=make();
+      assert.deepEqual([capture(original,a.input),a.trace],
+        [capture(rebuilt,b.input),b.trace],
+        'iteration='+iteration+' coercion='+caseIndex);
+    }
+  }
+});
