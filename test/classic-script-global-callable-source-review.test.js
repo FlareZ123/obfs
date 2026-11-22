@@ -73,7 +73,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
 for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
   test(mode+' classic-script top-level const callable is source-visible to later scripts',()=>{
     const source=[
-      "const publicGlobal=(publicParam)=>'global-lexical-visible-token'+publicParam;",
+      "const publicGlobal=(publicParam)=>{const local=publicParam;return 'global-lexical-visible-token';}",
       'function invokeGlobal(){return publicGlobal(5);}',
       'globalThis.result=invokeGlobal();'
     ].join('');
