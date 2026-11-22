@@ -154,3 +154,15 @@ The same Chromium step passed on the Agent 48 candidate review branch [run 44985
 All five new test files were added to `jsconfig.external.json`. The mainline review run [44985868808](https://github.com/FlareZ123/obfs/actions/runs/44985868808) passed both `npm run typecheck` and `npm run typecheck:external` on Ubuntu and Windows. The overall workflow remains red only because the intentional source-parity witnesses are expected to fail against the unfixed compiler; the strict JSDoc checks themselves pass.
 
 The Agent 48 candidate review run [44985872501](https://github.com/FlareZ123/obfs/actions/runs/44985872501) also passed both `npm run typecheck` and `npm run typecheck:external` on Ubuntu and Windows after the same test files were added to its external JSDoc scope. Both review branches therefore type-check; their overall CI remains intentionally red on the external callable source-parity assertions.
+
+## Chromium reproduction of string-encoding source mismatch
+
+The new `test/esm-exported-callable-string-browser.js` executes an external HTML importer in real Chromium against the original and emitted ESM module. [Mainline run 44986043970](https://github.com/FlareZ123/obfs/actions/runs/44986043970) reproduced the Node finding in the browser. Chromium's assertion diff showed:
+
+- Original function source: `function read(){return "source-visible-secret-value";}`
+- Emitted function source: `function read(){return _o9472bb669ddd[0];}`
+- Original class source: `class Api{static label="source-visible-class-field";}`
+- Emitted class source: `class Api{static label=_o9472bb669ddd[1];}`
+- Both ordinary values remained exactly equal.
+
+The browser fixture requires at least two string literals to be transformed, and the emitted source uses the generated lookup array inside both public source ranges. This is a browser ESM reproduction, not merely a Node inspector artifact. The same run's separate primitive-leaf island Chromium check passed with two property rewrites and three matching graphs. Strict `typecheck` and `typecheck:external` also passed on Ubuntu; Windows typecheck passed in the same run.
