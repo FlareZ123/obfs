@@ -1188,7 +1188,8 @@ function renameLocalProperties(source, ast, options) {
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+        proof.patterns.some(property=>
+          !ownNames.has(proof.patternNames.get(property)??ownPropertyName(property))) ||
         proof.inChecks.some(check=>!ownNames.has(check.left.value))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
