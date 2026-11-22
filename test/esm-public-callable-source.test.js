@@ -36,7 +36,7 @@ test('exported ESM function source preserves captured private owner keys',async(
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-public-callable-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-callable-source',
     strings:false,identifiers:false
   });
   assert.equal(await observe(String(output.files[0].code)),await observe(source),
@@ -48,7 +48,7 @@ test('exported ESM object method source preserves captured private owner keys',a
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-public-method-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-method-source',
     strings:false,identifiers:false
   });
   /** @param {string} code */
@@ -75,7 +75,7 @@ test('unexported ESM function remains eligible for private owner-key rewriting',
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-private-callable-positive-control',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-private-callable-positive-control',
     strings:false,identifiers:false
   });
   assert.equal(output.files[0].metrics.properties,1,String(output.files[0].code));
@@ -98,7 +98,7 @@ test('exported ESM function source preserves parameter names observable to impor
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-exported-identifier-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-exported-identifier-source',
     strings:false,properties:false,identifiers:true
   });
   assert.equal(await observe(String(output.files[0].code)),await observe(source),
@@ -110,7 +110,7 @@ test('exported callable source is preserved without disabling private helper par
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-exported-source-positive-control',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-exported-source-positive-control',
     strings:false,properties:false,identifiers:true
   });
   assert.match(String(output.files[0].code),/export function publicRead\(publicParam\)/);
@@ -139,7 +139,7 @@ test('string encoding preserves exported callable source but still encodes priva
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-public-source-string-island',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-source-string-island',
     strings:true,identifiers:false,properties:false
   });
   assert.ok(output.files[0].metrics.literals>=1,String(output.files[0].code));
@@ -178,7 +178,7 @@ test('combined property, identifier, and string passes preserve exported source 
     {path:'private.mjs',sourceType:'module',code:privateSource}
   ];
   const output=obfuscateFiles(files,{
-    mode:'coo',closedWorld:true,seed:'esm-public-source-combined',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-source-combined',
     strings:true,identifiers:true,properties:true
   });
   const emittedPublic=String(output.files[0].code);
@@ -216,12 +216,12 @@ test('advanced control-flow passes reject exported callable source but accept pr
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   assert.throws(()=>obfuscateFiles(files,{
-    mode:'coo',seed:'esm-public-source-control-flow-reject',
+    mode:'coo',preservePublicCallableSource:true,seed:'esm-public-source-control-flow-reject',
     strings:false,identifiers:false,properties:false,
     experimentalBranchBlocks:{'entry.mjs':['publicRead']}
   }),/source-exposed callable/);
   const output=obfuscateFiles(files,{
-    mode:'coo',seed:'esm-public-source-control-flow-private',
+    mode:'coo',preservePublicCallableSource:true,seed:'esm-public-source-control-flow-private',
     strings:false,identifiers:false,properties:false,
     experimentalBranchBlocks:{'entry.mjs':['privateHelper']}
   });
@@ -249,7 +249,7 @@ test('exported class and method source survive property, identifier, and string 
   const publicText='public-class-source-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const source='const owner={secretField:3};export class PublicApi{read(publicParam){return owner.secretField+publicParam+'+JSON.stringify(publicText)+';}}';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
-    mode:'coo',closedWorld:true,seed:'esm-public-class-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-class-source',
     strings:true,identifiers:true,properties:true
   });
   assert.ok(String(output.files[0].code).includes('owner.secretField'),String(output.files[0].code));
@@ -282,7 +282,7 @@ test('cross-file property proof cannot rewrite a key named inside an exported an
     {path:'entry.mjs',sourceType:'module',code:"export {read} from './impl.mjs';"}
   ];
   const output=obfuscateFiles(sourceFiles,{
-    mode:'coo',closedWorld:true,seed:'esm-public-reexport-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-reexport-source',
     strings:true,identifiers:true,properties:true
   });
   assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
@@ -316,7 +316,7 @@ test('exporter-local public callable source blocks a cross-file property map',as
     {path:'entry.mjs',sourceType:'module',code:"export {read} from './owner.mjs';"}
   ];
   const output=obfuscateFiles(sourceFiles,{
-    mode:'coo',closedWorld:true,seed:'esm-public-exporter-local-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-exporter-local-source',
     strings:true,identifiers:true,properties:true
   });
   assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
@@ -346,7 +346,7 @@ test('exporter-local public callable source blocks a cross-file property map',as
 test('reflected property-key literals inside exported callable source remain byte-for-byte visible',async()=>{
   const source='const owner={secretField:3};export function read(){return Object.getOwnPropertyDescriptor(owner,"secretField").value;}';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
-    mode:'coo',closedWorld:true,seed:'esm-public-reflection-source',
+    mode:'coo',preservePublicCallableSource:true,closedWorld:true,seed:'esm-public-reflection-source',
     strings:true,identifiers:true,properties:true
   });
   assert.equal(output.crossFile.properties,0,JSON.stringify(output.crossFile));
