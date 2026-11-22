@@ -1222,6 +1222,44 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
        parent?.type==='CallExpression'&&key==='callee'&&parent.callee===node&&
        !parent.optional)directCallables.add(node);
   });
+  /**
+   * In sloppy JavaScript, a host-installed replacement for an ambient call
+   * can read its direct caller through Function#caller and stringify it.
+   * This intentionally broad call-effect check protects exact source, while
+   * source-safe, invocation-free private helpers remain transformable.
+   * Stronger interprocedural effects analysis could recover more yield.
+   * @param {AstNode[]} statements
+   * @returns {boolean}
+   */
+  function hasStrictDirective(statements) {
+    for(const statement of statements) {
+      if(statement.type!=='ExpressionStatement'||!statement.directive)break;
+      if(statement.directive==='use strict')return true;
+    }
+    return false;
+  }
+  /**
+   * A narrow and conservative proof gate for direct-call lexical functions:
+   * reject source rewrite on a host-call edge in known sloppy code. ESM and
+   * explicitly strict functions do not reveal strict caller objects through
+   * the legacy .caller path tested here.
+   * @param {AstNode} fn
+   * @returns {boolean}
+   */
+  function hasSloppyHostCall(fn) {
+    if(ast.sourceType==='module'||hasStrictDirective(ast.body)||
+       fn.body.type==='BlockStatement'&&hasStrictDirective(fn.body.body))return false;
+    let hostCall=false;
+    const nestedFunctions=new Set(['FunctionDeclaration','FunctionExpression',
+      'ArrowFunctionExpression','ClassDeclaration','ClassExpression']);
+    walk(fn,(node,parent,key,ancestors)=>{
+      if(ancestors.some(ancestor=>ancestor!==fn&&nestedFunctions.has(ancestor.type)))
+        return;
+      if(['CallExpression','NewExpression','TaggedTemplateExpression',
+          'ImportExpression'].includes(node.type))hostCall=true;
+    });
+    return hostCall;
+  }
   /** @type {Set<AstNode>} */
   const permitted=new Set();
   const sourceBodies=new Set([
@@ -1229,7 +1267,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     'ClassDeclaration','ClassExpression'
   ]);
   walk(ast,(node,parent,key,ancestors)=>{
-    if(!directCallables.has(node))return;
+    if(!directCallables.has(node)||hasSloppyHostCall(node))return;
     if(ancestors.some(ancestor=>sourceBodies.has(ancestor.type)&&
        !directCallables.has(ancestor)))return;
     permitted.add(node);
