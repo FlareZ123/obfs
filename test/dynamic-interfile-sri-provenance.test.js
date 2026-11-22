@@ -39,6 +39,13 @@ test('imported DOM script factory receives runtime-built SRI without a literal f
       ],options);
       assert.notEqual(control.files[0].code,clientCode,
         name+' must preserve unpinned cross-file transformation yield in '+mode);
+      const plainObject=obfuscateFiles([
+        script,{path:'factory.mjs',sourceType:'module',
+          code:'export function build(){return {src:""};}'},
+        {path:'entry.mjs',sourceType:'module',code:guarded},html
+      ],options);
+      assert.notEqual(plainObject.files[0].code,clientCode,
+        'An ordinary inter-file object with a computed SRI-looking key must remain rewritable in '+mode);
       const output=obfuscateFiles([
         script,{path:'factory.mjs',sourceType:'module',code:factory},
         {path:'entry.mjs',sourceType:'module',code:guarded},html
