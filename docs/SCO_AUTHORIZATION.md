@@ -543,13 +543,15 @@ asynchronous identity resolver. This bounds unresolved identity lookups as
 well as running and queued operations. In contrast,
 `maxPendingPerPrincipal` cannot apply until the principal is resolved.
 An optional positive integer `maxPrincipalResolutionMs` (1 through
-2,147,483,647 milliseconds) bounds how long the helper awaits an asynchronous
-principal resolver. On expiry it returns the same pre-execution HTTP **429**
-and frees its global reservation. A late resolver result cannot authorize or
-execute the expired operation. Default `Infinity` preserves the original
-behavior. The deadline does **not** cancel the resolver's underlying network
-request or interrupt synchronous/blocking JavaScript, and timer delivery may
-be delayed while the Node event loop is busy. An optional
+2,147,483,647 milliseconds) sets a lookup-completion admission deadline.
+On expiry it returns the same pre-execution HTTP **429** and frees its
+global reservation. The helper also checks elapsed monotonic time after
+a resolver settles, so a late successful result cannot authorize or execute
+private work merely because the Node timer was blocked or delayed.
+Default `Infinity` preserves the original behavior. This check cannot
+interrupt synchronous/blocking JavaScript or cancel a resolver's underlying
+network request: over-deadline synchronous work has already consumed time
+before the helper can refuse it. An optional
 `abortPrincipalLookup:true` (requiring a finite deadline) passes an
 `AbortSignal` as the resolver's second argument and calls `abort()` when the
 lookup expires. A cooperating identity provider can use this signal for its
