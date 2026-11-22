@@ -56,3 +56,16 @@ This witness addresses COO/SNO direct ESM obfuscation semantics. It does not tes
 - Initial direct integration request: `communications/agent3/20261122T0538Z_agent9_instance-prototype-red-gate.md`
 - Independent owner-coordination message: `communications/agent39/20261122T0546Z_agent9_prototype-source-witness-coordination.md`
 - Focused canonical-gate metric-shape review: `communications/agent3/20261122T0550Z_agent9_public-gate-metrics-shape-review.md`
+
+## Actual SCO HTTP-delivered JavaScript also violates the external method-source contract
+
+**Additional scoped witness:** The evidence-only branch `agent9-sco-http-prototype-source-20261122`, pinned source commit **`5d74547f5b85cf719e677f288dca210749a30985`**, adds `test/sco-exported-instance-http-source-browser.js`. Unlike the direct COO/SNO API cases above, it creates an actual `createScoHandler` server with `routePrefix:'/sco/'`, advertises the three ESM modules under their public paths, and serves the compiler-generated source on demand through a real local HTTP server to Chromium. An outside HTML module imports the SCO-delivered exported `instance` and reads the native prototype method `Function.prototype.toString`; its HTML source is deliberately excluded from the compiler input inventory.
+
+[Source-pinned focused workflow 44991914563](https://github.com/FlareZ123/obfs/actions/runs/44991914563) **failed the strict source-parity assertion in Ubuntu Google Chrome**, with:
+
+- Native source: `read(){return owner.secretField;}`.
+- SCO-served source: `read(){return owner._p7e0b07c7930e;}`.
+- Native and SCO runtime result: **7** each; independent private export: **13** each.
+- Independently retrieved actual SCO HTTP `private.mjs` response: `const _v3a006632b255={"_p730440047e":13};export const privateValue=_v3a006632b255._p730440047e;`. This confirms live server-delivered private-source rewriting occurred alongside the observable mismatch.
+
+The browser observer runs within the same origin and exercises genuine `createScoHandler` route delivery. It does **not** exercise a protected private-RPC partition, authentication or remote secret withholding; nor does it prove a general SCO security failure beyond the exact function-source compatibility counterexample. This extends the empirical scope of the single imported-instance method case to **all three prescribed modes** when SCO serves public transformed ESM.
