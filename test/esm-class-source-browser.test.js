@@ -46,7 +46,7 @@ const cases = [
 function compile(code) {
   const output = obfuscateFiles([{path:'leaf.mjs',sourceType:'module',code}], {
     mode:'coo', seed:'esm-class-source-browser-v1',
-    closedWorld:true, strings:false, identifiers:false
+    closedWorld:false, strings:false, identifiers:false
   });
   const leaf = output.files[0];
   assert.equal(typeof leaf.code, 'string');
