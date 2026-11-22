@@ -103,6 +103,15 @@ This is an actual Chromium ESM/import/CSP execution result, rather than a
 Node-only proxy. The later strict-JSDoc inclusion of this browser file
 was made in a separate commit and is validated independently.
 
+The browser workflow's dependency installation was subsequently made
+lockfile-deterministic with `npm ci --ignore-scripts --no-audit --no-fund`;
+identical-source duplicate Chromium jobs now cancel by exact SHA
+(commit `fb1dd4ada18742926986ea4b49bcdcaec85c74e0`).
+[Full real Chromium workflow 44999867614](https://github.com/FlareZ123/obfs/actions/runs/44999867614)
+at that exact source completed green: install, hostile bind interception,
+full browser suite, and JSDoc checks passed. Duplicate cancellation itself
+was not stress-tested and is only a configured scheduling policy.
+
 ## Limits and implications
 
 The result demonstrates an authorized-function object escaping through a
