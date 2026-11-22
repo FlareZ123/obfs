@@ -1924,8 +1924,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       const found=[...aliases].some(name=>
         (descriptorBindings.get(name)??[]).some(
           source=>objectCreateMayExposeDecoder(source,visited))||
-        (descriptorMemberWrites.get(name)??[]).some(
-          write=>descriptorHasSensitiveGetter(write.value))||
+        (descriptorMemberWrites.get(name)??[]).some(write=>
+          ((write.key===null||write.key==='get')&&
+            proxyGetMayReturnDecoderIntrinsic(write.value))||
+          descriptorHasSensitiveGetter(write.value)||
+          objectCreateMayExposeDecoder(write.value,visited))||
         (objectAssignSources.get(name)??[]).some(
           source=>objectCreateMayExposeDecoder(source,visited)));
       visited.delete(expression.name);
