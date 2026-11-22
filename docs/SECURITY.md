@@ -212,7 +212,15 @@ includes actual two-platform Node 22 execution and a real Chromium ESM test
 under `default-src 'none'; script-src 'self'; connect-src 'self'`.
 This specific attack extracts a target passed to a patchable method; it does
 not establish complete extraction of every arbitrary obfuscated application.
-All COO deployments remain within the full-control client attacker model.
+A [matched esbuild comparison](../im-results/bound-runtime-interception-2026-11-22.md#property-mangled-equal-key-negative-control)
+also removed the same two original private key spellings from an ordinary
+minified build. On both Ubuntu and Windows, one identical pre-import bind
+interception recovered the underlying private function from that
+property-mangled control and from the obfuscated build. The tested
+interception therefore has no demonstrated extra barrier over the
+equal-key-mangled control; the experiment does not measure end-to-end
+reverse-engineering effort or runtime cost. All COO deployments remain
+within the full-control client attacker model.
 
 ## Distributed source-byte observation
 
