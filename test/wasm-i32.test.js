@@ -33,7 +33,7 @@ const boundary=[-2147483648,2147483647,-1,0,1,255,256,65535,-0,NaN,Infinity,-Inf
 test('Wasm i32 compiler preserves bitvector results on typed inputs',()=>{
   let compared=0;
   for(let n=0;n<candidates.length;n++) {
-    const source=candidates[n]+'module.exports=f;';
+    const source=candidates[n]+'function publicF(x){return f(x);}module.exports=publicF;';
     const native=load(source);
     for(let seed=0;seed<24;seed++) {
       const result=lowerWasmI32Functions(source,'commonjs',{
@@ -95,7 +95,7 @@ test('explicit Wasm pipeline selection fails closed on refusal or missing target
 });
 test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',()=>{
   const cycleSource="import {observed} from './callee.mjs';"+
-    "export {observed};export function f(x){return x^1;}";
+    "export {observed};function f(x){return x^1;}export function run(x){return f(x);}";
   const out=lowerWasmI32Functions(cycleSource,'module',{
     seed:'esm-cycle',names:['f']
   });
@@ -105,7 +105,7 @@ test('ESM dependency graph uses hoisted lazy helper to avoid cyclic TDZ calls',(
   const published=obfuscateFiles([
     {path:'owner.mjs',sourceType:'module',code:cycleSource},
     {path:'callee.mjs',sourceType:'module',
-      code:"import {f} from './owner.mjs';export const observed=f(42);"}
+      code:"import {run} from './owner.mjs';export const observed=run(42);"}
   ],{
     mode:'coo',seed:'cyclic-graph',strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'owner.mjs':['f']}
@@ -136,12 +136,12 @@ test('COO/SNO selection, CLI parsing and top-level call preserve results',async(
   });
   assert.equal(outputModule.exports,5^175);
 
-  const esm='export function f(x){return ((x>>>1)^(x&255));}';
+  const esm='function f(x){return ((x>>>1)^(x&255));}export function run(x){return f(x);}';
   const emitted=lowerWasmI32Functions(esm,'module',{seed:'esm',names:['f']});
   assert.equal(emitted.functions,1);
   const imported=await import('data:text/javascript;base64,'+
     Buffer.from(emitted.code).toString('base64'));
-  assert.equal(imported.f(-125),((-125>>>1)^(-125&255)));
+  assert.equal(imported.run(-125),((-125>>>1)^(-125&255)));
 });
 
 /** @param {(x:number)=>number} fn @param {number} n @returns {number} */
@@ -152,7 +152,7 @@ function work(fn,n) {
 }
 
 test('record native versus Wasm warm hot/cold costs without universal assertion',()=>{
-  const source='function f(x){return (((x^137)&(x>>>3))|(x<<7));}module.exports=f;';
+  const source='function f(x){return (((x^137)&(x>>>3))|(x<<7));}function publicF(x){return f(x);}module.exports=publicF;';
   const original=load(source);
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'benchmark',names:['f']});
