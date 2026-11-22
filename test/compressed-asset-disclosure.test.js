@@ -25,6 +25,10 @@ const containers=[
   {name:'hidden.xz',code:Buffer.from([0xfd,0x37,0x7a,0x58,0x5a,0x00])},
   {name:'hidden.7z',code:Buffer.from([0x37,0x7a,0xbc,0xaf,0x27,0x1c])},
   {name:'hidden.bz2',code:Buffer.from([0x42,0x5a,0x68,0x39,0,0])},
+  {name:'hidden.rar',code:Buffer.from('526172211a0700','hex')},
+  {name:'renamed-rar4.png',code:Buffer.from('526172211a0700','hex')},
+  {name:'renamed-rar5.bin',code:Buffer.from('526172211a070100','hex')},
+  {name:'misnamed.rar',code:Buffer.from('ordinary payload')},
   {name:'hidden.tar',code:Buffer.concat([
     Buffer.alloc(257),Buffer.from('ustar'),Buffer.alloc(200)])},
   {name:'misnamed.zip',code:Buffer.from('arbitrary archive payload')}
@@ -63,4 +67,20 @@ test('preflight refuses gzip bytes even when the file extension is an image',()=
   assert.throws(()=>obfuscateFiles([
     app,{path:'picture.png',sourceType:'asset',code:disguised}
   ],{mode:'coo'}),/Compressed or archived asset/u);
+});
+
+test('short or malformed RAR markers remain ordinary opaque bytes',()=>{
+  const benign=[
+    Buffer.from('526172211a07','hex'),
+    Buffer.from('526172211a0701','hex'),
+    Buffer.from('526172211a070101','hex')
+  ];
+  for(const code of benign){
+    for(const mode of /** @type {const} */(['coo','sco','sno'])){
+      const output=obfuscateFiles([
+        app,{path:'unrelated.bin',sourceType:'asset',code}
+      ],{mode,seed:'rar-near-marker-positive'});
+      assert.deepEqual(output.files[1].code,code,mode);
+    }
+  }
 });
