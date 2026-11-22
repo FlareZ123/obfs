@@ -382,12 +382,17 @@ test('uppercase NODE_MODULES does not stop Node package-scope inheritance',async
     await atomicWrite(entry,'module.exports=163;');
     await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
     await atomicWrite(path.join(output,'entry.js'),'module.exports=163;');
-    const original=runCommonJs(entry);
-    const relocated=runCommonJs(path.join(output,'entry.js'));
+    const runner=path.join(directory,'runner.cjs');
+    await atomicWrite(runner,'process.stdout.write(String(require(process.argv[2])));');
+    const original=spawnSync(process.execPath,[runner,entry],
+      {encoding:'utf8',timeout:15000});
+    const relocated=spawnSync(process.execPath,[runner,path.join(output,'entry.js')],
+      {encoding:'utf8',timeout:15000});
     assert.equal(original.status,0,original.stderr);
     assert.equal(original.stdout,'163');
     assert.notEqual(relocated.status,0,
       'Uppercase NODE_MODULES still inherits the ancestor ESM package scope');
+    assert.match(relocated.stderr,/module is not defined|ERR_REQUIRE_ESM|ES module/i);
 
     await assert.rejects(
       main('sno',['--root',input,'--entry','entry.js','--out',output]),
