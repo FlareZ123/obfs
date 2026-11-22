@@ -31,6 +31,11 @@ jobs:
       - name: External source parity for narrowly admitted primitive-leaf source island
         if: ${{ !cancelled() }}
         run: node --test test/source-observer-islands-external-callable-source.test.js
+      - name: Real Chromium external importer verifies primitive-leaf callable source
+        if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/source-observer-islands-external-callable-browser.js
       - name: Inspect inert-clone group versus local owner proofs
         run: node sims/inert-clone-source-triage.js
       - name: Direct declaration reader interprocedural proof and native ESM differential
