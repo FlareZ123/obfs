@@ -242,7 +242,25 @@
     "test/node-querystring-escape-source.test.js",
     "test/node-util-mime-source.test.js",
     "test/node-util-mimeparams-source.test.js",
-    "test/node-util-usv-function-source.test.js"
+    "test/node-util-usv-function-source.test.js",
+    "test/decoder-defineproperties-dual-alias.test.js",
+    "test/decoder-descriptor-crossmodule-factory.test.js",
+    "test/decoder-descriptor-factory-return.test.js",
+    "test/decoder-esm-crossmodule-descriptor.test.js",
+    "test/decoder-object-create-descriptor-alias.test.js",
+    "test/decoder-sco-getter-descriptor.test.js",
+    "test/decoder-crossfile-native-create-export.test.js",
+    "test/decoder-object-create-aliased-map.test.js",
+    "test/decoder-object-create-descriptor-alias-write.test.js",
+    "test/decoder-object-create-invocation.test.js",
+    "test/decoder-alias-dag-compile.test.js",
+    "test/decoder-alias-dag-reachability-model.test.js",
+    "test/object-create-bound-count-dag-compile.test.js",
+    "test/object-create-bound-count-dag-crossfile.test.js",
+    "test/object-create-bound-count-memo-model.test.js",
+    "test/decoder-object-create-member-read-alias.test.js",
+    "test/decoder-object-create-default-entry-alias.test.js",
+    "test/decoder-object-create-array-entry-alias.test.js"
   ],
   "exclude": [
     "node_modules"
