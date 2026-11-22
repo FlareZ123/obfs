@@ -112,6 +112,17 @@ test('statement-flow refuses an exported callable while leaving private-helper t
   }),/Statement flow declined/);
 });
 
+
+test('callable returned by an exported function keeps its captured source',async()=>{
+  const source='const owner={secretField:8};function helper(){return owner.secretField;}export function get(){return helper;}';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',closedWorld:true,seed:'esm-exported-returned-callable-source',
+    strings:false,properties:true,identifiers:true
+  });
+  assert.deepEqual(await observe(output.files[0].code,'[m.get.toString(),m.get().toString(),m.get()()]'),
+    await observe(source,'[m.get.toString(),m.get().toString(),m.get()()]'));
+});
+
 test('cross-file owner reads inside an exported callable retain source while private readers remain eligible',async()=>{
   const owner='export const owner={secretField:13};';
   const publicReader='import {owner} from "./owner.mjs";export function read(){return owner.secretField;}';
