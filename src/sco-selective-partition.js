@@ -984,10 +984,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
         ['string','boolean'].includes(typeof value.value)||
         typeof value.value==='number'&&Number.isFinite(value.value);
     }
-    if(value.type==='ArrayExpression')return value.elements.every(element=>
+    if(value.type==='ArrayExpression')return value.elements.every(
+      (/** @type {import('./ast').AstNode|null} */ element)=>
       element!==null&&element.type!=='SpreadElement'&&
       provedCloneLiteral(element,depth+1));
-    if(value.type==='ObjectExpression')return value.properties.every(property=>{
+    if(value.type==='ObjectExpression')return value.properties.every(
+      (/** @type {import('./ast').AstNode} */ property)=>{
       if(property.type!=='Property'||property.kind!=='init'||property.computed||
          property.method||property.shorthand)return false;
       const name=property.key.type==='Identifier'?property.key.name:
