@@ -234,3 +234,24 @@ test('an unbound global identifier getter may inspect source without an explicit
   assert.equal(execute(source,undefined,host,globals),87);
   compare(source,'ambient-identifier-getter',undefined,host,globals);
 });
+
+test('a declaration in a sibling scope does not bind an ambient host getter',()=>{
+  const host={value:0};
+  const getter=/** @type {()=>number} */ (vm.runInNewContext(
+    '(function ambientGetter(){const caller=ambientGetter.caller;'+
+    'host.value=caller&&caller.toString().includes("secretField")?7:8;return 0;})',
+    {host}
+  ));
+  const globals=Object.defineProperty({},'ambient',{get:getter});
+  const source=[
+    'function unrelated(){const ambient=0;return ambient;}',
+    'function privateFn(){',
+    '  const secret={secretField:1};',
+    '  ambient;',
+    '  return secret.secretField+7;',
+    '}',
+    'module.exports=privateFn()*10+host.value;'
+  ].join('\n');
+  assert.equal(execute(source,undefined,host,globals),87);
+  compare(source,'sibling-scope-ambient-getter',undefined,host,globals);
+});
