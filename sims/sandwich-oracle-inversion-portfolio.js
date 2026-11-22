@@ -70,8 +70,8 @@ function median(values){
  * @typedef {{oracle:(input:number)=>number,target:number,secret:number,attackSeed:number}} OracleFixture
  */
 
-/** @returns {void} */
-function main(){
+/** @param {{firstIndex?:number,lastIndexExclusive?:number}} [options] @returns {void} */
+function main({firstIndex=224,lastIndexExclusive=296}={}){
   /** @type {{name:string,make:(index:number)=>OracleFixture}[]} */
   const families=[
     ...['rivest-degree-15','triangular-degree-3','triangular-degree-4',
@@ -90,7 +90,8 @@ function main(){
       name:'rivest-degree-7',make:seed=>makeRivestPermutation(7,seed)
     },index)}
   ];
-  const firstIndex=24,lastIndexExclusive=96;
+  // Indices 0-31 were used to tune the CEGAR budget and 32-223 in
+  // prior studies. This final 224-295 source population is untouched.
   const rows=[];
   for(const family of families){
     /** @type {Record<string,number>} */
