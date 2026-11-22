@@ -54,6 +54,10 @@ that covers all three modes. These counts cover the scoped fixtures only.
 Cross-platform focused runs validate compiler JSDoc; they do not replace
 the separate full integration and browser validation suites.
 
+## Expanded full-system integration gate
+
+[**Full two-platform Node 22 + real Chromium integration 45021149103**](https://github.com/FlareZ123/obfs/actions/runs/45021149103) completed **successfully** at exact production and test source **b7e68ff913c14d1bebf3a31efac04d73362c338c**, on Ubuntu and Windows. This workflow runs the repository's complete behavioral and adversarial Node test collection, isolated width-four oracle checker, independent hostile/public cloning audit, strict JSDoc gates, performance profiles, and Ubuntu's prescribed real-Chromium module/host-lock and owner-field checks. The complete run is source-coincident with the final btoa implementation; subsequent commits on its branch updated only this Markdown evidence report. It is proof of bounded correctness and workflow completion, not a universal property of unknown JavaScript applications or stronger hostile-runtime resistance.
+
 ## Interpretation
 
 This is a compatibility repair to the already-implemented source observer, bounded to listed native `btoa` syntax/alias forms under Node 22. It does not establish comprehensive runtime source transparency, a defense against external observer injection, or stronger obfuscation. The full mainline Node/browser integration and all optional transforms require separate frozen-source validation. It adds no runtime instructions to the ordinary positive-yield fixture; it declines potentially observable rewrites in the scoped bad cases. No universal 2.5× time claim follows.
