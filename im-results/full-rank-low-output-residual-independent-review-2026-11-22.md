@@ -98,8 +98,15 @@ The fully [source-pinned focused and strict-JSDoc follow-up run 45036165639](htt
 then passed on **Ubuntu and Windows** at
 `0f3acfb098b27f17be8d6b4ff935e86f4e351d29`. The finite
 target counts and query outcomes were unchanged.
-The existing large `manual-low-rank-target-inversion.yml` workflow
-also now includes the peer test for subsequent full-suite CI.
+The existing large `manual-low-rank-target-inversion.yml`
+workflow also includes the independent peer test.
+Its full [source-pinned run 45036655503](https://github.com/FlareZ123/obfs/actions/runs/45036655503)
+completed **successfully on Ubuntu and Windows**, at commit
+`3f692b2111a10eae65b53363b2b0ff3a35081300`,
+including the project's other low-rank inversion, SCO oracle,
+independent verifier JSDoc, and project typecheck gates.
+This is a full workflow integration check, with no additional
+security conclusion outside the finite tests and conditional theorem.
 
 ## Constructive sharpness for this traversal procedure
 
