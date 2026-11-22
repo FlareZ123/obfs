@@ -47,6 +47,7 @@ function renameLocalIdentifiers(source,ast,options) {
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
   const identifiers=[];
+  const sourceExposedCallables=collectExportedCallableNodes(ast);
   // Anonymous function/arrow/class expressions receive the assignment target's
   // name through NamedEvaluation. Mangling that binding changes observable
   // .name even when every lexical reference is rewritten correctly.
