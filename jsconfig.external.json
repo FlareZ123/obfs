@@ -6,6 +6,7 @@
     "test/property-private-wrapper-profile.test.js",
     "test/source-stable-bound-export.test.js",
     "test/bound-runtime-interception.test.js",
+    "test/sno-bound-runtime-interception.test.js",
     "test/bound-runtime-interception-browser.js",
     "test/cjs-wrapper-source-observer.test.js",
     "test/private-class-source-yield.test.js",
