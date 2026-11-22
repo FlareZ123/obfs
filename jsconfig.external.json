@@ -233,7 +233,8 @@
     "sims/factory-destructuring-paired-session.js",
     "test/low-output-residual-cycle-independent.test.js",
     "test/node-util-usv-function-source.test.js",
-    "test/node-util-mime-source.test.js"
+    "test/node-util-mime-source.test.js",
+    "test/node-util-mimeparams-source.test.js"
   ],
   "exclude": [
     "node_modules"
