@@ -43,3 +43,28 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
     assert.notEqual(emitted.source,native.source);
   });
 }
+
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+  test(mode+' classic-script global callable parameter names remain externally source-observable',()=>{
+    const source=[
+      'function publicGlobal(publicParam){return publicParam+7;}',
+      'function invokeGlobal(){return publicGlobal(5);}',
+      'globalThis.result=invokeGlobal();'
+    ].join('');
+    const output=obfuscateFiles([{
+      path:'global-api.js',sourceType:'script',code:source
+    }],{
+      mode,seed:'classic-global-identifier-source/'+mode,
+      strings:false,properties:false,identifiers:true
+    });
+    assert.ok(output.files[0].metrics.bindings>0,output.files[0].code);
+    const native=execute(source);
+    const emitted=execute(output.files[0].code);
+    assert.equal(native.value,12);
+    assert.equal(emitted.value,native.value);
+    assert.match(native.source,/publicParam/);
+    assert.doesNotMatch(emitted.source,/publicParam/);
+    assert.notEqual(emitted.source,native.source);
+  });
+}
