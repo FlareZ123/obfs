@@ -76,7 +76,8 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
  * @returns {{seed:number,sourceSeed:number,secret:number,control:number,
  *   oracle:(x:number)=>number,
  *   canonicalMismatches:number,poisonMarker:number,
- *   cleanAt:(anchor:number)=>boolean}}
+ *   canonicalRankFull:boolean,poisonInputDirection:number,
+ *   poisonInputOddParity:boolean,cleanAt:(anchor:number)=>boolean}}
  */
 function poisonCanonicalAnchor(seed) {
   for(let rejection=0;rejection<128;rejection++) {
@@ -130,9 +131,29 @@ function poisonCanonicalAnchor(seed) {
     }
     assert.equal(mismatches,32,'Every base-zero difference must be contaminated');
     assert.equal(cleanAt(0),false,'Poisoned canonical anchor must fail source proof');
+    // Only the original base zero was changed. Every observed matrix
+    // column is therefore A_i XOR Lout(e31), a rank-one update
+    // M = A(I + Lin^-1(e31) * allOnes^T). This is singular precisely
+    // when Lin^-1(e31) has odd Hamming parity over GF(2).
+    const inputSolve=inverseOfColumns(fixture.inner);
+    assert.ok(inputSolve);
+    const poisonInputDirection=inputSolve(0x80000000);
+    let parity=poisonInputDirection;
+    parity^=parity>>>16;
+    parity^=parity>>>8;
+    parity^=parity>>>4;
+    parity^=parity>>>2;
+    parity^=parity>>>1;
+    const poisonInputOddParity=(parity&1)!==0;
+    const observedColumns=Array.from({length:32},(_,i)=>
+      u32(oracle(u32(2**i))^oracle(0)));
+    const canonicalRankFull=inverseOfColumns(observedColumns)!==null;
+    assert.equal(canonicalRankFull,!poisonInputOddParity,
+      'Rank-one GF(2) determinant condition must match observed rank');
     return {seed,sourceSeed:fixture.sourceSeed,secret:fixture.secret,
       control:fixture.control,oracle,canonicalMismatches:mismatches,
-      poisonMarker:marker,cleanAt};
+      poisonMarker:marker,cleanAt,canonicalRankFull,
+      poisonInputDirection,poisonInputOddParity};
   }
   throw new Error('Unable to poison only the canonical affine anchor');
 }
