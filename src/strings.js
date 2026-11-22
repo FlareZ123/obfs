@@ -2,7 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk, applyEdits, observesFunctionSource, sourceSpelledErrorOperand} = require('./ast');
-const {collectBindings} = require('./properties');
+const {collectBindings,collectSourceExposedBodies} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -55,7 +55,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean,preserveCallableSource?:boolean}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
@@ -63,6 +63,8 @@ function encodeStrings(source, ast, options) {
   // The decoder uses the ambient String intrinsic. A file-level or nested
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return {code:source,count:0};
+  const sourceExposedBodies=options.preserveCallableSource===true ?
+    collectSourceExposedBodies(ast) : new Set();
   const values = new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits = [];
@@ -85,6 +87,7 @@ function encodeStrings(source, ast, options) {
     'ClassDeclaration','ClassExpression'
   ]);
   walk(ast, (node, parent, key, ancestors) => {
+    if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))return;
     if (node.type !== 'Literal' || typeof node.value !== 'string' ||
         node.value.length < minimumLength || !parent) return;
     if (parent.type === 'ExpressionStatement' && parent.directive) return;

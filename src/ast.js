@@ -535,6 +535,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
   const nodeBufferNamespaces=new Set();
+  const nodeQuerystringNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
   // calls, including local const aliases of those namespace imports.
@@ -548,6 +549,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(spec.type==='ImportNamespaceSpecifier'||
          spec.type==='ImportDefaultSpecifier')
         nodeBufferNamespaces.add(spec.local.name);
+    }
+  });
+  // Node's querystring escape/unescape functions string-coerce their input.
+  // Track ESM named methods and the two native namespace-import forms.
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration' ||
+       !['querystring','node:querystring'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier' &&
+         ['escape','unescape'].includes(String(spec.imported.name??spec.imported.value)))
+        coercers.add(spec.local.name);
+      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+        nodeQuerystringNamespaces.add(spec.local.name);
     }
   });
   // JSON.parse and JSON.rawJSON call ToString on their text input.
@@ -713,6 +727,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['buffer','node:buffer'].includes(staticString(node.arguments[0])??'')));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeQuerystringNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      nodeQuerystringNamespaces.has(node.name) || isRequireCall(node) &&
+      node.arguments.length===1 &&
+      ['querystring','node:querystring'].includes(staticString(node.arguments[0])??'')));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
@@ -720,6 +741,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
+      isNodeQuerystringNamespace(node.object) &&
+      (['escape','unescape'].includes(name??'') || node.computed && name===null) ||
       name==='for' && isSymbolConstructor(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
@@ -1003,6 +1026,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     changed=false;
     walk(ast,node=>{
+      const querystringPattern=node.type==='VariableDeclarator'&&
+        node.id.type==='ObjectPattern'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='&&
+          node.left.type==='ObjectPattern'?node.left:null;
+      const querystringSource=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(querystringPattern && isNodeQuerystringNamespace(querystringSource)) {
+        for(const property of querystringPattern.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if((['escape','unescape'].includes(name??'') ||
+              property.computed && name===null) &&bound.type==='Identifier')
+            changed=add(coercers,bound.name)||changed;
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
          node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier') {
@@ -1011,6 +1052,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
+        if(isNodeQuerystringNamespace(value))changed=add(nodeQuerystringNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
@@ -1929,7 +1971,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function constructObservesSource(target,passed) {
     const boundRegExp=isBoundRegExpConstructor(target);
     const boundString=isBoundStringConstructor(target);
-    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString;
+    const nativeStringCoercer=isCoercer(target)||boundRegExp||boundString||
+      isNodeUtilMimeConstructor(target);
     const webScalar=isWebConstructor(target,webScalars,webScalarNames);
     const webDictionary=isWebConstructor(target,webDictionaries,webDictionaryNames);
     const blobOptions=isBlobConstructor(target);
@@ -2309,7 +2352,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   /** @type {Map<string,string>} */
   const nodeUtilMethods=new Map();
   const inspectedUtilMethods=new Set(['inspect','format','formatWithOptions',
-    'getCallSites','getCallSite']);
+    'getCallSites','getCallSite','toUSVString','MIMEType','MIMEParams']);
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isNodeUtilRequire(node) {
     return Boolean(node?.type==='CallExpression' &&
@@ -2340,6 +2383,52 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       return nodeUtilMethod(node.callee.object,depth+1);
     return null;
   }
+  /**
+   * Unknown computed selectors on the trusted native util namespace can
+   * select toUSVString at runtime. Protect only when they receive an
+   * unproved argument that may be a function.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isNodeUtilSourceCoercer(node) {
+    return ['toUSVString','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
+      Boolean(node?.type==='MemberExpression' && node.computed &&
+        sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilMimeConstructor(node) {
+    return ['MIMEType','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
+      Boolean(node?.type==='MemberExpression' && node.computed &&
+        sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeUtilMimeParamsConstructor(node) {
+    return ['MIMEParams','possibleSourceCoercer'].includes(nodeUtilMethod(node)??'') ||
+      Boolean(node?.type==='MemberExpression'&&node.computed&&
+        sourceStringKey(node.property)===null&&isNodeUtilNamespace(node.object));
+  }
+  const nativeMimeTypes=new Set();
+  const nativeMimeParams=new Set();
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeTypeInstance(node) {
+    return Boolean(node&&(node.type==='Identifier'&&nativeMimeTypes.has(node.name)||
+      node.type==='NewExpression'&&isNodeUtilMimeConstructor(node.callee)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeParamsInstance(node) {
+    return Boolean(node&&(node.type==='Identifier'&&nativeMimeParams.has(node.name)||
+      node.type==='NewExpression'&&isNodeUtilMimeParamsConstructor(node.callee)||
+      node.type==='MemberExpression'&&
+        (memberName(node)==='params'||node.computed&&memberName(node)===null)&&
+        isNativeMimeTypeInstance(node.object)));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNativeMimeParamsCoercer(node) {
+    return Boolean(node?.type==='MemberExpression'&&
+      isNativeMimeParamsInstance(node.object)&&
+      (['set','has','get','delete'].includes(memberName(node)??'')||
+       node.computed&&memberName(node)===null));
+  }
   walk(ast,node=>{
     if(node.type!=='ImportDeclaration' ||
        !['node:util','util'].includes(String(node.source?.value??'')))return;
@@ -2364,18 +2453,45 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(!id||!value)return;
       if(id.type==='ObjectPattern'&&isNodeUtilNamespace(value)) {
         for(const property of id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          if(property.type!=='Property')continue;
           const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name!==null&&inspectedUtilMethods.has(name)&&
-             !nodeUtilMethods.has(property.value.name)) {
-            nodeUtilMethods.set(property.value.name,name);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(bound.type==='Identifier' &&
+             (name!==null&&inspectedUtilMethods.has(name) ||
+              property.computed&&name===null) &&
+             !nodeUtilMethods.has(bound.name)) {
+            nodeUtilMethods.set(bound.name,name??'possibleSourceCoercer');
+            changedNodeUtil=true;
+          }
+        }
+        return;
+      }
+      if(id.type==='ObjectPattern'&&isNativeMimeTypeInstance(value)) {
+        for(const property of id.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?sourceStringKey(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(bound.type==='Identifier'&&(name==='params'||property.computed&&name===null)&&
+             !nativeMimeParams.has(bound.name)) {
+            nativeMimeParams.add(bound.name);
             changedNodeUtil=true;
           }
         }
         return;
       }
       if(id.type!=='Identifier')return;
+      if(isNativeMimeTypeInstance(value)&&!nativeMimeTypes.has(id.name)) {
+        nativeMimeTypes.add(id.name);
+        changedNodeUtil=true;
+      }
+      if(isNativeMimeParamsInstance(value)&&!nativeMimeParams.has(id.name)) {
+        nativeMimeParams.add(id.name);
+        changedNodeUtil=true;
+      }
       if(isNodeUtilNamespace(value)&&!nodeUtilNamespaces.has(id.name)) {
         nodeUtilNamespaces.add(id.name);
         changedNodeUtil=true;
@@ -2690,6 +2806,35 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          'port','pathname','search','hash'].includes(memberName(node.left)??'')||
         node.left.computed&&memberName(node.left)===null) &&
        !isDefinitelyPrimitive(node.right))observed=true;
+    if(node.type==='AssignmentExpression'&&
+       node.left.type==='MemberExpression'&&isNativeMimeTypeInstance(node.left.object)&&
+       (['type','subtype'].includes(memberName(node.left)??'')||
+        node.left.computed&&memberName(node.left)===null)&&
+       !isDefinitelyPrimitive(node.right))observed=true;
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isReflectiveReceiver(node.callee.object)&&
+       isNativeMimeTypeInstance(node.arguments[0])) {
+      const action=memberName(node.callee);
+      if(action==='set'&&node.arguments[2]&&
+         (['type','subtype'].includes(sourceStringKey(node.arguments[1])??'')||
+          sourceStringKey(node.arguments[1])===null)&&
+         !isDefinitelyPrimitive(node.arguments[2]))observed=true;
+      if(action==='assign') {
+        for(const source of node.arguments.slice(1)) {
+          if(source.type!=='ObjectExpression') {
+            observed=true;
+            continue;
+          }
+          for(const property of source.properties) {
+            if(property.type!=='Property') {observed=true;continue;}
+            const name=property.computed?sourceStringKey(property.key):
+              property.key.type==='Identifier'?property.key.name:staticString(property.key);
+            if((['type','subtype'].includes(name??'')||name===null)&&
+               !isDefinitelyPrimitive(property.value))observed=true;
+          }
+        }
+      }
+    }
     if(node.type==='TaggedTemplateExpression'&&isStringRaw(node.tag) &&
        node.quasi.expressions.some((/** @type {AstNode} */ value)=>
          !isDefinitelyPrimitive(value)))observed=true;
@@ -2736,6 +2881,30 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const utilMethod=nodeUtilMethod(callee);
       // Node util.getCallSites returns the live caller's source columns.
       if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
+      if(isNodeUtilSourceCoercer(callee) && node.arguments[0] &&
+         !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(callee.type==='MemberExpression' &&
+         isNodeUtilSourceCoercer(callee.object)) {
+        const invocation=memberName(callee);
+        if(['bind','call'].includes(invocation??'') &&
+           node.arguments[1]&&!isDefinitelyPrimitive(node.arguments[1]))
+          observed=true;
+        if(invocation==='apply' && node.arguments[1]) {
+          const args=node.arguments[1];
+          if(args.type==='ArrayExpression') {
+            if(args.elements[0]&&!isDefinitelyPrimitive(args.elements[0]))
+              observed=true;
+          } else observed=true;
+        }
+      }
+      if(isReflectApplyMethod(callee) &&
+         isNodeUtilSourceCoercer(node.arguments[0]) && node.arguments[2]) {
+        const args=node.arguments[2];
+        if(args.type==='ArrayExpression') {
+          if(args.elements[0]&&!isDefinitelyPrimitive(args.elements[0]))
+            observed=true;
+        } else observed=true;
+      }
       if(utilMethod==='inspect' && node.arguments[0] &&
          !isDefinitelyPrimitive(node.arguments[0]) ||
          utilMethod==='format' && node.arguments.some(
@@ -2891,6 +3060,40 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       // throw messages containing the exact native function-source spelling.
       if(node.type==='CallExpression' && isV8SerializerWrite(callee) &&
          node.arguments[0] && !isInertCloneInput(node.arguments[0]))observed=true;
+      if(node.type==='NewExpression' && isNodeUtilMimeConstructor(callee) &&
+         node.arguments[0]&&!isDefinitelyPrimitive(node.arguments[0]))
+        observed=true;
+      if(node.type==='CallExpression'&&isNativeMimeParamsCoercer(callee)&&
+         node.arguments.some(
+           (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))
+        observed=true;
+      if(node.type==='CallExpression'&&callee.type==='MemberExpression'&&
+         isNativeMimeParamsCoercer(callee.object)) {
+        const kind=memberName(callee);
+        if(kind==='bind')observed=true;
+        if(kind==='call'&&node.arguments.slice(1).some(
+             (/** @type {AstNode} */ value)=>!isDefinitelyPrimitive(value)))
+          observed=true;
+        if(kind==='apply'&&node.arguments[1]) {
+          const passed=node.arguments[1];
+          if(passed.type!=='ArrayExpression'||
+             passed.elements.some(
+               (/** @type {AstNode|null} */ value)=>value&&!isDefinitelyPrimitive(value)))
+            observed=true;
+        }
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isNativeMimeParamsCoercer(node.arguments[0])&&node.arguments[2]) {
+        const passed=node.arguments[2];
+        if(passed.type!=='ArrayExpression'||
+           passed.elements.some(
+             (/** @type {AstNode|null} */ value)=>value&&!isDefinitelyPrimitive(value)))
+          observed=true;
+      }
+      if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
+         isNodeUtilMimeConstructor(callee.object) &&
+         memberName(callee)==='bind' && node.arguments[1] &&
+         !isDefinitelyPrimitive(node.arguments[1]))observed=true;
       if(node.type==='CallExpression' && callee.type==='MemberExpression' &&
          isV8SerializerWrite(callee.object)) {
         const method=memberName(callee);

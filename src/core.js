@@ -4,7 +4,7 @@ const path = require('node:path');
 const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
-const {renameLocalProperties,collectBindings} = require('./properties');
+const {renameLocalProperties,collectBindings,collectPrivateDirectCallables,collectSourceExposedBodies} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
@@ -28,7 +28,7 @@ const {canonicalAllowedHosts}=require('./hosts');
 /** @typedef {{path:string,code:string|Buffer,sourceType?:SourceType,privateModulePaths?:string[],privateOriginalDigests?:string[]}} SourceFile */
 /** @typedef {{path:string,code:string|Buffer,sourceType:SourceType,metrics:{literals:number,objects:number,properties:number,bindings:number,vmFunctions?:number,vmInstructions?:number,expressionVmFunctions?:number,expressionVmInstructions?:number,nativeGraphFunctions?:number,nativeGraphInstructions?:number,branchFunctions?:number,branchBlocks?:number,statementFlowFunctions?:number,statementFlowBlocks?:number,polyvariantFunctions?:number,polyvariantPaths?:number,polyvariantSteps?:number,wasmI32Functions?:number,wasmI32Instructions?:number,wasmI32Bytes?:number,symbolKeys?:number}}} OutputFile */
 /**
- * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
+ * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,preservePublicCallableSource?:boolean,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
 
 /**
@@ -1658,6 +1658,23 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @returns {boolean}
    */
   function isSensitiveEsmExport(node) {
+    // An imported getter descriptor or factory may poison a native string
+    // decoder in a sibling module before its top-level initializer runs.
+    // Preserve the local factory and descriptor provenance across ESM exports.
+    if(node.type==='ExportDefaultDeclaration'&&
+       exportsDecoderGetterMap(node.declaration))return true;
+    if(node.type==='ExportNamedDeclaration'&&!node.source) {
+      const exported=node.declaration;
+      if(exported?.type==='FunctionDeclaration'&&
+         isDecoderGetterMapFactory(exported))return true;
+      if(exported?.type==='VariableDeclaration'&&
+         exported.declarations.some((/** @type {import('./ast').AstNode} */ item)=>
+           item.init&&exportsDecoderGetterMap(item.init)))return true;
+      if((node.specifiers??[]).some(
+        (/** @type {import('./ast').AstNode} */ specifier)=>
+          specifier.local?.type==='Identifier'&&
+          exportsDecoderGetterMap(specifier.local)))return true;
+    }
     if(node.type==='ExportDefaultDeclaration') {
       const declaration=node.declaration;
       if(declaration.type==='FunctionDeclaration'&&declaration.id?.type==='Identifier') {
@@ -1710,9 +1727,670 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // a dynamic compiler as a value is sufficient to disable eager decoding.
   const dynamicCompilers=new Set(['eval','Function','AsyncFunction',
     'GeneratorFunction','AsyncGeneratorFunction']);
-  let mutated=opaqueReflectiveSensitiveWrite;
+  // An Object.create descriptor map may contain an aliased getter
+  // descriptor. Its getter can return String.prototype and a later write
+  // may change the eager string decoder before another module loads.
+  /** @type {Set<string>} */
+  const decoderGetterDescriptors=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMaps=new Set();
+  /** @type {Set<string>} */
+  const decoderGetterMapFactories=new Set();
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterDescriptor(value) {
+    if(value.type==='Identifier')return decoderGetterDescriptors.has(value.name);
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      (property.computed?staticString(property.key):
+        property.key.type==='Identifier'?property.key.name:staticString(property.key))==='get'&&
+      proxyGetMayReturnDecoderIntrinsic(property.value));
+  }
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMap(value) {
+    if(value.type==='Identifier')return decoderGetterMaps.has(value.name);
+    if(value.type==='CallExpression'&&value.callee.type==='Identifier') {
+      return decoderGetterMapFactories.has(value.callee.name);
+    }
+    if(value.type!=='ObjectExpression')return false;
+    return value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+      property.type==='Property'&&
+      isDecoderGetterDescriptor(property.value));
+  }
+  /**
+   * Recognize a local synchronous factory whose direct return supplies an
+   * accessor descriptor map. This also handles function-valued CJS exports.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isDecoderGetterMapFactory(value) {
+    if(value.type==='Identifier')return decoderGetterMapFactories.has(value.name);
+    if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+      .includes(value.type)||value.async||value.generator)return false;
+    if(value.body.type!=='BlockStatement')return isDecoderGetterMap(value.body);
+    return value.body.body.some((/** @type {import('./ast').AstNode} */ statement)=>
+      statement.type==='ReturnStatement'&&statement.argument&&
+      isDecoderGetterMap(statement.argument));
+  }
+  /**
+   * Exported first-class getters or factories can be invoked by a later
+   * required module. The factory's own AST has no direct native sink.
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function exportsDecoderGetterMap(value) {
+    if(isDecoderGetterDescriptor(value)||isDecoderGetterMap(value)||
+       isDecoderGetterMapFactory(value))return true;
+    return value.type==='ObjectExpression'&&
+      value.properties.some((/** @type {import('./ast').AstNode} */ property)=>
+        property.type==='Property'&&exportsDecoderGetterMap(property.value));
+  }
+  let decoderDescriptorChanged;
+  do {
+    decoderDescriptorChanged=false;
+    walk(ast,(node,_parent,_key,ancestors)=>{
+      // Preserve a descriptor map returned through a local function factory.
+      // Find the nearest return owner, avoiding nested function bodies.
+      if(node.type==='ReturnStatement'&&node.argument&&
+         isDecoderGetterMap(node.argument)) {
+        for(let i=ancestors.length-1;i>=0;i--) {
+          const owner=ancestors[i];
+          if(!['FunctionDeclaration','FunctionExpression',
+                'ArrowFunctionExpression'].includes(owner.type))continue;
+          if(owner.type==='FunctionDeclaration'&&
+             owner.id?.type==='Identifier'&&!owner.async&&!owner.generator&&
+             !decoderGetterMapFactories.has(owner.id.name)) {
+            decoderGetterMapFactories.add(owner.id.name);
+            decoderDescriptorChanged=true;
+          }
+          break;
+        }
+      }
+      const declaration=node.type==='VariableDeclarator'&&node.id.type==='Identifier';
+      const assignment=node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier';
+      if(!declaration&&!assignment)return;
+      const name=declaration?node.id.name:node.left.name;
+      const value=declaration?node.init:node.right;
+      if(!value)return;
+      if(isDecoderGetterDescriptor(value)&&!decoderGetterDescriptors.has(name)) {
+        decoderGetterDescriptors.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterMap(value)&&!decoderGetterMaps.has(name)) {
+        decoderGetterMaps.add(name);
+        decoderDescriptorChanged=true;
+      }
+      if(isDecoderGetterMapFactory(value)&&!decoderGetterMapFactories.has(name)) {
+        decoderGetterMapFactories.add(name);
+        decoderDescriptorChanged=true;
+      }
+    });
+  }while(decoderDescriptorChanged);
+  // Object.create can be held in a local variable and its descriptor map
+  // can be constructed before the call. Track the finite source-visible
+  // aliases without assuming an opaque or computed descriptor name is safe.
+  /** @type {Set<string>} */
+  const objectCreateAliases=new Set();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const descriptorBindings=new Map();
+  /** @type {Map<string,Set<string>>} */
+  const descriptorAliases=new Map();
+  // An alias read from a descriptor-map entry may later receive its getter
+  // through a separate identifier. Resolve these may-alias writes fail-closed.
+  /** @type {Map<string,Set<string>>} */
+  const descriptorMemberReadAliases=new Map();
+  /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorMemberWrites=new Map();
+  /** @type {Map<string,import('./ast').AstNode[]>} */
+  const objectAssignSources=new Map();
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='MemberExpression'&&
+       node.left.object.type==='Identifier'){
+      const name=node.left.object.name;
+      const entries=descriptorMemberWrites.get(name)??[];
+      entries.push({key:memberName(node.left),value:node.right});
+      descriptorMemberWrites.set(name,entries);
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='assign'&&
+       node.arguments[0]?.type==='Identifier'){
+      const name=node.arguments[0].name;
+      const entries=objectAssignSources.get(name)??[];
+      entries.push(...node.arguments.slice(1));
+      objectAssignSources.set(name,entries);
+    }
+    const pattern=node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+      node.init&&isObjectIntrinsic(node.init)?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&isObjectIntrinsic(node.right)?node.left:null;
+    if(pattern){
+      for(const property of pattern.properties){
+        if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(key==='create')objectCreateAliases.add(property.value.name);
+      }
+    }
+    // Destructuring reads the same descriptor-entry object as a direct
+    // member expression: `const {ref:entry}=descriptors` may later mutate
+    // `entry.get`. Track the entry conservatively even for computed keys.
+    const readPattern=node.type==='VariableDeclarator'&&
+      node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'?
+      {source:node.init.name,pattern:node.id}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&node.right.type==='Identifier'?
+      {source:node.right.name,pattern:node.left}:null;
+    if(readPattern){
+      const aliases=descriptorMemberReadAliases.get(readPattern.source)??new Set();
+      for(const property of readPattern.pattern.properties){
+        if(property.type!=='Property')continue;
+        // A destructuring default is skipped when the source property is
+        // present; its target still aliases the original descriptor entry.
+        const binding=property.value.type==='Identifier'?property.value:
+          property.value.type==='AssignmentPattern'&&
+          property.value.left.type==='Identifier'?property.value.left:null;
+        if(binding)aliases.add(binding.name);
+      }
+      if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
+    }
+    // Array destructuring of a source-visible array literal can carry the
+    // same descriptor entry reference through its corresponding element.
+    // The element's runtime value may differ under a custom iterator, so
+    // this is a conservative may-alias edge rather than an identity proof.
+    const arrayRead=node.type==='VariableDeclarator'&&
+      node.id.type==='ArrayPattern'&&node.init?.type==='ArrayExpression'?
+      {pattern:node.id,values:node.init}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ArrayPattern'&&node.right.type==='ArrayExpression'?
+      {pattern:node.left,values:node.right}:null;
+    if(arrayRead){
+      for(let index=0;index<arrayRead.pattern.elements.length;index++){
+        const target=arrayRead.pattern.elements[index];
+        const source=arrayRead.values.elements[index];
+        if(source?.type!=='MemberExpression'||source.object.type!=='Identifier')continue;
+        const name=target?.type==='Identifier'?target.name:
+          target?.type==='AssignmentPattern'&&target.left.type==='Identifier'?
+            target.left.name:null;
+        if(name===null)continue;
+        const aliases=descriptorMemberReadAliases.get(source.object.name)??new Set();
+        aliases.add(name);
+        descriptorMemberReadAliases.set(source.object.name,aliases);
+      }
+    }
+    if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
+      const entries=descriptorBindings.get(node.id.name)??[];
+      entries.push(node.init);
+      descriptorBindings.set(node.id.name,entries);
+      if(node.init.type==='Identifier') {
+        const aliases=descriptorAliases.get(node.init.name)??new Set();
+        aliases.add(node.id.name);
+        descriptorAliases.set(node.init.name,aliases);
+      }
+      if(node.init.type==='MemberExpression'&&
+         node.init.object.type==='Identifier') {
+        const source=node.init.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.id.name);
+        descriptorMemberReadAliases.set(source,aliases);
+      }
+    } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+              node.left.type==='Identifier') {
+      const entries=descriptorBindings.get(node.left.name)??[];
+      entries.push(node.right);
+      descriptorBindings.set(node.left.name,entries);
+      if(node.right.type==='Identifier') {
+        const aliases=descriptorAliases.get(node.right.name)??new Set();
+        aliases.add(node.left.name);
+        descriptorAliases.set(node.right.name,aliases);
+      }
+      if(node.right.type==='MemberExpression'&&
+         node.right.object.type==='Identifier') {
+        const source=node.right.object.name;
+        const aliases=descriptorMemberReadAliases.get(source)??new Set();
+        aliases.add(node.left.name);
+        descriptorMemberReadAliases.set(source,aliases);
+      }
+    }
+  });
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function directObjectCreate(expression) {
+    return expression.type==='MemberExpression'&&
+      isObjectIntrinsic(expression.object)&&memberName(expression)==='create';
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function callsObjectCreate(expression) {
+    if(directObjectCreate(expression)||
+       expression.type==='Identifier'&&objectCreateAliases.has(expression.name))return true;
+    if(expression.type==='SequenceExpression'&&expression.expressions.length){
+      return callsObjectCreate(expression.expressions[expression.expressions.length-1]);
+    }
+    return false;
+  }
+  let createAliasFound;
+  do {
+    createAliasFound=false;
+    for(const [name,expressions] of descriptorBindings){
+      if(objectCreateAliases.has(name))continue;
+      if(expressions.some(expression=>directObjectCreate(expression)||
+        expression.type==='Identifier'&&objectCreateAliases.has(expression.name))) {
+        objectCreateAliases.add(name);
+        createAliasFound=true;
+      }
+    }
+  } while(createAliasFound);
+  /**
+   * Prove whether a finite descriptor value may expose decoder state via
+   * an accessor. Unknown descriptor expressions remain unproved and are
+   * handled by the broader conservative mutation scanner.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='Identifier'){
+      if(visited.has(expression.name))return false;
+      visited.add(expression.name);
+      const found=(descriptorBindings.get(expression.name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source,visited))||
+        (descriptorMemberWrites.get(expression.name)??[]).some(
+          write=>(write.key===null||write.key==='get')&&
+            proxyGetMayReturnDecoderIntrinsic(write.value));
+      // This is a monotonic reachability query. Retain the visited set for
+      // the current query so shared alias subgraphs are explored only once.
+      return found;
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ descriptor)=>{
+        if(descriptor.type==='SpreadElement') {
+          return descriptorHasSensitiveGetter(descriptor.argument,visited);
+        }
+        if(descriptor.type!=='Property')return false;
+        const key=descriptor.computed?staticString(descriptor.key):
+          descriptor.key.type==='Identifier'?descriptor.key.name:
+            staticString(descriptor.key);
+        return (key===null||key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(descriptor.value);
+      });
+  }
+  /**
+   * A descriptor entry read through `alias = descriptors.ref` can receive a
+   * getter through `alias.get = fn`. Follow later identifier aliases of the
+   * entry as a conservative may-alias closure. This does not assert that an
+   * arbitrary host member read is safe to rename or otherwise rewrite.
+   * @param {string} name
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function memberReadAliasWritesDecoderGetter(name,visited=new Set()) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    return sensitiveProxyHandlers.has(name)||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>(write.key===null||write.key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(write.value))||
+      (objectAssignSources.get(name)??[]).some(
+        source=>descriptorHasSensitiveGetter(source)||
+          proxyHandlerHasSensitiveGet(source))||
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias,visited));
+  }
+  /**
+   * Object.create's outer map may use a computed property name. The name
+   * cannot make a decoder-sensitive accessor harmless if it is later read.
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  /**
+   * Follow reverse identifier aliases as well as initializer provenance. A
+   * member write through `alias = descriptors` mutates the same object later
+   * passed to Object.create under the original identifier.
+   * @param {string} name
+   * @param {Set<string>} visited
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoderIdentifier(name,visited) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    const found=(descriptorBindings.get(name)??[]).some(
+      source=>objectCreateMayExposeDecoder(source,visited))||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>descriptorHasSensitiveGetter(write.value))||
+      (objectAssignSources.get(name)??[]).some(
+        source=>objectCreateMayExposeDecoder(source,visited))||
+      [...(descriptorMemberReadAliases.get(name)??[])].some(
+        alias=>memberReadAliasWritesDecoderGetter(alias))||
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
+    // The caller provides a fresh set per root query. Retaining completed
+    // names prevents exponential revisits through diamond-shaped aliases.
+    return found;
+  }
+  /**
+   * @param {import('./ast').AstNode} expression
+   * @param {Set<string>} [visited]
+   * @returns {boolean}
+   */
+  function objectCreateMayExposeDecoder(expression,visited=new Set()){
+    if(expression.type==='Identifier') {
+      return objectCreateMayExposeDecoderIdentifier(expression.name,visited);
+    }
+    if(expression.type==='CallExpression'&&
+       expression.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(expression.callee.object)&&
+       memberName(expression.callee)==='assign'){
+      return expression.arguments.some(
+        (/** @type {import('./ast').AstNode} */ source)=>
+          objectCreateMayExposeDecoder(source,visited));
+    }
+    if(expression.type!=='ObjectExpression')return false;
+    return expression.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement')return objectCreateMayExposeDecoder(
+          property.argument,visited);
+        return property.type==='Property'&&
+          descriptorHasSensitiveGetter(property.value);
+      });
+  }
+  // First-class calls through unmodeled method hooks can install arbitrary
+  // descriptors. Explicit empty maps are independently proved safe, so
+  // unrelated accessor definitions retain their own encoding opportunity.
+  let unmodeledCreateReference=false;
+  let sensitiveAccessorWrite=false;
   walk(ast,(node,parent)=>{
+    if(node.type==='MemberExpression'&&directObjectCreate(node)){
+      if(!(parent?.type==='CallExpression'&&parent.callee===node) &&
+         !(parent?.type==='VariableDeclarator'&&parent.init===node&&
+           parent.id.type==='Identifier'))unmodeledCreateReference=true;
+    }
+    if(node.type==='Property'){
+      const key=node.computed?staticString(node.key):
+        node.key.type==='Identifier'?node.key.name:staticString(node.key);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.value))sensitiveAccessorWrite=true;
+    }
+    if(node.type==='AssignmentExpression'&&node.left.type==='MemberExpression'){
+      const key=memberName(node.left);
+      if((key===null||key==='get')&&
+         proxyGetMayReturnDecoderIntrinsic(node.right))sensitiveAccessorWrite=true;
+    }
+  });
+  /** @type {Map<string,Set<string>>} */
+  const objectCreateHolderFields=new Map();
+  /** @type {Map<string,Map<string,number>>} */
+  const objectCreateHolderBoundArgumentCounts=new Map();
+  /**
+   * @param {import('./ast').AstNode} value
+   * @returns {boolean}
+   */
+  function isObjectCreateCallable(value) {
+    if(value.type==='SequenceExpression'&&value.expressions.length){
+      return isObjectCreateCallable(value.expressions[value.expressions.length-1]);
+    }
+    if(value.type==='Identifier')return objectCreateAliases.has(value.name);
+    if(value.type==='MemberExpression') {
+      if(isObjectIntrinsic(value.object)&&memberName(value)==='create')return true;
+      return value.object.type==='Identifier'&&
+        objectCreateHolderFields.get(value.object.name)?.has(memberName(value)??'')===true;
+    }
+    return value.type==='CallExpression'&&
+      value.callee.type==='MemberExpression'&&
+      memberName(value.callee)==='bind'&&
+      isObjectCreateCallable(value.callee.object);
+  }
+  /**
+   * Count statically bound leading arguments on a first-class Object.create
+   * callable. Object.create's descriptor map is parameter 1, so binding its
+   * prototype parameter shifts the descriptor position to call argument 0.
+   *
+   * Bound counts take the maximum over alternative aliases. Memoize only
+   * context-independent acyclic subgraphs. A backedge makes the active
+   * recursion chain context-dependent, preserving the old cycle cutoff.
+   * Every independent call starts a fresh cache, since holder-field counts
+   * can change during the alias-discovery fixed point.
+   * @param {import('./ast').AstNode} value
+   * @param {Set<string>} [active]
+   * @param {Map<string,number>} [memo]
+   * @param {Set<string>} [cycleAffected]
+   * @returns {number}
+   */
+  function objectCreateBoundArgumentCount(
+    value,active=new Set(),memo=new Map(),cycleAffected=new Set()) {
+    if(value.type==='SequenceExpression'&&value.expressions.length) {
+      return objectCreateBoundArgumentCount(
+        value.expressions[value.expressions.length-1],active,memo,cycleAffected);
+    }
+    if(value.type==='Identifier') {
+      if(active.has(value.name)) {
+        for(const ancestor of active)cycleAffected.add(ancestor);
+        return 0;
+      }
+      if(memo.has(value.name))return memo.get(value.name)??0;
+      active.add(value.name);
+      const counts=(descriptorBindings.get(value.name)??[]).map(
+        source=>objectCreateBoundArgumentCount(source,active,memo,cycleAffected));
+      active.delete(value.name);
+      const count=counts.length?Math.max(...counts):0;
+      if(!cycleAffected.has(value.name))memo.set(value.name,count);
+      return count;
+    }
+    if(value.type==='CallExpression'&&value.callee.type==='MemberExpression'&&
+       memberName(value.callee)==='bind'&&
+       isObjectCreateCallable(value.callee.object)) {
+      return objectCreateBoundArgumentCount(
+        value.callee.object,active,memo,cycleAffected)+
+        Math.max(0,value.arguments.length-1);
+    }
+    if(value.type==='MemberExpression'&&value.object.type==='Identifier') {
+      return objectCreateHolderBoundArgumentCounts.get(value.object.name)?.get(
+        memberName(value)??'')??0;
+    }
+    return 0;
+  }
+  /**
+   * @param {string} objectName
+   * @param {string} field
+   * @returns {boolean}
+   */
+  function addCreateHolderField(objectName,field) {
+    let fields=objectCreateHolderFields.get(objectName);
+    if(!fields) {
+      fields=new Set();
+      objectCreateHolderFields.set(objectName,fields);
+    }
+    if(fields.has(field))return false;
+    fields.add(field);
+    return true;
+  }
+  let discoveredCreateAlias;
+  do {
+    discoveredCreateAlias=false;
+    walk(ast,node=>{
+      /** @param {string} name */
+      function addAlias(name) {
+        if(!objectCreateAliases.has(name)){
+          objectCreateAliases.add(name);
+          discoveredCreateAlias=true;
+        }
+      }
+      if(node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
+         node.init&&isObjectIntrinsic(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(key==='create')addAlias(property.value.name);
+        }
+      }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='MemberExpression'&&node.left.object.type==='Identifier'&&
+         isObjectCreateCallable(node.right)) {
+        const field=memberName(node.left);
+        if(field!==null&&addCreateHolderField(node.left.object.name,field)) {
+          discoveredCreateAlias=true;
+        }
+        if(field!==null) {
+          let counts=objectCreateHolderBoundArgumentCounts.get(node.left.object.name);
+          if(!counts) {
+            counts=new Map();
+            objectCreateHolderBoundArgumentCounts.set(node.left.object.name,counts);
+          }
+          const count=objectCreateBoundArgumentCount(node.right);
+          if(count>(counts.get(field)??0))counts.set(field,count);
+        }
+      }
+      let name;
+      let value;
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier') {
+        name=node.id.name;
+        value=node.init;
+      } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
+                node.left.type==='Identifier') {
+        name=node.left.name;
+        value=node.right;
+      }
+      if(!name||!value)return;
+      if(isObjectCreateCallable(value))addAlias(name);
+      if(value.type==='Identifier') {
+        for(const field of objectCreateHolderFields.get(value.name)??[]) {
+          if(addCreateHolderField(name,field))discoveredCreateAlias=true;
+          const count=objectCreateHolderBoundArgumentCounts.get(value.name)?.get(field)??0;
+          let counts=objectCreateHolderBoundArgumentCounts.get(name);
+          if(!counts) {
+            counts=new Map();
+            objectCreateHolderBoundArgumentCounts.set(name,counts);
+          }
+          if(count>(counts.get(field)??0))counts.set(field,count);
+        }
+      }
+      if(value.type==='ObjectExpression') {
+        for(const property of value.properties) {
+          if(property.type!=='Property'||!isObjectCreateCallable(property.value))continue;
+          const field=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(field!==null&&addCreateHolderField(name,field)) {
+            discoveredCreateAlias=true;
+          }
+          if(field!==null) {
+            let counts=objectCreateHolderBoundArgumentCounts.get(name);
+            if(!counts) {
+              counts=new Map();
+              objectCreateHolderBoundArgumentCounts.set(name,counts);
+            }
+            const count=objectCreateBoundArgumentCount(property.value);
+            if(count>(counts.get(field)??0))counts.set(field,count);
+          }
+        }
+      }
+    });
+  } while(discoveredCreateAlias);
+  /**
+   * @param {import('./ast').AstNode} node
+   * @returns {import('./ast').AstNode|null}
+   */
+  function objectCreateDescriptorArgument(node) {
+    if(node.type!=='CallExpression')return null;
+    if(isObjectCreateCallable(node.callee)) {
+      const index=1-objectCreateBoundArgumentCount(node.callee);
+      return index>=0?node.arguments[index]??null:null;
+    }
+    if(node.callee.type!=='MemberExpression')return null;
+    const method=memberName(node.callee);
+    const receiver=node.callee.object;
+    if(method==='call'&&isObjectCreateCallable(receiver)) {
+      const index=2-objectCreateBoundArgumentCount(receiver);
+      return index>=1?node.arguments[index]??null:null;
+    }
+    if(method==='apply'&&isObjectCreateCallable(receiver)) {
+      const index=1-objectCreateBoundArgumentCount(receiver);
+      const args=node.arguments[1];
+      return index>=0&&args?.type==='ArrayExpression'?
+        args.elements[index]??null:null;
+    }
+    if(method==='apply'&&isReflectIntrinsic(receiver)&&
+       node.arguments[0]&&isObjectCreateCallable(node.arguments[0])) {
+      const index=1-objectCreateBoundArgumentCount(node.arguments[0]);
+      const args=node.arguments[2];
+      return index>=0&&args?.type==='ArrayExpression'?
+        args.elements[index]??null:null;
+    }
+    return null;
+  }
+  /** @type {boolean} */
+  let mutated=opaqueReflectiveSensitiveWrite||
+    unmodeledCreateReference&&sensitiveAccessorWrite;
+  walk(ast,(node,parent)=>{
+    if(rejectCommonJsExportEscape&&node.type==='AssignmentExpression'&&
+       node.operator==='='&&isCommonJsExportTarget(node.left)&&
+       exportsDecoderGetterMap(node.right)) {
+      mutated=true;
+      return;
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&
+       (memberName(node.callee)==='create'||
+        memberName(node.callee)==='defineProperties')&&
+       node.arguments[1]&&isDecoderGetterMap(node.arguments[1])) {
+      mutated=true;
+      return;
+    }
     if(createsSensitiveProxy(node)) {
+      mutated=true;
+      return;
+    }
+    // First-class Object.create call/apply/bind or a holder-field call may
+    // install sensitive descriptor maps whose native getter mutates the decoder.
+    const guardedDescriptors=objectCreateDescriptorArgument(node);
+    if(guardedDescriptors&&
+       (objectCreateMayExposeDecoder(guardedDescriptors)||
+        isDecoderGetterMap(guardedDescriptors))) {
+      mutated=true;
+      return;
+    }
+    // Prebinding the descriptor map is itself a potential installation of
+    // a decoder-sensitive getter; the bound callable may run later.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       memberName(node.callee)==='bind'&&
+       isObjectCreateCallable(node.callee.object)&&
+       node.arguments.slice(1).some(
+         (/** @type {import('./ast').AstNode} */ argument)=>objectCreateMayExposeDecoder(argument)||
+           isDecoderGetterMap(argument))) {
+      mutated=true;
+      return;
+    }
+    // A source-visible descriptor map may cross a module boundary as the
+    // second argument to an imported or otherwise opaque callable. The
+    // native target could be Object.create or Object.defineProperties;
+    // refuse eager decoding unless the destination is proved harmless.
+    // A harmless Number.prototype descriptor remains independently eligible.
+    if(node.type==='CallExpression'&&node.arguments[1]&&
+       (objectCreateMayExposeDecoder(node.arguments[1])||
+        isDecoderGetterMap(node.arguments[1]))) {
+      mutated=true;
+      return;
+    }
+    // When a native constructor escapes through a container or unknown
+    // call target, interprocedural effects cannot be proven from the local
+    // graph. Require a source-visible sensitive accessor before declining.
+    if(sensitiveAccessorWrite&&node.type==='ArrayExpression'&&
+       node.elements.some((/** @type {import('./ast').AstNode|null} */ element)=>
+         element&&isObjectCreateCallable(element))) {
+      mutated=true;
+      return;
+    }
+    if(sensitiveAccessorWrite&&
+       (node.type==='CallExpression'||node.type==='NewExpression')&&
+       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
+         isObjectCreateCallable(argument))) {
       mutated=true;
       return;
     }
@@ -2042,7 +2720,7 @@ function obfuscateFiles(files, options = {}) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
-    renameCrossFileProperties(prepared,seed) : {files:prepared,objects:0,properties:0};
+    renameCrossFileProperties(prepared,seed,{preserveCallableSource:options.preservePublicCallableSource===true}) : {files:prepared,objects:0,properties:0};
   const shouldEncodeStrings=!remoteSourceObserver &&
     (options.strings === true || (options.strings === undefined && mode === 'sno'));
   /** @type {Set<string>} */
@@ -2085,7 +2763,39 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const vmNames=selectedFunctionNames.get('Register VM')?.get(filename)??[];
+    const lexicalBindings=collectBindings(ast);
+    const privateDirectCallables=options.preservePublicCallableSource===true ?
+      collectPrivateDirectCallables(ast,lexicalBindings) : new Set();
+    const sourceExposedBodies=options.preservePublicCallableSource===true ?
+      collectSourceExposedBodies(ast,lexicalBindings) : new Set();
+    /** @type {Set<import('./ast').AstNode>} */
+    const unsafePrivateTargets=new Set();
+    walk(ast,(node,parent,key,ancestors)=>{
+      if(sourceExposedBodies.has(node)) {
+        for(const ancestor of ancestors)
+          if(privateDirectCallables.has(ancestor))unsafePrivateTargets.add(ancestor);
+      }
+    });
+    /** @type {Set<string>} */
+    const privateDirectFunctionNames=new Set();
+    walk(ast,node=>{
+      if(node.type==='FunctionDeclaration'&&node.id?.type==='Identifier'&&
+         privateDirectCallables.has(node)&&!unsafePrivateTargets.has(node))
+        privateDirectFunctionNames.add(node.id.name);
+    });
+    /**
+     * @param {string[]} names
+     * @param {string} label
+     * @returns {string[]}
+     */
+    function sourceSafeTargets(names,label) {
+      if(options.preservePublicCallableSource!==true)return names;
+      const unsafe=names.filter(name=>!privateDirectFunctionNames.has(name));
+      if(unsafe.length)throw new TypeError(label+
+        ' cannot transform source-exposed callable(s): '+unsafe.join(', '));
+      return names;
+    }
+    const vmNames=sourceSafeTargets(selectedFunctionNames.get('Register VM')?.get(filename)??[],'Register VM');
     let vmFunctions=0,vmInstructions=0;
     if(vmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2101,7 +2811,7 @@ function obfuscateFiles(files, options = {}) {
       vmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const expressionNames=selectedFunctionNames.get('Expression VM')?.get(filename)??[];
+    const expressionNames=sourceSafeTargets(selectedFunctionNames.get('Expression VM')?.get(filename)??[],'Expression VM');
     let expressionVmFunctions=0,expressionVmInstructions=0;
     if(expressionNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2117,7 +2827,7 @@ function obfuscateFiles(files, options = {}) {
       expressionVmInstructions=virtualized.instructions;
       ast=parse(code,sourceType);
     }
-    const nativeNames=selectedFunctionNames.get('Native graph')?.get(filename)??[];
+    const nativeNames=sourceSafeTargets(selectedFunctionNames.get('Native graph')?.get(filename)??[],'Native graph');
     let nativeGraphFunctions=0,nativeGraphInstructions=0;
     if(nativeNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2138,7 +2848,7 @@ function obfuscateFiles(files, options = {}) {
       nativeGraphInstructions=optimized.instructions;
       ast=parse(code,sourceType);
     }
-    const branchNames=selectedFunctionNames.get('Branch blocks')?.get(filename)??[];
+    const branchNames=sourceSafeTargets(selectedFunctionNames.get('Branch blocks')?.get(filename)??[],'Branch blocks');
     let branchFunctions=0,branchBlocks=0;
     if(branchNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2155,7 +2865,7 @@ function obfuscateFiles(files, options = {}) {
       branchBlocks=flattened.blocks;
       ast=parse(code,sourceType);
     }
-    const statementNames=selectedFunctionNames.get('Statement flow')?.get(filename)??[];
+    const statementNames=sourceSafeTargets(selectedFunctionNames.get('Statement flow')?.get(filename)??[],'Statement flow');
     let statementFlowFunctions=0,statementFlowBlocks=0;
     if(statementNames.length){
       if(sourceType==='script'||remoteSourceObserver){
@@ -2177,7 +2887,7 @@ function obfuscateFiles(files, options = {}) {
       statementFlowBlocks=transformed.blocks;
       ast=parse(code,sourceType);
     }
-    const wasmNames=selectedFunctionNames.get('Wasm i32')?.get(filename)??[];
+    const wasmNames=sourceSafeTargets(selectedFunctionNames.get('Wasm i32')?.get(filename)??[],'Wasm i32');
     let wasmI32Functions=0,wasmI32Instructions=0,wasmI32Bytes=0;
     if(wasmNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2201,7 +2911,7 @@ function obfuscateFiles(files, options = {}) {
       wasmI32Bytes=lowered.wasmBytes;
       ast=parse(code,sourceType);
     }
-    const polyvariantNames=selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[];
+    const polyvariantNames=sourceSafeTargets(selectedFunctionNames.get('Polyvariant affine')?.get(filename)??[],'Polyvariant affine');
     let polyvariantFunctions=0,polyvariantPaths=0,polyvariantSteps=0;
     if(polyvariantNames.length) {
       if(sourceType==='script'||remoteSourceObserver) {
@@ -2233,8 +2943,8 @@ function obfuscateFiles(files, options = {}) {
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
-        symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        symbolizeLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true}) :
+        renameLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
@@ -2243,7 +2953,7 @@ function obfuscateFiles(files, options = {}) {
     }
     let bindings=0;
     if(!remoteSourceObserver && options.identifiers!==false) {
-      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType});
+      const renamed=renameLocalIdentifiers(code,ast,{seed:salt,sourceType,preserveCallableSource:options.preservePublicCallableSource===true});
       code=renamed.code;
       bindings=renamed.bindings;
       ast=parse(code,sourceType);
@@ -2252,7 +2962,7 @@ function obfuscateFiles(files, options = {}) {
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
     if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true});
+      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true});
       code = modified.code;
       literals = modified.count;
       ast = parse(code,sourceType);

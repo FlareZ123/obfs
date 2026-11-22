@@ -2,7 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
-const {collectBindings} = require('./properties');
+const {collectBindings,collectSourceExposedBodies} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -37,12 +37,14 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',preserveCallableSource?:boolean}} options
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
+  const sourceExposedBodies=options.preserveCallableSource===true ?
+    collectSourceExposedBodies(ast,counts) : new Set();
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
@@ -135,6 +137,16 @@ function renameLocalIdentifiers(source,ast,options) {
     }
   });
   if (dynamic) return {code:source,bindings:0};
+  /** @type {Set<string>} */
+  const sourceExposedNames=new Set();
+  /** @type {Set<AstNode>} */
+  const sourceExposedDeclarations=new Set();
+  for(const item of identifiers) {
+    if(!item.ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))continue;
+    if(classifyIdentifier(item.node,item.parent,item.key)==='ignore')
+      sourceExposedDeclarations.add(item.node);
+    else sourceExposedNames.add(item.node.name);
+  }
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   // A free identifier can be captured by a newly introduced local binding,
@@ -143,7 +155,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (counts.get(name)!==1 || sourceExposedNames.has(name) || sourceExposedDeclarations.has(identifier) ||
+        inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
