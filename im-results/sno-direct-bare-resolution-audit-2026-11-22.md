@@ -43,7 +43,10 @@ output file is written, the compiler:
 3. Resolves source and intended output file directories against the
    nearest existing canonical ancestor. It calls Node's
    `module.createRequire(filename).resolve(specifier)` for each site.
-4. Refuses missing packages or differing absolute resolution targets
+4. Refuses direct calls beneath any `package.json` that this build will
+   emit. Node cannot use this as-yet-unwritten package metadata during
+   prepublication resolver checks, including future named self-references.
+5. Refuses missing packages or differing absolute resolution targets
    before publication. It permits actual same-file shared dependencies;
    byte-for-byte copies in different directories are conservatively
    refused because their module-relative paths and behavior can differ.
