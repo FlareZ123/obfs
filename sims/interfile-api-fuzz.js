@@ -31,6 +31,7 @@ function fixture(seed,kind) {
       code:'export const state={'+field+':'+first+','+other+':'+second+'};'}
   ];
   let logic='';
+  /** @type {number|null} */
   let expectedProperties=0;
   let scenario='';
   if(kind===0) {
