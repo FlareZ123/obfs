@@ -37,6 +37,24 @@ function graph(mutator) {
   ];
 }
 
+/** @param {'String'|'Number'} target @returns {SourceFile[]} */
+function crossFileGraph(target) {
+  const mutation=target==='String'?
+    'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;';
+  return [
+    {path:'entry.cjs',sourceType:'commonjs',
+      code:"require('./mutator.cjs');require('./factory.cjs');process.stdout.write(require('./target.cjs'));"},
+    {path:'descriptors.cjs',sourceType:'commonjs',code:'module.exports={ref:{}};'},
+    {path:'mutator.cjs',sourceType:'commonjs',
+      code:"const descriptors=require('./descriptors.cjs');const entry=descriptors.ref;entry.get=()=>"+target+".prototype;"},
+    {path:'factory.cjs',sourceType:'commonjs',
+      code:"const descriptors=require('./descriptors.cjs');const box=Object.create(null,descriptors);"+mutation+"module.exports=box;"},
+    {path:'target.cjs',sourceType:'commonjs',
+      code:'module.exports='+JSON.stringify('Z'.repeat(2048)+'P')+';'}
+  ];
+}
+
+
 /** @type {{name:string,setup:string}[]} */
 const variants=[
   {
@@ -70,6 +88,22 @@ const variants=[
   {
     name:'direct nested member write baseline',
     setup:'descriptors.ref.get=()=>TARGET.prototype;'
+  },
+  {
+    name:'dynamic member-expression alias',
+    setup:"const key='ref';const entry=descriptors[key];entry.get=()=>TARGET.prototype;"
+  },
+  {
+    name:'dynamic nested member write',
+    setup:"const key='ref';descriptors[key].get=()=>TARGET.prototype;"
+  },
+  {
+    name:'function-parameter nested alias',
+    setup:'function install(entry){entry.get=()=>TARGET.prototype;}install(descriptors.ref);'
+  },
+  {
+    name:'returned nested alias',
+    setup:'function getEntry(){return descriptors.ref;}const entry=getEntry();entry.get=()=>TARGET.prototype;'
   }
 ];
 
@@ -132,4 +166,52 @@ for(const variant of variants) {
         'Harmless Number.prototype access must retain positive decoder yield');
     });
   }
+}
+
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])) {
+  test('cross-file shared descriptor map String mutation remains native: '+mode,
+    async()=>{
+      const input=crossFileGraph('String');
+      const emitted=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent42-cross-file-nested-alias/'+mode
+      });
+      const target=emitted.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent42-cross-file-alias-'));
+      try {
+        const native=await execute(path.join(root,'native'),input);
+        const protectedRun=await execute(path.join(root,'emitted'),emitted.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(protectedRun,native,
+          'Cross-file shared descriptor alias changed native behavior');
+      } finally {
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,0,
+        'Cross-file shared descriptor alias must block eager decoder encoding');
+    });
+  test('cross-file shared descriptor map Number control retains yield: '+mode,
+    async()=>{
+      const input=crossFileGraph('Number');
+      const emitted=obfuscateFiles(input,{
+        mode,strings:true,identifiers:false,properties:false,
+        seed:'agent42-cross-file-nested-alias-number/'+mode
+      });
+      const target=emitted.files.find(file=>file.path==='target.cjs');
+      assert.ok(target);
+      const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-agent42-cross-file-number-'));
+      try {
+        const native=await execute(path.join(root,'native'),input);
+        const protectedRun=await execute(path.join(root,'emitted'),emitted.files);
+        assert.equal(native.status,0,native.stderr);
+        assert.deepEqual(protectedRun,native,
+          'Cross-file Number descriptor changed native behavior');
+      } finally {
+        await fs.rm(root,{recursive:true,force:true});
+      }
+      assert.equal(target.metrics.literals,1,
+        'Cross-file Number control must retain positive decoder yield');
+    });
 }
