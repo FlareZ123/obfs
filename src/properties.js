@@ -1149,7 +1149,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   const inventory=collectProofInventory(ast);
   const scopes=collectBindingScopes(ast);
   /** @type {Set<AstNode>} */
-  const permitted=new Set();
+  const directCallables=new Set();
   /**
    * @param {string} name
    * @param {AstNode} definition
@@ -1171,7 +1171,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
        !directCallOnly(fn.id.name,fn.id)||
        /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
-    permitted.add(fn);
+    directCallables.add(fn);
   }
   for(const decl of inventory.callableDeclarators) {
     const container=inventory.parents.get(decl);
@@ -1180,8 +1180,20 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
        !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
        !directCallOnly(decl.id.name,decl.id)||
        /^Export/.test(inventory.parents.get(container)?.type??''))continue;
-    permitted.add(decl.init);
+    directCallables.add(decl.init);
   }
+  /** @type {Set<AstNode>} */
+  const permitted=new Set();
+  const sourceBodies=new Set([
+    'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+    'ClassDeclaration','ClassExpression'
+  ]);
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(!directCallables.has(node))return;
+    if(ancestors.some(ancestor=>sourceBodies.has(ancestor.type)&&
+       !directCallables.has(ancestor)))return;
+    permitted.add(node);
+  });
   return permitted;
 }
 
