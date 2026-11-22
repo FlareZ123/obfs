@@ -178,10 +178,13 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
 test('matched one-shot grading keeps correct and incorrect arms separate',()=>{
   const trial=createMatchedBlindAffineChallenge('coo');
   const checked=trial.verify([
-    {round1:0,round2:0,round3:0},
+    // Every hidden round offset lies within [-1275, 1275], so 100000
+    // deterministically exercises a well-typed but behaviorally wrong guess.
+    {round1:100000,round2:0,round3:0},
     {round1:'incorrect',round2:0,round3:0}
   ]);
   assert.equal(checked[0].passed,false);
+  assert.equal(checked[0].claim,'Held-out Int32 mismatch');
   assert.equal(checked[1].passed,false);
   assert.equal(checked[1].claim,'Malformed offset answer');
   assert.throws(()=>trial.verify([]),/only one answer set/u);
