@@ -12,7 +12,8 @@ const {test}=require('node:test');
  *   BlobConstructor:string,
  *   BlobSliceMethod:string,
  *   BlobStreamConstructor:string,
- *   TimeoutErrorStack:string
+ *   TimeoutErrorStack:string,
+ *   StructuredCloneErrorMessage:string
  * }} HostWitness
  */
 
@@ -21,7 +22,15 @@ async function observeHost(){
   const signal=AbortSignal.timeout(10);
   await new Promise(resolve=>
     signal.addEventListener('abort',()=>resolve(),{once:true}));
+  let cloneMessage='';
+  try {
+    structuredClone(()=>7);
+  } catch(error) {
+    if(!(error instanceof DOMException)||error.name!=='DataCloneError')throw error;
+    cloneMessage=error.message;
+  }
   return {
+    StructuredCloneErrorMessage:cloneMessage,
     BlobConstructor:String(Blob),
     BlobSliceMethod:String(new Blob([]).slice),
     BlobStreamConstructor:String(new Blob([]).stream().constructor),
