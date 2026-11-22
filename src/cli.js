@@ -382,18 +382,10 @@ async function readReviewedAssets(sourceRoot,filename) {
  */
 async function assertSnoOutputPackageScope(files,output) {
   const emitted=new Set(files.map(file=>file.path));
-  // The relevant scope belongs to each .js file, including a nested
-  // package.json that may be left in an existing output tree.
-  const unscoped=files.filter(file=>{
-    if(!file.path.endsWith('.js'))return false;
-    let directory=path.posix.dirname(file.path);
-    for(;;) {
-      if(emitted.has(path.posix.join(directory,'package.json')))return false;
-      if(directory==='.')return true;
-      directory=path.posix.dirname(directory);
-    }
-  });
-  if(unscoped.length===0)return;
+  // Every .js may encounter a stale package.json in a reused output tree,
+  // including beneath an emitted package.json that would otherwise govern it.
+  const javascript=files.filter(file=>file.path.endsWith('.js'));
+  if(javascript.length===0)return;
 
   // Node resolves filesystem aliases before loading files. Resolve the
   // nearest existing ancestor so a symlinked output does not hide its scope.
@@ -411,12 +403,17 @@ async function assertSnoOutputPackageScope(files,output) {
     }
   }
 
+  /** @type {Map<string,'module'|'other'|'missing'>} */
   const scopes=new Map();
-  for(const file of unscoped) {
+  for(const file of javascript) {
+    const expectedModule=file.sourceType==='module';
+    let relative=path.posix.dirname(file.path);
     let directory=path.dirname(path.join(canonical,file.path));
     for(;;) {
+      // A file that the build will publish controls this scope after the
+      // write. Only untracked packages between it and the .js can override.
+      if(emitted.has(path.posix.join(relative,'package.json')))break;
       if(path.basename(directory)==='node_modules')break;
-      /** @type {'module'|'other'|undefined} */
       let type=scopes.get(directory);
       if(type===undefined) {
         /** @type {string|undefined} */
@@ -428,17 +425,21 @@ async function assertSnoOutputPackageScope(files,output) {
         if(content!==undefined) {
           const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
           type=JSON.parse(json).type==='module'?'module':'other';
-          scopes.set(directory,type);
+        } else type='missing';
+        scopes.set(directory,type);
+      }
+      if(type!=='missing') {
+        if((type==='module')!==expectedModule) {
+          throw new Error('SNO output .js inherits external '+
+            (type==='module'?'ESM':'CommonJS')+' package scope: '+
+            path.join(directory,'package.json'));
         }
+        break;
       }
-      if(type==='module') {
-        throw new Error('SNO output .js inherits external ESM package scope: '+
-          path.join(directory,'package.json'));
-      }
-      if(type==='other')break;
       const parent=path.dirname(directory);
       if(parent===directory)break;
       directory=parent;
+      relative=relative==='.'?'.':path.posix.dirname(relative);
     }
   }
 }
