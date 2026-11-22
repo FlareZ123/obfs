@@ -14,8 +14,7 @@ function graph(){
   return [
     {path:'worker.js',sourceType:'script',code:
       'importScripts("./side.js");'+
-      'import("./target.mjs").then(({default:value})=>postMessage(value),'+
-      'error=>postMessage("ERROR:"+String(error)));'},
+      'import("./target.mjs").then(({default:value})=>postMessage(value));'},
     {path:'target.mjs',sourceType:'module',
       code:"export default 'protected-literal-value';"}
   ];
