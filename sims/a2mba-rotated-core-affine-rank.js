@@ -90,7 +90,7 @@ function rankTwoShear(x) {
 
 /**
  * @returns {{method:string,controls:{rankOne:ResidualRank,rankTwo:ResidualRank},
- *   baseline:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
+ *   baseline:ResidualRank,degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
  */
 function runScreen() {
   const one=nonlinearResidualRank(rankOneShear);
@@ -99,6 +99,8 @@ function runScreen() {
   assert.equal(two.rank,2);
   const plain=projectRegion(nativeRegion32);
   const baseline=nonlinearResidualRank(plain);
+  const degenerateSlice=nonlinearResidualRank(x=>nativeRegion32(x,0,0,0));
+  assert.equal(degenerateSlice.rank,0);
   /** @type {Array<{rotation:number,rank:number,checked:number}>} */
   const rotations=[];
   for(const rotation of [1,8,16,31]) {
@@ -116,7 +118,7 @@ function runScreen() {
     rotations.push({rotation,rank:measured.rank,checked});
   }
   return {method:'GF(2) rank of F(x) xor affine interpolant on public 32-bit affine slice',
-    controls:{rankOne:one,rankTwo:two},baseline,rotations};
+    controls:{rankOne:one,rankTwo:two},baseline,degenerateSlice,rotations};
 }
 
 if(require.main===module)console.log(JSON.stringify(runScreen(),null,2));
