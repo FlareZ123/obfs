@@ -2,11 +2,14 @@
 
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
+const fs=require('node:fs/promises');
+const path=require('node:path');
+const {atomicWrite}=require('../src/atomic');
 const {createMatchedBlindAffineChallenge}=require('../sims/llm-matched-affine-challenge');
 const {attackPublishedSource,minifiedOffset}=require('../sims/llm-matched-affine-static-attack');
 
 for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
-  test(mode+' same-source blind-family generated and minified arms recover statically',()=>{
+  test(mode+' same-source blind-family generated and minified arms recover statically',async()=>{
     for(let iteration=0;iteration<8;iteration++){
       const trial=createMatchedBlindAffineChallenge(mode);
       const observed=trial.questions.map(question=>attackPublishedSource(question.source));
@@ -25,6 +28,17 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
         assert.equal(observed[position].kind,disclosed.arms[position]);
         assert.ok(observed[position].bytes>0);
         assert.ok(Number.isFinite(observed[position].attackMs));
+      }
+      // Preserve the exact randomly sampled original and both public
+      // artifacts only after grading, so independent researchers can
+      // reproduce this executable static attack. These archived cases are
+      // deliberately ineligible for any future sealed LLM trial.
+      const receiptDir=process.env.OBFS_AFFINE_RECEIPT_DIR;
+      if(receiptDir){
+        await fs.mkdir(receiptDir,{recursive:true});
+        await atomicWrite(path.join(receiptDir,mode+'-'+iteration+'.json'),
+          JSON.stringify({mode,iteration,questions:trial.questions,
+            disclosed,attacks:observed,verdicts},null,2)+'\n');
       }
       // Observe source-only attack equivalence and distributed byte volume.
       // Fresh unseeded sources are intentionally not treated as a frozen
