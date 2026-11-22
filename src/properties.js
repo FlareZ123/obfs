@@ -1204,14 +1204,33 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
-function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
+function collectPrivateDirectCallables(ast,bindings=collectBindings(ast),sourceType='module') {
   const inventory=collectProofInventory(ast);
   const scopes=collectBindingScopes(ast);
   /** @type {Set<AstNode>} */
   const directCallables=new Set();
   if(inventory.dynamicScope)return new Set();
+  // Classic script global lexical/var/function bindings are visible to later
+  // scripts in the same realm, including bindings absent from globalThis.
+  // An unreferenced top-level callable therefore cannot be proved private.
+  /** @type {Set<AstNode>} */
+  const globalScriptCallables=new Set();
+  if(sourceType==='script') {
+    const enclosingTypes=new Set([
+      'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
+      'ClassDeclaration','ClassExpression'
+    ]);
+    walk(ast,(node,parent,key,ancestors)=>{
+      if(ancestors.some(ancestor=>enclosingTypes.has(ancestor.type)))return;
+      if(node.type==='FunctionDeclaration')globalScriptCallables.add(node);
+      if(node.type==='VariableDeclarator'&&node.init&&
+         ['FunctionExpression','ArrowFunctionExpression'].includes(node.init.type))
+        globalScriptCallables.add(node.init);
+    });
+  }
   /**
    * @param {string} name
    * @param {AstNode} definition
@@ -1261,12 +1280,13 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     return observed;
   }
   for(const fn of inventory.functionDeclarations) {
-    if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
+    if(globalScriptCallables.has(fn)||fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
        !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn)||
        /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
     directCallables.add(fn);
   }
   for(const decl of inventory.callableDeclarators) {
+    if(decl.init&&globalScriptCallables.has(decl.init))continue;
     const container=inventory.parents.get(decl);
     if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
        decl.id.type!=='Identifier'||!decl.init||
@@ -1322,10 +1342,11 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * also exposed when its enclosing callable source is exposed.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
-function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
-  const privateCallables=collectPrivateDirectCallables(ast,bindings);
+function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='module') {
+  const privateCallables=collectPrivateDirectCallables(ast,bindings,sourceType);
   const sourceBodies=new Set([
     'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
     'ClassDeclaration','ClassExpression'
