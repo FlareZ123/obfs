@@ -50,10 +50,11 @@ async function main(){
     properties:true,identifiers:true,strings:false
   });
   assert.equal(emitted.files[0].metrics.properties,2);
-  assert.doesNotMatch(emitted.files[0].code,/secretField|otherField/u);
+  const protectedCode=/** @type {string} */ (emitted.files[0].code);
+  assert.doesNotMatch(protectedCode,/secretField|otherField/u);
   const variants=new Map([
     ['/native/entry.mjs',source],
-    ['/protected/entry.mjs',emitted.files[0].code],
+    ['/protected/entry.mjs',protectedCode],
     ['/native/bootstrap.mjs',bootstrap()],
     ['/protected/bootstrap.mjs',bootstrap()],
     ['/native/index.html','<!doctype html><html><body><script type="module" src="./bootstrap.mjs"></script></body></html>'],
