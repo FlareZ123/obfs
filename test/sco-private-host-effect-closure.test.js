@@ -737,3 +737,36 @@ test('A nested call inside a lazy typeof closure does not execute its free read'
     assert.deepEqual(partitionGraph(body,transitive).privateNames,['protectedOp']);
   }
 });
+
+test('SCO relocation refuses source-observable native DOMException stacks',()=>{
+  const unsafe=[
+    "return new DOMException('tag','InvalidStateError').stack;",
+    "const error=new DOMException('tag','InvalidStateError');return error['stack'];",
+    "return new WebAssembly.CompileError('tag').stack;",
+    "return new WebAssembly.RuntimeError('tag')['stack'];",
+    "const W=WebAssembly;const E=W.LinkError;return new E('tag').stack;",
+    "const {RuntimeError:ErrorKind}=WebAssembly;return new ErrorKind('tag').stack;"
+  ];
+  for(const body of unsafe){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-domexception-stack-20261122',privateNames:['protectedOp']}
+    ),/realm-local.*stack/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /realm-local.*stack/u,body+' transitive='+transitive);
+    }
+  }
+  const safe="return new DOMException('tag','InvalidStateError').name;";
+  const source='export async function protectedOp(){'+safe+'}'+
+    'export function visible(){return 7;}';
+  assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:source,sourceType:'module'},
+    {seed:'sco-domexception-name-20261122',privateNames:['protectedOp']}
+  ),safe);
+  for(const transitive of [false,true]){
+    assert.deepEqual(partitionGraph(safe,transitive).privateNames,['protectedOp']);
+  }
+});

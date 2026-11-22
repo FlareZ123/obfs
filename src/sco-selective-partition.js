@@ -380,7 +380,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
     'Promise','Error','AggregateError','EvalError','RangeError','ReferenceError',
-    'SyntaxError','TypeError','URIError','ArrayBuffer','SharedArrayBuffer',
+    'SyntaxError','TypeError','URIError','DOMException','ArrayBuffer','SharedArrayBuffer',
     'DataView','Reflect',
     'Math','JSON','Intl','Atomics','WebAssembly',
     'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
@@ -398,7 +398,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const immutableNumberValues=new Set(['EPSILON','MAX_SAFE_INTEGER','MIN_SAFE_INTEGER',
     'MAX_VALUE','MIN_VALUE','NaN','NEGATIVE_INFINITY','POSITIVE_INFINITY']);
   const errorConstructorKinds=new Set(['Error','AggregateError','EvalError',
-    'RangeError','ReferenceError','SyntaxError','TypeError','URIError']);
+    'RangeError','ReferenceError','SyntaxError','TypeError','URIError',
+    'DOMException','WebAssemblyError']);
+  const wasmErrorConstructorNames=new Set(['CompileError','LinkError','RuntimeError']);
   const regexpNames=new Set(['RegExp']);
   const regexpStatics=new Set(['input','$_','lastMatch','$&','lastParen',
     '$+','leftContext','$`','rightContext',"$'",'$1','$2','$3','$4',
@@ -414,6 +416,15 @@ function realmStateObservation(body,checkHostConfiguration=false){
         node.key.type==='Identifier'?node.key.name:staticString(node.key);
     }
     return null;
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isWebAssemblyRoot(expression){
+    return expression.type==='Identifier'&&
+        intrinsicKinds.get(expression.name)==='WebAssembly' ||
+      expression.type==='MemberExpression'&&
+        expression.object.type==='Identifier'&&
+        globalNames.has(expression.object.name)&&
+        keyName(expression)==='WebAssembly';
   }
   /**
    * Recognize standard immutable numeric constants without assuming all
@@ -485,6 +496,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
           if(name!==null&&!isImmutableNumericProperty(node.init,name)){
             add(intrinsicNames,property.value.name);
           }
+          if(isWebAssemblyRoot(node.init)&&
+             wasmErrorConstructorNames.has(name??'')&&
+             !intrinsicKinds.has(property.value.name)){
+            intrinsicKinds.set(property.value.name,'WebAssemblyError');
+            changed=true;
+          }
         }
         return;
       }
@@ -505,6 +522,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
       if(node.init.type==='MemberExpression'&&
          (keyName(node.init)==='constructor'||isIntrinsic(node.init.object)&&
           !isImmutableNumericMember(node.init)))add(intrinsicNames,node.id.name);
+      if(node.init.type==='MemberExpression'&&isWebAssemblyRoot(node.init.object)&&
+         wasmErrorConstructorNames.has(keyName(node.init)??'')&&
+         !intrinsicKinds.has(node.id.name)){
+        intrinsicKinds.set(node.id.name,'WebAssemblyError');
+        changed=true;
+      }
       const regexpDirect=node.init.type==='Identifier'&&regexpNames.has(node.init.name);
       const regexpGlobal=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
@@ -616,6 +639,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(expression.type==='Identifier'){
       return errorConstructorKinds.has(intrinsicKinds.get(expression.name)??'');
     }
+    if(expression.type==='MemberExpression'&&
+       isWebAssemblyRoot(expression.object)&&
+       wasmErrorConstructorNames.has(keyName(expression)??''))return true;
     return expression.type==='MemberExpression'&&
       expression.object.type==='Identifier'&&
       globalNames.has(expression.object.name)&&
