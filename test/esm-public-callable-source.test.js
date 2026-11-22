@@ -42,9 +42,9 @@ test('exported ESM function source preserves captured owner and property spellin
 });
 
 test('exported callable source preserves raw comments and whitespace byte-for-byte',async()=>{
-  const source='/* module prelude */\\nconst owner={secretField:3};\\n'+
-    'export function read(secretParam) {\\n  /* source-visible body comment */\\n'+
-    '  return secretParam + owner.secretField;\\n}\\n';
+  const source='/* module prelude */\nconst owner={secretField:3};\n'+
+    'export function read(secretParam) {\n  /* source-visible body comment */\n'+
+    '  return secretParam + owner.secretField;\n}\n';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'esm-exported-callable-raw-bytes',
     strings:false,properties:true,identifiers:true
