@@ -22,18 +22,18 @@ async function dumpDom(binary,url) {
  * @returns {Promise<void>}
  */
 async function main() {
-  const source='export function f(x){return (((x^137)&(x>>>3))|(x<<7));}';
+  const source='function f(x){return (((x^137)&(x>>>3))|(x<<7));}export function run(x){return f(x);}';
   const generated=obfuscateFiles([{
     path:'kernel.mjs',sourceType:'module',code:source
   }],{mode:'coo',seed:'wasm-csp-real-chromium',strings:false,properties:false,
     identifiers:false,experimentalWasmI32:{'kernel.mjs':['f']}});
   assert.equal(generated.files[0].metrics.wasmI32Functions,1);
   const entry=[
-    "import {f as native} from '/native.mjs';",
+    "import {run as native} from '/native.mjs';",
     "const element=document.getElementById('answer');",
     "try {",
-    "  const {f}=await import('/encoded.mjs');",
-    "  const a=native(31),b=f(31);",
+    "  const {run}=await import('/encoded.mjs');",
+    "  const a=native(31),b=run(31);", 
     "  element.textContent=a===b?'allowed:'+b:'mismatch:'+a+':'+b;",
     "} catch(error) {",
     "  element.textContent='blocked:'+error.name;",
