@@ -87,7 +87,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
     assert.ok(output.files[0].metrics.bindings>0,output.files[0].code);
     const native=execute(source);
     const emitted=execute(output.files[0].code);
-    assert.equal(native.value,'global-lexical-visible-token5');
+    assert.equal(native.value,'global-lexical-visible-token');
     assert.equal(emitted.value,native.value);
     assert.match(native.source,/publicParam/);
     assert.match(native.source,/global-lexical-visible-token/);
