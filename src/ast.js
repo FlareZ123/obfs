@@ -578,6 +578,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   const urlNodeModules=new Set();
   const urlStaticNames=new Set(['parse','canParse']);
   const urlStaticAliases=new Set(importedUrlStaticMethods);
+  // May-flow of CSSOMString source-observing CSS.escape references.
+  const cssEscapeNamespaces=new Set(['CSS']);
+  const cssEscapeAliases=new Set();
   /** @type {Map<string,Set<string>>} */
   const urlStaticObjectKeys=new Map();
   // A proven ESM namespace import is an immutable record of exported
@@ -1094,6 +1097,10 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(urlNodeModules,name)||changed;
         if(isUrlStaticMethod(value))
           changed=add(urlStaticAliases,name)||changed;
+        if(isCssEscapeNamespace(value))
+          changed=add(cssEscapeNamespaces,name)||changed;
+        if(isCssEscape(value))
+          changed=add(cssEscapeAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
         }
@@ -1278,6 +1285,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         }
         if(isFunctionValue(node.right)&&isArrayIndexNode(node.left.property)) {
           changed=add(arrayLikeWithFunctions,node.left.object.name)||changed;
+        }
+      }
+      if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
+         isCssEscapeNamespace(node.init)) {
+        for(const property of node.id.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          if(name==='escape'||property.computed&&name===null)
+            changed=add(cssEscapeAliases,property.value.name)||changed;
         }
       }
       if(node.type==='VariableDeclarator' && node.id.type==='ObjectPattern' &&
@@ -1968,15 +1985,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
    * @param {AstNode|null|undefined} candidate
    * @returns {boolean}
    */
+  function isCssEscapeNamespace(candidate) {
+    return Boolean(candidate && (candidate.type==='Identifier' &&
+      cssEscapeNamespaces.has(candidate.name) ||
+      candidate.type==='MemberExpression' && isGlobal(candidate.object) &&
+        memberName(candidate)==='CSS'));
+  }
+  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
   function isCssEscape(candidate) {
-    if(!candidate||candidate.type!=='MemberExpression'||
-       memberName(candidate)!=='escape')return false;
-    const namespace=candidate.object;
-    if(namespace.type==='Identifier')return namespace.name==='CSS';
-    return namespace.type==='MemberExpression' &&
-      memberName(namespace)==='CSS' &&
-      namespace.object.type==='Identifier' &&
-      ['globalThis','window','self'].includes(namespace.object.name);
+    if(!candidate)return false;
+    if(candidate.type==='SequenceExpression')
+      return isCssEscape(candidate.expressions[candidate.expressions.length-1]);
+    if(candidate.type==='Identifier')return cssEscapeAliases.has(candidate.name);
+    if(candidate.type==='CallExpression'&&candidate.callee.type==='MemberExpression'&&
+       memberName(candidate.callee)==='bind')
+      return isCssEscape(candidate.callee.object);
+    if(candidate.type!=='MemberExpression'||!isCssEscapeNamespace(candidate.object))
+      return false;
+    const name=memberName(candidate);
+    return name==='escape'||candidate.computed&&name===null;
   }
   /**
    * Object.groupBy converts each callback result to a property key, and a
