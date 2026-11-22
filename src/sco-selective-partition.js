@@ -17,6 +17,14 @@ const {snapshotSelectedOptions}=require('./sco-selected-options');
 /** @type {WeakMap<ScoSelectivePartition,string>} */
 const generatedSelectiveSnapshots=new WeakMap();
 
+// A selected function and each audited static dependency are relocated to
+// the trusted Node server. Both paths must apply the same client-host global
+// admission boundary; otherwise a dependency can silently read browser state
+// that is absent or different in the relocated execution environment.
+const browserOnlyRoots=new Set(['window','document','navigator','location',
+  'localStorage','sessionStorage','indexedDB','self','history','screen',
+  'customElements','DOMParser','XMLHttpRequest']);
+
 /**
  * Copy the declared numeric array slots without invoking caller-controlled
  * map, iterator or species methods. An accessor at each slot is read once.
@@ -868,7 +876,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // document, navigation and application-level global state.
     // Keep known ECMAScript global names outside this narrow host check;
     // realmStateObservation handles their mutable intrinsic hazards.
-    const browserOnlyGlobals=new Set(['window','self','document','navigator','location']);
+    const browserOnlyGlobals=browserOnlyRoots;
     const standardGlobalKeys=new Set([
       'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
       'parseFloat','parseInt','decodeURI','decodeURIComponent',
@@ -1545,9 +1553,6 @@ function partitionScoSelectedAsyncExports(file,options) {
   // Server and client load different function objects. Private code that reads
   // or mutates a public export can observe the wrong copy after partitioning.
   const publicBindings=new Set([...publicNames,...publicHelperNames]);
-  const browserOnlyRoots=new Set(['window','document','navigator','location',
-    'localStorage','sessionStorage','indexedDB','self','history','screen',
-    'customElements','DOMParser','XMLHttpRequest']);
   // ECMAScript permits host-defined properties on the global object. Values
   // such as globalThis.externalBridge cannot be migrated to an independent
   // server realm without an application-specific contract.
