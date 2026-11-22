@@ -207,10 +207,16 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
         scope.type==='FunctionExpression')))return;
     const name=node.name;
     const boundLexically=ancestors.some(scope=>scopeDeclares(scope,name));
-    const boundByVar=ancestors.some(scope=>
-      (scope===root||['Program','FunctionDeclaration','FunctionExpression',
-        'ArrowFunctionExpression','StaticBlock'].includes(scope.type))&&
-      hoistsIn(scope).has(name));
+    const boundByVar=ancestors.some(scope=>{
+      if(scope!==root&&!['Program','FunctionDeclaration','FunctionExpression',
+        'ArrowFunctionExpression','StaticBlock'].includes(scope.type))return false;
+      // Parameter initializers execute before the function body environment
+      // exists. Body var bindings cannot satisfy their free reads, even if
+      // both share the same function syntax node.
+      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+        .includes(scope.type)&&!ancestors.includes(scope.body))return false;
+      return hoistsIn(scope).has(name);
+    });
     if(rootFormals.has(name)||boundLexically||boundByVar||
       moduleBindings.has(name)||realmGlobals.has(name))return;
     unproved=name;
