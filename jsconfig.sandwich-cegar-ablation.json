@@ -18,6 +18,7 @@
     "sims/sandwich-cegar-validation-sweep.js",
     "sims/sandwich-cegar-heldout-adaptive.js",
     "sims/sandwich-cegar-defect-sweep.js",
-    "test/sandwich-cegar-validation-budget.test.js"
+    "test/sandwich-cegar-validation-budget.test.js",
+    "sims/sandwich-cegar-hard-family-stress.js"
   ]
 }
