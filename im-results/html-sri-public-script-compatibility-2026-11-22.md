@@ -63,6 +63,33 @@ negative control asserts that emitting a new guard conflicts with the
 original SRI, and a no-SRI same-origin positive control preserves ordinary
 string obfuscation.
 
+## Document base URL timing and template content
+
+[The WHATWG HTML document-base algorithm](https://html.spec.whatwg.org/multipage/urls-and-fetching.html#document-base-urls)
+uses a `base` element in the live document tree. Inert
+[`HTMLTemplateElement.content`](https://developer.mozilla.org/en-US/docs/Web/API/HTMLTemplateElement/content)
+resides in a separate DocumentFragment, so a `<base href>` inside a template
+cannot replace the active document base. Also, a browser may start fetching an
+earlier external `script` before a later `base` in the same document is parsed.
+
+The initial scanner searched template content for the first base and used
+that one URL for all script references. An adversarial HTML asset could thus
+place an inert template base at `/unrelated/` followed by
+`<script src="./client.js" integrity="...">`. The compiler would
+mis-resolve the script and mutate the real integrity-committed `client.js`.
+The new negative regression failed at source
+`02ef316eeac6c36a356e579046f57aa8edb7fc27` in
+[run 44965898458](https://github.com/FlareZ123/obfs/actions/runs/44965898458),
+with precisely that new test failing.
+
+The corrected bounded scanner excludes template DocumentFragment content from
+discovery of an active document base. It checks a script reference against both
+the document fallback URL and the recognized static base. The fallback check
+conservatively protects a live earlier script before a later base takes
+effect. This can decline some otherwise permissible transformations but
+prevents these tested static parse-order false negatives. The finite preflight
+still cannot prove arbitrary runtime DOM insertion or mutation.
+
 ## Reproduction and release interpretation
 
 - Run `node --test test/html-asset-disclosure.test.js` with the repository's declared dependencies and Node 22.
