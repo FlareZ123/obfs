@@ -1,7 +1,7 @@
 # SNO ambient output package-scope mismatch, build-time refusal
 
 **22 November 2026. Classification: reproducible compatibility finding, not
-a security result.** Validation is limited to a four-case focused test,
+a security result.** Validation is limited to a five-case focused test,
 strict JSDoc and Node 22 on Ubuntu/Windows at the source pin below.
 
 ## Problem and source of truth
@@ -51,18 +51,25 @@ Focused cases in
 2. Root packaged CommonJS `.js` beneath ambient ESM: accept; SNO result `29`.
 3. Nested packaged CommonJS `.js` with no root package: accept; result `31`.
 4. `.cjs`-only output beneath ambient ESM: accept; result `37`.
+5. Unscoped CommonJS `.js` inside `node_modules` beneath ambient ESM: accept,
+   because Node stops the parent package-scope search at `node_modules`;
+   result `41`.
 
 ## Validation receipt
 
-The focused two-OS
-[GitHub Actions run 45022626170](https://github.com/FlareZ123/obfs/actions/runs/45022626170)
-on exact executable source commit
-`a93a8c6e9ba2d79420dbb1f848c6c2d1c7a716df`
-passed both Ubuntu and Windows Node 22.23.4 jobs. Each job completed the
-focused four-case test, project JSDoc and external JSDoc checks. The
-full repository suite and browser tests were **not** dispatched for
-this candidate. Later documentation commits do not change the executable
-source involved in that receipt.
+The five-case focused two-OS
+[GitHub Actions run 45022956596](https://github.com/FlareZ123/obfs/actions/runs/45022956596)
+on exact source commit
+`d8eb149c1264f72a7d7e5566e5e8c175c390938f`
+passed Ubuntu and Windows Node 22.23.4 jobs. Both completed the focused
+five-case test, project JSDoc and external JSDoc checks. The preceding
+[four-case focused run 45022626170](https://github.com/FlareZ123/obfs/actions/runs/45022626170)
+also passed on both operating systems at
+`a93a8c6e9ba2d79420dbb1f848c6c2d1c7a716df`.
+A separate full-suite run was dispatched at source
+`838a48462d563ac8a1e6168e9a4b31ee87ab00dc`, before the fifth
+test was added. Record its outcome separately from the focused result;
+that full run does not include this last test.
 
 A separate minimal local Node 22.16.0 experiment reproduced the
 underlying ESM-parent execution failure without the compiler. The
