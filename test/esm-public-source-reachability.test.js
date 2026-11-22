@@ -213,3 +213,42 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(result,native,'Externally visible class initializer source must remain identical');
   });
 }
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('exported class initializer preserves captured private identifier spelling: '+mode,async()=>{
+    const sources=[{path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'const secretValue=71;class PublicClass{static value=secretValue;}export {PublicClass};'}];
+    const observer='import {PublicClass} from "./private.mjs";'+
+      'console.log(JSON.stringify([PublicClass.toString(),PublicClass.value]));';
+    const native=await observe(sources,observer);
+    const transformed=obfuscateFiles(sources,{
+      mode,closedWorld:true,seed:'esm-class-static-identifier-'+mode,
+      strings:false,properties:false,identifiers:true
+    });
+    const result=await observe(transformed.files,observer);
+    console.log('ESM_CLASS_IDENTIFIER_SOURCE '+JSON.stringify({
+      mode,sourceEqual:result===native,
+      identifierRewrites:transformed.files[0].metrics.bindings,
+      valueEqual:JSON.parse(native)[1]===JSON.parse(result)[1]
+    }));
+    assert.equal(result,native,'Externally visible class initializer identifier source must remain identical');
+  });
+  test('exported class static block preserves locally declared identifier spelling: '+mode,async()=>{
+    const sources=[{path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'class PublicClass{static{const secretInside=79;this.value=secretInside;}}export {PublicClass};'}];
+    const observer='import {PublicClass} from "./private.mjs";'+
+      'console.log(JSON.stringify([PublicClass.toString(),PublicClass.value]));';
+    const native=await observe(sources,observer);
+    const transformed=obfuscateFiles(sources,{
+      mode,closedWorld:true,seed:'esm-class-static-block-identifier-'+mode,
+      strings:false,properties:false,identifiers:true
+    });
+    const result=await observe(transformed.files,observer);
+    console.log('ESM_CLASS_STATIC_BLOCK '+JSON.stringify({
+      mode,sourceEqual:result===native,
+      identifierRewrites:transformed.files[0].metrics.bindings,
+      valueEqual:JSON.parse(native)[1]===JSON.parse(result)[1]
+    }));
+    assert.equal(result,native,'Externally visible class static block source must remain identical');
+  });
+}
