@@ -1280,7 +1280,10 @@ function renameLocalProperties(source, ast, options) {
     // Reading a renamed property inside an externally observable callable
     // changes Function#toString. Only uniquely bound pure member readers
     // proven direct-call-only are allowed to contain edited property nodes.
-    if(proof.members.some(member=>sourceExposedEdits.has(member))||
+    // Key declarations within source-visible callables are observable even
+    // when all rewritten member reads occur in unobservable helper functions.
+    if(sourceExposedEdits.has(candidate.node)||
+        proof.members.some(member=>sourceExposedEdits.has(member))||
         proof.patterns.some(pattern=>sourceExposedEdits.has(pattern))||
         proof.inChecks.some(check=>sourceExposedEdits.has(check))||
         proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.call)))continue;
