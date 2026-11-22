@@ -57,3 +57,18 @@ globalThis.result=invokeGlobal();
 ```
 
 With `identifiers:true` and string encoding disabled, both COO and SNO produced a positive binding-rename metric and retained result 12, but the externally reachable `publicGlobal.toString()` parameter spelling changed from `publicParam` to its generated identifier. The updated test file at `348120151f9558db0c422a19e2e3aec7d582666e` passed on Ubuntu and Windows in the same manual workflow's classic-script step, [run 45015499222](https://github.com/FlareZ123/obfs/actions/runs/45015499222), workflow head `b4de11d012cd3a2d84fe88f1bf907628339bc802`. The overall workflow remained red on the same two unrelated existing steps; both source-observation cases in the added test passed on both platforms.
+
+
+## Top-level lexical callable witness
+
+A third case now covers a top-level `const` arrow, which is not a `globalThis` property but remains visible to later scripts through the shared global lexical environment:
+
+```js
+const publicGlobal=(publicParam)=>{const local=publicParam;return 'global-lexical-visible-token';};
+function invokeGlobal(){return publicGlobal(5);}
+globalThis.result=invokeGlobal();
+```
+
+For both COO and SNO, the test enables string and identifier passes, verifies positive literal and binding metrics, preserves the returned value, and then evaluates `publicGlobal.toString()` from a second VM script. Native source contains both `publicParam` and the original string; emitted source contains neither. This confirms that the issue is not limited to global-object properties or function declarations.
+
+The updated test file at `f16ac5e264ea989833726229ae83339376d199a5` passed on Ubuntu and Windows in [run 45015963409](https://github.com/FlareZ123/obfs/actions/runs/45015963409), workflow head `f16ac5e264ea989833726229ae83339376d199a5`. The named classic-script step and strict JSDoc gates passed on both platforms. The overall manual workflow remained red on the same two existing steps unrelated to these added cases.
