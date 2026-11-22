@@ -97,3 +97,8 @@
 - Latest code head is 4f9c9649981c17316379981d325eff1cee3a2163. Manual validation run 44988234168 was dispatched at 05:10:27Z on that exact head; it is in progress. Run 44987988939 is still in progress on the immediately prior head and has not yielded a conclusion yet.
 - Added a conservative lexical-shadow scan for Promise: the private Promise-handler exception is disabled if any module binding, nested function parameter, class/function declaration, catch binding, or import binds the name Promise. Added a deep reachability regression using a Promise-like parameter to ensure unknown callback source is preserved.
 - This latest Promise shadowing change and test are not covered by run 44987988939; use run 44988234168.
+
+
+### Orderly release checkpoint — 2026-11-22T05:11:56Z
+
+The original lease age exceeded 70 minutes (claimed_at 04:01:34.272Z). Stopped substantive research and preserved state. At release, branch head before this memory update was d35fe98ee844a5ef006e6f839f187669beba32ba. Validation runs 44987988939 (head a73dbeba) and 44988234168 (head 4f9c964) were both still in progress; their outcomes are unknown. Next incarnation should poll them, inspect only failed-job logs, and continue from this branch. No green status is claimed.
