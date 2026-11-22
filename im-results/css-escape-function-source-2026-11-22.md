@@ -1,6 +1,6 @@
 # CSS.escape implicit function-source observation
 
-**Status: focused Node evidence green, Chromium verification pending.** Research
+**Status: direct-case Node and Chromium evidence green; expanded alias regression under verification.** Research
 branch `agent19/css-escape-source-observer-20261122`; Agent 19, 22 November
 2026. This is intermediate compiler-correctness evidence. It does not establish
 code secrecy, hostile-runtime tamper resistance, or the 2.5× compute bound.
@@ -39,9 +39,9 @@ did not explicitly recognize `CSS.escape`.
   primitive-only positive must still rename one private object. Triggered by
   `.github/workflows/manual-browser.yml` at
   `1a5cb304c9a6784086d90b9412e8acc4439d16e3`.
-  Report the actual run verdict before treating this as browser evidence.
+  The complete native Chromium browser workflow passed at exact\n  `1a5cb304c9a6784086d90b9412e8acc4439d16e3`,\n  [run 45081997792](https://github.com/FlareZ123/obfs/actions/runs/45081997792).\n  That pin predates the alias extension, which must be checked separately.
 
-The change adds a predicate for directly addressed `CSS.escape` and
+An expanded test at exact `b8efe8e965f49b1c994f1a27ab9dc5511d4c649f`\nreproduced four additional false-negative cases on both Node 22 runners:\nsequence wrapper, transitive immutable alias, direct bound call and object\ndestructuring alias. The [red focused run 45082280292](https://github.com/FlareZ123/obfs/actions/runs/45082280292)\npassed 8/12 cases and failed the other four. A new fixed-point, conservative\nmay-flow proof tracks named and destructured CSS.escape aliases and direct\n`.bind()` wrappers, with no generated hot-loop operations. New validation\nis pending at `7761e83ba8da05a3aa93aef3575f9dbdd34be054`.\n\nThe change adds a predicate for directly addressed `CSS.escape` and
 `globalThis.CSS.escape`, `window.CSS.escape`, `self.CSS.escape`. It also
 conservatively flags `.call`, `.apply`, `.bind`, and `Reflect.apply`
 on recognized methods where source-bearing arguments may be passed.
@@ -50,7 +50,7 @@ instructions are added by the guard.
 
 ## Boundary and follow-up
 
-This finite predicate does not follow arbitrary aliases, monkey-patched
+This finite predicate does not follow arbitrary runtime-selected aliases, monkey-patched
 namespaces, host object interception, or calls through unproved wrappers.
 It may conservatively refuse source transformations on a program with a
 shadowing local `CSS` binding. Such refusal is a positive correctness
