@@ -331,7 +331,7 @@ test('SNO matches native Node across 27 package-scope placement combinations',as
           const host=path.join(directory,'host');
           const output=path.join(host,'output');
           const marker=sourceType+'/'+outerType+'/'+nestedType;
-          const dependency="globalThis.__obfsScopeKind=typeof module==='undefined'?'module':'commonjs';";
+          const dependency="globalThis.__obfsScopeKind=this===undefined?'module':'commonjs';";
           const entry="module.exports=import('./nested/dependency.js').then(()=>globalThis.__obfsScopeKind);";
           await atomicWrite(path.join(source,'entry.cjs'),entry);
           await atomicWrite(path.join(source,'nested','dependency.js'),dependency);
