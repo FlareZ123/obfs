@@ -29,7 +29,7 @@ This admission applies to direct named exported const objects and direct default
 
 [GitHub Actions 44973180059](https://github.com/FlareZ123/obfs/actions/runs/44973180059), source SHA `41c963503a47bab3b6372ff30aaa1803f8a80f22`, completed **success on Linux and Windows**. It checked:
 
-- 12 real Node ESM differential cases passed on both OSes. Four positive cases genuinely renamed both tracked keys; negatives retained original property names for later initialization/TDZ, mutable binding, imported value, effectful initializer, host-derived value, duplicate lexical binding, own-key enumeration and dynamic host key.
+- 12 ESM regression tests passed on both OSes, including 11 paired native/published Node execution differentials and one static later-initialization/TDZ rejection. Four positive cases genuinely renamed both tracked keys; negatives retained original property names for later initialization/TDZ, mutable binding, imported value, effectful initializer, host-derived value, duplicate lexical binding, own-key enumeration and dynamic host key.
 - Strict core and specialized cross-file JSDoc checkers passed.
 - Existing imported-identity and configured esbuild property-mangle browser controls remained green.
 - The new real Chromium native/minified/compiled graph with CSP `default-src 'self'; script-src 'self'` completed 100,000 exact differential input checks on named, default and reflective-owner scenarios. Reflected keys retained the original names.
