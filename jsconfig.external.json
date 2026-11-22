@@ -237,7 +237,9 @@
     "sims/low-output-common-basis-repair.js",
     "test/common-basis-random-repair.test.js",
     "sims/common-basis-gf3-exhaustive.js",
-    "test/common-basis-gf3-exhaustive.test.js"
+    "test/common-basis-gf3-exhaustive.test.js",
+    "sims/common-basis-deterministic-hyperplane.js",
+    "test/common-basis-deterministic-hyperplane.test.js"
   ],
   "exclude": [
     "node_modules"
