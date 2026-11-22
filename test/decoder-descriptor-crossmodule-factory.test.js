@@ -54,6 +54,7 @@ for(const [name,make,consume] of factories) {
             (sink==='create'?'const box=Object.create(null,ds);':
               'const box={};Object.defineProperties(box,ds);')+
             'box.ref.'+(safe?'unrelated=1;':'charCodeAt=()=>0;');
+          /** @type {SourceFile[]} */
           const input=[
             {path:'entry.cjs',sourceType:'commonjs',
               code:'require("./mutator.cjs");process.stdout.write(require("./target.cjs"));'},

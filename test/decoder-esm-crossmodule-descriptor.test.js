@@ -50,6 +50,7 @@ for(const [name,make,consume] of factories) {
             (sink==='create'?'const box=Object.create(null,ds);':
               'const box={};Object.defineProperties(box,ds);')+
             'box.ref.'+(safe?'unrelated=1;':'charCodeAt=()=>0;');
+          /** @type {SourceFile[]} */
           const input=[
             {path:'entry.mjs',sourceType:'module',
               code:'import "./mutator.mjs";import target from "./target.mjs";process.stdout.write(target);'},

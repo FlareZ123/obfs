@@ -11,7 +11,7 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @param {string} dir @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files */
+/** @param {string} dir @param {SourceFile[]|ReturnType<typeof obfuscateFiles>['files']} files @param {string} entry */
 async function execute(dir,files,entry) {
   await fs.mkdir(dir,{recursive:true});
   for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
