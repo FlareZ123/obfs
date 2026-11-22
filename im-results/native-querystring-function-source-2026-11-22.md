@@ -37,3 +37,9 @@ The implementation reuses the existing conservative `isCoercer` source-observati
 ## Boundaries
 
 This fix is deliberately scoped to provenance visible through specific native Node modules and stable literal import spellings. Arbitrary monkey-patching, external capability forwarding, computed module specifiers, and dynamic alias provenance remain outside these tests. The project-wide hostile-runtime and 2.5x release decision remains **RELEASE-BLOCKED**.
+
+## Same-file private-literal yield limit
+
+A separate actual-runtime fixture places a direct native `querystring.escape` function-source observer and an unrelated immutable private string literal **in the same CJS file**. It asserts native-versus-emitted output parity and prints the number of rewritten literals for each mode.
+
+[Source-pinned Node 22 Ubuntu/Windows focused run 45060995323](https://github.com/FlareZ123/obfs/actions/runs/45060995323) at `55e0c1e72a4429c63561bf758f584f95a373a3f3` passed and emitted `QUERYSTRING_SAMEFILE_YIELD` with `rewrittenLiterals:0` for **SNO, COO and SCO**. The external observer and private literal remain semantically correct, but the conservative file-wide source observer gate disables literal rewriting even when the local private string is unrelated to the callable's source. This is a meaningful protection-yield loss. It is a separate issue for Agent 3's canonical shared source-observer integration; relaxing the guard safely requires a cross-pass proof of exact source-visible ranges, no unmodeled source observers, and an actual private-positive rewrite.
