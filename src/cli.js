@@ -375,8 +375,9 @@ async function readReviewedAssets(sourceRoot,filename) {
  * Refuse a SNO executable whose external package context is not included
  * in its declared source tree. For .js, compare the actual Node module kind
  * with its declared source type. For .js/.cjs/.mjs, refuse an untracked
- * package imports mapping that could change relative to the emitted tree.
- * Node may read ancestors and stale nested package metadata.
+ * package imports mapping or named package self-reference exports that
+ * could change relative to the emitted tree. Node may read ancestor and
+ * stale nested package metadata.
  * This checks the current filesystem; relocation requires a new check.
  * @param {SourceFile[]} files
  * @param {string} root
@@ -406,7 +407,7 @@ async function assertSnoPackageScope(files,root,context) {
     }
   }
 
-  /** @type {Map<string,{type:'module'|'other',hasImports:boolean}|'missing'>} */
+  /** @type {Map<string,{type:'module'|'other',hasImports:boolean,hasSelfExports:boolean}|'missing'>} */
   const scopes=new Map();
   for(const file of scripts) {
     const expectedModule=file.sourceType==='module';
@@ -438,7 +439,10 @@ async function assertSnoPackageScope(files,root,context) {
           }
           type={
             type:ownsType && metadata.type==='module'?'module':'other',
-            hasImports:Object.hasOwn(metadata,'imports')
+            hasImports:Object.hasOwn(metadata,'imports'),
+            hasSelfExports:Object.hasOwn(metadata,'exports') &&
+              Object.hasOwn(metadata,'name') &&
+              typeof metadata.name==='string' && metadata.name.length>0
           };
         } else type='missing';
         scopes.set(directory,type);
@@ -451,6 +455,10 @@ async function assertSnoPackageScope(files,root,context) {
         }
         if(type.hasImports) {
           throw new Error('SNO '+context+' executable inherits external package imports: '+
+            path.join(directory,'package.json'));
+        }
+        if(type.hasSelfExports) {
+          throw new Error('SNO '+context+' executable inherits external package self-reference: '+
             path.join(directory,'package.json'));
         }
         break;
