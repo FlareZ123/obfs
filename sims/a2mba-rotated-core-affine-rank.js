@@ -185,7 +185,7 @@ function rankTwoShear(x) {
 
 /**
  * @returns {{method:string,controls:{rankOne:ResidualRank,rankTwo:ResidualRank},
- *   baseline:ResidualRank,fullBaseline:ResidualRank,certificate:{pairs:number,rank:number},degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
+ *   baseline:ResidualRank,fullBaseline:ResidualRank,certificate:{pairs:number,rank:number},degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number,fullChecked:number}>}}
  */
 function runScreen() {
   const one=nonlinearResidualRank(rankOneShear);
@@ -199,10 +199,11 @@ function runScreen() {
   assert.equal(fullBaseline.rank,certificate.rank);
   const degenerateSlice=nonlinearResidualRank(x=>nativeRegion32(x,0,0,0));
   assert.equal(degenerateSlice.rank,0);
-  /** @type {Array<{rotation:number,rank:number,checked:number}>} */
+  /** @type {Array<{rotation:number,rank:number,checked:number,fullChecked:number}>} */
   const rotations=[];
   for(const rotation of [1,8,16,31]) {
-    const candidate=projectRegion(makeRotatedCore32(rotation));
+    const rotated=makeRotatedCore32(rotation);
+    const candidate=projectRegion(rotated);
     let state=0x139ad17|0, checked=0;
     for(let index=0;index<10000;index++) {
       state^=state<<13;
@@ -213,8 +214,16 @@ function runScreen() {
     }
     const measured=nonlinearResidualRank(candidate);
     assert.deepEqual(measured,baseline);
-    assert.deepEqual(nonlinearResidualRank128(makeRotatedCore32(rotation)),fullBaseline);
-    rotations.push({rotation,rank:measured.rank,checked});
+    let fullChecked=0;
+    const verified=(a,b,c,d)=>{
+      const output=rotated(a,b,c,d);
+      assert.equal(output,nativeRegion32(a,b,c,d));
+      fullChecked++;
+      return output;
+    };
+    assert.deepEqual(nonlinearResidualRank128(verified),fullBaseline);
+    assert.equal(fullChecked,12353); // 1 origin + 128 basis + 12224 residual observations
+    rotations.push({rotation,rank:measured.rank,checked,fullChecked});
   }
   return {method:'GF(2) rank of F(x) xor affine interpolant on public 32-bit affine slice',
     controls:{rankOne:one,rankTwo:two},baseline,fullBaseline,certificate,degenerateSlice,rotations};
