@@ -112,6 +112,42 @@ at that exact source completed green: install, hostile bind interception,
 full browser suite, and JSDoc checks passed. Duplicate cancellation itself
 was not stress-tested and is only a configured scheduling policy.
 
+## Equal-trust esbuild-minified source-extraction control
+
+The [matched minifier-control test](../test/bound-runtime-minifier-control.test.js)
+applies esbuild's documented single-module
+[`transformSync` minification](https://esbuild.github.io/api/#transform)
+to the **same 200-byte input** as the obfuscator, using
+`loader:'js',format:'esm',minify:true,target:'es2022'`. A fresh
+instrumented Node 22 ESM subprocess loads each of three published artifacts:
+original 200 bytes, plain esbuild-minified **113 bytes**, and obfuscated
+**216 bytes**. One host-patched native `Function.prototype.bind` is
+installed in each same-trust process **before** module import; it records
+the actual private target function object. Both published functions return
+the same numeric output and expose the same generic public bound
+`Function#toString`.
+
+The attack recovers exactly **one private arithmetic target** from the
+minified output and exactly **one** from the obfuscated output, after the
+same single interception point. The minified function source still
+contains `secretField`; the obfuscated source contains the actual
+rewritten `_p...` property spelling. The latter truly has **two**
+renamed record fields. This directly demonstrates **no additional barrier
+to this particular pre-import bind interception** over an ordinary
+minifier, at the tested input and instrumentation point. It does not
+compare algorithm-reconstruction effort after the extracted source is
+read, generalize to arbitrary workloads, or measure runtime overhead.
+
+The independent branch
+`agent29/bound-runtime-minifier-control-20261122` at exact
+`97278e4e669090453519bcf2cc05ea449471dd99`
+passed on both Node 22 platforms in
+[run 45000608446](https://github.com/FlareZ123/obfs/actions/runs/45000608446).
+Both platform logs reported:
+`{"originalBytes":200,"minifiedBytes":113,"protectedBytes":216,"attackerInterceptionMethod":"Function.prototype.bind","capturedTargetsPerBuild":1}`.
+The test was promoted unchanged to main in `6af9bdd06a4b3f25d7f3489ff6e098ce550d7f7e`
+and enrolled in strict external JSDoc by `3b93c0ec697205e9cbf2bed6dfa2bc7b4adef3c3`.
+
 ## Limits and implications
 
 The result demonstrates an authorized-function object escaping through a
