@@ -741,7 +741,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
-      ['escape','unescape'].includes(name??'') && isNodeQuerystringNamespace(node.object) ||
+      isNodeQuerystringNamespace(node.object) &&
+      (['escape','unescape'].includes(name??'') || node.computed && name===null) ||
       name==='for' && isSymbolConstructor(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
@@ -1031,7 +1032,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           if(property.type!=='Property')continue;
           const name=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(['escape','unescape'].includes(name??'') &&
+          if((['escape','unescape'].includes(name??'') ||
+              property.computed && name===null) &&
              property.value.type==='Identifier')
             changed=add(coercers,property.value.name)||changed;
         }
