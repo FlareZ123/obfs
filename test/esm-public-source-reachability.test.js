@@ -148,3 +148,23 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(await observe(compiled.files,observer),baseline);
   });
 }
+
+for(const fixture of fixtures) {
+  test('ordinary esbuild minification baseline preserves value: '+fixture.name,async()=>{
+    const {transformSync}=require('esbuild');
+    const baseline=await observe(fixture.files,fixture.observer);
+    const minified=fixture.files.map(file=>({...file,code:transformSync(String(file.code),{
+      loader:'js',format:'esm',target:'es2022',minify:true
+    }).code}));
+    const result=await observe(minified,fixture.observer);
+    const [nativeSource,nativeValue]=JSON.parse(baseline);
+    const [minifiedSource,minifiedValue]=JSON.parse(result);
+    assert.equal(minifiedValue,nativeValue,
+      'The ordinary minifier should preserve the tested numerical result');
+    console.log('ESM_MINIFIER_BASELINE '+JSON.stringify({
+      case:fixture.name,sourceEqual:minifiedSource===nativeSource,valueEqual:true,
+      originalBytes:fixture.files.reduce((n,file)=>n+String(file.code).length,0),
+      minifiedBytes:minified.reduce((n,file)=>n+String(file.code).length,0)
+    }));
+  });
+}
