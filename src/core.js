@@ -1937,9 +1937,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   function memberReadAliasWritesDecoderGetter(name,visited=new Set()) {
     if(visited.has(name))return false;
     visited.add(name);
-    return (descriptorMemberWrites.get(name)??[]).some(
-      write=>(write.key===null||write.key==='get')&&
-        proxyGetMayReturnDecoderIntrinsic(write.value))||
+    return sensitiveProxyHandlers.has(name)||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>(write.key===null||write.key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(write.value))||
       (objectAssignSources.get(name)??[]).some(
         source=>descriptorHasSensitiveGetter(source)||
           proxyHandlerHasSensitiveGet(source))||
