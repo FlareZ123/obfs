@@ -38,8 +38,12 @@ test('mixed direct and constant-computed destructuring keys remain consistent',(
   compareLocal('const a={secretField:5,side:6};const {["secret"+"Field"]:result,side:other}=a;module.exports=[result,other];',2);
 });
 
-test('dynamic identifier as destructuring key still rejects proof',()=>{
-  compareLocal('const key="secretField";const a={secretField:7};const {[key]:value}=a;module.exports=value;',0);
+test('earlier immutable identifier as destructuring key is now statically proved',()=>{
+  compareLocal('const key="secretField";const a={secretField:7};const {[key]:value}=a;module.exports=value;',1);
+});
+
+test('mutable identifier as destructuring key still rejects proof',()=>{
+  compareLocal('let key="secretField";const a={secretField:7};const {[key]:value}=a;module.exports=value;',0);
 });
 
 test('effectful computed destructuring key is never rewritten',()=>{
