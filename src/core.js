@@ -177,9 +177,15 @@ function staticallyImportedEsmTargets(files) {
  * @param {import('./ast').AstNode} ast
  * @param {string} filename
  * @param {Set<string>} knownJavaScript
+ * @param {boolean} [trustedNodeInertBuiltins]
  * @returns {boolean}
  */
-function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
+function hasUnprovedModuleImport(ast,filename,knownJavaScript,trustedNodeInertBuiltins=false) {
+  // These two builtins expose system metadata and pathname operations without
+  // providing arbitrary file/source loading in a trusted native Node process.
+  // SNO is the only target allowed this explicitly bounded environment proof.
+  // Custom loaders and host monkeypatches invalidate the assumption.
+  const inertNodeImports=new Set(['node:path','path','node:os','os']);
   /**
    * @param {import('./ast').AstNode|null|undefined} source
    * @returns {boolean}
@@ -187,6 +193,7 @@ function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
   function resolvesInGraph(source) {
     if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
+    if(trustedNodeInertBuiltins&&inertNodeImports.has(specifier))return true;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
        /[?#%\\]/u.test(specifier))return false;
     const target=path.posix.normalize(
@@ -2059,7 +2066,7 @@ function obfuscateFiles(files, options = {}) {
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
-          hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
+          hasUnprovedModuleImport(inputAst,input.path,knownJavaScript,mode==='sno') ||
           input.sourceType==='commonjs' &&
             hasUnprovedCommonJsRequire(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
