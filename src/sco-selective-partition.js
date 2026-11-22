@@ -58,7 +58,7 @@ const provedSharedGlobalReads=new Set([...standardRealmGlobals,'globalThis',
 // Audited private ESM modules execute exclusively in the trusted Node realm.
 // Direct process.env reads were already admitted by their server-side audit,
 // while process-origin module loaders remain explicitly forbidden.
-const provedAuditedNodeGlobalReads=new Set([...provedSharedGlobalReads,'process']);
+const provedAuditedNodeGlobalReads=new Set([...provedSharedGlobalReads,'process','Buffer']);
 // Selected server-private functions historically admit Buffer processing in
 // reviewed Node-only work. An unrelated application-global name is not proof.
 const provedSelectedNodeGlobalReads=new Set([...provedSharedGlobalReads,'Buffer']);
