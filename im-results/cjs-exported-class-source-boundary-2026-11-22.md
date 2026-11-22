@@ -1,0 +1,46 @@
+# CommonJS class source reaches undeclared importers (22 November 2026)
+
+**Author:** Agent 16. **Classification:** independently reproduced compiler semantic-parity counterexample. The compiler source was unchanged in this witness branch. This is not an obfuscation-confidentiality theorem, a new backend, or a release candidate.
+
+## Tested compiler, execution boundary, and protected work
+
+The exact source `c2d22fa77fe0557cf36c9b07efc358fa2c103a45` introduced `test/cjs-exported-class-source.test.js` on the branch `agent16/cjs-exported-class-source-20261122`. The focused [Ubuntu and Windows run 45080021563](https://github.com/FlareZ123/obfs/actions/runs/45080021563) exercised six negative export shapes (three direct-class exports in both COO and SNO) and two genuinely private positive controls: **six failures, two passes on each OS**.
+
+The subsequent exact source `5b17a6039092483a667f1e6ad26fbd8e3818d176` expanded the same test with two exported-instance shapes per mode. Focused [Ubuntu and Windows run 45080216395](https://github.com/FlareZ123/obfs/actions/runs/45080216395): **12 tests per OS, 10 failures, two passes**. Both runs executed Node 22.23.4, using the actual CommonJS loader and separate Node processes for an importer that the obfuscator did not receive as a source file. The workflow result is intentionally **red** because the semantic contract is violated; later workflow steps after the failed test are not certified by these runs.
+
+## Minimal counterexample
+
+Original `entry.cjs`:
+
+```js
+const owner={privateField:7};
+class Reader{value(){return owner.privateField;}}
+module.exports={Reader};
+```
+
+The independent external consumer loads the file and reads:
+
+```js
+const {Reader}=require('./entry.cjs');
+const observed={
+  result:new Reader().value(),
+  classSource:Reader.toString(),
+  methodSource:Reader.prototype.value.toString()
+};
+```
+
+The numeric result is always 7. The compiler renames exactly **one** private own field in both modes. Under COO, the importer observes `owner._p6eef486119` inside the class and method source; under SNO, `owner._pdfebd45027`. Native input instead exposes `owner.privateField`. Thus source-observable behavior differs despite equal numeric behavior.
+
+The six initial failing shapes cover `module.exports={Reader}`, `module.exports=Reader`, and `exports.Reader=Reader` in both modes. The four additional failures cover `module.exports=new Reader()` and `module.exports={reader:new Reader()}` in both modes: an importer obtains the escaped instance, then reads `instance.constructor.toString()` and `instance.value.toString()`. The latter is important because **the class itself need not appear in the module's export syntax**.
+
+The positive controls export only `new Reader().value()`, a primitive numeric result. Their source remains behaviorally identical after the same one-field obfuscation, and `metrics.properties > 0` in both COO and SNO. This ensures that global blanket disabling of all class-contained fields is not an adequate regression fix.
+
+## Proof obligation and bounded interpretation
+
+The current local owner alias proof in `src/properties.js` sees a class-method read of a private literal owner but cannot establish whether the method's **callable source text** is externally observable. A CommonJS module may export a class, an instance, a bound constructor, or another alias that exposes that body. An undeclared importer may use `Function.prototype.toString` without any `.toString` token inside the compiler's input set.
+
+A conservative correction should prove that the callable object and any instance constructor source are unobservable outside the stated compilation boundary before rewriting property references inside their bodies. Failing that, preserve those references and their enclosing source spellings. Preserve separate genuine positive-yield cases such as privately constructed classes whose result is only a primitive.
+
+This test does not establish all possible external reachability paths or guarantee that the same fix covers custom loader and reflection routes. It does not test strong attacker resistance, source secrecy, a 2.5× runtime budget, browser ESM, or the SCO private partition. An external observer already controls and can read its CJS file under the SNO threat model, which is a separate security question.
+
+The source-pinned findings were sent to Agent 3, the canonical source-observer integrator, at `communications/agent3/20261122T2253Z_agent16_cjs-exported-class-source.md`. Keep this branch as a deterministic **red-first** evidence target until a single integrated current-main-based fix and its independent positive control have passed on the same source commit.
