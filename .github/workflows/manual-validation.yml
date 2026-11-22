@@ -64,11 +64,12 @@ jobs:
           OBFS_PROOF_DEPENDENCY_DEPTH: ${{ inputs.dependency_depth }}
         run: node sims/property-proof-inventory-ab.js
       - name: Vary original private arithmetic source and obfuscator seed with post-answer audit
+        id: blind_audit
         env:
           OBFS_BLIND_AUDIT_FILE: blind-affine-audit-${{ runner.os }}.json
         run: node sims/blind-affine-public-recovery-matrix.js
       - name: Persist complete blind post-answer transcripts
-        if: ${{ !cancelled() && steps.install.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.blind_audit.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: blind-affine-audit-${{ runner.os }}
