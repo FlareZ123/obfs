@@ -141,6 +141,14 @@ test('audit scope is direct bare CJS calls and refuses lexical require shadowing
     path:'entry.cjs',sourceType:'commonjs',
     code:"function local(require){return require('audit-example');}module.exports=local;"
   }]),/cannot prove unshadowed require/u);
+  assert.throws(()=>directBareRequires([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:"with({require(){return 1;}}){require('audit-example');}"
+  }]),/cannot prove unshadowed require/u);
+  assert.throws(()=>directBareRequires([{
+    path:'entry.cjs',sourceType:'commonjs',
+    code:"eval('var require=function(){}');require('audit-example');"
+  }]),/cannot prove unshadowed require/u);
 });
 
 test('SNO-only audit flag is refused by COO and SCO',async()=>{
