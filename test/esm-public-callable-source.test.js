@@ -171,7 +171,7 @@ test('combined property, identifier, and string passes preserve public source an
     'const standalone={standaloneKey:11};const standaloneResult=standalone.standaloneKey;'+
     'function privateHelper(privateParam){return privateOwner.privateField+'+JSON.stringify(privateText)+';}'+
     'export function publicRead(publicParam){return publicOwner.secretField+'+JSON.stringify(publicText)+';}'+
-    'export const privateResult=privateHelper(5)+standaloneResult;';
+    'export const privateResult=privateHelper(5);export const standaloneValue=standaloneResult;';
   const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
     mode:'coo',closedWorld:true,seed:'esm-public-source-combined',
     strings:true,identifiers:true,properties:true
@@ -192,7 +192,7 @@ test('combined property, identifier, and string passes preserve public source an
       const file=path.join(dir,'entry.mjs');
       await atomicWrite(file,code);
       const url=pathToFileURL(file).href;
-      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.publicRead.toString(),m.publicRead(9),m.privateResult])))`;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.publicRead.toString(),m.publicRead(9),m.privateResult,m.standaloneValue])))`;
       const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
       assert.equal(child.status,0,child.stderr);
       return child.stdout;
@@ -204,8 +204,8 @@ test('combined property, identifier, and string passes preserve public source an
 });
 
 test('advanced control-flow passes reject exported callable source but accept private direct-call-only helpers',async()=>{
-  const source='function privateHelper(flag){return flag?4:5;}'+
-    'export function publicRead(flag){return flag?1:0;}'+
+  const source='function privateHelper(flag){return flag?(flag+4):(flag+5);}'+
+    'export function publicRead(flag){return flag?(flag+1):(flag+0);}'+
     'export const privateResult=privateHelper(true);';
   /** @type {import('../src/core').SourceFile[]} */
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
