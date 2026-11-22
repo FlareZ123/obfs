@@ -7,6 +7,8 @@ This is a real compiler-generated before/after example using the opt-in **virtua
 - [Deterministic sample generator and byte-exact verification](build-sample.cjs)
 - [Independent seedless static attacker](../../sims/expression-vm-static-recover.js)
 - [Behavior and performance tests](../../test/expression-vm.test.js)
+- [Direct/sparse call-density benchmark](../../sims/expression-vm-call-density-benchmark.js)
+- [Cross-platform 2.5x budget results](../../im-results/expression-vm-hot-path-call-density-2026-11-22.md)
 - [Static reconstruction tests](../../test/expression-vm-static-recovery.test.js)
 
 Generate the same output from before.cjs by running the provided build-sample.cjs script with Node. The test suite invokes **buildSample(true)** to verify that the checked-in after.cjs matches the actual compiler exactly. No hand-written output substitutions are used.
@@ -19,4 +21,4 @@ Use the **--expression-vm relative/file.cjs:mix** option with the COO/SNO CLIs, 
 
 **Security result:** The checked-in attacker reconstructs the full expression (((x+7)*(x-5))^((x+3)&255)) from the distributed VM alone, without the seed or original source. Separate tests recover 48 independently diversified builds and replay 120 input values per build. A full-control COO or SNO attacker can also execute and instrument the distributed helper. The byte tape is a structure-hiding experiment and provides no demonstrated confidentiality, integrity, or environment authorization.
 
-**Performance contract:** A bytecode dispatch runs per binary operator, so frequent VM calls can exceed the required 2.5x compute budget. The included mixed-workload test reports a reproducible sample ratio at one VM call per 512 outer-loop iterations. This ratio is workload-specific and is not a global assertion. Measure the actual deployed workload, and decline this transform if it exceeds the budget.
+**Performance contract:** A bytecode dispatch runs per binary operator. The direct/sparse call-density benchmark measured **5.6-6.6x** native time at one VM call per iteration, **2.9-3.4x** at one per eight iterations, **2.0-2.3x** at one per sixteen, and about **1.03x** at one per 512 on Node 22 Ubuntu and Windows runners. The current backend is therefore a **cold-path-only experiment** under the 2.5x budget; do not use it on hot functions unless the deployed workload is profiled and shown to remain within budget. The older 1/512 mixed-workload point is not a general performance pass. See the linked [benchmark report](../../im-results/expression-vm-hot-path-call-density-2026-11-22.md).
