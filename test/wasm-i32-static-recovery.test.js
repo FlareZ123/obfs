@@ -87,14 +87,14 @@ test('attacker refuses nonmatching source and malformed Wasm',()=>{
 
 test('end-to-end COO and SNO transformations still expose recoverable Wasm AST',()=>{
   const expression='(((x^137)&(x>>>3))|(x<<7))';
-  const source='function f(x){return '+expression+';}module.exports=f;';
+  const source='function fKernel(x){return '+expression+';}function f(x){return fKernel(x);}module.exports=f;';
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     for(const seed of ['pipeline-a','pipeline-b','pipeline-c']) {
       const result=obfuscateFiles([{
         path:'bundle.cjs',sourceType:'commonjs',code:source
       }],{
         mode,seed,closedWorld:true,
-        experimentalWasmI32:{'bundle.cjs':['f']}
+        experimentalWasmI32:{'bundle.cjs':['fKernel']}
       });
       const output=result.files[0];
       assert.equal(output.metrics.wasmI32Functions,1);
