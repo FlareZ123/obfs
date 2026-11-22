@@ -53,7 +53,7 @@ test('same pre-import bind interception recovers private target from minified an
   }).code;
   const mangled=transformSync(source,{
     loader:'js',format:'esm',minify:true,legalComments:'none',target:'es2022',
-    mangleProps:/^(secretField|otherField)$/u
+    mangleProps:/^(secretField|otherField)$/
   }).code;
   assert.doesNotMatch(mangled,/secretField|otherField/u,
     'the matched esbuild control must also rename the two private own fields');
