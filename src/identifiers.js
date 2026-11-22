@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand} = require('./ast');
+const {walk,applyEdits,observesFunctionSource,sourceSpelledErrorOperand,
+  collectExportedCallableNodes,isWithinExportedCallableSource} = require('./ast');
 const {collectBindings} = require('./properties');
 
 /** @typedef {import('./ast').AstNode} AstNode */
@@ -43,6 +44,11 @@ function classifyIdentifier(node,parent,key) {
 function renameLocalIdentifiers(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
+  // Exported callable source is observable by an importer even when this
+  // module contains no explicit Function#toString call. Preserve every
+  // binding spelling referenced inside those exact callable source ranges,
+  // including declarations captured from the surrounding module scope.
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
@@ -143,6 +149,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
+    if(identifiers.some(item=>item.node.name===name&&
+        isWithinExportedCallableSource(item.node,exportedCallableSource)))continue;
     if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
