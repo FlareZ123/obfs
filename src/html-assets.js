@@ -259,6 +259,8 @@ function hasXmlDeclaration(code) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
+  // The dedicated SVG preflight owns SVG parsing and its diagnostic contract.
+  if(/\.svg$/iu.test(path))return;
   const namedXml=/\.(?:xhtml|xht|xml)$/iu.test(path);
   const namedHtml=/\.html?$/iu.test(path);
   const signedXml=hasXmlDeclaration(code);
@@ -408,7 +410,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset')continue;
+    if(file.sourceType!=='asset'||/\.svg$/iu.test(file.path))continue;
     const namedXml=/\.(?:xhtml|xht|xml)$/iu.test(file.path);
     const namedHtml=/\.html?$/iu.test(file.path);
     const signedXml=hasXmlDeclaration(file.code);
