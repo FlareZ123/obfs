@@ -1177,6 +1177,44 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     const functionTypes=new Set([
       'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'
     ]);
+    /**
+     * Only a unique, locally allocated const record with primitive own-data
+     * properties can be read without running a host-defined accessor. Other
+     * member reads might invoke a foreign getter whose Function.caller reveals
+     * this enclosing sloppy function's exact source bytes.
+     * @type {Map<string,{definition:AstNode,keys:Set<string>}>}
+     */
+    const knownOwnData=new Map();
+    walk(fn,(node,parent,key,ancestors)=>{
+      if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
+      if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
+         parent.kind!=='const'||node.id.type!=='Identifier'||
+         node.init?.type!=='ObjectExpression'||bindings.get(node.id.name)!==1)return;
+      /** @type {Set<string>} */
+      const keys=new Set();
+      const safe=node.init.properties.length>0&&
+        node.init.properties.every((/** @type {AstNode} */ property)=>{
+          if(property.type!=='Property'||property.kind!=='init'||property.method||
+             !isPrimitiveConstantExpression(property.value))return false;
+          const name=ownPropertyName(property);
+          if(name===null||name==='__proto__'||keys.has(name))return false;
+          keys.add(name);
+          return true;
+        });
+      if(safe)knownOwnData.set(node.id.name,{definition:node.id,keys});
+    });
+    // Any alias, return, write-through or unknown reference invalidates the
+    // local-record exemption; a record may only appear as a member receiver.
+    for(const [name,record] of knownOwnData){
+      for(const use of inventory.identifierUses.get(name)??[]){
+        if(use.node===record.definition)continue;
+        if(!use.ancestors.includes(fn)||use.parent?.type!=='MemberExpression'||
+           use.key!=='object'){
+          knownOwnData.delete(name);
+          break;
+        }
+      }
+    }
     walk(fn,(node,parent,key,ancestors)=>{
       if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
       // A called function may inspect its non-strict caller through the
@@ -1186,6 +1224,11 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       // escape for the enclosing callable's original text.
       if(node.type==='CallExpression'||node.type==='NewExpression'||
          node.type==='TaggedTemplateExpression')observed=true;
+      if(node.type==='MemberExpression'){
+        const own=node.object.type==='Identifier'?knownOwnData.get(node.object.name):undefined;
+        const name=node.computed?staticString(node.property):staticName(node.property);
+        if(!own||name===null||!own.keys.has(name))observed=true;
+      }
       if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
          node.object.name==='arguments'&&staticName(node.property)==='callee')
         observed=true;
