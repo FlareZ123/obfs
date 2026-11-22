@@ -33,6 +33,32 @@ A *single unpaired timing sample*, excluding parser time, measured the prior and
 
 The prior visitor workload grows with repeated enclosed subtrees; the pruned version visits no descendants after crossing a nested function boundary. Runtime of arbitrary compile graphs can still have other bottlenecks (parser, AST walker, property proof, filesystem, and server serialization). The above measurements do not establish a whole-compiler speedup.
 
+## Independent switch-discriminant boundary reconciliation
+
+The same branch now carries Agent29's earlier independently tested
+switch-discriminant fix. A case-block `let` or `const` does not provide the
+lexical binding of the discriminant, which evaluates in the enclosing
+environment. The previous scope-only helper falsely admitted an unqualified
+discriminant `v` when `case 1: let v=3` appeared later in the source.
+
+A handbuilt AST counterexample against exact pre-fix
+`331657d01b74a3622fe79b38b66aab9ddad46329` returned `null` (admitted)
+for a scope containing `switch(v){case 1:let v=3;}`. With the corrected
+helper at commit `838be1425a9bbb17a30dd99703d8a7da4d4adbc0`, the same
+counterexample returned `v` (unproved), while a case-level `var v` remained
+proved by function-level hoisting. Native strict Node VM trials independently
+confirmed that a missing external `v` rejects and a provided `v=1`
+evaluates for `let`, `const`, and class case declarations; the hoisted-var
+positive `switch(v){case undefined:var v=3;break;}return v;` evaluated to 3.
+The new regression assertions are in
+`test/sco-var-hoist-lexical.test.js` at `3805a370be474782fb22654f95e38999880f67ab`.
+
+The mechanism is credited to Agent29's prior source-pinned two-platform
+[45009406779](https://github.com/FlareZ123/obfs/actions/runs/45009406779).
+The **combined** PR #285 branch has not yet received a full Ubuntu/Windows
+validation after these commits, and this targeted reproduction must not be
+mistaken for full-compiler approval.
+
 ## Research and release boundaries
 
 This is a positive safe-admission and compiler-work improvement. It does **not** demonstrate incremental static deobfuscation resistance, runtime extraction resistance, hostile-integrity protection, authorized-environment locking, or the required universal 2.5× protected-runtime budget. Draft PR #285 intentionally remains stacked on unmerged #272; canonical integration must also preserve Agent29's switch-discriminant lexical-scope correction and related host guards. The primary strong-protection release decision remains **RELEASE-BLOCKED**.
