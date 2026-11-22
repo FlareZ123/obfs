@@ -5,6 +5,31 @@
 XOR string encoding, locally proven identifier renaming, and seeded names raise the cost of casual inspection. They are trivially reversible by an adversary who can run JavaScript, observe the decoder, inspect memory, or instrument property access. A measured time slowdown says nothing about deobfuscation resistance.
 
 
+## Ambient decoder provenance and host-resolved module imports
+
+The eager string decoder consults mutable JavaScript intrinsics, including
+`String.fromCharCode`. The compiler's conservative static, dynamic ESM, and
+CommonJS dependency checks refuse string encoding when a source-visible
+module may mutate those intrinsics before another module initializes.
+This preserves native behavior for the proved input graphs in the pinned
+[dynamic/static ESM and CommonJS red-green evidence](../im-results/decoder-external-dynamic-import-intrinsic-parity-2026-11-22.md).
+It does not prove that the surrounding deployment executes every locally
+named import using the compiler's assumed resolver.
+
+A host HTML import map can remap a supplied local ESM path to a `data:`
+module, changing an encoded target literal while leaving the original value
+unchanged in real Chromium. The [pinned import-map witness](../im-results/browser-host-importmap-decoder-assumption-2026-11-22.md)
+runs that native/emitted differential under the same browser host.
+A Node 22 `--import` preload can similarly register a loader hook that
+remaps `node:path` to arbitrary code, falsifying a proposed trust-by-builtin
+whitelist. The [Node loader-hook report](../im-results/sno-native-builtin-loader-hook-whitelist-counterexample-2026-11-22.md)
+records the unsafe candidate and the merged safe refusal regression.
+A deployed application must audit the actual HTML import maps, Node loader
+hooks and preload code if it relies on ambient decoder equivalence. A hostile
+COO browser or fully controlled SNO runtime cannot furnish that trust.
+These boundaries are independent of confidentiality, tamper resistance,
+and the strict 2.5× runtime requirement.
+
 ## Windows DOS device-name admission
 
 The compiler's portable path validator conservatively refuses the console
