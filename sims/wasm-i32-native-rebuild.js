@@ -94,18 +94,39 @@ function reconstructPublicWasmCommonJs(publicSource){
     throw new TypeError('Expected one unambiguous CommonJS export-object assignment');
   /** @type {RecoveredExport[]} */
   const functions=[];
+  const usedWrappers=new Set();
+  const usedHelpers=new Set();
   for(const item of exportsList){
-    const wrapper=wrappers.get(item.localName);
-    const initializer=wrapper&&helpers.get(wrapper.helper);
-    if(!wrapper||!initializer)
-      throw new TypeError('No reconstructable Wasm wrapper for '+item.name);
-    const recovered=recoverPublicWasmExpression(initializer,wrapper.parameters);
+    let localName=item.localName;
+    let wrapper=wrappers.get(localName);
+    if(!wrapper)throw new TypeError('No reconstructable Wasm wrapper for '+item.name);
+    const parameters=wrapper.parameters;
+    const seen=new Set();
+    let initializer=null;
+    while(wrapper){
+      if(seen.has(localName))throw new TypeError('Cyclic CommonJS Wasm forwarding');
+      seen.add(localName);
+      usedWrappers.add(localName);
+      if(wrapper.parameters.length!==parameters.length||
+          wrapper.parameters.some((name,index)=>name!==parameters[index]))
+        throw new TypeError('Inconsistent CommonJS Wasm forwarding parameters');
+      const nextName=wrapper.helper;
+      const nextWrapper=wrappers.get(nextName);
+      if(nextWrapper){
+        localName=nextName;
+        wrapper=nextWrapper;
+        continue;
+      }
+      initializer=helpers.get(nextName)??null;
+      if(initializer)usedHelpers.add(nextName);
+      break;
+    }
+    if(!initializer)
+      throw new TypeError('No reconstructable Wasm helper for '+item.name);
+    const recovered=recoverPublicWasmExpression(initializer,parameters);
     functions.push({name:item.name,localName:item.localName,
-      parameters:wrapper.parameters,expression:recovered.expression,
-      wasmBytes:recovered.bytes});
+      parameters,expression:recovered.expression,wasmBytes:recovered.bytes});
   }
-  const usedWrappers=new Set(exportsList.map(item=>item.localName));
-  const usedHelpers=new Set([...usedWrappers].map(name=>wrappers.get(name)?.helper));
   if(usedWrappers.size!==wrappers.size||usedHelpers.size!==helpers.size)
     throw new TypeError('Unreferenced CommonJS function or helper');
   const declarations=functions.map(item=>'function '+item.localName+
