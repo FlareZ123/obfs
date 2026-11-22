@@ -1301,6 +1301,51 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast),sourceT
        /^Export/.test(inventory.parents.get(container)?.type??''))continue;
     directCallables.add(decl.init);
   }
+  // A deliberately narrow private class lane: a non-exported top-level
+  // single-method class is instantiated once into a local immutable instance,
+  // and the instance is used only for one direct zero-argument method call.
+  // Neither class nor method source can escape this verified call graph.
+  // Classic scripts are excluded because their top-level class binding is
+  // readable from subsequent scripts sharing the global lexical environment.
+  if(sourceType!=='script'){
+    for(const statement of ast.body??[]){
+      if(statement.type!=='ClassDeclaration'||statement.superClass||
+         statement.id?.type!=='Identifier'||bindings.get(statement.id.name)!==1||
+         statement.body?.body?.length!==1)continue;
+      const method=statement.body.body[0];
+      if(method.type!=='MethodDefinition'||method.kind!=='method'||method.static||
+         method.computed||method.key?.type!=='Identifier'||
+         method.value?.type!=='FunctionExpression'||method.value.async||
+         method.value.generator||method.value.params?.length!==0||
+         method.value.body?.body?.length!==1)continue;
+      const ret=method.value.body.body[0];
+      if(ret.type!=='ReturnStatement'||ret.argument?.type!=='MemberExpression'||
+         ret.argument.object.type!=='Identifier'||ret.argument.optional||
+         staticName(ret.argument.property)===null)continue;
+      const uses=(inventory.identifierUses.get(statement.id.name)??[])
+        .filter(use=>use.node!==statement.id);
+      if(uses.length!==1||uses[0].parent?.type!=='NewExpression'||
+         uses[0].key!=='callee'||uses[0].parent.arguments?.length!==0)continue;
+      const newSite=uses[0].parent;
+      const instance=inventory.parents.get(newSite);
+      const declaration=instance?inventory.parents.get(instance):null;
+      if(instance?.type!=='VariableDeclarator'||instance.init!==newSite||
+         instance.id.type!=='Identifier'||declaration?.type!=='VariableDeclaration'||
+         declaration.kind!=='const'||inventory.parents.get(declaration)!==ast||
+         bindings.get(instance.id.name)!==1)continue;
+      const instanceUses=(inventory.identifierUses.get(instance.id.name)??[])
+        .filter(use=>use.node!==instance.id);
+      if(instanceUses.length!==1||instanceUses[0].parent?.type!=='MemberExpression'||
+         instanceUses[0].key!=='object'||instanceUses[0].parent.optional||
+         staticName(instanceUses[0].parent.property)!==method.key.name)continue;
+      const access=instanceUses[0].parent;
+      const invocation=inventory.parents.get(access);
+      if(invocation?.type!=='CallExpression'||invocation.callee!==access||
+         invocation.optional||invocation.arguments?.length!==0)continue;
+      directCallables.add(statement);
+      directCallables.add(method.value);
+    }
+  }
   /**
    * Promise's native continuation methods do not inspect callback source.
    * Restrict this exception to an unshadowed Promise.resolve() chain; arbitrary
@@ -1361,8 +1406,7 @@ function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType
   const exposed=new Set();
   walk(ast,(node,parent,key,ancestors)=>{
     if(!sourceBodies.has(node.type))return;
-    if(node.type==='ClassDeclaration'||node.type==='ClassExpression'||
-       ancestors.some(ancestor=>exposed.has(ancestor))||
+    if(ancestors.some(ancestor=>exposed.has(ancestor))||
        !privateCallables.has(node))exposed.add(node);
   });
   return exposed;
