@@ -430,3 +430,49 @@ test('SCO preserves fixed server Node builtin import and refuses module-dependen
     ),/Private SCO export or helper uses unproved module-relative execution/u,body);
   }
 });
+
+
+test('SCO refuses free typeof names whose browser and Node host bindings can differ',()=>{
+  const names=['externalBridge','applicationSettings','extensionRuntime'];
+  for(const name of names){
+    const body='return typeof '+name+';';
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-free-typeof-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved free typeof reference/u,
+    'selected private export: '+name);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved free typeof reference/u,
+        'private graph: '+name+' transitive='+transitive);
+    }
+  }
+});
+
+test('SCO retains typeof of proved local primitives, formals, and standard globals',()=>{
+  const sources=[
+    'export async function protectedOp(value){return typeof value;}',
+    'export async function protectedOp(){const local=41;return typeof local;}',
+    'export async function protectedOp(){function read(value){return typeof value;}return read(41);}',
+    'export async function protectedOp(){return typeof Math;}',
+    'const local=41;export async function protectedOp(){return typeof local;}'
+  ];
+  for(const selected of sources){
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:selected+'export function visible(){return 7;}',sourceType:'module'},
+      {seed:'sco-local-typeof-20261122',privateNames:['protectedOp']}
+    ),selected);
+  }
+  for(const body of [
+    'const local=41;return typeof local;',
+    'function read(value){return typeof value;}return read(41);',
+    'return typeof Math;'
+  ]){
+    for(const transitive of [false,true]){
+      const partition=partitionGraph(body,transitive);
+      assert.deepEqual(partition.privateNames,['protectedOp']);
+    }
+  }
+});
