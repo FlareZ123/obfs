@@ -9,6 +9,7 @@ const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
+const {collectBindings}=require('./properties');
 
 /** @typedef {import('./sco-partition').ScoModulePartition} ScoModulePartition */
 /** @typedef {{path:string,code:string}} ScoPrivateModuleSource */
@@ -82,10 +83,36 @@ function usesUnprovedCrossRealmHostApi(body){
     'postMessage','addEventListener','removeEventListener','dispatchEvent',
     'alert','confirm','prompt'
   ]);
+  // A uniquely declared, immutable function in this immediate source scope
+  // shadows the ambient timer/API name throughout its lexical scope.
+  // Requiring one declaration throughout the AST excludes nested shadowing
+  // and function-parameter collisions without inferring unknown aliases.
+  const bindingCounts=collectBindings(body);
+  const ownedFunctions=new Set();
+  if(body.type==='BlockStatement'||body.type==='Program'){
+    for(const statement of body.body){
+      if(statement.type==='FunctionDeclaration'&&
+         statement.id?.type==='Identifier'&&
+         hostApis.has(statement.id.name)&&
+         bindingCounts.get(statement.id.name)===1){
+        ownedFunctions.add(statement.id.name);
+      }
+      if(statement.type==='VariableDeclaration'&&statement.kind==='const'){
+        for(const declaration of statement.declarations){
+          if(declaration.id.type==='Identifier'&&hostApis.has(declaration.id.name)&&
+             bindingCounts.get(declaration.id.name)===1&&declaration.init&&
+             ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)){
+            ownedFunctions.add(declaration.id.name);
+          }
+        }
+      }
+    }
+  }
   let observed=false;
   walk(body,(node,parent,key)=>{
     if(node.type==='DebuggerStatement')observed=true;
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
+       !ownedFunctions.has(node.name)&&
        !isStaticKey(parent,key)&&
        !['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier']
          .includes(parent?.type??'')&&
