@@ -435,10 +435,15 @@ decorations, escaped path characters, possible HTML `<base href>` candidates,
 and a scoped XML `xml:base` where relevant. A configured SCO route prefix
 is included in published file-path matching. It also compares possible
 case- and Unicode-NFC-equivalent filename identities using the output tree's
-existing portable path inventory policy. This may preserve original
-JavaScript on case-sensitive hosts whose actual URL router distinguishes
-those names; that is a deliberate safety preference when deployment
-semantics have not been supplied.
+existing portable path inventory policy. It also tests a Win32-style candidate
+which strips terminal ASCII dots and spaces from each decoded URL path
+segment. A Windows-backed static host may resolve several URL spellings to
+one distributed file. This is a conservative compatibility assumption for
+hosting arrangements that behave that way; no universal claim is made about
+URL rewriting on Windows, proxy servers, or CDN infrastructure. These
+possible aliases can preserve original JavaScript on hosts whose actual
+routing distinguishes the names, which is an intentional correctness
+preference when deployment semantics have not been supplied.
 
 SCO publishes accepted `.xhtml` and `.xht` files as
 `application/xhtml+xml; charset=utf-8` and `.xml` files as
@@ -456,4 +461,5 @@ a quantified attacker reconstruction cost.
 
 Supporting reproducibility: [HTML/SRI study](../im-results/html-sri-public-script-compatibility-2026-11-22.md),
 [namespace-aware XHTML and direct XML source regression](https://github.com/FlareZ123/obfs/pull/248),
-and [portable URL alias browser regression](https://github.com/FlareZ123/obfs/pull/247).
+[portable URL alias browser regression](https://github.com/FlareZ123/obfs/pull/247),
+and [Win32-style trailing-dot and space alias regression](https://github.com/FlareZ123/obfs/pull/249).
