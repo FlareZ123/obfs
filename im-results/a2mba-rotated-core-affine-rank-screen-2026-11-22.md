@@ -46,7 +46,26 @@ Executed with Node `v22.16.0` on Linux. The two focused Node tests passed locall
 | Same original region on degenerate slice `(x,0,0,0)` | **0** | 4,592 |
 | Rotated cores at rotations 1, 8, 16 and 31 on `E(x)` | **32 each** | 4,592 each |
 
-For each of those four rotations, the script additionally checked 10,000 deterministic input vectors against the original region and found exact Int32 output parity. The original pilot already checked broader rotations and source semantics; this new screen does **not** independently re-prove all those identities.
+The native whole-domain rank additionally has an exact **32-pair certificate** independent of the random sample, described below. For each of the four rotations, the script checked 10,000 deterministic input vectors against the original region and found exact Int32 output parity. The original pilot already checked broader rotations and source semantics; this new screen does **not** independently re-prove all those identities.
+
+## Exact full-rank certificate
+
+The full-domain **rank 32 can be proved without random sampling** for this fixed native region. Set `z=t=0`, leaving
+
+```text
+G(x,y,0,0) = ((x+y) mod 2^32) xor (x or y).
+G(x,0,0,0) = G(0,y,0,0) = G(0,0,0,0) = 0.
+```
+
+For each bit position `i=0,...,31`, choose the two-bit input `x=y=2^i`. Its second-order residual against the full affine interpolant is
+
+```text
+D_G(2^i,2^i,0,0) =
+  2^i xor 2^(i+1)       for 0 <= i < 31
+  2^31                  for i = 31.
+```
+
+The 32 resulting columns are triangular over GF(2), with a `1` on every diagonal position; hence their determinant is one and the **exact whole-domain residual span rank is 32**, the output-space maximum. The reproducible `verifyFullRankCertificate` checks the 32 evaluated residuals against their closed form and independently row-reduces them. This certificate establishes a structural property of this specific function. It supplies no security lower bound. The four rotated variants are checked for corresponding rank and parity in the sampled harness; the exact certificate is stated for the native expression.
 
 ## Interpretation
 
