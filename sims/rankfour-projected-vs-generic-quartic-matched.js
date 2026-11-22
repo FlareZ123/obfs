@@ -126,7 +126,7 @@ function main(){
       assert.equal(fast.queries,specialInputs.size);
       assert.equal(generic.queryCount,genericInputs.size);
       assert.equal(generic.queryCount,41449);
-      assert.ok(fast.queries<=6434);
+      assert.ok(fast.queries<=2080);
       const fastModel=JSON.parse(JSON.stringify(fast));
       const genericModel=JSON.parse(JSON.stringify(generic));
       for(let j=0;j<128;j++){
@@ -157,8 +157,8 @@ function main(){
     testedCases,heldoutPerModel,
     specialized:{minQueries:specializedMin,maxQueries:specializedMax,
       totalQueries:fastSum,quarticBranchCases:quarticModels,
-      cubicOrLowerBranchCases:lowerModels,
-      confidenceQueryCap:6434},
+      quarticFreeBranchCases:lowerModels,
+      confidenceQueryCap:2080},
     generic:{queriesPerCase:41449,totalQueries:genericSum},
     totalQuerySavings:genericSum-fastSum,
     familyCases:families,
