@@ -149,8 +149,10 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if(identifiers.some(item=>item.node.name===name&&
-        isWithinExportedCallableSource(item.node,exportedCallableSource)))continue;
+    if(isWithinExportedCallableSource(identifier,exportedCallableSource)||
+       identifiers.some(item=>item.node!==identifier&&item.node.name===name&&
+         classifyIdentifier(item.node,item.parent,item.key)!=='ignore'&&
+         isWithinExportedCallableSource(item.node,exportedCallableSource)))continue;
     if (counts.get(name)!==1 || inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
