@@ -179,9 +179,12 @@ test('declared HTML script SRI refuses byte-mutating JavaScript output',()=>{
     ['encoded script','index.html','./%63lient.js?version=1#fragment','script'],
     ['parent script','pages/index.html','../client.js','script'],
     ['module preload','index.html','./client.js','modulepreload'],
-    ['script preload','index.html','./client.js','preload']
+    ['script preload','index.html','./client.js','preload'],
+    ['declared HTML base','pages/index.html','./client.js','script','<base href="/">'],
+    ['parent HTML base','pages/index.html','./client.js','script','<base href="../">'],
+    ['absolute same-target path','index.html','https://deploy.example/client.js','script']
   ];
-  for(const [label,htmlPath,href,kind] of variants) {
+  for(const [label,htmlPath,href,kind,baseTag] of variants) {
     const tag=kind==='script' ?
       '<script src="'+href+'" integrity="sha256-'+hash+'"></script>' :
       '<link rel="'+kind+'" '+(kind==='preload'?'as="script" ':'')+
@@ -190,7 +193,7 @@ test('declared HTML script SRI refuses byte-mutating JavaScript output',()=>{
       const files=[
         {path:'client.js',sourceType:/** @type {const} */ ('script'),code:source},
         {path:htmlPath,sourceType:/** @type {const} */ ('asset'),
-          code:Buffer.from('<!doctype html><html><head>'+tag+'</head></html>')}
+          code:Buffer.from('<!doctype html><html><head>'+(baseTag??'')+tag+'</head></html>')}
       ];
       const compiled=obfuscateFiles(files,{mode,closedWorld:true,
         seed:'html-sri/'+label+'/'+mode,strings:true,identifiers:false,properties:false});
