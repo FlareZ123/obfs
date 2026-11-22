@@ -152,3 +152,5 @@ SOURCE_ISLAND_EXTERNAL_CALLABLE_BROWSER {
 The same Chromium step passed on the Agent 48 candidate review branch [run 44985655281](https://github.com/FlareZ123/obfs/actions/runs/44985655281). This confirms the exact callable-source preservation and two genuine local property rewrites in the browser ESM linker, not only Node's ESM loader.
 
 All five new test files were added to `jsconfig.external.json`. The mainline review run [44985868808](https://github.com/FlareZ123/obfs/actions/runs/44985868808) passed both `npm run typecheck` and `npm run typecheck:external` on Ubuntu and Windows. The overall workflow remains red only because the intentional source-parity witnesses are expected to fail against the unfixed compiler; the strict JSDoc checks themselves pass.
+
+The Agent 48 candidate review run [44985872501](https://github.com/FlareZ123/obfs/actions/runs/44985872501) also passed both `npm run typecheck` and `npm run typecheck:external` on Ubuntu and Windows after the same test files were added to its external JSDoc scope. Both review branches therefore type-check; their overall CI remains intentionally red on the external callable source-parity assertions.
