@@ -2357,7 +2357,11 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'ReferenceError','SyntaxError','TypeError','URIError','AggregateError']);
   const stackErrorAliases=new Set();
   const stackConsoleAliases=new Set(['console']);
-  const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir']);
+  const stackConsoleMethodNames=new Set(['trace','log','info','warn','error','debug','dir',
+    // Node's additional console formatters inspect functions or stringify
+    // their labels, exposing native names and sometimes full source text.
+    'table','assert','dirxml','group','groupCollapsed','count','countReset',
+    'time','timeLog','timeEnd','timeStamp','profile','profileEnd']);
   /** @type {Map<string,string>} */
   const stackConsoleMethods=new Map();
   /** @param {AstNode|null|undefined} node @returns {boolean} */
