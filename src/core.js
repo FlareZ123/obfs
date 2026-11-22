@@ -2765,9 +2765,9 @@ function obfuscateFiles(files, options = {}) {
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
     const lexicalBindings=collectBindings(ast);
     const privateDirectCallables=options.preservePublicCallableSource===true ?
-      collectPrivateDirectCallables(ast,lexicalBindings) : new Set();
+      collectPrivateDirectCallables(ast,lexicalBindings,sourceType) : new Set();
     const sourceExposedBodies=options.preservePublicCallableSource===true ?
-      collectSourceExposedBodies(ast,lexicalBindings) : new Set();
+      collectSourceExposedBodies(ast,lexicalBindings,sourceType) : new Set();
     /** @type {Set<import('./ast').AstNode>} */
     const unsafePrivateTargets=new Set();
     walk(ast,(node,parent,key,ancestors)=>{
@@ -2962,7 +2962,7 @@ function obfuscateFiles(files, options = {}) {
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
     if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true});
+      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true,sourceType});
       code = modified.code;
       literals = modified.count;
       ast = parse(code,sourceType);
