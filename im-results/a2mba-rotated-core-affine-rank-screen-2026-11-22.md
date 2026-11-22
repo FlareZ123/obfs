@@ -46,7 +46,7 @@ Executed with Node `v22.16.0` on Linux. The two focused Node tests passed locall
 | Same original region on degenerate slice `(x,0,0,0)` | **0** | 4,592 |
 | Rotated cores at rotations 1, 8, 16 and 31 on `E(x)` | **32 each** | 4,592 each |
 
-The native whole-domain rank additionally has an exact **32-pair certificate** independent of the random sample, described below. For each of the four rotations, the script checked 10,000 deterministic input vectors against the original region and found exact Int32 output parity. The original pilot already checked broader rotations and source semantics; this new screen does **not** independently re-prove all those identities.
+The native whole-domain rank additionally has an exact **32-pair certificate** independent of the random sample, described below. For each of the four rotations, the script checked 10,000 deterministic projected inputs plus **12,353** independent all-word native-versus-rotated comparisons (one origin, 128 input unit vectors, and 12,224 residual observations); all outputs matched. These checks exercise the actual 128-bit input surface sampled by the rank diagnostic. The original pilot already checked broader rotations and source semantics; this new screen does **not** independently re-prove all those identities.
 
 ## Exact full-rank certificate
 
