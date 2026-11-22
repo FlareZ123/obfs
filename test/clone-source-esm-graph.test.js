@@ -87,8 +87,13 @@ test('function-free ESM structuredClone input preserves one private owner key',a
   files[2].code="import {inspect} from './state.mjs';"+
     "import {observed} from './observer.mjs';"+
     "process.stdout.write(JSON.stringify({value:inspect(),observed}));";
+  const direct="export function inspect(){const marker='opaque-literal';return hidden.secretField+marker.length;}";
+  const privateReader="function internalInspect(){const marker='opaque-literal';return hidden.secretField+marker.length;}"+
+    "export function inspect(){return internalInspect();}";
+  assert.ok(files[0].code.includes(direct));
+  files[0].code=files[0].code.replace(direct,privateReader);
   const transformed=obfuscateFiles(files,{
-    mode:'sno',seed:'cross-esm-clone-inert',strings:false
+    mode:'sno',seed:'cross-esm-clone-inert',strings:false,preservePublicCallableSource:true
   });
   // ESM ownership can be renamed by the cross-file prepass, which reports
   // metrics separately from each file's local property pass.
