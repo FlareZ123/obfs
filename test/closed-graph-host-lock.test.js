@@ -7,7 +7,7 @@ const os=require('node:os');
 const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const vm=require('node:vm');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Module */
@@ -208,4 +208,22 @@ test('hostname guard declines files with a local globalThis binding',()=>{
   }],{mode:'coo',seed:'host-global-shadow-positive',
     allowedHosts:['allowed.example'],strings:false,properties:false,identifiers:false});
   assert.match(String(safe.files[0].code),/Unauthorized execution host/);
+});
+
+
+test('SCO handler refuses shadowed host-global at startup before route publication',()=>{
+  const source=[{
+    path:'client.js',sourceType:/** @type {const} */('script'),
+    code:'const globalThis={value:7};globalThis.value;'
+  }];
+  assert.throws(()=>createScoHandler(source,{
+    allowedHosts:['allowed.example']
+  }),/Host locking cannot preserve a shadowed globalThis binding in SCO file client\.js/);
+  // The lexical binding is valid and may run without the optional host guard.
+  assert.doesNotThrow(()=>createScoHandler(source));
+  // Literal asset payloads are served verbatim, so a JavaScript-looking byte
+  // sequence in an asset must never be misclassified as a lexical declaration.
+  assert.doesNotThrow(()=>createScoHandler([{
+    path:'ordinary.txt',sourceType:'asset',code:'const globalThis=1;'
+  }],{allowedHosts:['allowed.example']}));
 });
