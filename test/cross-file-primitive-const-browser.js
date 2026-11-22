@@ -100,7 +100,7 @@ async function main() {
   try {
     await new Promise((resolve,reject)=>{
       server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+      server.listen(0,'127.0.0.1',()=>resolve());
     });
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
@@ -193,7 +193,7 @@ async function main() {
     })+'\n');
   }finally {
     await browser?.close();
-    await new Promise(resolve=>server.close(resolve));
+    await new Promise(resolve=>server.close(()=>resolve()));
   }
 }
 
