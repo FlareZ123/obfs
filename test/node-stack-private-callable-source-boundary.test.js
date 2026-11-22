@@ -76,3 +76,11 @@ test('host-selected result depends on the dynamically recovered private helper s
     JSON.stringify({mode:'sno',nativeResult:native.result,
       emittedResult:emitted.result,sourceVisibleToHost:true})+'\n');
 });
+
+test('strict V8 helper frames hide function references from CallSite.getFunction',()=>{
+  const source='"use strict";function privateHelper(secretLocal){return secretLocal+Math.random();}'+
+    'module.exports=()=>privateHelper(17);';
+  const observed=observeUnderHostStackFormatter(source);
+  assert.equal(observed.result,17);
+  assert.equal(observed.helperSource,'unavailable');
+});
