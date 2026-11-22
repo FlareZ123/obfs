@@ -139,6 +139,40 @@ function nonlinearResidualRank128(fn,randomSamples=4096) {
   return {rank,observations,seed:'0x71a3c9f5'};
 }
 
+
+/**
+ * An independently checkable 32-pair certificate for full residual rank.
+ * At z=t=0 the region equals (x+y) xor (x|y); its one-input restrictions
+ * are zero. Pair x=y=2^i thus yields 3*2^i for i<31 and 2^31 for i=31.
+ * Those 32 vectors form an upper-triangular GF(2) basis.
+ * @returns {{pairs:number,rank:number}}
+ */
+function verifyFullRankCertificate() {
+  /** @type {number[]} */
+  const basis=Array(32).fill(0);
+  let rank=0;
+  for(let position=0;position<32;position++) {
+    const unit=1<<position;
+    const residual=(nativeRegion32(unit,unit,0,0)^
+      nativeRegion32(unit,0,0,0)^nativeRegion32(0,unit,0,0)^
+      nativeRegion32(0,0,0,0))|0;
+    const formula=(((unit+unit)|0)^unit)|0;
+    assert.equal(residual,formula);
+    let value=residual>>>0;
+    for(let bit=31;bit>=0;bit--) {
+      if(!((value>>>bit)&1))continue;
+      if(basis[bit])value^=basis[bit];
+      else {
+        basis[bit]=value;
+        rank++;
+        break;
+      }
+    }
+  }
+  assert.equal(rank,32);
+  return {pairs:32,rank};
+}
+
 /** @param {number} x @returns {number} */
 function rankOneShear(x) {
   return (x^(((x&1)&&((x>>>1)&1))?4:0))|0;
@@ -151,7 +185,7 @@ function rankTwoShear(x) {
 
 /**
  * @returns {{method:string,controls:{rankOne:ResidualRank,rankTwo:ResidualRank},
- *   baseline:ResidualRank,fullBaseline:ResidualRank,degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
+ *   baseline:ResidualRank,fullBaseline:ResidualRank,certificate:{pairs:number,rank:number},degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
  */
 function runScreen() {
   const one=nonlinearResidualRank(rankOneShear);
@@ -161,7 +195,8 @@ function runScreen() {
   const plain=projectRegion(nativeRegion32);
   const baseline=nonlinearResidualRank(plain);
   const fullBaseline=nonlinearResidualRank128(nativeRegion32);
-  assert.equal(fullBaseline.rank,32);
+  const certificate=verifyFullRankCertificate();
+  assert.equal(fullBaseline.rank,certificate.rank);
   const degenerateSlice=nonlinearResidualRank(x=>nativeRegion32(x,0,0,0));
   assert.equal(degenerateSlice.rank,0);
   /** @type {Array<{rotation:number,rank:number,checked:number}>} */
@@ -182,8 +217,8 @@ function runScreen() {
     rotations.push({rotation,rank:measured.rank,checked});
   }
   return {method:'GF(2) rank of F(x) xor affine interpolant on public 32-bit affine slice',
-    controls:{rankOne:one,rankTwo:two},baseline,fullBaseline,degenerateSlice,rotations};
+    controls:{rankOne:one,rankTwo:two},baseline,fullBaseline,certificate,degenerateSlice,rotations};
 }
 
 if(require.main===module)console.log(JSON.stringify(runScreen(),null,2));
-module.exports={affineInputs,projectRegion,nonlinearResidualRank,nonlinearResidualRank128,runScreen};
+module.exports={affineInputs,projectRegion,nonlinearResidualRank,nonlinearResidualRank128,verifyFullRankCertificate,runScreen};
