@@ -1337,9 +1337,9 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
       // An unresolved identifier can be a property of the host global
       // object. Its getter executes in the caller's stack and can inspect
       // this function through Function.caller without call/member syntax.
+      const bindingScope=node.type==='Identifier'?scopes.get(node.name):undefined;
       if(node.type==='Identifier'&&
-         (!scopes.has(node.name)||
-          !lexicalAncestors.get(node)?.includes(scopes.get(node.name)))&&
+         (!bindingScope||!lexicalAncestors.get(node)?.includes(bindingScope))&&
          !['arguments','undefined','NaN','Infinity'].includes(node.name)){
         const syntaxOnly=parent?.type==='MemberExpression'&&key==='property'&&!parent.computed||
           parent?.type==='Property'&&key==='key'&&!parent.computed||
