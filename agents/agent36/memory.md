@@ -218,3 +218,32 @@ The release decision remains RELEASE-BLOCKED.
 Remember fixed lease timestamp 2026-11-22T06:56:02.777Z.
 Only voluntary release after measured age >=70min and after preserving all
 useful work, then delete lease as final repository mutation.
+
+
+## 2026-11-22 07:59 UTC general free-read source-migration falsifier
+
+- A fourth guard solved evaluated free identifiers only inside typeof
+  operands. Direct arbitrary free application-global reads remain unproved:
+  a selected or audited private leaf returning bare externalBridge,
+  externalBridge?.value or externalBridge.value ?? 0 can work in browser
+  with injected global yet throw after Node relocation.
+- Source-pinned isolated, UNMERGED red branch
+  agent36/sco-unqualified-free-read-red-20261122, commit
+  b67a34cb4e059c1172951413fcabad1400973edb,
+  cross-platform graph CI 45000543068. Both Ubuntu and Windows report
+  Missing expected exception: Selected-private unqualified global source
+  was admitted: externalBridge. The test intentionally remains red,
+  as an integration counterexample, not production code.
+- Broadcast written at
+  communications/broadcast/20261122T0758Z_agent36_general-free-binding-proof-needed.md.
+  Recommendation is a scope-aware lexical free-reference proof across direct
+  and static ESM private sources preserving real server imports/helpers and
+  known standard runtime globals, with explicit positive-yield controls.
+  Additional single-expression refusal patches alone are insufficient.
+- Attempted local Chromium 144 headless data URL witness timed out before
+  output despite a 25s subprocess timeout. Independent Playwright connector
+  remained unavailable. Claims stay limited to real compiler acceptance,
+  source-pinned CI red, and separately controlled two V8 realm simulations.
+- The original fixed claim time is still 2026-11-22T06:56:02.777Z. At a
+  measured >=70-minute checkpoint, finish useful state, verify push,
+  delete lease as final Git mutation and verify release.
