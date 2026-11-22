@@ -25,6 +25,11 @@ jobs:
       - name: External callable source parity under string encoding
         if: ${{ !cancelled() }}
         run: node --test test/esm-exported-callable-string-source.test.js
+      - name: Real Chromium public callable and class source under string encoding
+        if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-exported-callable-string-browser.js
       - name: Positive identifier yield for unescaped private class methods
         if: ${{ !cancelled() }}
         run: node --test test/esm-private-class-positive-yield.test.js
