@@ -60,6 +60,22 @@ function isProvedTypeofLiteral(node){
 }
 
 /**
+ * An explicitly pinned trusted Node builtin import has the same local
+ * server-side value regardless of the private module's source URL.
+ * @param {import('./ast').AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function isProvedTypeofLocalInitializer(node){
+  if(isProvedTypeofLiteral(node))return true;
+  if(node?.type!=='AwaitExpression'||node.argument?.type!=='ImportExpression')return false;
+  const specifier=node.argument.source;
+  return specifier?.type==='Literal'&&typeof specifier.value==='string'&&
+    specifier.value.startsWith('node:')&&isBuiltin(specifier.value)&&
+    !['node:module','node:vm','node:worker_threads',
+      'node:child_process','node:process'].includes(specifier.value);
+}
+
+/**
  * Find the first unproved unqualified typeof read in a relocated source.
  * A unique binding is necessary, but is not alone sufficient: a sibling
  * function's declaration is not in lexical scope. Accept only the explicit
@@ -113,7 +129,7 @@ function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
           if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
           for(const declaration of statement.declarations){
             if(declaration.id.type==='Identifier'&&declaration.id.name===name&&
-               declaration.start<read.start&&isProvedTypeofLiteral(declaration.init))return;
+               declaration.start<read.start&&isProvedTypeofLocalInitializer(declaration.init))return;
           }
         }
       }
