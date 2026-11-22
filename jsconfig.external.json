@@ -1,6 +1,11 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/esm-exported-callable-aggregate-reachability.test.js",
+    "test/esm-exported-callable-string-source.test.js",
+    "test/esm-private-class-positive-yield.test.js",
+    "test/source-observer-islands-external-callable-source.test.js",
+    "test/source-observer-islands-external-callable-browser.js",
     "test/crossfile-mixed-property-matrix.test.js",
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
