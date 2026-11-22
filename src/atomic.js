@@ -64,7 +64,7 @@ async function atomicWrite(destination,content,options={}) {
  * @returns {Promise<T>}
  */
 async function withDirectoryLock(directory,action,options={}) {
-const resolved=path.resolve(directory);
+  const resolved=path.resolve(directory);
   await fs.mkdir(path.dirname(resolved),{recursive:true});
   /** @type {string} */
   let canonical;
