@@ -502,3 +502,30 @@ test('unrelated literal named formal preserves actual exported owner rewrite',as
   assert.deepEqual(expected,[41,'audit-v1',null]);
   assert.deepEqual(await execute(compiled.files),expected);
 });
+
+
+/**
+ * An Identifier actual may be locally initialized from an opaque ambient
+ * expression rather than an Identifier-to-Identifier alias. This separately
+ * challenges the callsite's origin proof after the non-Identifier repair.
+ */
+for(const [name,prefix] of [
+  ['local sequence alias','const source=(0,globalThis);'],
+  ['local array alias','const source=[globalThis][0];'],
+  ['local returned alias','function root(){return globalThis;}const source=root();']
+]) {
+  test('opaque named-formal identifier expression origin: '+name,async()=>{
+    const code=prefix+
+      "function rewire({['Ref'+'lect']:cap}){cap.ownKeys=globalThis.HOST_REFLECT;}"+
+      "rewire(source);";
+    const original=graph(code);
+    const compiled=obfuscateFiles(original,{
+      mode:'coo',closedWorld:true,seed:'host-formal-identifier-expression/'+name,
+      identifiers:false,strings:false,properties:true
+    });
+    const expected=await execute(original);
+    assert.deepEqual(expected,[41,'audit-v1',['secretField']]);
+    assert.deepEqual(await execute(compiled.files),expected);
+    assert.equal(compiled.crossFile.properties,0);
+  });
+}
