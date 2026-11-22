@@ -271,3 +271,39 @@ full-control attackers retain their existing analysis and bypass abilities.
 Keep future claims scoped to the reviewed manifest + exact emitted byte
 identity, and rerun the source-pinned control after any change to its
 publication contract.
+
+
+## 22 November: standalone reviewed-asset portable-name parity
+
+The exported `assertReviewedOpaqueAssets(files,approved)` previously used
+only `path.toLowerCase()` for collision identity, whereas the compiler's
+`registerFilePath` also checks NFC-normalized uppercase identities and
+canonical ancestor-directory spellings. Thus standalone review could accept
+two separately approved assets whose output path names failed the compiler's
+existing conservative portable-path policy. This distinction matters for
+independent post-build review integrations and is a **policy consistency
+issue**, not a measured collision on every Windows or macOS filesystem.
+
+Node 22 string comparisons before the patch were lower-distinct for
+`Σ.css` versus `ς.css`, for NFC-equivalent `Café.css` versus
+`Cafe\\u0301.css`, and for `straße.css` versus `STRASSE.css`.
+The normalized uppercase key collides for sigma and sharp-S; both
+normalization keys collide for the composed/decomposed accent pair.
+`Images/a.css` versus `images/b.css` instead has an ambiguous
+ancestor directory spelling.
+
+The minimal repair reuses `createPathInventory` and `registerFilePath`
+inside both the indexed reviewed-manifest scan and the final published
+opaque-file scan, retaining the exact path/hash comparisons and one-read
+snapshot behavior. It does not expand this standalone function into a
+general executable-file path validator. The full compiler already checks
+the complete output graph separately.
+
+- [Implementation commit 32ce4d1](https://github.com/FlareZ123/obfs/commit/32ce4d1019ab08a0ed922ef9edbe7f84b82df369).
+- [Source-pinned Unicode and directory regression commit 115eb9b](https://github.com/FlareZ123/obfs/commit/115eb9bd3dd9a0ee8a4151e488300f40ce775ccd).
+- [Focused Ubuntu/Windows workflow 44980198628](https://github.com/FlareZ123/obfs/actions/runs/44980198628): both OS jobs **green** at exact `115eb9bd3dd9a0ee8a4151e488300f40ce775ccd`, including existing reviewed-manifest regression and fuzz tests, the historical acceptance-witness checker, three-mode CLI checks, sample publication, and strict compiler/external JSDoc. The new test checks both manifest and file-inventory collisions, plus distinct Unicode positive controls.
+
+This repair changes build/publisher-side refusal for ambiguous names.
+Accepted JavaScript output is unchanged, so no new recurring protected-code
+instructions are introduced. No release-wide integration, static secrecy,
+anti-instrumentation, host-locking, or universal 2.5× claim follows.
