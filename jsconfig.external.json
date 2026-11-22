@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/private-class-source-yield.test.js",
     "test/sco-exported-instance-http-source-browser.js",
     "sims/public-instance-source-probe.js",
     "test/public-instance-prototype-source.test.js",
