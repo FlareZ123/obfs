@@ -4,6 +4,8 @@ const {
   invertLinearSandwich,makeRng,makeLinearTransform,applyLinear,
   makeRivestPermutation,u32
 }=require('./compatible-permutation-linear-sandwich-blackbox');
+const {invertAdaptive}=require('./sandwich-cegar-heldout-adaptive');
+const {invertRankOneShear}=require('./compatible-rank-one-shear-two-sided-inversion');
 
 /** @param {number} value @returns {number} */
 function parity32(value){
@@ -155,6 +157,63 @@ function main(){
       }
       experiments.push({budget,solved:queries.length,queries,failed});
     }
+
+    /** @type {number[]} */
+    const adaptiveQueries=[];
+    /** @type {{index:number,error:string}[]} */
+    const adaptiveFailed=[];
+    let adaptiveFallbacks=0;
+    for(let index=0;index<seedIndices;index++){
+      const item=fixture(name,index);
+      try{
+        const result=invertAdaptive(item.oracle,item.target,item.attackSeed);
+        if(result.value!==item.secret||item.oracle(result.value)!==item.target) {
+          throw new Error('Adaptive target mismatch');
+        }
+        adaptiveQueries.push(result.queryCount);
+        if(result.fallback)adaptiveFallbacks++;
+      }catch(error){
+        adaptiveFailed.push({
+          index,error:error instanceof Error?error.message:String(error)
+        });
+      }
+    }
+
+    /** @type {{solved:number,medianQueries:number|null,maxQueries:number|null,ranks:Record<string,number>,failed:{index:number,error:string}[]}|null} */
+    let knownRankOne=null;
+    if(name==='sparse-forced-top-bit'){
+      /** @type {number[]} */
+      const rankQueries=[];
+      /** @type {Record<string,number>} */
+      const ranks={};
+      /** @type {{index:number,error:string}[]} */
+      const failed=[];
+      for(let index=0;index<seedIndices;index++){
+        const item=fixture(name,index);
+        try{
+          // This solver's applicability is selected by the source-family
+          // harness. It does not infer the rank-one promise from black box
+          // behavior, and the inverter itself sees only oracle and target.
+          const result=invertRankOneShear(item.oracle,item.target);
+          if(result.value!==item.secret||item.oracle(result.value)!==item.target ||
+             result.queryCount>35){
+            throw new Error('Known-rank-one correction or 35-query bound failed');
+          }
+          rankQueries.push(result.queryCount);
+          const key=String(result.interpolantRank);
+          ranks[key]=(ranks[key]??0)+1;
+        }catch(error){
+          failed.push({
+            index,error:error instanceof Error?error.message:String(error)
+          });
+        }
+      }
+      knownRankOne={
+        solved:rankQueries.length,medianQueries:median(rankQueries),
+        maxQueries:rankQueries.length?Math.max(...rankQueries):null,
+        ranks,failed
+      };
+    }
     rows.push({
       name,cases:seedIndices,
       low8:{
@@ -170,7 +229,15 @@ function main(){
         maxSuccessfulQueries:experiments[1].queries.length?
           Math.max(...experiments[1].queries):null,
         failed:experiments[1].failed
-      }
+      },
+      adaptive8Then128:{
+        solved:adaptiveQueries.length,fallbacks:adaptiveFallbacks,
+        medianSuccessfulQueries:median(adaptiveQueries),
+        maxSuccessfulQueries:adaptiveQueries.length?
+          Math.max(...adaptiveQueries):null,
+        failed:adaptiveFailed
+      },
+      sourceFamilySelectedRankOne:knownRankOne
     });
   }
   console.log(JSON.stringify({
@@ -178,7 +245,7 @@ function main(){
     model:'Dense private 32x32 input/output maps; oracle-only target inverter',
     sourceFamilies:names,seedIndices,
     invariant:'Final oracle equality and source-secret equality checked for every success',
-    scope:'This probe records misses as data; it makes no universal oracle inversion claim',
+    scope:'Attack selection is source-family-aware in the harness. All inverters see only oracle and target. General classifier and universal inversion remain unproven.',
     rows
   },null,2));
 }
