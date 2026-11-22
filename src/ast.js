@@ -3784,7 +3784,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
 
 /**
  * Find source ranges whose Function#toString/class source is externally
- * observable through an ESM export. The returned nodes are deliberately
+ * observable through ESM exports or CommonJS publication. The returned nodes are deliberately
  * range containers, not just callable nodes: method syntax includes its
  * Property/MethodDefinition key, and class source includes the full class.
  *
