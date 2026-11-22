@@ -1150,6 +1150,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   const scopes=collectBindingScopes(ast);
   /** @type {Set<AstNode>} */
   const directCallables=new Set();
+  if(inventory.dynamicScope||observesFunctionSource(ast))return new Set();
   /**
    * @param {string} name
    * @param {AstNode} definition
