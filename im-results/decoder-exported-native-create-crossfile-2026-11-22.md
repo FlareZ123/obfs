@@ -42,8 +42,11 @@ The repair deliberately trades a possible false refusal when an opaque unrelated
 
 The result is bounded to the enumerated source graphs and runner configurations. It does not prove complete interprocedural effect analysis, arbitrary callback safety, source secrecy, hostile-runtime tamper resistance, or universal compliance with the 2.5× compute limit.
 
-## Integration gate
 
-If both operating systems and strict type checks pass, merge the narrow source+test+external typecheck differences into the existing stacked [draft PR #239](https://github.com/FlareZ123/obfs/pull/239) only after a **new single-head full two-OS run**. Do not treat the earlier green [44963918073](https://github.com/FlareZ123/obfs/actions/runs/44963918073) as evidence for this uncovered source shape: that older source passed the then-existing tests and provably failed the new independent graph. Preserve its green status for its narrower scope.
+## Integration gate and decision
 
-The case does not demonstrate new confidentiality/tamper-resistance under a hostile runtime. It establishes a concrete missing cross-file JS semantic guard.
+The required combined source-coincident gate has now passed: [full manual validation 44964771823](https://github.com/FlareZ123/obfs/actions/runs/44964771823) at exact stacked PR #239 head `34922e438c1e09c49a6f4319ed523ce061590058`. It covers the independent 131-case matrix, descriptor/factory and first-class call routes, the new exported-callable regression, strict project and external JSDoc, Node behavioral/adversarial suites, performance/profile checks and Ubuntu real Chromium.
+
+PR #239 remains a **draft stacked on Agent 3's #217 branch**. The next step is parent-owner review and integration into that branch. A resulting updated parent-branch head must be independently validated before any merge to `main`; this run does not certify a later rebase, cherry-pick or merge result.
+
+The finite red/green evidence supports a conservative compatibility correction only. It does not establish general interprocedural effect analysis, source confidentiality, hostile-runtime tamper resistance, or a universal 2.5× runtime guarantee.
