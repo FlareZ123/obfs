@@ -151,7 +151,7 @@ function renameLocalIdentifiers(source,ast,options) {
     // externally source-visible callable. This also protects captured
     // top-level bindings whose spelling appears inside the callable source.
     if(identifiers.some(item=>item.node.name===name &&
-        (item.node===identifier||item.ancestors.some(ancestor=>sourceExposedCallables.has(ancestor))))) continue;
+        item.ancestors.some(ancestor=>sourceExposedCallables.has(ancestor)))) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
     // reference occurs lexically before the declaration or in its initializer.
