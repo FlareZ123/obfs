@@ -32,3 +32,17 @@ The strict Windows exceedances must remain in the record and **veto an unqualifi
 **Hold this implementation as a research-only candidate. Do not merge into the three-mode production implementation or claim a universal 2.5× bound.** A successor must either amortize the elapsed-time guard for realistic identity lookups or explicitly constrain its opt-in performance contract, then repeat preregistered same-source controls, the new red/green regressions, and strict real CPU profiling across Windows and Ubuntu. The separate Chromium IPv6 failure should be reproduced or triaged without attributing it to this helper.
 
 This improves scoped trusted-server correctness only. It contributes no new source confidentiality, anti-debugging, environment locking, or protection against legitimate authorized SCO relays.
+
+
+## Source-coincident same-code negative-control follow-up
+
+To distinguish candidate-versus-baseline cost observations from pure CPU counter quantization, a follow-up at exact source `d4cf37eb629c2dc4f8079ce27c5f3a286e1703a5` added **one** predeclared 21-pair placebo arm to `sims/sco-principal-resolution-cost.js`: two independent helper instances with *identical* `maxPendingTotal:2`, `maxPrincipalResolutionMs:10000`, and `abortPrincipalLookup:true`, the same immediate-async resolver, and the same 250,000 tiny protected effects per sample. The candidate-versus-no-deadline arm remained present, so both comparisons ran in the same source and runner environment. Raw pairs remain in [CI run 45053445284](https://github.com/FlareZ123/obfs/actions/runs/45053445284).
+
+| Exact same-run comparison | Windows Node 22 CPU | Ubuntu Node 22 CPU |
+| --- | --- | --- |
+| Elapsed deadline + cancel vs default no-deadline helper, 21 paired trials | median **1.993×**, maximum **2.725×**, **4/21 strict >2.5×** | median **1.826×**, maximum **1.995×**, **0/21 strict >2.5×** |
+| **Byte-identical elapsed deadline + cancel against itself**, 21 paired trials | median **1.004×**, maximum **1.564×**, **0/21 strict >2.5×** | median **1.016×**, maximum **1.131×**, **0/21 strict >2.5×** |
+
+Windows passed the complete manual SCO workflow including 305-case Node regression, both JSDoc gates, the existing private-source and authorized relay experiments, and the added placebo. Ubuntu passed the same Node/CPU stages but again failed later in the standalone native-Chromium IPv6 shell, whose original untransformed script remained `pending`. The failing assertion is **`assert.equal(native,'[::1]|42')` at `test/sco-host-ipv6-browser.js:65`**, before the SCO compiler is even constructed for its generated-page path. That browser fixture failure is independent of the source change here.
+
+**Updated interpretation:** Reproduced Windows 2.5× strict breaches in the deadline-versus-no-deadline arm across two source-pinned runs, while a same-source same-code placebo had no such excursions in the matched run. This rules out an explanation based solely on byte-identical-helper CPU measurement variability within this sample. It does not prove which individual component (clock checks, cancellation setup, Promise scheduling, or their interaction) causes the added cost, nor establish a universal performance distribution. The draft candidate remains **blocked** under the measured strict budget.
