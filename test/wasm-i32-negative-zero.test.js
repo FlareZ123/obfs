@@ -20,7 +20,7 @@ test('signed negative zero returns are declined because Wasm i32 cannot represen
     {expression:'a ? (a ? -0 : 1) : 0',negativeInput:1}
   ];
   for(const [index,example] of cases.entries()){
-    const source='function f(a){return '+example.expression+';}module.exports=f;';
+    const source='function f(a){return '+example.expression+';}function publicF(a){return f(a);}module.exports=publicF;';
     const original=execute(source);
     assert.ok(Object.is(original(example.negativeInput),-0),
       'Original must have an observable -0 output: '+example.expression);
@@ -35,7 +35,7 @@ test('signed negative zero returns are declined because Wasm i32 cannot represen
 });
 
 test('ordinary negative Int32 literals remain eligible and preserve typed output',()=>{
-  const source='function f(a){return a ? -1 : 0;}module.exports=f;';
+  const source='function f(a){return a ? -1 : 0;}function publicF(a){return f(a);}module.exports=publicF;';
   const emitted=lowerWasmI32Functions(source,'commonjs',{
     seed:'ordinary-signed-negative-literal',names:['f']
   });
