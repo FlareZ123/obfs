@@ -3430,15 +3430,19 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
          globals.has(initial.name)) {
         for(const prop of pattern.properties) {
-          if(prop.type!=='Property'||prop.value.type!=='Identifier')continue;
+          if(prop.type!=='Property')continue;
+          const alias=prop.value.type==='Identifier'?prop.value:
+            prop.value.type==='AssignmentPattern' &&
+              prop.value.left.type==='Identifier'?prop.value.left:null;
+          if(!alias)continue;
           const field=prop.computed ? staticString(prop.key) :
             prop.key.type==='Identifier'?prop.key.name:
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
             field==='require'?requireRoots:field==='module'?moduleRoots:
               field==='performance'?performanceRoots:null;
-          if(roots&&!roots.has(prop.value.name)){
-            roots.add(prop.value.name);
+          if(roots&&!roots.has(alias.name)){
+            roots.add(alias.name);
             changed=true;
           }
         }
@@ -3581,11 +3585,15 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(pattern?.type==='ObjectPattern' && value?.type==='Identifier' &&
          globals.has(value.name)){
         for(const property of pattern.properties){
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          if(property.type!=='Property')continue;
+          const alias=property.value.type==='Identifier'?property.value:
+            property.value.type==='AssignmentPattern' &&
+              property.value.left.type==='Identifier'?property.value.left:null;
+          if(!alias)continue;
           const key=property.computed ? knownKey(property.key) :
             property.key.type==='Identifier'?property.key.name:null;
-          if(key==='performance'&&!performanceRoots.has(property.value.name)){
-            performanceRoots.add(property.value.name);
+          if(key==='performance'&&!performanceRoots.has(alias.name)){
+            performanceRoots.add(alias.name);
             loaderChanged=true;
           }
         }
@@ -3736,7 +3744,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
       if(root.type==='Identifier' && globals.has(root.name) &&
          (target===null||browserReaders.has(target)||
-          ['require','process','module','getBuiltinModule',
+          ['require','process','module','performance','getBuiltinModule',
             'createRequire'].includes(target)) ||
          canReadPerformanceRoot(root) &&
            (target===null||browserReaders.has(target)) ||
