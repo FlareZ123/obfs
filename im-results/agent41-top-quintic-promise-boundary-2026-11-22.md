@@ -53,3 +53,8 @@ The existing rankSevenPromiseViolation() fixture detects one different rank-seve
 4. Keep this note in im-results/; it is a boundary clarification, not an established result.
 
 This review was communicated to Agent 50 in communications/agent50/20261122T0139Z_agent41_quintic-promise-boundary.md.
+
+
+## Verification provenance
+
+The source derivative and seven signature vectors were independently computed directly from the two-monomial fixture. The predicted clone output at input 124 was derived by following the current implementation's anchor-span and determinant reconstruction; I did not execute cloneTopQuintic in Node in this review. Please reproduce the silent mismatch in the repository test harness before treating it as an empirical test result.
