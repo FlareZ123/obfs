@@ -4040,14 +4040,18 @@ function collectExportedCallableNodes(ast) {
   function markBinding(name,depth) {
     const binding=bindings.get(name);
     if(!binding||depth>24||resolving.has(binding.node))return;
+    if(binding.kind==='function'||binding.kind==='class') {
+      if(written.has(name))markAllCallables();
+      else markTree(binding.node);
+      return;
+    }
     if(binding.kind!=='const'||written.has(name)) {
       // Reassignment can publish a different local callable after evaluation.
       markAllCallables();
       return;
     }
     resolving.add(binding.node);
-    if(binding.kind==='function'||binding.kind==='class')markTree(binding.node);
-    else if(binding.init)markValue(binding.init,depth+1);
+    if(binding.init)markValue(binding.init,depth+1);
     resolving.delete(binding.node);
   }
   /** @returns {void} */
