@@ -57,7 +57,7 @@ Q(n,\delta)\le
 The terms are:
 - \(\sum_{j=0}^{4}\binom nj\) low-Hamming-weight queries, which recover all degree-at-most-four ANF coefficients by Boolean Möbius inversion;
 - at most 63 new values per witness trial: query the full six-direction cube of 64 subset sums once, with \(F(0)\) already cached. All six five-subset derivatives are then computed from these same cached values;
-- at most 30 new values per standard basis vector for its five anchor-signature contractions: their union contains at most 31 points and the empty-subset point is the already queried basis vector.
+- at most 30 new values per standard basis vector: in the five contractions, every anchor-only subset sum is already cached from the witness six-cube; the remaining points are the basis vector plus any subset of up to four anchors (at most 31 points), and the empty-anchor subset is the already queried basis vector.
 
 At n=32 and \(\delta=10^{-10}\):
 \[
