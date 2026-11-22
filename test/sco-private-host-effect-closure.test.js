@@ -320,6 +320,43 @@ test('Unknown or nested timer-spelled bindings remain conservatively refused',()
   }
 });
 
+
+test('Selected SCO requires proven local reads for freshly constructed URL values',()=>{
+  const unsafe=[
+    'const {constructor:C}=new URL("https://example.org/a");'+
+      'return C.createObjectURL(new Blob(["x"]));',
+    'const u=new URL("https://example.org/a");const {constructor:C}=u;'+
+      'return C.createObjectURL(new Blob(["x"]));',
+    'const u=new URL("https://example.org/a");'+
+      'return ((v)=>v.constructor.createObjectURL(new Blob(["x"])))(u);',
+    'const box={u:new URL("https://example.org/a")};'+
+      'return box.u.constructor.createObjectURL(new Blob(["x"]));',
+    'return new URL("https://example.org/a");'
+  ];
+  for(const body of unsafe){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-url-instance-escape-negative-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved cross-realm object URL API/u,body);
+  }
+  const pure=[
+    'return new URL("https://example.org/a").pathname;',
+    'const u=new URL("https://example.org/a");return u.pathname;',
+    'const u=new URL("https://example.org/a");const v=u;return v.hostname;'
+  ];
+  for(const body of pure){
+    const partition=partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-url-instance-escape-positive-20261122',privateNames:['protectedOp']}
+    );
+    assert.deepEqual(partition.privateNames,['protectedOp'],body);
+  }
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
