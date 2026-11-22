@@ -112,3 +112,37 @@ test('XHTML DTD entity declarations and embedded SVG style maps are refused',()=
       /HTML asset contains inline CSS source-map directive/);
   }
 });
+
+test('XHTML all declared base candidates preserve a locally pinned script',()=>{
+  const source='globalThis.xhtmlResult="unchanged-public-source-canary-value";';
+  const hash=createHash('sha256').update(source).digest('base64');
+  // A template base is inert for a document. A later live base can change a
+  // script URL from pages/client.js to client.js in the published file group.
+  const markup=xhtml('<template><base href="/inert-path/"/></template>'+
+    '<base href="/"/>'+
+    '<script src="./client.js" integrity="sha256-'+hash+'"></script>');
+  const files=[
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'pages/index.xhtml',sourceType:/** @type {const} */('asset'),code:markup}
+  ];
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    const result=obfuscateFiles(files,{
+      mode,seed:'xhtml-multiple-base-'+mode,closedWorld:true,
+      strings:true,identifiers:false,properties:false
+    });
+    assert.equal(result.files[0].code,source,
+      mode+': a later live base pins client.js even after an inert base');
+  }
+});
+
+test('unrelated xml:base does not disable a provably independent external SRI script',()=>{
+  const source='globalThis.xhtmlResult="unchanged-public-source-canary-value";';
+  const markup=xhtml('<section xml:base="/not-the-script/"><p>independent</p></section>'+
+    '<script src="https://cdn.example.test/unrelated.js" integrity="sha256-'+
+    'a'.repeat(43)+'"></script>');
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    const result=compile('xhtml',markup,mode);
+    assert.notEqual(result.files[0].code,source,
+      mode+': unrelated XML base and external integrity must not erase transformation yield');
+  }
+});
