@@ -7,6 +7,8 @@
     "sims/llm-matched-affine-cpu-control.js",
     "sims/llm-matched-affine-chromium.js",
     "test/llm-matched-affine-challenge.test.js",
-    "test/llm-matched-affine-static-attack.test.js"
+    "test/llm-matched-affine-static-attack.test.js",
+    "test/affine-symbolic-tdz-shadow.test.js",
+    "test/affine-symbolic-binding-provenance.test.js"
   ]
 }
