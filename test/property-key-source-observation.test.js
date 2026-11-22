@@ -58,7 +58,8 @@ test('non-function computed keys still permit safe renaming',()=>{
 
 test('Map object identity keys do not coerce function to source text',()=>{
   const source="'use strict';const privateData={secretField:7};"+
-    "function inspect(){return privateData.secretField;}"+
+    "function hiddenInspect(){return privateData.secretField;}"+
+    "function inspect(){return hiddenInspect();}"+
     "const storage=new Map([[inspect,3]]);module.exports=inspect()+storage.get(inspect);";
   const output=obfuscateFiles([{path:'case.cjs',sourceType:'commonjs',code:source}],{
     mode:'sno',seed:'source-key-identity',strings:false
