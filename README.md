@@ -85,6 +85,27 @@ controlling runtime. See the
 [raw filename investigation](im-results/raw-filename-utf8-preflight-2026-11-21.md),
 and [Node package BOM parity](im-results/sno-package-json-bom-parity-2026-11-21.md).
 
+## Concurrent COO/SNO publication
+
+The COO and SNO CLI commands serialize cooperating compiler processes
+publishing into the same output directory using a cross-process exclusive lock.
+The lock is located adjacent to the filesystem-resolved output directory
+(`<output>.obfs.lock`) and is released after the build. An interrupted
+publisher can leave a stale lock; inspect the publisher before manually
+removing it. The parent directory must allow creation and removal of the lock.
+
+Each emitted file still uses its own atomic replacement. The publication
+lock protects against concurrent **cooperating builders**, while a reader
+may observe a partially updated tree until the entire build completes.
+For deployment, build into a fresh directory and switch readers only after
+successful completion. Reused output trees may retain stale files not present
+in the current build, so production packaging should use a clean directory.
+A process with control over the output filesystem, including the stated SNO
+attacker, can bypass this cooperative protocol.
+
+Reproduction and limitations:
+[output publication interleaving and alias record](im-results/coo-sno-output-publication-lock-2026-11-22.md).
+
 ## Entrypoints
 
 `bin/coo.js` transforms a directory into static browser files, preserving relative ESM import paths and non-JavaScript assets. Example:
