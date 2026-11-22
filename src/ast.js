@@ -3795,9 +3795,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
  * Mutable exported bindings fail closed by freezing every local callable.
  *
  * @param {AstNode} ast
+ * @param {Set<string>|null} [propertySafeExports]
  * @returns {Set<AstNode>}
  */
-function collectExportedCallableNodes(ast) {
+function collectExportedCallableNodes(ast,propertySafeExports=null) {
   /** @type {Set<AstNode>} */
   const exposed=new Set();
   /** @type {Map<string,{node:AstNode,kind:string,init:AstNode|null}>} */
@@ -4119,7 +4120,8 @@ function collectExportedCallableNodes(ast) {
     });
   }
 
-  for(const name of exported)markBinding(name,0);
+  for(const name of exported)
+    if(!propertySafeExports?.has(name))markBinding(name,0);
   for(const statement of ast.body??[]) {
     if(statement.type==='ExportDefaultDeclaration'&&
        statement.declaration.type!=='Identifier')markValue(statement.declaration,0);
