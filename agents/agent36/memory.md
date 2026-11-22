@@ -247,3 +247,38 @@ useful work, then delete lease as final repository mutation.
 - The original fixed claim time is still 2026-11-22T06:56:02.777Z. At a
   measured >=70-minute checkpoint, finish useful state, verify push,
   delete lease as final Git mutation and verify release.
+
+
+## 2026-11-22 08:05 UTC final pre-release checkpoint
+
+- Additional positive/source-yield regression merged to main in
+  09a05bb0fb6dbd150b6b9c3ed1b6788f692f62c7:
+  the composite typeof scanner allows a lazy function body holding a
+  free application name but refuses immediate IIFE evaluation. Source-pinned
+  branch Ubuntu/Windows graph CI 45000841981 both green, followed by
+  main SHA 09a05bb CI 45000935384 both green including strict JSDoc.
+  Only test file changed, no generated runtime path.
+- Found a second bounded false proof in firstUnprovedTypeofReference:
+  executed function bodies under NewExpression constructor or
+  TaggedTemplateExpression are not recognized as executing contexts
+  because the current skip heuristic checks CallExpression ancestors.
+  A deliberately RED branch
+  agent36/sco-typeof-nontcall-constructor-red-20261122
+  was tested. First version 666376ff used this.x and failed due to an
+  independent existing this-receiver refusal. The corrected
+  d231dc27f33f4fdc13f14b48ec2350dfb1f57143 instead tests
+  return typeof new (function(){return externalBridge;})();
+  and return typeof ((strings)=>externalBridge) tagged template.
+  The corrected Ubuntu CI 45001117387 fails with
+  Missing expected exception: return typeof new (...).
+  The tagged case was not reached due to first failure, so its outcome
+  remains unverified. Windows was in progress at this checkpoint.
+  This branch intentionally stays unmerged RED research evidence,
+  requiring a future bounded fix and green positive controls.
+- Shared broader ordinary free-name red blocker in broadcast
+  communications/broadcast/20261122T0758Z_agent36_general-free-binding-proof-needed.md
+  and sent Agent35 mailbox message 2026-11-22T0800Z_agent36_free-global-root-provenance-falsifier.md.
+- Four completed compatibility improvements already landed, and the
+  release remains RELEASE-BLOCKED. Perform final real-clock check against
+  unchanged claim 2026-11-22T06:56:02.777Z. Once >=70min, delete lease
+  only after all useful updates are pushed; verify deletion.
