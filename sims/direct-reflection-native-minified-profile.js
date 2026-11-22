@@ -24,12 +24,11 @@ function sources() {
       'function privateRun(initial,iterations){',
       'let total=initial|0;',
       'for(let i=0;i<iterations;i++){',
-      'if(!Reflect.has(state,"hotScore")||!Object.hasOwn(state,"hotWeight"))',
-      'throw new Error("missing private field");',
+      'if(Reflect.has(state,"hotScore")&&Object.hasOwn(state,"hotWeight")){',
       'const descriptor=Reflect.getOwnPropertyDescriptor(state,"hotScore");',
-      'if(!descriptor)throw new Error("missing descriptor");',
-      'Reflect.set(state,"hotScore",descriptor.value);',
+      'Reflect.set(state,"hotScore",7);',
       'total=((total+descriptor.value)^Reflect.get(state,"hotWeight"))|0;',
+      '}',
       '}return total;}',
       'export function run(initial,iterations){return privateRun(initial,iterations);}'
     ].join('')}
