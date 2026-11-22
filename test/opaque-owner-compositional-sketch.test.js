@@ -77,7 +77,9 @@ function sketch(index) {
     imports.push('import {relay as '+name+'} from "./'+name+'.mjs";');
     flow.push('owner=await '+name+'(owner);');
   }
-  flow.push('console.log('+observers[observation]+');');
+  // Proxy values cannot be structured-cloned; compare caught error semantics.
+  flow.push('try{console.log('+observers[observation]+');}catch(error){'+
+    'console.log("CAUGHT:"+error.name+":"+error.message);}');
   files.push({path:'main.mjs',sourceType:'module',code:imports.join('')+flow.join('')});
   return {files,hops,observation};
 }
