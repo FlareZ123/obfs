@@ -47,3 +47,21 @@ A caller can leak without an explicit call syntax in its own body. A host preloa
 Exact source [`agent12/ambient-getter-source-review-20261122`](https://github.com/FlareZ123/obfs/tree/agent12/ambient-getter-source-review-20261122), SHA `12bf9ded92088b38a896bc53ed88373fdddf17a2`, test `test/ambient-getter-source-preloader-review.test.js`. [Two-platform run 44993910482](https://github.com/FlareZ123/obfs/actions/runs/44993910482): each OS has **1 native control pass and 3 mode-specific source-parity failures**; per-mode property metrics remain **2**. This is a counterexample to regarding a CallExpression-only effect test as a complete solution.
 
 A stronger source-safe proof must treat reads of opaque or host-controlled objects as possible accessor invocations and account for implicit coercion, proxies, and other user-code effects. Exemptions for proven own data properties need a sound ownership and alias proof, rather than blanket refusal of all member expressions. These distinctions matter to retaining protected-work yield under strict source parity.
+
+## Authentic Node CommonJS wrapper disclosure
+
+The earlier isolated `vm` witnesses observe a named private worker. The corresponding source-disclosure hazard also applies to the **actual Node CommonJS loader wrapper** when the top-level module uses a replaceable ambient API. Node wraps a CommonJS file in a sloppy function of the form:
+
+```js
+function (exports, require, module, __filename, __dirname) {
+  /* supplied file source */
+}
+```
+
+In the independent test, an external preloader replaces `Array.isArray` with a sloppy wrapper that captures its immediate caller, locates the module wrapper by a harmless source marker, records `Function#toString` of the wrapper, then invokes native `Array.isArray`. The module's ordinary exported numeric value remains 21 in both source versions.
+
+Frozen source [`agent12/real-cjs-wrapper-preloader-review-20261122`](https://github.com/FlareZ123/obfs/tree/agent12/real-cjs-wrapper-preloader-review-20261122) at `9e4a671a6715713f920407af737fe7fd788097ac`; test `test/cjs-wrapper-host-preloader-review.test.js` uses `atomicWrite` to create a real temporary launcher and module, then `spawnSync` to run a fresh Node CommonJS loader. [Focused run 44994167245](https://github.com/FlareZ123/obfs/actions/runs/44994167245) at Node 22.23.4 is **1 native pass / 3 COO/SNO/SCO source-parity failures** on each of Ubuntu and Windows. The emitted wrapper's contents include two rewritten private fields (`metrics.properties:2`), while the native wrapper exposes `secretField` and `otherField`. This is independent of whether a private lexical function inside the module is directly called.
+
+**Important limitation:** the test covers non-strict CommonJS whose top-level execution calls a monkeypatchable built-in. It does not establish the same legacy `.caller` exposure in strict code, ESM, or every engine. It does show that preserving exact source only for locally classified `FunctionDeclaration` nodes is insufficient for these host scenarios: the loader itself contributes an externally observable enclosing function body that includes the entire file. An ordinary bundler or minifier that changes that source would likewise fail an unrestricted byte-level `Function#toString` parity requirement under the same hostile preloader.
+
+The existing partial call-expression guard for private lexical functions does **not** address changes elsewhere in a CommonJS module's source when its enclosing loader wrapper is observed. Do not promote this guard without an explicit, externally reviewed definition of which host observations belong in the supported semantic contract.
