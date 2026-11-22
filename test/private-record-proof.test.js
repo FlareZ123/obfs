@@ -37,7 +37,8 @@ const positive=[
   'const right=record["owner"];',
   'function identity(y){return y;}',
   'const reader=v=>v.hiddenCount;',
-  'module.exports=function run(n){return reader(identity(left))*n+right.secretDelta+vault.hiddenCount;}'
+  'function privateRun(n){return reader(identity(left))*n+right.secretDelta+vault.hiddenCount;}',
+  'module.exports=function run(n){return privateRun(n);}'
 ].join('\n');
 
 test('private record slot forwards one owner through dot and bracket access in COO and SNO',()=>{
@@ -47,6 +48,7 @@ test('private record slot forwards one owner through dot and bracket access in C
     assert.equal(result.files[0].metrics.properties,2,mode);
     assert.doesNotMatch(emitted,/hiddenCount|secretDelta/u);
     const before=load(positive),after=load(emitted);
+    assert.equal(after.toString(),before.toString(),mode+' public callable source');
     for(let n=-250;n<=250;n++)assert.equal(after(n),before(n),mode+' input '+n);
   }
 });
@@ -132,7 +134,8 @@ test('private-record alias retains behavior in a two-module native ESM app',{
       'const vault={hiddenCount:41,secretDelta:2};',
       'const record={tag:"x",owner:vault,metadata:0};',
       'const alias=record["owner"];',
-      'export function read(n){return alias.hiddenCount*n+vault.secretDelta;}'
+      'function hiddenRead(n){return alias.hiddenCount*n+vault.secretDelta;}',
+      'export function read(n){return hiddenRead(n);}'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {read} from "./owner.mjs";',
@@ -152,8 +155,8 @@ test('private-record alias retains behavior in a two-module native ESM app',{
 
 test('experimental Symbol-key backend retains private tuple and record ownership proofs',()=>{
   const cases=[
-    'const owner={secretCount:41};const holder=[false,owner];const alias=holder[1];module.exports=n=>alias.secretCount+n;',
-    'const owner={secretCount:41};const holder={tag:"metadata",owned:owner};const alias=holder.owned;module.exports=n=>alias.secretCount+n;'
+    'const owner={secretCount:41};const holder=[false,owner];const alias=holder[1];function hidden(n){return alias.secretCount+n;}module.exports=n=>hidden(n);',
+    'const owner={secretCount:41};const holder={tag:"metadata",owned:owner};const alias=holder.owned;function hidden(n){return alias.secretCount+n;}module.exports=n=>hidden(n);'
   ];
   for(const source of cases){
     const result=obfuscateFiles([{path:'symbol.cjs',sourceType:'commonjs',code:source}],{
@@ -203,11 +206,13 @@ test('closed-world exported owner safely crosses ESM imports alongside a private
       'export const vault={hiddenCount:41,secretDelta:2};',
       'const record={tag:1,owner:vault};',
       'const alias=record.owner;',
-      'export function read(n){return alias.hiddenCount*n+vault.secretDelta;}'
+      'function hiddenRead(n){return alias.hiddenCount*n+vault.secretDelta;}',
+      'export function read(n){return hiddenRead(n);}'
     ].join('\n')},
     {path:'entry.mjs',sourceType:'module',code:[
       'import {vault,read} from "./owner.mjs";',
-      'export function calculate(n){return read(n)+vault.hiddenCount;}'
+      'function privateCalculate(n){return read(n)+vault.hiddenCount;}',
+      'export function calculate(n){return privateCalculate(n);}'
     ].join('\n')}
   ];
   const compiled=obfuscateFiles(files,{mode:'coo',closedWorld:true,
