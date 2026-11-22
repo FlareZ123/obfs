@@ -75,6 +75,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/clone-source-browser.js
+      - name: Demonstrate hostile browser interception of a bound private function target
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/bound-runtime-interception-browser.js
       - name: Verify executable XML document URL behavior in Chromium
         env:
           CHROMIUM_BIN: google-chrome
