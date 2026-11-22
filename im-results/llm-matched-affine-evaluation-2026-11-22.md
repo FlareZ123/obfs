@@ -79,6 +79,23 @@ Ordinary same-source esbuild-minified median/native CPU ratios were about 1.0x o
 
 This is a useful **performance-positive, confidentiality-negative** tradeoff. The backend can run this hot arithmetic family within the sampled post-init CPU threshold, but every public instance in the earlier matched static suite was source-only reconstructed, and all external source-reflection comparisons above differed. Neither CPU result creates a new source secrecy or strong environment-enforcement boundary.
 
+### Independently executable static reconstruction and four-way runtime
+
+The source-only attacker now emits a complete **standalone ESM module**, consisting of the three recovered public exports. After the static answer has been committed to the host verifier, a separate post-grade test actually imports and executes this **reconstructed code**, along with the two published source arms, on 256 deterministic unseen inputs per export per arm. In the new source-pinned [Ubuntu+Windows run 45024144186](https://github.com/FlareZ123/obfs/actions/runs/45024144186), SHA 6a7f24c0a855e21ef7e515c7133b2dcfb77733e8, all 32 randomly sampled source programs passed their original 3,072-case-per-arm private verifier, plus **24,576 rebuilt-ESM vs published-output comparisons per OS**. The reconstructed artifacts, original sources (revealed only after grading), exact source commitments and answer records are preserved in both platform's matched-affine CI archives.
+
+The same source-pinned run incorporated the independently reconstructed ESM as a **fourth** actual executing variant alongside native, ordinary esbuild minification and protected output. The attacker reconstructed the new private source by parsing **only distributed public code**, committed the offsets, and made **zero runtime oracle calls** before the host exposed the original for verification and benchmarking. The code was benchmarked with 13 counterbalanced, warmed, 8-million-calls-per-export trials after module initialization.
+
+| CI host | Mode | Generated/native CPU ratio, median | Reconstructed/native CPU ratio, median | Generated source bytes | Rebuilt source bytes |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Ubuntu | COO | 1.254x | 1.000x | 5,333 | 182 |
+| Ubuntu | SNO | 1.230x | 0.999x | 5,329 | 185 |
+| Windows | COO | 1.450x | 1.007x | 5,326 | 183 |
+| Windows | SNO | 1.376x | 1.000x | 5,314 | 182 |
+
+The same independently source-reconstructed native-form logic is **approximately original-speed** on these sampled workloads, while using only 182–185 source bytes against 5,314–5,333 protected bytes. The individual generated/native CPU paired results remained **13/13 within 2.5x** in each of the four platform/mode combinations, and the existing pairedBudgetBound routine marked all four 95% nominal paired-median diagnostics as supported. That performance pass does not undo the confidentiality failure: the produced affine cases are entirely recoverable offline and the rebuilt code can be run without the original protected artifact.
+
+Exact four-way post-grade CPU provenance is retained under the same run's matched-affine-cpu-Linux artifact (ID 14754653390, SHA-256 0b7bb66f85d553f79e5a2dcd072edb4b61c60f74cb0d71967d6e88efe7b57abb) and matched-affine-cpu-Windows artifact (ID 14754723116, SHA-256 7c0ff69adce3c173cae4fb655a7c3a8bb0e98337f957ad11b4bef7b0c2474ce7). The attack/source corpus is again **post-grade open**, so a later truly blind LLM comparison must sample new hidden programs. No browsers were used for this CPU run. These numbers remain narrow source-family and host-specific diagnostics, not a universal security or runtime certification.
+
 ## Executable evidence and limitations
 
 The focused `test/llm-matched-affine-challenge.test.js` is a **mechanics/parity control**, deliberately not an LLM attack. It loads each public artifact as an actual Node ESM data module, obtains numeric translation answers from one public runtime probe, verifies same-source answer equality, runs 1,024 original-versus-both-public hold-outs per export, grades both arms in one shot and audits the salted commitment after reveal. It also verifies malformed answer refusal and one-shot replay rejection in the host. A separate strict `jsconfig.llm-matched-affine.json` covers both new files. These tests should be run on both Node22 Ubuntu and Windows using the pre-existing manual polyvariant affine workflow.
