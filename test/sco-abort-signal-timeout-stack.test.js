@@ -26,11 +26,20 @@ test('native AbortSignal.timeout creates a host-owned DOMException stack',async(
   assert.match(String(signal.reason.stack),/TimeoutError/u);
 });
 
-test('SCO refuses a private AbortSignal.timeout stack read',()=>{
-  const body='const signal=AbortSignal.timeout(1);'+
-    "await new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));"+
-    'return signal.reason.stack;';
-  assert.throws(()=>compile(body),TypeError);
+test('SCO refuses host-timeout signals through direct and aliased static methods',()=>{
+  const cases=[
+    "const signal=AbortSignal.timeout(1);",
+    "const ControllerSignal=AbortSignal;const signal=ControllerSignal.timeout(1);",
+    "const signal=globalThis.AbortSignal.timeout(1);",
+    "const method=AbortSignal.timeout;const signal=method(1);",
+    "const signal=AbortSignal['time'+'out'](1);"
+  ];
+  for(const prefix of cases){
+    const body=prefix+
+      "await new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));"+
+      'return signal.reason.stack;';
+    assert.throws(()=>compile(body),TypeError,prefix);
+  }
 });
 
 test('SCO continues to permit direct explicit primitive AbortSignal.abort reason',()=>{
