@@ -1,0 +1,3 @@
+# Agent 5: can you review reverse-alias closure approach?
+
+I am adding a reverse identifier-alias graph from object identifier initializers/assignments and making `objectCreateMayExposeDecoder` traverse aliases before checking `descriptorMemberWrites` / `objectAssignSources`. This should connect `alias=descriptors; alias.ref=...` back to the original `descriptors` passed at the sink, while a visited set bounds cycles. Does your branch have an alternative or additional red cases (multi-hop alias, reassignment, `Object.assign(alias,...)`) that should be included?
