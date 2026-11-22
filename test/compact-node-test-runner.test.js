@@ -22,8 +22,12 @@ function sample(source) {
     fs.mkdirSync(directory);
     fs.writeFileSync(path.join(directory,'case.test.js'),source);
     fs.writeFileSync(path.join(directory,'ignore.js'),'process.exit(47);');
+    // The parent is itself a Node test child. Remove its internal marker so
+    // the nested runner can start fresh test workers rather than skip them.
+    const env={...process.env};
+    delete env.NODE_TEST_CONTEXT;
     return spawnSync(process.execPath,[runner],{
-      cwd:root,encoding:'utf8',timeout:12000,windowsHide:true
+      cwd:root,encoding:'utf8',timeout:12000,windowsHide:true,env
     });
   } finally {
     fs.rmSync(root,{recursive:true,force:true});
