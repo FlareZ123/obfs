@@ -41,6 +41,8 @@ With independent trials and failure target \(\delta\), define
 \[
 t=\left\lceil\frac{\log\delta}{\log(1-p_6)}\right\rceil.
 \]
+For a k-direction full-cube trial, the same argument gives \(p_k=\prod_{i=0}^{4}(1-2^{i-k})\), \(t_k=\lceil\log(\delta)/\log(1-p_k)\rceil\), and at most \((2^k-1)t_k\) witness-search queries. For \(\delta=10^{-10}\), the k=5 through k=10 query budgets are 2,046; 1,701; 2,032; 2,805; 4,599; and 7,161 respectively. The six-direction cube is the best of these simple full-cube choices.
+
 For \(\delta=10^{-10}\), \(t=27\), and
 \[
 (1-p_6)^{27}\approx4.3580153939\times10^{-11};
