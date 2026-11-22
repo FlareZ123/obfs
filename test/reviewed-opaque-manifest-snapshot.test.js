@@ -243,7 +243,7 @@ test('standalone asset review refuses compiler-unsafe paths in both input invent
     'assets/aux.css',
     'public~1.css',
     'assets//theme.css',
-    'assets/ .css',
+    'assets/trailing ',
     'bad\uD800.css'
   ];
   for(const name of invalid){
