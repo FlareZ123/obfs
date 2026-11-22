@@ -66,7 +66,7 @@ function runEvidence() {
     const ordinaryResult=invertByReanchoring(oracle,oracle(fixture.control),seed^0x4b36a1cc,1);
     assert.equal(rareResult.value,fixture.secret);
     assert.equal(ordinaryResult.value,fixture.control);
-    assert.ok(rareResult.queries<=66&&ordinaryResult.queries<=66);
+    assert.ok(rareResult.queries<=65&&ordinaryResult.queries<=65);
     rare++;
     ordinary++;
     const next=makeRng(u32(seed^0xf1357c20));
