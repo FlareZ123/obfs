@@ -4,6 +4,7 @@ const {parse}=require('parse5');
 const {SaxesParser}=require('saxes');
 const {portableKeys}=require('./portable-paths');
 const xhtmlNamespace='http://www.w3.org/1999/xhtml';
+const svgNamespace='http://www.w3.org/2000/svg';
 
 /**
  * XHTML uses XML syntax and permits namespace-qualified HTML script elements.
@@ -33,11 +34,13 @@ function findInlineXhtmlSource(xml) {
   });
   parser.on('opentag',tag=>{
     const isHtml=tag.uri===xhtmlNamespace;
+    const isExecutable=isHtml||tag.uri===svgNamespace;
     const name=tag.local.toLowerCase();
     if(scriptDepth)issue??='nested markup inside script';
     if(styleDepth)issue??='nested markup inside style element';
-    if(name==='script')scriptDepth++;
-    if(name==='style'){styleDepth++;stylesheet='';}
+    if(isExecutable&&name==='script')scriptDepth++;
+    if(isExecutable&&name==='style'){styleDepth++;stylesheet='';}
+    if(!isExecutable)return;
     const attributes=Object.values(tag.attributes);
     /** @param {string} key @returns {string|undefined} */
     const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
@@ -72,8 +75,9 @@ function findInlineXhtmlSource(xml) {
   parser.on('cdata',observeText);
   parser.on('closetag',tag=>{
     const name=tag.local.toLowerCase();
-    if(name==='script')scriptDepth--;
-    if(name==='style') {
+    const executable=tag.uri===xhtmlNamespace||tag.uri===svgNamespace;
+    if(executable&&name==='script')scriptDepth--;
+    if(executable&&name==='style') {
       if(hasCssSourceMapDirective(stylesheet))issue??='inline CSS source-map directive';
       if(hasCssDataImport(stylesheet))issue??='embedded stylesheet data import';
       styleDepth--;
@@ -243,15 +247,15 @@ function decodeMarkup(path,code,kind) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
-  if(!/\.(?:html?|xhtml|xht)$/iu.test(path))return;
+  if(!/\.(?:html?|xhtml|xht|xml)$/iu.test(path))return;
   const html=decodeMarkup(path,code,'HTML');
-  const issue=/\.(?:xhtml|xht)$/iu.test(path)?
+  const issue=/\.(?:xhtml|xht|xml)$/iu.test(path)?
     findInlineXhtmlSource(html):findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
 /**
- * Declared HTML and XHTML can pin fetched JavaScript response bytes using SRI. Changing
+ * Declared HTML, XHTML and XML documents can pin fetched JavaScript response bytes using SRI. Changing
  * the JS bytes while leaving the HTML unchanged makes that script fail its
  * browser integrity check, even when all JS expression results are identical.
  *
@@ -381,9 +385,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht)$/iu.test(file.path))continue;
+    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht|xml)$/iu.test(file.path))continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
-    if(/\.(?:xhtml|xht)$/iu.test(file.path)){
+    if(/\.(?:xhtml|xht|xml)$/iu.test(file.path)){
       if(pinnedXhtml(html,file.path))return true;
       continue;
     }

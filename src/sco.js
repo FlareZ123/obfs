@@ -14,6 +14,7 @@ const assetMediaTypes=new Map([
   ['.htm','text/html; charset=utf-8'],
   ['.xhtml','application/xhtml+xml; charset=utf-8'],
   ['.xht','application/xhtml+xml; charset=utf-8'],
+  ['.xml','application/xml; charset=utf-8'],
   ['.css','text/css; charset=utf-8'],
   ['.json','application/json'],
   ['.svg','image/svg+xml'],
