@@ -79,3 +79,39 @@ test('no dynamic import retains string encoding on the target leaf',async()=>{
     assert.deepEqual(await execute(output.files),native);
   }
 });
+
+test('computed data: import source also declines external module decoder effects',async()=>{
+  const input=graph(
+    'const external="data:"+"text/javascript,'+encodeURIComponent(patch)+'";'+
+    'await import(external);'+
+    'const {default:value}=await import("./target.mjs");process.stdout.write(value);'
+  );
+  const native=await execute(input);
+  assert.deepEqual(native,{status:0,stdout:'protected-literal-value',stderr:''});
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'computed-external-esm-intrinsic/'+mode
+    });
+    assert.deepEqual(await execute(output.files),native);
+    assert.equal(output.files.find(file=>file.path==='target.mjs')?.metrics.literals,0);
+  }
+});
+
+test('known graph dynamic dependency mutation also disables decoder',async()=>{
+  const input=[
+    ...graph('await import("./side.mjs");'+
+      'const {default:value}=await import("./target.mjs");process.stdout.write(value);'),
+    {path:'side.mjs',sourceType:'module',code:patch}
+  ];
+  const native=await execute(input);
+  assert.deepEqual(native,{status:0,stdout:'protected-literal-value',stderr:''});
+  for(const mode of /** @type {const} */ (['coo','sno'])){
+    const output=obfuscateFiles(input,{
+      mode,strings:true,properties:false,identifiers:false,
+      seed:'in-graph-dynamic-mutation/'+mode
+    });
+    assert.deepEqual(await execute(output.files),native);
+    assert.equal(output.files.find(file=>file.path==='target.mjs')?.metrics.literals,0);
+  }
+});
