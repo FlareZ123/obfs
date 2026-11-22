@@ -59,6 +59,27 @@ const cases=[
   ['prebound descriptor map',
     'const create=Object.create;const maker=create.bind(null,null,DESCRIPTORS);'+
     'const box=maker();'],
+  ['prebound prototype with invocation-time descriptor map',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const box=maker(DESCRIPTORS);'],
+  ['prebound prototype via bound callable call',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const box=maker.call(null,DESCRIPTORS);'],
+  ['prebound prototype via bound callable apply',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const box=maker.apply(null,[DESCRIPTORS]);'],
+  ['prebound prototype via Reflect.apply bound callable',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const box=Reflect.apply(maker,null,[DESCRIPTORS]);'],
+  ['prebound prototype through nested bind',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const twice=maker.bind(null);const box=twice(DESCRIPTORS);'],
+  ['prebound prototype through holder field',
+    'const create=Object.create;const holder={maker:create.bind(null,null)};'+
+    'const box=holder.maker(DESCRIPTORS);'],
+  ['prebound prototype through copied holder field',
+    'const create=Object.create;const first={maker:create.bind(null,null)};'+
+    'const holder=first;const box=holder.maker(DESCRIPTORS);'],
   ['captured method in array holder',
     'const create=Object.create;const methods=[create];'+
     'const box=methods[0](null,DESCRIPTORS);'],
