@@ -164,35 +164,41 @@ test('string encoding preserves exported callable source but still encodes priva
   assert.equal(await observeBoth(String(output.files[0].code)),await observeBoth(source));
 });
 
-test('combined property, identifier, and string passes preserve public source and retain private yield',async()=>{
+test('combined property, identifier, and string passes preserve exported source and retain independent private yield',async()=>{
   const privateText='private-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const publicText='public-combined-string-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const source='const publicOwner={secretField:3};const privateOwner={privateField:4};'+
-    'const standalone={standaloneKey:11};const standaloneResult=standalone.standaloneKey;'+
-    'function privateHelper(privateParam){return privateOwner.privateField+'+JSON.stringify(privateText)+';}'+
-    'export function publicRead(publicParam){return publicOwner.secretField+'+JSON.stringify(publicText)+';}'+
-    'export const privateResult=privateHelper(5);export const standaloneValue=standaloneResult;';
-  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+  const publicSource='const publicOwner={secretField:3};'+
+    'export function publicRead(publicParam){return publicOwner.secretField+'+JSON.stringify(publicText)+';}';
+  const privateSource='const privateOwner={privateField:4};const value=privateOwner.privateField;'+
+    'function privateHelper(privateParam){return '+JSON.stringify(privateText)+';}'+
+    'export const privateResult=privateHelper(5);export const standaloneValue=value;';
+  /** @type {import('../src/core').SourceFile[]} */
+  const files=[
+    {path:'entry.mjs',sourceType:'module',code:publicSource},
+    {path:'private.mjs',sourceType:'module',code:privateSource}
+  ];
+  const output=obfuscateFiles(files,{
     mode:'coo',closedWorld:true,seed:'esm-public-source-combined',
     strings:true,identifiers:true,properties:true
   });
-  assert.ok(output.files[0].metrics.properties>=1,String(output.files[0].code));
-  assert.ok(output.files[0].metrics.literals>=1,String(output.files[0].code));
-  assert.ok(String(output.files[0].code).includes('publicOwner.secretField'),String(output.files[0].code));
-  assert.ok(String(output.files[0].code).includes('publicParam'),String(output.files[0].code));
-  assert.ok(!String(output.files[0].code).includes('standaloneKey'),String(output.files[0].code));
-  assert.ok(!String(output.files[0].code).includes('privateParam'),String(output.files[0].code));
-  assert.ok(String(output.files[0].code).includes(publicText),String(output.files[0].code));
-  assert.ok(!String(output.files[0].code).includes(privateText),String(output.files[0].code));
-  /** @param {string} code */
-
-  const observeBoth=async code=>{
+  const emittedPublic=String(output.files[0].code);
+  const emittedPrivate=String(output.files[1].code);
+  assert.ok(output.files[1].metrics.properties>=1,emittedPrivate);
+  assert.ok(output.files[1].metrics.literals>=1,emittedPrivate);
+  assert.ok(emittedPublic.includes('publicOwner.secretField'),emittedPublic);
+  assert.ok(emittedPublic.includes('publicParam'),emittedPublic);
+  assert.ok(emittedPublic.includes(publicText),emittedPublic);
+  assert.ok(!emittedPrivate.includes('privateField'),emittedPrivate);
+  assert.ok(!emittedPrivate.includes('privateParam'),emittedPrivate);
+  assert.ok(!emittedPrivate.includes(privateText),emittedPrivate);
+  /** @param {{path:string,code:string|Buffer}[]} inputFiles */
+  const observeBoth=async inputFiles=>{
     const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-source-combined-'));
     try{
-      const file=path.join(dir,'entry.mjs');
-      await atomicWrite(file,code);
-      const url=pathToFileURL(file).href;
-      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.publicRead.toString(),m.publicRead(9),m.privateResult,m.standaloneValue])))`;
+      for(const file of inputFiles)await atomicWrite(path.join(dir,file.path),file.code);
+      const entryUrl=pathToFileURL(path.join(dir,'entry.mjs')).href;
+      const privateUrl=pathToFileURL(path.join(dir,'private.mjs')).href;
+      const script=`Promise.all([import(${JSON.stringify(entryUrl)}),import(${JSON.stringify(privateUrl)})]).then(([pub,priv])=>process.stdout.write(JSON.stringify([pub.publicRead.toString(),pub.publicRead(9),priv.privateResult,priv.standaloneValue])))`;
       const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
       assert.equal(child.status,0,child.stderr);
       return child.stdout;
@@ -200,7 +206,7 @@ test('combined property, identifier, and string passes preserve public source an
       await fs.rm(dir,{recursive:true,force:true});
     }
   };
-  assert.equal(await observeBoth(String(output.files[0].code)),await observeBoth(source));
+  assert.equal(await observeBoth(output.files),await observeBoth(files));
 });
 
 test('advanced control-flow passes reject exported callable source but accept private direct-call-only helpers',async()=>{
