@@ -51,3 +51,31 @@ The test now requires refusal for seven representative native-endings routes: di
 ## References
 
 File API: [Blob constructor and `endings` conversion](https://www.w3.org/TR/FileAPI/#dfn-BPtype); ECMAScript: [Reflect.construct](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Reflect/construct); Node 22 `buffer.Blob`: [Node.js API](https://nodejs.org/docs/latest-v22.x/api/buffer.html).
+
+## Companion case: indirect AbortController construction and source-specific AbortError.stack
+
+A second independent red-first admission witness uses `Reflect.construct(AbortController,[])`. The existing scanner tracks instances created by direct `new AbortController()` and rejects a no-argument `controller.abort()` because the synthesized `AbortError` stack includes source coordinates. The reflected controller does not enter the recognized instance-alias set. Its subsequent default-abort stack was therefore admitted to selective SCO relocation even though its source/host coordinates change.
+
+Frozen witness:
+
+```js
+export async function protectedOp() {
+  const controller=Reflect.construct(AbortController,[]);
+  controller.abort();
+  return controller.signal.reason.stack;
+}
+export function visible(){return 7;}
+```
+
+A [test-only red commit `ec2ad6ce853a7f0d680d68418ca37390619515b0`](https://github.com/FlareZ123/obfs/commit/ec2ad6ce853a7f0d680d68418ca37390619515b0), branched from the same candidate `d0ad1d1`, failed exactly the reflected source-stack refusal assertion on **Ubuntu and Windows** in [focused run 45076038000](https://github.com/FlareZ123/obfs/actions/runs/45076038000). Three controls passed: native reflected AbortController yields a visible DOMException stack containing the test filename; direct `new AbortController()` with default abort reason already refuses; explicit primitive abort reason stays eligible.
+
+The isolated [green fix head `27449ffc0bfc89fff87befea3a5e10b2fbd1a152`](https://github.com/FlareZ123/obfs/commit/27449ffc0bfc89fff87befea3a5e10b2fbd1a152) adds a 17-line first-class AbortController constructor guard inside `realmStateObservation`, similar in structure to the Blob proof. Its expanded suite rejects reflected, global-member, alias, bound, literal registry and `Reflect.apply` construction; direct and aliased explicit primitive-abort reasons remain admitted. [Focused run 45076147461](https://github.com/FlareZ123/obfs/actions/runs/45076147461) passed both platforms, project JSDoc and external JSDoc.
+
+## Combined source-pinned composition
+
+Rather than ask the canonical owner to integrate two competing branches, the [combined branch `agent8/sco-host-constructors-combined-20261122`](https://github.com/FlareZ123/obfs/tree/agent8/sco-host-constructors-combined-20261122) carries both patches and both tests together. Its frozen integration head is [`34a25886cfa842f2e87efa0bb37246691e13099d`](https://github.com/FlareZ123/obfs/commit/34a25886cfa842f2e87efa0bb37246691e13099d). GitHub comparison against the owner candidate `d0ad1d1` proves exactly **33 production lines added** in `src/sco-selective-partition.js` and two added regression files (62 + 65 lines), with zero deletions or unrelated changes.
+
+At that identical combined SHA, [Blob focused run 45076289392](https://github.com/FlareZ123/obfs/actions/runs/45076289392) and [Abort focused run 45076293175](https://github.com/FlareZ123/obfs/actions/runs/45076293175) were each **green on Ubuntu and Windows**, including strict project and external JSDoc. One combined comprehensive `manual-validation.yml` dispatch was requested at the same frozen branch/head, with its verdict to be recorded after completion; no claim of comprehensive green is made here yet.
+
+Both new guards run during compilation and add zero protected-code runtime operations. They conservatively restrict previously admitted cross-host source shapes while retaining distinct confirmed positive paths. These finite test families do not establish a complete semantics proof for arbitrary host constructors, unknown aliases, custom loaders, or injected realm intrinsics. They do not affect the strong-protection RELEASE-BLOCKED decision.
+
