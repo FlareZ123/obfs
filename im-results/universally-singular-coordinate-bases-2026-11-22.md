@@ -64,6 +64,12 @@ The counterexample concerns **fixed external coordinate directions** `e_i`. It i
 
 For the explicit three-bit example, `A^{-1}=A`, so choosing directions `[1,2,7]` at anchor zero yields native output differences `[5,6,4]`, an invertible compatible matrix in hidden input coordinates. Changing the direction basis escapes the original coordinate singularity. The proof therefore rules out only the policy that varies anchors while keeping its *sampled external basis fixed*. It gives no oracle-query lower bound against attacks that can discover other input directions.
 
+### A general rank-only common-basis lemma
+
+There is a useful unrestricted finite-set contrast, independent of the triangular architecture: **for every permutation** `F:GF(2)^n→GF(2)^n` and every anchor `r`, there exists *some* input direction basis `d_0,...,d_(n-1)` such that the output differences `F(r⊕d_i)⊕F(r)` also form a basis. To prove it, set `g(u)=F(r⊕u)⊕F(r)`; it is a bijection with `g(0)=0`. Suppose `k<n` directions have independent input/output spans `U,W`, each of size `2^k`. Directions forbidden for the next step are `U ∪ g^{-1}(W)`. Both sets have exactly `2^k` elements and both contain zero, so their union contains at most `2^(k+1)-1 < 2^n` elements. Some `d` lies outside the union, expanding both spans. Repeat to `k=n`.
+
+This lemma guarantees existence of a **full-rank** finite-difference interpolation under a changed direction basis for arbitrary bijections. Its proof supplies no efficient worst-case *black-box* method for finding that basis, and it supplies **no compatibility guarantee** for the hidden source-coordinate normalization. Thus it does not rescue the fixed-coordinate reanchoring theorem nor contradict its conditions.
+
 ## Exhaustive width-three census
 
 The accompanying deterministic CJS reproducer enumerates all **168** invertible 3×3 input linear maps and all **128** three-bit compatible permutations (one constant low-bit toggle, two Boolean values for bit 1, and four for bit 2). For each of the **21,504** source pairs, it directly computes `M_r` at all eight anchors and checks invertibility plus the hidden source-coordinate compatibility criterion.
