@@ -218,11 +218,20 @@ function main(){
     return swaps.get(x)??x;
   }),32);
   assert.equal(first.rank,6);
-  const hard=findCommonBasis(x=>swaps.get(x)??x,32,seededSampler(20261123),100000);
+  // Any binary32 permutation has initial output rank >=6. With at most
+  // 26 rank repairs, a uniform raw trial improves rank with probability
+  // >=3/8. A 26*102=2652 draw cap gives an analytic failure upper bound
+  // 26*(5/8)^102 < 2^-64 for independent uniform draws. The seeded
+  // deterministic fixture checks functionality, not that probability.
+  const hard=findCommonBasis(x=>swaps.get(x)??x,32,seededSampler(20261123),2652);
   assert.equal(hard.initialRank,6);
   assert.equal(hard.finalRank,32);
   assert.equal(hard.replacements,26);
   assert.equal(columnSpace(hard.outputs,32).rank,32);
+  assert.throws(
+    ()=>findCommonBasis(x=>swaps.get(x)??x,32,seededSampler(20261123),0),
+    /Common-basis sampling cap exhausted/,
+    'A zero sampling cap must explicitly reject a singular calibration');
   console.log('COMMON_BASIS_RANDOM_REPAIR '+JSON.stringify({
     width3:{permutations:count,repairs:touched,maxValidTrials:maxTrials,
       maxOracleCalls:maxCalls,initialRanks:Object.fromEntries(frequency)},
