@@ -1,5 +1,7 @@
 'use strict';
 
+const {performance}=require('node:perf_hooks');
+
 /**
  * Rejection used when the optional per-principal outstanding-call limit is
  * reached before protected authorization or execution begins. The SCO HTTP
@@ -32,6 +34,9 @@ class ScoIsolationBusyError extends Error {
  * lookups and releases their global reservations. This cannot interrupt a
  * synchronous blocked event loop or cancel the resolver's own I/O; a late
  * resolver result is ignored and cannot execute protected work.
+ * An elapsed-time check also refuses late completion when a blocked event
+ * loop prevents the deadline timer from running; it cannot undo the time
+ * already spent in a blocking resolver.
  * The optional abortPrincipalLookup flag passes an AbortSignal to the
  * principal resolver and aborts it on expiry, allowing cooperating external
  * identity providers to cancel their own pending I/O. Cancellation remains
@@ -73,6 +78,10 @@ function createScoKeyedIsolation(principalOf,options={}) {
     if(totalPending>=totalLimit)throw new ScoIsolationBusyError();
     totalPending++;
     try{
+      // A Node timer can fire late when an identity resolver blocks the event
+      // loop. Measure actual elapsed time as well to prevent a result that
+      // only settles after the deadline from entering private execution.
+      const lookupStarted=resolutionDeadline===Infinity?0:performance.now();
       const controller=cancelLookup?new AbortController():undefined;
       const resolving=controller?principalOf(request,controller.signal):principalOf(request);
       let principal;
@@ -110,6 +119,11 @@ function createScoKeyedIsolation(principalOf,options={}) {
         }
         if(rejected)throw value;
         principal=value;
+      }
+      if(resolutionDeadline!==Infinity &&
+         performance.now()-lookupStarted>=resolutionDeadline) {
+        controller?.abort();
+        throw new ScoIsolationBusyError();
       }
       if(typeof principal!=='string'||principal.length<1||principal.length>256) {
         throw new TypeError('Authenticated principal must be a nonempty string of at most 256 characters');

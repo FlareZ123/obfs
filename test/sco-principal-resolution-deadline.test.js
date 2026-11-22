@@ -237,3 +237,46 @@ test('SCO HTTP deadline rejects stalled lookup with 429 and accepts next call',{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
   }
 });
+
+test('SCO lookup deadline rejects microtask resolution after timers were starved',async()=>{
+  const blocked=new Int32Array(new SharedArrayBuffer(4));
+  let lookups=0;
+  let privateEffects=0;
+  /** @type {AbortSignal|undefined} */
+  let lookupSignal;
+  const isolate=createScoKeyedIsolation((_request,signal)=>{
+    lookupSignal=signal;
+    lookups++;
+    if(lookups===1){
+      return new Promise(resolve=>{
+        queueMicrotask(()=>{
+          // This blocks the timer phase while the identity promise settles.
+          // A deadline enforced solely by setTimeout can incorrectly accept it.
+          Atomics.wait(blocked,0,0,35);
+          resolve('verified');
+        });
+      });
+    }
+    return Promise.resolve('verified');
+  },{maxPendingTotal:1,maxPrincipalResolutionMs:5,abortPrincipalLookup:true});
+  await assert.rejects(
+    isolate(requestFor(),async()=>{privateEffects++;}),
+    ScoIsolationBusyError);
+  assert.equal(privateEffects,0,'Expired lookup must never enter private work');
+  assert.equal(lookupSignal?.aborted,true,'Expired lookup must abort its signal');
+  await isolate(requestFor(),async()=>{privateEffects++;});
+  assert.equal(privateEffects,1,'Timeout frees its global reservation');
+});
+
+test('SCO lookup deadline checks a blocking synchronous principal resolver',async()=>{
+  const blocked=new Int32Array(new SharedArrayBuffer(4));
+  let privateEffects=0;
+  const isolate=createScoKeyedIsolation(()=>{
+    Atomics.wait(blocked,0,0,35);
+    return 'verified';
+  },{maxPendingTotal:1,maxPrincipalResolutionMs:5});
+  await assert.rejects(
+    isolate(requestFor(),async()=>{privateEffects++;}),
+    ScoIsolationBusyError);
+  assert.equal(privateEffects,0,'Over-deadline lookup may not launch protected work');
+});
