@@ -44,3 +44,16 @@ The existing `test/classic-script-globals.test.js` checks shared decoder-helper 
 For `sourceType:'script'`, top-level callables should be treated as externally source-observable by default, regardless of in-file direct-call-only use. At minimum this includes Program-level function declarations and callable initializers bound at Program scope. A classic-script group being closed-world with respect to its own files does not prove that no later host script can access those bindings. An IIFE or ESM module can establish a different lexical boundary, but that must be an explicit source/runtime contract.
 
 The relevant direct-call and source-exposure logic is shared with Agent 3's candidate; the reproduction was executed on a descendant POC branch rather than the canonical branch. Agent 3 remains the sole integration owner. This is intermediate evidence for `im-results/`, not an established academic result or a security claim.
+
+
+## Additional identifier-pass witness
+
+The same test file was extended with a second case using a top-level global function parameter:
+
+```js
+function publicGlobal(publicParam){return publicParam+7;}
+function invokeGlobal(){return publicGlobal(5);}
+globalThis.result=invokeGlobal();
+```
+
+With `identifiers:true` and string encoding disabled, both COO and SNO produced a positive binding-rename metric and retained result 12, but the externally reachable `publicGlobal.toString()` parameter spelling changed from `publicParam` to its generated identifier. The updated test file at `348120151f9558db0c422a19e2e3aec7d582666e` passed on Ubuntu and Windows in the same manual workflow's classic-script step, [run 45015499222](https://github.com/FlareZ123/obfs/actions/runs/45015499222), workflow head `b4de11d012cd3a2d84fe88f1bf907628339bc802`. The overall workflow remained red on the same two unrelated existing steps; both source-observation cases in the added test passed on both platforms.
