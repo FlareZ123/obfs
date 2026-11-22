@@ -64,9 +64,16 @@ for(const [name,expression] of [
 
 test('without cross-file source observation local owned fields remain renameable',async()=>{
   const files=graph('inspect()');
+  // The previous positive exported an inspect() body spelling the secret
+  // field, which is source-observable by every importing module. Test a
+  // distinct private-helper application whose public source stays stable.
+  files[0].code='const state={secretField:71};'+
+    'function privateInspect(){return state.secretField;}'+
+    'export function inspect(){return privateInspect();}';
   const baseline=await execute(files);
   const output=obfuscateFiles(files,{mode:'coo',closedWorld:true,
-    seed:'intl-cross-file-positive',strings:false,identifiers:false});
+    seed:'intl-cross-file-positive',strings:false,identifiers:false,
+    preservePublicCallableSource:true});
   assert.equal(output.files[0].metrics.objects,1,output.files[0].code);
   assert.ok(!output.files[0].code.includes('secretField'));
   assert.equal(await execute(/** @type {ModuleFile[]} */(output.files)),baseline);
