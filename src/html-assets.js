@@ -98,6 +98,7 @@ const utf8=new TextDecoder('utf-8',{fatal:true});
 /**
  * @typedef {{
  *   tagName?:string,
+ *   namespaceURI?:string,
  *   attrs?:{name:string,value:string}[],
  *   childNodes?:HtmlNode[],
  *   content?:HtmlNode,
@@ -403,7 +404,9 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     /** @param {HtmlNode} node */
     function findBase(node){
       if(baseHref!==null)return;
-      if(node.tagName==='base'){
+      // A foreign SVG/MathML <base> is not an HTMLBaseElement and
+      // cannot establish the document's first active HTML base URL.
+      if(node.tagName==='base'&&node.namespaceURI===xhtmlNamespace){
         const href=node.attrs?.find(attr=>attr.name==='href')?.value;
         if(href!==undefined){baseHref=href;return;}
       }

@@ -377,3 +377,29 @@ test('a base element later than an SRI script cannot invalidate its original URL
     assert.equal(output.files[0].code,source,'Protect the earlier script in '+mode);
   }
 });
+
+
+test('foreign SVG base cannot hide a later HTML base from SRI source-byte protection',()=>{
+  const source='globalThis.svgBaseIntegrity="the declared live HTML base pins these original bytes";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='<!doctype html><html><body><svg><base href="/unrelated/"/></svg>'+
+    '<base href="/assets/"><script src="./client.js" ';
+  const html=prefix+'integrity="sha256-'+digest+'"></script></body></html>';
+  const files=[
+    {path:'assets/client.js',sourceType:/** @type {const} */ ('script'),code:source},
+    {path:'pages/index.html',sourceType:/** @type {const} */ ('asset'),code:Buffer.from(html)}
+  ];
+  for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+    const options={mode,seed:'svg-foreign-base/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      files[0],
+      {...files[1],code:Buffer.from(prefix+'></script></body></html>')}
+    ],options);
+    assert.notEqual(control.files[0].code,source,mode+
+      ': positive control must confirm the chosen code actually transforms');
+    const protectedFiles=obfuscateFiles(files,options);
+    assert.equal(protectedFiles.files[0].code,source,mode+
+      ': SVG <base> is not an HTMLBaseElement, so the live HTML base pins the script');
+  }
+});
