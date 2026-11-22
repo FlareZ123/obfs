@@ -315,7 +315,12 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
   let declarations=constantDeclaratorsCache.get(ast);
   if(!declarations){
     declarations=[];
-    walk(ast,(node,parent)=>{
+    let dynamicScope=false;
+  walk(ast,(node,parent)=>{
+    if(node.type==='WithStatement'||
+       (node.type==='CallExpression'||node.type==='NewExpression')&&
+       node.callee?.type==='Identifier'&&
+       ['eval','Function'].includes(node.callee.name))dynamicScope=true;
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' &&
           parent?.type==='VariableDeclaration' && parent.kind==='const'){
         /** @type {AstNode[]} */ (declarations).push(node);
@@ -1133,7 +1138,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 /**
@@ -1143,6 +1148,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
@@ -1266,14 +1272,15 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * class escape or interprocedural provenance analysis.
  * @param {AstNode} ast
  * @param {Map<string,number>} bindings
+ * @param {'script'|'module'|'commonjs'} sourceType
  * @returns {{classes:Set<AstNode>,methods:Set<AstNode>}}
  */
-function collectPrivateDirectClasses(ast,bindings) {
+function collectPrivateDirectClasses(ast,bindings,sourceType) {
   /** @type {Set<AstNode>} */
   const classes=new Set();
   /** @type {Set<AstNode>} */
   const methods=new Set();
-  if(ast.type!=='Program')return {classes,methods};
+  if(ast.type!=='Program'||sourceType==='script')return {classes,methods};
   /** @type {WeakMap<AstNode,AstNode>} */
   const parents=new WeakMap();
   /** @type {Map<string,AstNode[]>} */
@@ -1285,6 +1292,7 @@ function collectPrivateDirectClasses(ast,bindings) {
     uses.push(node);
     identifiers.set(node.name,uses);
   });
+  if(dynamicScope)return {classes,methods};
   for(const cls of ast.body){
     if(cls.type!=='ClassDeclaration'||cls.id?.type!=='Identifier'||
        cls.superClass!==null||cls.body?.type!=='ClassBody'||
@@ -1293,6 +1301,7 @@ function collectPrivateDirectClasses(ast,bindings) {
     if(definition.type!=='MethodDefinition'||definition.kind!=='method'||
        definition.computed||definition.static||definition.key?.type!=='Identifier'||
        definition.value?.type!=='FunctionExpression'||
+       definition.value.async||definition.value.generator||
        definition.value.params.length!==0||
        definition.value.body?.body?.length!==1)continue;
     const bodyReturn=definition.value.body.body[0];
@@ -1314,7 +1323,7 @@ function collectPrivateDirectClasses(ast,bindings) {
     const own=ownerLiteral.properties[0];
     if(own.type!=='Property'||own.computed||own.shorthand||own.method||
        own.kind!=='init'||ownPropertyName(own)!==field.property.name||
-       !isLiteralValue(own.value))continue;
+       !isPrimitiveConstantExpression(own.value))continue;
     const classRefs=identifiers.get(cls.id.name)??[];
     if(classRefs.length!==2||!classRefs.includes(cls.id))continue;
     const constructorRef=classRefs.find(node=>node!==cls.id);
@@ -1326,6 +1335,7 @@ function collectPrivateDirectClasses(ast,bindings) {
        declarator.init!==creation||declarator.id?.type!=='Identifier'||
        statement?.type!=='VariableDeclaration'||statement.kind!=='const'||
        parents.get(statement)!==ast||statement.declarations.length!==1||
+       !(ownerStatement.end<=cls.start&&cls.end<=statement.start)||
        bindings.get(declarator.id.name)!==1)continue;
     const instanceRefs=identifiers.get(declarator.id.name)??[];
     if(instanceRefs.length<2||!instanceRefs.includes(declarator.id))continue;
@@ -1337,7 +1347,8 @@ function collectPrivateDirectClasses(ast,bindings) {
         !member.computed&&!member.optional&&
         staticName(member.property)===definition.key.name&&
         call?.type==='CallExpression'&&call.callee===member&&
-        call.arguments.length===0&&!call.optional;
+        call.arguments.length===0&&!call.optional&&
+        call.start>=statement.end;
     }))continue;
     classes.add(cls);
     methods.add(definition.value);
@@ -1353,9 +1364,9 @@ function collectPrivateDirectClasses(ast,bindings) {
  * @param {Map<string,number>} [bindings]
  * @returns {Set<AstNode>}
  */
-function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
+function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='script') {
   const privateCallables=collectPrivateDirectCallables(ast,bindings);
-  const privateClasses=collectPrivateDirectClasses(ast,bindings);
+  const privateClasses=collectPrivateDirectClasses(ast,bindings,sourceType);
   const sourceBodies=new Set([
     'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
     'ClassDeclaration','ClassExpression'
@@ -1402,7 +1413,7 @@ function renameLocalProperties(source, ast, options) {
     candidates.push({node:literal,name:parent.id.name,properties});
   });
 
-  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings,options.sourceType);
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{
