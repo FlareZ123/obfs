@@ -3,6 +3,7 @@
   "include": [
     "test/esm-exported-callable-aggregate-reachability.test.js",
     "test/esm-exported-callable-string-source.test.js",
+    "test/esm-exported-callable-string-browser.js",
     "test/esm-private-class-positive-yield.test.js",
     "test/source-observer-islands-external-callable-source.test.js",
     "test/source-observer-islands-external-callable-browser.js",
