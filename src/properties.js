@@ -1242,9 +1242,15 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast),sourceT
     if(!scope)return false;
     for(const use of inventory.identifierUses.get(name)??[]) {
       if(use.node===definition)continue;
-      if(!use.ancestors.includes(scope)||
-         use.parent?.type!=='CallExpression'||use.key!=='callee'||
-         use.parent.optional)return false;
+      const direct=use.parent?.type==='CallExpression'&&
+        use.key==='callee'&&!use.parent.optional;
+      // Strict identity comparisons inspect neither callable source nor
+      // primitive conversion. A closed-scoped reference used only by ===/!==
+      // cannot expose the callable to a host or to Function#toString.
+      const strictIdentity=use.parent?.type==='BinaryExpression'&&
+        ['===','!=='].includes(use.parent.operator)&&
+        ['left','right'].includes(use.key??'');
+      if(!use.ancestors.includes(scope)||(!direct&&!strictIdentity))return false;
     }
     return true;
   }
