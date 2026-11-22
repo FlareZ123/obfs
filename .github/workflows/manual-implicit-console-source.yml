@@ -48,6 +48,9 @@ jobs:
       - name: Adversarially verify private-class source escape proof
         if: ${{ !cancelled() }}
         run: node --test test/private-direct-class-escape-proof.test.js
+      - name: Node CommonJS enclosing function source under private-class proof
+        if: ${{ !cancelled() }}
+        run: node --test test/cjs-wrapper-source-observer.test.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
