@@ -60,6 +60,7 @@ The identifier pass emits `function read(_v29980ee680ed){return _v29980ee680ed;}
 
 - [Run 44978830979](https://github.com/FlareZ123/obfs/actions/runs/44978830979): both exported property-owner fixtures fail exact source equivalence on Linux and Windows; the unexported-function positive property-yield control passes.
 - [Run 44978943192](https://github.com/FlareZ123/obfs/actions/runs/44978943192): the same two property fixtures fail and the exported-parameter identifier fixture also fails on Linux and Windows; the unexported property-yield control passes.
+- [Run 44979154437](https://github.com/FlareZ123/obfs/actions/runs/44979154437): expanded paired fixture confirms all four source-preservation assertions fail on Linux and Windows, while the unexported property-yield control passes. The paired module has both `privateHelper(privateParam)` and `export function publicRead(publicParam)`: the compiler renames both parameters, but a per-callable fix should preserve `publicParam` while retaining the safe `privateParam` rename.
 
 The test file is `test/esm-public-callable-source.test.js` on the isolated branch.
 
