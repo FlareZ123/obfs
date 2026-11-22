@@ -28,15 +28,12 @@ async function execute(root,files,entry) {
 }
 
 /**
- * A factory module exports a bound native Object.create with its prototype
- * argument already supplied. The consuming module supplies the descriptor map
- * as argument zero, not argument one.
- *
  * @param {'cjs-direct'|'cjs-holder'|'esm-named'} kind
+ * @param {'direct'|'call'|'apply'|'reflect-apply'|'spread'} callStyle
  * @param {boolean} safe
  * @returns {{files:SourceFile[],entry:string,target:string}}
  */
-function sourceGraph(kind,safe) {
+function sourceGraph(kind,callStyle,safe) {
   const esm=kind==='esm-named';
   const ext=esm?'mjs':'cjs';
   const entry='entry.'+ext;
@@ -51,9 +48,15 @@ function sourceGraph(kind,safe) {
     "import {make} from './factory.mjs';":
     kind==='cjs-holder'?"const {make}=require('./factory.cjs');":
       "const make=require('./factory.cjs');";
-  const mutate=mutator+
-    'const box=make({ref:{get(){return '+ctor+'.prototype}}});'+
-    'box.ref.'+write;
+  const descriptors='{ref:{get(){return '+ctor+'.prototype}}}';
+  const invocation=callStyle==='direct'?
+    'make('+descriptors+')':
+    callStyle==='call'?'make.call(null,'+descriptors+')':
+    callStyle==='apply'?'make.apply(null,['+descriptors+'])':
+    callStyle==='reflect-apply'?
+      'Reflect.apply(make,null,['+descriptors+'])':
+      'make(...['+descriptors+'])';
+  const mutate=mutator+'const box='+invocation+';box.ref.'+write;
   const entrySource=esm?
     "import './mutator.mjs';import {value} from './target.mjs';process.stdout.write(value);":
     "require('./mutator.cjs');process.stdout.write(require('./target.cjs'));";
@@ -69,31 +72,35 @@ function sourceGraph(kind,safe) {
 }
 
 for(const kind of /** @type {const} */ (['cjs-direct','cjs-holder','esm-named'])) {
-  const modes=kind==='esm-named'?['coo']:['coo','sno','sco'];
-  for(const mode of modes) {
-    for(const safe of [false,true]) {
-      test('cross-file bound native Object.create export '+kind+'/'+mode+'/'+
-        (safe?'Number benign':'String unsafe'),async()=>{
-        const {entry,target,files}=sourceGraph(kind,safe);
-        const output=obfuscateFiles(files,{
-          mode,strings:true,identifiers:false,properties:false,
-          seed:'bound-exported-native-create/'+kind+'/'+mode+'/'+safe
+  const modes=/** @type {Array<'coo'|'sno'|'sco'>} */ (
+    kind==='esm-named'?['coo']:['coo','sno','sco']);
+  for(const callStyle of /** @type {const} */ (
+    ['direct','call','apply','reflect-apply','spread'])) {
+    for(const mode of modes) {
+      for(const safe of [false,true]) {
+        test('cross-file bound native Object.create export '+kind+'/'+
+          callStyle+'/'+mode+'/'+(safe?'Number benign':'String unsafe'),async()=>{
+          const {entry,target,files}=sourceGraph(kind,callStyle,safe);
+          const output=obfuscateFiles(files,{
+            mode,strings:true,identifiers:false,properties:false,
+            seed:'bound-exported-native-create/'+kind+'/'+callStyle+'/'+mode+'/'+safe
+          });
+          const emitted=output.files.find(file=>file.path===target);
+          assert.ok(emitted,'target must be emitted');
+          const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bound-exported-create-'));
+          try {
+            const native=await execute(path.join(root,'native'),files,entry);
+            const transformed=await execute(path.join(root,'emitted'),output.files,entry);
+            assert.equal(native.status,0,native.stderr);
+            assert.deepEqual(transformed,native,
+              'Cross-file bound native callable altered runtime output');
+          } finally {
+            await fs.rm(root,{recursive:true,force:true});
+          }
+          assert.equal(emitted.metrics.literals,safe?1:0,
+            'Sensitive bound descriptor must be refused while benign yield remains');
         });
-        const emitted=output.files.find(file=>file.path===target);
-        assert.ok(emitted,'target must be emitted');
-        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bound-exported-create-'));
-        try {
-          const native=await execute(path.join(root,'native'),files,entry);
-          const transformed=await execute(path.join(root,'emitted'),output.files,entry);
-          assert.equal(native.status,0,native.stderr);
-          assert.deepEqual(transformed,native,
-            'Cross-file bound native callable altered runtime output');
-        } finally {
-          await fs.rm(root,{recursive:true,force:true});
-        }
-        assert.equal(emitted.metrics.literals,safe?1:0,
-          'Sensitive bound descriptor must be refused while benign yield remains');
-      });
+      }
     }
   }
 }
