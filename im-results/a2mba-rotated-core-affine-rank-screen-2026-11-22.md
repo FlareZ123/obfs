@@ -24,7 +24,7 @@ A_F(x) = F(0) xor XOR_{i: bit_i(x)=1} (F(2^i) xor F(0))
 D_F(x) = F(x) xor A_F(x)
 ```
 
-The diagnostic computes the GF(2) linear-span rank of observed 32-bit `D_F(x)` values. All 496 distinct two-bit inputs and 4,096 deterministic xorshift32 inputs (seed `0x71a3c9f5`) are checked per function. A rank of 32 exhausts the possible 32-bit output-space rank; a lower sampled rank is only a lower bound on the true residual span. This diagnostic is defined on **one public input slice**. It neither proves a representation of the original 128-bit domain nor bounds chosen-query inversion on the unrestricted function.
+The diagnostic computes the GF(2) linear-span rank of observed 32-bit `D_F(x)` values. All 496 distinct two-bit inputs and 4,096 deterministic xorshift32 inputs (seed `0x71a3c9f5`) are checked per function. A rank of 32 exhausts the possible 32-bit output-space rank; a lower sampled rank is only a lower bound on the true residual span. A second version of the same affine-interpolant diagnostic uses **all 128 input bits** of the four original Int32 arguments. Its input basis consists of the origin and 128 individual bit vectors; it checks all 8,128 two-bit input vectors and 4,096 seeded four-word inputs, for 12,224 residual observations. This measures the original complete four-word input domain, with a 32-bit output. A full observed rank 32 is mathematically maximal for this residual span, but neither rank computation establishes a chosen-query inversion bound.
 
 ## Local reproduction and result
 
@@ -41,6 +41,8 @@ Executed with Node `v22.16.0` on Linux. The two focused Node tests passed locall
 | Rank-one quadratic shear `x xor ((x0 & x1) << 2)` | 1 | 4,592 |
 | Independent rank-two quadratic shear | 2 | 4,592 |
 | Original four-input region on `E(x)` | **32** | 4,592 |
+| Original full 128-bit four-word domain | **32** | 12,224 |
+| Four rotated cores on full 128-bit domain | **32 each** | 12,224 each |
 | Same original region on degenerate slice `(x,0,0,0)` | **0** | 4,592 |
 | Rotated cores at rotations 1, 8, 16 and 31 on `E(x)` | **32 each** | 4,592 each |
 
@@ -48,7 +50,7 @@ For each of those four rotations, the script additionally checked 10,000 determi
 
 ## Interpretation
 
-A second slice exposes the diagnostic's dependence on domain selection: on the public path `(x,0,0,0)`, the same region evaluates to the constant zero, yielding residual rank **0** despite the original four-input region having full sampled rank 32 on `E(x)`. A low-rank subspace by itself therefore cannot establish a low-rank *whole-function* decomposition or satisfy a low-rank attack theorem's hypotheses. An attack inference needs a proven global structural model or a chosen-input strategy that actually reaches the relevant target domain.
+A second slice exposes the diagnostic's dependence on domain selection: on the public path `(x,0,0,0)`, the same region evaluates to the constant zero, yielding residual rank **0** despite the original four-input region having exact maximal observed residual rank 32 both on `E(x)` and over all four word inputs. The all-word screen is important because it eliminates the uncertainty that maximal rank was an artifact of that particular affine projection. A low-rank subspace by itself therefore cannot establish a low-rank *whole-function* decomposition or satisfy a low-rank attack theorem's hypotheses. An attack inference needs a proven global structural model or a chosen-input strategy that actually reaches the relevant target domain.
 
 The rotated core and its native baseline compute the same `F` on the public affine slice, so their residual ranks must coincide if the semantics are preserved. The maximum observed rank therefore **does not** rescue the representation from the existing source-only normalizer. That independent frozen recognizer already recovered 32/32 later-generated rotated-core instances under its stated grammar in the [source-pinned 19 November report](a2mba-rotated-core-int32-feasibility-2026-11-19.md).
 
