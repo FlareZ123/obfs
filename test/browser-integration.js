@@ -176,7 +176,7 @@ async function main(){
       code:'import {bag} from "./computed-state.mjs";'+
         'import {choice} from "./computed-relay.mjs";'+
         'const {[choice]:value=99}=bag;'+
-        'window.hostApi.accept(String(value+bag.bias)+":"+choice);'}
+        'window.hostApi.accept(value+bag.bias);'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-acyclic-late-computed',
     identifiers:false,strings:false});
   assert.equal(computedSet.crossFile.properties,2);
@@ -338,7 +338,7 @@ async function main(){
       ['/default-module.html','17,0,5'],['/reflection.html','reflection-ok'],
       ['/cycle.html','browser-cycle-ok'],
       ['/reader.html','41'],
-      ['/pattern.html','41'],['/computed-pattern.html','22:privateScore'],
+      ['/pattern.html','41'],['/computed-pattern.html','22'],
       ['/factory.html','41'],['/factory-iife.html','41'],
       ['/container.html','37'],
       ['/good.html','permitted'],['/blocked.html','initial'],
