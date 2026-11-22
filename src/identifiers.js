@@ -37,13 +37,14 @@ function classifyIdentifier(node,parent,key) {
 /**
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,sourceType:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,sourceType:'script'|'module'|'commonjs',preserveCallableSource?:boolean}} options
  * @returns {{code:string,bindings:number}}
  */
 function renameLocalIdentifiers(source,ast,options) {
   if(observesFunctionSource(ast)) return {code:source,bindings:0};
   const counts=collectBindings(ast);
-  const sourceExposedBodies=collectSourceExposedBodies(ast,counts);
+  const sourceExposedBodies=options.preserveCallableSource===true ?
+    collectSourceExposedBodies(ast,counts) : new Set();
   /** @type {{identifier:AstNode,name:string,scope:AstNode}[]} */
   const candidates=[];
   /** @type {{node:AstNode,parent:AstNode|null,key:string|null,ancestors:AstNode[]}[]} */
