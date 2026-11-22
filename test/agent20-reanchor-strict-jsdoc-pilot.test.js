@@ -8,6 +8,8 @@ test('Agent 20 random anchor attackers and tests have strict JSDoc semantics',()
   const files=[
     '../sims/random-affine-anchor-compatible-inversion.js',
     '../sims/random-affine-anchor-coverage.js',
+    '../sims/hybrid-reanchor-cegar-attack.js',
+    'hybrid-reanchor-cegar-attack.test.js',
     'random-affine-anchor-compatible-inversion.test.js',
     'random-affine-anchor-coverage.test.js'
   ].map(value=>path.resolve(__dirname,value));
