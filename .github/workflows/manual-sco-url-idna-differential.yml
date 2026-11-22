@@ -1,0 +1,29 @@
+name: Manual SCO native URL IDNA cross-runtime differential
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-url:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.16.0', '22']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Print runtime versions
+        run: |
+          node --version
+          google-chrome --version
+      - name: Compare native Node and Chromium URL parsing
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-url-idna-native-browser.js
