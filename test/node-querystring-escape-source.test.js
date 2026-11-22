@@ -137,3 +137,30 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
     }));
   });
 }
+
+test('bounded same-file selective rewrite is semantically possible',()=>{
+  const privateLiteral='PRIVATE_OUTSIDE_EXACT_FUNCTION_SOURCE_20261122';
+  const source="'use strict';"+
+    "function nativeObserved(){return 'PUBLIC_FUNCTION_SOURCE_INTACT';}"+
+    "const data='"+privateLiteral+"';"+
+    "module.exports={source:require('node:querystring').escape(nativeObserved),data};";
+  const xorKey=73;
+  const encoded=Array.from(privateLiteral,character=>
+    character.charCodeAt(0)^xorKey);
+  const decodedExpression="String.fromCharCode(...["+encoded.join(',')+
+    "].map(n=>n^"+xorKey+"))";
+  const transformed=source.replace("'"+privateLiteral+"'",decodedExpression);
+  assert.notEqual(transformed,source);
+  assert.ok(!transformed.includes(privateLiteral));
+  const expected=execute(source);
+  const actual=execute(transformed);
+  assert.equal(JSON.stringify(actual),JSON.stringify(expected));
+  // The native source observer in the same file continues to see the
+  // original callable text because its lexical interval was untouched.
+  assert.match(/** @type {{source:string}} */ (actual).source,
+    /PUBLIC_FUNCTION_SOURCE_INTACT/);
+  console.log('SOURCE_SLICE_COUNTERFACTUAL '+JSON.stringify({
+    nativeParity:true,privateLiteralTransformed:true,
+    sourceVisibleCallableUnmodified:true
+  }));
+});
