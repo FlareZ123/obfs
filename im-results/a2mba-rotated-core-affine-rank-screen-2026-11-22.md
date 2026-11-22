@@ -41,13 +41,16 @@ Executed with Node `v22.16.0` on Linux. The two focused Node tests passed locall
 | Rank-one quadratic shear `x xor ((x0 & x1) << 2)` | 1 | 4,592 |
 | Independent rank-two quadratic shear | 2 | 4,592 |
 | Original four-input region on `E(x)` | **32** | 4,592 |
+| Same original region on degenerate slice `(x,0,0,0)` | **0** | 4,592 |
 | Rotated cores at rotations 1, 8, 16 and 31 on `E(x)` | **32 each** | 4,592 each |
 
 For each of those four rotations, the script additionally checked 10,000 deterministic input vectors against the original region and found exact Int32 output parity. The original pilot already checked broader rotations and source semantics; this new screen does **not** independently re-prove all those identities.
 
 ## Interpretation
 
-The rotated core and its native baseline compute the same `F` on the public slice, so their residual ranks must coincide if the semantics are preserved. The maximum observed rank therefore **does not** rescue the representation from the existing source-only normalizer. That independent frozen recognizer already recovered 32/32 later-generated rotated-core instances under its stated grammar in the [source-pinned 19 November report](a2mba-rotated-core-int32-feasibility-2026-11-19.md).
+A second slice exposes the diagnostic's dependence on domain selection: on the public path `(x,0,0,0)`, the same region evaluates to the constant zero, yielding residual rank **0** despite the original four-input region having full sampled rank 32 on `E(x)`. A low-rank subspace by itself therefore cannot establish a low-rank *whole-function* decomposition or satisfy a low-rank attack theorem's hypotheses. An attack inference needs a proven global structural model or a chosen-input strategy that actually reaches the relevant target domain.
+
+The rotated core and its native baseline compute the same `F` on the public affine slice, so their residual ranks must coincide if the semantics are preserved. The maximum observed rank therefore **does not** rescue the representation from the existing source-only normalizer. That independent frozen recognizer already recovered 32/32 later-generated rotated-core instances under its stated grammar in the [source-pinned 19 November report](a2mba-rotated-core-int32-feasibility-2026-11-19.md).
 
 The result cautions against treating a high nonlinear displacement rank as a proxy for static resistance. A low observed rank can motivate investigation under the hypotheses of a corresponding algebraic attack, including verification of an invertible affine baseline and query model. A high observed rank merely fails to trigger that one early rejection signal. It gives no bound on normalization, direct source recovery, runtime extraction, tampering, or the 2.5x runtime budget. Future fused candidates still require a frozen independent attacker and same-trust minification/performance controls.
 
