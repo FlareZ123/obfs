@@ -104,6 +104,20 @@ test('identifier renaming keeps exported parameter names and renames a private h
     ['function publicRead(publicParam){return publicParam;}',9,4]);
 });
 
+test('private nonescaping class retains positive identifier yield',async()=>{
+  const source='class Hidden{read(secretParam){return secretParam^3;}}'+
+    'const instance=new Hidden();export const value=instance.read(7);';
+  for(const mode of ['coo','sco','sno']){
+    const result=obfuscateFiles([{path:'private.mjs',sourceType:'module',code:source}],{
+      mode,closedWorld:true,seed:'private-class-positive-'+mode,
+      identifiers:true,properties:false,strings:false
+    });
+    assert.ok(result.files[0].metrics.bindings>0,
+      'a private nonescaping class method should retain identifier obfuscation yield');
+    assert.equal(await execute(result.files),'4');
+  }
+});
+
 test('statement-flow refuses an exported callable while leaving private-helper transforms available',()=>{
   const source='export function read(value){let result=value+1;if(result>2){result+=3;}return result;}';
   assert.throws(()=>obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
