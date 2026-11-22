@@ -1017,8 +1017,8 @@ function realmStateObservation(body,checkHostConfiguration=false){
       const directNew=parent?.type==='NewExpression'&&parent.callee===node;
       const simpleAlias=parent?.type==='VariableDeclarator'&&(
         parent.id===node||parent.init===node&&parent.id.type==='Identifier')||
-        parent?.type==='AssignmentExpression'&&parent.right===node&&
-          parent.left.type==='Identifier';
+        parent?.type==='AssignmentExpression'&&parent.operator==='='&&
+          parent.right===node&&parent.left.type==='Identifier';
       const lexicalDeclaration=(parent?.type==='FunctionDeclaration'||
         parent?.type==='FunctionExpression'||parent?.type==='ClassDeclaration'||
         parent?.type==='ClassExpression')&&parent.id===node;
