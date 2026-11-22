@@ -100,8 +100,7 @@ async function main(){
         variant==='own-only'||variant==='null-proto'?'both':variant));
     const source=variant==='own-only'?withOwnKeyCalls(withoutObservers):
       variant==='null-proto'?withNullPrototypeRecord(withoutObservers):withoutObservers;
-    const sources=variant==='own-only'||variant==='null-proto'?
-      withCapturedStringArgv(source):source;
+    const sources=source;
     const observerPaths=sources.filter(file=>observesFunctionSource(
       parse(file.code,'module'))).map(file=>file.path);
     const compiled=obfuscateFiles(sources,{
