@@ -113,7 +113,7 @@ test('conditional signed/unsigned ambiguous return and impure expression trees d
     'function f(a,b){if(a)return b;return ~b;}',
     'function f(a,b){return a?b:{}.value;}'
   ]){
-    const parameters=/function f\\(([^)]*)\\)/u.exec(code)?.[1];
+    const parameters=/function f\(([^)]*)\)/u.exec(code)?.[1];
     assert.ok(parameters,code);
     const source=code+'function publicF('+parameters+'){return f('+parameters+');}module.exports=publicF;';
     const result=lowerWasmI32Functions(source,'commonjs',{
