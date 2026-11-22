@@ -1,22 +1,24 @@
 import {createEngine} from './engine.mjs';
-import {inspectRecord} from './reflect.mjs';
+import {hostValue} from './host.mjs';
 
-/**
- * End-to-end application behavior, including public reflection.
- * @param {number} seed
- * @param {number} count
- */
-export function evaluate(seed,count){
-  const engine=createEngine(seed);
-  let digest=2166136261;
-  for(let i=0;i<count;i++){
-    const input=(Math.imul(i+1,65599)^seed)>>>0;
-    digest=Math.imul(digest^engine.next(input),16777619)>>>0;
-  }
+const schema={externalFormat:'audit-v1',auditCount:3};
+function inspectRecord(key) {
+  const keys=Reflect.ownKeys(schema).sort();
+  const value=Object.prototype.hasOwnProperty.call(schema,key)?schema[key]:'<missing>';
+  const enumerable=Object.getOwnPropertyDescriptor(schema,key)?.enumerable===true;
+  return {keys,value,enumerable};
+}
+
+export function evaluate(input) {
+  const engine=createEngine(input);
+  const first=engine.next();
+  const second=engine.next();
   return {
-    digest,
-    state:engine.snapshot(),
-    reflected:inspectRecord('externalFormat'),
+    first,
+    second,
+    snapshot:engine.snapshot(),
+    host:hostValue(input),
+    external:inspectRecord('externalFormat'),
     missing:inspectRecord('noSuchField')
   };
 }
