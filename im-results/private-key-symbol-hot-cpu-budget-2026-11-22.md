@@ -100,6 +100,23 @@ To separate the browser/Node difference from a simple comparison between old and
 
 Exact per-sample logs: [Ubuntu Node24](raw-private-key-hot-cpu-node24-2026-11-22-ubuntu.json), [Windows Node24](raw-private-key-hot-cpu-node24-2026-11-22-windows.json). Windows has one generated Symbol pair ratio **2.38424x** below the strict 2.5x line, while all others breach. The two Node versions reproduce the same *large* selected-work slowdown, whereas Chrome 157's separately verified **wall-clock** ESM test shows near-1x. This is an **engine and host configuration difference** requiring additional investigation, with no evidence sufficient to assign a specific JIT optimization cause. It reinforces avoiding a global claim that one measured engine's backend performance automatically transfers to all JavaScript targets.
 
+## Selected SNO compiler-output hot-work comparison
+
+The same longer-warm private-owner harness also compiled the authentic numeric CJS source with **`mode:'sno'`** (server-only no-control), preserving `strings:false,identifiers:false,properties:true` and both required actual own-key rewrites. A dedicated test wrapper `test/private-key-hot-cpu-sno.test.js` selects SNO while executing compiled code inside Node using the shared microbenchmark loader. This is **SNO compiler-output hot computation evidence**, not an end-to-end pre-obfuscated multi-file server deployment, filesystem-integrity test or lifecycle evaluation.
+
+Exact source `c427e6297a06dac3165cd8114bd9e63820e613e2`, [Ubuntu/Windows Node22 green run 45084750154](https://github.com/FlareZ123/obfs/actions/runs/45084750154), after 15m warm/arm, 2m polymorphic preconditioning per variant and seven 25m hot-call pairs. Every checksum matched native and both strict JSDoc gates passed.
+
+| SNO compiled variant | Ubuntu Node22 CPU median | Windows Node22 CPU median | Strict >2.5x CPU pairs, Ubuntu/Windows |
+| --- | ---: | ---: | ---: |
+| Two genuine hashed-string owner rewrites | 1.00140x | 0.99091x | 0/7, 0/7 |
+| Two genuine unregistered Symbol rewrites | **5.08921x** | **3.98182x** | **7/7, 7/7** |
+| Handwritten computed Symbol | 5.17073x | 3.87156x | 7/7, 7/7 |
+| Handwritten computed string | 1.04519x | 1.14679x | 0/7, 0/7 |
+| Ordinary esbuild minified | 1.00431x | 1.00000x | 0/7, 0/7 |
+| Same-source placebo | 1.00198x | 1.00000x | 0/7, 0/7 |
+
+The SNO compiler output preserves the selected repeated-work Symbol CPU veto found under COO's Node-hosted compilation. Raw [Ubuntu SNO](raw-private-key-hot-cpu-sno-2026-11-22-ubuntu.json) and [Windows SNO](raw-private-key-hot-cpu-sno-2026-11-22-windows.json) contain the full matched samples and exact generated SHA-256. Cross-run **relative medians** should not be interpreted as a direct randomized comparison between COO and SNO modes, since their own-key output salts and CI runner conditions differ. The valid conclusion is **each selected server-side output variant independently violates the stipulated 2.5x repeated compute limit** on these Node22 runners; the allowed SNO initialization exemption cannot erase measured hot-operation overhead.
+
 ## Decision boundary
 
 **Do not recommend experimental Symbol-key lowering for hot Node execution under the project's stipulated strict 2.5x budget** without replacing this workload's veto with a source-pinned, independently controlled positive result. Even if a faster Symbol implementation became available, a material attacker-cost benefit over ordinary minification and hashed strings would still require separate adversarial evidence. This measured CPU veto is independent of the public callable/class source-observation compatibility failures on the same evidence branch. Keep the broader strong-protection release classification **RELEASE-BLOCKED**.
