@@ -64,10 +64,10 @@ function sourceFetchProgram(renamed) {
 function stackFrameProgram(renamed) {
   const key = renamed ? 'k' : 'internalSecret';
   return 'const owner={' + key + ':8};' +
-    'const frame=String(new Error().stack).split("\n")[1]||"";' +
-    'const match=/:([0-9]+):([0-9]+)\)?$/.exec(frame);' +
+    'const frame=String(new Error().stack).split(String.fromCharCode(10))[1]||"";' +
+    'const column=Number((frame.split(":").at(-1)||"").replace(")",""))||-1;' +
     'globalThis.result={value:owner.' + key +
-    ',sourceMatch:false,column:match?Number(match[2]):-1};';
+    ',sourceMatch:false,column};';
 }
 
 /** @returns {Promise<void>} */
