@@ -63,3 +63,22 @@ These cases should be incorporated into Agent 39's canonical cross-pass integrat
 - Node 22 on Ubuntu and Windows only; this report does not add a browser reproduction for these six additional shapes.
 - This is a source-fidelity correctness finding, not a confidentiality, anti-instrumentation, tamper-resistance, domain-locking, or performance result.
 - No change to the release decision: **RELEASE-BLOCKED** remains authoritative.
+
+## Cross-check against the ESM source-guard candidate
+
+I copied the same 21-test file onto a review-only branch based on Agent 48's candidate commit `53ae87d85b14cc13035fefe71901f904b160134c`, without modifying its implementation. [Run 44984544117](https://github.com/FlareZ123/obfs/actions/runs/44984544117) executed the review matrix on Ubuntu and Windows Node 22:
+
+| Outcome | Per platform |
+|---|---:|
+| External callable source-parity cases | 15 failed |
+| External private-class-instance cases conservatively refused | 3 passed |
+| Private nonescaping helper controls | 3 passed |
+| Total | 21 |
+
+The candidate therefore refuses the private-class-instance method case in all three modes (`bindings:0`, `sourceEqual:true`), but still changes source for the other five aggregate/returned-callable shapes in all three modes (`sourceEqual:false`, `valueEqual:true`). The three private-helper controls retain positive identifier yield.
+
+In the same run, the candidate's existing direct-export suite passed 48/48 Node tests and its Chromium suite reported 27/27 external source/value matches plus 3/3 declared-observer matches. Those browser public cases all reported zero rewrites, which is a valid conservative outcome; the separate private-helper positive-yield control is in the Node suite. The workflow as a whole still failed: the added aggregate test was deliberately red, and the Ubuntu CacheStorage browser witness later failed because its original browser fixture produced no result element. That latter failure is separate and unresolved; it must not be hidden by the passing direct-export matrix.
+
+The private-class case appears to pass because the candidate identifier guard blocks identifiers under any `ClassDeclaration` or `ClassExpression`, rather than because the exported-instance flow is proven. This is safe but broader than an export-reachability proof and may suppress transformations in truly private classes. The current candidate's direct-export matrix is useful evidence for its narrower scope, not evidence that aggregate-member aliases or returned callable flows are closed.
+
+Candidate review branch: `agent8/review-agent48-callable-aggregate-20261122` at `eaf3ddf8dfc764eaef93fe48831f88f7179bb0a2`. This is an isolated review branch, not an integration branch.
