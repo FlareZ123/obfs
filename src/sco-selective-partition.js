@@ -6,6 +6,7 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {collectBindings}=require('./properties');
+const {firstUnprovedFreeReference}=require('./sco-free-references');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -46,6 +47,12 @@ const standardRealmGlobals=new Set([
   'Reflect','Proxy','Intl','Atomics','WebAssembly',
   'WeakRef','FinalizationRegistry'
 ]);
+
+const provedSharedGlobalReads=new Set([...standardRealmGlobals,'globalThis',
+  'URL','URLSearchParams','TextEncoder','TextDecoder','atob','btoa',
+  'structuredClone','AbortController','AbortSignal','DOMException','Blob']);
+const provedAuditedNodeGlobalReads=new Set([...provedSharedGlobalReads,'process','Buffer']);
+const provedSelectedNodeGlobalReads=new Set([...provedSharedGlobalReads,'Buffer']);
 
 /**
  * Whether an AST literal is an owned primitive whose typeof result does not
@@ -1563,6 +1570,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         throw new TypeError('SCO private static graph contains an unproved runtime loader: '+filename);
       }
     });
+    const freeRead=firstUnprovedFreeReference(ast,new Set(),new Set(),
+      provedAuditedNodeGlobalReads);
+    if(freeRead!==null){
+      throw new TypeError('SCO private static dependency has unproved free global: '+
+        filename+':'+freeRead);
+    }
     for(const statement of ast.body) {
       const imported=statement.type==='ImportDeclaration' ||
         statement.type==='ExportAllDeclaration' ||
@@ -1793,6 +1806,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateBodies=[];
   /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
   const privateFormals=new WeakMap();
+  /** @type {WeakMap<import('./ast').AstNode,boolean>} */
+  const privateRootArguments=new WeakMap();
   /** @param {import('./ast').AstNode} fn @returns {void} */
   function addPrivateBody(fn){
     privateBodies.push(fn.body);
@@ -1800,7 +1815,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     for(const parameter of fn.params){
       if(parameter.type==='Identifier')parameters.add(parameter.name);
     }
+    if(fn.id?.type==='Identifier')parameters.add(fn.id.name);
     privateFormals.set(fn.body,parameters);
+    privateRootArguments.set(fn.body,fn.type!=='ArrowFunctionExpression');
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
@@ -2068,6 +2085,8 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   const allPrivateBindings=collectBindings(ast);
+  /** @type {string[]} */
+  const unprovedPrivateReads=[];
   // Server imports and primitive constants were already admitted as explicit
   // immutable private bindings. Exempt only globally unique lexical names;
   // a shadowed formal or nested declaration cannot inherit their provenance.
@@ -2194,11 +2213,20 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
     }
+    const selectedModuleNames=new Set([...serverConstants,...privateHelperNames,...selected]);
+    const freeRead=firstUnprovedFreeReference(body,selectedModuleNames,
+      privateFormals.get(body)??new Set(),provedSelectedNodeGlobalReads,
+      privateRootArguments.get(body)??false);
+    if(freeRead!==null)unprovedPrivateReads.push(freeRead);
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
   // Decline any cross-boundary ambient use rather than proving deep aliases.
   if(privateAmbient.size && publicAmbient.size){
     throw new TypeError('Private/public exports share ambient state roots');
+  }
+  if(unprovedPrivateReads.length){
+    throw new TypeError('Private SCO export or helper uses unproved free global: '+
+      unprovedPrivateReads[0]);
   }
   const partition=partitionScoAsyncModule({
     path:file.path,sourceType:'module',code:serverConstantChunks.join('\n')+'\n'+privateHelperChunks.join('\n')+'\n'+privateChunks.join('\n')
