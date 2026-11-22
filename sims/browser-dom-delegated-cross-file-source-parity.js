@@ -95,16 +95,14 @@ async function main(){
         entryMetrics,readerMetrics,native,emitted
       }));
       assert.deepEqual(native,{value:8,sourceMatch:sample.sourceVisible});
-      assert.ok(entryMetrics.properties>0,
-        'The source-reflected inline importer must exhibit positive private-key rewriting');
+      if(!sample.sourceVisible)assert.ok(entryMetrics.properties>0,
+        'Benign delegated document reader must retain positive private-key yield');
       if(emitted.value!==native.value||emitted.sourceMatch!==native.sourceMatch)
         mismatches.push(sample.label);
     }
   }finally{
     await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
-  assert.deepEqual(mismatches,['delegated-source-outer-html'],
-    'Only the cross-file delegated source reader should violate parity');
   assert.deepEqual(mismatches,[],
     'Cross-file delegated HTML source reader must preserve the importer private key spelling');
 }
