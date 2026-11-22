@@ -969,6 +969,21 @@ function realmStateObservation(body,checkHostConfiguration=false){
       (value.value===null||
         ['string','number','boolean','bigint'].includes(typeof value.value));
   }
+  /**
+   * A native base64 codec can produce host-specific InvalidCharacterError
+   * wording on invalid input. Only a directly owned canonical, valid string
+   * has bounded error-free semantics across the trusted Node/browser pair.
+   * @param {string} api
+   * @param {import('./ast').AstNode|undefined} argument
+   * @returns {boolean}
+   */
+  function provedCodecLiteral(api,argument){
+    if(argument?.type!=='Literal'||typeof argument.value!=='string')return false;
+    if(api==='atob')return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/u
+      .test(argument.value);
+    if(api==='btoa')return !/[\\u0100-\\uFFFF]/u.test(argument.value);
+    return false;
+  }
   let stackTouched=false;
   let configurationTouched=false;
   let entropyTouched=false;
@@ -1096,6 +1111,22 @@ function realmStateObservation(body,checkHostConfiguration=false){
          receiver.type==='NewExpression'&&
          isAbortConstructor(receiver.callee,abortControllerConstructors)){
         stackTouched=true;
+      }
+    }
+    // Invalid atob/btoa input synthesizes a native InvalidCharacterError
+    // whose message differs across Node and the browser. Permit only direct
+    // calls proven to use canonical valid literal strings; unproved function
+    // aliases, dynamic inputs and reflective invocations remain unrelocated.
+    const codec=node.type==='Identifier'&&['atob','btoa'].includes(node.name)?
+      node.name:node.type==='MemberExpression'&&
+      node.object.type==='Identifier'&&globalNames.has(node.object.name)&&
+      ['atob','btoa'].includes(keyName(node)??'')?keyName(node):null;
+    if(checkHostConfiguration&&codec&&!isStaticKey(parent,key)&&
+       !(node.type==='Identifier'&&parent?.type==='VariableDeclarator'&&key==='id')&&
+       !(node.type==='Identifier'&&parent?.type==='FunctionDeclaration'&&key==='id')){
+      if(parent?.type!=='CallExpression'||parent.callee!==node||
+         parent.arguments.length!==1||!provedCodecLiteral(codec,parent.arguments[0])){
+        configurationTouched=true;
       }
     }
     // Both AbortController#abort and AbortSignal.abort can synthesize a
