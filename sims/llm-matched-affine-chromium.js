@@ -50,7 +50,9 @@ async function run(){
     response.writeHead(200,{
       'content-type':pathname.endsWith('.html')?
         'text/html; charset=utf-8':'text/javascript; charset=utf-8',
-      'cache-control':'no-store'
+      'cache-control':'no-store',
+      'content-security-policy':"default-src 'none'; script-src 'self'; connect-src 'self'",
+      'x-content-type-options':'nosniff'
     });
     response.end(source);
   });
