@@ -9,20 +9,22 @@ const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
 const {portableKeys}=require('./portable-paths');
+const {assertSnoDirectBareRequireParity}=require('./sno-bare-audit');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
 /**
  * @param {string[]} argv
- * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}}
+ * @returns {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,auditBareCjs?:boolean}}
  */
 function readArgs(argv) {
-  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean}} */
+  /** @type {{root:string,out:string,entry:string,port:number,hosts:string[],seed?:string,closedWorld:boolean,jsModule:boolean,publicAssets:string[],publicScripts:string[],reviewedAssetsPath?:string,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys:boolean,auditBareCjs?:boolean}} */
   const opts = {root:'',out:'',entry:'',port:8080,hosts:[],closedWorld:false,jsModule:false,publicAssets:[],publicScripts:[],experimentalSymbolKeys:false};
   for (let i=0;i<argv.length;i++) {
     const option = argv[i];
     if (option === '--closed-world') {opts.closedWorld=true;continue;}
     if (option === '--js-module') {opts.jsModule=true;continue;}
+    if (option === '--audit-bare-cjs') {opts.auditBareCjs=true;continue;}
     if (option === '--symbol-keys') {opts.experimentalSymbolKeys=true;continue;}
     if (option === '--statement-flow-compact') {opts.experimentalStatementFlowCompact=true;continue;}
     const value = argv[++i];
@@ -473,8 +475,9 @@ async function assertSnoPackageScope(files,root,context) {
 
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
-  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
+  const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys,auditBareCjs} = readArgs(argv);
   if (jsModule && mode==='sno') throw new TypeError('--js-module is for browser COO or SCO JavaScript');
+  if(auditBareCjs&&mode!=='sno')throw new TypeError('--audit-bare-cjs is SNO-only');
   if (mode==='sco' && (experimentalRegisterVm||experimentalExpressionVm||experimentalNativeGraph||experimentalStatementFlow||experimentalStatementFlowCompact||experimentalPolyvariantAffine||experimentalWasmI32||experimentalSymbolKeys)) throw new TypeError('SCO CLI experimental VMs are unavailable');
   const absRoot = path.resolve(root);
   const reviewedOpaqueAssets=await readReviewedAssets(absRoot,reviewedAssetsPath);
@@ -532,6 +535,7 @@ async function main(mode,argv) {
       await assertNoOutputJunctions(absOut,'sno-entry.cjs');
       await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
       await assertSnoPackageScope(result.files,absOut,'output');
+      if(auditBareCjs)await assertSnoDirectBareRequireParity(source,result.files,absRoot,absOut);
     }
     for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
     if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);
