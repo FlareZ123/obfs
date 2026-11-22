@@ -74,6 +74,12 @@ const cases=[
   ['prebound prototype through nested bind',
     'const create=Object.create;const maker=create.bind(null,null);'+
     'const twice=maker.bind(null);const box=twice(DESCRIPTORS);'],
+  ['prebound prototype through holder field',
+    'const create=Object.create;const holder={maker:create.bind(null,null)};'+
+    'const box=holder.maker(DESCRIPTORS);'],
+  ['prebound prototype through copied holder field',
+    'const create=Object.create;const first={maker:create.bind(null,null)};'+
+    'const holder=first;const box=holder.maker(DESCRIPTORS);'],
   ['captured method in array holder',
     'const create=Object.create;const methods=[create];'+
     'const box=methods[0](null,DESCRIPTORS);'],
