@@ -59,6 +59,9 @@ const cases=[
   ['prebound descriptor map',
     'const create=Object.create;const maker=create.bind(null,null,DESCRIPTORS);'+
     'const box=maker();'],
+  ['prebound prototype with invocation-time descriptor map',
+    'const create=Object.create;const maker=create.bind(null,null);'+
+    'const box=maker(DESCRIPTORS);'],
   ['captured method in array holder',
     'const create=Object.create;const methods=[create];'+
     'const box=methods[0](null,DESCRIPTORS);'],
