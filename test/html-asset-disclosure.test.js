@@ -403,3 +403,75 @@ test('foreign SVG base cannot hide a later HTML base from SRI source-byte protec
       ': SVG <base> is not an HTMLBaseElement, so the live HTML base pins the script');
   }
 });
+
+test('fragment marker in HTML filename must not hide a pinned relative JavaScript URL',()=>{
+  const source='globalThis.fragmentFilenameSRI="original JS bytes must survive URL path encoding";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><body><script src="../client.js" integrity="sha256-'+digest+'"></script></body></html>';
+  const assets=[
+    {path:'pages/client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'pages/hash#inside/index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(html)}
+  ];
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const options={mode,seed:'fragment-filename-sri/'+mode,
+      strings:true,properties:false,identifiers:false};
+    const unpinned=obfuscateFiles([
+      assets[0],
+      {...assets[1],code:Buffer.from('<html><body><script src="../client.js"></script></body></html>')}
+    ],options);
+    assert.notEqual(unpinned.files[0].code,source,
+      'No-SRI positive control should actually obfuscate in '+mode);
+    const pinned=obfuscateFiles(assets,options);
+    assert.equal(pinned.files[0].code,source,
+      'A fragment marker in the path is a filename byte, not a URL fragment in '+mode);
+  }
+});
+
+
+test('literal percent in a declared HTML filename must be URL-escaped before SRI lookup',()=>{
+  const source='globalThis.percentFilenameSRI="a literal percent sequence belongs to the filesystem";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><script src="./client.js" integrity="sha256-'+hash+'"></script></head></html>';
+  const inputs=[
+    {path:'pages/percent%23inside/client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'pages/percent%23inside/index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(html)}
+  ];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const options={mode,seed:'percent-filename/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      inputs[0],
+      {...inputs[1],code:Buffer.from('<script src="./client.js"></script>')}
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'Positive no-SRI control must transform in '+mode);
+    const result=obfuscateFiles(inputs,options);
+    assert.equal(result.files[0].code,source,
+      'A literal %23 filename segment is not a URL-encoded # in '+mode);
+  }
+});
+
+test('XHTML SRI resolution must encode a fragment marker inside its source filename',()=>{
+  const source='globalThis.xhtmlFragmentSRI="XHTML document filenames contain literal fragment marker";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const xhtml='<?xml version="1.0" encoding="utf-8"?>'+
+    '<h:html xmlns:h="http://www.w3.org/1999/xhtml"><h:head>'+ 
+    '<h:script src="../client.js" integrity="sha256-'+hash+'"/></h:head></h:html>';
+  const inputs=[
+    {path:'pages/client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'pages/hash#inside/index.xhtml',sourceType:/** @type {const} */('asset'),code:Buffer.from(xhtml)}
+  ];
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const options={mode,seed:'xhtml-fragment-filename/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      inputs[0],
+      {...inputs[1],code:Buffer.from('<h:html xmlns:h="http://www.w3.org/1999/xhtml"/>')}
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'XHTML no-SRI control must transform in '+mode);
+    const result=obfuscateFiles(inputs,options);
+    assert.equal(result.files[0].code,source,
+      'XHTML XML URL proof must use the fully encoded source filename in '+mode);
+  }
+});

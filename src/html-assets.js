@@ -299,6 +299,18 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   /**
+   * Encode every declared document-path segment as a URL path component.
+   * A source filename containing # or % is not a URL fragment or escape;
+   * the browser requests those bytes with URL percent encoding.
+   * @param {string} filename
+   * @returns {URL}
+   */
+  function documentUrl(filename) {
+    return new URL('/'+filename.split('/').map(encodeURIComponent).join('/'),
+      'https://obfs.invalid/');
+  }
+
+  /**
    * The URL parser applies ./ and ../ resolution and strips query/fragment.
    * Decode path escapes once, after URL resolution, against the declared
    * normalized file inventory. Unknown/unsupported targets are ignored.
@@ -371,7 +383,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     // XML base changes URI resolution only for its own element/subtree.
     // A base tag with that feature needs a separate XML URI proof.
     if(xmlBaseAffectsPin||ambiguousBase)return true;
-    const documentBase=new URL('/'+filename,'https://obfs.invalid/');
+    const documentBase=documentUrl(filename);
     /** @type {URL[]} */
     const bases=[documentBase];
     // All candidate <base href> elements, including those inside an inert
@@ -415,7 +427,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
       // currently executing document's base URL tree.
     }
     findBase(root);
-    const documentBase=new URL('/'+file.path,'https://obfs.invalid/');
+    const documentBase=documentUrl(file.path);
     /** @type {URL} */
     let base=documentBase;
     if(baseHref!==null){
