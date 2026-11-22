@@ -1212,6 +1212,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
@@ -1407,7 +1408,7 @@ function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType
          node.init && sourceBodies.has(node.init.type)) {
         const globalVar=parent.kind==='var' && !insideCallable;
         const globalLexical=(parent.kind==='let'||parent.kind==='const') &&
-          ancestors[ancestors.length-1]?.type==='Program';
+          ancestors[ancestors.length-2]?.type==='Program';
         if(globalVar||globalLexical)globalScriptCallables.add(node);
       }
     });
