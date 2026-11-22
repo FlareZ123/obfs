@@ -707,6 +707,41 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.object.type==='Identifier'&&
       globalNames.has(expression.object.name)&&keyName(expression)==='Atomics';
   }
+  // Blob endings:"native" converts newline sequences to the current host OS
+  // spelling. Private Node can have a different OS from the browser client.
+  // Constructor aliases are deliberately overapproximated as unsafe if a
+  // declaration shadows or reassigns them.
+  const blobConstructors=new Set(['Blob']);
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isBlobConstructor(expression){
+    return expression.type==='Identifier'&&blobConstructors.has(expression.name)||
+      expression.type==='MemberExpression'&&
+      expression.object.type==='Identifier'&&
+      globalNames.has(expression.object.name)&&keyName(expression)==='Blob';
+  }
+  let blobChanged=true;
+  while(blobChanged){
+    blobChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!source)return;
+      /** @param {string} name @returns {void} */
+      function add(name){
+        if(!blobConstructors.has(name)){blobConstructors.add(name);blobChanged=true;}
+      }
+      if(target?.type==='Identifier'&&isBlobConstructor(source))add(target.name);
+      if(target?.type==='ObjectPattern'&&source.type==='Identifier'&&
+         globalNames.has(source.name)){
+        for(const property of target.properties){
+          if(property.type==='Property'&&keyName(property)==='Blob'&&
+             property.value.type==='Identifier')add(property.value.name);
+        }
+      }
+    });
+  }
   /** @param {import('./ast').AstNode} expression @returns {'entropy'|'clock'|undefined} */
   function hostSourceKind(expression){
     if(expression.type==='Identifier')return hostSources.get(expression.name);
@@ -943,6 +978,29 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // A Blob with an unproved options bag may request OS-native newline
+    // conversion. Admit absent options or a literal bag only when its
+    // endings are provably "transparent", the Web IDL default.
+    if(checkHostConfiguration&&node.type==='NewExpression'&&
+       isBlobConstructor(node.callee)){
+      const options=node.arguments[1];
+      if(options){
+        if(options.type!=='ObjectExpression')configurationTouched=true;
+        else for(const property of options.properties){
+          if(property.type!=='Property'||property.kind!=='init'||
+             keyName(property)===null){
+            configurationTouched=true;
+            break;
+          }
+          if(keyName(property)==='endings'&&
+             !(property.value.type==='Literal'&&
+               property.value.value==='transparent')){
+            configurationTouched=true;
+            break;
+          }
+        }
+      }
+    }
     // Extracted host abort methods can later be invoked via .call/.apply,
     // a local alias, or an opaque callback. Unlike a proven direct call with
     // a primitive reason, their eventual default-reason behavior is unproved.
