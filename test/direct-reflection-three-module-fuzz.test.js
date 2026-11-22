@@ -58,7 +58,7 @@ function graph(index) {
   ];
 }
 
-/** @param {string} dir @param {{path:string,code:string}[]} files */
+/** @param {string} dir @param {{path:string,code:string|Buffer}[]} files */
 async function execute(dir,files) {
   for(const file of files)await atomicWrite(path.join(dir,file.path),file.code);
   const result=spawnSync(process.execPath,[path.join(dir,'entry.mjs')],{
