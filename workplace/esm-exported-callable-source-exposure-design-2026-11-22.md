@@ -105,3 +105,17 @@ For each public callable, compare exact source text and ordinary behavior using 
 - Mainline aggregate witness: `test/esm-exported-callable-aggregate-reachability.test.js`, run [44984346437](https://github.com/FlareZ123/obfs/actions/runs/44984346437), 18/18 public callable source mismatches across modes on both OSes; 3/3 private-helper controls passed.
 - Candidate cross-check: [run 44984544117](https://github.com/FlareZ123/obfs/actions/runs/44984544117), where Agent 48's direct-export matrix passed but the aggregate matrix still had 15/18 mismatches; private-class instance was refused by a broad class-ancestor veto.
 - These are semantic compatibility results only. They do not demonstrate source secrecy, resistance to runtime extraction, tamper resistance, domain locking, or compliance with the 2.5× runtime budget.
+
+## Preserve the proven primitive-leaf island exception
+
+Do not translate the source-exposure graph into a blanket “freeze every exported callable” rule. The current `purePrimitiveLeafExports` envelope is intentionally narrower: immutable primitive own records, immediate primitive reads, and a zero-argument named function declaration whose body is exactly one return of an already-read primitive identifier. The permitted property rename occurs at module top level, outside the exported function's source span and outside any member access/captured property dependency inside that function.
+
+An external importer can still call `Function.prototype.toString.call(unrelated)`; exact source remains equal while the primitive record key is genuinely renamed. This was reproduced in `test/source-observer-islands-external-callable-source.test.js` across COO/SCO/SNO on Ubuntu/Windows and on both the mainline and ESM candidate branches.
+
+Keep this exception only while its grammar remains exact. The proof should continue rejecting parameters, nested callables, object/array/function-valued returns, getters, member-expression returns, arbitrary calls, and mutable/opaque record flows. Add a regression that simultaneously asserts:
+- exact external callable source equality;
+- ordinary result equality;
+- at least one actual local property rewrite;
+- no cross-file, identifier or string rewrite.
+
+This gives a concrete source-safe positive-yield lane without weakening the general public-callable contract.
