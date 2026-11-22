@@ -978,6 +978,17 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // First-class Blob constructor values can reach Reflect.construct,
+    // Function.prototype.bind or another user-defined constructor wrapper.
+    // Their eventual options bag cannot be proved here; refuse these escape
+    // routes rather than silently crossing OS-native newline semantics.
+    if(checkHostConfiguration&&node.type==='CallExpression'&&(
+       node.arguments.some((/** @type {import('./ast').AstNode} */ argument)=>
+         isBlobConstructor(argument))||
+       node.callee.type==='MemberExpression'&&
+         isBlobConstructor(node.callee.object))){
+      configurationTouched=true;
+    }
     // A Blob with an unproved options bag may request OS-native newline
     // conversion. Admit absent options or a literal bag only when its
     // endings are provably "transparent", the Web IDL default.
