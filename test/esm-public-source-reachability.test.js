@@ -127,3 +127,24 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     assert.equal(await observe(transformed.files,observer),baseline);
   });
 }
+
+for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
+  test('declared source observer closes the ESM graph and forces conservative refusal: '+mode,async()=>{
+    const privateFile={path:'private.mjs',sourceType:/** @type {const} */('module'),
+      code:'const owner={secretField:59};export function read(){return owner.secretField;}'};
+    const observer='import {read} from "./private.mjs";console.log(JSON.stringify([read.toString(),read()]));';
+    const supplied=[privateFile,{path:'observe.mjs',sourceType:/** @type {const} */('module'),code:observer}];
+    const baseline=await observe(supplied,observer);
+    const compiled=obfuscateFiles(supplied,{
+      mode,closedWorld:true,seed:'esm-declared-observer-'+mode,
+      strings:false,properties:true,identifiers:true
+    });
+    const protectedModule=compiled.files.find(file=>file.path==='private.mjs');
+    assert.ok(protectedModule);
+    assert.equal(protectedModule.metrics.properties,0,
+      'The compiler should decline owner-key edits with a declared source observer');
+    assert.equal(protectedModule.metrics.bindings,0,
+      'The compiler should decline identifier edits with a declared source observer');
+    assert.equal(await observe(compiled.files,observer),baseline);
+  });
+}
