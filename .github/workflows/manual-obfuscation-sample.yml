@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-package-lock --ignore-scripts
       - name: Matched same-source challenge and randomized control parity
-        run: node --test test/llm-matched-affine-challenge.test.js
+        run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js
       - name: Strict JSDoc for matched challenge verifier
         run: npx tsc -p jsconfig.llm-matched-affine.json
       - name: Generate actual output and verify behavior
