@@ -52,10 +52,17 @@ function directBareRequires(files) {
     const refs=[];
     const shadow=collectBindings(ast).has('require');
     let dynamicScope=false;
-    walk(ast,node=>{
+    let unprovedRequire=false;
+    walk(ast,(node,parent,key)=>{
       if(node.type==='WithStatement' ||
          node.type==='CallExpression'&&node.callee?.type==='Identifier'&&
            node.callee.name==='eval')dynamicScope=true;
+      if(node.type==='Identifier'&&node.name==='require') {
+        const direct=parent?.type==='CallExpression'&&key==='callee';
+        const nameOnly=parent?.type==='Property'&&key==='key'&&!parent.computed ||
+          parent?.type==='MethodDefinition'&&key==='key'&&!parent.computed;
+        if(!direct&&!nameOnly)unprovedRequire=true;
+      }
       if(node.type!=='CallExpression'||node.callee?.type!=='Identifier'||
           node.callee.name!=='require')return;
       if(!node.arguments?.length ||
@@ -71,8 +78,10 @@ function directBareRequires(files) {
           isBuiltin(specifier))return;
       refs.push(specifier);
     });
-    if((shadow||dynamicScope)&&refs.length)throw new TypeError(
-      'SNO bare dependency audit cannot prove unshadowed require in '+file.path);
+    if(unprovedRequire || (shadow||dynamicScope)&&refs.length) {
+      throw new TypeError(
+        'SNO bare dependency audit cannot prove direct lexical require in '+file.path);
+    }
     if(refs.length)entries.set(file.path,refs.sort());
   }
   return entries;
