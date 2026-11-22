@@ -11,15 +11,19 @@ const execFileAsync=promisify(execFile);
 
 /** @typedef {{path:string,code:string|Buffer,sourceType:'script'|'asset'}} Source */
 
-/** @returns {Source[]} */
-function fixture(){
+/** @param {'argument'|'call'} split @returns {Source[]} */
+function fixture(split){
   const client='document.documentElement.dataset.documentWriteSri="loaded";'+
     'globalThis.documentWriteSri="parser-written script bytes carry exact hash";';
   const hash=createHash('sha256').update(client).digest('base64');
   const html='<html><head><script src="./bootstrap.js"></script></head>'+
     '<body><p>Document.write source-byte integrity</p></body></html>';
-  const markup='<script src="./client.js" integrity="sha256-'+hash+'"></script>';
-  const loader='document.write('+JSON.stringify(markup)+');';
+  const first='<script src="./client.js" integ';
+  const second='rity="sha256-'+hash+'"></script>';
+  const loader=split==='argument' ?
+    'document.write('+JSON.stringify(first)+','+JSON.stringify(second)+');' :
+    'document.write('+JSON.stringify(first)+');'+
+      'document.write('+JSON.stringify(second)+');';
   return [
     {path:'client.js',code:client,sourceType:'script'},
     {path:'bootstrap.js',code:loader,sourceType:'script'},
@@ -30,10 +34,11 @@ function fixture(){
 /**
  * Real browser navigation verifies the SRI integrity check of parser-inserted
  * scripts and the necessity of conserving pinned source bytes.
+ * @param {'argument'|'call'} split
  * @returns {Promise<{nativeLoaded:true,protectedLoaded:true,unsafeBlocked:true}>}
  */
-async function main(){
-  const inputs=fixture();
+async function runFixture(split){
+  const inputs=fixture(split);
   const options={mode:/** @type {const} */('coo'),seed:'document-write-browser',
     strings:true,identifiers:false,properties:false};
   const guarded=obfuscateFiles(inputs,options);
@@ -104,6 +109,12 @@ async function main(){
     await new Promise((resolve,reject)=>
       server.close(error=>error?reject(error):resolve(undefined)));
   }
+}
+
+/** @returns {Promise<void>} */
+async function main(){
+  await runFixture('argument');
+  await runFixture('call');
 }
 
 if(require.main===module)main().catch(error=>{
