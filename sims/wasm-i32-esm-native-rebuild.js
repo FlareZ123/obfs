@@ -125,7 +125,9 @@ function reconstructPublicWasmEsm(publicSource){
         throw new TypeError('Export points directly to a generated helper');
       }
       const nextName=forwardingTarget(current);
-      if(!nextName)throw new TypeError('Unsupported Wasm forwarding wrapper '+currentName);
+      if(!nextName)throw new TypeError(chain.length===1?
+        'Unsupported exported ESM wrapper '+currentName:
+        'Unrecognized compiler helper '+currentName);
       const next=helpers.get(nextName);
       if(!next)throw new TypeError('Missing compiler helper '+nextName);
       if(next.params.length!==current.params.length)
