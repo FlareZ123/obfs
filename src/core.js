@@ -1825,8 +1825,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
     if(readPattern){
       const aliases=descriptorMemberReadAliases.get(readPattern.source)??new Set();
       for(const property of readPattern.pattern.properties){
-        if(property.type==='Property'&&property.value.type==='Identifier')
-          aliases.add(property.value.name);
+        if(property.type!=='Property')continue;
+        // A destructuring default is skipped when the source property is
+        // present; its target still aliases the original descriptor entry.
+        const binding=property.value.type==='Identifier'?property.value:
+          property.value.type==='AssignmentPattern'&&
+          property.value.left.type==='Identifier'?property.value.left:null;
+        if(binding)aliases.add(binding.name);
       }
       if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
     }
