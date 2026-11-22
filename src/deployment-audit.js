@@ -115,6 +115,9 @@ async function verifyPublishedDeployment(origin,files,approved) {
       base.search||base.hash||base.username||base.password) {
     throw new TypeError('Deployment origin must be a bare HTTP(S) root URL');
   }
+  if(base.protocol==='http:'&&!['127.0.0.1','localhost','[::1]'].includes(base.hostname)) {
+    throw new TypeError('Deployment verification requires HTTPS or loopback HTTP');
+  }
   if(!Array.isArray(files)||!Array.isArray(approved)) {
     throw new TypeError('Deployment files and approved MIME records must be arrays');
   }
