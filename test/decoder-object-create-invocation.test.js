@@ -122,10 +122,11 @@ for(const [name,expression] of cases) {
 
 
 const mixedBoundArity =
-  'const {create:make}=Object;function build(flag){let create;'+
-  'if(flag)create=make.bind(null,null);else create=make;'+
-  'const descriptors={ref:{get(){return TARGET.prototype}}};'+
-  'const box=create(null,descriptors);box.ref.WRITE}build(FLAG);';
+  'const {create:make}=Object;const descriptors={ref:{get(){return TARGET.prototype}}};'+
+  'function build(flag){let create;let args;'+
+  'if(flag){create=make.bind(null,null);args=[descriptors];}'+
+  'else{create=make;args=[null,descriptors];}'+
+  'const box=Reflect.apply(create,null,args);box.ref.WRITE}build(FLAG);';
 
 for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
   for(const flag of [true,false]) {
