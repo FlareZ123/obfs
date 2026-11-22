@@ -1133,7 +1133,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string}} options
+ * @param {{seed:string,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 /**
@@ -1320,7 +1320,7 @@ function renameLocalProperties(source, ast, options) {
     candidates.push({node:literal,name:parent.id.name,properties});
   });
 
-  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings,options.sourceType??'script');
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{
