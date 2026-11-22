@@ -2422,15 +2422,19 @@ function renameCrossFileProperties(files,seed,options={}) {
       let member=returned?.type==='MemberExpression'?returned:null;
       let argIndex=-1;
       if(member?.object.type==='Identifier') {
+        const publicMemberName=member.object.name;
         argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>
-          param.name===member.object.name);
+          param.name===publicMemberName);
       } else if(returned?.type==='CallExpression' &&
           returned.callee.type==='Identifier' && !returned.optional) {
         // An exported reader may delegate exactly once to a local, unexported
         // direct-call-only reader. This retains the exported function's
         // original observable source while the hidden member spelling changes.
         const helperName=returned.callee.name;
-        if(helperName===name || module.bindings.get(helperName)!==1)return;
+        // The one-hop lane accepts exactly one forwarded plain parameter.
+        // Extra arguments could read or reflect the original object shape.
+        if(fn.params.length!==1 || helperName===name ||
+           module.bindings.get(helperName)!==1)return;
         /** @type {AstNode|null} */
         let helperFn=null;
         /** @type {AstNode|null} */
@@ -2452,7 +2456,7 @@ function renameCrossFileProperties(files,seed,options={}) {
         }
         if(!helperFn||!helperBinding || helperFn.async || helperFn.generator ||
            !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(helperFn.type) ||
-           !helperFn.params.length ||
+           helperFn.params.length!==1 ||
            helperFn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier') ||
            returned.arguments.length!==helperFn.params.length ||
            returned.arguments.some((/** @type {AstNode} */ arg)=>arg.type==='SpreadElement'))return;
