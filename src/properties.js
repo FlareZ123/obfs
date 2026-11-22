@@ -1220,15 +1220,13 @@ function privateDirectMemberReaders(ast,bindings) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
-  // Explicit closed-world ESM owners have a separate export/consumer proof.
-  // Local CommonJS exports require this additional external callable-source
-  // guard because require() callers can inspect functions outside this graph.
-  const guardCommonJsSources=options.sourceType!=='module';
-  const directlyPrivateReaders=guardCommonJsSources ?
-    privateDirectMemberReaders(ast,bindings) : new Set();
+  // Source text of exported ESM as well as CommonJS callables may be read
+  // by an importer that is absent from this transform's source-file group.
+  // A provably private, direct-call-only scalar reader can still be renamed.
+  const directlyPrivateReaders=privateDirectMemberReaders(ast,bindings);
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
-  if(guardCommonJsSources)walk(ast,(node,parent,key,ancestors)=>{
+  walk(ast,(node,parent,key,ancestors)=>{
     if(ancestors.some(ancestor=>
       ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
         .includes(ancestor.type)&&!directlyPrivateReaders.has(ancestor)))
