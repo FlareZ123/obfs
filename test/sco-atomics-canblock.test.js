@@ -58,7 +58,21 @@ test('SCO declines host agent can-block-sensitive Atomics.wait',()=>{
     'const cell=new Int32Array(new SharedArrayBuffer(4));'+
       'const wait=Atomics.wait;return wait(cell,0,1,0);',
     'const cell=new Int32Array(new SharedArrayBuffer(4));'+
-      'const {wait}=Atomics;return wait(cell,0,1,0);'
+      'const {wait}=Atomics;return wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const atomic=Atomics;return atomic.wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'return globalThis.Atomics.wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const {Atomics:atomic}=globalThis;return atomic.wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const root=globalThis;return root.Atomics.wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const wait=Atomics["wait"];return wait(cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const key="wait";return Atomics[key](cell,0,1,0);',
+    'const cell=new Int32Array(new SharedArrayBuffer(4));'+
+      'const wait=Atomics.wait.bind(Atomics);return wait(cell,0,1,0);'
   ];
   /** @type {string[]} */
   const admitted=[];
