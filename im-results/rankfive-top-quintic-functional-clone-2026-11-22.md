@@ -24,7 +24,7 @@ The conditional source-class promise is
 \[
 \operatorname{codim}(R)\le6.
 \]
-If \(T_5\ne0\), the quotient \(V/R\) therefore has dimension five or six. If \(T_5=0\), the source has degree at most four. The promise is external: the learner's observed signature-span test is **not** a complete verifier of it.
+This promise constrains only the degree-five homogeneous component. It does **not** imply that the full function factors through a six-dimensional quotient: arbitrary lower-degree terms may depend on all n input coordinates. Those lower-degree terms are recovered separately from the Hamming-weight-at-most-four queries. If \(T_5\ne0\), the quotient \(V/R\) therefore has dimension five or six; if \(T_5=0\), the source has degree at most four. The promise is external: the learner's observed signature-span test is **not** a complete verifier of it.
 
 The proof below is stated for vector-valued outputs; the current Node implementation is restricted to n-bit outputs represented as unsigned 32-bit integers. It is not a generic JavaScript source-recovery result.
 
