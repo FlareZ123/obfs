@@ -70,8 +70,8 @@ for(const [label,code] of leaked) {
   test('public CommonJS callable source must retain owned key: '+label,()=>{
     const source=prefix+code;
     const output=compile(source);
+    assert.equal(observe(output.code),observe(source),label+'\n'+output.code);
     assert.equal(output.metrics.objects,0,output.code);
-    assert.equal(observe(output.code),observe(source),label);
   });
 }
 
