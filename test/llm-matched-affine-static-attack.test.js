@@ -81,7 +81,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
 test('static source-only ESM reconstruction refuses a missing advertised export',()=>{
   assert.throws(()=>attackPublishedSource(
     'export function round1(input){return (((input|0)+3)|0);}'
-  ),TypeError);
+  ),/Unavailable static function export round2|Missing proved public Int32 translation/u);
 });
 
 test('symbolic static minified parser refuses unnormalized or nonaffine expressions',()=>{
