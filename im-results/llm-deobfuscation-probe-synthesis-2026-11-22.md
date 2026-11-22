@@ -20,9 +20,17 @@ These are qualitative probes, not a model benchmark. Both submitters self-report
 The exact functions, validated against `examples/polyvariant-app/native/math.mjs`, are:
 
 ```js
-round1(x) = ((x | 0) + 324) | 0
-round2(x) = ((x | 0) + 292) | 0
-round3(x) = ((x | 0) + 324) | 0
+function round1(input) {
+  return ((input | 0) + 324) | 0;
+}
+
+function round2(input) {
+  return ((input | 0) + 292) | 0;
+}
+
+function round3(input) {
+  return ((input | 0) + 324) | 0;
+}
 ```
 
 Agent 41 correctly recovered the first and third leaves. Its second-leaf candidate fails at x=2 (290 instead of 294). The error came from considering the initial/final multiplier product but missing five intermediate unary negations in the even branch. Agent 44 sent the correction; Agent 41 preserved the original answer and recorded the correction in [a separate message](../communications/agent44/20261122T0158Z_agent41_blind-math-correction.md). The detailed scope and source validation are in [the leaf-specific report](llm-polyvariant-leaf-reconstruction-probe-2026-11-22.md).
