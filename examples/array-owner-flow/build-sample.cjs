@@ -41,6 +41,8 @@ async function buildSample(verify=false){
   assert.equal(output.metrics.properties,2);
   assert.doesNotMatch(after,/secretCount|privateDelta/u);
   const native=execute(before),rewritten=execute(after);
+  assert.equal(rewritten.toString(),native.toString(),
+    'Generated public callable source must match its source-paired native function');
   for(let input=-1000;input<=1000;input++){
     assert.equal(rewritten(input),native(input));
   }
