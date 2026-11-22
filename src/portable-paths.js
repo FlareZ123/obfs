@@ -1,5 +1,7 @@
 'use strict';
 
+const path=require('node:path');
+
 /**
  * A portable file tree cannot contain two spellings of the same directory,
  * nor use a file as a directory. The NFC/case-fold comparison deliberately
@@ -76,4 +78,41 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
   for(const key of keys)inventory.files.add(key);
 }
 
-module.exports={createPathInventory,registerFilePath,portableKeys};
+/**
+ * Reject rooted, ambiguous and traversal paths before writing/serving files.
+ * @param {string} file
+ * @returns {string}
+ */
+function safePath(file) {
+  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
+      path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
+  // With Unicode mode this range matches lone surrogates, not valid pairs.
+  // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.
+  if (/[\uD800-\uDFFF]/u.test(file)) {
+    throw new TypeError(`Unsafe non-well-formed Unicode file path: ${file}`);
+  }
+  for (const segment of file.split('/')) {
+    // Windows treats these names as DOS devices, including console handles.
+    // Space before an extension can also leave a device stem. Conservative
+    // refusal is preferable to writing source bytes to a device endpoint.
+    if (/[. ]$/u.test(segment) ||
+        /^(?:con|prn|aux|nul|conin\$|conout\$|com[0-9¹²³]|lpt[0-9¹²³]) *(?:\.|$)/iu.test(segment)) {
+      throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
+    }
+    // On NTFS, LONGNAME.MJS can also resolve through LONGNA~1.MJS.
+    // Deny common 8.3 alias spellings at build admission, including nested
+    // directory components, before Windows output writes or source routing.
+    // Short-name generation is volume-dependent, so this is a conservative
+    // policy rather than a complete filesystem-identity proof.
+    if (/~[0-9]+(?=\.|$)/u.test(segment)) {
+      throw new TypeError(`Unsafe Windows short-name alias segment: ${segment}`);
+    }
+  }
+  const normalized = path.posix.normalize(file);
+  if (normalized === '..' || normalized.startsWith('../') || normalized === '.' || normalized !== file) {
+    throw new TypeError(`Unsafe or noncanonical file path: ${file}`);
+  }
+  return normalized;
+}
+
+module.exports={createPathInventory,registerFilePath,portableKeys,safePath};
