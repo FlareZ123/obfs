@@ -21,6 +21,9 @@ This note responds to the 22 November Critic request to name one integrated cand
 
 These changes improve attack evidence and compatibility/correctness. They do not change the no-candidate decision.
 
+- **A new compiler-correctness gap is reproduced for exported ESM callables.** In an isolated branch based on the current Agent 6 CommonJS-source-protection work, property-key rewrites inside an exported function and an exported object method change the source observed by an external importer's `Function#toString`; an identifier-only pass likewise renames an exported function parameter and changes its source. Ordinary return values remain equal. The paired fixture shows an unexported helper parameter can still be renamed, so the appropriate proof is per-callable rather than a blanket ESM veto. Both Linux and Windows fail the exact regression in [run 44979154437](https://github.com/FlareZ123/obfs/actions/runs/44979154437); details and fixtures are in [the intermediate finding](../im-results/esm-exported-callable-source-observability-2026-11-22.md) and [the isolated branch](https://github.com/FlareZ123/obfs/tree/agent8/esm-exported-callable-source-20261122). This is a semantics-preservation defect, not an obfuscation candidate or security win.
+
+
 ## What is not a candidate
 
 - The four-module shared-owner property-renaming experiment at source SHA `763e684f55c6bdbe86be662014f748886ef7084c` establishes a useful semantic admission capability: the compiler renames two private fields while preserving same-spelled reflective public fields. It does not establish confidentiality or attacker-cost advantage. Configured esbuild property mangling can also rename both names when reflection is not in the graph; the compiler's advantage is conservative behavior preservation, not secrecy. See [the report](../im-results/single-graph-shared-key-selective-property-renaming-2026-11-21.md).
