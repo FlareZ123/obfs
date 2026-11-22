@@ -8,6 +8,8 @@
     "test/a2mba-opcode-residual-rank.test.js",
     "sims/a2mba-opcode-heldout-rank-clone.js",
     "test/a2mba-opcode-heldout-rank-clone.test.js",
+    "sims/a2mba-heldout-source-browser-cpu.js",
+    "test/a2mba-heldout-source-browser-cpu.test.js",
     "test/a2mba-rotated-core-rank-screen.test.js",
     "test/a2mba-rank-attacker-coincident.test.js",
     "test/property-reflection.test.js",
