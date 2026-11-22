@@ -64,6 +64,45 @@ The direct nested-member baseline also fails: the current scanner does not
 connect writes whose receiver is a nested `MemberExpression` back to the
 descriptor map. The gap therefore extends beyond a single alias spelling.
 
+## Prototype and remaining escape paths
+
+An isolated prototype was built on
+`agent42/pr239-nested-member-alias-prototype-fix-20261122`, source commit
+`b09c3a02dbaa1f683c4d799d9814ed710d948745`. It adds static nested member
+paths, reverse aliases for nested descriptor values, multi-hop identifier
+closure, destructuring, and identifier-targeted `Object.assign` /
+`Object.defineProperty` tracking. The static eight-shape matrix then passed
+all 48 cases and JSDoc on both platforms:
+[44979616538](https://github.com/FlareZ123/obfs/actions/runs/44979616538).
+
+A second probe branch kept that exact source SHA and added five boundary
+shapes:
+1. dynamic-key alias: `const key='ref'; const entry=descriptors[key]; ...`;
+2. dynamic nested write: `descriptors[key].get = ...`;
+3. function-parameter alias: `install(descriptors.ref)` where `install`
+   writes `entry.get`;
+4. returned alias: `getEntry()` returns `descriptors.ref`, then the caller
+   mutates the result; and
+5. cross-file shared descriptor object: one CommonJS module exports the map,
+   a second mutates its nested value, and a third passes the same cached map to
+   `Object.create`.
+
+On both Ubuntu and Windows, the boundary run reported **78 tests: 63 passes,
+15 failures**. Each of the five String-sensitive shapes failed in COO, SNO and
+SCO; all matched Number controls passed. The pre-existing array/source and
+Proxy-get steps passed. The failing cases are therefore not confined to
+member-path syntax: dynamic member access, function-argument/return flow and
+cross-file shared identity remain unproved. Run:
+[44979812614](https://github.com/FlareZ123/obfs/actions/runs/44979812614);
+probe branch head `9385f355a37ca697615d617ba12c17e32e0903de`.
+
+**The prototype is not ready to integrate.** Its static-path improvement is
+useful evidence, but it does not meet the required cross-file/interprocedural
+coverage. A safe implementation must either prove those flows through the
+shared module/call graph or conservatively refuse eager encoding whenever
+the alias path cannot be resolved. The 48-case green child run is not a
+substitute for the failing 78-case boundary run.
+
 ## Interpretation and boundary
 
 This is a source-pinned, executable counterexample to the current #239
