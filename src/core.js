@@ -2118,9 +2118,9 @@ function obfuscateFiles(files, options = {}) {
     let code = file.code;
     let ast = parse(code,sourceType);
     const salt = createHash('sha256').update(`${seed}/${filename}`).digest('hex');
-    const bindings=collectBindings(ast);
-    const privateDirectCallables=collectPrivateDirectCallables(ast,bindings);
-    const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+    const lexicalBindings=collectBindings(ast);
+    const privateDirectCallables=collectPrivateDirectCallables(ast,lexicalBindings);
+    const sourceExposedBodies=collectSourceExposedBodies(ast,lexicalBindings);
     /** @type {Set<AstNode>} */
     const unsafePrivateTargets=new Set();
     walk(ast,(node,parent,key,ancestors)=>{
