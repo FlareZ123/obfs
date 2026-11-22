@@ -451,6 +451,20 @@ SCO publishes accepted `.xhtml` and `.xht` files as
 `text/xml` execution. Positive-yield tests require unrelated SRI URLs
 and ordinary XML data to leave useful transformations enabled.
 
+A bounded additional admission guard recognizes a literal leading XML
+declaration in public assets with otherwise unrecognized file extensions.
+It applies both XML namespace-aware and HTML source checks to such files,
+including local script SRI pinning; named `.svg` assets retain their dedicated
+SVG parser and diagnostics. All three COO/SNO/SCO modes have cross-platform
+regressions covering `#`, percent-encoded, plus and Unicode path segments
+([PR #255](https://github.com/FlareZ123/obfs/pull/255);
+[final Linux and Windows validation](https://github.com/FlareZ123/obfs/actions/runs/44979568762)).
+This signature is optional in valid XML and cannot establish the eventual
+HTTP MIME type. The independently [observed prolog-less XML browser
+counterexample](../im-results/undeclared-xml-mime-extension-witness-2026-11-22.md)
+and [opaque executable JavaScript MIME counterexample](../im-results/opaque-javascript-mime-source-witness-2026-11-22.md)
+remain valid, so this change does not justify source-secrecy claims.
+
 These guards use the explicitly declared file inventory and known resource
 pathnames. They do not establish arbitrary proxy routing, undecorated
 cross-origin URL equivalence, dynamically inserted integrity attributes,
