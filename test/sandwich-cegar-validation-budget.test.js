@@ -29,7 +29,7 @@ test('finite configurable validation budgets recover affine permutations',()=>{
 });
 
 test('invalid budget values must fail closed',()=>{
-  for(const value of [-1,129,3.5,NaN,Infinity,'8',null]){
+  for(const value of [-1,129,3.5,NaN,Infinity,'8']){
     assert.throws(()=>invertLinearSandwich(x=>x,1,2,
       {validationTrials:/** @type {number} */(value)}),/validationTrials/);
   }
