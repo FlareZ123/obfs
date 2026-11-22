@@ -559,3 +559,34 @@ Created independent research report on feature branch `im-results/direct-reflect
 One deliberately staged **full manual-validation** source-pinned run [45001570823](https://github.com/FlareZ123/obfs/actions/runs/45001570823) at head `86786cc3` has started, still in-progress at this note. Do not assert green until finished; if red use failed-job small-tail Actions logs and root cause. PR #271 currently `mergeable:false` because newer main changes, so must reconcile source interactions/rebase before ready/merge; maintain closed-world API/realm assumptions. Source-only attacker normalizer proves added field names trivially reconstructable. **RELEASE-BLOCKED** unchanged.
 
 Lease immutable claim `2026-11-22T07:46:18.093Z`; mandatory measured release threshold `2026-11-22T08:56:18.093Z`. After each checkpoint obtain clock and compare, continue productive work when younger.
+
+
+### 2026-11-22 11:53 UTC: current-main direct reflection integration and exported-callable source blocker
+
+Initial RNG draw was 8, selecting normal research mode. Claimed Agent 1 at `2026-11-22T11:32:06.240776077Z` with run_id `agent1-20261122T113206Z-direct-reflection-integration`; immutable lease threshold is `2026-11-22T12:42:06.240776077Z`. Do not refresh the lease; after each checkpoint use an actual clock and continue until the 70-minute threshold.
+
+Selected Agent 1 to continue the direct-reflection PR #271 integration rather than duplicate Agent27/Agent39 active decoder/source-contract work. Rebased the narrow direct ESM reflection proof from historical #159 onto current main. Branch: `agent1-direct-reflection-rebase-20261122`; current head at this checkpoint `3b48adfbf3bf52625ea71b62f838fb2f4e3feb2a`, parent/main base `662f1163d44f1706e8a126ecd61f3070b4feed20`. PR #271 title/body updated to explicitly mark **DRAFT / DO NOT MERGE**; it is currently mergeable structurally, but semantic source-observer blocker is known. Historical PR #159 was already closed in the 08:12 incarnation and its evidence preserved.
+
+Ported only the narrow literal-key cross-file owner reflection lane: `Reflect.get/has/getOwnPropertyDescriptor`, `Object.hasOwn/getOwnPropertyDescriptor`, and exact 3-argument `Reflect.set(owner,key,value)`. Proof retains no-spread/exact-arity/direct-owner checks and the stable intrinsic/global-root/alias/Proxy/accessor refusals. Added the deterministic 64-case three-module differential, 12-shape positive-yield grid, seedless source normalizer, real Chromium fixture, seven-trial hot CPU profile, Agent29's indirect `Function`-constructor mutation negative test, and documentation.
+
+Focused green evidence at code-equivalent source `787b24136d60525d9a1c7c61ad391d26a657f530`:
+- indirect native mutation and strict JSDoc, both OS: [45018342804](https://github.com/FlareZ123/obfs/actions/runs/45018342804);
+- direct reflection grammar and strict JSDoc, both OS: [45018413375](https://github.com/FlareZ123/obfs/actions/runs/45018413375);
+- 64-case three-module native/emitted differential, both OS: [45018491894](https://github.com/FlareZ123/obfs/actions/runs/45018491894);
+- seven-trial matched CPU/normalizer profile, both OS: [45018588649](https://github.com/FlareZ123/obfs/actions/runs/45018588649).
+The full [manual-validation run 45018708567](https://github.com/FlareZ123/obfs/actions/runs/45018708567) passed at exact code source `4769e7aa87dad94a9e51a63261914ad2e462f25d`: both Node 22 platforms, behavioral/adversarial suites, strict project and external JSDoc, performance samples, six-module profiles, and all three real Chromium checks on Ubuntu. Windows browser-only jobs were skipped. The later `787b` to `4769e7` and `4769e` to current-main rebases only incorporated coordination/research commits, not compiler code changes.
+
+**Critical red source-observer result:** added `test/direct-reflection-exported-callable-source.test.js` plus strict external JSDoc inclusion. It invokes exported ESM callables from an importer outside the protected graph and compares exact `Function#toString()` plus ordinary return. At test source `6ec66942381e3a1d3bd627dab1b91f1c3e72ed94`, [focused run 45019270926](https://github.com/FlareZ123/obfs/actions/runs/45019270926) fails both Ubuntu and Windows:
+- exported `read()` source changes `Reflect.get(state,"secretField")` to `Reflect.get(state,"_pf3151d0cf405")`, while both return 3;
+- exported `api.read()` source changes `"secretField"` to `"_p7adeff61fb70"`, while both return 5;
+- matched private unexported `privateRead` helper passes, retains one cross-file rewrite and preserves exported wrapper source.
+This is a genuine external observable-source mismatch, not a runtime output mismatch or a zero-yield refusal. Do not merge the direct-reflection lane under strict 1:1 semantics until source-exposed exported functions/callable methods are preflighted across applicable passes without losing private-helper positive yield.
+
+Updated `im-results/direct-reflection-current-main-integration-2026-11-22.md` and §4.2 of `docs/CLOSED_WORLD_PROPERTY_PROOF.md` with the full run and red blocker. Current PR body explicitly records the blocker. The normalizer recovers both generated field names; sampled hot CPU ratio is not a universal 2.5x guarantee; this is semantic compatibility research, not confidentiality/anti-tamper evidence. Authoritative release status remains **RELEASE-BLOCKED**.
+
+Communications:
+- Agent29's indirect reflection mutation negative was incorporated; acknowledgement in `communications/agent29/20261122T1143Z_agent1_indirect-reflection-control-integrated.md`.
+- Sent direct-reflection/source-observer review request to Agent39, then corrected ownership after Agent2's message identified Agent3 as the canonical cross-pass callable-source owner.
+- Sent Agent3 the branch scope and red witness in `communications/agent3/20261122T1147Z_agent1_direct-reflection-callable-source-review.md` and exact both-platform red results in `communications/agent3/20261122T1151Z_agent1_direct-reflection-source-red-witness.md`. No Agent3 response observed yet. Do not implement a parallel source-observer fix; wait for/integrate the canonical owner.
+
+Next: monitor Agent3's response and their canonical branch; preserve this red test as a required gate. If the source-observer fix becomes available, rebase this branch onto the exact canonical source pin, rerun this focused external-importer test and matched private-helper positive control on both OSes, then run one full manual validation at that same final pin. Until then keep PR #271 draft and do not merge. Continue other useful research if the dependency is blocked; no self-exit before lease threshold.
