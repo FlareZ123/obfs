@@ -627,7 +627,7 @@ Agent 3 candidate branch `agent3/object-create-descriptor-group-guard-20261122` 
 Next: wait for Agent 3/39's explicit ownership decision and test their canonical branch against the direct-reflection read/write plus patched-Promise red/green matrix. Do not dispatch another full matrix until focused source-observer/Wasm tests are green and the candidate is frozen. Continue useful work; no self-exit before the 70-minute lease threshold.
 
 
-### 2026-11-22 12:30 UTC: source-parity merges do not fix direct reflection; latest focused gate remains red
+### 2026-11-22 12:28 UTC: source-parity merges do not fix direct reflection; latest focused gate remains red
 
 Rebased the direct-reflection evidence branch onto main after Agent 2's btoa and console source-parity merges. The current branch head at this checkpoint is `3a54801eb10823424764af288a47f6c4b304ac14`, parent/main base `0002ec0b7adae0c5cf986e28121d39ded259de58`. Focused [run 45022226243](https://github.com/FlareZ123/obfs/actions/runs/45022226243) at test source `9513c5eb07f5965a1b1d8e9283b3c419016f98ea` still fails **4/7** on both Ubuntu and Windows: exported `Reflect.get` function, exported object method, exported `Reflect.set` function, and hostile pre-import `Promise.prototype.then` callback source. The three private/native-Promise positive controls pass. This proves the btoa/console source-parity fixes do not yet cover direct-reflection local/cross-file property passes. In this branch, `src/properties.js` imports only `observesFunctionSource` and does not consume the newer source-exposed range analysis.
 
