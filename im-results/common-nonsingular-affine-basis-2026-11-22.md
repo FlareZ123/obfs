@@ -54,7 +54,7 @@ A concrete GF(2), `2<=n<=32` CommonJS/JSDoc implementation is [low-output-common
 
 ## Deterministic chosen-query lower bound (arbitrary permutations)
 
-The randomized repair bound can coexist with an **exponential deterministic worst-case** query requirement. Fix `q`, `n`, and a hyperplane `H` containing exactly `q^(n-1)` output points. Consider any deterministic adaptive algorithm that must output an input basis `B=(b_i)` whose `F(b_i)-F(0)` images are independent for **every** permutation `F`. An adversary answers each distinct forward query with a distinct point in `H`, with `F(0)=0` whenever queried; this maintains an injective partial mapping as long as fewer than `|H|` points have been queried.
+The randomized repair bound can coexist with an **exponential deterministic worst-case** query requirement. Fix `q`, `n`, and a hyperplane `H` containing exactly `q^(n-1)` output points. Consider any deterministic adaptive algorithm that must output an input basis `B=(b_i)` whose `F(b_i)-F(0)` images are independent for **every** permutation `F`. An adversary reserves the output zero for `F(0)=0` and answers each queried **nonzero** input with a distinct unused **nonzero** point of `H`; this maintains an injective partial mapping as long as fewer than `|H|` points have been queried.
 
 Suppose the algorithm stops after `t` distinct forward queries and proposes `B`. The combined domain points in its query transcript, the proposed `n` basis members, and zero number at most `t+n+1`. If
 
