@@ -36,7 +36,7 @@ This admission applies to direct named exported const objects and direct default
 
 Browser hot-path benchmark at this pin, 9 paired samples of 500,000 calls per variant after warmup, yielded **median native 3.30 ms; ordinary esbuild minified 3.40 ms; private-field rewritten 3.40 ms**. Native-relative `1.03030x`, minified-relative `1.00000x`, both within the project 2.5x limit on this workload. Timing includes repeated browser function calls and excludes module import/initialization. This is empirical and does not certify a universal worst-case bound.
 
-A separate complete [Linux/Windows validation 44972942735](https://github.com/FlareZ123/obfs/actions/runs/44972942735) at implementation-only SHA `4185f46e537aaaf8f10b70fc9df60a06e5d189ac` was in progress at the first report; its final outcome must be checked before declaring a full-suite pass.
+The complete [Linux/Windows validation 44972942735](https://github.com/FlareZ123/obfs/actions/runs/44972942735) at implementation-only SHA `4185f46e537aaaf8f10b70fc9df60a06e5d189ac` completed **success on both OSes**: the behavioral/adversarial corpus, normal and external JSDoc checks, sampled benchmark gates and Ubuntu Chromium module/host-lock differentials all passed. That run predates the added focused browser script and report, which are separately covered by targeted green 44973180059.
 
 ## Reproduction and security limits
 
