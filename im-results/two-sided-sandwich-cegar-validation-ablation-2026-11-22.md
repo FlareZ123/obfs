@@ -95,3 +95,25 @@ All experiments execute in the existing reproducible Node 22 workflow. Operating
 **Unresolved:** Arbitrary compatible permutations can exhibit exponentially sparse nonlinear defects. The repo already proves an exact global-affine-certification lower bound for such defects in [the sparse two-sided note](two-sided-sparse-certification-lower-bound-2026-11-19.md), carefully distinguished there from target-inversion complexity. The selected 8-check strategy has no finite-query guarantee for every source family. This work does not measure independent static source reconstruction, dynamic DevTools extraction, a general functional clone, authorization bypass, host locking, or the obfuscated runtime's strict 2.5× CPU bound. It supplies no demonstrated attacker-cost advantage over an equally secret, source-matched conventional minified API.
 
 **Decision:** Retain as intermediate attacker-method research and a stronger finite-budget test against proposed affine-wrapped compatible-permutation obfuscation. Do not promote into `results/` or change the repository's **RELEASE-BLOCKED** strong-protection judgment without independent analysis and same-trust comparisons.
+
+
+## Addendum: attack RNG seed provenance and stronger independent-source control
+
+The original source-family reproducibility schedule in
+`sims/sandwich-cegar-validation-sweep.js` sets
+`attackSeed = sourceSeed XOR 0x510e527f`. Although
+`invertLinearSandwich` consumes the seed **only to choose random oracle probes**
+and never reconstructs hidden maps from it, the supplied seed is mathematically
+correlated with private fixture generation. The original 576 held-out successes
+are valid measurements for that deterministic seeded algorithm, but the
+statement that their random schedule carried *literally zero* source-related
+side information was overly strong. Do not infer source-only secrecy results
+from that fixture without further controls.
+
+The subsequent [source-agnostic portfolio study](two-sided-sandwich-hard-family-portfolio-2026-11-22.md)
+passes the **same publicly chosen seed `0x510e527f` across every hidden
+source instance**, independent of its private generator seed, source family,
+and secret. Its attacker function receives only a chosen-input oracle, target,
+and that fixed public seed. The independent-source schedule addresses the
+provenance concern for that separate population; it does not retroactively
+alter the old seeded-population numbers.
