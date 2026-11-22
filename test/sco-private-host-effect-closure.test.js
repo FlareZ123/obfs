@@ -770,3 +770,47 @@ test('SCO relocation refuses source-observable native DOMException stacks',()=>{
     assert.deepEqual(partitionGraph(safe,transitive).privateNames,['protectedOp']);
   }
 });
+
+test('SCO refuses implicit AbortError stack origins after realm relocation',()=>{
+  const unsafe=[
+    'const controller=new AbortController();controller.abort();return controller.signal.reason.stack;',
+    'const controller=new AbortController();const alias=controller;alias.abort();return alias.signal.reason.stack;',
+    'return AbortSignal.abort().reason.stack;',
+    'const Signal=AbortSignal;return Signal.abort().reason.stack;',
+    'const controller=new AbortController();controller.abort(undefined);return controller.signal.reason.stack;',
+    'return AbortSignal.abort(void 0).reason.stack;',
+    'const controller=new AbortController();controller.abort.call(controller);return controller.signal.reason.stack;',
+    'const controller=new AbortController();const act=controller.abort;act.call(controller);return controller.signal.reason.stack;',
+    'const act=AbortSignal.abort;return act().reason.stack;'
+  ];
+  for(const body of unsafe){
+    const code='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code,sourceType:'module'},
+      {privateNames:['protectedOp'],seed:'sco-default-abort-stack-20261122'}
+    ),/realm-local.*stack/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /realm-local.*stack/u,body+' transitive='+transitive);
+    }
+  }
+  const safe=[
+    'const controller=new AbortController();controller.abort("safe");return controller.signal.reason;',
+    'return AbortSignal.abort("safe").reason;',
+    'const controller=new AbortController();return controller.signal.aborted;',
+    'return AbortSignal.abort(null).reason;',
+    'const controller=new AbortController();controller.abort(0);return controller.signal.reason;'
+  ];
+  for(const body of safe){
+    const code='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code,sourceType:'module'},
+      {privateNames:['protectedOp'],seed:'sco-explicit-abort-reason-20261122'}
+    ),body);
+    for(const transitive of [false,true]){
+      assert.deepEqual(partitionGraph(body,transitive).privateNames,['protectedOp']);
+    }
+  }
+});

@@ -789,6 +789,54 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return returnsError(expression)||
       expression.type==='Identifier'&&catchBindings.has(expression.name);
   }
+  // Abort APIs synthesize a native DOMException AbortError when no
+  // explicitly defined reason is supplied. Its stack captures this host's
+  // source filename, just like a directly constructed native DOMException.
+  // Carry only simple constructor and controller-instance aliases. Unknown
+  // first-class flows remain outside this bounded static proof.
+  const abortControllerConstructors=new Set(['AbortController']);
+  const abortSignalConstructors=new Set(['AbortSignal']);
+  const abortControllers=new Set();
+  /** @param {import('./ast').AstNode} receiver @param {Set<string>} aliases @returns {boolean} */
+  function isAbortConstructor(receiver,aliases){
+    return receiver.type==='Identifier'&&aliases.has(receiver.name)||
+      receiver.type==='MemberExpression'&&
+        receiver.object.type==='Identifier'&&
+        globalNames.has(receiver.object.name)&&
+        aliases.has(keyName(receiver)??'');
+  }
+  let abortAliasesChanged=true;
+  while(abortAliasesChanged){
+    abortAliasesChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(target?.type!=='Identifier'||!source)return;
+      /** @param {Set<string>} names @returns {void} */
+      function add(names){
+        if(!names.has(target.name)){names.add(target.name);abortAliasesChanged=true;}
+      }
+      if(isAbortConstructor(source,abortControllerConstructors)){
+        add(abortControllerConstructors);
+      }
+      if(isAbortConstructor(source,abortSignalConstructors)){
+        add(abortSignalConstructors);
+      }
+      if(source.type==='Identifier'&&abortControllers.has(source.name)||
+         source.type==='NewExpression'&&
+         isAbortConstructor(source.callee,abortControllerConstructors)){
+        add(abortControllers);
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} value @returns {boolean} */
+  function provedAbortReason(value){
+    return value.type==='Literal'&&value.regex===undefined&&
+      (value.value===null||
+        ['string','number','boolean','bigint'].includes(typeof value.value));
+  }
   let stackTouched=false;
   let configurationTouched=false;
   let entropyTouched=false;
@@ -806,6 +854,33 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // Extracted host abort methods can later be invoked via .call/.apply,
+    // a local alias, or an opaque callback. Unlike a proven direct call with
+    // a primitive reason, their eventual default-reason behavior is unproved.
+    if(node.type==='MemberExpression'&&keyName(node)==='abort'&&
+       !(parent?.type==='CallExpression'&&parent.callee===node)){
+      const receiver=node.object;
+      if(isAbortConstructor(receiver,abortSignalConstructors)||
+         receiver.type==='Identifier'&&abortControllers.has(receiver.name)||
+         receiver.type==='NewExpression'&&
+         isAbortConstructor(receiver.callee,abortControllerConstructors)){
+        stackTouched=true;
+      }
+    }
+    // Both AbortController#abort and AbortSignal.abort can synthesize a
+    // source-location-bearing DOMException when no proven defined reason is
+    // supplied. Unknown argument expressions may evaluate to undefined.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       keyName(node.callee)==='abort'&&
+       !(node.arguments.length===1&&provedAbortReason(node.arguments[0]))){
+      const receiver=node.callee.object;
+      if(isAbortConstructor(receiver,abortSignalConstructors)||
+         receiver.type==='Identifier'&&abortControllers.has(receiver.name)||
+         receiver.type==='NewExpression'&&
+         isAbortConstructor(receiver.callee,abortControllerConstructors)){
+        stackTouched=true;
+      }
+    }
     // Destructuring directly in a catch parameter reads the thrown Error's
     // realm-local stack without introducing an identifier receiver. The
     // computed-key case can resolve to "stack" at runtime.
