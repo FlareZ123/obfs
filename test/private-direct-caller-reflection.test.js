@@ -11,11 +11,14 @@ const {obfuscateFiles}=require('../src/core');
  * @param {string} code
  * @param {Function|undefined} spy
  * @param {object|undefined} [host]
+ * @param {object|undefined} [globals]
  * @returns {unknown}
  */
-function execute(code,spy,host) {
+function execute(code,spy,host,globals) {
   const module={exports:null};
-  vm.runInNewContext(code,{module,spy,host},{timeout:3000});
+  const context={module,spy,host};
+  if(globals)Object.defineProperties(context,Object.getOwnPropertyDescriptors(globals));
+  vm.runInNewContext(code,context,{timeout:3000});
   return module.exports;
 }
 
@@ -27,10 +30,11 @@ function execute(code,spy,host) {
  * @param {string} label
  * @param {Function|undefined} [spy]
  * @param {object|undefined} [host]
+ * @param {object|undefined} [globals]
  * @returns {void}
  */
-function compare(code,label,spy,host) {
-  const expected=execute(code,spy,host);
+function compare(code,label,spy,host,globals) {
+  const expected=execute(code,spy,host,globals);
   /** @type {{mode:string,expected:unknown,actual:unknown}[]} */
   const mismatches=[];
   for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
@@ -41,7 +45,7 @@ function compare(code,label,spy,host) {
       closedWorld:false,strings:false,identifiers:false,properties:true
     });
     const output=String(generated.files[0].code);
-    const actual=execute(output,spy,host);
+    const actual=execute(output,spy,host,globals);
     const renamed=generated.files[0].metrics.properties;
     console.log('CALLER_SOURCE_OBSERVER '+JSON.stringify({
       label,mode,expected,actual,renamed,
@@ -209,4 +213,24 @@ test('an IIFE can expose its source through a called foreign observer',()=>{
   ].join('\n');
   assert.equal(execute(source,spy),8);
   compare(source,'host-spy-iife',spy);
+});
+
+test('an unbound global identifier getter may inspect source without an explicit call',()=>{
+  const host={value:0};
+  const getter=/** @type {()=>number} */ (vm.runInNewContext(
+    '(function ambientGetter(){const caller=ambientGetter.caller;'+
+    'host.value=caller&&caller.toString().includes("secretField")?7:8;return 0;})',
+    {host}
+  ));
+  const globals=Object.defineProperty({},'ambient',{get:getter});
+  const source=[
+    'function privateFn(){',
+    '  const secret={secretField:1};',
+    '  ambient;',
+    '  return secret.secretField+7;',
+    '}',
+    'module.exports=privateFn()*10+host.value;'
+  ].join('\n');
+  assert.equal(execute(source,undefined,host,globals),87);
+  compare(source,'ambient-identifier-getter',undefined,host,globals);
 });
