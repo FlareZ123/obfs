@@ -101,6 +101,40 @@ target counts and query outcomes were unchanged.
 The existing large `manual-low-rank-target-inversion.yml` workflow
 also now includes the peer test for subsequent full-suite CI.
 
+## Constructive sharpness for this traversal procedure
+
+The independent test now includes an explicit family where the
+reported **n+2^r distinct-call upper bound is attained exactly by the
+stated interpolation-plus-forward-cycle traversal algorithm**.
+For each `r=1,...,5`, choose `n=3` for `r=1` and `n=2r`
+otherwise. Let the hidden input subspace `U` have basis vectors
+`e_(2j) XOR e_(2j+1)`; choose a coset representative with one
+set bit from each pair. For `r=1`, include a third independent bit
+in the representative. Every point in the designated coset then has
+Hamming weight at least two, so it avoids the `n+1` calibration
+inputs `0,e_0,...,e_(n-1)`.
+
+Define `F` to be the identity permutation outside that coset and a
+single directed cycle of length `2^r` within it. All interpolation
+inputs are fixed, so `b=0` and `M=I` are observable. Its global
+residual `F(x) XOR x` lies in `U`, with **actual span dimension
+`r`** for the chosen cycle ordering. For target `s` the cycle's
+first point, the forward traversal must query the other
+`2^r-1` coset points before it can infer the predecessor.
+Each is disjoint from the interpolation ledger, yielding exactly
+`n+1+2^r-1=n+2^r` distinct calls.
+
+The source-pinned
+[Ubuntu+Windows focused JSDoc and behavioral run 45036370685](https://github.com/FlareZ123/obfs/actions/runs/45036370685)
+passed at
+`328564118c8936c08c4c7f68c7a0e60099de71fb`.
+The five respectively attained bounds are
+`5,8,14,24,42` queries for
+`(n,r)=(3,1),(4,2),(6,3),(8,4),(10,5)`.
+This is **algorithm-specific worst-case sharpness**. It does not
+establish an information-theoretic lower bound against every
+possible oracle-inversion algorithm.
+
 ## Review conclusion
 
 The coset-invariance proof, finite-cycle predecessor argument and
