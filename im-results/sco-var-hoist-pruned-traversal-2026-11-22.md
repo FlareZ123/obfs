@@ -14,6 +14,29 @@ The original `firstUnprovedFreeReference::hoistsIn` collected `var` binding name
 
 The replacement traverses its variable environment using an iterative explicit stack and **does not enter** nested function or class-static-block environments. It collects the same `var` pattern identifiers in ordinary `if`, loops, `try`, `switch`, and nested blocks. Separate lexical-reference checking still applies to computed pattern keys and default expressions. The change modifies compiler preflight work and does not insert protected-runtime instructions.
 
+## Traversal equivalence argument
+
+For an immutable Acorn ESTree tree, the old collector accepts a `var`
+declaration exactly when there is no nested function declaration/expression,
+arrow, or class static block strictly between the chosen variable-environment
+root and that declaration. The new visitor starts from the same root and
+descends into precisely the nodes whose paths have not crossed those four
+environment boundaries. By the unique-parent path property of parsed ESTree,
+every accepted declaration is visited by the new collector, and every visited
+`var` declaration also passes the old ancestor test. Both visitors feed the
+same declaration patterns into the same binding collector and return a set of
+strings. This establishes **algorithmic equality under those tree and root
+assumptions**, with the deterministic fixture run as an independent regression
+check.
+
+For a chain of `n` nested function bodies, the original visitor may examine
+each inner body from each enclosing function, creating triangular repeated
+work; the pruned collector visits each nested body only when processing its
+own environment. This establishes a better bound for this component, while
+the surrounding `walk(root)` still copies ancestor arrays and scans the full
+program for actual value references. A total-pass or wall-clock upper bound
+requires independent analysis.
+
 ## Equality and positive/negative checks
 
 Local Linux Node 22.16.0 with Acorn 8.15.0 executed an independent prior-walker-versus-pruned-walker comparison: **400 deterministically generated parsed programs, seed `0x4f2a1bc0`, 1,659 environment comparisons, zero mismatches**. Each comparison enumerated and sorted the collected `var` names for the program and all nested functions/static blocks. The generator covers nested functions, blocks, loops, `try`, `switch`, class static blocks, and destructured var patterns. The repository test also adds nested depths 32/128/256 with a captured outer variable positive and nested-only declaration negative, checked against the native Node VM.
