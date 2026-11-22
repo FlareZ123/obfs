@@ -88,3 +88,17 @@ workflow](https://github.com/FlareZ123/obfs/actions/workflows/manual-validation.
 is complementary evidence and must always be tied to an exact run SHA.
 
 **Current release decision: RELEASE-BLOCKED.**
+
+
+## Full mainline validation after integration
+
+[Run 44982911567](https://github.com/FlareZ123/obfs/actions/runs/44982911567)
+at exact main SHA `cc38a055117560dd84d57c7fff12125e55df80ad`
+completed **successfully on Ubuntu and Windows**. It includes the entire
+`test/*.test.js` corpus (including seven new reexport fixtures),
+exhaustive low-rank oracle controls, seed-varied adversarial source
+recovery checks, both strict JSDoc checks, whole-program performance
+diagnostics, and real Chromium tests on Ubuntu. This is a full
+source-coincident integration receipt rather than proof of general
+adversarial resistance. The compiler source/test blobs at this SHA are
+the same as the focused candidate.
