@@ -1963,6 +1963,22 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         value.type==='SpreadElement'||!isDefinitelyPrimitive(value)));
   }
   /**
+   * CSS.escape accepts a CSSOMString. An unproved argument may convert a
+   * function to its native source text before identifier serialization.
+   * @param {AstNode|null|undefined} candidate
+   * @returns {boolean}
+   */
+  function isCssEscape(candidate) {
+    if(!candidate||candidate.type!=='MemberExpression'||
+       memberName(candidate)!=='escape')return false;
+    const namespace=candidate.object;
+    if(namespace.type==='Identifier')return namespace.name==='CSS';
+    return namespace.type==='MemberExpression' &&
+      memberName(namespace)==='CSS' &&
+      namespace.object.type==='Identifier' &&
+      ['globalThis','window','self'].includes(namespace.object.name);
+  }
+  /**
    * Object.groupBy converts each callback result to a property key, and a
    * function-valued key is observable as exact Function#toString source.
    * Only an inline callback returning a proven primitive can be exempted.
@@ -3061,6 +3077,25 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
          boundCollatorCompares.has(node.arguments[0].name) &&
          node.arguments[2] &&
          mayCoerceSourceWithinWebRecord(node.arguments[2]))observed=true;
+      // CSS.escape's Web IDL string conversion can expose the exact source
+      // text of a function, including its private field spellings.
+      if(isCssEscape(callee)&&node.arguments[0]&&
+         !isDefinitelyPrimitive(node.arguments[0]))observed=true;
+      if(callee.type==='MemberExpression'&&isCssEscape(callee.object)) {
+        const invocation=memberName(callee);
+        if(['call','bind'].includes(invocation??'')&&node.arguments[1]&&
+           !isDefinitelyPrimitive(node.arguments[1]))observed=true;
+        if(invocation==='apply'&&node.arguments[1]&&
+           mayCoerceSourceWithinWebRecord(node.arguments[1]))observed=true;
+      }
+      if(node.type==='CallExpression'&&isReflectApplyMethod(callee)&&
+         isCssEscape(node.arguments[0])) {
+        const supplied=node.arguments[2];
+        if(supplied?.type==='ArrayExpression') {
+          if(supplied.elements[0]&&!isDefinitelyPrimitive(supplied.elements[0]))
+            observed=true;
+        } else if(supplied)observed=true;
+      }
       // URL.parse can expose the original Function#toString in its encoded URL.
       if(isUrlStaticMethod(callee) &&
           node.arguments.slice(0,2).some((/** @type {AstNode} */ value)=>
