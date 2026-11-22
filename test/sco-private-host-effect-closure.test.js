@@ -229,3 +229,48 @@ test('New browser Window roots stay valid in inert object field labels',()=>{
     assert.deepEqual(generated.privateNames,['protectedOp']);
   }
 });
+
+
+test('Static private graph admits uniquely bound literal module-local Window spellings',()=>{
+  const names=['caches','origin','devicePixelRatio','isSecureContext',
+    'matchMedia','FileReader','Image'];
+  for(const name of names){
+    for(const transitive of [false,true]){
+      const code='const '+name+'=41;'+
+        'export function '+(transitive?'leaf':'compute')+'(){return '+name+'+1;}';
+      /** @type {ModuleSource[]} */
+      const graph=[{
+        path:'private/engine.mjs',
+        code:transitive?
+          'import {leaf} from "./deep/leaf.mjs";export function compute(){return leaf();}':
+          code
+      }];
+      if(transitive)graph.push({path:'private/deep/leaf.mjs',code});
+      const partition=partitionScoSelectedAsyncExports(
+        {path:'mixed.mjs',code:entry,sourceType:'module'},
+        {
+          seed:'sco-static-local-browser-name-20261122',
+          privateNames:['protectedOp'],
+          privateModuleImports:['./private/engine.mjs'],
+          privateModuleSources:graph
+        }
+      );
+      assert.deepEqual(partition.privateNames,['protectedOp']);
+    }
+  }
+});
+
+test('Static source refuses a same-named nested shadow when literal owner is ambiguous',()=>{
+  const body='const caches=41;export function leaf(){'+
+    'function inner(caches){return caches;}return caches+inner(1);}';
+  const graph=[
+    {path:'private/engine.mjs',
+      code:'import {leaf} from "./deep/leaf.mjs";export function compute(){return leaf();}'},
+    {path:'private/deep/leaf.mjs',code:body}
+  ];
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:entry,sourceType:'module'},
+    {seed:'sco-local-browser-name-ambiguous-20261122',privateNames:['protectedOp'],
+      privateModuleImports:['./private/engine.mjs'],privateModuleSources:graph}),
+  /SCO private static dependency has unproved client host state/u);
+});
