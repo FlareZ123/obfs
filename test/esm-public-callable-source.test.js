@@ -220,3 +220,62 @@ test('advanced control-flow passes reject exported callable source but accept pr
   };
   assert.equal(await observePublic(output.files[0].code),await observePublic(source));
 });
+
+
+test('exported class and method source survive property, identifier, and string passes',async()=>{
+  const publicText='public-class-source-0123456789-abcdefghijklmnopqrstuvwxyz-ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const source='const owner={secretField:3};export class PublicApi{read(publicParam){return owner.secretField+publicParam+'+JSON.stringify(publicText)+';}}';
+  const output=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
+    mode:'coo',closedWorld:true,seed:'esm-public-class-source',
+    strings:true,identifiers:true,properties:true,controlFlow:false
+  });
+  assert.ok(output.files[0].code.includes('owner.secretField'),output.files[0].code);
+  assert.ok(output.files[0].code.includes('publicParam'),output.files[0].code);
+  assert.ok(output.files[0].code.includes(publicText),output.files[0].code);
+  const observeBoth=async code=>{
+    const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-class-'));
+    try{
+      const file=path.join(dir,'entry.mjs');
+      await fs.writeFile(file,code,'utf8');
+      const url=pathToFileURL(file).href;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.PublicApi.toString(),m.PublicApi.prototype.read.toString(),new m.PublicApi().read(4)])))`;
+      const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    }finally{
+      await fs.rm(dir,{recursive:true,force:true});
+    }
+  };
+  assert.equal(await observeBoth(output.files[0].code),await observeBoth(source));
+});
+
+test('cross-file property proof cannot rewrite a key named inside an exported and re-exported callable',async()=>{
+  const sourceFiles=[
+    {path:'owner.mjs',sourceType:'module',code:'export const owner={secretField:3};'},
+    {path:'impl.mjs',sourceType:'module',code:"import {owner} from './owner.mjs';export function read(publicParam){return owner.secretField+publicParam;}"},
+    {path:'entry.mjs',sourceType:'module',code:"export {read} from './impl.mjs';"}
+  ];
+  const output=obfuscateFiles(sourceFiles,{
+    mode:'coo',closedWorld:true,seed:'esm-public-reexport-source',
+    strings:true,identifiers:true,properties:true,controlFlow:false
+  });
+  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  const observeBoth=async files=>{
+    const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-reexport-'));
+    try{
+      for(const file of files){
+        const target=path.join(dir,file.path);
+        await fs.mkdir(path.dirname(target),{recursive:true});
+        await fs.writeFile(target,file.code,'utf8');
+      }
+      const url=pathToFileURL(path.join(dir,'entry.mjs')).href;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read(4)])))`;
+      const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    }finally{
+      await fs.rm(dir,{recursive:true,force:true});
+    }
+  };
+  assert.equal(await observeBoth(output.files),await observeBoth(sourceFiles));
+});
