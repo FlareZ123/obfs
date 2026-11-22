@@ -27,7 +27,8 @@ function outcome(run) {
 
 test('before and after are exactly the current production compiler output',()=>{
   const result=obfuscateFiles([{path:'sample.cjs',sourceType:'commonjs',code:before}],{
-    mode:'sno',seed:'primitive-coercer-proof-sample',strings:false
+    mode:'sno',seed:'primitive-coercer-proof-sample',strings:false,
+    preservePublicCallableSource:true
   }).files[0];
   assert.equal(result.metrics.objects,1);
   assert.equal(result.metrics.properties,2);
@@ -37,6 +38,8 @@ test('before and after are exactly the current production compiler output',()=>{
 test('native and obfuscated sample agree on heterogeneous inputs',()=>{
   const original=load(before);
   const generated=load(after);
+  assert.equal(generated.toString(),original.toString(),
+    'Public exported function must retain native Function#toString source');
   for(const value of [0,1,-1,10,0.5,Number.NaN,Number.POSITIVE_INFINITY,
     Number.NEGATIVE_INFINITY,null,undefined,true,false,'4','invalid',3n,Symbol('x')]) {
     assert.deepEqual(outcome(()=>generated(value)),outcome(()=>original(value)),
