@@ -244,6 +244,35 @@ test('Selected SCO declines object URL access through a freshly constructed URL 
   assert.deepEqual(allowed.privateNames,['protectedOp']);
 });
 
+
+test('Selected SCO refuses timer APIs whose handles and callbacks belong to the caller realm',()=>{
+  const cases=[
+    'const id=setTimeout(()=>0,1000);clearTimeout(id);return typeof id;',
+    'const id=setInterval(()=>0,1000);clearInterval(id);return typeof id;',
+    'const schedule=setTimeout;const id=schedule(()=>0,1000);clearTimeout(id);return typeof id;',
+    'queueMicrotask(()=>{});return 1;',
+    'return requestAnimationFrame(()=>{});',
+    'return requestIdleCallback(()=>{});'
+  ];
+  for(const body of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-private-host-timers-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper contains unproved cross-realm host API/u,body);
+  }
+  const owned=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',
+      code:'export async function protectedOp(){'+
+        'const data={setTimeout:40,clearTimeout:2,requestAnimationFrame:0};'+
+        'return data.setTimeout+data.clearTimeout+data.requestAnimationFrame;}'+
+        'export function visible(){return 7;}'},
+    {seed:'sco-private-inert-timer-labels-20261122',privateNames:['protectedOp']}
+  );
+  assert.deepEqual(owned.privateNames,['protectedOp']);
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
