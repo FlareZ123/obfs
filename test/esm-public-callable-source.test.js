@@ -97,3 +97,26 @@ test('exported ESM function source preserves parameter names observable to impor
   assert.equal(await observe(output.files[0].code),await observe(source),
     'Function#toString observed by an external ESM importer must retain the original parameter spelling');
 });
+
+test('exported callable source is preserved without disabling private helper parameter renaming',async()=>{
+  const source='function privateHelper(privateParam){return privateParam+1;}export function publicRead(publicParam){return publicParam;}export const privateResult=privateHelper(3);';
+  const files=[{path:'entry.mjs',sourceType:'module',code:source}];
+  const output=obfuscateFiles(files,{
+    mode:'coo',closedWorld:true,seed:'esm-exported-source-positive-control',
+    strings:false,properties:false,controlFlow:false,identifiers:true
+  });
+  assert.match(output.files[0].code,/export function publicRead\(publicParam\)/);
+  assert.doesNotMatch(output.files[0].code,/privateParam/);
+  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-exported-positive-'));
+  try{
+    const file=path.join(dir,'entry.mjs');
+    await fs.writeFile(file,output.files[0].code,'utf8');
+    const url=pathToFileURL(file).href;
+    const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.publicRead.toString(),m.publicRead(9),m.privateResult])))`;
+    const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
+    assert.equal(child.status,0,child.stderr);
+    assert.equal(child.stdout,JSON.stringify(['function publicRead(publicParam){return publicParam;}',9,4]));
+  }finally{
+    await fs.rm(dir,{recursive:true,force:true});
+  }
+});
