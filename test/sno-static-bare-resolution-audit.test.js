@@ -128,14 +128,14 @@ test('audit scope is direct bare CJS calls and refuses lexical require shadowing
     {path:'nested/logic.cjs',sourceType:'commonjs',code:
       "module.exports=require('./relative.cjs')+require('#local');"},
     {path:'dot.cjs',sourceType:'commonjs',code:
-      "module.exports=require('.hidden-pkg')+require('audit-example',{irrelevant:true});"},
+      "module.exports=require('.hidden-pkg')+require('audit-example',{irrelevant:true})+require('audit-example');"},
     {path:'esm.mjs',sourceType:'module',code:
       "import x from 'audit-example';export default x;"}
   ];
   const collected=directBareRequires(files);
   assert.deepEqual([...collected],[
     ['entry.cjs',['audit-example']],
-    ['dot.cjs',['.hidden-pkg','audit-example']]
+    ['dot.cjs',['.hidden-pkg','audit-example','audit-example']]
   ]);
   assert.throws(()=>directBareRequires([{
     path:'entry.cjs',sourceType:'commonjs',
