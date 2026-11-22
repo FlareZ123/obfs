@@ -70,9 +70,29 @@ The same target is reached accidentally from anchors 0 and 3. This is a useful n
 
 ### 4. General common-basis lemma
 
-The proof is valid. With g(u) = F(r XOR u) XOR F(r), if the current input and output spans U and W both have dimension k < n, a next direction is forbidden only if it lies in U union g^-1(W). Both sets have size 2^k and contain zero, so their union has at most 2^(k+1) - 1 < 2^n elements. A direction outside the union increases both dimensions. Induction gives a basis whose output differences also form a basis.
+The proof is valid. With g(u) = F(r XOR u) XOR F(r), if the current input and output spans U and W both have dimension k < n, a next direction is forbidden only if it lies in U union g^-1(W). Both sets have size 2^k and contain zero, so their union has at most 2^(k+1) - 1 elements. A direction outside the union increases both dimensions. Induction gives a basis whose output differences also form a basis.
 
 An exhaustive check covered all 40,320 permutations of an eight-element domain at all eight anchors: **322,560 permutation-anchor pairs, zero failures**.
+
+#### Sharper extension count
+
+The union estimate above can be sharpened. At stage k, the intersection U intersect g^-1(W) contains not only zero but also each of the k already selected directions d_i: each d_i lies in U, and g(d_i) lies in W. These are k+1 distinct elements. Therefore:
+
+`|U union g^-1(W)| <= 2^(k+1) - (k+1)`
+
+and every partial common independent sequence has at least:
+
+`2^n - 2^(k+1) + k + 1`
+
+possible next directions. Consequently the number of ordered common bases is at least:
+
+`product_{k=0}^{n-1} (2^n - 2^(k+1) + k + 1)`
+
+and the number of unordered common bases is at least the ceiling of that product divided by n!.
+
+A second independent checker, `sims/reanchor-common-basis-count-peer.py`, reproduces this count and the width-three distribution. Across all 5,040 permutations of the seven nonzero width-three vectors, the number of common bases is 21, 22, 24 or 28, occurring 1,344, 2,352, 1,176 and 168 times respectively. The lower bound is therefore sharp at width three: at least 21 common bases out of 28 input bases.
+
+For width 32, the resulting lower bound on the success probability of a uniformly random input basis is approximately **7.4505815435e-9**. This is only a worst-case guarantee supplied by the counting argument, not a measurement or proof that the actual probability is that small. It does show that the existential lemma alone gives a weak quantitative guarantee for naive random-basis search at width 32.
 
 The construction is not an efficient oracle algorithm as written. Finding the next direction by scanning candidates may require access to the complete finite truth table; the proof supplies no polynomial query bound, and the exhaustive check does not establish one. It also guarantees only full rank, not the hidden compatible-normalization property required by Agent 20's conditional inversion theorem.
 
