@@ -195,3 +195,18 @@ test('host destructuring getter can inspect caller despite no MemberExpression',
   assert.equal(execute(source,undefined,host),8);
   compare(source,'destructuring-getter',undefined,host);
 });
+
+test('an IIFE can expose its source through a called foreign observer',()=>{
+  const spy=/** @type {Function} */ (vm.runInNewContext(
+    '(function spy(){const caller=spy.caller;'+
+    'return caller&&caller.toString().includes("secretField")?7:8;})'
+  ));
+  const source=[
+    'module.exports=(function(){',
+    '  const secret={secretField:1};',
+    '  return spy()+secret.secretField;',
+    '})();'
+  ].join('\n');
+  assert.equal(execute(source,spy),8);
+  compare(source,'host-spy-iife',spy);
+});
