@@ -256,6 +256,13 @@ test('Static private graph admits uniquely bound literal module-local Window spe
         }
       );
       assert.deepEqual(partition.privateNames,['protectedOp']);
+      const direct=partitionScoSelectedAsyncExports(
+        {path:'mixed.mjs',code:entry,sourceType:'module'},
+        {seed:'sco-static-local-browser-name-20261122',
+          privateNames:['protectedOp'],privateModuleImports:['./private/engine.mjs']}
+      );
+      assert.equal(partition.clientFile.code,direct.clientFile.code,
+        'Static source admission must leave the emitted client code unchanged');
     }
   }
 });
