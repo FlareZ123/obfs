@@ -223,3 +223,41 @@ test('SNO rejects a stale CommonJS package beneath an emitted ESM scope',async()
     await assert.rejects(fs.stat(path.join(output,'nested','module.js')),{code:'ENOENT'});
   });
 });
+
+test('SNO refuses external ESM scope on original unscoped CommonJS .js input',async()=>{
+  await withFixture(async directory=>{
+    const host=path.join(directory,'input-host');
+    const input=path.join(host,'source');
+    const output=path.join(directory,'output');
+    await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=61;');
+
+    const native=runCommonJs(path.join(input,'entry.js'));
+    assert.notEqual(native.status,0,'Native Node must see external ESM scope');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.js','--out',output]),
+      /SNO input \.js inherits external ESM package scope/
+    );
+    await assert.rejects(fs.stat(output),{code:'ENOENT'});
+  });
+});
+
+test('SNO accepts external source CommonJS scope when output is unscoped',async()=>{
+  await withFixture(async directory=>{
+    const host=path.join(directory,'input-host');
+    const input=path.join(host,'source');
+    const output=path.join(directory,'output');
+    await atomicWrite(path.join(host,'package.json'),'{"type":"commonjs"}');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=67;');
+
+    const native=runCommonJs(path.join(input,'entry.js'));
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'67');
+
+    await main('sno',['--root',input,'--entry','entry.js','--out',output]);
+    const result=runCommonJs(path.join(output,'sno-entry.cjs'));
+    assert.equal(result.status,0,result.stderr);
+    assert.equal(result.stdout,'67');
+  });
+});
