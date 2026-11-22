@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {walk,applyEdits}=require('./ast');
+const {walk,applyEdits,collectExportedCallableNodes,
+  isWithinExportedCallableSource}=require('./ast');
 const {
   collectBindings,proveLocalObject,ownPropertyName,staticName,isLiteralValue,
   singleUseFactoryObject
@@ -29,6 +30,7 @@ const {staticString}=require('./ast');
 function symbolizeLocalProperties(source,ast,options) {
   if(typeof options?.seed!=='string')throw new TypeError('Expected a seed');
   const bindings=collectBindings(ast);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   /** @type {Set<string>} */
   const reserved=new Set();
   walk(ast,node=>{if(node.type==='Identifier')reserved.add(node.name);});
@@ -66,6 +68,14 @@ function symbolizeLocalProperties(source,ast,options) {
   for(const candidate of candidates) {
     const proof=proveLocalObject(ast,candidate.name,bindings);
     if(!proof||(!proof.members.length&&!proof.patterns.length&&!proof.inChecks.length))continue;
+    const sourceEdits=[
+      ...candidate.properties.map(property=>property.key),
+      ...proof.members.map(member=>member.property),
+      ...proof.patterns.map(property=>property.key),
+      ...proof.inChecks.map(check=>check.left),
+      ...proof.reflections.map(reflection=>reflection.key)
+    ];
+    if(sourceEdits.some(node=>isWithinExportedCallableSource(node,exportedCallableSource)))continue;
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if(proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);})||
        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))||
