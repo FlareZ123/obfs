@@ -9,7 +9,7 @@ for configuring the actual server and preventing subsequent unreviewed changes.
 ## Example
 
 ```js
-const {verifyPublishedDeployment}=require('./src');
+const {obfuscateFiles,verifyPublishedDeployment}=require('./src');
 
 const published=obfuscateFiles(inputs,{mode:'coo',seed:'reviewed-release'});
 const approvedResponses=[
