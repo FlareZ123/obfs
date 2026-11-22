@@ -37,6 +37,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/public-instance-prototype-browser.js
+      - name: Peer review live SCO HTTP method source in Chromium
+        if: ${{ !cancelled() && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/sco-exported-instance-http-source-browser.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
