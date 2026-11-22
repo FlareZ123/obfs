@@ -65,7 +65,7 @@ test('typed conditional Wasm select preserves 1-4-input ternary branches and exp
   let variants=0,comparisons=0;
   for(let index=0;index<candidates.length;index++){
     const candidate=candidates[index];
-    const source='function f('+candidate.arity+'){return '+candidate.expression+';}module.exports=f;';
+    const source='function f('+candidate.arity+'){return '+candidate.expression+';}function publicF('+candidate.arity+'){return f('+candidate.arity+');}module.exports=publicF;';
     const original=load(source);
     const parameters=candidate.arity.split(',');
     for(let seed=0;seed<12;seed++){
@@ -113,7 +113,9 @@ test('conditional signed/unsigned ambiguous return and impure expression trees d
     'function f(a,b){if(a)return b;return ~b;}',
     'function f(a,b){return a?b:{}.value;}'
   ]){
-    const source=code+'module.exports=f;';
+    const parameters=/function f\\(([^)]*)\\)/u.exec(code)?.[1];
+    assert.ok(parameters,code);
+    const source=code+'function publicF('+parameters+'){return f('+parameters+');}module.exports=publicF;';
     const result=lowerWasmI32Functions(source,'commonjs',{
       seed:'conditional-refusal',names:['f']
     });
@@ -124,7 +126,7 @@ test('conditional signed/unsigned ambiguous return and impure expression trees d
 });
 
 test('conditional bitvector emit integrates with COO ESM and SNO CommonJS',async()=>{
-  const esm='export function f(a,b,c){return a?((b^c)&255):((~b)|c);}';
+  const esm='function f(a,b,c){return a?((b^c)&255):((~b)|c);}export function run(a,b,c){return f(a,b,c);}';
   const emitted=obfuscateFiles([{path:'conditional.mjs',sourceType:'module',code:esm}],{
     mode:'coo',seed:'conditional-esm',strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'conditional.mjs':['f']}
@@ -135,9 +137,9 @@ test('conditional bitvector emit integrates with COO ESM and SNO CommonJS',async
     Buffer.from(String(emitted.files[0].code)).toString('base64'));
   for(let i=0;i<512;i++){
     const args=[i32(),i32(),i32()];
-    assert.equal(lowered.f(...args),original.f(...args));
+    assert.equal(lowered.run(...args),original.run(...args));
   }
-  const cjs='function f(a,b,c,d){return (a&1)?(b>>>c):(b>>>d);}module.exports=f;';
+  const cjs='function f(a,b,c,d){return (a&1)?(b>>>c):(b>>>d);}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const generated=obfuscateFiles([{path:'conditional.cjs',sourceType:'commonjs',code:cjs}],{
     mode:'sno',seed:'conditional-sno',strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'conditional.cjs':['f']}
