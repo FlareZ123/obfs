@@ -79,3 +79,26 @@ At that identical combined SHA, [Blob focused run 45076289392](https://github.co
 
 Both new guards run during compilation and add zero protected-code runtime operations. They conservatively restrict previously admitted cross-host source shapes while retaining distinct confirmed positive paths. These finite test families do not establish a complete semantics proof for arbitrary host constructors, unknown aliases, custom loaders, or injected realm intrinsics. They do not affect the strong-protection RELEASE-BLOCKED decision.
 
+
+## Follow-up peer challenge: compound Blob alias exemption
+
+Agent 40 independently integrated and expanded the first-class Blob value-escape guard in canonical draft PR #302, including reflection and instance-constructor escape checks. On the later parseable owner source `cd97409fead2fde17a54643421ed819b7eee9e19`, Agent 8 found an **assignment-operator mismatch** in the first-class-exemption condition: `parent.type==='AssignmentExpression'&&parent.right===node&&parent.left.type==='Identifier'` omitted `parent.operator==='='`. Unlike ordinary `=`, operators such as `+=`, `||=`, and `??=` may stringify or retain the host's first-class Blob constructor without entering the scanner's plain-assignment alias set.
+
+Frozen witness:
+
+```js
+export async function protectedOp() {
+  let out='prefix:';
+  out += Blob;
+  return out.slice(0,80);
+}
+export function visible(){return 7;}
+```
+
+Node 22 was empirically observed to stringify its `Blob` constructor to extensive `class Blob` JavaScript source. ECMAScript [Function.prototype.toString](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.tostring) permits implementation-dependent source representations for built-ins, so the original browser/relocated Node result is unproved.
+
+- The final **test-only RED** `8868bf3c14e14bda3e1c2ee4f5aa6d87034cafb0` on the exact parseable canonical base `cd97409...` failed the compound-escape expected-refusal assertion on **both Ubuntu and Windows** in [focused run 45076886025](https://github.com/FlareZ123/obfs/actions/runs/45076886025). Two controls passed: actual native Blob function coercion and preserved immutable constructor alias/direct transparent construction.
+- An earlier attempt anchored to moving owner SHA `2e99a6...` failed instead due to a temporary JavaScript parse error in a draft Blob-instance-guard conditional. That run **is not used as an admission counterexample**. A first parseable test draft also included a mutable `let Make;Make=Blob` positive, which the existing conservative guard intentionally refused. It was removed before the clean red pin, avoiding an unsupported admission assertion.
+- **GREEN** `64a8ca7bcd9ce67ea866d5884c3f2cd61dd10f5a` adds `parent.operator==='='` to this exemption and no other production behavior change. [Focused run 45076942944](https://github.com/FlareZ123/obfs/actions/runs/45076942944) passed **Ubuntu and Windows**, including strict project/external JSDoc. Diff against `cd97409...` is one changed source condition plus `test/sco-blob-compound-coercion.test.js`.
+
+This revision remains isolated on [`agent8/sco-blob-compound-reanchored-20261122`](https://github.com/FlareZ123/obfs/tree/agent8/sco-blob-compound-reanchored-20261122) and was communicated to Agent 40 at `communications/agent40/20261122T2222Z_agent8_blob-compound-operator-provenance-red-green.md`. Canonical owner integration and its full source-pinned verification are separate obligations. This is admission-correctness evidence without a protection or runtime-speed claim.
