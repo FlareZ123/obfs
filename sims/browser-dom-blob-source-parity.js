@@ -39,6 +39,20 @@ async function observe(browser, embedding, source) {
   }
 }
 
+/**
+ * A Blob-backed ESM module can fetch its own bytes by import.meta.url.
+ * Keep this hostile-source-fetch control separate from DOM-only readers.
+ * @param {boolean} renamed
+ * @returns {string}
+ */
+function sourceFetchProgram(renamed) {
+  const key = renamed ? 'k' : 'internalSecret';
+  return 'const owner={' + key + ':8};' +
+    'const selfSource=await(await fetch(import.meta.url)).text();' +
+    'globalThis.result={value:owner.' + key +
+    ',sourceMatch:selfSource.includes("internal"+"Secret")};';
+}
+
 /** @returns {Promise<void>} */
 async function main() {
   const browser = await puppeteer.launch({
@@ -67,14 +81,21 @@ async function main() {
         console.log(JSON.stringify({name,embedding,original,renamed}));
       }
     }
+    const ownSource = await observe(browser,'blob',sourceFetchProgram(false));
+    const editedSource = await observe(browser,'blob',sourceFetchProgram(true));
+    assert.deepEqual(ownSource,{value:8,sourceMatch:true},'Blob self-fetch original');
+    assert.deepEqual(editedSource,{value:8,sourceMatch:false},'Blob self-fetch rename');
+    cases += 2;
+    console.log(JSON.stringify({name:'source-fetch',embedding:'blob',
+      original:ownSource,renamed:editedSource}));
   } finally {
     await browser.close();
   }
-  assert.equal(cases,12);
+  assert.equal(cases,14);
   console.log('Chromium verified '+cases+' native source-embedding observations');
 }
 
 if (require.main === module) {
   main().catch(error => {console.error(error);process.exitCode=1;});
 }
-module.exports = {main,observe};
+module.exports = {main,observe,sourceFetchProgram};
