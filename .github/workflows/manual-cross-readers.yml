@@ -46,6 +46,8 @@ jobs:
       # Red-first compatibility probe: new DOM serializations can observe
       # inline script text even where the current source guard may miss it.
       # This is an evidence branch, not a new release gate.
+      - name: Strict JSDoc for DOM source-observation evidence probes
+        run: npx tsc -p jsconfig.dom-source-evidence.json
       - name: Browser DOM serialization source-observer native/emitted parity
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
