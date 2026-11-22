@@ -820,7 +820,10 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
     "return new TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
     "return new TextDecoder('gbk').decode(Uint8Array.of(0xff));",
     "const Decoder=TextDecoder;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
-    "return new globalThis.TextDecoder('windows-1252').decode(Uint8Array.of(0x80));"
+    "return new globalThis.TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const {TextDecoder:Decoder}=globalThis;return new Decoder('gbk').decode(Uint8Array.of(0xff));",
+    "const root=globalThis;return new root['TextDecoder']('gbk').decode(Uint8Array.of(0xff));",
+    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));"
   ];
   for(const body of unsafe){
     const code='export async function protectedOp(){'+body+'}'+
@@ -838,7 +841,9 @@ test('SCO refuses legacy TextDecoder results with unproved host mapping tables',
   const safe=[
     "return new TextDecoder().decode(Uint8Array.of(65,66));",
     "return new TextDecoder('utf-8').decode(Uint8Array.of(65,66));",
-    "return new TextDecoder('UTF8',{fatal:true}).decode(Uint8Array.of(65));"
+    "return new TextDecoder('UTF8',{fatal:true}).decode(Uint8Array.of(65));",
+    "return new TextDecoder('utf-8',{ignoreBOM:true}).decode(Uint8Array.of(65));",
+    "const record={TextDecoder:41};return record.TextDecoder;"
   ];
   for(const body of safe){
     const code='export async function protectedOp(){'+body+'}'+
