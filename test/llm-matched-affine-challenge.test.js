@@ -113,7 +113,10 @@ const unusualInputs=[
   trace=>({valueOf(){trace.push('valueOf');return 19.75;}}),
   trace=>({valueOf(){trace.push('valueOf');return {};},
     toString(){trace.push('toString');return '-8';}}),
-  trace=>({[Symbol.toPrimitive](hint){trace.push('hint:'+hint);return '42';}}),
+  trace=>({
+    /** @param {string} hint */
+    [Symbol.toPrimitive](hint){trace.push('hint:'+hint);return '42';}
+  }),
   trace=>({valueOf(){trace.push('valueOf');throw new RangeError('coercion sentinel');}})
 ];
 
