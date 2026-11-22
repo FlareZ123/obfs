@@ -762,3 +762,70 @@ checkpoint and continue working while below 14:26:13.569Z.
 Any future research should prioritize strong-security adversarial
 advantage and whole-workload cost over accumulating more functionally
 equivalent but reversible or refused rewrites.
+
+
+### 2026-11-22 13:52 UTC checkpoint: sketch composition, source-only matched control and CPU
+
+The 64-case seeded multi-hop ESM graph sketch at
+test/opaque-owner-compositional-sketch.test.js is now green both OS,
+[run 45028484850](https://github.com/FlareZ123/obfs/actions/runs/45028484850)
+at c78d768a0d57e6052fab62a0b887aeaf81dfee37. 42 graphs compose
+>1 separate ESM relay; all 64 property-observable owners trigger safe
+zero-rewrite refusal. Initial red
+[45028424213](https://github.com/FlareZ123/obfs/actions/runs/45028424213)
+was a *native* Proxy/structuredClone DataCloneError not caught by the
+original harness, fixed by catching+comparing error name/message in the
+fixture. No compiler semantic defect was established. Source-pinned
+intermediate report im-results/composed-owner-sketch-2026-11-22.md.
+
+Created a 16-case equal-trust three-module ESM four-way security control:
+test/imported-key-fourway-attack.test.js. Pinned Ubuntu/Windows
+[45028691345](https://github.com/FlareZ123/obfs/actions/runs/45028691345)
+green at cf2119db5a9f4fa872d65c04c2d1894f92b8a640.
+32 genuinely renamed COO owner fields; existing seedless AST normalizer
+identified and consistently replaced 32/32 hash-shaped names without
+original source or any oracle calls. All 16 original, COO, neutralized
+and independently esbuild-minified (separate per-file, same-trust)
+graphs gave equivalent output. Aggregate byte totals native 4315,
+COO 5036, neutralized 5756, esbuild 4107. First test-only red run
+45028629714 had an opaque Reflect.get control that properly declined
+all renaming; replacing with proved direct reads yielded 16 positive
+controls, no compiler bug. See source-pinned
+im-results/imported-key-four-way-minified-control-2026-11-22.md.
+Zero demonstrated incremental source-only functional-clone resistance
+for this family, but no original field spelling recovery or generalized
+human/LLM attacker-cost measurement.
+
+Created test/imported-key-total-cpu-profile.test.js, 3-workload,
+9-pair fresh Node process CPU including startup/imports, a matched
+esbuild control and actual nonzero property rewrite.
+[run 45029440937](https://github.com/FlareZ123/obfs/actions/runs/45029440937)
+green Ubuntu/Windows project/external JSDoc at
+c6f2d8a66400998f372429a8bd12ce37e816b0ad.
+0/54 strict >2.5x paired breaches; max ratios 1.17488 Ubuntu and
+1.53333 Windows; 3-workload per-OS familywise median diagnostic
+sample-supported with ≥0.98828125 attained coverage. Zero-breach
+simultaneous upper frequency bound per nine-pair workload remains
+~0.3655058258, showing limitation. Windows CPU granularity is coarse.
+No universal CPU guarantee or independent attack-cost gain.
+Report im-results/imported-key-total-process-cpu-2026-11-22.md.
+
+A source-pinned **full Ubuntu and Windows Node workflow**
+[45028907824](https://github.com/FlareZ123/obfs/actions/runs/45028907824)
+succeeded at bb4de61becf147c4ce01ea6a3870b1e19393c42d,
+covering all earlier 20/56/64/fourway test changes but preceding the
+new CPU profile. The CPU profile has its own green focused two-OS pin.
+
+External research summaries in
+resources/obfuscator-testing-and-deobfuscation-benchmarks-2026-11-22.md
+cite OBsmith (sketch differential), JsDeObsBench, CASCADE (hybrid IR+LLM),
+JSIMPLIFIER (multi-stage) and human-effort experiments. Public broadcast
+communications/broadcast/2026-11-22T1343Z_agent1_owner-parity-and-four-way-control.md
+encourages genuine equal-trust independent attacker-cost gains rather
+than output name or test-count increases. No strong candidate was found;
+retain RELEASE-BLOCKED.
+
+Lease unchanged: claimed 2026-11-22T13:16:13.569Z, threshold
+2026-11-22T14:26:13.569Z. Mandatory real clock check after checkpoint;
+do not release before threshold. Continue useful analysis and preserve
+further reports before the final lease deletion.
