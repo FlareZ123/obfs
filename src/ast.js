@@ -1099,7 +1099,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
           changed=add(urlStaticAliases,name)||changed;
         if(isCssEscapeNamespace(value))
           changed=add(cssEscapeNamespaces,name)||changed;
-        if(isCssEscape(value))
+        // Reflection alias summaries are initialized in a later pass.
+        if(isCssEscape(value,true))
           changed=add(cssEscapeAliases,name)||changed;
         if(isWebConstructor(value,webDictionaries,webDictionaryNames)) {
           changed=add(webDictionaries,name)||changed;
@@ -1935,6 +1936,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const list=node.arguments[1];
     return list?.type==='ArrayExpression'?list.elements:[null];
   }
+  // The ordinary alias fixed point runs before Reflect.get summaries exist.
+  // Resolve reflected CSS.escape acquisitions only after all reflective
+  // aliases have been collected. An intervening assignment may over-refuse,
+  // which is safe for native function-source preservation.
+  let cssReflectiveChanged;
+  do {
+    cssReflectiveChanged=false;
+    walk(ast,node=>{
+      const id=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(id?.type!=='Identifier'||!value||!isCssEscape(value)||
+         cssEscapeAliases.has(id.name))return;
+      cssEscapeAliases.add(id.name);
+      cssReflectiveChanged=true;
+    });
+  }while(cssReflectiveChanged);
   /**
    * An indirect native constructor can stringify its first argument, and
    * RegExp can also stringify its optional flags argument. An opaque list
@@ -1991,19 +2010,26 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       candidate.type==='MemberExpression' && isGlobal(candidate.object) &&
         memberName(candidate)==='CSS'));
   }
-  /** @param {AstNode|null|undefined} candidate @returns {boolean} */
-  function isCssEscape(candidate) {
+  /**
+   * @param {AstNode|null|undefined} candidate
+   * @param {boolean} [early] Ignore reflective methods until their may-flow
+   *   summaries have been initialized, avoiding their temporal dead zone.
+   * @returns {boolean}
+   */
+  function isCssEscape(candidate,early=false) {
     if(!candidate)return false;
     if(candidate.type==='SequenceExpression')
-      return isCssEscape(candidate.expressions[candidate.expressions.length-1]);
+      return isCssEscape(candidate.expressions[candidate.expressions.length-1],early);
     if(candidate.type==='Identifier')return cssEscapeAliases.has(candidate.name);
     if(candidate.type==='CallExpression'&&candidate.callee.type==='MemberExpression'&&
        memberName(candidate.callee)==='bind')
-      return isCssEscape(candidate.callee.object);
-    const reflected=reflectGetInvocation(candidate);
-    if(reflected&&isCssEscapeNamespace(reflected[0])) {
-      const name=sourceStringKey(reflected[1]);
-      return name==='escape'||name===null;
+      return isCssEscape(candidate.callee.object,early);
+    if(!early) {
+      const reflected=reflectGetInvocation(candidate);
+      if(reflected&&isCssEscapeNamespace(reflected[0])) {
+        const name=sourceStringKey(reflected[1]);
+        return name==='escape'||name===null;
+      }
     }
     if(candidate.type!=='MemberExpression'||!isCssEscapeNamespace(candidate.object))
       return false;
