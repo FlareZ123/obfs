@@ -196,3 +196,30 @@ test('SNO accepts a reused nested CommonJS package for unscoped .js',async()=>{
     assert.equal(result.stdout,'53');
   });
 });
+
+test('SNO rejects a stale CommonJS package beneath an emitted ESM scope',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const output=path.join(directory,'output');
+    const stale=path.join(output,'nested','package.json');
+    await atomicWrite(path.join(input,'package.json'),'{"type":"module"}');
+    await atomicWrite(path.join(input,'entry.cjs'),
+      "module.exports=import('./nested/module.js').then(mod=>mod.value);");
+    await atomicWrite(path.join(input,'nested','module.js'),'export const value=59;');
+    await atomicWrite(stale,'{"type":"commonjs"}');
+
+    const native=spawnSync(process.execPath,['--eval',
+      "require(process.argv[1]).then(value=>process.stdout.write(String(value)))",
+      path.join(input,'entry.cjs')
+    ],{encoding:'utf8',timeout:15000});
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'59');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.cjs','--out',output]),
+      /SNO output \.js inherits external CommonJS package scope/
+    );
+    assert.equal(await fs.readFile(stale,'utf8'),'{"type":"commonjs"}');
+    await assert.rejects(fs.stat(path.join(output,'nested','module.js')),{code:'ENOENT'});
+  });
+});
