@@ -299,3 +299,24 @@ test('SNO rejects invalid external input package shape',async()=>{
     await assert.rejects(fs.stat(output),{code:'ENOENT'});
   });
 });
+
+test('SNO admitted external CommonJS scope does not change emitted bytes',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const control=path.join(directory,'control','output');
+    const scoped=path.join(directory,'scoped','output');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=97;');
+    await atomicWrite(path.join(directory,'scoped','package.json'),'{"type":"commonjs"}');
+
+    const args=['--root',input,'--entry','entry.js','--seed','scope-control'];
+    await main('sno',[...args,'--out',control]);
+    await main('sno',[...args,'--out',scoped]);
+
+    for(const name of ['entry.js','sno-entry.cjs']) {
+      assert.deepEqual(await fs.readFile(path.join(control,name)),
+        await fs.readFile(path.join(scoped,name)));
+    }
+    assert.equal(runCommonJs(path.join(control,'sno-entry.cjs')).stdout,'97');
+    assert.equal(runCommonJs(path.join(scoped,'sno-entry.cjs')).stdout,'97');
+  });
+});
