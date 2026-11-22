@@ -11,10 +11,10 @@ const names=Object.freeze(['round1','round2','round3']);
  * Import only the publicly distributed ESM artifact. The original program
  * stays hidden in the challenge closure until both answers are committed.
  * @param {string} source
- * @returns {Promise<Record<string,(input:number)=>number>>}
+ * @returns {Promise<Record<string,(input:unknown)=>number>>}
  */
 async function publicModule(source){
-  return /** @type {Record<string,(input:number)=>number>} */ (
+  return /** @type {Record<string,(input:unknown)=>number>} */ (
     await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source))
   );
 }
@@ -29,7 +29,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
     assert.notEqual(questions[0].sourceSha256,questions[1].sourceSha256);
     /** @type {Array<Record<string,number>>} */
     const submissions=[];
-    /** @type {Array<Record<string,(input:number)=>number>>} */
+    /** @type {Array<Record<string,(input:unknown)=>number>>} */
     const publicExports=[];
     for(const item of questions){
       assert.equal(item.environment,mode);
@@ -51,7 +51,7 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
     // This is an independent online-oracle capability control, not an LLM
     // inference result. The original source is still sealed at this point.
     const offlineClones=submissions.map(offsets=>
-      /** @type {Record<string,(input:number)=>number>} */(Object.fromEntries(
+      /** @type {Record<string,(input:unknown)=>number>} */(Object.fromEntries(
         names.map(name=>[name,
           /** @param {number} input */ input=>((input|0)+offsets[name])|0
         ])
@@ -79,6 +79,60 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
         assert.equal(publicExports[1][name](x),original[name](x),name+'/'+i+'/second');
         assert.equal(offlineClones[0][name](x),original[name](x),name+'/'+i+'/first clone');
         assert.equal(offlineClones[1][name](x),original[name](x),name+'/'+i+'/second clone');
+      }
+    }
+  });
+}
+
+/**
+ * Observe coercion order and error type as well as the numeric result.
+ * These JS inputs were outside the challenge's announced numeric-only
+ * answer schema; they are a separate defensive equivalence control.
+ *
+ * @param {(input:unknown)=>number} fn
+ * @param {(trace:string[])=>unknown} factory
+ * @returns {object}
+ */
+function observeCoercion(fn,factory){
+  /** @type {string[]} */
+  const trace=[];
+  try{
+    return {kind:'value',value:fn(factory(trace)),trace};
+  }catch(error){
+    if(!(error instanceof Error))throw error;
+    return {kind:'error',name:error.name,message:error.message,trace};
+  }
+}
+
+/** @type {Array<(trace:string[])=>unknown>} */
+const unusualInputs=[
+  ()=>NaN,()=>Infinity,()=>-Infinity,()=>-0,()=>12.875,
+  ()=>-4294967297.25,()=>1e100,()=>'',()=>'-4',
+  ()=>'0xff',()=>'not a number',()=>true,()=>false,()=>null,
+  ()=>undefined,()=>1n,()=>Symbol('no-ToNumber'),
+  trace=>({valueOf(){trace.push('valueOf');return 19.75;}}),
+  trace=>({valueOf(){trace.push('valueOf');return {};},
+    toString(){trace.push('toString');return '-8';}}),
+  trace=>({[Symbol.toPrimitive](hint){trace.push('hint:'+hint);return '42';}}),
+  trace=>({valueOf(){trace.push('valueOf');throw new RangeError('coercion sentinel');}})
+];
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
+  test(mode+' generated and minified exports retain coercion and throw semantics',async()=>{
+    const trial=createMatchedBlindAffineChallenge(mode);
+    const exposed=await Promise.all(trial.questions.map(q=>publicModule(q.source)));
+    const submissions=exposed.map(module=>
+      Object.fromEntries(names.map(name=>[name,module[name](0)]))
+    );
+    assert.ok(trial.verify(submissions).every(result=>result.passed));
+    const native=await publicModule(trial.reveal().originalSource);
+    for(const name of names){
+      for(const [index,make] of unusualInputs.entries()){
+        const expected=observeCoercion(native[name],make);
+        for(const [arm,published] of exposed.entries()){
+          assert.deepEqual(observeCoercion(published[name],make),expected,
+            mode+'/'+name+'/input'+index+'/arm'+arm);
+        }
       }
     }
   });
