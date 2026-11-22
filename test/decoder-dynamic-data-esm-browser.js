@@ -20,7 +20,9 @@ function graph(external) {
   return [
     {path:'entry.mjs',sourceType:'module',code:before+
       'const {default:value}=await import("./target.mjs");'+
-      'document.getElementById("result").textContent=btoa(value);'},
+      // The Browser test harness serializes outside the code under test:
+      // a generic btoa(value) can observe function source in other programs.
+      'globalThis.__result=value;'},
     {path:'target.mjs',sourceType:'module',
       code:"export default 'protected-literal-value';"}
   ];
@@ -61,7 +63,10 @@ async function main() {
       for(const file of files)resources.set(root+file.path,String(file.code));
       resources.set(root+'index.html',
         '<!doctype html><html><meta charset="utf-8">'+
-        '<pre id="result"></pre><script type="module" src="./entry.mjs"></script></html>');
+        '<pre id="result"></pre><script type="module" src="./entry.mjs"></script>'+
+        '<script>addEventListener("load",()=>{'+
+        'document.getElementById("result").textContent=btoa(globalThis.__result);'+
+        '});</script></html>');
     }
   }
   const server=http.createServer((request,response)=>{
