@@ -1185,8 +1185,14 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
      * @type {Map<string,{definition:AstNode,keys:Set<string>}>}
      */
     const knownOwnData=new Map();
+    /** @type {Set<string>} */
+    const primitiveLocals=new Set();
     walk(fn,(node,parent,key,ancestors)=>{
       if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
+      if(node.type==='VariableDeclarator'&&parent?.type==='VariableDeclaration'&&
+         parent.kind==='const'&&node.id.type==='Identifier'&&
+         bindings.get(node.id.name)===1&&node.init&&
+         isPrimitiveConstantExpression(node.init))primitiveLocals.add(node.id.name);
       if(node.type!=='VariableDeclarator'||parent?.type!=='VariableDeclaration'||
          parent.kind!=='const'||node.id.type!=='Identifier'||
          node.init?.type!=='ObjectExpression'||bindings.get(node.id.name)!==1)return;
@@ -1208,12 +1214,62 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     for(const [name,record] of knownOwnData){
       for(const use of inventory.identifierUses.get(name)??[]){
         if(use.node===record.definition)continue;
-        if(!use.ancestors.includes(fn)||use.parent?.type!=='MemberExpression'||
-           use.key!=='object'){
+        const access=use.parent;
+        const operation=access?.type==='MemberExpression'?
+          inventory.parents.get(access):null;
+        const writes=operation?.type==='AssignmentExpression'&&operation.left===access||
+          operation?.type==='UpdateExpression'&&operation.argument===access||
+          operation?.type==='UnaryExpression'&&operation.operator==='delete';
+        if(!use.ancestors.includes(fn)||access?.type!=='MemberExpression'||
+           use.key!=='object'||writes){
           knownOwnData.delete(name);
           break;
         }
       }
+    }
+    /**
+     * An operator must not coerce a foreign object: Symbol.toPrimitive,
+     * valueOf and toString callbacks can all inspect their caller's source.
+     * Only proven primitive constants and own primitive data reads qualify.
+     * @param {AstNode} expression
+     * @param {number} [depth]
+     * @returns {boolean}
+     */
+    function knownPrimitive(expression,depth=0){
+      if(depth>16)return false;
+      if(isPrimitiveConstantExpression(expression))return true;
+      if(expression.type==='Identifier')return primitiveLocals.has(expression.name);
+      if(expression.type==='MemberExpression'){
+        const own=expression.object.type==='Identifier'?
+          knownOwnData.get(expression.object.name):undefined;
+        const name=expression.computed?staticString(expression.property):
+          staticName(expression.property);
+        return Boolean(own&&name!==null&&own.keys.has(name));
+      }
+      if(expression.type==='UnaryExpression'&&
+         ['+','-','!','~','void','typeof'].includes(expression.operator))
+        return knownPrimitive(expression.argument,depth+1);
+      if(expression.type==='BinaryExpression'){
+        if(['in','instanceof'].includes(expression.operator))return false;
+        if(['===','!=='].includes(expression.operator))return true;
+        return knownPrimitive(expression.left,depth+1)&&
+          knownPrimitive(expression.right,depth+1);
+      }
+      if(expression.type==='LogicalExpression')
+        return knownPrimitive(expression.left,depth+1)&&
+          knownPrimitive(expression.right,depth+1);
+      if(expression.type==='ConditionalExpression')
+        return knownPrimitive(expression.test,depth+1)&&
+          knownPrimitive(expression.consequent,depth+1)&&
+          knownPrimitive(expression.alternate,depth+1);
+      if(expression.type==='SequenceExpression')
+        return expression.expressions.length>0&&
+          expression.expressions.every((/** @type {AstNode} */ item)=>
+            knownPrimitive(item,depth+1));
+      if(expression.type==='TemplateLiteral')
+        return expression.expressions.every((/** @type {AstNode} */ item)=>
+          knownPrimitive(item,depth+1));
+      return false;
     }
     walk(fn,(node,parent,key,ancestors)=>{
       if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
@@ -1229,6 +1285,26 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
         const name=node.computed?staticString(node.property):staticName(node.property);
         if(!own||name===null||!own.keys.has(name))observed=true;
       }
+      // JavaScript invokes user-defined hooks implicitly for coercion,
+      // proxy membership, instanceof and destructuring, without a call AST.
+      if(node.type==='BinaryExpression'&&
+         (['in','instanceof'].includes(node.operator)||
+          !['===','!=='].includes(node.operator)&&
+          (!knownPrimitive(node.left)||!knownPrimitive(node.right))))observed=true;
+      if(node.type==='UnaryExpression'&&
+         (['+','-','~'].includes(node.operator)&&!knownPrimitive(node.argument)||
+          node.operator==='delete'))observed=true;
+      if(node.type==='TemplateLiteral'&&
+         node.expressions.some((/** @type {AstNode} */ item)=>!knownPrimitive(item)))
+        observed=true;
+      if(node.type==='ObjectPattern'||node.type==='ArrayPattern'||
+         node.type==='ForInStatement'||node.type==='ForOfStatement'||
+         node.type==='SpreadElement'||node.type==='AwaitExpression'||
+         node.type==='YieldExpression'||node.type==='UpdateExpression')observed=true;
+      if(node.type==='AssignmentExpression'&&node.operator!=='='&&
+         (!knownPrimitive(node.left)||!knownPrimitive(node.right)))observed=true;
+      if(node.type==='Property'&&node.computed&&!knownPrimitive(node.key))
+        observed=true;
       if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
          node.object.name==='arguments'&&staticName(node.property)==='callee')
         observed=true;
