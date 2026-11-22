@@ -1143,13 +1143,30 @@ function privateDirectMemberReaders(ast,bindings) {
   const permitted=new Set();
   /** @param {AstNode} fn @returns {boolean} */
   function pureMemberReturn(fn) {
-    if(fn.async||fn.generator||fn.params.length)return false;
+    if(fn.async||fn.generator||fn.params.length>1||
+        fn.params.some(param=>param.type!=='Identifier'))return false;
     /** @type {AstNode|null} */
     let expression=fn.body;
     if(fn.body.type==='BlockStatement') {
       const statements=fn.body.body;
       if(statements.length===1&&statements[0].type==='ReturnStatement') {
         expression=statements[0].argument;
+      } else if(statements.length===2&&statements[0].type==='VariableDeclaration'&&
+        statements[0].kind==='const'&&statements[0].declarations.length===1&&
+        statements[0].declarations[0].id.type==='Identifier'&&
+        statements[0].declarations[0].init?.type==='MemberExpression'&&
+        statements[1].type==='ReturnStatement'&&
+        statements[1].argument?.type==='Identifier') {
+        const saved=statements[0].declarations[0];
+        const member=saved.init;
+        const returned=statements[1].argument;
+        // The helper exposes only an owned field, whose provenance is
+        // checked separately by proveLocalObject. The formal must be a
+        // single plain identifier and the local capture must not escape.
+        return fn.params.length===1&&member.object.type==='Identifier'&&
+          member.object.name===fn.params[0].name&&!member.optional&&
+          returned.name===saved.id.name&&
+          (member.computed?staticString(member.property):staticName(member.property))!==null;
       } else if(statements.length===2&&statements[0].type==='VariableDeclaration'&&
         statements[0].kind==='const'&&statements[0].declarations.length===1&&
         statements[0].declarations[0].id.type==='Identifier'&&
