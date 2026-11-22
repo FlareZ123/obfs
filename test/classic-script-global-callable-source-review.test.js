@@ -96,3 +96,44 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
     assert.notEqual(emitted.source,native.source);
   });
 }
+
+
+/**
+ * Execute a group of classic scripts in one shared global realm, then read
+ * the global callable from a later script.
+ * @param {{path:string,code:string}[]} files
+ * @returns {{value:unknown,source:string}}
+ */
+function executeGroup(files) {
+  const context=vm.createContext({});
+  for(const file of files) {
+    vm.runInContext(file.code,context,{filename:file.path,timeout:1000});
+  }
+  return {
+    value:context.result,
+    source:vm.runInContext('publicGlobal.toString()',context,{timeout:1000})
+  };
+}
+
+for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+  test(mode+' grouped classic scripts expose provider callable source to later scripts',()=>{
+    const inputs=[
+      {path:'provider.js',sourceType:'script',code:
+        "function publicGlobal(){return 'grouped-global-source-token';}"},
+      {path:'consumer.js',sourceType:'script',code:
+        'globalThis.result=publicGlobal();'}
+    ];
+    const output=obfuscateFiles(inputs,{
+      mode,closedWorld:true,seed:'grouped-classic-global-source/'+mode,
+      strings:true,properties:false,identifiers:false
+    });
+    assert.ok(output.files.reduce((sum,file)=>sum+file.metrics.literals,0)>0);
+    const native=executeGroup(inputs.map(file=>({path:file.path,code:file.code})));
+    const emitted=executeGroup(output.files.map(file=>({path:file.path,code:file.code})));
+    assert.equal(native.value,'grouped-global-source-token');
+    assert.equal(emitted.value,native.value);
+    assert.match(native.source,/grouped-global-source-token/);
+    assert.doesNotMatch(emitted.source,/grouped-global-source-token/);
+    assert.notEqual(emitted.source,native.source);
+  });
+}
