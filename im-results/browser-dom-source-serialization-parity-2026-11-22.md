@@ -77,6 +77,20 @@ This is a bounded **two-deployment indistinguishability witness for JS-only sour
 
 This result qualifies the earlier independent-library positive-yield suggestion: retaining rewrites in sibling modules can be sound for an independently proved deployment, while blindly assuming that all imports are source-invisible would be unsafe. The two existing architectures, **single group-wide source-observer refusal** or **asset-proven per-file visibility**, have different precision and proof obligations. No new source-reachability algorithm or universal guarantee is claimed.
 
+## Authorized-host ESM lock: source parity fails even without identifier obfuscation
+
+An independent [real-browser authorized host-lock parity reproducer](../sims/browser-dom-locked-module-source-parity.js) holds all other transforms disabled: `mode:'coo'`, `sourceType:'module'`, `strings:false`, `identifiers:false`, `properties:false`, `closedWorld:true`, `allowedHosts:['127.0.0.1']`. It serves original and generated **inline module** scripts over localhost HTTP, so `location.hostname` is the configured **authorized origin**. The module reads its own embedded `<script type="module" id="script-probe">` text length through `document.querySelector(...).textContent.length`. The host-provided output collector is a separate classic script running after `window.load`.
+
+Frozen source `97c8578a1173f0f99d9da3e78fb8d828be6296b1`, [run 45027721304](https://github.com/FlareZ123/obfs/actions/runs/45027721304), Ubuntu Chromium job `137224305583`, produced:
+
+```json
+{"inertNative":{"value":8},"inertLocked":{"value":8},"observedNative":{"value":8,"sourceLength":128},"observedLocked":{"value":8,"sourceLength":267},"originalSourceBytes":128,"guardedSourceBytes":267,"allowedHost":"127.0.0.1","guardPresent":true}
+```
+
+The inert control confirms the hostname guard performs its intended authorized operation on ordinary code. The source-observing module's numeric result still equals 8, but the injected guard increases the embedded module's observable text length by **139 characters** (128 to 267). The test explicitly verified that the guard text was generated, then failed the genuine authorized-host native-versus-guarded parity assertion.
+
+This is a **second transformation category** affected by the missing DOM source-observer guard: explicit hostname-lock injection, not merely identifier or property rewriting. The existing `src/core.js` host-lock preflight already declines when it detects source/stack observability; it needs the DOM source routes admitted to the same proof boundary. A sound immediate repair can raise `TypeError` for this source-observing input with `allowedHosts` rather than silently publish different observable source. This test does **not** demonstrate an unauthorized-host bypass or an improvement to hostility resistance; all browser execution here deliberately occurred on an allowed host. Runtime 2.5× overhead was not measured in this fixture.
+
 ## Threat, compatibility and performance limitations
 
 These are **eight finite semantic mismatches**, not proof of generalized property analysis unsoundness or of an attacker resisting reverse engineering. Source reflection by the executing classic script is part of its observable program behavior. The measured 8/true versus 8/false difference makes byte-preserving transformation or explicit refusal necessary for this input under the 1:1 parity objective.
