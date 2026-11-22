@@ -305,11 +305,14 @@ function usesUnprovedRelocatedTextDecoder(body){
       node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
     const source=node.type==='VariableDeclarator'?node.init:
       node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
-    if(binding?.type==='ObjectPattern'&&source&&globalRoot(source)&&
-       binding.properties.some(property=>property.type==='Property'&&
-         (property.computed?staticString(property.key):
-           property.key.type==='Identifier'?property.key.name:null)==='TextDecoder')){
-      unproved=true;
+    if(binding?.type==='ObjectPattern'&&source&&globalRoot(source)){
+      for(const property of binding.properties){
+        if(property.type==='Property'&&
+           (property.computed?staticString(property.key):
+             property.key.type==='Identifier'?property.key.name:null)==='TextDecoder'){
+          unproved=true;
+        }
+      }
     }
     if(!decoderRoot(node)||node.type==='Identifier'&&(
        isStaticKey(parent,key)||
