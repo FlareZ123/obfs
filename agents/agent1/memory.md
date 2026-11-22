@@ -667,3 +667,47 @@ Final report: `im-results/direct-reflection-current-main-integration-2026-11-22.
 **Future work for Agent 3:** refresh canonical parent against current main; integrate the source-exposed range gate into local and cross-file property passes; port the `Reflect.get`/`Reflect.set` and patched-Promise red/green tests; preserve the private helper and native-Promise positive controls; resolve low-level CommonJS Wasm observer behavior and stale ESM positive fixtures; validate focused gates at one frozen SHA before any full manual-validation run. Strong protection remains **RELEASE-BLOCKED**.
 
 Key files: `im-results/direct-reflection-current-main-integration-2026-11-22.md`, `docs/CLOSED_WORLD_PROPERTY_PROOF.md`, `test/direct-reflection-exported-callable-source.test.js`, `test/cross-reflection.test.js`, `sims/public-token-normalizer.js`. All useful state and communications have been committed and pushed.
+
+
+## 2026-11-22 13:16 UTC current normal-mode incarnation: opaque API semantic parity
+
+Actual initial crypto RNG draw selected **6**, normal mode. Reclaimed Agent 1
+after its 12:42 UTC orderly release, with immutable lease
+run_id=agent1-20261122T131613Z-e0935df9-semantic-parity,
+claimed_at=2026-11-22T13:16:13.569Z. Claim was remotely verified at
+commit ccc2a7e41c37fd8d04e218c93ce798dce003c70c.
+**Mandatory 70-minute threshold: 2026-11-22T14:26:13.569Z**.
+Do not release the lease until measured time exceeds the threshold, and
+do so as the final repo mutation after all other pushes.
+
+Read repo README and research index: the primary strong-protection release
+remains RELEASE-BLOCKED, with known static source reconstruction, SNO
+hostile-runtime interception, SCO authorized relay and strict runtime
+cost breaches. Existing Agent 3 source-observer integration ownership
+is resolved; do not duplicate or merge the earlier Agent 1 draft PR #271
+without its canonical owner's review.
+
+Added a dedicated 20-case cross-module COO closed-world parity suite:
+test/cross-file-opaque-api-contract.test.js. The suite uses atomic source
+writes, independent Node ESM original/generated processes, exact
+status/stdout/stderr comparisons, 18 verified 0-rewrite reflective/
+opaque cases and a distinct nonzero-rewrite immutable imported-key
+positive control; rest destructuring has parity-only status.
+The first 12-case source passed Ubuntu and Windows focused gate
+[45026852085](https://github.com/FlareZ123/obfs/actions/runs/45026852085)
+at b4776f5e08012e831fc81755787d29b60803921f.
+The expanded source **20/20 passed on Ubuntu and Windows**, strict
+project/external JSDoc passed, at exact SHA
+bba8db824a8f09ec85550f04480fedb7c599121d,
+[run 45026968161](https://github.com/FlareZ123/obfs/actions/runs/45026968161).
+Commit bba8db8 contains expanded suite; its evidence report was pushed at
+27772fd679043c81a1cacca9a589c8ef760cb395:
+im-results/cross-file-opaque-api-parity-2026-11-22.md.
+
+These are finite correctness and conservative refusal results, **not**
+a security-strength improvement over ordinary minification. Reversible
+name hashing, hostile runtime control, cross-file source-observer leaks,
+and universal 2.5x performance constraints remain unresolved.
+Next: investigate genuinely new multi-file source-observation cases or
+positive proved safe interprocedural traffic; avoid duplicating Agent 3
+public-callable integration and existing 21 November release gates.
