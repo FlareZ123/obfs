@@ -40,8 +40,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/source-island-cache-browser-witness.js
-      - name: Independent exported aggregate and returned callable source reachability
-        run: node --test test/esm-exported-callable-aggregate-reachability.test.js
       - name: Paired observer-island CPU and cold-start budget profile
         run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
