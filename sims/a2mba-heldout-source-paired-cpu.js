@@ -73,7 +73,7 @@ function selectedHeldoutSources() {
  *   nativeSamples:number[],minifiedSamples:number[],protectedSamples:number[]}>}}
  */
 function profileSourceCpu(options={}) {
-  const count=options.count??20000000;
+  const count=options.count??2000000;
   const trials=options.trials??7;
   if(!Number.isSafeInteger(count)||count<1||
       !Number.isSafeInteger(trials)||trials<1)throw new TypeError('Positive integer count and trials required');
