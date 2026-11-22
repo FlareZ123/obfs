@@ -1256,6 +1256,96 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
 }
 
 /**
+ * Recognize a deliberately small source-private class pattern. Every
+ * instance is stored once in a local const and used only in direct calls to
+ * one uncomputed instance method. That method returns a primitive literal
+ * data property from an otherwise unaliased local const object. Neither
+ * class source, method source, nor a callable value can escape this graph.
+ *
+ * This is a sufficient syntactic proof for this one shape, not a general
+ * class escape or interprocedural provenance analysis.
+ * @param {AstNode} ast
+ * @param {Map<string,number>} bindings
+ * @returns {{classes:Set<AstNode>,methods:Set<AstNode>}}
+ */
+function collectPrivateDirectClasses(ast,bindings) {
+  /** @type {Set<AstNode>} */
+  const classes=new Set();
+  /** @type {Set<AstNode>} */
+  const methods=new Set();
+  if(ast.type!=='Program')return {classes,methods};
+  /** @type {WeakMap<AstNode,AstNode>} */
+  const parents=new WeakMap();
+  /** @type {Map<string,AstNode[]>} */
+  const identifiers=new Map();
+  walk(ast,(node,parent)=>{
+    if(parent)parents.set(node,parent);
+    if(node.type!=='Identifier')return;
+    const uses=identifiers.get(node.name)??[];
+    uses.push(node);
+    identifiers.set(node.name,uses);
+  });
+  for(const cls of ast.body){
+    if(cls.type!=='ClassDeclaration'||cls.id?.type!=='Identifier'||
+       cls.superClass!==null||cls.body?.type!=='ClassBody'||
+       cls.body.body.length!==1||bindings.get(cls.id.name)!==1)continue;
+    const definition=cls.body.body[0];
+    if(definition.type!=='MethodDefinition'||definition.kind!=='method'||
+       definition.computed||definition.static||definition.key?.type!=='Identifier'||
+       definition.value?.type!=='FunctionExpression'||
+       definition.value.params.length!==0||
+       definition.value.body?.body?.length!==1)continue;
+    const bodyReturn=definition.value.body.body[0];
+    const field=bodyReturn.type==='ReturnStatement'?bodyReturn.argument:null;
+    if(field?.type!=='MemberExpression'||field.computed||field.optional||
+       field.object?.type!=='Identifier'||field.property?.type!=='Identifier')continue;
+    const ownerName=field.object.name;
+    const ownerRefs=identifiers.get(ownerName)??[];
+    if(ownerRefs.length!==2||!ownerRefs.includes(field.object)||
+       bindings.get(ownerName)!==1)continue;
+    const ownerDeclId=ownerRefs.find(node=>node!==field.object);
+    const ownerDeclarator=ownerDeclId?parents.get(ownerDeclId):null;
+    const ownerStatement=ownerDeclarator?parents.get(ownerDeclarator):null;
+    const ownerLiteral=ownerDeclarator?.init;
+    if(ownerDeclarator?.type!=='VariableDeclarator'||ownerDeclarator.id!==ownerDeclId||
+       ownerStatement?.type!=='VariableDeclaration'||ownerStatement.kind!=='const'||
+       parents.get(ownerStatement)!==ast||ownerStatement.declarations.length!==1||
+       ownerLiteral?.type!=='ObjectExpression'||ownerLiteral.properties.length!==1)continue;
+    const own=ownerLiteral.properties[0];
+    if(own.type!=='Property'||own.computed||own.shorthand||own.method||
+       own.kind!=='init'||ownPropertyName(own)!==field.property.name||
+       !isLiteralValue(own.value))continue;
+    const classRefs=identifiers.get(cls.id.name)??[];
+    if(classRefs.length!==2||!classRefs.includes(cls.id))continue;
+    const constructorRef=classRefs.find(node=>node!==cls.id);
+    const creation=constructorRef?parents.get(constructorRef):null;
+    const declarator=creation?parents.get(creation):null;
+    const statement=declarator?parents.get(declarator):null;
+    if(creation?.type!=='NewExpression'||creation.callee!==constructorRef||
+       creation.arguments.length!==0||declarator?.type!=='VariableDeclarator'||
+       declarator.init!==creation||declarator.id?.type!=='Identifier'||
+       statement?.type!=='VariableDeclaration'||statement.kind!=='const'||
+       parents.get(statement)!==ast||statement.declarations.length!==1||
+       bindings.get(declarator.id.name)!==1)continue;
+    const instanceRefs=identifiers.get(declarator.id.name)??[];
+    if(instanceRefs.length<2||!instanceRefs.includes(declarator.id))continue;
+    if(!instanceRefs.every(ref=>{
+      if(ref===declarator.id)return true;
+      const member=parents.get(ref);
+      const call=member?parents.get(member):null;
+      return member?.type==='MemberExpression'&&member.object===ref&&
+        !member.computed&&!member.optional&&
+        staticName(member.property)===definition.key.name&&
+        call?.type==='CallExpression'&&call.callee===member&&
+        call.arguments.length===0&&!call.optional;
+    }))continue;
+    classes.add(cls);
+    methods.add(definition.value);
+  }
+  return {classes,methods};
+}
+
+/**
  * Function/class source that may escape the supplied graph is observable
  * through Function#toString or class source formatting. A nested function is
  * also exposed when its enclosing callable source is exposed.
@@ -1265,6 +1355,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  */
 function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
   const privateCallables=collectPrivateDirectCallables(ast,bindings);
+  const privateClasses=collectPrivateDirectClasses(ast,bindings);
   const sourceBodies=new Set([
     'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
     'ClassDeclaration','ClassExpression'
@@ -1273,9 +1364,9 @@ function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
   const exposed=new Set();
   walk(ast,(node,parent,key,ancestors)=>{
     if(!sourceBodies.has(node.type))return;
-    if(node.type==='ClassDeclaration'||node.type==='ClassExpression'||
-       ancestors.some(ancestor=>exposed.has(ancestor))||
-       !privateCallables.has(node))exposed.add(node);
+    if(ancestors.some(ancestor=>exposed.has(ancestor))||
+       !(privateCallables.has(node)||privateClasses.classes.has(node)||
+         privateClasses.methods.has(node)))exposed.add(node);
   });
   return exposed;
 }
