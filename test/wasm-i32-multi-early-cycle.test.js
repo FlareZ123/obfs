@@ -14,15 +14,15 @@ const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 const heavy='((((b^c)^(d<<5))&((b|d)^(c>>>3)))^'+
   '((((d^b)&(c|7))<<(b&7))|((c^d)>>>2)))';
 const kernel='import "./peer.mjs";\n'+
-  'export function f(a,b,c,d){return (a?'+heavy+':d);}\n';
-const peer='import {f} from "./kernel.mjs";\n'+
+  'function f(a,b,c,d){return (a?'+heavy+':d);}export function run(a,b,c,d){return f(a,b,c,d);}\n';
+const peer='import {run} from "./kernel.mjs";\n'+
   'export const observed=['+
   '[0,-2147483648,0,1],'+
   '[1,-2147483648,12345,2147483647],'+
   '[-1,-1,0,0],'+
   '[0,123456,54321,-1],'+
   '[2147483647,1,31,0]'+
-  '].map(values=>f(...values));\n';
+  '].map(values=>run(...values));\n';
 
 /**
  * Execute a cycle whose peer invokes the hoisted export before its owner
@@ -38,10 +38,10 @@ async function cycle(ownerCode){
     const owner=await import(pathToFileURL(path.join(folder,'kernel.mjs')).href);
     const imported=await import(pathToFileURL(path.join(folder,'peer.mjs')).href);
     const later=[
-      owner.f(0,-2147483648,3,2147483647),
-      owner.f(7,17,31,47),
-      owner.f(-7,17,-31,-47),
-      owner.f(0,-1,2,-3)
+      owner.run(0,-2147483648,3,2147483647),
+      owner.run(7,17,31,47),
+      owner.run(-7,17,-31,-47),
+      owner.run(0,-1,2,-3)
     ];
     return {early:imported.observed,later};
   }finally{
