@@ -32,7 +32,8 @@ function source(length,ownerPosition) {
     'const alias=tuple['+ownerPosition+'];',
     'function identity(y){return y;}',
     'const reader=x=>x.hiddenCount;',
-    'module.exports=function compute(n){return reader(identity(alias))*n+owner.privateDelta;}'
+    'function privateCompute(n){return reader(identity(alias))*n+owner.privateDelta;}',
+    'module.exports=function compute(n){return privateCompute(n);}'
   ].join('\n');
 }
 
@@ -63,6 +64,8 @@ function runGrid() {
         assert.equal(extracted.properties,2);
         report.sourceOnlyRecoveries++;
         const protectedFn=load(generated);
+        assert.equal(protectedFn.toString(),baseline.toString(),
+          mode+' '+length+':'+position+' public callable source parity');
         const copiedFn=load(String(extracted.files[0].code));
         for(let value=-80;value<=80;value++) {
           const expected=baseline(value);
