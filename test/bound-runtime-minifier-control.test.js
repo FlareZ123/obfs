@@ -51,6 +51,12 @@ test('same pre-import bind interception recovers private target from minified an
   const minified=transformSync(source,{
     loader:'js',format:'esm',minify:true,legalComments:'none',target:'es2022'
   }).code;
+  const mangled=transformSync(source,{
+    loader:'js',format:'esm',minify:true,legalComments:'none',target:'es2022',
+    mangleProps:/^(secretField|otherField)$/
+  }).code;
+  assert.doesNotMatch(mangled,/secretField|otherField/u,
+    'the matched esbuild control must also rename the two private own fields');
   const published=obfuscateFiles([{path:'entry.mjs',sourceType:'module',code:source}],{
     mode:'coo',seed:'matched-bound-runtime-obfs',closedWorld:true,
     identifiers:true,properties:true,strings:false
@@ -62,8 +68,8 @@ test('same pre-import bind interception recovers private target from minified an
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-bind-minifier-control-'));
   try{
     /** @type {string[]} */
-    const names=['native','minified','obfuscated'];
-    const scripts=[source,minified,protectedCode];
+    const names=['native','minified','mangled','obfuscated'];
+    const scripts=[source,minified,mangled,protectedCode];
     /** @type {ReturnType<typeof instrument>[]} */
     const results=[];
     for(let i=0;i<names.length;i++){
@@ -71,20 +77,22 @@ test('same pre-import bind interception recovers private target from minified an
       await atomicWrite(file,scripts[i]);
       results.push(instrument(pathToFileURL(file).href));
     }
-    const [native,control,obfuscated]=results;
+    const [native,control,mangledControl,obfuscated]=results;
     assert.equal(native.privateBodies.length,1);
-    assert.equal(control.privateBodies.length,1);
-    assert.equal(obfuscated.privateBodies.length,1);
-    assert.equal(control.value,native.value);
-    assert.equal(obfuscated.value,native.value);
-    assert.equal(control.boundSource,native.boundSource);
-    assert.equal(obfuscated.boundSource,native.boundSource);
+    for(const observed of [control,mangledControl,obfuscated]){
+      assert.equal(observed.privateBodies.length,1);
+      assert.equal(observed.value,native.value);
+      assert.equal(observed.boundSource,native.boundSource);
+    }
     assert.match(control.privateBodies[0],/secretField/u,
       'plain minification retains field spelling in recovered function source');
+    assert.doesNotMatch(mangledControl.privateBodies[0],/secretField|otherField/u,
+      'esbuild property mangling also hides the original keys from the captured body');
     assert.match(obfuscated.privateBodies[0],/\._p[0-9a-f]{10}/u,
       'obfuscated build also exposes the actual rewritten function body');
     console.log('BOUND_RUNTIME_MINIFIED_CONTROL '+JSON.stringify({
       originalBytes:Buffer.byteLength(source),minifiedBytes:Buffer.byteLength(minified),
+      mangledBytes:Buffer.byteLength(mangled),
       protectedBytes:Buffer.byteLength(protectedCode),
       attackerInterceptionMethod:'Function.prototype.bind',capturedTargetsPerBuild:1
     }));
