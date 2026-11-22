@@ -107,6 +107,28 @@ test('weighted cyclic alias DAG memoization matches legacy and enumerated maxima
   }));
 });
 
+test('all three-identifier directed 0/1-weight alias graphs preserve maxima',()=>{
+  let queries=0;
+  // Nine possible directed edges, each absent or carrying bound weight 0/1.
+  for(let mask=0;mask<3**9;mask++){
+    /** @type {WeightedAliases} */
+    const graph=[[],[],[]];
+    let digits=mask;
+    for(let source=0;source<3;source++)for(let dest=0;dest<3;dest++){
+      const digit=digits%3;
+      digits=Math.floor(digits/3);
+      if(digit)graph[source].push([dest,digit-1]);
+    }
+    for(let root=0;root<3;root++){
+      const expected=enumerated(graph,root);
+      assert.equal(original(graph,root),expected,'legacy mask '+mask);
+      assert.equal(candidate(graph,root),expected,'candidate mask '+mask);
+      queries++;
+    }
+  }
+  assert.equal(queries,59049);
+});
+
 test('diamond weighted maxima remain unchanged',()=>{
   /** @type {WeightedAliases} */
   const graph=Array.from({length:33},()=>[]);
