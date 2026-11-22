@@ -103,7 +103,12 @@ for(const [name,expression] of /** @type {[string,string][]} */([
   ['unary plus cannot convert BigInt','+1n'],
   ['mixed BigInt Number throws','1n+2'],
   ['division by zero throws','1n/0n'],
-  ['negative exponent throws','2n**-1n']
+  ['negative exponent throws','2n**-1n'],
+  ['nested unary plus throws','+(-1n)'],
+  ['nested mixed arithmetic throws','(-1n)+2'],
+  ['nested division by zero throws','(-1n)/(-0n)'],
+  ['nested negative exponent throws','(-2n)**(-1n)'],
+  ['nested unsupported BigInt shift throws','(-1n)>>>0n']
 ])){
   test('throwing BigInt initializer remains outside the proof: '+name,()=>{
     const source='const owner={field:'+expression+'};module.exports=0;';
