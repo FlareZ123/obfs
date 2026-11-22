@@ -284,7 +284,13 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
   /** @param {string} candidate @returns {boolean} */
   function matchesDistributedScript(candidate) {
-    return portableKeys(candidate).some(key=>distributedKeys.has(key));
+    // A Windows-style filesystem-backed route may discard trailing ASCII
+    // dots or spaces from each segment after decoding the request pathname.
+    // Test both spellings, since other hosts may preserve them exactly.
+    const win32Candidate=candidate.split('/')
+      .map(segment=>segment.replace(/[. ]+$/u,'')).join('/');
+    return [candidate,win32Candidate].some(path=>
+      portableKeys(path).some(key=>distributedKeys.has(key)));
   }
 
   /**
