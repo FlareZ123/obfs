@@ -72,10 +72,9 @@ async function readPage(url) {
 }
 
 /**
- * Reproduce the current bounded external-source exposure in a real Chromium
- * module graph. Changed spelling is the expected *negative* observation for
- * this diagnostic, not a correctness acceptance condition for a fixed compiler.
- * The separate Node matrix asserts that actual semantic parity is required.
+ * Validate a candidate compiler against both externally observable callable
+ * source text and private functional behavior in an actual Chromium module
+ * graph. The browser importer is deliberately absent from compiler inputs.
  *
  * @returns {Promise<{cases:number,sourceMismatches:number,ordinaryValueMatches:number,positiveRewrites:number,declaredMatches:number}>}
  */
@@ -193,9 +192,10 @@ async function main() {
   const summary={cases:pairs.length,sourceMismatches,ordinaryValueMatches,positiveRewrites,declaredMatches};
   assert.equal(summary.cases,18);
   assert.equal(summary.ordinaryValueMatches,18,'Ordinary return values must be equal');
-  assert.equal(summary.sourceMismatches,18,
-    'Historical red witness no longer reproduces; update to an actual parity test');
-  assert.equal(summary.positiveRewrites,18,'Each historical red case must edit source');
+  assert.equal(summary.sourceMismatches,0,
+    'Candidate must preserve external callable source in Chromium');
+  // Public-callable edit refusal is valid; private rewrite yield is checked
+  // independently in the Node acceptance suite.
   assert.equal(summary.declaredMatches,3,'All three declared browser controls must pass');
   console.log('ESM_PUBLIC_BROWSER_SUMMARY '+JSON.stringify(summary));
   return summary;
