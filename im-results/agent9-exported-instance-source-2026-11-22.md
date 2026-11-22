@@ -37,6 +37,14 @@ Exporting a class instance exposes its prototype through native reflection even 
 
 The two reported property rewrites are **aggregate** cross-file and per-file metrics; the initial run establishes that rewriting occurred, but does not separately attribute a count to the unrelated private module. A follow-up evidence-only branch commit **`b082f0af15652647bf3bcc60694f03e7af3d1b3e`** adds a `privatePropertyRenames` metric and asserts positive yield on `private.mjs`, but that stricter version was not covered by the source-pinned run above. A second broad workflow was explicitly canceled in response to Critic guidance favoring staged focused validation.
 
+## Real Chromium corroboration and explicit positive-yield attribution
+
+The independent Ubuntu browser fixture `test/public-instance-prototype-browser.js` was source-pinned at **`6fd3b95936a5d6130f87c37742532a2e59f8b1c0`** on the evidence-only branch `agent9-public-instance-prototype-browser-20261122`. [Focused workflow 44991488636](https://github.com/FlareZ123/obfs/actions/runs/44991488636) executed real headless **Google Chrome** against both original and emitted ESM graphs served over localhost with browser-native `import()`. The HTML module inspector is outside the input source group.
+
+The resulting **single Ubuntu step failure** was the strict external prototype-method source comparison. Observed native and emitted method return value: **7** each. Independent exported private value: **13** each. Native method source: `read(){return owner.secretField;}`. Emitted method source: `read(){return owner._pbcc8e25e04a1;}`. The compiler reported **one cross-file owner property rename** and, separately, **one `private.mjs` own-property rename**. Both positive rewrites occurred in the same browser input graph whose exported prototype method source differed.
+
+The workflow's Windows job passed its existing source-observer and strict JSDoc checks; the real Chromium step ran on Ubuntu only, as declared in its job condition. This is a browser target result in addition to the earlier two-OS Node ESM differential. It does not certify the untested full SNO launcher, SCO deployment, security resistance or global 2.5× budget.
+
 ## Follow-up acceptance criterion
 
 Port this witness to the **single canonical public-callable source preflight** owned by the reconciled integration owner. Verify `Object.getPrototypeOf(exportedInstance).read.toString()` equality for native vs emitted ESM on both platforms, with separately measured private owner yield. Test property, identifier and string passes in combination, using only proven direct-call-only private helpers as positive controls. A green candidate needs a source-coincident integration pin, and existing real Chromium and strict JSDoc checks. Broad new full-suite reruns are inappropriate until focused compatibility cases are green.
