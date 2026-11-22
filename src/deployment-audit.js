@@ -40,6 +40,22 @@ const OPAQUE_MIME=new Set([
  */
 function auditByDeliveredMime(file) {
   const essence=file.mediaType.essence;
+  const charset=file.mediaType.params.get('charset')?.toLowerCase();
+  const scriptOrText=JAVASCRIPT_MIME.has(essence)||
+    essence==='text/html'||essence==='text/css';
+  const xml=essence==='application/xml'||essence==='text/xml'||
+    essence==='application/xhtml+xml'||essence==='image/svg+xml';
+  // Classic-script decoding can fall back to the embedding document's
+  // encoding; HTML/CSS have their own sniffing and @charset mechanisms.
+  // Require a real UTF-8 header before trusting our UTF-8 source scanners.
+  if(scriptOrText&&charset!=='utf-8') {
+    throw new TypeError('Executable text response requires explicit UTF-8 charset: '+file.path);
+  }
+  // The XML grammar can self-declare UTF-8 without a HTTP charset, but a
+  // conflicting HTTP charset invalidates a scanner based on UTF-8 bytes.
+  if(xml&&charset!==null&&charset!==undefined&&charset!=='utf-8') {
+    throw new TypeError('Executable XML response declares non-UTF-8 charset: '+file.path);
+  }
   if(file.sourceType!=='asset') {
     if(!JAVASCRIPT_MIME.has(essence)) {
       throw new TypeError('Published JavaScript requires JavaScript MIME: '+file.path);
