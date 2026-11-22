@@ -12,7 +12,7 @@ const {atomicWrite}=require('../src/atomic');
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
 
 /**
- * Construct a deterministic, closed six-module ESM property-flow matrix.
+ * Construct a deterministic ESM property-flow matrix with six owner modules and one entry.
  * Every owner has a distinct key, preventing one unsafe case from masking
  * unrelated safe cases through an accidental shared property spelling.
  *
@@ -31,28 +31,29 @@ function mixedGraph() {
     const returned='return'+i;
     const key='private'+i;
     const extra='other'+i;
-    modules[group].push(
-      `export const ${record}={${key}:${i+11},${extra}:${i*2+1}};`,
-      `export function ${returned}(){return ${record};}`
-    );
-    imported[group].push(record,returned);
+    modules[group].push(`export const ${record}={${key}:${i+11},${extra}:${i*2+1}};`);
+    imported[group].push(record);
+    if(i%16===1) {
+      modules[group].push(`export function ${returned}(){return ${record};}`);
+      imported[group].push(returned);
+    }
     // Proxy handlers must preserve observable dynamic property-key spellings.
     const read=[
       `${record}.${key}`,
       `${returned}().${key}`,
       `Reflect.get(${record},'${key}')`,
-      `Object.keys(${record}).join('|')`,
+      `JSON.stringify(Object.keys(${record}))`,
       `Object.hasOwn(${record},'${key}')`,
       `(()=>{const k${i}='${key}';return ${record}[k${i}];})()`,
       `Object.getOwnPropertyDescriptor(${record},'${key}')?.value`,
       `JSON.stringify(${record})`,
-      `Object.entries(${record}).map(p=>p.join(':')).join('|')`,
-      `Reflect.ownKeys(${record}).map(String).join('|')`,
+      `JSON.stringify(Object.entries(${record}))`,
+      `JSON.stringify(Reflect.ownKeys(${record}))`,
       `(()=>{const alias=${record};alias.${key}+=3;return ${record}.${key};})()`,
       `(()=>{const {${key}:value}=${record};return value;})()`,
       `(()=>{const receiver=Object.create(${record});return receiver.${key};})()`,
       `(()=>{const clone={...${record}};return clone.${key};})()`,
-      `(()=>{const copy=Object.assign({},${record});return Object.keys(copy).join('|');})()`,
+      `(()=>{const copy=Object.assign({},${record});return JSON.stringify(Object.keys(copy));})()`,
       `(()=>{const proxy=new Proxy(${record},{get(t,k){return k+':'+t.${key};}});return proxy.${key};})()`
     ][i%16];
     observations.push(read);
@@ -94,7 +95,7 @@ async function execute(files) {
   }
 }
 
-test('96-case six-module ESM reflection and alias matrix preserves native behavior',async()=>{
+test('96-case six-owner-module ESM reflection and alias matrix preserves native behavior',async()=>{
   const original=mixedGraph();
   const baseline=await execute(original);
   assert.equal(baseline.status,0,baseline.stderr);
@@ -135,7 +136,7 @@ test('opaque Proxy dynamic Reflect.get is conservatively refused in a closed gra
     {path:'state.mjs',sourceType:'module',
       code:'export const state={secretField:42};'},
     {path:'entry.mjs',sourceType:'module',
-      code:"import {state} from './state.mjs';const proxy=new Proxy(state,{get(t,k,r){return String(k)+':'+Reflect.get(t,k,r)}});console.log(proxy.secretField);"}
+      code:"import {state} from './state.mjs';const proxy=new Proxy(state,{get(t,k,r){return k+':'+Reflect.get(t,k,r)}});console.log(proxy.secretField);"}
   ];
   const transformed=obfuscateFiles(originals,{
     mode:'coo',closedWorld:true,seed:'crossfile-dynamic-proxy-negative',
