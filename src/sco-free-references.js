@@ -120,9 +120,11 @@ function collectPatternNodes(pattern,bindings){
  * @param {Set<string>} moduleBindings Trusted module names outside root
  * @param {Set<string>} rootFormals Function parameters outside a body root
  * @param {Set<string>} realmGlobals Explicitly reviewed shared globals
+ * @param {boolean} [rootHasArguments] True only for an ordinary root function body
  * @returns {string|null}
  */
-function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals){
+function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals,
+  rootHasArguments=false){
   /** @type {Set<AstNode>} */
   const bindings=new Set();
   walk(root,node=>{
@@ -164,7 +166,7 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
     // A normal function supplies its own arguments object. Arrows inherit it
     // from the nearest ordinary function, including the selected root body.
     // Top-level audited ESM modules have no implicit arguments binding.
-    if(node.name==='arguments'&&(root.type==='BlockStatement'||
+    if(node.name==='arguments'&&(rootHasArguments||
       ancestors.some(scope=>scope.type==='FunctionDeclaration'||
         scope.type==='FunctionExpression')))return;
     const name=node.name;
