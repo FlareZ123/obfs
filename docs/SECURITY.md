@@ -343,11 +343,16 @@ external package metadata before publishing executable files. Explicit
 `createSnoLauncher(files,entry)` API receives no deployment path and
 does not perform the check.
 
-The check is bound to the current filesystem state. It cannot protect
-relocated distributions, later changes to ancestor or nested packages,
-hostile Node loader overrides, or an attacker controlling the filesystem.
-Publish into a clean directory and verify the final deployed package
-tree. See the [bounded reproduction and focused source pin](../im-results/sno-ambient-output-package-scope-2026-11-22.md).
+The check is bound to the current filesystem state and default Node
+module resolution. Node's `--preserve-symlinks` flag can use the lexical
+symlink path for dependency loading instead of the realpath used by the
+preflight; a local Node 22.16.0 experiment reproduced a module-format
+difference under that flag. Source and deployment loader flags must be
+reviewed independently. The check cannot protect relocated distributions,
+later changes to ancestor or nested packages, custom loader overrides,
+or an attacker controlling the filesystem. Publish into a clean directory
+and verify the final deployed package tree. See the
+[bounded reproduction and focused source pin](../im-results/sno-ambient-output-package-scope-2026-11-22.md).
 
 ## Independently reviewed opaque public assets
 
