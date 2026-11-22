@@ -988,7 +988,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
         if(options.type!=='ObjectExpression')configurationTouched=true;
         else for(const property of options.properties){
           if(property.type!=='Property'||property.kind!=='init'||
-             keyName(property)===null){
+             keyName(property)===null||keyName(property)==='__proto__'){
+            // A literal __proto__ setter can install an inherited native
+            // `endings` dictionary option even without an own property.
             configurationTouched=true;
             break;
           }
