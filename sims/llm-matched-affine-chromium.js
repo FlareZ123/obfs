@@ -57,10 +57,12 @@ async function run(){
   /** @type {import('puppeteer-core').Browser|undefined} */
   let browser;
   try{
-    await new Promise((resolve,reject)=>{
+    /** @type {Promise<void>} */
+    const listening=new Promise((resolve,reject)=>{
       server.once('error',reject);
       server.listen(0,'127.0.0.1',()=>resolve());
     });
+    await listening;
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
     browser=await puppeteer.launch({
@@ -202,7 +204,11 @@ async function run(){
     return result;
   }finally{
     if(browser)await browser.close();
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    /** @type {Promise<void>} */
+    const closed=new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve())
+    );
+    await closed;
   }
 }
 
