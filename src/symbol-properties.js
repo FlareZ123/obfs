@@ -3,8 +3,8 @@
 const {createHash}=require('node:crypto');
 const {walk,applyEdits}=require('./ast');
 const {
-  collectBindings,proveLocalObject,ownPropertyName,staticName,isLiteralValue,
-  singleUseFactoryObject
+  collectBindings,collectSourceExposedBodies,proveLocalObject,ownPropertyName,
+  staticName,isLiteralValue,singleUseFactoryObject
 }=require('./properties');
 const {staticString}=require('./ast');
 
@@ -29,6 +29,13 @@ const {staticString}=require('./ast');
 function symbolizeLocalProperties(source,ast,options) {
   if(typeof options?.seed!=='string')throw new TypeError('Expected a seed');
   const bindings=collectBindings(ast);
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  /** @type {WeakSet<AstNode>} */
+  const sourceExposedEdits=new WeakSet();
+  walk(ast,(node,parent,key,ancestors)=>{
+    if(ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))
+      sourceExposedEdits.add(node);
+  });
   /** @type {Set<string>} */
   const reserved=new Set();
   walk(ast,node=>{if(node.type==='Identifier')reserved.add(node.name);});
@@ -64,8 +71,13 @@ function symbolizeLocalProperties(source,ast,options) {
   const declarations=[];
   let objects=0,properties=0;
   for(const candidate of candidates) {
+    if(candidate.properties.some(property=>sourceExposedEdits.has(property)))continue;
     const proof=proveLocalObject(ast,candidate.name,bindings);
     if(!proof||(!proof.members.length&&!proof.patterns.length&&!proof.inChecks.length))continue;
+    if(proof.members.some(member=>sourceExposedEdits.has(member))||
+       proof.patterns.some(property=>sourceExposedEdits.has(property))||
+       proof.inChecks.some(check=>sourceExposedEdits.has(check))||
+       proof.reflections.some(reflection=>sourceExposedEdits.has(reflection.key)))continue;
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if(proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);})||
        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property)))||
