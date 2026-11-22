@@ -69,3 +69,19 @@ test('SCO permits an ordinary stable scalar size from Blob.slice()',()=>{
     "return new Blob(['A']).slice(0,1).size;"
   ).privateNames,['protectedOp']);
 });
+
+test('native Blob method values expose their host-dependent function source',()=>{
+  const method=new Blob([]).slice;
+  assert.equal(typeof method,'function');
+  assert.match(String(method),/slice/u);
+  assert.ok(String(method).length>10);
+});
+
+test('SCO refuses first-class Blob instance methods with unproved source identity',()=>{
+  const bodies=[
+    "const method=new Blob([]).slice;return String(method).slice(0,60);",
+    "return String(new Blob([]).text).slice(0,60);",
+    "const b=new Blob([]);const fn=b.arrayBuffer;return String(fn).slice(0,60);"
+  ];
+  for(const body of bodies)assert.throws(()=>compile(body),TypeError,body);
+});
