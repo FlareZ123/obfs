@@ -86,20 +86,20 @@ async function executeWithHostProbe(source) {
     const runner=path.join(directory,'runner.cjs');
     const target=path.join(directory,'target.cjs');
     await writeFile(preload,
-      "const nativeIsArray=Array.isArray;\\n"+
-      "Array.isArray=function observedIsArray(value){\\n"+
-      "  if(globalThis.__obfsCallerProbeArmed){\\n"+
-      "    const caller=arguments.callee.caller;\\n"+
-      "    globalThis.__obfsCallerProbeObservations.push(\\n"+
-      "      caller?Function.prototype.toString.call(caller):null);\\n"+
-      "  }\\n"+
-      "  return nativeIsArray(value);\\n"+
-      "};\\n",'utf8');
+      "const nativeIsArray=Array.isArray;\n"+
+      "Array.isArray=function observedIsArray(value){\n"+
+      "  if(globalThis.__obfsCallerProbeArmed){\n"+
+      "    const caller=arguments.callee.caller;\n"+
+      "    globalThis.__obfsCallerProbeObservations.push(\n"+
+      "      caller?Function.prototype.toString.call(caller):null);\n"+
+      "  }\n"+
+      "  return nativeIsArray(value);\n"+
+      "};\n",'utf8');
     await writeFile(runner,
-      "globalThis.__obfsCallerProbeArmed=false;\\n"+
-      "globalThis.__obfsCallerProbeObservations=[];\\n"+
-      "const value=require(process.argv[2]);\\n"+
-      "process.stdout.write(JSON.stringify({value,observations:globalThis.__obfsCallerProbeObservations}));\\n",
+      "globalThis.__obfsCallerProbeArmed=false;\n"+
+      "globalThis.__obfsCallerProbeObservations=[];\n"+
+      "const value=require(process.argv[2]);\n"+
+      "process.stdout.write(JSON.stringify({value,observations:globalThis.__obfsCallerProbeObservations}));\n",
       'utf8');
     await writeFile(target,source,'utf8');
     const child=spawnSync(process.execPath,['-r',preload,runner,target],{
@@ -119,16 +119,16 @@ test('sloppy host caller reflection distinguishes strict and sloppy CommonJS acr
   const {obfuscateFiles}=require('../src');
   for(const mode of ['coo','sno','sco']) {
     for(const strict of [false,true]) {
-      const source=(strict?"'use strict';\\n":"")+
-        "const owner={secretField:17};\\n"+
-        "/* caller-probe-wrapper */\\n"+
-        "globalThis.__obfsCallerProbeArmed=true;Array.isArray([1,2]);globalThis.__obfsCallerProbeArmed=false;\\n"+
-        "function privateWorker(){\\n"+
-        "  /* caller-probe-worker */\\n"+
-        "  globalThis.__obfsCallerProbeArmed=true;Array.isArray([1,2]);globalThis.__obfsCallerProbeArmed=false;\\n"+
-        "  return owner.secretField;\\n"+
-        "}\\n"+
-        "module.exports=privateWorker()+4;\\n";
+      const source=(strict?"'use strict';\n":"")+
+        "const owner={secretField:17};\n"+
+        "/* caller-probe-wrapper */\n"+
+        "globalThis.__obfsCallerProbeArmed=true;Array.isArray([1,2]);globalThis.__obfsCallerProbeArmed=false;\n"+
+        "function privateWorker(){\n"+
+        "  /* caller-probe-worker */\n"+
+        "  globalThis.__obfsCallerProbeArmed=true;Array.isArray([1,2]);globalThis.__obfsCallerProbeArmed=false;\n"+
+        "  return owner.secretField;\n"+
+        "}\n"+
+        "module.exports=privateWorker()+4;\n";
       const output=obfuscateFiles([{
         path:'target.cjs',sourceType:'commonjs',code:source
       }],{
