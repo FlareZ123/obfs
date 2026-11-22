@@ -213,9 +213,19 @@ function usesUnprovedCrossRealmHostApi(body){
  * @returns {boolean}
  */
 function usesUnprovedRelocatedUrlStatic(body){
-  // A fresh URL instance can expose its host constructor through
-  // `instance.constructor`. Track simple local aliases so the static-method
-  // refusal cannot be bypassed by spelling `new URL(...).constructor`.
+  /**
+   * A direct `new URL(...)` originates in the host URL constructor. The
+   * admitted subset contains only local scalar getters and direct toString/
+   * toJSON calls; returning or passing URL instances requires a provenance
+   * proof that this bounded compiler does not provide.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function newUrl(node){
+    return node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+      node.callee.name==='URL';
+  }
+  // Propagate simple local aliases without inferring container or call flows.
   const urlInstances=new Set();
   let changed=true;
   while(changed){
@@ -226,25 +236,50 @@ function usesUnprovedRelocatedUrlStatic(body){
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
       if(binding?.type!=='Identifier'||!value)return;
-      const instance=value.type==='NewExpression'&&
-        value.callee.type==='Identifier'&&value.callee.name==='URL' ||
-        value.type==='Identifier'&&urlInstances.has(value.name);
-      if(instance&&!urlInstances.has(binding.name)){
+      if((newUrl(value)||value.type==='Identifier'&&urlInstances.has(value.name))&&
+         !urlInstances.has(binding.name)){
         urlInstances.add(binding.name);
         changed=true;
       }
     });
   }
+  const scalarMembers=new Set(['href','origin','protocol','username',
+    'password','host','hostname','port','pathname','search','hash']);
+  const invokedMethods=new Set(['toString','toJSON']);
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function urlInstance(node){
+    return newUrl(node)||node.type==='Identifier'&&urlInstances.has(node.name);
+  }
   let observed=false;
   walk(body,(node,parent,key)=>{
-    if(node.type==='MemberExpression'){
-      const receiver=node.object;
-      const urlInstance=receiver.type==='Identifier'&&urlInstances.has(receiver.name)||
-        receiver.type==='NewExpression'&&receiver.callee.type==='Identifier'&&
-          receiver.callee.name==='URL';
-      const property=node.computed?staticString(node.property):
+    if(newUrl(node)){
+      const directMember=parent?.type==='MemberExpression'&&key==='object';
+      const localBinding=parent?.type==='VariableDeclarator'&&key==='init'&&
+        parent.id.type==='Identifier';
+      const directAssignment=parent?.type==='AssignmentExpression'&&key==='right'&&
+        parent.operator==='='&&parent.left.type==='Identifier';
+      if(!directMember&&!localBinding&&!directAssignment)observed=true;
+    }
+    if(node.type==='MemberExpression'&&urlInstance(node.object)){
+      const member=node.computed?staticString(node.property):
         node.property.type==='Identifier'?node.property.name:null;
-      if(urlInstance&&(property===null||property==='constructor'))observed=true;
+      const scalar=scalarMembers.has(member??'');
+      const directInvocation=invokedMethods.has(member??'')&&
+        parent?.type==='CallExpression'&&key==='callee'&&
+        parent.arguments.length===0;
+      const write=parent?.type==='AssignmentExpression'&&key==='left'||
+        parent?.type==='UpdateExpression'&&key==='argument'||
+        parent?.type==='UnaryExpression'&&parent.operator==='delete';
+      if((!scalar&&!directInvocation)||write)observed=true;
+    }
+    if(node.type==='Identifier'&&urlInstances.has(node.name)&&!isStaticKey(parent,key)){
+      const declaration=parent?.type==='VariableDeclarator'&&key==='id';
+      const directMember=parent?.type==='MemberExpression'&&key==='object';
+      const localAlias=parent?.type==='VariableDeclarator'&&key==='init'&&
+        parent.id.type==='Identifier';
+      const assignmentAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
+        parent.operator==='='&&parent.left.type==='Identifier';
+      if(!declaration&&!directMember&&!localAlias&&!assignmentAlias)observed=true;
     }
     if(node.type!=='Identifier'||node.name!=='URL'||isStaticKey(parent,key))return;
     if(parent?.type==='NewExpression'&&key==='callee')return;
