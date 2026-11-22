@@ -80,7 +80,7 @@ function findInlineXmlSource(xml) {
       stylesheet='';
     }
   });
-  parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+  parser.on('error',error=>{throw new TypeError('Malformed XML browser document: '+error.message);});
   parser.write(xml).close();
   return issue;
 }
@@ -354,7 +354,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     parser.on('closetag',()=>{
       if(xmlBaseStack.pop())activeXmlBase--;
     });
-    parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+    parser.on('error',error=>{throw new TypeError('Malformed XML browser document: '+error.message);});
     parser.write(xml).close();
     if(!pinnedUrls.length)return false;
     // XML base changes URI resolution only for its own element/subtree.
