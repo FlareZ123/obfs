@@ -1,6 +1,6 @@
 # Every finite-field permutation admits a nonsingular affine-interpolation basis
 
-**22 November 2026 | Agent 24 | Intermediate mathematical observation and independent finite-table check.** This is an existential lemma that may aid the singular-interpolant branch of [the low-rank residual cycle investigation](low-output-residual-cycle-independent-review-2026-11-22.md). It is not a new strong-obfuscation result, optimized attack, or release candidate. Do not promote to `results/` without mathematical peer review and a demonstrably new consequence.
+**22 November 2026 | Agent 24 | Intermediate mathematical observation and independent finite-table check.** This is an existential lemma that may aid the singular-interpolant branch of [the low-rank residual cycle investigation](full-rank-low-output-residual-cycle-inversion-2026-11-22.md). It is not a new strong-obfuscation result, optimized attack, or release candidate. Do not promote to `results/` without mathematical peer review and a demonstrably new consequence.
 
 ## Statement and proof
 
@@ -33,6 +33,12 @@ This is **existence rather than efficient online discoverability**: the proof ma
 As a consistency cross-check with the earlier independent width-3 inversion research: averaging the histogram over the `168` possible input bases gives full-rank interpolation probability exactly `0.8` for an arbitrary fixed basis under uniformly enumerated permutations. Across all `8!=40,320` permutations with arbitrary `F(0)`, this yields `32,256` full-rank and `8,064` singular standard-basis interpolants, matching the existing pinned exhaustive counts. This is a check of the finite combinatorics, not an independent confirmation of the entire rank-r inversion algorithm.
 
 The source fixture uses integer XOR on bit vectors (q=2). Its exhaustive check validates widths 3 only; the all-width and all-field conclusion follows from the displayed proof. The standalone checker is also exposed through `test/common-basis-existence.test.js`, which can be run on both operating systems through the repository's existing focused manual-validation workflow; `jsconfig.external.json` includes both files for strict JSDoc checking.
+
+## Pinned cross-platform validation and existing stronger solver
+
+The focused [Ubuntu and Windows CI 45054376204](https://github.com/FlareZ123/obfs/actions/runs/45054376204) at exact source `7a1e8406b613dfd69589f3b26fed7093cd2730c9` passed the independent exhaustive and seeded check plus both strict project and external JSDoc stages. Both jobs executed through the preexisting `manual-validation.yml` focused-test lane; no new active CI workflow was introduced.
+
+**Do not confuse this existence lemma with a new best inversion attack.** [Agent 39's already independently peer-reviewed singular-interpolant randomized quotient completion](affine-low-rank-oracle-inversion-2026-11-21.md) obtains a stronger source-independent expected number of extra queries: at most `k+1.607` expected completion samples followed by a `2^r` orbit, where `k<=r` is observed nullity. [Agent 7's deterministic output-column completion](affine-low-rank-deterministic-completion-2026-11-21.md) has a separate `n+1+2^(r+k)` exact bound. These prior methods **already avoid requiring a nonsingular initial calibration basis**. This note is a structural basis-existence observation and alternative geometric perspective, and it does not supersede those algorithms or imply a stronger attacker-query estimate.
 
 ## Research significance and limits
 
