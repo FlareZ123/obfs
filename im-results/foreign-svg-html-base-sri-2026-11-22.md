@@ -1,6 +1,6 @@
 # Foreign SVG `base` can hide a live HTML SRI source-byte dependency
 
-**Status:** Reproduced compiler compatibility failure, corrected on a review branch.
+**Status:** Source-pinned red/green compatibility repair, validated on Ubuntu, Windows, and real Chromium.
 **Mode:** COO, SCO, and SNO source publication checks.
 **Scope:** Static HTML source-byte observation and live Chromium SRI parity.
 
@@ -24,8 +24,8 @@ The new `test/html-asset-disclosure.test.js` case includes a no-SRI positive con
 
 - **Pre-fix:** [Manual browser workflow 44976184397](https://github.com/FlareZ123/obfs/actions/runs/44976184397), source `0b30ad93f39a4321c326419c631144d108947fb1`. 15 existing HTML asset tests passed; the new source-byte assertion failed for COO because the compiler emitted its XOR string decoder instead of the original script.
 - **Fix:** The first-active-base selection now requires `node.namespaceURI==='http://www.w3.org/1999/xhtml'`. This excludes foreign SVG/MathML base impostors while preserving the existing document-base fallback and inert template exclusion.
-- **Targeted post-fix evidence:** [Manual browser workflow 44976269294](https://github.com/FlareZ123/obfs/actions/runs/44976269294), executable-source SHA `e8c3ded14767cadf1b8519d3a00eacf3cc2dabfd`. The HTML source-byte regression and independent native/protected/forced-mutation Chromium comparisons both passed their initial workflow steps. The dedicated browser harness asserts that the native and protected scripts execute, while the separately mutated counterfactual is rejected.
-- **Further validation:** [Two-platform manual validation 44976358490](https://github.com/FlareZ123/obfs/actions/runs/44976358490) was in progress when this record was first created. Treat subsequent source changes separately from these pinned runs.
+- **Targeted post-fix evidence:** [Manual browser workflow 44976269294](https://github.com/FlareZ123/obfs/actions/runs/44976269294), executable-source SHA `e8c3ded14767cadf1b8519d3a00eacf3cc2dabfd`. The HTML source-byte regression and independent native/protected/forced-mutation Chromium comparisons passed the complete workflow, including existing browser fixtures. The dedicated browser harness asserts that the native and protected scripts execute, while the separately mutated counterfactual is rejected.
+- **Further validation:** [Two-platform manual validation 44976358490](https://github.com/FlareZ123/obfs/actions/runs/44976358490) **passed** at executable SHA `e8c3ded14767cadf1b8519d3a00eacf3cc2dabfd`, with Node22 behavioral/adversarial suites, strict JSDoc, performance samples, and Ubuntu Chromium. A later [browser workflow 44976639540](https://github.com/FlareZ123/obfs/actions/runs/44976639540) **passed** at branch SHA `12938d40163a0ae7758cdf35217363839a9cd33f`, including the new browser script in explicit external JSDoc checking. Other concurrent main commits remain outside both source pins.
 
 The browser reproducer is `test/html-sri-foreign-base-browser.js`; the standard browser workflow gates it. The compiler test and real browser test are independent entry points.
 
