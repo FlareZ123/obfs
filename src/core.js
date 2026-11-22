@@ -1916,6 +1916,94 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   }
 
   /**
+   * Resolve source-visible values of a static property on an object-like
+   * expression. This connects member-read aliases such as
+   * `const entry=descriptors.ref` to the descriptor value in the map.
+   * @param {import('./ast').AstNode} expression
+   * @param {string|null} property
+   * @param {Set<string>} [visited]
+   * @returns {import('./ast').AstNode[]}
+   */
+  function descriptorMemberValues(expression,property,visited=new Set()){
+    if(isDecoderGetterMap(expression))return [expression];
+    if(expression.type==='Identifier'){
+      const marker='member:'+expression.name+':'+(property??'*');
+      if(visited.has(marker))return [];
+      visited.add(marker);
+      const values=[];
+      for(const source of descriptorBindings.get(expression.name)??[]) {
+        values.push(...descriptorMemberValues(source,property,visited));
+      }
+      for(const write of descriptorMemberWrites.get(expression.name)??[]) {
+        if(property===null||write.key===null||write.key===property) {
+          values.push(write.value);
+        }
+      }
+      for(const source of objectAssignSources.get(expression.name)??[]) {
+        values.push(...descriptorMemberValues(source,property,visited));
+      }
+      for(const alias of descriptorAliasNames(expression.name)) {
+        if(alias!==expression.name) {
+          values.push(...descriptorMemberValues(
+            /** @type {import('./ast').AstNode} */ ({type:'Identifier',name:alias}),
+            property,visited));
+        }
+      }
+      visited.delete(marker);
+      return values;
+    }
+    if(expression.type==='ObjectExpression'){
+      const values=[];
+      for(const entry of expression.properties) {
+        if(entry.type==='SpreadElement') {
+          values.push(...descriptorMemberValues(entry.argument,property,visited));
+          continue;
+        }
+        if(entry.type!=='Property')continue;
+        const key=entry.computed?staticString(entry.key):
+          entry.key.type==='Identifier'?entry.key.name:staticString(entry.key);
+        if(property===null||key===null||key===property)values.push(entry.value);
+      }
+      return values;
+    }
+    if(expression.type==='ArrayExpression'){
+      if(property===null)return expression.elements.filter(
+        (/** @type {import('./ast').AstNode|null} */ value)=>value!==null);
+      const index=Number(property);
+      return Number.isInteger(index)&&index>=0&&index<expression.elements.length?
+        [expression.elements[index]].filter(
+          (/** @type {import('./ast').AstNode|null|undefined} */ value)=>value!==null&&value!==undefined):[];
+    }
+    if(expression.type==='CallExpression'&&
+       expression.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(expression.callee.object)&&
+       memberName(expression.callee)==='assign') {
+      return expression.arguments.flatMap(source=>
+        descriptorMemberValues(source,property,visited));
+    }
+    if(expression.type==='SequenceExpression'&&expression.expressions.length) {
+      return descriptorMemberValues(
+        expression.expressions[expression.expressions.length-1],property,visited);
+    }
+    if(expression.type==='ConditionalExpression'||expression.type==='LogicalExpression') {
+      return [
+        ...descriptorMemberValues(expression.consequent??expression.left,property,visited),
+        ...descriptorMemberValues(expression.alternate??expression.right,property,visited)
+      ];
+    }
+    if(expression.type==='ChainExpression') {
+      return descriptorMemberValues(expression.expression,property,visited);
+    }
+    if(expression.type==='MemberExpression') {
+      const key=memberName(expression);
+      if(key===null)return [];
+      return descriptorMemberValues(expression.object,key,visited).flatMap(value=>
+        descriptorMemberValues(value,property,visited));
+    }
+    return [];
+  }
+
+  /**
    * Determine whether a source-visible descriptor/container value can expose
    * a decoder-sensitive accessor, including aliases and argument wrappers.
    * @param {import('./ast').AstNode} expression
@@ -1939,6 +2027,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           source=>objectCreateMayExposeDecoder(source,visited)));
       visited.delete(expression.name);
       return found;
+    }
+    if(expression.type==='MemberExpression') {
+      const key=memberName(expression);
+      if(key===null)return objectCreateMayExposeDecoder(expression.object,visited);
+      return descriptorMemberValues(expression.object,key,visited).some(value=>
+        descriptorHasSensitiveGetter(value)||
+        objectCreateMayExposeDecoder(value,visited));
     }
     if(expression.type==='SpreadElement') {
       return objectCreateMayExposeDecoder(expression.argument,visited);
