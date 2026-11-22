@@ -43,6 +43,8 @@ test('private cross-module hot reads preserve the public wrapper source and reta
     identifiers:false,strings:false
   });
   assert.equal(output.crossFile.properties,2,'private worker must exercise two transformed own keys');
+  assert.doesNotMatch(output.files.map(file=>file.code).join('\\n'),/hotScore|hotWeight/u,
+    'the original own-field spellings must disappear from the protected closed-world graph');
   const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-wrapper-'));
   try {
     const original=await loadEntry(path.join(folder,'original'),native);
