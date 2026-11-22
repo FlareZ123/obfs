@@ -95,6 +95,6 @@ still cannot prove arbitrary runtime DOM insertion or mutation.
 - Run `node --test test/html-asset-disclosure.test.js` with the repository's declared dependencies and Node 22.
 - On a machine with real Chrome, run `node test/html-sri-browser.js`; `CHROMIUM_BIN` selects the Chrome executable if needed.
 - The existing `.github/workflows/manual-browser.yml` executes both probes and strict JSDoc; no new workflow was created.
-- Source-pinned Ubuntu/Windows regression details should be attached when the complete branch validation finishes.
+- **Final full branch validation:** [Ubuntu/Windows Node 22 workflow 44965977704](https://github.com/FlareZ123/obfs/actions/runs/44965977704) completed **success** on both operating systems; [real Chromium workflow 44965974237](https://github.com/FlareZ123/obfs/actions/runs/44965974237) completed **success**. Both ran source revision `e2c5d8f3a8d00e0c2640512d6be21bf078c18a91`, containing the final executable changes, all new red-to-green tests, and the real SRI browser harness. Subsequent changes were documentation only.
 
 This correction improves baseline browser behavior preservation. It does not make the protected source harder to recover. The repository's strong-protection release status remains **RELEASE-BLOCKED**.
