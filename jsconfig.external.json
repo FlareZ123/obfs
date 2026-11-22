@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/sco-exported-instance-http-source-browser.js",
     "sims/focused-test-dispatch.js",
     "test/focused-test-dispatch.test.js",
     "test/crossfile-mixed-property-matrix.test.js",
