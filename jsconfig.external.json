@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/cjs-wrapper-source-observer.test.js",
     "test/private-class-source-yield.test.js",
     "sims/focused-test-dispatch.js",
     "test/focused-test-dispatch.test.js",
