@@ -79,6 +79,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/undeclared-xml-mime-source-witness.js
+      - name: Falsify MIME staging attestation under HTTP script request context
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/deployment-request-context-mime-witness.js
       - name: Verify public-only XOR string decoding under real Chromium CSP
         env:
           CHROMIUM_BIN: google-chrome
