@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {parse,walk,applyEdits,observesFunctionSource}=require('./ast');
+const {parse,walk,applyEdits,observesFunctionSource,
+  collectExportedCallableNodes,isWithinExportedCallableSource}=require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 /** @typedef {{code:string,functions:number,steps:number,declined:number}} AffineNativeResult */
@@ -107,6 +108,7 @@ function lowerAffineNative(source,sourceType,options) {
   const targets=new Set(options.names);
   if(!targets.size)return {code:source,functions:0,steps:0,declined:0};
   const ast=parse(source,sourceType);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   /** @type {Set<string>} */
   const used=new Set();
   let unsafe=false;
@@ -133,6 +135,7 @@ function lowerAffineNative(source,sourceType,options) {
     const matches=candidates.get(name);
     if(!matches||matches.length!==1){declined++;continue;}
     const fn=matches[0];
+    if(isWithinExportedCallableSource(fn,exportedCallableSource)){declined++;continue;}
     const param=fn.params[0],stmt=fn.body.body[0];
     if(fn.async||fn.generator||fn.params.length!==1||param?.type!=='Identifier'||
        param.name==='arguments'||fn.body.body.length!==1||
