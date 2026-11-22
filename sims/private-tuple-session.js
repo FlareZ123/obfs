@@ -9,11 +9,12 @@ const original=[
   'const owner={hiddenCount:11,privateDelta:5};',
   'const tuple=[false,"metadata",owner,null];',
   'const alias=tuple[2];',
-  'module.exports=function score(n){',
+  'function scorePrivate(n){',
   '  let sum=0;',
   '  for(let i=0;i<n;i++)sum=(sum+((alias.hiddenCount+i)&255)+owner.privateDelta)|0;',
   '  return sum;',
-  '};'
+  '}',
+  'module.exports=function score(n){return scorePrivate(n);}'
 ].join('\n');
 
 /** @param {number[]} values @returns {number} */
