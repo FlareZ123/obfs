@@ -31,7 +31,8 @@ function program(size,position,bracket){
     'const alias='+access+';',
     'function identity(y){return y;}',
     'const reader=x=>x.hiddenCount;',
-    'module.exports=function score(n){return reader(identity(alias))*n+owner.secretDelta;}'
+    'function privateScore(n){return reader(identity(alias))*n+owner.secretDelta;}',
+    'module.exports=function score(n){return privateScore(n);}'
   ].join('\n');
 }
 
@@ -61,6 +62,8 @@ function runGrid(){
           assert.equal(recovery.properties,2);
           counts.reconstructed++;
           const protectedFn=load(emitted);
+          assert.equal(protectedFn.toString(),expected.toString(),
+            mode+' '+size+':'+position+':'+bracket+' public function source');
           const copiedFn=load(String(recovery.files[0].code));
           for(let input=-80;input<=80;input++){
             const native=expected(input);
