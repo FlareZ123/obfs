@@ -31,7 +31,7 @@ function fixture(seed,kind) {
       code:'export const state={'+field+':'+first+','+other+':'+second+'};'}
   ];
   let logic='';
-  let expectedProperties=null;
+  let expectedProperties=0;
   let scenario='';
   if(kind===0) {
     scenario='static-private';
@@ -57,6 +57,23 @@ function fixture(seed,kind) {
     scenario='computed-constant-alias';
     logic='const key='+JSON.stringify(field)+';export const value=state[key]+state.'+other+';';
     expectedProperties=0;
+  }else if(kind===6) {
+    scenario='global-object-escape';
+    logic='globalThis.window={api:{state}};'+
+      'export const value=globalThis.window.api.state.'+field+'+state.'+other+';';
+    expectedProperties=0;
+  }else if(kind===7) {
+    scenario='proxy-own-keys-observation';
+    logic='const watch=new Proxy(state,{ownKeys(target){return Reflect.ownKeys(target);}});'+
+      'export const value=Object.keys(watch).sort().join("|");';
+    expectedProperties=0;
+  }else if(kind===8) {
+    scenario='interprocedural-identity-return';
+    logic='function forward(owner){return owner;}'+
+      'const alias=forward(state);'+
+      'export const value=alias.'+field+'+alias.'+other+';';
+    // A rename is optional here. Prove native ESM behavior for either outcome.
+    expectedProperties=null;
   }else {
     throw new RangeError('Unknown graph shape');
   }
@@ -69,7 +86,7 @@ function fixture(seed,kind) {
     code:'import {state} from "./state.mjs";'+logic});
   files.push({path:'entry.mjs',sourceType:'module',
     code:'import {value} from "./bridge.mjs";export {value};'});
-  return {index:seed*6+kind,scenario,files,expectedProperties};
+  return {index:seed*9+kind,scenario,files,expectedProperties};
 }
 
 /**
@@ -104,7 +121,7 @@ async function execute(root,fixtures) {
 
 /**
  * @param {number} [seedCount]
- * @returns {Promise<{graphs:number,positive:number,negative:number,positiveProperties:number,nativeEqual:boolean}>}
+ * @returns {Promise<{graphs:number,positive:number,negative:number,parityOnly:number,positiveProperties:number,nativeEqual:boolean}>}
  */
 async function runApiFuzz(seedCount=20) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-interfile-api-fuzz-'));
@@ -112,9 +129,9 @@ async function runApiFuzz(seedCount=20) {
     /** @type {Fixture[]} */
     const cases=[];
     for(let seed=0;seed<seedCount;seed++) {
-      for(let kind=0;kind<6;kind++)cases.push(fixture(seed,kind));
+      for(let kind=0;kind<9;kind++)cases.push(fixture(seed,kind));
     }
-    let positive=0,negative=0,positiveProperties=0;
+    let positive=0,negative=0,parityOnly=0,positiveProperties=0;
     const transformed=cases.map(item=>{
       const output=obfuscateFiles(item.files,{
         mode:'coo',closedWorld:true,
@@ -126,17 +143,19 @@ async function runApiFuzz(seedCount=20) {
           item.scenario+' expected two safe key rewrites for '+item.index);
         positive++;
         positiveProperties+=output.crossFile.properties;
-      } else {
+      } else if(item.expectedProperties===0) {
         assert.equal(output.crossFile.properties,0,
           item.scenario+' unexpectedly renamed reflected/escaped fields for '+item.index);
         negative++;
+      }else{
+        parityOnly++;
       }
       return {index:item.index,files:/** @type {SourceFile[]} */ (output.files)};
     });
     const reference=await execute(path.join(root,'original'),cases);
     const changed=await execute(path.join(root,'obfuscated'),transformed);
     assert.deepEqual(changed,reference,'Native inter-file ESM output differs from obfuscated output');
-    return {graphs:cases.length,positive,negative,positiveProperties,nativeEqual:true};
+    return {graphs:cases.length,positive,negative,parityOnly,positiveProperties,nativeEqual:true};
   }finally{
     await fs.rm(root,{recursive:true,force:true});
   }
