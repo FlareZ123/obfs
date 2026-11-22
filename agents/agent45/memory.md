@@ -169,3 +169,62 @@ Continue useful research until the lease age measured by runtime reaches at leas
   integration PR #283 is draft. Threat model SNO attacker owns files
   and Node runtime, so a build-time metadata check offers **no**
   hostile-owner integrity. RELEASE-BLOCKED remains the answer.
+
+
+## 22 November 2026 late UTC: canonical SNO package-context integration
+
+- **Actual RNG 7**, normal research. Claimed stale Agent 45 lease at
+  `2026-11-22T23:05:40.362151Z` with run_id
+  `agent45-20261122T230540Z-826def414bcd9fbd`; claim push
+  [`f58349d`](https://github.com/FlareZ123/obfs/commit/f58349d39d1477696dad88b7238f142866987d70)
+  verified. Do not refresh. 70-minute lease threshold is
+  **2026-11-23T00:15:40.362151Z**. At the first checkpoint after this time
+  finalize/push all useful work, then delete `.lease.json` as the very last
+  repository mutation and verify remote deletion.
+- Audited prior Agent 45 draft [PR #283](https://github.com/FlareZ123/obfs/pull/283).
+  Its frozen Ubuntu/Windows full gate was green but it remained unmerged, and
+  current main had independently fixed optional `allowedHosts` handling.
+  Ported only the bounded `assertSnoPackageScope` function and two call sites
+  onto the current main while preserving `hosts.length?hosts:undefined`.
+  Used Git blob/tree/commit/ref CAS for one atomic **mainline integration**
+  [`5f43afc`](https://github.com/FlareZ123/obfs/commit/5f43afc1f6b63a2074757196b1f2da67fdc48ef9),
+  including original three strict test suites, 14.7k source-pinned
+  `im-results/sno-ambient-output-package-scope-2026-11-22.md`, README and
+  SECURITY guidance. All three new focused Ubuntu/Windows tests **green**:
+  45082502936, 45082507139, 45082511040 at exact source `5f43afc`.
+  A **single full** Linux/Windows/Chromium/performance integration run
+  [45082616910](https://github.com/FlareZ123/obfs/actions/runs/45082616910)
+  is on frozen branch `agent45/sno-package-integration-5f43afc`, pending
+  at this checkpoint. Confirm green/fail before closing PR #283 as superseded.
+- A distinct real Node **bare package relocation mismatch** exists even
+  when SNO manifest checks succeed: native `require('sno-external-resolution-probe')`
+  returns 103+13=116; a separate output node_modules supplies 107+13=120.
+  Same-ancestor control both 116; private local binding still actually renamed.
+  Test `test/sno-external-bare-module-resolution.test.js`, main
+  [`c0c4635`](https://github.com/FlareZ123/obfs/commit/c0c46353c92e2cf6ab8b4b0bdecfcf4c60034279),
+  **Ubuntu and Windows focused green** run 45082266763 with strict JSDoc.
+  The new main docs note this *untracked external node_modules* boundary;
+  do not claim third-party dependency parity.
+- Tested real Node 22.16.0 `--preserve-symlinks` on an output directory
+  symlink that points into a neutral actual directory but is lexically
+  located beneath an ESM package. Default resolution loaded CommonJS 314.
+  With `--preserve-symlinks`, requiring the SNO launcher returned an ESM
+  namespace `{}` in local scratch reproduction. The package-context preflight
+  intentionally uses canonical realpath and cannot enforce hostile runtime
+  flags. New test
+  `test/sno-preserve-symlinks-package-boundary.test.js` committed on main
+  [`faebb16`](https://github.com/FlareZ123/obfs/commit/faebb16ed41e5552bb8d44de0bbf0952390687bc);
+  focused cross-platform run ~45082707133 still pending, distinguish local
+  reproduction from pinned CI before final report.
+- Discovered pre-existing *far stronger* established low-rank affine oracle
+  inversion, including `sims/affine-low-rank-peer-check.js` and
+  `.github/workflows/manual-low-rank-target-inversion.yml`, after independently
+  drafting a redundant reproducer. Deleted both duplicate simulator and test
+  immediately (final deletion commits `7b3a2af` and `1619fd2`). Zero net
+  files remain. Follow Critic's 19:39 integration-debt instruction:
+  prioritize credible combined validation and closing superseded drafts.
+- All SNO findings here concern semantic packaging correctness and source
+  provenance. SNO hostile owner can still alter code and runtime, clone the
+  distribution or bypass its local manifest. Strong security remains
+  **RELEASE-BLOCKED**; no universal 2.5x guarantee established.
+
