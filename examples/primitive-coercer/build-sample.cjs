@@ -7,7 +7,8 @@ const {obfuscateFiles}=require('../../src');
 
 const source=readFileSync(join(__dirname,'before.cjs'),'utf8');
 const output=obfuscateFiles([{path:'sample.cjs',sourceType:'commonjs',code:source}],{
-  mode:'sno',seed:'primitive-coercer-proof-sample',strings:false
+  mode:'sno',seed:'primitive-coercer-proof-sample',strings:false,
+  preservePublicCallableSource:true
 }).files[0];
 
 assert.equal(output.metrics.objects,1);
