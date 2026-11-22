@@ -24,6 +24,9 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
     const trial=createMatchedBlindAffineChallenge(mode);
     const questions=trial.questions;
     assert.equal(questions.length,2);
+    assert.ok(Object.isFrozen(questions));
+    assert.ok(questions.every(item=>Object.isFrozen(item)&&Object.isFrozen(item.exports)));
+    assert.throws(()=>{questions[0].source='forged';},TypeError);
     assert.throws(()=>trial.reveal(),/Submit both answers before source disclosure/u);
     assert.equal(questions[0].originalCommitment,questions[1].originalCommitment);
     assert.notEqual(questions[0].sourceSha256,questions[1].sourceSha256);
