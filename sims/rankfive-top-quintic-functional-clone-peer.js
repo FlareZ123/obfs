@@ -348,7 +348,7 @@ function makeSource(n, draw, projectionRank, topActive, lowerTermsPerDegree) {
   const topTerms = [];
   if (topActive) {
     if (projectionRank === 5) {
-      topTerms.push([31, draw() || 1]);
+      topTerms.push([31, (draw() & inputMask) || 1]);
     } else {
       const outputBasis = randomIndependentVectors(6, draw);
       for (let omitted = 0; omitted < 6; omitted++) {
@@ -494,6 +494,13 @@ function main() {
       }, n, learnerRng);
       online = false;
       assert.equal(calls, model.queries);
+      if (topActive) {
+        assert.equal(model.degree, 5, `active top term lost at n=${n}, case=${caseIndex}`);
+        assert.equal(model.quotientRank, projectionRank);
+      } else {
+        assert.equal(model.degree, 4, `inactive top term unexpectedly witnessed at n=${n}, case=${caseIndex}`);
+        assert.equal(model.quotientRank, 0);
+      }
       for (let input = 0; input < 2 ** n; input++) {
         assert.equal(evaluateClone(model, input), source(input),
           `finite mismatch n=${n}, case=${caseIndex}, input=${input}`);
