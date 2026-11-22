@@ -3978,10 +3978,11 @@ function collectExportedCallableNodes(ast) {
       if(object) {
         const key=node.computed?staticString(node.property):
           node.property.type==='Identifier'?node.property.name:null;
-        const matches=object.properties.filter(property=>
-          property.type==='Property'&&
-          (key===null||String(property.key.type==='Identifier'?property.key.name:
-            property.key.value)===key));
+        const matches=/** @type {AstNode[]} */ (object.properties).filter(
+          (/** @type {AstNode} */ property)=>
+            property.type==='Property'&&
+            (key===null||String(property.key.type==='Identifier'?property.key.name:
+              property.key.value)===key));
         for(const property of matches) {
           if(property.method||property.kind==='get'||property.kind==='set')exposed.add(property);
           markValue(property.value,depth+1);
