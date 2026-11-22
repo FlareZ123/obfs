@@ -64,8 +64,19 @@ The candidate test
 covers the mismatch refusal, shared external parent byte-identical
 emitted output, missing output package refusal, primitive builtin/path
 exclusion, lexical `require` shadowing and COO/SCO flag refusal.
-At this drafting stage, the source-pinned cross-platform CI verdict
-is pending; promote no claim before it passes.
+The final conservative scanner, future-package refusal and tests
+passed the **Ubuntu and Windows** focused suite and strict project/external
+JSDoc gates at source
+[`15bf54c3fa292e43e518bf83b13e21e709ae423d`](https://github.com/FlareZ123/obfs/commit/15bf54c3fa292e43e518bf83b13e21e709ae423d),
+[run 45085286967](https://github.com/FlareZ123/obfs/actions/runs/45085286967).
+An earlier version of this opt-in mechanism at
+[`c0347e70690812b20cb56a69f80597891c26d773`](https://github.com/FlareZ123/obfs/commit/c0347e70690812b20cb56a69f80597891c26d773)
+passed the **full** Ubuntu and Windows behavioral/adversarial, configured
+browser and performance integration workflow
+[45084516422](https://github.com/FlareZ123/obfs/actions/runs/45084516422).
+Later changes only tighten the optional scanner and its negative
+cases; the full CI is **historical coverage**, not an exact full
+integration verdict for the current source.
 
 ### Parent-module identity remains observable
 
