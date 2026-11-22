@@ -24,7 +24,7 @@ jobs:
       - name: Matched same-source challenge and randomized control parity
         env:
           OBFS_AFFINE_RECEIPT_DIR: llm-affine-receipts
-        run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js
+        run: node --test test/llm-matched-affine-challenge.test.js test/llm-matched-affine-static-attack.test.js test/affine-symbolic-tdz-shadow.test.js test/affine-symbolic-binding-provenance.test.js
       - name: Archive exact matched public and private source receipts after grading
         if: always()
         uses: actions/upload-artifact@v4
