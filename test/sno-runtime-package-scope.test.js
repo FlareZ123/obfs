@@ -125,5 +125,18 @@ test('SNO runtime check identifies --preserve-symlinks package-context divergenc
     assert.notEqual(flagged.status,0);
     assert.match(flagged.stderr,/SNO runtime package-scope mismatch: entry\.js/u);
     assert.doesNotMatch(flagged.stderr,/Integrity check failed/u);
+    
+    // --preserve-symlinks-main retains the launcher alias, but ordinary
+    // require() still canonicalizes the nested entry.js dependency.
+    const mainOnly=spawnSync(process.execPath,
+      ['--preserve-symlinks-main',loader],{encoding:'utf8',timeout:15000});
+    assert.equal(mainOnly.status,0,mainOnly.stderr);
+
+    // Both options retain the dependency alias and must be refused.
+    const both=spawnSync(process.execPath,
+      ['--preserve-symlinks','--preserve-symlinks-main',loader],
+      {encoding:'utf8',timeout:15000});
+    assert.notEqual(both.status,0);
+    assert.match(both.stderr,/SNO runtime package-scope mismatch: entry\\.js/u);
   });
 });
