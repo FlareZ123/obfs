@@ -56,7 +56,26 @@ dim ker M = r.
 
 The projection of `F(x)` onto its first r output bits is linear in x and equals the first r bits of `M(x)`; consequently every residual `F(x) xor M(x)` has zero first-half coordinates. Therefore `dim R <= r`. Because the image of F spans the full 2r-dimensional output space and `F(V) subseteq image(M)+R`, one must also have `2r <= r+dim R`. Hence `dim R = r`, completing the proof.
 
-Any invertible affine input/output reparameterization preserves the intrinsic residual rank. Invertible output linear maps also preserve the interpolant's rank. Thus these examples can be concealed under arbitrary invertible affine wrappers without changing the rank/nullity profile. The executable reference below uses the explicit unwrapped form.
+Any invertible affine input/output reparameterization preserves the intrinsic residual rank. Invertible output linear maps also preserve the interpolant's rank. Thus these examples can be concealed under arbitrary invertible affine wrappers without changing the residual-rank profile. The executable reference below uses the explicit unwrapped form.
+
+### Proof that the residual span is independent of the affine frame
+
+This invariance does not depend on the permutation property. Let V and W be finite-dimensional vector spaces over GF(2), let F:V->W be any function, and let B=(b_0,b_0+v_1,...,b_0+v_n) be an affine frame of V, where v_1,...,v_n is a basis. Let L_B:V->W be the unique affine map agreeing with F on B, and define
+
+```text
+D_B(x) = F(x) xor L_B(x)
+R_B = span{D_B(x): x in V}.
+```
+
+Take any second affine frame C and its interpolant L_C. Set Q=L_B xor L_C; Q is affine, and D_B xor D_C=Q. On every point c in C, D_C(c)=0, so Q(c)=D_B(c) is in R_B. The values of an affine map on any affine frame span all of its values: writing Q(x)=q_0+T x, each Q(x) is a linear combination of Q(c_0),Q(c_0+w_1),...,Q(c_0+w_n) for the frame directions w_i. Therefore Q(V) is contained in R_B. It follows that D_C(x)=D_B(x) xor Q(x) is in R_B for every x, so R_C is contained in R_B. Interchanging B and C gives the reverse inclusion. Hence
+
+```text
+R_B = R_C.
+```
+
+For an invertible affine input wrapper F'(x)=F(Ax+b), the standard frame in the new coordinates maps to the affine frame (b,b+Ae_1,...,b+Ae_n) in the old coordinates. The output residual span is therefore exactly the same R_F. For an invertible affine output wrapper F'(x)=B F(x)+c, its interpolant is B L_F(x)+c and its residuals are B D_F(x); its residual span is B R_F and has the same dimension.
+
+**Important distinction:** this proves invariance of the residual span/rank, not invariance of the public interpolant's rank under input affine wrappers. For the r=3 reference completion used by the executable constructor, replacing the input basis (e_0,e_1,e_2,e_3,e_4,e_5) by (e_0,e_0+e_1,e_2,e_3,e_4,e_5) is an invertible shear (column integers [1,3,4,8,16,32] in the constructor's bit order). The unwrapped public interpolant has rank 3; the sheared input has interpolant rank 4, while the residual rank remains 3. Invertible output-linear wrappers do preserve interpolant rank because they left-multiply its matrix by an invertible matrix.
 
 ## The r=3 base case
 
