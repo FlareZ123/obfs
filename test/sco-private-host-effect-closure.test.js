@@ -299,3 +299,40 @@ test('Static source refuses a same-named nested shadow when literal owner is amb
       privateModuleImports:['./private/engine.mjs'],privateModuleSources:graph}),
   /SCO private static dependency has unproved client host state/u);
 });
+
+
+test('SCO preserves fixed server Node builtin import and refuses module-dependent imports',()=>{
+  const accepted=[
+    'const {createHash}=await import("node:crypto");'+
+      'return createHash("sha256").update("stable").digest("hex").length;',
+    'const modules=await import("node:assert/strict");'+
+      'return typeof modules.equal;'
+  ];
+  for(const body of accepted){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-server-builtin-exception-20261122',privateNames:['protectedOp']}
+    ),body);
+  }
+  const rejected=[
+    'return import.meta.url;',
+    'return await import("./private.mjs");',
+    'const path="./private.mjs";return await import(path);',
+    'return await import("node:module");',
+    'return await import("node:vm");',
+    'return await import("node:worker_threads");',
+    'return await import("node:child_process");',
+    'return await import("node:process");',
+    'return await import("some-package");'
+  ];
+  for(const body of rejected){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-module-relative-private-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved module-relative execution/u,body);
+  }
+});
