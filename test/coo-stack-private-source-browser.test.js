@@ -53,18 +53,33 @@ async function main() {
   });
   const original=String(FILES[0].code);
   const changed=String(output.files[0].code);
+  const strictOriginal='"use strict";'+original;
+  const strictOutput=obfuscateFiles([{
+    path:'client.js',sourceType:'script',code:strictOriginal
+  }],{
+    mode:'coo',seed:'coo-stack-host-strict-control-20261122',
+    identifiers:true,strings:false,properties:false
+  });
+  const strictChanged=String(strictOutput.files[0].code);
   assert.ok(output.files[0].metrics.bindings>0,'The helper parameter must be transformed');
   assert.doesNotMatch(changed,/\bsecretLocal\b/u);
   const server=http.createServer((request,response)=>{
     const route=request.url??'/';
-    if(route==='/native/source.js'||route==='/emitted/source.js') {
+    const sourceRoutes=new Map([
+      ['/native/source.js',original],['/emitted/source.js',changed],
+      ['/strict-native/source.js',strictOriginal],
+      ['/strict-emitted/source.js',strictChanged]
+    ]);
+    const source=sourceRoutes.get(route);
+    if(source!==undefined) {
       response.writeHead(200,{'Content-Type':'text/javascript; charset=utf-8'});
-      response.end(route.startsWith('/native/')?original:changed);
+      response.end(source);
       return;
     }
-    if(route==='/native/index.html'||route==='/emitted/index.html') {
+    if(['native','emitted','strict-native','strict-emitted'].some(
+      prefix=>route==='/'+prefix+'/index.html')) {
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
-      response.end(page(route.startsWith('/native/')?'/native/source.js':'/emitted/source.js'));
+      response.end(page(route.replace('/index.html','/source.js')));
       return;
     }
     response.writeHead(404).end();
@@ -77,7 +92,7 @@ async function main() {
     const addr=server.address();
     assert.ok(addr&&typeof addr!=='string');
     const origin='http://127.0.0.1:'+addr.port;
-    /** @param {'native'|'emitted'} variant */
+    /** @param {'native'|'emitted'|'strict-native'|'strict-emitted'} variant */
     async function run(variant) {
       const {stdout}=await runBrowser(process.env.CHROMIUM_BIN??'google-chrome',[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -95,10 +110,18 @@ async function main() {
     assert.equal(emitted.value,17);
     assert.match(native.helperSource,/\bsecretLocal\b/u);
     assert.doesNotMatch(emitted.helperSource,/\bsecretLocal\b/u);
+    const strictNative=await run('strict-native');
+    const strictEmitted=await run('strict-emitted');
+    assert.equal(strictNative.value,17);
+    assert.equal(strictEmitted.value,17);
+    assert.equal(strictNative.helperSource,'unavailable');
+    assert.equal(strictEmitted.helperSource,'unavailable');
     process.stdout.write('CHROMIUM_STACK_HOST_SOURCE_BOUNDARY '+
       JSON.stringify({nativeValue:native.value,emittedValue:emitted.value,
         nativeSourceCaptured:true,emittedSourceCaptured:true,
-        renamedBindings:output.files[0].metrics.bindings})+'\n');
+        renamedBindings:output.files[0].metrics.bindings,
+        strictNativeValue:strictNative.value,strictEmittedValue:strictEmitted.value,
+        strictSourceUnavailable:true})+'\n');
   }finally{
     await new Promise(resolve=>server.close(resolve));
   }
