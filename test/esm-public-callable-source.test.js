@@ -279,3 +279,34 @@ test('cross-file property proof cannot rewrite a key named inside an exported an
   };
   assert.equal(await observeBoth(output.files),await observeBoth(sourceFiles));
 });
+
+
+test('exporter-local public callable source blocks a cross-file property map',async()=>{
+  const sourceFiles=[
+    {path:'owner.mjs',sourceType:'module',code:'export const owner={secretField:3};export function read(publicParam){return owner.secretField+publicParam;}'},
+    {path:'entry.mjs',sourceType:'module',code:"export {read} from './owner.mjs';"}
+  ];
+  const output=obfuscateFiles(sourceFiles,{
+    mode:'coo',closedWorld:true,seed:'esm-public-exporter-local-source',
+    strings:true,identifiers:true,properties:true,controlFlow:false
+  });
+  assert.equal(output.metrics.properties,0,JSON.stringify(output.metrics));
+  const observeBoth=async files=>{
+    const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-esm-public-exporter-'));
+    try{
+      for(const file of files){
+        const target=path.join(dir,file.path);
+        await fs.mkdir(path.dirname(target),{recursive:true});
+        await fs.writeFile(target,file.code,'utf8');
+      }
+      const url=pathToFileURL(path.join(dir,'entry.mjs')).href;
+      const script=`import(${JSON.stringify(url)}).then(m=>process.stdout.write(JSON.stringify([m.read.toString(),m.read(4)])))`;
+      const child=spawnSync(process.execPath,['--input-type=module','-e',script],{encoding:'utf8'});
+      assert.equal(child.status,0,child.stderr);
+      return child.stdout;
+    }finally{
+      await fs.rm(dir,{recursive:true,force:true});
+    }
+  };
+  assert.equal(await observeBoth(output.files),await observeBoth(sourceFiles));
+});
