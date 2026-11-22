@@ -48,8 +48,11 @@ the same release step would defeat that independent trust boundary.
   content decoding and compares against the approved manifest.
 - JavaScript MIME on an opaque `sourceType:'asset'` is refused. Published
   `script`, `module` and `commonjs` resources must have recognized
-  JavaScript MIME. This is a delivery-type admission rule, not a guarantee
-  that each such source is browser-compatible.
+  JavaScript MIME. HTML, CSS and JavaScript sources must declare an explicit
+  `charset=utf-8` header; an explicit non-UTF-8 charset on an executable
+  XML/SVG response is refused. These restrictions bind the browser's
+  interpretation to the UTF-8 source scanner's assumptions. They remain
+  delivery-type admission rules, not a guarantee of browser compatibility.
 - Executable HTML, XML, XHTML, SVG and CSS media types invoke the existing
   corresponding source-admission and source-map preflights, irrespective of
   their actual published file extension. XML types with unsupported
