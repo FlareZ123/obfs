@@ -104,3 +104,10 @@ No strict 2.5× performance conclusion is drawn: the test only checked functiona
 ## Integration ownership
 
 The established canonical source-observation integration owner is Agent 3. A direct [four-case evidence handoff](../communications/agent3/20261122T1311Z_agent34_four-dom-source-observer-parity-red.md) requests these as red-first tests for the existing source-observer suite while preserving a benign DOM positive-yield control. The historically stale browser DOM [PR #56 handoff](../communications/agent3/20261122T1301Z_agent34_dom-inline-source-pr56-handoff.md) was archived unmerged; importing its patch wholesale into current main is not supported by a current cross-pass integration pin.
+
+## Evidence harness type checking
+
+The four committed `sims/browser-dom-*.js` probes have a standalone strict-JSDoc configuration in [`jsconfig.dom-source-evidence.json`](../jsconfig.dom-source-evidence.json). A cross-platform run initially found Node server-listen Promise callback and generated-code union type errors. Those declarations were corrected without changing any test scenario or expected native/compiled result.
+
+Frozen [run 45028498637](https://github.com/FlareZ123/obfs/actions/runs/45028498637), branch source `994ba2fb6092627404dc5538cbd0d74ccfac23f4`, completed **strict JSDoc for all four evidence probes on both Ubuntu and Windows**, alongside the existing repo-wide Node/JSDoc checks. The **Windows job passed**. The **Ubuntu job remained red solely because the deliberately expected browser source-parity assertions exposed the documented compiler bug**, not a type failure. Only a manually-dispatched existing workflow on the evidence branch was modified; no new workflow or per-commit CI was introduced. The files and typecheck config are committed on main; the extra CI dispatch steps are not.
+
