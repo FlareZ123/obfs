@@ -17,6 +17,7 @@ const {flattenStatementFlow} = require('./statement-flow');
 const {lowerPolyvariantAffine} = require('./affine-native');
 const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
+const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
 const {proveSourceObserverIslands}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
@@ -1939,7 +1940,11 @@ function obfuscateFiles(files, options = {}) {
     collectVerifiedImportedUrlStaticAliases(prepared) : new Map();
   const importedFunctionArrays=prepared.length>1 ?
     collectImportedFunctionArrays(prepared) : new Map();
-  const remoteSourceObserver=prepared.some(file=>
+  // Declared HTML script/modulepreload SRI metadata also observes the exact
+  // served JavaScript bytes. If the HTML asset is preserved, every emitted
+  // integrity-pinned script must retain its source hash.
+  const remoteSourceObserver=hasPinnedLocalJavaScriptIntegrity(prepared) ||
+    prepared.some(file=>
     file.sourceType!=='asset' && typeof file.code==='string' &&
     (observesDistributedSource(parse(file.code,file.sourceType),importedStringProof.get(file.path)) ||
       prepared.length>1 && observesFunctionSource(parse(file.code,file.sourceType),
