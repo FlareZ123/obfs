@@ -10,18 +10,20 @@ const {transformSync}=require('esbuild');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
-const original="'use strict';"+
-  'const owner={acc:5,step:3};'+
-  'function hidden(x){owner.acc+=((x&7)+owner.step);return owner.acc|0;}'+
-  'module.exports=function compute(x){return hidden(x);}';
-const symbol="'use strict';"+
-  'const a=Symbol(),b=Symbol();const owner={[a]:5,[b]:3};'+
-  'function hidden(x){owner[a]+=((x&7)+owner[b]);return owner[a]|0;}'+
-  'module.exports=function compute(x){return hidden(x);}';
-const computed="'use strict';"+
-  'const a="_acc",b="_step";const owner={[a]:5,[b]:3};'+
-  'function hidden(x){owner[a]+=((x&7)+owner[b]);return owner[a]|0;}'+
-  'module.exports=function compute(x){return hidden(x);}';
+const original = "'use strict';" +
+  'const owner={acc:5,step:3};' +
+  'function hidden(x){owner.acc+=((x&7)+owner.step);return owner.acc|0;}' +
+  'module.exports=function compute(x){return hidden(x);};';
+const symbol="'use strict';" +
+  'const keyAcc=Symbol(),keyStep=Symbol();' +
+  'const owner={[keyAcc]:5,[keyStep]:3};' +
+  'function hidden(x){owner[keyAcc]+=((x&7)+owner[keyStep]);return owner[keyAcc]|0;}' +
+  'module.exports=function compute(x){return hidden(x);};';
+const computed="'use strict';" +
+  'const keyAcc="_acc",keyStep="_step";' +
+  'const owner={[keyAcc]:5,[keyStep]:3};' +
+  'function hidden(x){owner[keyAcc]+=((x&7)+owner[keyStep]);return owner[keyAcc]|0;}' +
+  'module.exports=function compute(x){return hidden(x);};';
 
 /** @typedef {{checksum:number,wallMs:number,cpuMs:number}} Sample */
 /** @typedef {{native:Sample,emitted:Sample,cpuRatio:number,wallRatio:number}} Pair */
@@ -67,8 +69,8 @@ async function load(filename){
 
 test('real CommonJS require hot-key CPU compares actual private hashed and Symbol rewrites',
   async()=>{
-    const input=[{path:'leaf.cjs',sourceType:/** @type {const} */ ('commonjs'),code:original}];
-    const base={mode:/** @type {const} */ ('coo'),seed:'private-esm-hot-20261122',
+    const input=[{path:'entry.cjs',sourceType:/** @type {const} */ ('commonjs'),code:original}];
+    const base={mode:/** @type {const} */ ('coo'),seed:'symbol-private-hot-cpu-20261122',
       strings:false,identifiers:false,properties:true};
     const hashed=obfuscateFiles(input,base).files[0];
     const sym=obfuscateFiles(input,{...base,experimentalSymbolKeys:true}).files[0];
