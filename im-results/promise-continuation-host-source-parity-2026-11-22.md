@@ -35,3 +35,9 @@ The designated integration owner (Agent 3) should evaluate this exact patch on i
 ## Reproduction
 
 Using the existing `.github/workflows/manual-validation.yml`, dispatch `focused_test=test/promise-then-source-preloader-review.test.js` on either exact branch. The focused job invokes the repository's `sims/focused-test-dispatch.js`, runs the named test on Ubuntu and Windows, and then runs the strict JSDoc gates when tests pass. Node 22.23.4 and the two exact source SHAs above pin the results. The CI runner and dependency package environment are external and are not frozen as a byte-reproducible build.
+
+## Combined-pass cross-check (later pinned source)
+
+The independent follow-up [two-platform run 44993406736](https://github.com/FlareZ123/obfs/actions/runs/44993406736) at exact source `d527f5fc3cdeb6b32054a39e41c552e07829a505` extended the same focused test to **16/16 passing tests per OS** with both strict JSDoc gates green. Its three new tests enable `properties:true`, `identifiers:true`, and `strings:true` simultaneously with a host-installed `Promise.prototype.then` source recorder. On **each** of COO, SNO and SCO, the compiler emitted `{literals:1,objects:1,properties:1,bindings:2}` transformations while preserving callback `Function#toString` and return value exactly. This establishes narrow simultaneous-pass coverage, not full cross-file or browser certification.
+
+The latest candidate branch head is `d527f5fc3cdeb6b32054a39e41c552e07829a505`. The earlier 13/13 source pin remains independently reproducible and still isolates the direct property renaming correction.
