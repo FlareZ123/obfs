@@ -2,6 +2,7 @@
 
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
+const http=require('node:http');
 const {test}=require('node:test');
 const {obfuscateFiles,createScoHandler}=require('../src');
 
@@ -144,5 +145,30 @@ test('unrelated xml:base does not disable a provably independent external SRI sc
     const result=compile('xhtml',markup,mode);
     assert.notEqual(result.files[0].code,source,
       mode+': unrelated XML base and external integrity must not erase transformation yield');
+  }
+});
+
+test('SCO serves reviewed XHTML with the XML MIME type and preserves exact bytes',async()=>{
+  const markup=xhtml('<title>XHTML XML-native document</title>');
+  for(const extension of ['xhtml','xht']) {
+    const handler=createScoHandler([
+      {path:'index.'+extension,sourceType:/** @type {const} */('asset'),code:markup}
+    ]);
+    const server=http.createServer(handler);
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
+    });
+    try {
+      const address=server.address();
+      assert.ok(address&&typeof address!=='string');
+      const response=await fetch('http://127.0.0.1:'+address.port+'/obfs/index.'+extension);
+      assert.equal(response.status,200);
+      assert.equal(response.headers.get('content-type'),'application/xhtml+xml; charset=utf-8');
+      assert.deepEqual(Buffer.from(await response.arrayBuffer()),markup);
+    }finally {
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
   }
 });
