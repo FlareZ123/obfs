@@ -10,7 +10,8 @@ const {createSnoLauncher} = require('../src/sno');
 const {atomicWrite} = require('../src/atomic');
 
 test('SNO direct API rejects its reserved output path in the protected manifest',()=>{
-  for (const reserved of ['sno-entry.cjs','SNO-ENTRY.CJS','sno-entry.cjſ','SNO-ENTRY.CJſ']) {
+  for (const reserved of ['sno-entry.cjs','SNO-ENTRY.CJS','sno-entry.cjſ','SNO-ENTRY.CJſ',
+    'sno-entry.cjs/child.txt','SNO-ENTRY.CJS/child.txt','sno-entry.cjſ/child.txt']) {
     assert.throws(()=>createSnoLauncher([
       {path:'entry.cjs',code:'module.exports=1;'},
       {path:reserved,code:'module.exports=2;'}
@@ -39,6 +40,14 @@ test('SNO CLI refuses launcher collisions before producing an output directory',
       /SNO launcher (?:path is reserved|filename collides)/
     );
     await assert.rejects(fs.stat(output),{code:'ENOENT'});
+    // The input has a real directory where SNO must write its launcher file.
+    await fs.rm(path.join(input,'sno-entry.cjſ'));
+    await atomicWrite(path.join(input,'sno-entry.cjs','child.bin'),Buffer.from('asset'));
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.cjs','--out',output]),
+      /SNO launcher (?:path is reserved|filename collides)/
+    );
+    await assert.rejects(fs.stat(output),{code:'ENOENT'});
   } finally {
     await fs.rm(parent,{recursive:true,force:true});
   }
@@ -48,7 +57,8 @@ test('SNO CLI refuses launcher collisions before producing an output directory',
 test('a non-equivalent Unicode source filename does not shadow the SNO launcher',()=>{
   const launcher=createSnoLauncher([
     {path:'entry.cjs',code:'module.exports=19;'},
-    {path:'sno-entry.cjτ',code:Buffer.from('plain asset')}
+    {path:'sno-entry.cjτ',code:Buffer.from('plain asset')},
+    {path:'nested/sno-entry.cjs',code:Buffer.from('nested is safe')}
   ],'entry.cjs');
   assert.match(launcher,/Integrity check failed/);
 });
