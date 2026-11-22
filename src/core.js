@@ -1780,22 +1780,98 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   const descriptorMemberWrites=new Map();
   /** @type {Map<string,import('./ast').AstNode[]>} */
   const objectAssignSources=new Map();
+  /** @type {Map<string,Array<{key:string|null,alias:string}>>} */
+  const descriptorMemberValueAliases=new Map();
+  /** @type {Map<string,Array<{path:string[],key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorNestedMemberWrites=new Map();
+  /** @type {Map<string,Array<{key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorDefinePropertyWrites=new Map();
+  /** @type {Map<string,Array<{path:string[],key:string|null,value:import('./ast').AstNode}>>} */
+  const descriptorNestedDefinePropertyWrites=new Map();
+  /** @type {Map<string,Array<{path:string[],sources:import('./ast').AstNode[]}>>} */
+  const descriptorNestedObjectAssignSources=new Map();
+  /**
+   * Resolve a static member chain to its identifier root and property path.
+   * Dynamic keys and non-identifier roots are deliberately left unproved.
+   * @param {import('./ast').AstNode} expression
+   * @returns {{root:string,path:string[]}|null}
+   */
+  function staticMemberPath(expression) {
+    const path=[];
+    let current=expression;
+    while(current.type==='MemberExpression') {
+      const key=memberName(current);
+      if(key===null)return null;
+      path.unshift(key);
+      current=current.object;
+    }
+    return current.type==='Identifier'?{root:current.name,path}:null;
+  }
+  /**
+   * @param {string} root
+   * @param {string} key
+   * @param {string} alias
+   */
+  function addDescriptorMemberValueAlias(root,key,alias) {
+    const entries=descriptorMemberValueAliases.get(root)??[];
+    entries.push({key,alias});
+    descriptorMemberValueAliases.set(root,entries);
+  }
   walk(ast,node=>{
     if(node.type==='AssignmentExpression'&&node.operator==='='&&
-       node.left.type==='MemberExpression'&&
-       node.left.object.type==='Identifier'){
-      const name=node.left.object.name;
-      const entries=descriptorMemberWrites.get(name)??[];
-      entries.push({key:memberName(node.left),value:node.right});
-      descriptorMemberWrites.set(name,entries);
+       node.left.type==='MemberExpression') {
+      if(node.left.object.type==='Identifier') {
+        const name=node.left.object.name;
+        const entries=descriptorMemberWrites.get(name)??[];
+        entries.push({key:memberName(node.left),value:node.right});
+        descriptorMemberWrites.set(name,entries);
+      } else {
+        const memberPath=staticMemberPath(node.left);
+        if(memberPath&&memberPath.path.length>=2) {
+          const entries=descriptorNestedMemberWrites.get(memberPath.root)??[];
+          entries.push({
+            path:memberPath.path.slice(0,-1),
+            key:memberPath.path[memberPath.path.length-1]??null,
+            value:node.right
+          });
+          descriptorNestedMemberWrites.set(memberPath.root,entries);
+        }
+      }
     }
     if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
        isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='assign'&&
-       node.arguments[0]?.type==='Identifier'){
-      const name=node.arguments[0].name;
-      const entries=objectAssignSources.get(name)??[];
-      entries.push(...node.arguments.slice(1));
-      objectAssignSources.set(name,entries);
+       node.arguments[0]) {
+      const target=node.arguments[0];
+      if(target.type==='Identifier') {
+        const entries=objectAssignSources.get(target.name)??[];
+        entries.push(...node.arguments.slice(1));
+        objectAssignSources.set(target.name,entries);
+      } else if(target.type==='MemberExpression') {
+        const memberPath=staticMemberPath(target);
+        if(memberPath&&memberPath.path.length>=1) {
+          const entries=descriptorNestedObjectAssignSources.get(memberPath.root)??[];
+          entries.push({path:memberPath.path,sources:node.arguments.slice(1)});
+          descriptorNestedObjectAssignSources.set(memberPath.root,entries);
+        }
+      }
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       isObjectIntrinsic(node.callee.object)&&memberName(node.callee)==='defineProperty'&&
+       node.arguments[0]&&node.arguments[1]&&node.arguments[2]) {
+      const target=node.arguments[0];
+      const key=staticString(node.arguments[1]);
+      if(target.type==='Identifier') {
+        const entries=descriptorDefinePropertyWrites.get(target.name)??[];
+        entries.push({key,value:node.arguments[2]});
+        descriptorDefinePropertyWrites.set(target.name,entries);
+      } else if(target.type==='MemberExpression') {
+        const memberPath=staticMemberPath(target);
+        if(memberPath&&memberPath.path.length>=1) {
+          const entries=descriptorNestedDefinePropertyWrites.get(memberPath.root)??[];
+          entries.push({path:memberPath.path,key,value:node.arguments[2]});
+          descriptorNestedDefinePropertyWrites.set(memberPath.root,entries);
+        }
+      }
     }
     const pattern=node.type==='VariableDeclarator'&&node.id.type==='ObjectPattern'&&
       node.init&&isObjectIntrinsic(node.init)?node.id:
@@ -1809,6 +1885,21 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(key==='create')objectCreateAliases.add(property.value.name);
       }
     }
+    const memberPattern=node.type==='VariableDeclarator'&&
+      node.id.type==='ObjectPattern'&&node.init?.type==='Identifier'?
+        {pattern:node.id,root:node.init.name}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ObjectPattern'&&node.right.type==='Identifier'?
+        {pattern:node.left,root:node.right.name}:null;
+    if(memberPattern) {
+      for(const property of memberPattern.pattern.properties) {
+        if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        if(key!==null)addDescriptorMemberValueAlias(
+          memberPattern.root,key,property.value.name);
+      }
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
@@ -1817,6 +1908,11 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const aliases=descriptorAliases.get(node.init.name)??new Set();
         aliases.add(node.id.name);
         descriptorAliases.set(node.init.name,aliases);
+      }
+      const memberPath=staticMemberPath(node.init);
+      if(memberPath&&memberPath.path.length===1) {
+        addDescriptorMemberValueAlias(
+          memberPath.root,memberPath.path[0],node.id.name);
       }
     } else if(node.type==='AssignmentExpression'&&node.operator==='='&&
               node.left.type==='Identifier') {
@@ -1828,9 +1924,14 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         aliases.add(node.left.name);
         descriptorAliases.set(node.right.name,aliases);
       }
+      const memberPath=staticMemberPath(node.right);
+      if(memberPath&&memberPath.path.length===1) {
+        addDescriptorMemberValueAlias(
+          memberPath.root,memberPath.path[0],node.left.name);
+      }
     }
   });
-  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+    /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function directObjectCreate(expression) {
     return expression.type==='MemberExpression'&&
       isObjectIntrinsic(expression.object)&&memberName(expression)==='create';
@@ -1864,17 +1965,71 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
    * @param {Set<string>} [visited]
    * @returns {boolean}
    */
-  function descriptorHasSensitiveGetter(expression,visited=new Set()) {
-    if(expression.type==='Identifier'){
-      if(visited.has(expression.name))return false;
-      visited.add(expression.name);
-      const found=(descriptorBindings.get(expression.name)??[]).some(
+  /**
+   * A defineProperty descriptor can install a function-valued "get" field
+   * on an Object.create descriptor object.
+   * @param {import('./ast').AstNode} definition
+   * @returns {boolean}
+   */
+  function descriptorDefinePropertyMayExposeDecoder(definition) {
+    if(definition.type!=='ObjectExpression')return false;
+    return definition.properties.some(
+      (/** @type {import('./ast').AstNode} */ property)=>{
+        if(property.type==='SpreadElement') {
+          return descriptorHasSensitiveGetter(property.argument);
+        }
+        if(property.type!=='Property')return false;
+        const key=property.computed?staticString(property.key):
+          property.key.type==='Identifier'?property.key.name:staticString(property.key);
+        return (key===null||key==='value'||key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(property.value);
+      });
+  }
+  /**
+   * @param {string} name
+   * @param {Set<string>} visited
+   * @returns {boolean}
+   */
+  function descriptorHasSensitiveGetterIdentifier(name,visited) {
+    if(visited.has(name))return false;
+    visited.add(name);
+    const found=(descriptorBindings.get(name)??[]).some(
+      source=>descriptorHasSensitiveGetter(source,visited))||
+      (descriptorMemberWrites.get(name)??[]).some(
+        write=>(write.key===null||write.key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(write.value))||
+      (objectAssignSources.get(name)??[]).some(
         source=>descriptorHasSensitiveGetter(source,visited))||
-        (descriptorMemberWrites.get(expression.name)??[]).some(
-          write=>(write.key===null||write.key==='get')&&
-            proxyGetMayReturnDecoderIntrinsic(write.value));
-      visited.delete(expression.name);
-      return found;
+      (descriptorDefinePropertyWrites.get(name)??[]).some(
+        write=>(write.key===null||write.key==='get')&&
+          descriptorDefinePropertyMayExposeDecoder(write.value))||
+      [...(descriptorAliases.get(name)??[])].some(
+        alias=>descriptorHasSensitiveGetterIdentifier(alias,visited));
+    visited.delete(name);
+    return found;
+  }
+  function descriptorHasSensitiveGetter(expression,visited=new Set()) {
+    if(expression.type==='Identifier') {
+      return descriptorHasSensitiveGetterIdentifier(expression.name,visited);
+    }
+    if(expression.type==='MemberExpression') {
+      const memberPath=staticMemberPath(expression);
+      if(!memberPath)return false;
+      const path=memberPath.path;
+      return (descriptorNestedMemberWrites.get(memberPath.root)??[]).some(
+        write=>write.path.length===path.length&&
+          write.path.every((segment,index)=>segment===path[index])&&
+          (write.key===null||write.key==='get')&&
+          proxyGetMayReturnDecoderIntrinsic(write.value))||
+        (descriptorNestedObjectAssignSources.get(memberPath.root)??[]).some(
+          write=>write.path.length===path.length&&
+            write.path.every((segment,index)=>segment===path[index])&&
+            write.sources.some(source=>descriptorHasSensitiveGetter(source,visited)))||
+        (descriptorNestedDefinePropertyWrites.get(memberPath.root)??[]).some(
+          write=>write.path.length===path.length&&
+            write.path.every((segment,index)=>segment===path[index])&&
+            (write.key===null||write.key==='get')&&
+            descriptorDefinePropertyMayExposeDecoder(write.value));
     }
     if(expression.type!=='ObjectExpression')return false;
     return expression.properties.some(
@@ -1890,7 +2045,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
           proxyGetMayReturnDecoderIntrinsic(descriptor.value);
       });
   }
-  /**
+    /**
    * Object.create's outer map may use a computed property name. The name
    * cannot make a decoder-sensitive accessor harmless if it is later read.
    * @param {import('./ast').AstNode} expression
@@ -1908,18 +2063,34 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   function objectCreateMayExposeDecoderIdentifier(name,visited) {
     if(visited.has(name))return false;
     visited.add(name);
+    const memberValueAliasFound=(descriptorMemberValueAliases.get(name)??[]).some(
+      entry=>descriptorHasSensitiveGetterIdentifier(entry.alias,new Set()));
+    const nestedMemberWriteFound=(descriptorNestedMemberWrites.get(name)??[]).some(
+      write=>write.path.length===1&&
+        (write.key===null||write.key==='get')&&
+        proxyGetMayReturnDecoderIntrinsic(write.value));
+    const nestedAssignFound=(descriptorNestedObjectAssignSources.get(name)??[]).some(
+      write=>write.path.length===1&&
+        write.sources.some(source=>descriptorHasSensitiveGetter(source)));
+    const nestedDefinePropertyFound=
+      (descriptorNestedDefinePropertyWrites.get(name)??[]).some(
+        write=>write.path.length===1&&
+          (write.key===null||write.key==='get')&&
+          descriptorDefinePropertyMayExposeDecoder(write.value));
     const found=(descriptorBindings.get(name)??[]).some(
       source=>objectCreateMayExposeDecoder(source,visited))||
       (descriptorMemberWrites.get(name)??[]).some(
         write=>descriptorHasSensitiveGetter(write.value))||
       (objectAssignSources.get(name)??[]).some(
         source=>objectCreateMayExposeDecoder(source,visited))||
+      memberValueAliasFound||nestedMemberWriteFound||
+      nestedAssignFound||nestedDefinePropertyFound||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
     visited.delete(name);
     return found;
   }
-  /**
+    /**
    * @param {import('./ast').AstNode} expression
    * @param {Set<string>} [visited]
    * @returns {boolean}
