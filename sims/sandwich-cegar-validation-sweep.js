@@ -40,6 +40,9 @@ function fixture(family,index){
   /** @param {number} x @returns {number} */
   const oracle=x=>applyLinear(outer,permutation(applyLinear(inner,x)));
   const secret=makeRng(seed^0xa54ff53a)();
+  // Historical paired-query schedule: this seed is reproducibly related to
+  // private source generation. The separate source-agnostic portfolio uses
+  // an attacker-chosen fixed seed rather than this fixture-related value.
   return {oracle,target:oracle(secret),secret,attackSeed:seed^0x510e527f};
 }
 
