@@ -47,6 +47,27 @@ An independent earlier three-arm source pin, `230adad030afb5ef93f715c4a2292cb713
 
 Each record includes the exact repository SHA and CI run, input/output SHA-256 and byte lengths, measured CPU/wall time and checksums for *every* sampled pair, ratio and budget counts. Verify the raw arrays rather than relying on this synthesis.
 
+## Distinct real Chromium ESM wall-clock control
+
+An independent **browser-target** experiment reached a different, engine-scoped conclusion. The first [Chromium run 45083087845](https://github.com/FlareZ123/obfs/actions/runs/45083087845) at source `e7b1067c0be8c411b2bc2f480acc54064a8c6392` used Chrome's `--virtual-time-budget` with `--dump-dom`. Although functional checks and JSDoc passed, the virtual clock did not advance for most long synchronous loops, producing `NaN`-derived JSON `null` timing ratios. **All first-run performance measurements are rejected**. No zero-breach assertion is based on them.
+
+The revised test `test/private-key-hot-cpu-browser.js` uses `puppeteer-core` to load real network-served, CSP-restricted ESM modules into a real **Google Chrome 157.0.8103.78** process. It captures results through the browser automation session without virtual-time flags, and fails closed for nonfinite or zero measured ratios. Exact source `ec6c6a46ff022546a27de5040a117b29d0238ee3` and [Ubuntu/Windows symbol workflow 45084154048](https://github.com/FlareZ123/obfs/actions/runs/45084154048) **passed**. The actual hot runtime test runs on Ubuntu; Windows performs the other symbol workflow validations and strict types. The input is a separately compiled **154-byte ESM form** of the same private two-mutable-field numeric algorithm, with two actual hashed or Symbol compiler rewrites. Browser input/output checksums match across all six arm comparisons and **all 42 real measured pairs**.
+
+Each browser pair imports independent native and alternate ES modules from live HTTP endpoints, warms each for 1,000,000 calls, and times 15,000,000 synchronous calls using the browser's real `performance.now()` clock, with seven alternating-order pairs per variant. The interval excludes network startup and import initialization. **Browser wall clock, not browser CPU**, is sampled.
+
+| Browser variant, relative to native ESM | Chrome 157 median measured hot wall ratio | Strict >2.5x wall-clock pairs |
+| --- | ---: | ---: |
+| Compiler hashed-string keys, two genuine rewrites | 1.00000x | 0/7 |
+| Compiler unregistered Symbol keys, two genuine rewrites | **0.99762x** | **0/7** |
+| Handwritten Symbol computed keys | 1.00000x | 0/7 |
+| Handwritten computed-string keys | 1.00000x | 0/7 |
+| Ordinary esbuild minification | 1.00000x | 0/7 |
+| Byte-identical placebo | 0.99762x | 0/7 |
+
+[Raw exact browser source, checksum, and all paired timing evidence](raw-private-key-hot-chromium-2026-11-22-ubuntu.json) is source-pinned to that workflow. One initial hashed-key pair had 2.13527x wall ratio, below the strict limit; later samples were near 1x. Typical hot samples took about 84 milliseconds for 15 million calls, and the ratios are finite and positive. The browser engine/version and measurement semantics differ from the Node 22.23.4 process CPU experiment, so **the Node Symbol CPU veto remains valid for its workload and runtime while this selected Chrome 157 wall-clock result does not show the same slowdown**.
+
+This distinction is evidence that the particular cost is sensitive to engine/runtime environment. A strong release-grade cross-target decision still needs browser CPU, full end-to-end session cost, cold start including COO initialization, and independent reconstruction resistance. Neither result can be substituted for the other.
+
 ## Decision boundary
 
 **Do not recommend experimental Symbol-key lowering for hot Node execution under the project's stipulated strict 2.5x budget** without replacing this workload's veto with a source-pinned, independently controlled positive result. Even if a faster Symbol implementation became available, a material attacker-cost benefit over ordinary minification and hashed strings would still require separate adversarial evidence. This measured CPU veto is independent of the public callable/class source-observation compatibility failures on the same evidence branch. Keep the broader strong-protection release classification **RELEASE-BLOCKED**.
