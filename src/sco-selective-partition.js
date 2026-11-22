@@ -98,8 +98,39 @@ function usesUnprovedCrossRealmHostApi(body){
  * @returns {boolean}
  */
 function usesUnprovedRelocatedUrlStatic(body){
+  // A fresh URL instance can expose its host constructor through
+  // `instance.constructor`. Track simple local aliases so the static-method
+  // refusal cannot be bypassed by spelling `new URL(...).constructor`.
+  const urlInstances=new Set();
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(binding?.type!=='Identifier'||!value)return;
+      const instance=value.type==='NewExpression'&&
+        value.callee.type==='Identifier'&&value.callee.name==='URL' ||
+        value.type==='Identifier'&&urlInstances.has(value.name);
+      if(instance&&!urlInstances.has(binding.name)){
+        urlInstances.add(binding.name);
+        changed=true;
+      }
+    });
+  }
   let observed=false;
   walk(body,(node,parent,key)=>{
+    if(node.type==='MemberExpression'){
+      const receiver=node.object;
+      const urlInstance=receiver.type==='Identifier'&&urlInstances.has(receiver.name)||
+        receiver.type==='NewExpression'&&receiver.callee.type==='Identifier'&&
+          receiver.callee.name==='URL';
+      const property=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      if(urlInstance&&(property===null||property==='constructor'))observed=true;
+    }
     if(node.type!=='Identifier'||node.name!=='URL'||isStaticKey(parent,key))return;
     if(parent?.type==='NewExpression'&&key==='callee')return;
     if(key==='id'&&['VariableDeclarator','FunctionDeclaration',
