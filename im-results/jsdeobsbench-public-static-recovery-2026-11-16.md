@@ -47,3 +47,14 @@ The browser example is one simple one-file ESM module with no remote-private SCO
 ## Research implication
 
 The existing seeded string-encoding layer is a transformable display surface. Spending compute on alternate encodings should require a publicly reproducible attacker-cost win beyond this static normalization baseline and independent whole-session performance evidence. Prefer testing genuinely withheld SCO server functionality under the authorized-online-relay threat model; reject source-only security claims for this XOR mechanism.
+
+
+## Full official-case follow-up (2026-11-22)
+
+The earlier full recovered-code run `43831549024` compared all 1,301 programs but only the first two official cases per program. The expanded existing manual workflow now uses `--cases 6`, the maximum case count in the pinned corpus. [Run 44976974874](https://github.com/FlareZ123/obfs/actions/runs/44976974874), at exact source commit `bbf8aa29057f62ab706ecf7e17f009166eadd3b2`, passed all three lanes and exercised all **2,984 official cases**.
+
+In each SNO grammar, the same public-only attack recovered **134/134** compiler-reported string literal references from 59 of 1,301 files, with zero unrecognized tables. The attack did not receive original source, official cases, compiler metrics or the compiler seed. Static decoding took 366.40 ms in script mode (0.146 ms median and 0.644 ms P95 per program) and 456.54 ms in CommonJS mode (0.211 ms median and 0.910 ms P95 per program).
+
+The private recovered-code verifier then compared native and recovered programs over all 2,984 official cases in both grammars: 2,983 baseline-eligible matches, zero mismatches, zero transformed errors, and zero baseline/official disagreements. The one excluded original failure is `p02618_1`, case 0 (`ReferenceError: input is not defined`). The same run's native-versus-compiled SNO differentials also matched all 2,983 eligible cases in both grammars.
+
+This increases the published-case coverage from the historical first-two subset (2,200/2,984 cases) to the full pinned set. It does not change the security conclusion: the current XOR literal-table encoding remains recoverable by a small public-only static attacker, and a finite test corpus does not prove equivalence for every input or every possible runtime state.
