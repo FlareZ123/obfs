@@ -34,9 +34,10 @@ output file is written, the compiler:
 1. Parses original and generated CommonJS files and collects direct,
    string-literal `require('bare-package')` sites. It ignores native
    builtins, path-relative specifiers and `#imports` (the latter is
-   separately controlled by package-scope admission). Named shadowing
-   of `require` is refused conservatively using the same declared-
-   binding analysis as the compiler's other literal rewrites.
+   separately controlled by package-scope admission). Named shadowing, visible lexical aliases, direct dynamic specifiers
+   and direct-eval/with scope hazards are refused conservatively using
+   declared-binding and AST position analysis. More indirect resolver
+   constructions remain outside this finite scanner.
 2. Requires the set of direct bare calls to be identical before and after
    obfuscation, rejecting a generated call introduced or changed by
    any selected experimental backend.
