@@ -197,3 +197,20 @@ test('real selected SCO HTTP facade returns the same hoisted-var result as nativ
     await fs.rm(directory,{recursive:true,force:true});
   }
 });
+
+test('deeply nested functions keep var environments disjoint and captured outer vars valid',async()=>{
+  for(const depth of [32,128,256]){
+    const open=Array.from({length:depth},(_,index)=>'function nested'+index+'(){').join('');
+    const close='}'.repeat(depth);
+    const valid='var v=31;'+open+'return v;'+close+'return v;';
+    const invalid=open+'var v=17;return v;'+close+'return v;';
+    assert.equal(firstUnprovedFreeReference(sourceBody(valid),new Set(),
+      new Set(),shared,true),null,'captured outer var, depth '+depth);
+    assert.equal(firstUnprovedFreeReference(sourceBody(invalid),new Set(),
+      new Set(),shared,true),'v','unproved outer var, depth '+depth);
+    assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+      valid+'})()',{}),31,'native valid depth '+depth);
+    await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
+      invalid+'})()',{}),/v is not defined/u,'native invalid depth '+depth);
+  }
+});
