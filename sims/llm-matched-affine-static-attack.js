@@ -78,7 +78,8 @@ function minifiedOffset(publicFunction){
   ));
   const fn=parsed.body[0]?.expression;
   if(!fn||!['FunctionExpression','ArrowFunctionExpression'].includes(fn.type)||
-     fn.params.length!==1||fn.params[0].type!=='Identifier')
+     fn.async||fn.generator||fn.params.length!==1||
+     fn.params[0].type!=='Identifier')
     throw new TypeError('Unknown minified public callable');
   const expression=fn.body.type==='BlockStatement'?
     (fn.body.body.length===1&&fn.body.body[0].type==='ReturnStatement'?
