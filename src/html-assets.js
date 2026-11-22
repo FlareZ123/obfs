@@ -220,7 +220,8 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
         if(href!==undefined){baseHref=href;return;}
       }
       for(const child of node.childNodes??[])findBase(child);
-      if(node.content)findBase(node.content);
+      // Template content belongs to a DocumentFragment, never to the
+      // currently executing document's base URL tree.
     }
     findBase(root);
     const documentBase=new URL('/'+file.path,'https://obfs.invalid/');
@@ -247,12 +248,17 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
            relation.includes('preload') && as.toLowerCase()==='script');
         const address=node.tagName==='script'?src:linked?href:null;
         if(address){
-          const target=targetPath(address,base);
-          if(target!==null&&
-             (javascriptPaths.has(target) ||
-              mountedPrefix && target.startsWith(mountedPrefix) &&
-                javascriptPaths.has(target.slice(mountedPrefix.length)))){
-            observed=true;return;
+          // The parser may already have started fetching a script before a
+          // later <base> takes effect. Also consider the document fallback
+          // rather than assuming a static base was active at fetch time.
+          for(const candidateBase of [documentBase,base]){
+            const target=targetPath(address,candidateBase);
+            if(target!==null&&
+               (javascriptPaths.has(target) ||
+                mountedPrefix && target.startsWith(mountedPrefix) &&
+                  javascriptPaths.has(target.slice(mountedPrefix.length)))){
+              observed=true;return;
+            }
           }
         }
       }
