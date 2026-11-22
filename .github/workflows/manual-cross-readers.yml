@@ -46,6 +46,11 @@ jobs:
       # Red-first compatibility probe: new DOM serializations can observe
       # inline script text even where the current source guard may miss it.
       # This is an evidence branch, not a new release gate.
+      - name: Browser DOM serialization source-observer native/emitted parity
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-source-serialization-pair.js
       - name: Compare authorized ESM host-lock and inline DOM source observation
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
@@ -61,11 +66,6 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/browser-dom-module-graph-source-boundary.js
-      - name: Browser DOM serialization source-observer native/emitted parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-source-serialization-pair.js
       # The historical computed-refusal ablation is source-anchored to a
       # removed compiler clause and cannot run against modern main; its pinned
       # counterfactual evidence remains in sims/computed-refusal-ablation.js.
