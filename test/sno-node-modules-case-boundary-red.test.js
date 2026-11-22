@@ -21,29 +21,25 @@ function run(entry) {
     {encoding:'utf8',timeout:15000});
 }
 
-test('uppercase NODE_MODULES package boundary matches native Node semantics',async()=>{
+test('Node uppercase NODE_MODULES is not a package-scope boundary',async()=>{
   await withFixture(async root=>{
     const source=path.join(root,'source');
     const host=path.join(root,'host');
     const output=path.join(host,'NODE_MODULES','pkg');
+    const runner=path.join(root,'runner.cjs');
     const entry=path.join(source,'entry.js');
     await atomicWrite(entry,'module.exports=163;');
     await atomicWrite(path.join(host,'package.json'),'{"type":"module"}');
     await atomicWrite(path.join(output,'entry.js'),'module.exports=163;');
+    await atomicWrite(runner,'process.stdout.write(String(require(process.argv[2])));');
 
-    const native=run(path.join(output,'entry.js'));
-    if(process.platform==='win32') {
-      assert.equal(native.status,0,'Native Windows should treat uppercase NODE_MODULES as node_modules: '+native.stderr);
-      assert.equal(native.stdout,'163');
-      await main('sno',['--root',source,'--entry','entry.js','--out',output]);
-      const compiled=run(path.join(output,'sno-entry.cjs'));
-      assert.equal(compiled.status,0,compiled.stderr);
-      assert.equal(compiled.stdout,'163');
-    } else {
-      assert.notEqual(native.status,0,
-        'Linux uppercase NODE_MODULES should inherit external ESM package scope');
-      await assert.rejects(main('sno',['--root',source,'--entry','entry.js','--out',output]),
-        /SNO output \.js inherits external ESM package scope/);
-    }
+    const original=spawnSync(process.execPath,[runner,entry],
+      {encoding:'utf8',timeout:15000});
+    const relocated=spawnSync(process.execPath,[runner,path.join(output,'entry.js')],
+      {encoding:'utf8',timeout:15000});
+    assert.equal(original.status,0,original.stderr);
+    assert.equal(original.stdout,'163');
+    assert.notEqual(relocated.status,0);
+    assert.match(relocated.stderr,/module is not defined|ERR_REQUIRE_ESM|ES module/i);
   });
 });
