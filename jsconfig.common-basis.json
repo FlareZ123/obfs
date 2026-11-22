@@ -1,0 +1,6 @@
+{
+  "extends": "./jsconfig.json",
+  "include": [
+    "sims/low-output-residual-common-basis-peercheck.js"
+  ]
+}
