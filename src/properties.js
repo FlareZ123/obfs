@@ -81,36 +81,41 @@ function isSimplePatternBinding(value) {
  * coercion or observing the private object's names. We preserve their source
  * without folding values, operator order, short-circuiting, or exceptions.
  * @param {AstNode} node
+ * @param {boolean} [directBigInt] Whether the expression is standalone
  * @returns {boolean}
  */
-function isPrimitiveConstantExpression(node) {
-  // Mixed BigInt/Number arithmetic and BigInt zero divisors can throw;
-  // changing preceding source keys would then shift observable stack columns.
-  // Direct BigInt literal property values remain eligible via isLiteralValue.
+function isPrimitiveConstantExpression(node,directBigInt=true) {
+  // Preserve a primitive-only, side-effect-free expression grammar. Any
+  // potentially throwing BigInt arithmetic must remain outside this proof.
   if(node.type==='Literal')return node.value===null||
     ['string','number','boolean'].includes(typeof node.value);
   if(node.type==='UnaryExpression') {
-    // A directly spelled BigInt literal is a primitive, but unary plus
-    // throws. Do not admit BigInt arithmetic or other potentially throwing
-    // expression trees through the ordinary numeric grammar below.
+    // These five operators are defined on directly spelled BigInt literals.
+    // Never pass such a value into another operator, even unary plus.
     if(node.argument.type==='Literal' && typeof node.argument.value==='bigint')
-      return ['-','~','!','void','typeof'].includes(node.operator);
+      return directBigInt && ['-','~','!','void','typeof'].includes(node.operator);
     return ['+','-','!','~','void','typeof'].includes(node.operator)&&
-      isPrimitiveConstantExpression(node.argument);
+      isPrimitiveConstantExpression(node.argument,false);
   }
-  if(node.type==='BinaryExpression')return     ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
+  if(node.type==='BinaryExpression')return
+    ['+','-','*','/','%','**','<<','>>','>>>','&','|','^',
       '==','!=','===','!==','<','<=','>','>='].includes(node.operator)&&
-    isPrimitiveConstantExpression(node.left)&&
-    isPrimitiveConstantExpression(node.right);
-  if(node.type==='LogicalExpression')return     ['&&','||','??'].includes(node.operator)&&
-    isPrimitiveConstantExpression(node.left)&&
-    isPrimitiveConstantExpression(node.right);
-  if(node.type==='ConditionalExpression')return     isPrimitiveConstantExpression(node.test)&&
-    isPrimitiveConstantExpression(node.consequent)&&
-    isPrimitiveConstantExpression(node.alternate);
-  if(node.type==='SequenceExpression')return     node.expressions.length>0&&
-    node.expressions.every(isPrimitiveConstantExpression);
-  if(node.type==='TemplateLiteral')return     node.expressions.every(isPrimitiveConstantExpression);
+    isPrimitiveConstantExpression(node.left,false)&&
+    isPrimitiveConstantExpression(node.right,false);
+  if(node.type==='LogicalExpression')return
+    ['&&','||','??'].includes(node.operator)&&
+    isPrimitiveConstantExpression(node.left,false)&&
+    isPrimitiveConstantExpression(node.right,false);
+  if(node.type==='ConditionalExpression')return
+    isPrimitiveConstantExpression(node.test,false)&&
+    isPrimitiveConstantExpression(node.consequent,false)&&
+    isPrimitiveConstantExpression(node.alternate,false);
+  if(node.type==='SequenceExpression')return node.expressions.length>0&&
+    node.expressions.every((/** @type {AstNode} */ value)=>
+      isPrimitiveConstantExpression(value,false));
+  if(node.type==='TemplateLiteral')return
+    node.expressions.every((/** @type {AstNode} */ value)=>
+      isPrimitiveConstantExpression(value,false));
   return false;
 }
 
