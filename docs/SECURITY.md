@@ -338,10 +338,21 @@ a packaged ESM or CommonJS scope. Invalid non-object or non-string
 The SNO CLI now checks the input scope and, under the cooperating output
 directory lock, the actual build destination including nested package
 metadata. It refuses unexpected ESM/CommonJS classifications and invalid
-external package metadata before publishing executable files. Explicit
-`.cjs`/`.mjs` extensions remain unaffected. The programmatic
-`createSnoLauncher(files,entry)` API receives no deployment path and
-does not perform the check.
+external package metadata before publishing executable files. The
+`.cjs`/`.mjs` extensions fix the module format independently of package
+type. They still use `"imports"` alias mappings and named `"exports"`
+self-reference metadata from Node package scopes. The CLI conservatively
+refuses executable `.js`, `.cjs` and `.mjs` files under **untracked**
+external mappings, because `require('#alias')` and
+`require('own-package/subpath')` can resolve differently after relocation
+even when both original and generated files are CommonJS. Include the
+necessary `package.json` under the input root to package it alongside
+the executable files; this allows valid controlled mappings to execute
+normally. A source-pinned red/green two-platform reproduction is
+documented in the [bounded report](../im-results/sno-ambient-output-package-scope-2026-11-22.md).
+
+The programmatic `createSnoLauncher(files,entry)` API receives no
+deployment path and does not perform these checks.
 
 The check is bound to the current filesystem state and default Node
 module resolution. Node's `--preserve-symlinks` flag can use the lexical
