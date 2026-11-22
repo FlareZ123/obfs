@@ -78,6 +78,35 @@ therefore modify a private function passed to native
   at `dbf4fbae8fa586af55ce02670ff8d6b8ff4497e2`.
   The literal-only positive still renamed its unrelated private property.
 
+- **Local Element factory and destructured setter methods:** A further
+  four-case extension covered a local function returning an Element, an
+  arrow-returning factory, a destructured `setAttribute` method, and a
+  destructured `setAttributeNS` method. The earlier guard
+  [red focused 45085449544](https://github.com/FlareZ123/obfs/actions/runs/45085449544)
+  at `5f070d0bda47621a1a60f492204074aaf76deea4`
+  missed the latter three cases on both OSes, despite passing the
+  independent literal-only positive. Bounded factory-return and
+  destructured-method may-flow corrected those misses:
+  [focused two-OS green 45085522164](https://github.com/FlareZ123/obfs/actions/runs/45085522164)
+  at `22bf3172be7570a00ea5b29e1fa5e32d915de2b0`,
+  including strict JSDoc.
+  An initial expanded Chrome test run
+  [45085574449](https://github.com/FlareZ123/obfs/actions/runs/45085574449)
+  failed before browser execution due to a **test-only missing comma** in
+  a generated HTML string array, fixed at `4cd439f7318e9b8f1ff875b53d15659b57fb50fd`.
+  The corrected **full Chromium run**
+  [45085758590](https://github.com/FlareZ123/obfs/actions/runs/45085758590)
+  passed all native setter cases, including factory, destructured normal,
+  and destructured namespaced cases with a real transformed positive.
+- **Full Node integration:** Ubuntu and Windows full validation
+  [run 45085651908](https://github.com/FlareZ123/obfs/actions/runs/45085651908)
+  at `7097cb6fe426ce0d7da67594d2561a2cb0813202`
+  passed the complete project suite. The only later source change was
+  the test fixture comma fix noted above, so the implementation is
+  identical. A final same-SHA Node run was dispatched for
+  `4cd439f7318e9b8f1ff875b53d15659b57fb50fd`;
+  treat its status separately until confirmed.
+
 ## Compiler fix and limits
 
 A small compile-time may-flow follows local document roots through
@@ -95,15 +124,29 @@ aliases, and `Reflect.apply`. It conservatively records the greatest
 potential DOMString-input arity for a variable that may refer to multiple
 setters. This adds compile-time analysis without adding runtime work.
 
-This finite proof does not follow arbitrary property containers,
-interprocedural element factories, opaque externally supplied Element
-receivers, or opaque reflection aliases without a known native setter
-capability. Shadowed global names can conservatively refuse otherwise
-eligible transformations. These are documented coverage/yield limits,
-not security guarantees.
+The receiver proof also admits bounded local functions and arrow
+functions whose body directly returns a proven Element. Method alias
+summaries handle straightforward destructuring from such an Element.
+
+This finite proof cannot establish arbitrary property-container provenance,
+multi-branch/nested return factories, opaque imported Element factories,
+externally supplied Element receivers, or arbitrary reflection aliases
+without known native setter capability. Shadowed global names can
+conservatively refuse otherwise eligible transformations. These are
+documented coverage/yield limits, not security guarantees.
+
+A separate real Chromium red witness demonstrates that reflected DOMString
+properties such as `element.id` and `element.textContent` also expose
+function source. Those **assignment sinks are not fixed by this attribute
+method PR**; see
+`im-results/domstring-reflected-property-source-2026-11-22.md` on branch
+`agent19/domstring-reflected-property-red-20261122` and
+[native Chrome red 45085898680](https://github.com/FlareZ123/obfs/actions/runs/45085898680).
+A general source-coercion registry covering calls and native assignments is
+a separately motivated canonical improvement.
 
 The release decision in [results/README.md](../results/README.md)
-remains **RELEASE-BLOCKED**. Native Chromium and focused two-OS
-tests pass on the implementation above. Full Node integration at final
-branch SHA and integration onto the canonical current-main source observer
-remain separate prerequisites for promotion.
+remains **RELEASE-BLOCKED**. The measured implementation passed
+native Chromium, all focused two-OS tests, and full two-OS Node integration.
+The final same-SHA check and integration onto the canonical current-main
+source observer remain separate prerequisites for promotion.
