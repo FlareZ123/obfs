@@ -6,6 +6,7 @@ const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
 const {collectBindings}=require('./properties');
+const {firstUnprovedFreeReference}=require('./sco-free-references');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -46,6 +47,15 @@ const standardRealmGlobals=new Set([
   'Reflect','Proxy','Intl','Atomics','WebAssembly',
   'WeakRef','FinalizationRegistry'
 ]);
+ 
+// Review the shared primitive and Web-platform constructor spellings separately
+// from ambient host APIs (fetch, process, timers, etc.), which retain their
+// stricter cross-realm migration checks. No unknown application global is
+// implicitly admitted merely because one host happens to define it.
+const provedSharedGlobalReads=new Set([...standardRealmGlobals,'globalThis',
+  'URL','URLSearchParams','TextEncoder','TextDecoder','atob','btoa',
+  'structuredClone','AbortController','AbortSignal','DOMException','Blob']);
+
 
 /**
  * Whether an AST literal is an owned primitive whose typeof result does not
@@ -1213,6 +1223,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
         filename+':'+freeTypeof);
     }
+    const freeRead=firstUnprovedFreeReference(ast,new Set(),new Set(),
+      provedSharedGlobalReads);
+    if(freeRead!==null){
+      throw new TypeError('SCO private static dependency has unproved free global: '+
+        filename+':'+freeRead);
+    }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
@@ -1593,6 +1609,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     for(const parameter of fn.params){
       if(parameter.type==='Identifier')parameters.add(parameter.name);
     }
+    if(fn.id?.type==='Identifier')parameters.add(fn.id.name);
     privateFormals.set(fn.body,parameters);
   }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
@@ -1983,6 +2000,12 @@ function partitionScoSelectedAsyncExports(file,options) {
       serverConstants,privateFormals.get(body)??new Set());
     if(freeTypeof!==null){
       throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
+    const selectedModuleNames=new Set([...serverConstants,...privateHelperNames,...selected]);
+    const freeRead=firstUnprovedFreeReference(body,selectedModuleNames,
+      privateFormals.get(body)??new Set(),provedSharedGlobalReads);
+    if(freeRead!==null){
+      throw new TypeError('Private SCO export or helper uses unproved free global: '+freeRead);
     }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
