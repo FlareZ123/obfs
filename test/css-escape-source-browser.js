@@ -54,7 +54,8 @@ async function main() {
     {name:'function-source',denied:true,
       code:common+'globalThis.__cssResult={observed:CSS.escape(inspect),value:inspect()};'},
     {name:'literal-positive',denied:false,
-      code:common+'globalThis.__cssResult={observed:CSS.escape("literal"),value:inspect()};'}
+      code:'const state={secretField:13};'+
+        'globalThis.__cssResult={observed:CSS.escape("literal"),value:state.secretField};'}
   ];
   const dir=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-css-escape-'));
   try {
