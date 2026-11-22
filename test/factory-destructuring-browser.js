@@ -51,7 +51,7 @@ async function runFactoryDestructuringBrowser() {
     else refusals++;
     for(const file of original){
       assert.equal(typeof file.code,'string');
-      scripts.set('/native/'+id+'/'+file.path,file.code);
+      scripts.set('/native/'+id+'/'+file.path,/** @type {string} */ (file.code));
     }
     for(const file of emitted.files){
       assert.equal(typeof file.code,'string');
