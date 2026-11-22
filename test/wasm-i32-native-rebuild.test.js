@@ -10,8 +10,10 @@ const {reconstructPublicWasmCommonJs}=
 
 const source='// new globalThis.WebAssembly.Module(globalThis.Uint8Array.from([1,2,3]))\n'+
   "'use strict';\n"+
-  'function first(a){return ((a^137)&255);}\n'+
-  'function second(b,c){return (((b|c)^31)>>>0);}\n'+
+  'function firstKernel(a){return ((a^137)&255);}\n'+
+  'function secondKernel(b,c){return (((b|c)^31)>>>0);}\n'+
+  'function first(a){return firstKernel(a);}\n'+
+  'function second(b,c){return secondKernel(b,c);}\n'+
   'module.exports={first,second};\n';
 
 /**
@@ -35,7 +37,7 @@ test('automated public-only native replacement needs no WebAssembly, original so
   let reconstructed=0,checks=0;
   for(let seed=0;seed<8;seed++){
     const emitted=lowerWasmI32Functions(source,'commonjs',{
-      seed:'rebuild-'+seed,names:['first','second']
+      seed:'rebuild-'+seed,names:['firstKernel','secondKernel']
     });
     assert.equal(emitted.functions,2);
     const attack=reconstructPublicWasmCommonJs(emitted.code);
@@ -70,7 +72,7 @@ test('COO and SNO full compiler output can be replaced by a public native module
       const result=obfuscateFiles([{path:'api.cjs',
         sourceType:'commonjs',code:source}],{
         mode,seed,closedWorld:true,strings:false,identifiers:false,properties:false,
-        experimentalWasmI32:{'api.cjs':['first','second']}
+        experimentalWasmI32:{'api.cjs':['firstKernel','secondKernel']}
       });
       assert.equal(result.files[0].metrics.wasmI32Functions,2);
       const emitted=String(result.files[0].code);
