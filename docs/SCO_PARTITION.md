@@ -283,16 +283,20 @@ references to the global `URL` constructor in relocated private code:
 `URL.createObjectURL(new Blob(...))` returns a `blob:nodedata:` URL in Node,
 while browser object URLs are associated with their creator origin. Direct
 `new URL(...)` parsing remains admitted. This is a conservative syntactic
-boundary, including local URL name shadowing, and is not a general analysis
-of indirect constructor recovery. Client timers and event-loop callbacks are also
-host-specific. In browsers, `setTimeout` and `setInterval` produce numeric
+boundary, including local URL name shadowing. The compiler additionally
+declines `new URL(...).constructor` recovery and simple instance aliases;
+higher-order and nested instance escapes remain outside its proof. Client
+timers and event-loop callbacks are also host-specific. In browsers, `setTimeout` and `setInterval` produce numeric
 timer IDs, while Node returns `Timeout` objects; relocating `queueMicrotask`,
 animation-frame, idle-callback, event-listener and similar host APIs changes
 the scheduling environment. The selected compiler refuses direct or extracted
 references to recognized host timer/event APIs, including those in audited
 private dependencies. Pure local records may retain the same property labels.
-Review each
-server-private operation as an explicit server contract, ensure all
+A uniquely declared immutable local function may also use one of these
+spellings when its binding provenance is proven. The
+[authenticated native-versus-generated facade test](../test/sco-selected-handler.test.js)
+exercises such a retained private function over actual loopback RPC with
+operation-level authorization. Review each server-private operation as an explicit server contract, ensure all
 cross-boundary inputs and outputs fit the JSON interface, and test
 the original versus split behavior under the intended browser and
 server environments. A function that requires browser-only state
