@@ -33,6 +33,13 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observer-islands-browser.js
+      - name: Independent external ESM source parity, three modes
+        run: node --test test/esm-public-source-reachability.test.js
+      - name: Real Chromium external ESM source parity, three modes
+        if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-public-source-browser.js
       - name: CacheStorage browser source-byte observation counterfactual and admission
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
