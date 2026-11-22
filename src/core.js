@@ -167,35 +167,43 @@ function staticallyImportedEsmTargets(files) {
 }
 
 /**
- * A dynamic module can execute code outside the supplied graph before a
- * later module initializes its ambient String decoder. Admit only literal,
- * unadorned relative imports that resolve to supplied JavaScript sources.
- * Unproved URL imports, computed imports, and import options require a
- * conservative group-wide decoder refusal.
+ * ESM dependencies execute user code before a later module's decoder
+ * initialization. Dynamic imports and static imports/reexports must be
+ * proven to resolve to JavaScript files included in the supplied group.
+ * An unlisted dependency, external URL, computed import, import options,
+ * or an ambiguous URL spelling makes the ambient decoder unsafe.
  *
  * @param {import('./ast').AstNode} ast
  * @param {string} filename
  * @param {Set<string>} knownJavaScript
  * @returns {boolean}
  */
-function hasUnprovedDynamicImport(ast,filename,knownJavaScript) {
-  let unproved=false;
-  walk(ast,node=>{
-    if(node.type!=='ImportExpression')return;
-    const source=node.source;
-    if(node.options||source.type!=='Literal'||typeof source.value!=='string') {
-      unproved=true;
-      return;
-    }
+function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
+  /**
+   * @param {import('./ast').AstNode|null|undefined} source
+   * @returns {boolean}
+   */
+  function resolvesInGraph(source) {
+    if(source?.type!=='Literal'||typeof source.value!=='string')return false;
     const specifier=source.value;
     if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
-       /[?#%\\]/u.test(specifier)) {
-      unproved=true;
-      return;
-    }
+       /[?#%\\]/u.test(specifier))return false;
     const target=path.posix.normalize(
       path.posix.join(path.posix.dirname(filename),specifier));
-    if(!knownJavaScript.has(target))unproved=true;
+    return knownJavaScript.has(target);
+  }
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type==='ImportExpression') {
+      if(node.options||!resolvesInGraph(node.source))unproved=true;
+      return;
+    }
+    if(node.type==='ImportDeclaration'||
+       (node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration')&&
+       node.source) {
+      if(node.attributes?.length||node.assertions?.length||
+         !resolvesInGraph(node.source))unproved=true;
+    }
   });
   return unproved;
 }
@@ -2012,7 +2020,7 @@ function obfuscateFiles(files, options = {}) {
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
-          hasUnprovedDynamicImport(inputAst,input.path,knownJavaScript) ||
+          hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
