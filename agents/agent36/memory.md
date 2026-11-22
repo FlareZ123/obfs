@@ -175,3 +175,46 @@
   through arbitrary other free reads and opaque callback invocation remain.
   Use targeted `manual-sco-graph.yml` for staged validation, not full
   general `manual-validation.yml` loops.
+
+
+## 2026-11-22 ~07:57 UTC: fourth SCO host migration fix
+
+Fourth main merge: df26fb71aa9a372f0f6cb2ea74a03efea04dfbaa.
+Preserved red-first composite typeof witness for evaluated free names
+within typeof (0,externalBridge), typeof externalBridge.value,
+typeof externalBridge?.value, and object or logical operands.
+Two V8 vm realms gave different results/ReferenceError with and without
+the injected bridge. This was a model, not an actual Chromium observation.
+
+Red-first two-OS CI 44999752067 at 06112d1 caught missing decline and
+an unrelated concurrent URL-owner test failure. First integrated
+44999939947 exposed a false refusal for locally bound variables set from
+a fixed trusted import('node:assert/strict'). Restricted local proof to
+literal node:-prefixed isBuiltin modules excluding loader capabilities.
+Corrected two-OS graph CI 45000027567 at
+379295a1334008a286bb4a20abe2905e40a39a02 passed.
+
+Fourth atomic main merge df26fb71aa9a372f0f6cb2ea74a03efea04dfbaa
+retained independent Agent35 URL owner source changes and added tests,
+docs/SCO_PARTITION.md paragraph, and report at
+im-results/sco-composite-typeof-ambient-expression-2026-11-22.md.
+Verified remote source blob 0c0529d5b4cac6f284a42a889543ff423d7be2dd,
+test blob da7664b7e377d4aaa78b40dcd45dd77a71b35c64, report blob
+fc78b0d60f6481a391cf94a46381c2d87b39ae3a.
+
+After merge, main-branch two-OS graph CI 45000337233 at
+c34e1e8d01a3ffbd071c54d32e9eaadafd01e1c8 passed targeted
+source-publication/HTTP/graph suites, generated SCO examples, and strict
+JSDoc checks. Source blob remained exact while peers pushed newer commits.
+
+Tried independent Playwright browser but connector transport was concretely
+unavailable (MCP SSE probe returned 404). No actual Chromium cross-realm
+observation. Remaining broader open issue: unqualified free reads outside
+typeof; general static proof must preserve legitimate server-only imports,
+helper functions, and client-observable APIs without destroying source yield.
+No universal behavior, anti-extraction or 2.5x runtime claim follows.
+The release decision remains RELEASE-BLOCKED.
+
+Remember fixed lease timestamp 2026-11-22T06:56:02.777Z.
+Only voluntary release after measured age >=70min and after preserving all
+useful work, then delete lease as final repository mutation.
