@@ -1894,6 +1894,43 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       }
     }
   });
+  // A named array can carry a descriptor entry across one or more identifier
+  // aliases before destructuring. The complete source-collected bindings are
+  // available here, so resolve that finite graph after the collection pass.
+  walk(ast,node=>{
+    const pattern=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const value=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(pattern?.type!=='ArrayPattern'||value?.type!=='Identifier')return;
+    /** @type {import('./ast').AstNode[]} */
+    const pending=[value];
+    const visited=new Set();
+    while(pending.length){
+      const expression=pending.pop();
+      if(!expression)continue;
+      if(expression.type==='Identifier'){
+        if(visited.has(expression.name))continue;
+        visited.add(expression.name);
+        pending.push(...(descriptorBindings.get(expression.name)??[]));
+        continue;
+      }
+      if(expression.type!=='ArrayExpression')continue;
+      for(let index=0;index<pattern.elements.length;index++){
+        const source=expression.elements[index];
+        const target=pattern.elements[index];
+        if(source?.type!=='MemberExpression'||source.object.type!=='Identifier')
+          continue;
+        const name=target?.type==='Identifier'?target.name:
+          target?.type==='AssignmentPattern'&&target.left.type==='Identifier'?
+            target.left.name:null;
+        if(name===null)continue;
+        const aliases=descriptorMemberReadAliases.get(source.object.name)??new Set();
+        aliases.add(name);
+        descriptorMemberReadAliases.set(source.object.name,aliases);
+      }
+    }
+  });
   /** @param {import('./ast').AstNode} expression @returns {boolean} */
   function directObjectCreate(expression) {
     return expression.type==='MemberExpression'&&
