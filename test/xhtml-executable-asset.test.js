@@ -172,3 +172,36 @@ test('SCO serves reviewed XHTML with the XML MIME type and preserves exact bytes
     }
   }
 });
+
+test('SCO XHTML SRI pin survives the actual configured public route prefix',async()=>{
+  const source='globalThis.xhtmlResult="unchanged-public-source-canary-value";';
+  const hash=createHash('sha256').update(source).digest('base64');
+  const markup=xhtml('<h:script xmlns:h="http://www.w3.org/1999/xhtml" '+
+    'src="/custom/client.js" integrity="sha256-'+hash+'"></h:script>');
+  const handler=createScoHandler([
+    {path:'client.js',sourceType:/** @type {const} */('script'),code:source},
+    {path:'index.xhtml',sourceType:/** @type {const} */('asset'),code:markup}
+  ],{routePrefix:'/custom/'});
+  const server=http.createServer(handler);
+  await new Promise((resolve,reject)=>{
+    server.once('error',reject);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
+  });
+  try {
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    const [script,document]=await Promise.all([
+      fetch(origin+'/custom/client.js'),
+      fetch(origin+'/custom/index.xhtml')
+    ]);
+    assert.equal(script.status,200);
+    assert.equal(await script.text(),source,
+      'SRI metadata must pin the exact public SCO script response');
+    assert.equal(document.headers.get('content-type'),'application/xhtml+xml; charset=utf-8');
+    assert.deepEqual(Buffer.from(await document.arrayBuffer()),markup);
+  }finally{
+    await new Promise((resolve,reject)=>
+      server.close(error=>error?reject(error):resolve(undefined)));
+  }
+});
