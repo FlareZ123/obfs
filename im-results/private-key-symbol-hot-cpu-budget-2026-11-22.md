@@ -85,6 +85,21 @@ The initial seven-pair Node sample set contained first-pair phase changes for bo
 
 Raw records: [Ubuntu](raw-private-key-hot-cpu-longwarm-2026-11-22-ubuntu.json) and [Windows](raw-private-key-hot-cpu-longwarm-2026-11-22-windows.json). Each preserves all 42 CPU/wall time pairs and checksums per OS, warm and preconditioning call counts, actual rewritten-key metrics, and artifact SHA-256/lengths. The longer-warm intervention eliminated the first-pair *hashed-string* strict breaches while the generated and independent handwritten Symbol arms each exceeded the project budget in **all** seven pairs on both OSes. This provides a stronger workload-specific Symbol CPU veto with an ordinary hashed-string positive counterpart. It does not retroactively erase the earlier observed first-pair violations, which remain part of the record for their explicitly shorter warm-up conditions.
 
+## Node 24 cross-version reproduction
+
+To separate the browser/Node difference from a simple comparison between old and current Node versions, the **same executable benchmark** and six selected controls were run under the newer Node **24.22.3**, using a focused workflow input that changes only `actions/setup-node` for the focused job. Original/hashed/Symbol source SHA-256 and byte counts remain those of the longer-warm Node22 fixture; the executable test source and 15m warm/2m preconditioning/25m timed calls did not change. Exact workflow/runner SHA `4b1623d4c9af8dcf28a9bd760d934e32b720379c`, [both-OS green run 45084562549](https://github.com/FlareZ123/obfs/actions/runs/45084562549), including project and external strict JSDoc.
+
+| Same hot numeric owner and backend | Ubuntu Node 24 median CPU | Windows Node 24 median CPU | Strict >2.5x CPU pairs, Ubuntu/Windows |
+| --- | ---: | ---: | ---: |
+| Generated hashed-string, two real rewrites | 0.98998x | 1.00000x | 0/7, 0/7 |
+| Generated unregistered Symbol, two real rewrites | **4.63463x** | **3.65957x** | **7/7, 6/7** |
+| Handwritten computed Symbol | **4.57235x** | **3.62400x** | **7/7, 7/7** |
+| Handwritten computed string | 1.10241x | 1.12000x | 0/7, 0/7 |
+| Ordinary esbuild minified | 1.00581x | 1.00000x | 0/7, 0/7 |
+| Byte-identical placebo | 0.99924x | 1.00000x | 0/7, 0/7 |
+
+Exact per-sample logs: [Ubuntu Node24](raw-private-key-hot-cpu-node24-2026-11-22-ubuntu.json), [Windows Node24](raw-private-key-hot-cpu-node24-2026-11-22-windows.json). Windows has one generated Symbol pair ratio **2.38424x** below the strict 2.5x line, while all others breach. The two Node versions reproduce the same *large* selected-work slowdown, whereas Chrome 157's separately verified **wall-clock** ESM test shows near-1x. This is an **engine and host configuration difference** requiring additional investigation, with no evidence sufficient to assign a specific JIT optimization cause. It reinforces avoiding a global claim that one measured engine's backend performance automatically transfers to all JavaScript targets.
+
 ## Decision boundary
 
 **Do not recommend experimental Symbol-key lowering for hot Node execution under the project's stipulated strict 2.5x budget** without replacing this workload's veto with a source-pinned, independently controlled positive result. Even if a faster Symbol implementation became available, a material attacker-cost benefit over ordinary minification and hashed strings would still require separate adversarial evidence. This measured CPU veto is independent of the public callable/class source-observation compatibility failures on the same evidence branch. Keep the broader strong-protection release classification **RELEASE-BLOCKED**.
