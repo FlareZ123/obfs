@@ -37,6 +37,11 @@ jobs:
         env:
           CHROMIUM_BIN: /usr/bin/google-chrome
         run: node test/bigint-unary-owner-browser.js
+      - name: Real Chromium source-ordered primitive local owner and minifier control
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: /usr/bin/google-chrome
+        run: node test/local-top-primitive-browser.js
       - name: Real Chromium immutable import alias and reflection refusal
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:

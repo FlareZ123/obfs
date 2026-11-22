@@ -1206,6 +1206,22 @@ function singleUseFactoryObject(ast,bindings,expression) {
 }
 
 /**
+ * A top-level owner can use an earlier, uniquely declared immutable
+ * primitive, including a prior initializer in its declaration list.
+ * Restrict the source-order proof to direct program-level const values:
+ * a hoisted function can run before a lexically earlier const initializes.
+ * @param {AstNode} value
+ * @param {number} ownerStart
+ * @param {Map<string,number>} known
+ * @returns {boolean}
+ */
+function isEarlierTopLevelPrimitive(value,ownerStart,known) {
+  if(value.type!=='Identifier')return false;
+  const initializedAt=known.get(value.name);
+  return initializedAt!==undefined&&initializedAt<ownerStart;
+}
+
+/**
  * Rename selected object-literal own keys only when a closed-world use proof succeeds.
  * A conservative proof failure leaves the complete file unchanged for that object.
  * @param {string} source
@@ -1215,7 +1231,21 @@ function singleUseFactoryObject(ast,bindings,expression) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
-  /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
+  /** @type {Map<string,number>} */
+  const earlierPrimitives=new Map();
+  for(const statement of ast.body) {
+    const declaration=statement.type==='VariableDeclaration' ? statement :
+      statement.type==='ExportNamedDeclaration'&&!statement.source ?
+        statement.declaration : null;
+    if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+    for(const item of declaration.declarations) {
+      if(item.id.type!=='Identifier'||!item.init||
+          bindings.get(item.id.name)!==1||
+          !isPrimitiveConstantExpression(item.init))continue;
+      earlierPrimitives.set(item.id.name,item.end);
+    }
+  }
+  /** @type {{node:AstNode,name:string,properties:AstNode[],usesEarlierPrimitive:boolean}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
     if (parent?.type !== 'VariableDeclarator' || key !== 'init' ||
@@ -1224,16 +1254,22 @@ function renameLocalProperties(source, ast, options) {
     if (declaration?.type !== 'VariableDeclaration' || declaration.kind !== 'const' ||
         ancestors.some(a => a.type === 'ExportNamedDeclaration' || a.type === 'ExportDefaultDeclaration')) return;
     const literal=node.type==='ObjectExpression' ? node : singleUseFactoryObject(ast,bindings,node);
+    const directTopLevelOwner=literal===node&&ancestors.length===3&&
+      ancestors[0].type==='Program'&&ancestors[1]===declaration;
     if(!literal)return;
     /** @type {AstNode[]} */
     const properties = literal.properties;
     if (!properties.length || properties.some(p => p.type !== 'Property' || p.method || p.kind !== 'init' ||
           ownPropertyName(p) === null || ['__proto__','prototype','constructor'].includes(String(ownPropertyName(p))) ||
           !(isLiteralValue(p.value) || literal===node &&
-            isDirectParameterValue(p.value,ancestors,bindings)))) return;
+            (isDirectParameterValue(p.value,ancestors,bindings) ||
+             directTopLevelOwner && isEarlierTopLevelPrimitive(p.value,parent.start,earlierPrimitives))))) return;
     const names = properties.map(ownPropertyName);
     if (new Set(names).size !== names.length) return;
-    candidates.push({node:literal,name:parent.id.name,properties});
+    const usesEarlierPrimitive=properties.some(property=>
+      !isLiteralValue(property.value)&&directTopLevelOwner&&
+      isEarlierTopLevelPrimitive(property.value,parent.start,earlierPrimitives));
+    candidates.push({node:literal,name:parent.id.name,properties,usesEarlierPrimitive});
   });
 
   /** @type {import('./ast').Edit[]} */
@@ -1243,6 +1279,21 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    // For the earlier-const lane, transformed reads in any function body
+    // could change the source observed by an external caller.
+    if(candidate.usesEarlierPrimitive) {
+      const renamedUses=new Set([
+        ...proof.members,...proof.patterns,...proof.inChecks,
+        ...proof.reflections.map(reflection=>reflection.call)
+      ]);
+      let callableSourceExposed=false;
+      walk(ast,(node,parent,key,ancestors)=>{
+        if(renamedUses.has(node)&&ancestors.some(ancestor=>
+          ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(ancestor.type)))callableSourceExposed=true;
+      });
+      if(callableSourceExposed)continue;
+    }
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
