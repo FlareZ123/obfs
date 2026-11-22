@@ -29,9 +29,9 @@ function source(reflective) {
     'globalThis.__obfsReport={timings,checksums};';
 }
 
-/** @param {string} code @returns {{code:string,renamed:number}} */
-function compile(code) {
-  const result=obfuscateFiles([{path:'main.js',sourceType:'script',code}],{
+/** @param {string} code @param {'module'|'script'} sourceType @returns {{code:string,renamed:number}} */
+function compile(code,sourceType) {
+  const result=obfuscateFiles([{path:sourceType==='module'?'main.mjs':'main.js',sourceType,code}],{
     mode:'coo',closedWorld:true,seed:'top-level-browser-primitive',
     identifiers:false,strings:false,properties:true
   });
@@ -43,8 +43,12 @@ function compile(code) {
 async function main() {
   const positive=source(false);
   const reflective=source(true);
-  const compiled=compile(positive);
-  const declined=compile(reflective);
+  // Browser classic-script global lexicals are externally observable; the
+  // private proof is intentionally only asserted for module-scope owners.
+  const classic=compile(positive,'script');
+  const compiled=compile(positive,'module');
+  const declined=compile(reflective,'module');
+  assert.equal(classic.renamed,0);
   assert.equal(compiled.renamed,2);
   assert.equal(declined.renamed,0);
   assert.doesNotMatch(compiled.code,/secretField|otherField/u);
@@ -107,8 +111,10 @@ async function main() {
       const page=await browser.newPage();
       try {
         await page.goto(origin+'/index.html',{waitUntil:'domcontentloaded',timeout:45000});
-        await page.addScriptTag({url:origin+filename});
-        return await page.evaluate(()=>globalThis.__obfsReport);
+        return await page.evaluate(async url=>{
+          await import(url);
+          return (/** @type {any} */ (globalThis)).__obfsReport;
+        },origin+filename);
       }finally{await page.close();}
     }
     const native=await run('/native.js');
