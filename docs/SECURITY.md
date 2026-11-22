@@ -168,6 +168,27 @@ See the [generated pair](../examples/wasm-i32/README.md) and
 
 The implementation only edits properties of literal objects whose relevant local uses are proved by a deliberately narrow static analysis. Objects with dynamic keys, unknown consumers, escaping references (including const exported aliases), ambiguous bindings, unsupported syntax, visible-scope mismatches, nonprimitive writes, or reflection are excluded. `--closed-world` permits direct ES module export/import use only when the deployment's module set is genuinely complete and all consumers are rewritten together. It is unsafe to enable the option for a library with unknown consumers. This proof should be fuzzed further before production use. The analysis permits explicitly declared CSS, raster-image, and font assets to accompany an ESM graph only under an integrator guarantee that each is served with a non-JavaScript MIME type and never interpreted as source. File extensions alone are insufficient evidence of safe execution. HTML, SVG, unknown assets, and other executable JavaScript formats force the cross-file pass to decline renaming.
 
+### Public callable source and protected private work
+
+An ESM entrypoint can expose the exact source of its exported functions through
+`Function.prototype.toString`. A field rewrite inside the body of an exported
+function changes that value even if the function's numeric outputs remain the
+same. Keep such a public wrapper's body unchanged and perform private field
+reads in a module-local helper when the application's declared entry contract
+allows that separation.
+
+The [source-stable wrapper regression](../test/closedworld-private-wrapper.test.js)
+uses two ESM modules, checks `hot.toString()` for exact native/emitted equality,
+asserts six numeric probes, and requires two genuine cross-file private-key
+rewrites. The source-pinned [Ubuntu/Windows focused run
+44997812169](https://github.com/FlareZ123/obfs/actions/runs/44997812169)
+passed at `18ad424d34646d455b8e2ee38348925775f6c589`.
+The test's supported public entry is `worker.mjs`; `state.mjs` is an internal
+declared dependency under the explicit closed-world option. Importing the
+internal module from an untracked consumer invalidates that scope and could
+observe its original keys. This compatibility design does not confer
+confidentiality, hostile-loader safety, or independent environment locking.
+
 ## Distributed source-byte observation
 
 Source-byte reads are a separate semantic compatibility hazard from the familiar
