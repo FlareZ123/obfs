@@ -53,7 +53,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     const sourceEqual=emitted===native;
     const valueEqual=JSON.parse(emitted)[1]===JSON.parse(native)[1];
     console.log('EXPORTED_CALLABLE_STRING '+JSON.stringify({mode,literals,sourceEqual,valueEqual}));
-    assert.ok(literals>0,'the string encoder must actually transform a literal');
+    assert.equal(literals,0,'the source-visible function literal must remain unencoded');
     assert.equal(valueEqual,true,'ordinary returned string must remain equal');
     assert.equal(sourceEqual,true,
       'an external ESM importer can inspect the encoded callable source');
@@ -74,7 +74,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     const sourceEqual=emitted===native;
     const valueEqual=JSON.parse(emitted)[1]===JSON.parse(native)[1];
     console.log('EXPORTED_CLASS_STRING '+JSON.stringify({mode,literals,sourceEqual,valueEqual}));
-    assert.ok(literals>0,'the string encoder must actually transform the class literal');
+    assert.equal(literals,0,'the source-visible class field literal must remain unencoded');
     assert.equal(valueEqual,true,'ordinary static field value must remain equal');
     assert.equal(sourceEqual,true,
       'an external ESM importer can inspect the exported class constructor source');
