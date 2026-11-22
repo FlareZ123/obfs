@@ -55,9 +55,10 @@ function statementDeclares(statement,name){
  * unrelated scopes.
  * @param {AstNode} scope
  * @param {string} name
+ * @param {AstNode} reference The value reference being resolved
  * @returns {boolean}
  */
-function scopeDeclares(scope,name){
+function scopeDeclares(scope,name,reference){
   if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
     .includes(scope.type)){
     if(scope.id?.type==='Identifier'&&scope.id.name===name)return true;
@@ -73,6 +74,12 @@ function scopeDeclares(scope,name){
     return declaration?.type==='VariableDeclaration'&&
       statementDeclares(declaration,name);
   }
+  // Switch discriminants evaluate before the case-block lexical environment
+  // exists. A let/const/function declared in a case does not bind the
+  // discriminant. Function-scoped var declarations remain handled separately.
+  if(scope.type==='SwitchStatement'&&
+     reference.start>=scope.discriminant.start&&
+     reference.end<=scope.discriminant.end)return false;
   if(scope.type==='SwitchStatement')return scope.cases.some(
     (/** @type {AstNode} */ item)=>item.consequent.some(
       (/** @type {AstNode} */ statement)=>statementDeclares(statement,name)));
@@ -221,7 +228,7 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
       ancestors.some(scope=>scope.type==='FunctionDeclaration'||
         scope.type==='FunctionExpression')))return;
     const name=node.name;
-    const boundLexically=ancestors.some(scope=>scopeDeclares(scope,name));
+    const boundLexically=ancestors.some(scope=>scopeDeclares(scope,name,node));
     const boundByVar=ancestors.some(scope=>{
       if(scope!==root&&!['Program','FunctionDeclaration','FunctionExpression',
         'ArrowFunctionExpression','StaticBlock'].includes(scope.type))return false;
