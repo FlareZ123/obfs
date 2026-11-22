@@ -9,7 +9,7 @@ const {performance}=require('node:perf_hooks');
 const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
   require('./application-challenge-observer-ablation');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
@@ -76,7 +76,7 @@ async function main() {
     const withoutObservers=ablate(original,'both');
     const unguarded=variant==='own-only'?withOwnKeyCalls(withoutObservers):
       withNullPrototypeRecord(withoutObservers);
-    const input=withCapturedStringArgv(unguarded);
+    const input=unguarded;
     const transformed=obfuscateFiles(input,{
       mode:'coo',closedWorld:true,seed:SEED,
       identifiers:true,properties:true,strings:false
