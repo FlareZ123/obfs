@@ -1,0 +1,699 @@
+{
+  "sourceCommit": "c427e6297a06dac3165cd8114bd9e63820e613e2",
+  "workflowRun": 45084750154,
+  "jobId": 137400710931,
+  "focusedNodeVersion": "22.23.4",
+  "focusedTest": "test/private-key-hot-cpu-sno.test.js",
+  "source": {
+    "sha256": "78e2bcc8a46a60865d091dcdae6fa390bfba6ed02477ac48f61660f7154548f0",
+    "bytes": 163
+  },
+  "mode": "sno",
+  "node": "v22.23.4",
+  "platform": "linux",
+  "preconditioningCallsPerVariant": 2000000,
+  "warmCallsPerArm": 15000000,
+  "hotCallsPerArm": 25000000,
+  "pairedSamplesPerVariant": 7,
+  "protectionSelected": true,
+  "results": [
+    {
+      "variant": "hashed-string",
+      "fields": 2,
+      "emitted": {
+        "sha256": "b0e2b278aae313a82db938deb1597de8f6fa46860a61faa196b35ab8cb2df540",
+        "bytes": 210
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 132.148022,
+            "cpuMs": 132.189
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.337268,
+            "cpuMs": 131.366
+          },
+          "wallRatio": 0.9938648041209425,
+          "cpuRatio": 0.9937740659207651
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 133.961632,
+            "cpuMs": 133.986
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 134.206339,
+            "cpuMs": 134.173
+          },
+          "wallRatio": 1.0018266946762786,
+          "cpuRatio": 1.0013956682041407
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.606463,
+            "cpuMs": 132.297
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.735028,
+            "cpuMs": 130.743
+          },
+          "wallRatio": 0.9933784786845917,
+          "cpuRatio": 0.9882537018980022
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.349297,
+            "cpuMs": 130.288
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.251159,
+            "cpuMs": 131.26
+          },
+          "wallRatio": 1.0069188098498145,
+          "cpuRatio": 1.007460395431659
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 133.757809,
+            "cpuMs": 133.767
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.719176,
+            "cpuMs": 130.722
+          },
+          "wallRatio": 0.9772825749560535,
+          "cpuRatio": 0.9772365381596358
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.525469,
+            "cpuMs": 130.529
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.691648,
+            "cpuMs": 131.678
+          },
+          "wallRatio": 1.0089344938496256,
+          "cpuRatio": 1.008802641558581
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.886452,
+            "cpuMs": 130.881
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 132.156136,
+            "cpuMs": 132.502
+          },
+          "wallRatio": 1.0097006525931347,
+          "cpuRatio": 1.0123852965671107
+        }
+      ],
+      "medianWallRatio": 1.0018266946762786,
+      "medianCpuRatio": 1.0013956682041407,
+      "strictWallBreaches": 0,
+      "strictCpuBreaches": 0,
+      "zeroCpuPairs": 0
+    },
+    {
+      "variant": "unregistered-symbol",
+      "fields": 2,
+      "emitted": {
+        "sha256": "b2c13f4d0e1e39bc2f8dded027228543d88b76bedf0cf71c201da5cd7810e20d",
+        "bytes": 299
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 135.005348,
+            "cpuMs": 135.015
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 678.035641,
+            "cpuMs": 678.407
+          },
+          "wallRatio": 5.022287272649377,
+          "cpuRatio": 5.024678739399326
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.249115,
+            "cpuMs": 131.252
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 685.153602,
+            "cpuMs": 685.592
+          },
+          "wallRatio": 5.220253119421034,
+          "cpuRatio": 5.223478499375247
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.060313,
+            "cpuMs": 130.062
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 675.266641,
+            "cpuMs": 675.242
+          },
+          "wallRatio": 5.191949991693469,
+          "cpuRatio": 5.191693192477433
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 137.523321,
+            "cpuMs": 137.538
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 676.568614,
+            "cpuMs": 677.096
+          },
+          "wallRatio": 4.919664600013549,
+          "cpuRatio": 4.922974014454187
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 133.688779,
+            "cpuMs": 133.66
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 654.053408,
+            "cpuMs": 654.804
+          },
+          "wallRatio": 4.892358303309808,
+          "cpuRatio": 4.899027382911866
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.925741,
+            "cpuMs": 130.924
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 674.627644,
+            "cpuMs": 674.896
+          },
+          "wallRatio": 5.152750244888819,
+          "cpuRatio": 5.154868473312761
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.203191,
+            "cpuMs": 131.481
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 668.843159,
+            "cpuMs": 669.134
+          },
+          "wallRatio": 5.097765945341985,
+          "cpuRatio": 5.089206805546048
+        }
+      ],
+      "medianWallRatio": 5.097765945341985,
+      "medianCpuRatio": 5.089206805546048,
+      "strictWallBreaches": 7,
+      "strictCpuBreaches": 7,
+      "zeroCpuPairs": 0
+    },
+    {
+      "variant": "handwritten-symbol",
+      "fields": 0,
+      "emitted": {
+        "sha256": "2cf80d28d1abb344655e527591a6328d2934aab9118c271a0e802476f9e5a0ee",
+        "bytes": 224
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 132.578781,
+            "cpuMs": 132.567
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 672.56778,
+            "cpuMs": 672.808
+          },
+          "wallRatio": 5.072966993111816,
+          "cpuRatio": 5.075229883756893
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.160982,
+            "cpuMs": 130.156
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 675.39395,
+            "cpuMs": 675.628
+          },
+          "wallRatio": 5.18891252679701,
+          "cpuRatio": 5.190909370294109
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.438103,
+            "cpuMs": 131.44
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 683.182906,
+            "cpuMs": 683.163
+          },
+          "wallRatio": 5.1977538507231795,
+          "cpuRatio": 5.197527388922703
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.717821,
+            "cpuMs": 131.719
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 680.819984,
+            "cpuMs": 681.083
+          },
+          "wallRatio": 5.168776546948799,
+          "cpuRatio": 5.170727078098072
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 139.057077,
+            "cpuMs": 139.074
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 674.069666,
+            "cpuMs": 674.326
+          },
+          "wallRatio": 4.847431576603613,
+          "cpuRatio": 4.84868487280153
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.781926,
+            "cpuMs": 130.785
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 673.268835,
+            "cpuMs": 673.51
+          },
+          "wallRatio": 5.1480266088144315,
+          "cpuRatio": 5.149749589020147
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.208672,
+            "cpuMs": 131.467
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 683.040512,
+            "cpuMs": 683.29
+          },
+          "wallRatio": 5.205757375549079,
+          "cpuRatio": 5.1974259700152885
+        }
+      ],
+      "medianWallRatio": 5.168776546948799,
+      "medianCpuRatio": 5.170727078098072,
+      "strictWallBreaches": 7,
+      "strictCpuBreaches": 7,
+      "zeroCpuPairs": 0
+    },
+    {
+      "variant": "handwritten-computed-string",
+      "fields": 0,
+      "emitted": {
+        "sha256": "d88074440485f83d6e40aa03dfac47f17a2f5708c514c7b03c1cd59fa92bea6f",
+        "bytes": 221
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.113756,
+            "cpuMs": 131.097
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 135.985664,
+            "cpuMs": 135.999
+          },
+          "wallRatio": 1.037157870757665,
+          "cpuRatio": 1.0373921600036613
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 133.75451,
+            "cpuMs": 134.045
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 135.855421,
+            "cpuMs": 135.857
+          },
+          "wallRatio": 1.0157072161529357,
+          "cpuRatio": 1.0135178484837182
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 129.975575,
+            "cpuMs": 129.977
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 136.795713,
+            "cpuMs": 136.8
+          },
+          "wallRatio": 1.0524724587677339,
+          "cpuRatio": 1.0524939027674127
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 129.860649,
+            "cpuMs": 129.842
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 135.697615,
+            "cpuMs": 135.709
+          },
+          "wallRatio": 1.0449479195194844,
+          "cpuRatio": 1.0451856872198517
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.323808,
+            "cpuMs": 131.607
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 135.850409,
+            "cpuMs": 135.852
+          },
+          "wallRatio": 1.0344690050413403,
+          "cpuRatio": 1.0322551232077322
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.496457,
+            "cpuMs": 131.488
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 154.320968,
+            "cpuMs": 154.321
+          },
+          "wallRatio": 1.1735751024835597,
+          "cpuRatio": 1.1736508274519348
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 129.467619,
+            "cpuMs": 129.471
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 135.949058,
+            "cpuMs": 135.948
+          },
+          "wallRatio": 1.0500622398871797,
+          "cpuRatio": 1.050026646893899
+        }
+      ],
+      "medianWallRatio": 1.0449479195194844,
+      "medianCpuRatio": 1.0451856872198517,
+      "strictWallBreaches": 0,
+      "strictCpuBreaches": 0,
+      "zeroCpuPairs": 0
+    },
+    {
+      "variant": "ordinary-esbuild-minified",
+      "fields": 0,
+      "emitted": {
+        "sha256": "80f4d67259590d36d0102fc19526e7dd0799517baccc80fd39d354d3b61aad19",
+        "bytes": 152
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.86846,
+            "cpuMs": 130.858
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.491212,
+            "cpuMs": 131.501
+          },
+          "wallRatio": 1.0047586102870012,
+          "cpuRatio": 1.004913723272555
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.822211,
+            "cpuMs": 131.077
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.277079,
+            "cpuMs": 131.271
+          },
+          "wallRatio": 1.0034769936734977,
+          "cpuRatio": 1.001480046079785
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 129.412376,
+            "cpuMs": 129.418
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 129.973373,
+            "cpuMs": 129.976
+          },
+          "wallRatio": 1.0043349563414246,
+          "cpuRatio": 1.0043116104405878
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.027923,
+            "cpuMs": 130.028
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.48054,
+            "cpuMs": 130.483
+          },
+          "wallRatio": 1.0034809215555955,
+          "cpuRatio": 1.003499246316178
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.098385,
+            "cpuMs": 131.363
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 133.984617,
+            "cpuMs": 133.99
+          },
+          "wallRatio": 1.0220157708273827,
+          "cpuRatio": 1.0199980207516577
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 129.303559,
+            "cpuMs": 129.297
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.008495,
+            "cpuMs": 130.012
+          },
+          "wallRatio": 1.0054517911606748,
+          "cpuRatio": 1.005529904019428
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.196903,
+            "cpuMs": 131.188
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.992117,
+            "cpuMs": 131.364
+          },
+          "wallRatio": 0.9984390942520954,
+          "cpuRatio": 1.0013415861206818
+        }
+      ],
+      "medianWallRatio": 1.0043349563414246,
+      "medianCpuRatio": 1.0043116104405878,
+      "strictWallBreaches": 0,
+      "strictCpuBreaches": 0,
+      "zeroCpuPairs": 0
+    },
+    {
+      "variant": "same-code-control",
+      "fields": 0,
+      "emitted": {
+        "sha256": "78e2bcc8a46a60865d091dcdae6fa390bfba6ed02477ac48f61660f7154548f0",
+        "bytes": 163
+      },
+      "pairs": [
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.548485,
+            "cpuMs": 131.551
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.805972,
+            "cpuMs": 131.812
+          },
+          "wallRatio": 1.001957354354936,
+          "cpuRatio": 1.0019840214061468
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 130.200146,
+            "cpuMs": 130.198
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.34845,
+            "cpuMs": 131.344
+          },
+          "wallRatio": 1.0088195292807123,
+          "cpuRatio": 1.0088019785250157
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.874208,
+            "cpuMs": 131.874
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 150.015221,
+            "cpuMs": 150.019
+          },
+          "wallRatio": 1.137563010046665,
+          "cpuRatio": 1.1375934604243445
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 132.362611,
+            "cpuMs": 132.356
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 130.559724,
+            "cpuMs": 130.563
+          },
+          "wallRatio": 0.9863791822601626,
+          "cpuRatio": 0.9864532019704433
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 133.999285,
+            "cpuMs": 134.259
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 132.794285,
+            "cpuMs": 132.804
+          },
+          "wallRatio": 0.9910074147037428,
+          "cpuRatio": 0.9891627376935626
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.688182,
+            "cpuMs": 131.69
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 132.163671,
+            "cpuMs": 132.169
+          },
+          "wallRatio": 1.0036107188418775,
+          "cpuRatio": 1.0036373300934012
+        },
+        {
+          "native": {
+            "checksum": 42931984,
+            "wallMs": 131.844656,
+            "cpuMs": 131.851
+          },
+          "emitted": {
+            "checksum": 42931984,
+            "wallMs": 131.29827,
+            "cpuMs": 131.552
+          },
+          "wallRatio": 0.9958558350669898,
+          "cpuRatio": 0.9977322887198428
+        }
+      ],
+      "medianWallRatio": 1.001957354354936,
+      "medianCpuRatio": 1.0019840214061468,
+      "strictWallBreaches": 0,
+      "strictCpuBreaches": 0,
+      "zeroCpuPairs": 0
+    }
+  ]
+}
