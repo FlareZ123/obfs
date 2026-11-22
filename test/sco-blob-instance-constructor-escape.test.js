@@ -26,7 +26,10 @@ test('Blob instance constructor extraction may not reenable OS-native newline ou
     "const source=new Blob([]);const Ctor=source.constructor;const blob=new Ctor(['A\\nB'],{endings:'native'});",
     "const source=new Blob([]);const alias=source;const Ctor=alias['constructor'];const blob=new Ctor(['A\\nB'],{endings:'native'});",
     "const {constructor:Ctor}=new Blob([]);const blob=Reflect.construct(Ctor,[['A\\nB'],{endings:'native'}]);",
-    "const source=new Blob([]);const Ctor=Reflect.get(source,'constructor');const blob=new Ctor(['A\\nB'],{endings:'native'});"
+    "const source=new Blob([]);const Ctor=Reflect.get(source,'constructor');const blob=new Ctor(['A\\nB'],{endings:'native'});",
+    "const source=new Blob([]);const prop='constructor';const Ctor=source[prop];const blob=new Ctor(['A\\nB'],{endings:'native'});",
+    "const source=new Blob([]);const read=x=>x.constructor;const Ctor=read(source);const blob=new Ctor(['A\\nB'],{endings:'native'});",
+    "const source=new Blob([]);const list=[source];const Ctor=list[0].constructor;const blob=new Ctor(['A\\nB'],{endings:'native'});"
   ];
   for(const source of inputs){
     assert.throws(()=>partition(source+
