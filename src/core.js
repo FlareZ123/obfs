@@ -1942,7 +1942,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       write=>(write.key===null||write.key==='get')&&
         proxyGetMayReturnDecoderIntrinsic(write.value))||
       (objectAssignSources.get(name)??[]).some(
-        source=>descriptorHasSensitiveGetter(source))||
+        source=>descriptorHasSensitiveGetter(source)||
+          proxyHandlerHasSensitiveGet(source))||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>memberReadAliasWritesDecoderGetter(alias,visited));
   }
