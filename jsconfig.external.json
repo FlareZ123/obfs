@@ -241,6 +241,7 @@
     "test/html-sri-filename-browser.js",
     "test/dynamic-script-sri-browser.js",
     "test/document-write-sri-browser.js",
+    "test/dynamic-interfile-sri-browser.js",
     "test/factory-destructuring-crossfile-grid.test.js",
     "test/factory-destructuring-browser.js",
     "sims/factory-destructuring-paired-session.js",

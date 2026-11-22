@@ -47,6 +47,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/document-write-sri-browser.js
+      - name: Verify imported DOM factory cross-file dynamic SRI in Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dynamic-interfile-sri-browser.js
       - name: Compare native and SCO SRI at percent-encoded HTTP route mounts
         env:
           CHROMIUM_BIN: google-chrome
