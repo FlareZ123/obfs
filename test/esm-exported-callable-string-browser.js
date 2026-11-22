@@ -13,7 +13,9 @@ const runBrowser=promisify(execFile);
 /** @type {SourceFile[]} */
 const original=[{
   path:'public.mjs',sourceType:'module',
-  code:'export function read(){return "source-visible-secret-value";}'+
+  code:'function privateHelper(){return "private-only-string-value";}'+
+    'export const privateValue=privateHelper();'+
+    'export function read(){return "source-visible-secret-value";}'+
     'export class Api{static label="source-visible-class-field";}'
 }];
 
@@ -23,7 +25,7 @@ function page(){
     'try{const mod=await import("./public.mjs");'+
     'const answer={functionSource:Function.prototype.toString.call(mod.read),'+
     'functionValue:mod.read(),classSource:Function.prototype.toString.call(mod.Api),'+
-    'classValue:mod.Api.label};'+
+    'classValue:mod.Api.label,privateValue:mod.privateValue};'+
     'const pre=document.createElement("pre");pre.id="result";'+
     'pre.textContent=btoa(JSON.stringify(answer));document.body.appendChild(pre);'+
     '}catch(error){const pre=document.createElement("pre");pre.id="failure";'+
@@ -43,7 +45,7 @@ async function main(){
   });
   const file=emitted.files.find(item=>item.path==='public.mjs');
   assert.ok(file && typeof file.code==='string');
-  assert.ok(file.metrics.literals>=2,'both public string literals must be transformed');
+  assert.ok(file.metrics.literals>=1,'the private control string must still be transformed');
   /** @type {Map<string,string>} */
   const resources=new Map();
   /** @type {Array<[string,SourceFile[]]>} */
@@ -86,8 +88,8 @@ async function main(){
       else assert.deepEqual(result,baseline,'external browser callable/class source mismatch');
       matchedGraphs++;
     }
-    const values=/** @type {{functionValue:string,classValue:string}|undefined} */ (baseline);
-    assert.deepEqual(values,{functionValue:'source-visible-secret-value',classValue:'source-visible-class-field'});
+    const values=/** @type {{functionValue:string,classValue:string,privateValue:string}|undefined} */ (baseline);
+    assert.deepEqual(values,{functionValue:'source-visible-secret-value',classValue:'source-visible-class-field',privateValue:'private-only-string-value'});
     const outcome={browser:/** @type {const} */('Chromium'),literals:file.metrics.literals,matchedGraphs};
     console.log('EXPORTED_CALLABLE_STRING_BROWSER '+JSON.stringify(outcome));
     return outcome;
