@@ -288,3 +288,38 @@ for(const mode of /** @type {const} */(['coo','sno','sco'])){
       });
   }
 }
+
+
+const factoryAssignedMemberReadAliasWrite =
+  'const descriptors={ref:{}};const entry=descriptors.ref;'+
+  'function build(){return {get:function(){return TARGET.prototype}};}'+
+  'Object.assign(entry,build());const box=Object.create(null,descriptors);';
+
+for(const mode of /** @type {const} */(['coo','sno','sco'])){
+  for(const intrinsic of /** @type {const} */(['String','Number'])){
+    test('local factory Object.assign into member-read descriptor: '+mode+' '+intrinsic,
+      async()=>{
+        const mutator=factoryAssignedMemberReadAliasWrite.replace('TARGET',intrinsic)+
+          (intrinsic==='String'?
+            'box.ref.charCodeAt=()=>0;':'box.ref.unrelated=1;');
+        const input=graph(mutator);
+        const output=obfuscateFiles(input,{
+          mode,strings:true,identifiers:false,properties:false,
+          seed:'agent5-member-factory/'+mode+'/'+intrinsic
+        });
+        const target=output.files.find(file=>file.path==='target.cjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-member-factory-'));
+        try{
+          const native=await execute(path.join(root,'native'),input);
+          const encoded=await execute(path.join(root,'emitted'),output.files);
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(encoded,native,'native/emitted member-read factory alias');
+        }finally{
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,intrinsic==='String'?0:1,
+          'String getter must suppress decoder, benign Number control encodes');
+      });
+  }
+}
