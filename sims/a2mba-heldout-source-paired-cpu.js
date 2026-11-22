@@ -26,12 +26,12 @@ function median(samples) {
  * @returns {WorkFn}
  */
 function loadWork(code,kernelName) {
-  const loop='(function run(count){'+
+  const loop='(function(){const input='+kernelName+';return function run(count){'+
     'let state=0x12345678|0;let sum=0;'+
     'for(let index=0;index<count;index++){'+
     'state=(Math.imul(state,1664525)+1013904223)|0;'+
-    'sum=(sum+'+kernelName+'(state,index|0,(state^index)|0,Math.imul(state,0x45d9f3b)))|0;'+
-    '}return sum|0;})';
+    'sum=(sum+input(state,index|0,(state^index)|0,Math.imul(state,0x45d9f3b)))|0;'+
+    '}return sum|0;};})()';
   return /** @type {WorkFn} */ (vm.runInNewContext(code+'\n'+loop));
 }
 
@@ -90,11 +90,13 @@ function profileSourceCpu(options={}) {
     const targetName=functionNames.at(-1)?.[1];
     assert.ok(targetName);
     const originalSource=recovered.recoveredSource;
-    const minifiedSource=esbuild.transformSync(originalSource,{
+    // Explicit global assignment survives minifier name changes; the
+    // hot loop captures the function once outside all timed iterations.
+    const minifiedSource=esbuild.transformSync('globalThis.__k=('+originalSource+');',{
       target:'es2022',minify:true,format:'esm'
     }).code;
     const native=loadWork(originalSource,'recovered');
-    const minified=loadWork(minifiedSource,'recovered');
+    const minified=loadWork(minifiedSource,'globalThis.__k');
     const protectedWork=loadWork(example.source,targetName);
     // Prewarm all three lanes and reject any source-level divergence.
     for(let warmup=0;warmup<4;warmup++){
