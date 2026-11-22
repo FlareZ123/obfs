@@ -55,8 +55,11 @@ whose result relies on the external global, while comparing the observed
 native behavior. Cases exercise function-body var, nested closures,
 `switch` lexical and var boundaries, class static isolation, inner
 parameter defaults, loop lexical bindings, and catch parameters. This is
-a submitted **test specification**, with no claim that current-head
-GitHub Actions has executed it. The earlier deterministic 400-fixture
+a submitted **test specification**. Its **native VM portion independently passed all
+72 safe and 64 externally sensitive cases locally on Node 22.16.0** (136/136),
+without importing the compiler. Actual branch-scanner assertions and the
+full repository suite remain pending source-pinned GitHub Actions; native
+success alone cannot validate compiler admission. The earlier deterministic 400-fixture
 collector equality observation and standalone native spot checks remain
 separately described above.
 
