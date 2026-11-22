@@ -2,13 +2,13 @@
 
 const assert=require('node:assert/strict');
 const http=require('node:http');
-const {execFile}=require('node:child_process');
-const {promisify}=require('node:util');
+const {spawnSync}=require('node:child_process');
+const path=require('node:path');
+const puppeteer=require('puppeteer-core');
 const {createHash}=require('node:crypto');
 const {transformSync}=require('esbuild');
 const {obfuscateFiles}=require('../src');
 
-const runBrowser=promisify(execFile);
 const original="'use strict';" +
   'const owner={acc:5,step:3};' +
   'function hidden(x){owner.acc+=((x&7)+owner.step);return owner.acc|0;}' +
@@ -139,21 +139,45 @@ async function main() {
     const address=server.address();
     assert.ok(address && typeof address!=='string');
     const binary=process.env.CHROMIUM_BIN??'google-chrome';
-    const {stdout:version}=await runBrowser(binary,['--version'],{timeout:10000});
+    const resolved=path.isAbsolute(binary)?binary:(()=>{
+      const lookup=spawnSync(process.platform==='win32'?'where.exe':'which',
+        [binary],{encoding:'utf8'});
+      assert.equal(lookup.status,0,lookup.stderr);
+      return lookup.stdout.trim().split(/\r?\n/u)[0];
+    })();
     const origin='http://127.0.0.1:'+address.port;
-    const {stdout}=await runBrowser(binary,[
-      '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
-      '--no-first-run','--virtual-time-budget=180000','--dump-dom',origin+'/index.html'
-    ],{timeout:240000,maxBuffer:10*1024*1024,encoding:'utf8'});
-    const encoded=stdout.match(/<pre id="result">([A-Za-z0-9+/=]+)<\/pre>/u)?.[1];
-    assert.ok(encoded,'Chromium numeric source test failed: '+stdout.slice(-2000));
+    const browser=await puppeteer.launch({
+      executablePath:resolved,
+      headless:true,
+      args:['--no-sandbox','--disable-gpu','--disable-dev-shm-usage']
+    });
+    let encoded='',version='';
+    try {
+      const page=await browser.newPage();
+      await page.goto(origin+'/index.html',{waitUntil:'load',timeout:20000});
+      const handle=await page.waitForSelector('#result, #failure',{timeout:240000});
+      assert.ok(handle,'Browser result or error element did not appear');
+      const emitted=await page.$eval('#result, #failure',
+        element=>({id:element.id,text:element.textContent}));
+      assert.equal(emitted.id,'result',emitted.text??'Browser work failed');
+      assert.ok(emitted.text,'Empty Chromium result');
+      encoded=emitted.text;
+      version=await browser.version();
+    } finally {
+      await browser.close();
+    }
     const answer=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
     assert.equal(answer.browser,'Chromium');
     assert.equal(answer.results.length,6);
     for(const row of answer.results) {
       assert.equal(row.pairs.length,7);
-      for(const pair of row.pairs)
+      assert.ok(Number.isFinite(row.medianWallRatio)&&row.medianWallRatio>0,
+        'Browser measurements must have finite, nonzero elapsed time');
+      for(const pair of row.pairs) {
         assert.equal(pair.native.checksum,pair.emitted.checksum);
+        assert.ok(Number.isFinite(pair.wallRatio)&&pair.wallRatio>0,
+          'A virtual-time/zero-denominator ratio must be rejected');
+      }
     }
     console.log('BROWSER_PRIVATE_KEY_CPU_PROFILE '+JSON.stringify({
       browserVersion:version.trim(),node:process.version,platform:process.platform,
