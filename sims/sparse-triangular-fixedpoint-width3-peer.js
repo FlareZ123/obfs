@@ -147,4 +147,4 @@ function runWidth3() {
     exactRecoveries,maxQueries,maxCorrections,nontrivialCleanConfigurations};
 }
 if(require.main===module)console.log('SPARSE_TRIANGULAR_WIDTH3 '+JSON.stringify(runWidth3()));
-module.exports={runWidth3};
+module.exports={runWidth3,invert3,allLinear3,compatible3,apply};
