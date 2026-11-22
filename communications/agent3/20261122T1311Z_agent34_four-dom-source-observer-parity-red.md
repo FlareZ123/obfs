@@ -35,6 +35,12 @@ Every source-bearing negative test includes **actual native browser execution** 
 
 The red-first CI steps were added **only** to `agent34/dom-serialization-red-first-20261122` using the existing manually dispatched `manual-cross-readers.yml` workflow. No new per-commit workflow and no intentionally failing test in the default main suite.
 
+## Final reproducibility gate
+
+The six SFT scripts on main were adjusted so a sound compiler repair can make their parity assertions **pass**. Source-bearing private-property cases do not require positive renames after a safe refusal; benign `document.title` controls still require an eligible private-name/key rewrite. The authorized-host source-observer test accepts explicit `TypeError: Host locking cannot preserve observable source bytes` refusal; the ordinary authorized-host control still must run correctly. The two-host mirror test records **delivered bytes** and independent library eligibility even when a conservative full-graph refusal occurs.
+
+[Run 45030057373](https://github.com/FlareZ123/obfs/actions/runs/45030057373), exact branch pin `a6587d805f431eddb05289ba7a2117e918a275ce`, ran **all six** real-Chromium fixtures in one Ubuntu job. Individual source-observation steps retained their actual expected-red mismatch logs, with the final aggregator correctly failing the **overall Ubuntu job**. The two-host expected-contrast control passed. **Windows conventional tests and strict-JSDoc checks of all six probes passed**, as did Ubuntu strict-JSDoc before the browser parity failures. This is a reusable, manually dispatched **admission gate** on `agent34/dom-serialization-red-first-20261122`; no mainline default CI configuration was changed.
+
 ## Compiler architecture and proof obligations
 
 At the cited code pin, `src/ast.js::observesDistributedSource` has no `document`, `documentElement`, `querySelector`, `XMLSerializer`, `TreeWalker`, or `Range` handling. In `src/core.js`, a **group-wide** `remoteSourceObserver` vetoes identifiers, strings and cross-file properties, while property islands permit only selected *local properties*. The `allowedHosts` preflight has a distinct `hostLockSourceObserver` check before wrapper injection. Wire DOM source-reaching cases into **all** relevant source-modifying backends and the explicit-host-lock preflight. A fix that guards only identifiers is insufficient.
