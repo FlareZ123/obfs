@@ -8,7 +8,7 @@ const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
 const {ROOT,NAMES,SEED}=require('../examples/application-challenge/build.cjs');
-const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=
+const {ablate,withOwnKeyCalls,withNullPrototypeRecord}=
   require('../sims/application-challenge-observer-ablation');
 
 const exec=promisify(execFile);
@@ -41,11 +41,10 @@ async function main(){
     code:await fs.readFile(path.join(ROOT,'before',name),'utf8')
   })));
   const withoutObservers=ablate(original,'both');
-  // Browser execution imports app.mjs, but the compiler sees every entry in
-  // the closed six-module graph. Narrow the unused CLI source observer with
-  // the same explicit host-input contract as the Node positive controls.
-  const ownNative=withCapturedStringArgv(withOwnKeyCalls(withoutObservers));
-  const nullNative=withCapturedStringArgv(withNullPrototypeRecord(withoutObservers));
+  // The 'both' ablation already replaces the opaque CLI input with its
+  // deterministic default while removing dynamic record reflection.
+  const ownNative=withOwnKeyCalls(withoutObservers);
+  const nullNative=withNullPrototypeRecord(withoutObservers);
   const compile=(/** @type {{path:string,sourceType:'module',code:string}[]} */ files)=>
     obfuscateFiles(files,{mode:'coo',closedWorld:true,seed:SEED,
       identifiers:true,properties:true,strings:false});
