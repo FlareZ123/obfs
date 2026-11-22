@@ -1,6 +1,83 @@
 'use strict';
 
 const {parse}=require('parse5');
+const {SaxesParser}=require('saxes');
+const xhtmlNamespace='http://www.w3.org/1999/xhtml';
+
+/**
+ * XHTML uses XML syntax and permits namespace-qualified HTML script elements.
+ * An HTML parser cannot prove the absence of such elements. Check XML
+ * well-formedness, namespace identity, CDATA and attribute values directly.
+ * The audit remains conservative about source-bearing XML instructions.
+ * @param {string} xml
+ * @returns {string|null}
+ */
+function findInlineXhtmlSource(xml) {
+  const parser=new SaxesParser({xmlns:true});
+  /** @type {string|null} */
+  let issue=null;
+  let scriptDepth=0;
+  let styleDepth=0;
+  let stylesheet='';
+  parser.on('xmldecl',declaration=>{
+    if(declaration.encoding&&!/^utf-?8$/iu.test(declaration.encoding))
+      issue??='non-UTF-8 XML declaration';
+  });
+  parser.on('doctype',()=>{issue??='DTD declaration';});
+  parser.on('processinginstruction',instruction=>{
+    if(instruction.target.toLowerCase()==='xml-stylesheet')
+      issue??='XML stylesheet processing instruction';
+  });
+  parser.on('opentag',tag=>{
+    const isHtml=tag.uri===xhtmlNamespace;
+    const name=tag.local.toLowerCase();
+    if(scriptDepth)issue??='nested markup inside script';
+    if(styleDepth)issue??='nested markup inside style element';
+    if(isHtml&&name==='script')scriptDepth++;
+    if(isHtml&&name==='style'){styleDepth++;stylesheet='';}
+    const attributes=Object.values(tag.attributes);
+    /** @param {string} key @returns {string|undefined} */
+    const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
+    for(const attribute of attributes) {
+      const key=attribute.local.toLowerCase();
+      if(key==='srcdoc')issue??='embedded iframe source';
+      if(/^on[a-z]/u.test(key))issue??='inline event handler';
+      if(['src','href','action','formaction','xlink:href','data','poster'].includes(key)&&
+          isEmbeddedExecutableUrl(attribute.value))issue??='embedded executable URL';
+      if(isHtml&&name==='script'&&key==='src'&&isDataUrl(attribute.value))
+        issue??='embedded script data URL';
+    }
+    if(!isHtml)return;
+    if(name==='link'&&/(?:^|\s)stylesheet(?:\s|$)/iu.test(attr('rel')??'')&&
+        attr('href')&&isDataUrl(/** @type {string} */(attr('href'))))
+      issue??='embedded stylesheet data URL';
+    if(name==='meta'&&attr('http-equiv')?.trim().toLowerCase()==='refresh'&&
+        attr('content')&&isEmbeddedRefreshUrl(/** @type {string} */(attr('content'))))
+      issue??='embedded executable refresh URL';
+  });
+  /** @param {string} value */
+  function observeText(value) {
+    if(scriptDepth&&/\S/u.test(value))issue??='inline script source';
+    if(styleDepth)stylesheet+=value;
+  }
+  parser.on('text',observeText);
+  parser.on('cdata',observeText);
+  parser.on('closetag',tag=>{
+    if(tag.uri!==xhtmlNamespace)return;
+    const name=tag.local.toLowerCase();
+    if(name==='script')scriptDepth--;
+    if(name==='style') {
+      if(hasCssSourceMapDirective(stylesheet))issue??='inline CSS source-map directive';
+      if(hasCssDataImport(stylesheet))issue??='embedded stylesheet data import';
+      styleDepth--;
+      stylesheet='';
+    }
+  });
+  parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
+  parser.write(xml).close();
+  return issue;
+}
+
 const {TextDecoder}=require('node:util');
 const {hasCssSourceMapDirective}=require('./css-source-maps');
 const {hasCssDataImport}=require('./css-data-imports');
@@ -161,7 +238,8 @@ function decodeMarkup(path,code,kind) {
 function assertNoInlineHtmlSource(path,code) {
   if(!/\.(?:html?|xhtml|xht)$/iu.test(path))return;
   const html=decodeMarkup(path,code,'HTML');
-  const issue=findInlineHtmlSource(html);
+  const issue=/\.(?:xhtml|xht)$/iu.test(path)?
+    findInlineXhtmlSource(html):findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
