@@ -96,7 +96,8 @@ async function main() {
     assert.equal(native[9],'undefined');
     process.stdout.write('CHROMIUM_CLASSIC_GLOBAL_SOURCE_PARITY '+
       JSON.stringify({matched:true,privateEncodedLiterals:output.files[0].metrics.literals,
-        publicSourceLength:native[0].length,lexicalSourceLength:native[2].length,\n        varSourceLength:native[4].length,letSourceLength:native[6].length})+'\n');
+        publicSourceLength:native[0].length,lexicalSourceLength:native[2].length,
+        varSourceLength:native[4].length,letSourceLength:native[6].length})+'\n');
   }finally {
     await new Promise(resolve=>server.close(resolve));
   }
