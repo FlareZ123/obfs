@@ -10,11 +10,12 @@ const {obfuscateFiles}=require('../src/core');
  * that can inspect the source of its immediate non-strict caller.
  * @param {string} code
  * @param {Function|undefined} spy
+ * @param {object|undefined} [host]
  * @returns {unknown}
  */
-function execute(code,spy) {
+function execute(code,spy,host) {
   const module={exports:null};
-  vm.runInNewContext(code,{module,spy},{timeout:3000});
+  vm.runInNewContext(code,{module,spy,host},{timeout:3000});
   return module.exports;
 }
 
@@ -25,10 +26,11 @@ function execute(code,spy) {
  * @param {string} code
  * @param {string} label
  * @param {Function|undefined} [spy]
+ * @param {object|undefined} [host]
  * @returns {void}
  */
-function compare(code,label,spy) {
-  const expected=execute(code,spy);
+function compare(code,label,spy,host) {
+  const expected=execute(code,spy,host);
   for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
     const generated=obfuscateFiles([
       {path:'target.cjs',sourceType:'commonjs',code}
@@ -37,7 +39,7 @@ function compare(code,label,spy) {
       closedWorld:false,strings:false,identifiers:false,properties:true
     });
     const output=String(generated.files[0].code);
-    const actual=execute(output,spy);
+    const actual=execute(output,spy,host);
     const renamed=generated.files[0].metrics.properties;
     console.log('CALLER_SOURCE_OBSERVER '+JSON.stringify({
       label,mode,expected,actual,renamed,
@@ -100,4 +102,24 @@ test('unobserved private direct function retains a genuinely renamed private key
     assert.equal(emitted.files[0].metrics.properties,1,
       mode+': uninvolved source-unobservable private owner should stay transformable');
   }
+});
+
+
+test('an externally owned property getter can observe the source of its private caller',()=>{
+  const getter=/** @type {()=>number} */ (vm.runInNewContext([
+    '(function reader(){',
+    '  const caller=reader.caller;',
+    '  return caller&&caller.toString().includes("secretField")?7:8;',
+    '})'
+  ].join('\\n')));
+  const host=Object.defineProperty({},'value',{get:getter});
+  const source=[
+    'function privateFn(){',
+    '  const secret={secretField:1};',
+    '  return host.value+secret.secretField;',
+    '}',
+    'module.exports=privateFn();'
+  ].join('\\n');
+  assert.equal(execute(source,undefined,host),8);
+  compare(source,'host-getter',undefined,host);
 });
