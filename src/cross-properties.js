@@ -81,6 +81,36 @@ function collectVerifiedImportedStrings(files) {
     }
     exported.set(filename,names);
   }
+  // Carry immutable string metadata through explicit source-named reexports.
+  // Runtime key rewrites remain gated independently on the full acyclic ESM graph.
+  let changed;
+  do {
+    changed=false;
+    for(const [relayName,relay] of modules) {
+      const exposed=exported.get(relayName);
+      if(!exposed)continue;
+      for(const statement of relay.ast.body) {
+        if(statement.type!=='ExportNamedDeclaration'||!statement.source||
+           statement.source.type!=='Literal'||
+           typeof statement.source.value!=='string'||
+           /[?#%\\\\]/.test(statement.source.value))continue;
+        const origin=resolveImport(relayName,statement.source.value);
+        const available=origin?exported.get(origin):null;
+        if(!available)continue;
+        for(const spec of statement.specifiers) {
+          if(spec.type!=='ExportSpecifier')continue;
+          const sourceName=spec.local.name??spec.local.value;
+          const publicName=spec.exported.name??spec.exported.value;
+          if(typeof sourceName!=='string'||typeof publicName!=='string')continue;
+          const value=available.get(sourceName);
+          if(value!==undefined&&!exposed.has(publicName)){
+            exposed.set(publicName,value);
+            changed=true;
+          }
+        }
+      }
+    }
+  }while(changed);
   /** @type {Map<string,Map<string,string>>} */
   const imported=new Map();
   for(const [filename,module] of modules) {
