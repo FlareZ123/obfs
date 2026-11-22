@@ -1835,6 +1835,30 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       }
       if(aliases.size)descriptorMemberReadAliases.set(readPattern.source,aliases);
     }
+    // Array destructuring of a source-visible array literal can carry the
+    // same descriptor entry reference through its corresponding element.
+    // The element's runtime value may differ under a custom iterator, so
+    // this is a conservative may-alias edge rather than an identity proof.
+    const arrayRead=node.type==='VariableDeclarator'&&
+      node.id.type==='ArrayPattern'&&node.init?.type==='ArrayExpression'?
+      {pattern:node.id,values:node.init}:
+      node.type==='AssignmentExpression'&&node.operator==='='&&
+      node.left.type==='ArrayPattern'&&node.right.type==='ArrayExpression'?
+      {pattern:node.left,values:node.right}:null;
+    if(arrayRead){
+      for(let index=0;index<arrayRead.pattern.elements.length;index++){
+        const target=arrayRead.pattern.elements[index];
+        const source=arrayRead.values.elements[index];
+        if(source?.type!=='MemberExpression'||source.object.type!=='Identifier')continue;
+        const name=target?.type==='Identifier'?target.name:
+          target?.type==='AssignmentPattern'&&target.left.type==='Identifier'?
+            target.left.name:null;
+        if(name===null)continue;
+        const aliases=descriptorMemberReadAliases.get(source.object.name)??new Set();
+        aliases.add(name);
+        descriptorMemberReadAliases.set(source.object.name,aliases);
+      }
+    }
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&node.init){
       const entries=descriptorBindings.get(node.id.name)??[];
       entries.push(node.init);
