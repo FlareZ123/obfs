@@ -88,3 +88,27 @@ test('XHTML SRI-pinned local script retains exact source bytes in COO SNO and SC
     }
   }
 });
+
+test('XHTML XML declaration and simple DOCTYPE permit safe rewrites',()=>{
+  const safe=xhtml('<title>Visible XHTML asset</title>').toString('utf8')
+    .replace('?>','?><!DOCTYPE html>');
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    const compiled=compile('xhtml',Buffer.from(safe),mode);
+    assert.notEqual(compiled.files[0].code,compiled.source,
+      mode+': harmless XML doctype must not suppress protected-work yield');
+  }
+});
+
+test('XHTML DTD entity declarations and embedded SVG style maps are refused',()=>{
+  const dtd=xhtml('<title>value &source;</title>').toString('utf8')
+    .replace('?>','?><!DOCTYPE html [<!ENTITY source "hidden">]>');
+  const css=xhtml('<svg:svg xmlns:svg="http://www.w3.org/2000/svg">'+
+    '<svg:style><![CDATA[/*# sourceMappingURL=private.css.map */]]></svg:style>'+
+    '</svg:svg>');
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])) {
+    assert.throws(()=>compile('xhtml',Buffer.from(dtd),mode),
+      /DTD declaration|Malformed XHTML XML/);
+    assert.throws(()=>compile('xhtml',css,mode),
+      /HTML asset contains inline CSS source-map directive/);
+  }
+});
