@@ -65,7 +65,8 @@ test('reproducible nested conditional fuzz: native, select, lazy, auto and seedl
       mode===1?'(~'+expression(depth-1,names)+')':
       '('+expression(depth-1,names)+operations[next()%operations.length]+
       expression(depth-1,names)+')';
-    const source='function f('+names.join(',')+'){return '+expr+';}module.exports=f;';
+    const source='function f('+names.join(',')+'){return '+expr+';}'+
+      'function publicF('+names.join(',')+'){return f('+names.join(',')+');}module.exports=publicF;';
     const original=load(source);
     for(const strategy of /** @type {('auto'|'select'|'if')[]} */(['auto','select','if'])){
       const result=lowerWasmI32Functions(source,'commonjs',{
