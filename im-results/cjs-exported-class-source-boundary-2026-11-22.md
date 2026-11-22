@@ -67,6 +67,10 @@ The extra `closedWorld:false` setting is significant: the compiler makes no clai
 
 ECMAScript 2026 §20.2.3.5 [`Function.prototype.toString`](https://tc39.es/ecma262/2026/multipage/fundamental-objects.html#sec-function.prototype.tostring) specifies returning available source text for callable objects carrying a `[[SourceText]]` slot. The negative fixtures observe the source of real Node-defined class and method objects in the same host before and after compilation. Since the emitted `[[SourceText]]` changes under either private-key backend, external importers can distinguish the variants through that standard language operation. The spec permits host source unavailability, so the **measured** finding is stated for Node 22.23.4 on Ubuntu/Windows, rather than asserting every browser/host must reveal the same bytes.
 
+## Latest source-pinned strict JSDoc and private regression green
+
+After adding the ESM Chromium harness and the direct exported-function cases, [Ubuntu/Windows focused run 45081688573](https://github.com/FlareZ123/obfs/actions/runs/45081688573), exact source `c210089b60c180cbcabb2c7d0cf514ffdbabd951`, **passed** the existing `test/private-class-source-yield.test.js` positive control and both project and external JSDoc checks on each OS. This is the appropriate *separate green source pin* for the completed test-file set. The deliberately red 28-case CJS and ESM Chrome source parity tests remain independently documented at their own source pins; passing strict type checks does not imply those semantic regressions are fixed.
+
 ## Proof obligation and bounded interpretation
 
 The current local owner alias proof in `src/properties.js` sees a class-method read of a private literal owner but cannot establish whether the method's **callable source text** is externally observable. A CommonJS module may export a class, an instance, a bound constructor, or another alias that exposes that body. An undeclared importer may use `Function.prototype.toString` without any `.toString` token inside the compiler's input set.
