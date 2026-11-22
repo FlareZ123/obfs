@@ -261,3 +261,41 @@ test('SNO accepts external source CommonJS scope when output is unscoped',async(
     assert.equal(result.stdout,'67');
   });
 });
+
+test('SNO rejects invalid external output package type before publication',async()=>{
+  await withFixture(async directory=>{
+    const input=path.join(directory,'source');
+    const output=path.join(directory,'host','distribution');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=71;');
+    await atomicWrite(path.join(directory,'host','package.json'),'{"type":null}');
+
+    const native=runCommonJs(path.join(input,'entry.js'));
+    assert.equal(native.status,0,native.stderr);
+    assert.equal(native.stdout,'71');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.js','--out',output]),
+      /Invalid SNO output external package metadata/
+    );
+    await assert.rejects(fs.stat(output),{code:'ENOENT'});
+  });
+});
+
+test('SNO rejects invalid external input package shape',async()=>{
+  await withFixture(async directory=>{
+    const host=path.join(directory,'host');
+    const input=path.join(host,'source');
+    const output=path.join(directory,'output');
+    await atomicWrite(path.join(host,'package.json'),'[]');
+    await atomicWrite(path.join(input,'entry.js'),'module.exports=73;');
+
+    const native=runCommonJs(path.join(input,'entry.js'));
+    assert.notEqual(native.status,0,'Native Node must refuse invalid package metadata');
+
+    await assert.rejects(
+      main('sno',['--root',input,'--entry','entry.js','--out',output]),
+      /Invalid SNO input external package metadata/
+    );
+    await assert.rejects(fs.stat(output),{code:'ENOENT'});
+  });
+});
