@@ -46,6 +46,17 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
     }
     assert.deepEqual(submissions[0],submissions[1],
       'Same hidden affine semantics must be exposed by both public artifacts');
+    // Three legitimate chosen-value probes are enough to clone this
+    // announced translation family, regardless of either source encoding.
+    // This is an independent online-oracle capability control, not an LLM
+    // inference result. The original source is still sealed at this point.
+    const offlineClones=submissions.map(offsets=>
+      /** @type {Record<string,(input:number)=>number>} */(Object.fromEntries(
+        names.map(name=>[name,
+          /** @param {number} input */ input=>((input|0)+offsets[name])|0
+        ])
+      ))
+    );
     const graded=trial.verify(submissions);
     assert.deepEqual(graded,[0,1].map(()=>({
       passed:true,comparisons:3072,
@@ -66,6 +77,8 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */(['coo','sno'])){
       for(const name of names){
         assert.equal(publicExports[0][name](x),original[name](x),name+'/'+i+'/first');
         assert.equal(publicExports[1][name](x),original[name](x),name+'/'+i+'/second');
+        assert.equal(offlineClones[0][name](x),original[name](x),name+'/'+i+'/first clone');
+        assert.equal(offlineClones[1][name](x),original[name](x),name+'/'+i+'/second clone');
       }
     }
   });
