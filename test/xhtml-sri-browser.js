@@ -109,7 +109,7 @@ async function main() {
     const outcomes={};
     for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed','inline-svg']) {
       const page=await readBrowser(browser,origin+'/'+variant+'/index.xhtml');
-      assert.match(page,/XHTML (?:SRI browser|inline script)/u);
+      assert.match(page,/XHTML (?:SRI browser|inline script|SVG inline script)/u);
       outcomes[variant]=variant==='inline-svg'?
         /data-svg-inline="executed"/u.test(page):variant.startsWith('inline')?
         /data-inline="executed"/u.test(page):/data-xhtml-sri="loaded"/u.test(page);
