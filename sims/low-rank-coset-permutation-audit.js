@@ -64,6 +64,7 @@ function permutation(rng, length) {
 
 /** @param {number[]} sampledColumns */
 function repair(sampledColumns) {
+  /** @type {number[]} */
   const independent = [];
   const kept = new Set();
   for (let i = 0; i < sampledColumns.length; ++i) {
@@ -77,7 +78,7 @@ function repair(sampledColumns) {
     if (kept.has(i)) continue;
     const substitute = Array.from({length: 8}, (_, bit) => 1 << bit)
       .find(unit => rank([...independent, unit]) > independent.length);
-    assert.notEqual(substitute, undefined);
+    if (substitute === undefined) throw new Error('No rank-completing unit');
     independent.push(substitute);
     repaired[i] = substitute;
   }
