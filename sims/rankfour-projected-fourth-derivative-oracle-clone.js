@@ -1,13 +1,13 @@
 'use strict';
 
 const assert=require('node:assert/strict');
-const {learnBoundedDegreeOracle,evaluateBoundedDegreeModel}=
-  require('./bounded-degree-oracle-functional-clone');
+const {learn:learnCubicRescue,evaluate:evaluateCubicRescue}=
+  require('./rankfour-projected-cubic-rescue');
 
-/** @typedef {ReturnType<typeof learnBoundedDegreeOracle>} LowerModel */
-/** @typedef {{bits:number,degree:3|4,base:number,linear:number[],
-  projected:number[],higher:number[],lower:LowerModel|null,
-  queries:number,trials:number}} Clone */
+/** @typedef {ReturnType<typeof learnCubicRescue>} CubicFallback */
+/** @typedef {{bits:number,degree:2|3|4,base:number,linear:number[],
+  projected:number[],higher:number[],fallback:CubicFallback|null,
+  queries:number,trials:number,fallbackTrials:number}} Clone */
 
 /** @param {number} seed @returns {()=>number} */
 function seeded(seed){
@@ -70,8 +70,10 @@ function nonlinear(coefficients,coords){
  * When the quartic coefficient is nonzero, a random 4-tuple gives a
  * fourth-difference witness with p=315/1024. With confidence 1-delta
  * the learned model contains the entire function, offline.
- * If the true quartic coefficient vanishes, generic degree-three
- * interpolation is an exact fallback. Both are cached in one oracle.
+ * If the true quartic coefficient vanishes, a third-derivative
+ * signature recovers its cubic component and a generic quadratic
+ * learner recovers the residual. The source-class confidence bounds
+ * are conditional alternatives, not additive failure events.
  *
  * @param {(x:number)=>number} oracle
  * @param {number} bits
@@ -127,10 +129,13 @@ function clone(oracle,bits,draw,delta=1e-10){
     }
   }
   if(quartic===0){
-    const lower=learnBoundedDegreeOracle(ask,bits,3);
-    assert.ok(seen.size <= lower.queryCount+15*limit);
-    return {bits,degree:3,base,linear:basis,
-      projected:[],higher:[],lower,queries:seen.size,trials};
+    const fallback=learnCubicRescue(ask,bits,draw,delta);
+    // Both stages query F(0) and every F(e_i); those bits+1 values
+    // are shared by the outer cache, so they are not paid twice.
+    assert.ok(seen.size<=15*limit+fallback.queries);
+    return {bits,degree:fallback.degree,base,linear:basis,
+      projected:[],higher:[],fallback,queries:seen.size,trials,
+      fallbackTrials:fallback.trials};
   }
 
   const coefficients=Array.from({length:16},(_,m)=>{
@@ -170,14 +175,15 @@ function clone(oracle,bits,draw,delta=1e-10){
   }
   assert.ok(seen.size<=bits+1+15*limit+14*bits);
   return {bits,degree:4,base,linear,projected,
-    higher:coefficients,lower:null,queries:seen.size,trials};
+    higher:coefficients,fallback:null,queries:seen.size,trials,
+    fallbackTrials:0};
 }
 
 /** @param {Clone} model @param {number} input @returns {number} */
 function evaluate(model,input){
-  if(model.degree===3){
-    assert.notEqual(model.lower,null);
-    return evaluateBoundedDegreeModel(/** @type {LowerModel} */ (model.lower),input);
+  if(model.degree!==4){
+    assert.notEqual(model.fallback,null);
+    return evaluateCubicRescue(/** @type {CubicFallback} */ (model.fallback),input);
   }
   let result=(model.base^apply(model.linear,input))>>>0;
   let coords=0;
@@ -266,7 +272,7 @@ function main(){
       },32,seeded((0xa4e1970b^draw())>>>0));
       enabled=false;
       assert.equal(callCount,model.queries);
-      assert.ok(callCount<=6434);
+      assert.ok(callCount<=2080);
       const serial=/** @type {Clone} */ (JSON.parse(JSON.stringify(model)));
       for(let i=0;i<512;i++){
         const x=draw();
@@ -292,7 +298,7 @@ function main(){
       quarticBranch,lowerBranch,maxQuarticQueries,maxFallbackQueries,maxQueries},
     probability:'Quartic witness probability 315/1024 from independent-uniform fourth-order tuples',
     delta:1e-10,trainingTuples:63,
-    quarticBranchCap:1426,genericLowerFallbackCap:6434,
+    quarticBranchCap:1426,quarticFreeCubicRescueCap:2080,
     genericUnrestrictedQuarticTraining:41449,
     note:'Fixed-seed tests prove deterministic output consistency on selected sources, not the independent-uniform tail'
   };
