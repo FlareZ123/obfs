@@ -97,6 +97,9 @@ passed [Ubuntu and Windows focused tests and strict JSDoc in
 45001636807](https://github.com/FlareZ123/obfs/actions/runs/45001636807).
 That exact test was promoted onto main at
 `599e4419e1ed2992f8b4e6013e021d717433fe22`.
+The identical main source passed [Ubuntu/Windows focused execution and
+both strict JSDoc checks in run
+45001743440](https://github.com/FlareZ123/obfs/actions/runs/45001743440).
 This strengthens attribution of the captured function without claiming
 knowledge of arbitrary hidden callbacks or other unpublished exports.
 
