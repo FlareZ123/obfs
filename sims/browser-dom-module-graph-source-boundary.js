@@ -73,7 +73,7 @@ async function main() {
   });
   await new Promise((resolve,reject)=>{
     server.once('error',reject);
-    server.listen(0,'127.0.0.1',resolve);
+    server.listen(0,'127.0.0.1',()=>resolve(undefined));
   });
   try {
     const address=/** @type {import('node:net').AddressInfo} */(server.address());
@@ -94,7 +94,7 @@ async function main() {
     assert.deepEqual(emitted,native,
       'Inline ESM source observation must preserve native graph behavior');
   } finally {
-    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve()));
+    await new Promise((resolve,reject)=>server.close(error=>error?reject(error):resolve(undefined)));
   }
 }
 if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});
