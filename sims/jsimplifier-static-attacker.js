@@ -107,6 +107,7 @@ async function loadExports(code,filename,toolRoot){
   function localRequire(name){
     return name.startsWith('.')||path.isAbsolute(name)?outputRequire(name):toolRequire(name);
   }
+  /** @type {Record<string,unknown>} */
   const context={
     module,exports:module.exports,
     require:localRequire,
@@ -149,6 +150,7 @@ async function runEvidence(root){
     const results={};
     for(const variant of /** @type {const} */(['minified','published'])){
       const run=await runTool(root,graphs[variant][0].code,variant,scratch);
+      /** @type {{recovered:number,verified:number,comparisons:number,mismatches:number,loadErrors:string[]}} */
       let best={recovered:0,verified:0,comparisons:0,mismatches:0,loadErrors:[]};
       for(const output of run.outputs){
         try{
