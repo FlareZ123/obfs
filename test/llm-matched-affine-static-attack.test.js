@@ -24,6 +24,26 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
       })));
       const disclosed=trial.reveal();
       assert.deepEqual(observed[0].offsets,disclosed.offsets);
+      const publishedModules=await Promise.all(trial.questions.map(q=>
+        import('data:text/javascript;charset=utf-8,'+encodeURIComponent(q.source))
+      ));
+      const offlineModules=await Promise.all(observed.map(attacker=>
+        import('data:text/javascript;charset=utf-8,'+
+          encodeURIComponent(attacker.reconstructedSource))
+      ));
+      // The attack reconstructs runnable ESM, retaining all advertised named
+      // exports without executing compiler internals or the original source.
+      // These are post-commit parity checks, never attack-time oracle calls.
+      for(let position=0;position<2;position++){
+        for(let index=0;index<256;index++){
+          const input=Math.imul(index^0x5c3f2d1a,0x9e3779b1)|0;
+          for(const name of ['round1','round2','round3']){
+            assert.equal(offlineModules[position][name](input),
+              publishedModules[position][name](input),
+              mode+'/'+iteration+'/'+position+'/'+name+'/'+index);
+          }
+        }
+      }
       for(let position=0;position<2;position++){
         assert.equal(observed[position].kind,disclosed.arms[position]);
         assert.ok(observed[position].bytes>0);
@@ -51,7 +71,8 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
           staticMs:Number(result.attackMs.toFixed(3))
         })),
         recoveredExports:3,distinctChosenRuntimeQueries:0,
-        heldOutComparisonsPerArm:3072
+        heldOutComparisonsPerArm:3072,
+        rebuiltEsmComparisonsPerArm:768
       }));
     }
   });
