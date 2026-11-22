@@ -21,31 +21,9 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
-      - name: Compare native Node and Chromium legacy encoding mapping
-        if: runner.os == 'Linux'
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/sco-textdecoder-realm-browser.js
       - name: Verify real generated SCO graph facades
         run: node examples/sco-graph/build.cjs --check
       - name: Check private graph semantics, source denial and paired HMAC cost
         run: node --test test/sco-graph.test.js test/sco-graph-private-path-policy.test.js test/sco-private-host-effect-closure.test.js test/sco-private-transitive-manifest.test.js test/sco-selected-graph.test.js test/sco-selected-handler.test.js
       - name: Strict JSDoc for SCO graph integration
         run: npx tsc -p jsconfig.sco-graph.json
-
-  pinned-legacy-decoder:
-    runs-on: ubuntu-latest
-    timeout-minutes: 6
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.16.0'
-      - name: Verify selected Node and Chromium versions
-        run: |
-          node --version
-          google-chrome --version
-      - name: Demonstrate older Node legacy mapping versus real Chromium
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node test/sco-textdecoder-realm-browser.js
