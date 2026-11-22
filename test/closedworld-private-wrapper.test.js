@@ -56,3 +56,38 @@ test('private cross-module hot reads preserve the public wrapper source and reta
     await fs.rm(folder,{recursive:true,force:true});
   }
 });
+
+
+test('layered identifier pass preserves exported wrapper source while rewriting private work',async()=>{
+  /** @type {ModuleInput[]} */
+  const native=[
+    {path:'state.mjs',sourceType:'module',
+      code:'export const state={hotScore:(21-14),hotWeight:(5<<2)-7};'},
+    {path:'worker.mjs',sourceType:'module',
+      code:'import {state} from "./state.mjs";'+
+        'function privateHot(privateSeed,privateCount){'+
+        'let accumulator=privateSeed|0;for(let index=0;index<privateCount;index++){'+
+        'accumulator=((accumulator+state.hotScore)^state.hotWeight)|0;}'+
+        'return accumulator;}'+
+        'export function hot(publicSeed,publicCount){return privateHot(publicSeed,publicCount);}'} 
+  ];
+  const output=obfuscateFiles(native,{
+    mode:'coo',closedWorld:true,seed:'private-wrapper-identifier-composition',
+    identifiers:true,strings:false
+  });
+  assert.equal(output.crossFile.properties,2,'the private dependency must carry two rewritten own keys');
+  const worker=output.files.find(file=>file.path==='worker.mjs');
+  assert.ok(worker && worker.metrics.bindings>0,'the private arithmetic should retain identifier transformations');
+  const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-private-wrapper-ids-'));
+  try {
+    const original=await loadEntry(path.join(folder,'original'),native);
+    const protectedEntry=await loadEntry(path.join(folder,'protected'),output.files);
+    assert.equal(protectedEntry.hot.toString(),original.hot.toString(),
+      'exported wrapper text is an observable JS value');
+    for(const input of [0,1,7,43,511,-91]) {
+      assert.equal(protectedEntry.hot(input,10000),original.hot(input,10000));
+    }
+  }finally{
+    await fs.rm(folder,{recursive:true,force:true});
+  }
+});
