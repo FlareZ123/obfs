@@ -56,6 +56,36 @@ At exact source `3cf66723001e868d65766fab341cbf44da60cd3a`,
 completed **green on both Ubuntu and Windows**, including strict project and
 external JSDoc type checks and the real Node subprocess attack.
 
+## SNO one-file CommonJS replication
+
+A separate [SNO test](../test/sno-bound-runtime-interception.test.js)
+uses one `entry.cjs` as the only server-executed entrypoint. It compiles
+the same primitive private record and nonconstructible bound-arrow target
+with `mode:'sno',identifiers:true,properties:true`. A fresh Node 22
+subprocess patches `Function.prototype.bind` before the ordinary
+`require(entry.cjs)`, records the original bound target, and forwards
+the native binding. The test requires **two actual SNO local own-key
+renames**, identical native/protected public results and bound public
+source, and captured transformed private target source.
+
+The isolated red-first branch
+`agent29/sno-bound-runtime-interception-20261122`, exact
+`523c645c00bae4130a4aba0d14669462b290f198`, passed on Ubuntu
+and Windows in [focused run 45000039077](https://github.com/FlareZ123/obfs/actions/runs/45000039077).
+The exact test was then carried unchanged to main in commit
+`e38df5457ec389237e2f909bc281a0b3121723d1` and added to the
+strict external JSDoc project in `0110e5439617d8408d4e1f526b96958167766dff`.
+The latter source passed its real focused SNO subprocess and both
+JSDoc checkers on Ubuntu and Windows in
+[run 45000147223](https://github.com/FlareZ123/obfs/actions/runs/45000147223).
+
+This directly covers the prompt's SNO assumption that the attacker
+controls the Node runtime and memory. Its ability to patch a builtin
+before requiring the sole entry is more restrictive than that threat
+model, and thus a valid counterexample to the claim that the bound
+private target resists SNO dynamic extraction. The example does not
+claim general static reconstruction of all SNO data and code.
+
 ## Browser replication
 
 [`test/bound-runtime-interception-browser.js`](../test/bound-runtime-interception-browser.js)
