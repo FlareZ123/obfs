@@ -229,7 +229,8 @@
     "test/sco-sri-encoded-route-browser.js",
     "test/html-sri-filename-browser.js",
     "test/factory-destructuring-crossfile-grid.test.js",
-    "test/factory-destructuring-browser.js"
+    "test/factory-destructuring-browser.js",
+    "sims/factory-destructuring-paired-session.js"
   ],
   "exclude": [
     "node_modules"
