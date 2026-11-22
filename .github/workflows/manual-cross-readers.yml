@@ -48,36 +48,54 @@ jobs:
       # This is an evidence branch, not a new release gate.
       - name: Strict JSDoc for DOM source-observation evidence probes
         run: npx tsc -p jsconfig.dom-source-evidence.json
-      - name: Cross-file delegated DOM private-property source parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-delegated-cross-file-source-parity.js
-      - name: Verify private-property DOM source-observation parity with positive key yield
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-property-source-parity.js
-      - name: Browser DOM serialization source-observer native/emitted parity
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-source-serialization-pair.js
-      - name: Compare authorized ESM host-lock and inline DOM source observation
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/browser-dom-locked-module-source-parity.js
       - name: Compare identical ESM graph under two DOM source-exposing hosts
+        id: dom_two_hosts
         if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/browser-dom-module-host-embedding-indistinguishability.js
       - name: Browser inline ESM import-graph DOM source-boundary parity
+        id: dom_graph
         if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
         env:
           CHROMIUM_BIN: google-chrome
         run: node sims/browser-dom-module-graph-source-boundary.js
+      - name: Compare authorized ESM host-lock and inline DOM source observation
+        id: dom_lock
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-locked-module-source-parity.js
+      - name: Cross-file delegated DOM private-property source parity
+        id: dom_delegated
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-delegated-cross-file-source-parity.js
+      - name: Verify private-property DOM source-observation parity with positive key yield
+        id: dom_property
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-property-source-parity.js
+      - name: Browser DOM serialization source-observer native/emitted parity
+        id: dom_inline
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        continue-on-error: true
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-source-serialization-pair.js
+      # Run every dedicated Chromium witness even when an early one is red.
+      # The final step restores the actual parity gate: an Ubuntu job is
+      # green only when every recorded runtime outcome is successful.
+      - name: Assert all DOM source-parity probes passed
+        if: ${{ matrix.os == 'ubuntu-latest' && (steps.dom_two_hosts.outcome != 'success' || steps.dom_graph.outcome != 'success' || steps.dom_lock.outcome != 'success' || steps.dom_delegated.outcome != 'success' || steps.dom_property.outcome != 'success' || steps.dom_inline.outcome != 'success') }}
+        run: node -e "process.exitCode=1"
       # The historical computed-refusal ablation is source-anchored to a
       # removed compiler clause and cannot run against modern main; its pinned
       # counterfactual evidence remains in sims/computed-refusal-ablation.js.
