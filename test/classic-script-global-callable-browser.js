@@ -81,7 +81,7 @@ async function main() {
     const protectedResult=await run('emitted');
     assert.deepEqual(protectedResult,native);
     assert.match(native[0],/function publicReader\(/u);
-    assert.match(native[2],/lexicalReader/u);
+    assert.ok(native[2].includes(publicText),'Original lexical callable source must retain its literal');
     assert.equal(native[1],publicText);
     assert.equal(native[3],publicText);
     assert.equal(native[4],privateText);
