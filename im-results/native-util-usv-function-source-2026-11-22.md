@@ -64,3 +64,12 @@ A held-out two-platform fixture reproduced the same source-spelling leak through
 The bounded fix uses the existing trusted reflective receiver provenance to recognize native target MIMEType objects, `Reflect.set` writes to type/subtype with unproved values, and `Object.assign` copying possibly coercible fields into those setters. It preserves source conservatively when the source object's relevant field cannot be proven primitive. Arbitrary reflected setter aliases, imported mutable host objects and unsupported cross-file source consumers remain outside the demonstrated set.
 
 The previously green full [45062160168](https://github.com/FlareZ123/obfs/actions/runs/45062160168) predates this repair. A full Node+Chromium replay on the final source is still required before a combined integration assertion.
+
+## Computed MIMEType.params alias and bounded native method calls
+
+The next held-out test selected the MIME parameter object through a variable key, `const key='params'; const params=mime[key]`, and then passed a source-bearing function to `params.set('label',fn)`. Because the original provenance check required literal `.params`, the generated output changed the exact value obtained through `params.get('label')`.
+
+- **RED:** [Node22 Ubuntu/Windows focused run 45062716117](https://github.com/FlareZ123/obfs/actions/runs/45062716117), SHA `a0d281f2a019ea8d3a9192420a2719a4708ab3b6`; all three modes changed the original function source to a decoder-table lookup despite native result string requiring exact text. The independent control for primitive MIME parameter values continued to pass with nonzero transform yield.
+- **GREEN:** [Node22 Ubuntu/Windows focused run 45062825376](https://github.com/FlareZ123/obfs/actions/runs/45062825376), SHA `9442d4e3a4dd75abb1a8e9fcc7fbd3c3054041fb`; static and dynamic parameter member access, native CJS/ESM, destructuring, `Reflect.apply` and bound setter invocations, setter diagnostics, primitive-positive controls and strict project/external JSDoc pass.
+
+The repair treats a computed member selector on a proven native MIMEType instance whose key cannot be statically resolved as *possibly selecting* `params`. Unknown selectors trigger conservative source preservation only when the resulting object and method usage can observe an unproved value. This is more accurate than assuming dynamic `mime[key]` accesses are safe. The tests do not establish a complete native capability provenance proof under arbitrary user-defined wrappers or modified prototypes.
