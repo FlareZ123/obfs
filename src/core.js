@@ -2048,10 +2048,6 @@ function obfuscateFiles(files, options = {}) {
       });
     } while(aliasesChanged);
     let found=false;
-    const isEmptyMap=value=>Boolean(value&&(
-      value.type==='ObjectExpression'&&value.properties.length===0||
-      value.type==='ArrayExpression'&&value.elements.length===0
-    ));
     walk(inputAst,(node,parent)=>{
       if(node.type==='MemberExpression'&&isObjectReference(node.object)) {
         const key=node.computed?staticString(node.property):
@@ -2059,7 +2055,9 @@ function obfuscateFiles(files, options = {}) {
         if(key==='create'||key==='defineProperties') {
           if(parent?.type==='CallExpression'&&parent.callee===node) {
             const descriptorMap=parent.arguments[1];
-            if(!descriptorMap||isEmptyMap(descriptorMap))return;
+            if(!descriptorMap||
+               descriptorMap.type==='ObjectExpression'&&descriptorMap.properties.length===0||
+               descriptorMap.type==='ArrayExpression'&&descriptorMap.elements.length===0)return;
           }
           found=true;
         }
