@@ -119,3 +119,43 @@ for(const [name,expression] of cases) {
     }
   }
 }
+
+
+const mixedBoundArity =
+  'const {create:make}=Object;function build(flag){let create;'+
+  'if(flag)create=make.bind(null,null);else create=make;'+
+  'const descriptors={ref:{get(){return TARGET.prototype}}};'+
+  'const box=create(null,descriptors);box.ref.WRITE}build(FLAG);';
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  for(const flag of [true,false]) {
+    for(const safe of [false,true]) {
+      test('mixed bound/unbound Object.create alias '+mode+'/'+flag+'/'+
+        (safe?'Number positive':'String unsafe'),async()=>{
+        const mutator=mixedBoundArity
+          .replace('TARGET',safe?'Number':'String')
+          .replace('WRITE',safe?'unrelated=1;':'charCodeAt=()=>0;')
+          .replace('FLAG',String(flag));
+        const input=graph(mutator);
+        const output=obfuscateFiles(input,{
+          mode,strings:true,identifiers:false,properties:false,
+          seed:'mixed-bound-create/'+mode+'/'+flag+'/'+safe
+        });
+        const target=output.files.find(file=>file.path==='target.cjs');
+        assert.ok(target);
+        const root=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-mixed-bound-create-'));
+        try {
+          const native=await execute(path.join(root,'native'),input);
+          const emitted=await execute(path.join(root,'emitted'),output.files);
+          assert.equal(native.status,0,native.stderr);
+          assert.deepEqual(emitted,native,
+            'Mixed bound/unbound Object.create alias diverged from native source');
+        } finally {
+          await fs.rm(root,{recursive:true,force:true});
+        }
+        assert.equal(target.metrics.literals,safe?1:0,
+          'Mixed callable arities must be guarded without suppressing benign controls');
+      });
+    }
+  }
+}
