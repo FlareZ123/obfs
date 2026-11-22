@@ -126,6 +126,21 @@ test('transitive const aliases without a direct primitive initializer remain unp
     'export const state={secretField:seedValue,otherField:5};',namedEntry));
 });
 
+
+for(const [label,expression] of /** @type {[string,string][]} */ ([
+  ['invalid direct call','state.secretField()'],
+  ['invalid optional call','state.secretField?.()'],
+  ['invalid constructor call','new state.secretField()'],
+  ['invalid chained bind call','state.secretField.bind(null)']
+])) {
+  test('source-spelled failed primitive operation conservatively declines: '+label,async()=>{
+    await expectRefused(label,graph(
+      'const seedValue=17;export const state={secretField:seedValue,otherField:5};',
+      'import {state} from "./state.mjs";'+
+      'try{'+expression+';}catch(error){console.log(error.message);}'));
+  });
+}
+
 test('later declaration cannot initialize an earlier exported owner',()=>{
   const files=graph('export const state={secretField:seedValue,otherField:5};const seedValue=17;',namedEntry);
   assert.equal(compile(files).crossFile.properties,0);
