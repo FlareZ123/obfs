@@ -46,7 +46,11 @@ const cases=[
   ['setAttribute.apply','(()=>{const el=document.createElement("div");el.setAttribute.apply(el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
   ['Reflect.apply setAttribute','(()=>{const el=document.createElement("div");Reflect.apply(el.setAttribute,el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
   ['detached Reflect.apply','(()=>{const el=document.createElement("div");const setter=el.setAttribute;Reflect.apply(setter,el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
-  ['bound namespaced attribute','(()=>{const el=document.createElement("div");const setter=el.setAttributeNS.bind(el);setter(null,"data-observed",inspect);return el.getAttribute("data-observed");})()']
+  ['bound namespaced attribute','(()=>{const el=document.createElement("div");const setter=el.setAttributeNS.bind(el);setter(null,"data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['local function Element factory','(()=>{function make(){return document.createElement("div");}const el=make();el.setAttribute("data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['arrow Element factory','(()=>{const make=()=>document.createElement("div");const el=make();el.setAttribute("data-observed",inspect);return el.getAttribute("data-observed");})()'],
+  ['native setter destructuring','(()=>{const el=document.createElement("div");const {setAttribute:setter}=el;Reflect.apply(setter,el,["data-observed",inspect]);return el.getAttribute("data-observed");})()'],
+  ['destructured namespace setter','(()=>{const el=document.createElement("div");const {setAttributeNS:setter}=el;Reflect.apply(setter,el,[null,"data-observed",inspect]);return el.getAttribute("data-observed");})()']
 ];
 
 for(const [name,expression] of cases) {
