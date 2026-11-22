@@ -38,6 +38,7 @@ async function observe(files,observer) {
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   test('string encoding preserves external exported callable source: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'export function read(){return "source-visible-secret-value";}'}];
     const observer='import {read} from "./private.mjs";console.log(JSON.stringify([read.toString(),read()]));';
