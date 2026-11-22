@@ -245,7 +245,17 @@
     "test/factory-destructuring-crossfile-grid.test.js",
     "test/factory-destructuring-browser.js",
     "sims/factory-destructuring-paired-session.js",
-    "test/low-output-residual-cycle-independent.test.js"
+    "test/low-output-residual-cycle-independent.test.js",
+    "sims/low-output-residual-common-basis-peercheck.js",
+    "test/common-basis-existence.test.js",
+    "sims/low-output-common-basis-repair.js",
+    "test/common-basis-random-repair.test.js",
+    "sims/common-basis-gf3-exhaustive.js",
+    "test/common-basis-gf3-exhaustive.test.js",
+    "sims/common-basis-deterministic-hyperplane.js",
+    "test/common-basis-deterministic-hyperplane.test.js",
+    "sims/low-rank-repaired-basis-inversion.js",
+    "test/low-rank-repaired-basis-inversion.test.js"
   ],
   "exclude": [
     "node_modules"
