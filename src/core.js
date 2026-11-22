@@ -1940,6 +1940,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   });
   /** @type {Map<string,Set<string>>} */
   const objectCreateHolderFields=new Map();
+  /** @type {Map<string,Map<string,number>>} */
+  const objectCreateHolderBoundArgumentCounts=new Map();
   /**
    * @param {import('./ast').AstNode} value
    * @returns {boolean}
@@ -1986,6 +1988,10 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       return objectCreateBoundArgumentCount(value.callee.object,visited)+
         Math.max(0,value.arguments.length-1);
     }
+    if(value.type==='MemberExpression'&&value.object.type==='Identifier') {
+      return objectCreateHolderBoundArgumentCounts.get(value.object.name)?.get(
+        memberName(value)??'')??0;
+    }
     return 0;
   }
   /**
@@ -2030,6 +2036,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(field!==null&&addCreateHolderField(node.left.object.name,field)) {
           discoveredCreateAlias=true;
         }
+        if(field!==null) {
+          let counts=objectCreateHolderBoundArgumentCounts.get(node.left.object.name);
+          if(!counts) {
+            counts=new Map();
+            objectCreateHolderBoundArgumentCounts.set(node.left.object.name,counts);
+          }
+          const count=objectCreateBoundArgumentCount(node.right);
+          if(count>(counts.get(field)??0))counts.set(field,count);
+        }
       }
       let name;
       let value;
@@ -2046,6 +2061,13 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       if(value.type==='Identifier') {
         for(const field of objectCreateHolderFields.get(value.name)??[]) {
           if(addCreateHolderField(name,field))discoveredCreateAlias=true;
+          const count=objectCreateHolderBoundArgumentCounts.get(value.name)?.get(field)??0;
+          let counts=objectCreateHolderBoundArgumentCounts.get(name);
+          if(!counts) {
+            counts=new Map();
+            objectCreateHolderBoundArgumentCounts.set(name,counts);
+          }
+          if(count>(counts.get(field)??0))counts.set(field,count);
         }
       }
       if(value.type==='ObjectExpression') {
@@ -2055,6 +2077,15 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
           if(field!==null&&addCreateHolderField(name,field)) {
             discoveredCreateAlias=true;
+          }
+          if(field!==null) {
+            let counts=objectCreateHolderBoundArgumentCounts.get(name);
+            if(!counts) {
+              counts=new Map();
+              objectCreateHolderBoundArgumentCounts.set(name,counts);
+            }
+            const count=objectCreateBoundArgumentCount(property.value);
+            if(count>(counts.get(field)??0))counts.set(field,count);
           }
         }
       }
