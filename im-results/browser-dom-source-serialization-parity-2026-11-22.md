@@ -99,6 +99,22 @@ The inert control confirms the hostname guard performs its intended authorized o
 
 This is a **second transformation category** affected by the missing DOM source-observer guard: explicit hostname-lock injection, not merely identifier or property rewriting. The existing `src/core.js` host-lock preflight already declines when it detects source/stack observability; it needs the DOM source routes admitted to the same proof boundary. A sound immediate repair can raise `TypeError` for this source-observing input with `allowedHosts` rather than silently publish different observable source. This test does **not** demonstrate an unauthorized-host bypass or an improvement to hostility resistance; all browser execution here deliberately occurred on an allowed host. Runtime 2.5× overhead was not measured in this fixture.
 
+## Separately confirmed private property-key source exposure
+
+A fifth focused test harness, [`sims/browser-dom-property-source-parity.js`](../sims/browser-dom-property-source-parity.js), isolates **local private object-property renaming** from identifier and string transforms. It compiles a closed-world inline ESM module containing an unescaped local record `const owner={internalSecret:8}` read through `owner.internalSecret`. Configuration: `mode:'coo'`, `properties:true`, `identifiers:false`, `strings:false`, `closedWorld:true`; the private property has pure numeric value and does not escape through reflection. The program compares a DOM-observed string against split `"internal"+"Secret"`, keeping the lookup token from injecting an artificial direct match.
+
+Frozen source `30f1fc0e15a4b6beee80ea7c1827f43ae0e6501e`, [manual two-platform run 45029044951](https://github.com/FlareZ123/obfs/actions/runs/45029044951), Ubuntu Chromium job `137228334906`, reports:
+
+| Observation | Native `value/sourceMatch` | Direct manually renamed | Actual compiler emitted | Compiler `objects/properties/bindings` |
+| --- | --- | --- | --- | --- |
+| Benign `document.title` | `8/false` | `8/false` | **`8/false`** | **1/1/0** |
+| Source `document.documentElement.outerHTML` | `8/true` | `8/false` | **`8/false`** | **1/1/0** |
+| Source `new XMLSerializer().serializeToString(document)` | `8/true` | `8/false` | **`8/false`** | **1/1/0** |
+
+The negative source-bearing cases failed the **actual native-versus-emitted semantic equality assertion**, after a separate explicit positive private-property transform assertion and exact benign DOM-control parity. The standalone proof deliberately logs its complete three-row results, asserts that only the two source-reader cases mismatch, and finally raises the expected compatibility failure. It is **not** caused by local binding renaming, as `metrics.bindings=0` throughout. This demonstrates that adding DOM source exposure to the existing `remoteSourceObserver` preflight must cover the **private property transformer** and related source-changing passes, in addition to the identifier and hostname-wrapper defects already demonstrated. A benign `document.title` case does retain an actual locally renamed key with unchanged observed behavior in the tested browser environment.
+
+This is **bounded source reflection**, not an attack on cross-file property alias consistency or an assertion that every DOM read must suppress all property renaming. It does not establish additional reconstruction resistance, lock bypass or performance conformance. The deliberate source observation occurs in an inline ESM module under native DOM APIs; external-only script deployments require separate provenance analysis.
+
 ## Threat, compatibility and performance limitations
 
 These are **eleven finite semantic mismatches**, not proof of generalized property analysis unsoundness or of an attacker resisting reverse engineering. Source reflection by the executing classic script is part of its observable program behavior. The measured 8/true versus 8/false difference makes byte-preserving transformation or explicit refusal necessary for this input under the 1:1 parity objective.
