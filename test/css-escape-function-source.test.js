@@ -28,7 +28,15 @@ const privateState='const state={secretField:37};';
 const consumers=[
   ['direct CSS.escape','CSS.escape(inspect)'],
   ['globalThis CSS.escape','globalThis.CSS.escape(inspect)'],
-  ['Reflect.apply CSS.escape','Reflect.apply(CSS.escape,CSS,[inspect])']
+  ['Reflect.apply CSS.escape','Reflect.apply(CSS.escape,CSS,[inspect])'],
+  ['CSS.escape.call','CSS.escape.call(CSS,inspect)'],
+  ['CSS.escape.apply','CSS.escape.apply(CSS,[inspect])'],
+  ['sequence-wrapper CSS.escape','(0,CSS.escape)(inspect)'],
+  ['immutable alias','(()=>{const escape=CSS.escape;return escape(inspect);})()'],
+  ['transitive immutable alias','(()=>{const one=CSS.escape;const two=one;return two(inspect);})()'],
+  ['bound CSS.escape alias','(()=>{const escape=CSS.escape.bind(CSS);return escape(inspect);})()'],
+  ['direct bound CSS.escape call','CSS.escape.bind(CSS)(inspect)'],
+  ['CSS.escape destructuring alias','(()=>{const {escape:selector}=CSS;return selector(inspect);})()']
 ];
 
 for(const [name,expression] of consumers) {
