@@ -30,7 +30,9 @@ The candidate compiler patch at `83b58ff0bc13aaa8fb4e0394350e1fe0dc3739be` extra
 
 The inference is conservative when the destructuring default actually executes, because the binding may then point to another object. Tracking that possible alias can decline eligible encoding, preserving correctness. The scanner still uses source-spelled, flow-insensitive may-alias sets; no complete scope-, realm- or execution-order-sensitive proof is claimed.
 
-A post-fix full two-platform test is [run 45057060238](https://github.com/FlareZ123/obfs/actions/runs/45057060238), source `83b58ff0bc13aaa8fb4e0394350e1fe0dc3739be`, pending at this report revision.
+Post-fix [full run 45057060238](https://github.com/FlareZ123/obfs/actions/runs/45057060238) at `83b58ff0bc13aaa8fb4e0394350e1fe0dc3739be` passed **Ubuntu and Windows**, including all 18 new native/emitted Node cases, strict project/external JSDoc, normal performance steps and existing Ubuntu Chromium. A subsequent exact-source [full run 45057670374](https://github.com/FlareZ123/obfs/actions/runs/45057670374) at `09643afd0638f2fc0a5d99a7676d64c910588c6e` also passed **both operating systems**, including two newly added String/Number defaulted-destructuring cases in real Chromium (22 total `decoder-object-create-aliased-browser.js` cases). This is same-source integration of the repair with the extra browser fixtures, still on an unmerged draft branch.
+
+An independent [browser-only run 45057494888](https://github.com/FlareZ123/obfs/actions/runs/45057494888) at the same `09643afd` code failed the `sco-spelling-mask-browser.js` source-only mask extractor's `report.matched` assertion; that fixture contains no defaulted descriptor destructuring. The full Node/Chromium validation independently passed. The browser-only failure is retained as an unresolved distinct diagnostic and is not evidence of defaulted-pattern regression.
 
 ## Integration and limits
 
