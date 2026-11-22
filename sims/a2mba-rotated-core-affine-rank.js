@@ -78,6 +78,67 @@ function nonlinearResidualRank(fn, randomSamples=4096) {
   return {rank,observations,seed:'0x71a3c9f5'};
 }
 
+
+/**
+ * Measure residual rank over the entire four-word 128-bit input space.
+ * @param {(a:number,b:number,c:number,d:number)=>number} fn
+ * @param {number} [randomSamples]
+ * @returns {ResidualRank}
+ */
+function nonlinearResidualRank128(fn,randomSamples=4096) {
+  const zero=fn(0,0,0,0)|0;
+  const axis=Array.from({length:128},(_,position)=>{
+    const input=[0,0,0,0];
+    input[position>>>5]=1<<(position&31);
+    return (fn(input[0],input[1],input[2],input[3])^zero)|0;
+  });
+  /** @type {number[]} */
+  const basis=Array(32).fill(0);
+  let rank=0,observations=0;
+  /** @param {[number,number,number,number]} input */
+  function observe(input) {
+    let interpolated=zero;
+    for(let word=0;word<4;word++){
+      for(let bit=0;bit<32;bit++) {
+        if((input[word]>>>bit)&1)interpolated^=axis[word*32+bit];
+      }
+    }
+    let residual=(fn(...input)^interpolated)>>>0;
+    observations++;
+    for(let bit=31;bit>=0;bit--){
+      if(!((residual>>>bit)&1))continue;
+      if(basis[bit])residual^=basis[bit];
+      else {
+        basis[bit]=residual;
+        rank++;
+        return;
+      }
+    }
+  }
+  for(let first=0;first<128;first++){
+    for(let second=first+1;second<128;second++){
+      /** @type {[number,number,number,number]} */
+      const input=[0,0,0,0];
+      input[first>>>5]|=1<<(first&31);
+      input[second>>>5]|=1<<(second&31);
+      observe(input);
+    }
+  }
+  let state=0x71a3c9f5|0;
+  for(let trial=0;trial<randomSamples;trial++){
+    /** @type {[number,number,number,number]} */
+    const input=[0,0,0,0];
+    for(let word=0;word<4;word++){
+      state^=state<<13;
+      state^=state>>>17;
+      state^=state<<5;
+      input[word]=state|0;
+    }
+    observe(input);
+  }
+  return {rank,observations,seed:'0x71a3c9f5'};
+}
+
 /** @param {number} x @returns {number} */
 function rankOneShear(x) {
   return (x^(((x&1)&&((x>>>1)&1))?4:0))|0;
@@ -90,7 +151,7 @@ function rankTwoShear(x) {
 
 /**
  * @returns {{method:string,controls:{rankOne:ResidualRank,rankTwo:ResidualRank},
- *   baseline:ResidualRank,degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
+ *   baseline:ResidualRank,fullBaseline:ResidualRank,degenerateSlice:ResidualRank,rotations:Array<{rotation:number,rank:number,checked:number}>}}
  */
 function runScreen() {
   const one=nonlinearResidualRank(rankOneShear);
@@ -99,6 +160,8 @@ function runScreen() {
   assert.equal(two.rank,2);
   const plain=projectRegion(nativeRegion32);
   const baseline=nonlinearResidualRank(plain);
+  const fullBaseline=nonlinearResidualRank128(nativeRegion32);
+  assert.equal(fullBaseline.rank,32);
   const degenerateSlice=nonlinearResidualRank(x=>nativeRegion32(x,0,0,0));
   assert.equal(degenerateSlice.rank,0);
   /** @type {Array<{rotation:number,rank:number,checked:number}>} */
@@ -115,11 +178,12 @@ function runScreen() {
     }
     const measured=nonlinearResidualRank(candidate);
     assert.deepEqual(measured,baseline);
+    assert.deepEqual(nonlinearResidualRank128(makeRotatedCore32(rotation)),fullBaseline);
     rotations.push({rotation,rank:measured.rank,checked});
   }
   return {method:'GF(2) rank of F(x) xor affine interpolant on public 32-bit affine slice',
-    controls:{rankOne:one,rankTwo:two},baseline,degenerateSlice,rotations};
+    controls:{rankOne:one,rankTwo:two},baseline,fullBaseline,degenerateSlice,rotations};
 }
 
 if(require.main===module)console.log(JSON.stringify(runScreen(),null,2));
-module.exports={affineInputs,projectRegion,nonlinearResidualRank,runScreen};
+module.exports={affineInputs,projectRegion,nonlinearResidualRank,nonlinearResidualRank128,runScreen};
