@@ -3840,9 +3840,13 @@ function collectExportedCallableNodes(ast) {
           }
         }
       }
-    } else if(statement.type==='ExportDefaultDeclaration'&&
-        statement.declaration.type==='Identifier') {
-      exported.add(statement.declaration.name);
+    } else if(statement.type==='ExportDefaultDeclaration') {
+      if(statement.declaration.type==='Identifier') {
+        exported.add(statement.declaration.name);
+      } else if((statement.declaration.type==='FunctionDeclaration'||
+          statement.declaration.type==='ClassDeclaration')&&statement.declaration.id) {
+        exported.add(statement.declaration.id.name);
+      }
     }
   }
 
@@ -4078,10 +4082,9 @@ function collectExportedCallableNodes(ast) {
        statement.declaration.type!=='Identifier')markValue(statement.declaration,0);
   }
 
-  // CommonJS has no static export declarations. Recognize direct public
-  // assignments and common Object.assign/defineProperty publication forms.
-  // This protects callable source exposed by require() just as ESM exports
-  // are protected for importers.
+  // ESM and CommonJS export aggregates may acquire callable members after
+  // their initial declaration. Follow those source-ordered mutations and
+  // simple object aliases, in addition to direct exported initializers.
   /** @param {AstNode} node @returns {boolean} */
   function isModuleExports(node) {
     if(node.type!=='MemberExpression')return false;
@@ -4099,7 +4102,7 @@ function collectExportedCallableNodes(ast) {
       node.type==='MemberExpression'&&isCjsExportObject(node.object);
   }
   /** @type {Set<string>} */
-  const exportedObjectBindings=new Set(['exports']);
+  const exportedObjectBindings=new Set([...exported,'exports']);
   walk(ast,node=>{
     if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
        node.init&&(isCjsExportObject(node.init)||
