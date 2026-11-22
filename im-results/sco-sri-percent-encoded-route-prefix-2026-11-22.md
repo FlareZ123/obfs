@@ -1,6 +1,6 @@
 # SCO source-byte integrity under percent-encoded route prefixes
 
-**Status:** Red control confirmed; repaired candidate under cross-browser and two-platform validation.
+**Status:** Source-pinned red/green SCO browser compatibility repair.
 **Impact:** SRI compatibility for valid `routePrefix` spellings, including percent-encoded reserved path bytes.
 
 ## Mechanism
@@ -25,6 +25,6 @@ The scope of valid route-path aliases is exercised by `/obfs%23/`, `/obfs%25/`, 
 
 ## Status and limits
 
-The updated browser workflow was dispatched after this report's first draft; only pin completed evidence to its exact source SHA. This test does not show that arbitrary reverse-proxy rewrites, URL decoding performed by intermediate infrastructure, or unknown source-document mounts are modeled. SRI-constrained source is distributed in original bytes; this necessarily limits source confidentiality and does not establish the overarching tamper-resistance objective. The global release remains **BLOCKED**.
+[Green manual browser workflow 44977475241](https://github.com/FlareZ123/obfs/actions/runs/44977475241) **passed** all Chrome and strict JSDoc gates at source SHA `746cf4c02c77bef0e2868abb747e8387c4db62fd`, including the SCO native/protected/mutated HTTP-browser comparison and encoded mount assertions. No full Linux/Windows source-coincident matrix result is asserted yet. This test does not show that arbitrary reverse-proxy rewrites, URL decoding performed by intermediate infrastructure, or unknown source-document mounts are modeled. SRI-constrained source is distributed in original bytes; this necessarily limits source confidentiality and does not establish the overarching tamper-resistance objective. The global release remains **BLOCKED**.
 
 Reference: [WHATWG URL Standard](https://url.spec.whatwg.org/), path percent encoding and URL path serialization.
