@@ -86,7 +86,7 @@ test('COO and SNO full compiler output can be replaced by a public native module
 
 test('native rebuild declines unrelated top-level effects even with valid emitted modules',()=>{
   const lowered=lowerWasmI32Functions(source,'commonjs',{
-    seed:'no-discarded-effect',names:['first','second']
+    seed:'no-discarded-effect',names:['firstKernel','secondKernel']
   });
   assert.equal(lowered.functions,2);
   for(const extra of [
@@ -98,7 +98,7 @@ test('native rebuild declines unrelated top-level effects even with valid emitte
 
 test('native reconstruction refuses an embedded Wasm constructor with extra initializer work',()=>{
   const lowered=lowerWasmI32Functions(source,'commonjs',{
-    seed:'no-unproved-initializer',names:['first','second']
+    seed:'no-unproved-initializer',names:['firstKernel','secondKernel']
   });
   assert.equal(lowered.functions,2);
   const polluted=lowered.code.replace('.exports.f;','.exports.f||0;');
