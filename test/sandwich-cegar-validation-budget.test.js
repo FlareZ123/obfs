@@ -71,6 +71,7 @@ test('a real nonlinear target rejects an under-validated affine mask',()=>{
 
 
 test('default defect samples match explicit 32 and reject invalid counts',()=>{
+  /** @param {number} x @returns {number} */
   const oracle=x=>x>>>0;
   const target=0x4ea0376d;
   const implicit=invertLinearSandwich(oracle,target,0x40aabb11,
