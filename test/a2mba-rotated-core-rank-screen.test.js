@@ -20,6 +20,6 @@ test('rotated-core public 32-bit projection has full rank but preserves native s
   assert.equal(result.fullBaseline.observations,12224);
   assert.equal(result.degenerateSlice.rank,0);
   assert.deepEqual(result.rotations.map(record=>record.rotation),[1,8,16,31]);
-  assert.ok(result.rotations.every(record=>record.rank===32&&record.checked===10000));
+  assert.ok(result.rotations.every(record=>record.rank===32&&record.checked===10000&&record.fullChecked===12353));
   assert.equal(nonlinearResidualRank(x=>x).rank,0);
 });
