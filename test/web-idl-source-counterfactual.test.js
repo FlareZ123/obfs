@@ -70,7 +70,7 @@ test('top-level guarded transformation prevents selected Wasm output in the same
   }],{
     mode:'sno',seed:'guarded-web-idl-wasm',strings:false,
     experimentalWasmI32:{'entry.cjs':['f']}
-  }),/Wasm i32 requires|declined/i);
+  }),/Wasm i32 requires|declined|source-exposed callable/i);
 });
 
 for(const [name,body] of [
