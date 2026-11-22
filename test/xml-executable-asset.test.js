@@ -102,3 +102,18 @@ test('SCO serves ordinary XML with declared browser XML MIME and exact bytes',as
       server.close(error=>error?reject(error):resolve(undefined)));
   }
 });
+
+test('non-executable XML namespaces may carry script and style data as text',()=>{
+  const doc=xml('<d:inventory xmlns:d="urn:obfs:inventory">'+
+    '<d:script>plain text payload in an unrelated XML namespace</d:script>'+
+    '<d:style>/*# sourceMappingURL=opaque-data.map */</d:style>'+
+    '<d:record onclick="literal-data" href="javascript:literal-data">safe record</d:record>'+
+    '</d:inventory>');
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+    const result=compile(doc,mode);
+    assert.notEqual(result.files[0].code,result.source,
+      mode+': unrelated XML namespace data must retain positive rewrite yield');
+    assert.deepEqual(result.files[1].code,doc,
+      mode+': non-executable XML data must remain byte-for-byte unchanged');
+  }
+});
