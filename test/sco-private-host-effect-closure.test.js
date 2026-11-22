@@ -575,3 +575,47 @@ test('Unrelated sibling binding cannot disguise a free typeof host reference',()
       /SCO private static dependency has unproved free typeof reference/u);
   }
 });
+
+
+test('Relocated composite typeof expressions refuse evaluated free host references',()=>{
+  const cases=[
+    'return typeof (0,externalBridge);',
+    'return typeof (externalBridge,0);',
+    'return typeof externalBridge.value;',
+    'return typeof externalBridge?.value;',
+    'return typeof (externalBridge||null);',
+    'return typeof ({captured:externalBridge});'
+  ];
+  for(const body of cases){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-typeof-composite-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved free typeof reference/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved free typeof reference/u,
+        body+' transitive='+transitive);
+    }
+  }
+});
+
+test('Composite typeof local values preserve admitted direct and private-graph forms',()=>{
+  const safe=[
+    'const local=41;return typeof (local,1);',
+    'return typeof ({captured:41}).captured;',
+    'function own(value){return value;}return typeof (own,41);'
+  ];
+  for(const body of safe){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-composite-owned-20261122',privateNames:['protectedOp']}
+    ),body);
+    for(const transitive of [false,true]){
+      assert.deepEqual(partitionGraph(body,transitive).privateNames,['protectedOp']);
+    }
+  }
+});
