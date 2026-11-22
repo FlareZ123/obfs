@@ -49,3 +49,17 @@ test('SCO keeps the existing direct transparent Blob construction positive',()=>
     "return new Blob(['A'],{endings:'transparent'}).size;"
   ).privateNames,['protectedOp']);
 });
+
+test('SCO refuses constructor recapture from a Blob.slice() result',()=>{
+  assert.equal(new Blob([]).slice().constructor,Blob);
+  const body="const Ctor=new Blob([]).slice().constructor;"+
+    "const part=new Ctor(['A\\nB'],{endings:'native'});"+
+    "return Array.from(new Uint8Array(await part.arrayBuffer()));";
+  assert.throws(()=>compile(body),TypeError);
+});
+
+test('SCO permits an ordinary stable scalar size from Blob.slice()',()=>{
+  assert.deepEqual(compile(
+    "return new Blob(['A']).slice(0,1).size;"
+  ).privateNames,['protectedOp']);
+});
