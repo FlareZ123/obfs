@@ -102,8 +102,54 @@ const cases=[
     body:'globalThis.opaqueAudit=value=>JSON.stringify(value);'+
       'console.log(globalThis.opaqueAudit(bag));',
     refuse:true
+  },
+  {
+    name:'Map storage and retrieval preserve observable owner spelling',
+    body:'const index=new Map([["owner",bag]]);'+
+      'console.log(Reflect.ownKeys(index.get("owner")).join(","));',
+    refuse:true
+  },
+  {
+    name:'WeakRef dereference retains externally visible owner keys',
+    body:'const handle=new WeakRef(bag);'+
+      'console.log(Object.keys(handle.deref()).join(","));',
+    refuse:true
+  },
+  {
+    name:'Promise resolution callback reflects the same owned object',
+    body:'Promise.resolve(bag).then(value=>console.log(Object.keys(value).join(",")));',
+    refuse:true
+  },
+  {
+    name:'rest parameter forwards an owner into a reflecting caller',
+    body:'function carry(...values){return values[0];}'+
+      'console.log(Object.keys(carry(bag)).join(","));',
+    refuse:true
+  },
+  {
+    name:'implicit arguments forwards an owner into a reflecting caller',
+    body:'function carry(){return arguments[0];}'+
+      'console.log(Reflect.ownKeys(carry(bag)).join(","));',
+    refuse:true
+  },
+  {
+    name:'Array.of transport retains owner identity and key names',
+    body:'const values=Array.of(bag);'+
+      'console.log(Object.keys(values[0]).join(","));',
+    refuse:true
+  },
+  {
+    name:'nested object alias retains reflected key names',
+    body:'const holder={item:bag};'+
+      'console.log(Reflect.ownKeys(holder.item).join(","));',
+    refuse:true
+  },
+  {
+    name:'Reflect.apply forwards an object to reflective native builtin',
+    body:'console.log(Reflect.apply(Object.keys,Object,[bag]).join(","));',
+    refuse:true
   }
-];
+]; 
 
 for(const [index,fixture] of cases.entries()) {
   test('ESM owner API and reflection parity: '+fixture.name,async()=>{
