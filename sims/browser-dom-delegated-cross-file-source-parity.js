@@ -58,13 +58,12 @@ async function main(){
     assert.ok(typeof emitEntry.code==='string');
     assert.ok(typeof emitReader.code==='string');
     variants.push({sample,entryMetrics:emitEntry.metrics,readerMetrics:emitReader.metrics});
-    for(const [kind,entryCode,readerCode] of [
-      /** @type {Array<['native'|'emitted',string,string]>} */
-      ([
-        ['native',entry,sample.reader],
-        ['emitted',emitEntry.code,emitReader.code]
-      ])
-    ]){
+    /** @type {Array<['native'|'emitted',string,string]>} */
+    const deployments=[
+      ['native',entry,sample.reader],
+      ['emitted',emitEntry.code,emitReader.code]
+    ];
+    for(const [kind,entryCode,readerCode] of deployments){
       const prefix='/'+sample.label+'/'+kind;
       routes.set(prefix+'/index.html',{type:'text/html',body:html(entryCode)});
       routes.set(prefix+'/reader.mjs',{type:'text/javascript',body:readerCode});
