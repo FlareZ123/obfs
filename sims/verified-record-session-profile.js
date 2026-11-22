@@ -15,6 +15,34 @@ const {ablate,withOwnKeyCalls,withNullPrototypeRecord,withCapturedStringArgv}=
 /** @typedef {{path:string,code:string,sourceType:'module'}} ModuleFile */
 
 /**
+ * Construct a distinct, source-preserving application contract. The public
+ * reader wrappers no longer spell private object keys in their observable
+ * Function#toString bodies; internal direct-call-only helpers still do.
+ * This is an explicit input-program change, measured against its own native
+ * implementation rather than the frozen six-module reference.
+ * @param {ModuleFile[]} files
+ * @returns {ModuleFile[]}
+ */
+function withPrivateReaderHelpers(files) {
+  return files.map(file=>{
+    if(file.path!=='private.mjs')return file;
+    const beforeOffset='export function readOffset(owner){return owner.secretOffset;}';
+    const beforeSalt='export const readSalt=owner=>owner["secretSalt"];';
+    assert.ok(file.code.includes(beforeOffset)&&file.code.includes(beforeSalt),
+      'Expected frozen private reader shape');
+    return {...file,code:file.code.replace(beforeOffset,
+      'function secretOffsetOf(owner){return owner.secretOffset;}\\n'+
+      '/** @param {EngineKeys} owner */\\n'+
+      'export function readOffset(owner){return secretOffsetOf(owner);}')
+      .replace(beforeSalt,
+      'const secretSaltOf=owner=>owner["secretSalt"];\\n'+
+      '/** @param {EngineKeys} owner */\\n'+
+      'export const readSalt=owner=>secretSaltOf(owner);')};
+  });
+}
+
+
+/**
  * @param {ModuleFile[]} files
  * @param {string} folder
  * @returns {Promise<void>}
@@ -76,7 +104,7 @@ async function main() {
     const withoutObservers=ablate(original,'both');
     const unguarded=variant==='own-only'?withOwnKeyCalls(withoutObservers):
       withNullPrototypeRecord(withoutObservers);
-    const input=withCapturedStringArgv(unguarded);
+    const input=withPrivateReaderHelpers(withCapturedStringArgv(unguarded));
     const transformed=obfuscateFiles(input,{
       mode:'coo',closedWorld:true,seed:SEED,
       identifiers:true,properties:true,strings:false
