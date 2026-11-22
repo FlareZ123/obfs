@@ -1,6 +1,7 @@
 'use strict';
 
 const assert=require('node:assert/strict');
+const {randomInt}=require('node:crypto');
 const {
   inverseOfColumns,makeFixture
 }=require('./sparse-triangular-fixedpoint-inversion');
@@ -21,17 +22,18 @@ const {
  *
  * @param {(input:number)=>number} oracle
  * @param {number} target
- * @param {number} randomSeed seed solely for attacker anchor selection
+ * @param {number|(()=>number)} randomSeed seed or fresh uniform word supplier
  * @param {number} [maxBases]
+ * @param {boolean} [initialZero] include a fixed canonical first basis for A/B comparisons
  * @returns {{value:number,queries:number,basesTried:number,
  *   corrections:number,anchor:number,
  *   failedBases:Array<{anchor:number,reason:string,queries:number}>}}
  */
-function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
+function invertByReanchoring(oracle,target,randomSeed,maxBases=4,initialZero=true) {
   if(!Number.isSafeInteger(maxBases)||maxBases<1||maxBases>16) {
     throw new RangeError('maxBases must be 1..16');
   }
-  const draw=makeRng(randomSeed);
+  const draw=typeof randomSeed==='function'?randomSeed:makeRng(randomSeed);
   /** @type {Map<number,number>} */
   const seen=new Map();
   /** @param {number} input @returns {number} */
@@ -46,7 +48,7 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
   /** @type {Array<{anchor:number,reason:string,queries:number}>} */
   const failedBases=[];
   for(let basis=0;basis<maxBases;basis++) {
-    const anchor=basis===0?0:draw();
+    const anchor=basis===0&&initialZero?0:draw();
     const base=query(anchor);
     const columns=Array.from({length:32},(_,bit)=>
       u32(query(u32(anchor^(2**bit)))^base));
@@ -68,6 +70,20 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
     failedBases.push({anchor,reason:'no-target-equality',queries:seen.size});
   }
   throw new Error('No successful reanchored inversion after '+maxBases+' bases');
+}
+
+/**
+ * A fully random uniform-anchor policy, suitable for the independent-draw
+ * probability bound. Node crypto.randomInt(2**32) is rejection-sampled
+ * without modulo bias; there is no deterministic anchor 0 in this policy.
+ *
+ * @param {(x:number)=>number} oracle
+ * @param {number} target
+ * @param {number} [maxBases]
+ * @returns {ReturnType<typeof invertByReanchoring>}
+ */
+function invertWithUniformAnchors(oracle,target,maxBases=4) {
+  return invertByReanchoring(oracle,target,()=>randomInt(2**32),maxBases,false);
 }
 
 /**
@@ -295,4 +311,5 @@ function runEvidence() {
     rows,dense:denseControls()};
 }
 if(require.main===module)console.log('SPARSE_REANCHOR '+JSON.stringify(runEvidence()));
-module.exports={invertByReanchoring,poisonCanonicalAnchor,denseControls,runEvidence};
+module.exports={invertByReanchoring,invertWithUniformAnchors,
+  poisonCanonicalAnchor,denseControls,runEvidence};
