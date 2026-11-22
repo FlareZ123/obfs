@@ -7,6 +7,8 @@ const path=require('node:path');
 const {atomicWrite}=require('../src/atomic');
 const {createMatchedBlindAffineChallenge}=require('../sims/llm-matched-affine-challenge');
 const {attackPublishedSource,minifiedOffset}=require('../sims/llm-matched-affine-static-attack');
+const {recover}=require('../sims/polyvariant-affine-static-recover');
+const {recoverSymbolicAffine}=require('../sims/polyvariant-affine-symbolic-recover');
 
 for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
   test(mode+' same-source blind-family generated and minified arms recover statically',async()=>{
@@ -119,16 +121,25 @@ test('two samples per public switch arm are not universal affine equivalence pro
         'case 1:{return ((_ap_input_witness+(_ap_input_witness&-4))|0);}'+
       '}}'
   ).join('\n');
-  const recovered=attackPublishedSource(source);
-  assert.equal(recovered.kind,'generated');
-  assert.deepEqual(recovered.offsets,{round1:0,round2:0,round3:0});
-  const [actual,clone]=await Promise.all([
-    source,recovered.reconstructedSource
-  ].map(code=>import('data:text/javascript;charset=utf-8,'+encodeURIComponent(code))));
-  assert.equal(actual.round1(2),clone.round1(2));
-  assert.equal(actual.round1(3),clone.round1(3));
-  assert.notEqual(actual.round1(4),clone.round1(4),
-    'An arbitrary nonlinear public source can fool finite local parity sampling');
+  const oldFinite=recover(source,'round1','module');
+  assert.equal(oldFinite.offset,0);
+  assert.throws(()=>attackPublishedSource(source),
+    /Unproved branch-local state|Unexpected case body/u,
+    'Grammar-bounded symbolic recovery must refuse this arbitrary nonlinear body');
+  const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
+  assert.equal(actual.round1(4),8);
+  assert.equal((4+oldFinite.offset)|0,4,
+    'The previous sample-fit candidate is observably different at input four');
+});
+
+test('symbolic generated-case proof recovers the frozen two-path CJS output',async()=>{
+  const source=await fs.readFile(path.join(__dirname,
+    '../examples/polyvariant-affine/obfuscated.cjs'),'utf8');
+  const exact=recoverSymbolicAffine(source,'guardedTotal','commonjs');
+  assert.equal(exact.cases,2);
+  assert.equal(exact.offset,262);
+  const original=recover(source,'guardedTotal','commonjs');
+  assert.equal(exact.offset,original.offset);
 });
 
 test('symbolic static minified parser refuses unnormalized or nonaffine expressions',()=>{
