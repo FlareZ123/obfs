@@ -993,11 +993,24 @@ function realmStateObservation(body,checkHostConfiguration=false){
       expression.type==='Identifier'&&blobInstances.has(expression.name);
   }
   walk(body,(node,parent,key,ancestors)=>{
-    // Blob instances expose their original host constructor through an
-    // inherited constructor property. Recovering it can bypass options
-    // checks through either direct member access or destructuring aliases.
+    // A local Blob instance can leak its constructor to callbacks, containers,
+    // proxies or other first-class consumers. Only a direct member receiver,
+    // a plain local alias, or typeof can be followed by this bounded proof.
+    if(checkHostConfiguration&&localBlobInstance(node)){
+      const directReceiver=parent?.type==='MemberExpression'&&parent.object===node;
+      const simpleAlias=parent?.type==='VariableDeclarator'&&(
+        parent.id===node||parent.init===node&&parent.id.type==='Identifier')||
+        parent?.type==='AssignmentExpression'&&parent.right===node&&
+          parent.left.type==='Identifier';
+      const harmlessTypeof=parent?.type==='UnaryExpression'&&
+        parent.operator==='typeof'&&parent.argument===node;
+      if(!directReceiver&&!simpleAlias&&!harmlessTypeof)configurationTouched=true;
+    }
+    // Even when the instance remains local, reading its constructor or an
+    // unproved computed property can recover the host-specific constructor.
     if(checkHostConfiguration&&node.type==='MemberExpression'&&
-       keyName(node)==='constructor'&&localBlobInstance(node.object)){
+       localBlobInstance(node.object)&&
+       (keyName(node)===null||keyName(node)==='constructor')){
       configurationTouched=true;
     }
     if(checkHostConfiguration&&node.type==='VariableDeclarator'&&
