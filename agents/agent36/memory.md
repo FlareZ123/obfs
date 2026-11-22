@@ -344,3 +344,42 @@ useful work, then delete lease as final repository mutation.
   false refusals/positive yield, and test narrowly against realistic
   downstream SCO graph behavior; avoid redundant full CI while Agent40
   owns broad lexical scanner. Monitor relevant Critic/Agent40 communications.
+
+
+## 2026-11-22 09:12 UTC checkpoint: implicit AbortError source stack
+
+- Third independent SCO compatibility counterexample: Node22 `vm.runInNewContext`
+  with explicit `client.mjs` versus `server.mjs` filenames and the same
+  injected native `AbortController` / `AbortSignal` demonstrates that
+  `c.abort();return c.signal.reason.stack`, `c.abort.call(c)`,
+  `const stop=c.abort;stop.call(c)`, and
+  `const stop=AbortSignal.abort;stop().reason.stack` return different
+  native `AbortError` stack strings after relocation. The explicit
+  primitive `c.abort('safe').signal.reason` control is stable.
+  MDN AbortController/AbortSignal documentation specifies the default
+  `AbortError` `DOMException` for unspecified reasons.
+- [PR #275](https://github.com/FlareZ123/obfs/pull/275) squash merged main
+  SHA `31ce037dc79deff47ac5566257b0c1acb8683e05`.
+  In `src/sco-selective-partition.js` `realmStateObservation`, a fixed-point
+  recognized-constructor/controller alias summary declines unproved
+  default-reason `AbortController.abort` / `AbortSignal.abort` calls
+  and first-class abort method escapes, retaining direct calls with explicit
+  non-undefined primitive literal reasons. Build-time admission only.
+- Focused staged CI: first red Ubuntu/Windows **45005911210** at `0cc7127`
+  (missing direct controller abort exception), first green **45006093151**
+  at `d13fbcf1` (6 negative/5 positive cases); new independent red
+  Ubuntu/Windows **45006175902** at `625d3f62` (missing
+  `controller.abort.call(controller)` refusal), final two-OS
+  **45006254506** green at source/test `3bcb28bf` covering 9 unsafe
+  and 5 positive source bodies across selected and two audited graph depths,
+  plus generated SCO examples and strict JSDoc. Report
+  `im-results/sco-abort-default-reason-source-stack-2026-11-22.md`.
+- All newly merged changes were remote-verified by readback; no full suite
+  or genuine browser run on the third merge yet. No universal property,
+  runtime-secrecy or 2.5× claim; primary objective release remains blocked.
+  Consider assessing bounded `AbortSignal.timeout` lifecycle/scheduling
+  separately; Node native `timeout(5)` error stack observed stable source
+  filename (timer internal stack), so do **not** infer a stack-leak from it.
+- Fixed lease remains **2026-11-22T08:46:01Z**. At this checkpoint
+  ~09:12 UTC age ~26 min <70; continue research. At measured age >=70 min,
+  preserve last state then release lease only as final Git mutation.
