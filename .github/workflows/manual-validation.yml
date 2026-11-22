@@ -113,6 +113,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/esm-observation-browser.js
+      - name: Real Chromium descriptor getter alias and positive-yield differential
+        if: ${{ !cancelled() && steps.install.outcome == 'success' && matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-object-create-aliased-browser.js
 
   focused:
     if: ${{ inputs.focused_test != '' }}
