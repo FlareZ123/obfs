@@ -119,8 +119,10 @@ respective build locations. A missing or distinct resolved file causes a
 prepublication refusal under the compiler's output lock. A positive
 shared-package control emits byte-identical launcher and source to the
 same-seed build without the audit, adding no application runtime work.
-The scanner does not cover aliases, runtime-generated specifiers or
-ESM imports. It conservatively declines direct calls under an emitted
+Known lexical aliases and computed direct `require` arguments are
+conservatively refused; independently constructed resolver functions,
+reflective import paths and ESM imports remain outside the audit. It
+also declines direct calls under an emitted
 `package.json` because prepublication Node resolution cannot see that
 future package scope. Even an identical resolved package can observe
 `module.parent.filename` and return different values when relocated;
