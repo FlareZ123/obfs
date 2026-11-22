@@ -1967,6 +1967,9 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   // Function#toString bytes can be read back through getAttribute.
   const domDocumentRoots=new Set(['document']);
   const domElementRoots=new Set();
+  // Local functions that may return a native Element carry that receiver
+  // capability across one ordinary call boundary.
+  const domElementFactories=new Set();
   /** @param {AstNode|null|undefined} candidate @returns {boolean} */
   function isDomDocument(candidate) {
     return Boolean(candidate && (candidate.type==='Identifier' &&
@@ -1978,6 +1981,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   function isDomElement(candidate) {
     if(!candidate)return false;
     if(candidate.type==='Identifier')return domElementRoots.has(candidate.name);
+    if(candidate.type==='CallExpression'&&candidate.callee.type==='Identifier'&&
+       domElementFactories.has(candidate.callee.name))return true;
     if(candidate.type==='MemberExpression'&&isDomDocument(candidate.object))
       return ['body','head','documentElement'].includes(memberName(candidate)??'');
     if(candidate.type!=='CallExpression'||candidate.callee.type!=='MemberExpression'||
@@ -1990,6 +1995,23 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     domChanged=false;
     walk(ast,node=>{
+      const factory=node.type==='FunctionDeclaration' ? node :
+        node.type==='VariableDeclarator' &&
+        ['FunctionExpression','ArrowFunctionExpression'].includes(node.init?.type??'') ?
+          node.init:null;
+      const factoryName=node.type==='FunctionDeclaration'?node.id?.name:
+        node.type==='VariableDeclarator'&&node.id.type==='Identifier'?node.id.name:null;
+      if(factory && factoryName && !domElementFactories.has(factoryName)) {
+        const body=factory.body;
+        const possible=body.type==='BlockStatement' ?
+          body.body.some((/** @type {AstNode} */ stmt)=>
+            stmt.type==='ReturnStatement'&&isDomElement(stmt.argument)) :
+          isDomElement(body);
+        if(possible) {
+          domElementFactories.add(factoryName);
+          domChanged=true;
+        }
+      }
       const variable=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
         node.id:node.type==='AssignmentExpression'&&node.operator==='='&&
         node.left.type==='Identifier'?node.left:null;
@@ -2036,15 +2058,28 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     domSetterChanged=false;
     walk(ast,node=>{
-      const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
-        node.id:node.type==='AssignmentExpression'&&node.operator==='='&&
-        node.left.type==='Identifier'?node.left:null;
+      const pattern=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
       const value=node.type==='VariableDeclarator'?node.init:
         node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
-      if(!binding||!value)return;
+      if(pattern?.type==='ObjectPattern' && isDomElement(value)) {
+        for(const property of pattern.properties) {
+          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          const key=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const count=key==='setAttribute'?2:
+            key==='setAttributeNS'||property.computed&&key===null?3:0;
+          const alias=property.value.name;
+          if(count>(domAttributeSetterAliases.get(alias)??0)) {
+            domAttributeSetterAliases.set(alias,count);
+            domSetterChanged=true;
+          }
+        }
+      }
+      if(pattern?.type!=='Identifier'||!value)return;
       const arity=domSetterInputs(value);
-      if(arity>(domAttributeSetterAliases.get(binding.name)??0)) {
-        domAttributeSetterAliases.set(binding.name,arity);
+      if(arity>(domAttributeSetterAliases.get(pattern.name)??0)) {
+        domAttributeSetterAliases.set(pattern.name,arity);
         domSetterChanged=true;
       }
     });
