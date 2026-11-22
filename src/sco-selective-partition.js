@@ -1018,8 +1018,11 @@ function realmStateObservation(body,checkHostConfiguration=false){
       const primitiveField=member==='size'||member==='type';
       // An extracted native method is a first-class Function value whose
       // source spelling and identity belong to the original host realm.
-      // Its direct invocation retains the established narrower method proof.
-      if(member===null||member==='constructor'||!directCall&&!primitiveField){
+      // Its direct invocation retains the established narrower method proof,
+      // except .stream(), which creates a different native host object whose
+      // constructor and method source can still escape after direct invocation.
+      if(member===null||member==='constructor'||member==='stream'||
+         !directCall&&!primitiveField){
         configurationTouched=true;
       }
     }
