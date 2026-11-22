@@ -234,6 +234,8 @@ function denseControls() {
  * @returns {{rareRecovered:number,controlRecovered:number,heldouts:number,
  *   poisonedSources:number,
  *   rows:Array<{seed:number,sourceSeed:number,canonicalMismatches:number,
+ *   canonicalRankFull:boolean,poisonInputOddParity:boolean,
+ *   rareAnchorClean:boolean,controlAnchorClean:boolean,
  *   directRare:ReturnType<typeof directCanonicalAttempt>,
  *   directControl:ReturnType<typeof directCanonicalAttempt>,
  *   rare:{queries:number,basesTried:number,corrections:number},
@@ -243,6 +245,8 @@ function denseControls() {
  */
 function runEvidence() {
   /** @type {Array<{seed:number,sourceSeed:number,canonicalMismatches:number,
+   *   canonicalRankFull:boolean,poisonInputOddParity:boolean,
+   *   rareAnchorClean:boolean,controlAnchorClean:boolean,
    *   directRare:ReturnType<typeof directCanonicalAttempt>,
    *   directControl:ReturnType<typeof directCanonicalAttempt>,
    *   rare:{queries:number,basesTried:number,corrections:number},
@@ -262,6 +266,8 @@ function runEvidence() {
     assert.equal(rare.value,fixture.secret,'Targeted rare source');
     assert.equal(control.value,fixture.control,'Ordinary source');
     assert.ok(rare.queries<=4*66&&control.queries<=4*66);
+    assert.equal(fixture.canonicalRankFull,!fixture.poisonInputOddParity);
+    assert.equal(directRare.status==='no-target-equality',!fixture.canonicalRankFull);
     rareRecovered++;
     controlRecovered++;
     const random=makeRng(u32(0x84f2b5a3+index));
@@ -274,6 +280,10 @@ function runEvidence() {
     }
     rows.push({seed,sourceSeed:fixture.sourceSeed,
       canonicalMismatches:fixture.canonicalMismatches,
+      canonicalRankFull:fixture.canonicalRankFull,
+      poisonInputOddParity:fixture.poisonInputOddParity,
+      rareAnchorClean:fixture.cleanAt(rare.anchor),
+      controlAnchorClean:fixture.cleanAt(control.anchor),
       directRare,directControl,
       rare:{queries:rare.queries,basesTried:rare.basesTried,corrections:rare.corrections},
       control:{queries:control.queries,basesTried:control.basesTried,corrections:control.corrections}});
