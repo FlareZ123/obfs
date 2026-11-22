@@ -23,7 +23,13 @@ const generatedSelectiveSnapshots=new WeakMap();
 // that is absent or different in the relocated execution environment.
 const browserOnlyRoots=new Set(['window','document','navigator','location',
   'localStorage','sessionStorage','indexedDB','self','history','screen',
-  'customElements','DOMParser','XMLHttpRequest']);
+  'customElements','DOMParser','XMLHttpRequest',
+  // Web-exposed globals with no equivalent Node 22 document/window state.
+  'caches','origin','devicePixelRatio','isSecureContext',
+  'crossOriginIsolated','matchMedia','requestAnimationFrame',
+  'cancelAnimationFrame','requestIdleCallback','cancelIdleCallback',
+  'MutationObserver','ResizeObserver','IntersectionObserver',
+  'FileReader','FileList','Image','Audio','HTMLElement','Element','Node']);
 
 /**
  * Copy the declared numeric array slots without invoking caller-controlled
