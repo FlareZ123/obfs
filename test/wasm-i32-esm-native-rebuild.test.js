@@ -16,12 +16,14 @@ const {reconstructPublicWasmEsm}=require('../sims/wasm-i32-esm-native-rebuild');
 /** @type {Array<{path:string,sourceType:'module',code:string}>} */
 const files=[
   {path:'kernel.mjs',sourceType:'module',
-    code:'export function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
-      'export function mask(x){return x?((x^137)&255):((~x)|7);}'},
+    code:'function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
+      'function mask(x){return x?((x^137)&255):((~x)|7);}'+
+      'export function publicScramble(a,b,c,d){return scramble(a,b,c,d);}'+
+      'export function publicMask(x){return mask(x);}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
-    code:'import {scramble,mask} from "./kernel.mjs";import {forward} from "./bridge.mjs";'+
+    code:'import {publicScramble as scramble,publicMask as mask} from "./kernel.mjs";import {forward} from "./bridge.mjs";'+
       'export function run(a,b,c,d,label){return forward((scramble(a,b,c,d)^mask(a))|0,label);}'}
 ];
 
@@ -134,14 +136,14 @@ test('public ESM native replacement retains early cyclic import execution',{
   timeout:60000
 },async()=>{
   const kernel='import "./peer.mjs";\n'+
-    'export function f(a,b,c,d){return a?((b^c)&255):((~d)^c);}\n';
-  const peer='import {f} from "./kernel.mjs";\n'+
+    'function f(a,b,c,d){return a?((b^c)&255):((~d)^c);}export function run(a,b,c,d){return f(a,b,c,d);}\n';
+  const peer='import {run} from "./kernel.mjs";\n'+
     'export const early=['+
       '[0,-2147483648,0,1],'+
       '[1,-2147483648,12345,2147483647],'+
       '[-1,-1,0,0],'+
       '[0,123456,54321,-1]'+
-    '].map(args=>f(...args));\n';
+    '].map(args=>run(...args));\n';
   /** @param {string} delivered @returns {Promise<{early:number[],later:number[]}>} */
   async function cycle(delivered){
     const folder=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-wasm-rebuild-cycle-'));
@@ -151,10 +153,10 @@ test('public ESM native replacement retains early cyclic import execution',{
       const owner=await import(pathToFileURL(path.join(folder,'kernel.mjs')).href);
       const companion=await import(pathToFileURL(path.join(folder,'peer.mjs')).href);
       return {early:companion.early,later:[
-        owner.f(0,-2147483648,3,2147483647),
-        owner.f(7,17,31,47),
-        owner.f(-7,17,-31,-47),
-        owner.f(0,-1,2,-3)
+        owner.run(0,-2147483648,3,2147483647),
+        owner.run(7,17,31,47),
+        owner.run(-7,17,-31,-47),
+        owner.run(0,-1,2,-3)
       ]};
     }finally{
       await fs.rm(folder,{recursive:true,force:true});
@@ -176,7 +178,7 @@ test('public ESM native replacement retains early cyclic import execution',{
 
 test('ESM native rebuild refuses a stateful generated-helper lookalike',()=>{
   const lowered=lowerWasmI32Functions(
-    'export function f(x){return (x^31);}','module',{
+    'function f(x){return (x^31);}export function run(x){return f(x);}','module',{
       seed:'unproved-helper-side-effect',names:['f']
     });
   assert.equal(lowered.functions,1);
