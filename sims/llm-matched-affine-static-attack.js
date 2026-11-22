@@ -2,7 +2,6 @@
 
 const acorn=require('acorn');
 const {performance}=require('node:perf_hooks');
-const {recover}=require('./polyvariant-affine-static-recover');
 const {recoverSymbolicAffine}=require('./polyvariant-affine-symbolic-recover');
 const {recoverMinifiedPublicMath}=require('./polyvariant-app-minified-static-attacker');
 
