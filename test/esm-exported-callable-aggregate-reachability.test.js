@@ -88,7 +88,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
       const native=await observe(fixture.files,fixture.observer);
       const transformed=obfuscateFiles(fixture.files,{
         mode,closedWorld:true,seed:'exported-callable-aggregate-'+mode+'-'+fixture.name,
-        strings:false,properties:false,controlFlow:false,identifiers:true
+        strings:false,properties:false,identifiers:true
       });
       const bindings=transformed.files.reduce((sum,file)=>sum+file.metrics.bindings,0);
       const emitted=await observe(transformed.files,fixture.observer);
@@ -106,6 +106,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
 
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   test('private nonescaping helper retains positive identifier yield: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'function privateRead(privateParam){return privateParam+7;}const value=privateRead(3);export {value};'}];
     const observer='import {value} from "./private.mjs";console.log(String(value));';
