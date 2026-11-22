@@ -95,6 +95,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/clone-source-browser.js
+      - name: Preserve native DOMString function source on attribute conversion
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/dom-attribute-function-source-browser.js
       - name: Demonstrate hostile browser interception of a bound private function target
         env:
           CHROMIUM_BIN: google-chrome
