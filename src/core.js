@@ -1636,6 +1636,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
   // installer and this file contains a String-sensitive accessor write,
   // decline eager decoding for the group. The empty literal map case is
   // excluded by the project-level predicate below.
+  /** @type {boolean} */
   let sensitiveAccessorWrite=false;
   walk(ast,node=>{
     if(node.type==='Property') {
@@ -1661,7 +1662,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         const descriptor=node.arguments[2];
         if(descriptor.type!=='ObjectExpression') {
           sensitiveAccessorWrite=true;
-        } else if(descriptor.properties.some(property=>{
+        } else if(descriptor.properties.some((/** @type {import('./ast').AstNode} */ property)=>{
           if(property.type!=='Property')return true;
           const field=property.computed?staticString(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
@@ -1673,6 +1674,7 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       }
     }
   });
+  /** @type {boolean} */
   let mutated=opaqueReflectiveSensitiveWrite ||
     (projectHasPotentialDescriptorCreate&&sensitiveAccessorWrite);
   walk(ast,(node,parent)=>{
@@ -2030,7 +2032,8 @@ function obfuscateFiles(files, options = {}) {
       return key==='Object'&&value.object.type==='Identifier'&&
         globalNames.has(value.object.name);
     }
-    let aliasesChanged;
+    /** @type {boolean} */
+    let aliasesChanged=false;
     do {
       aliasesChanged=false;
       walk(inputAst,node=>{
@@ -2047,6 +2050,7 @@ function obfuscateFiles(files, options = {}) {
         }
       });
     } while(aliasesChanged);
+    /** @type {boolean} */
     let found=false;
     walk(inputAst,(node,parent)=>{
       if(node.type==='MemberExpression'&&isObjectReference(node.object)) {
