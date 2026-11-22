@@ -79,6 +79,10 @@ ECMAScript 2026 §20.2.3.5 [`Function.prototype.toString`](https://tc39.es/ecma2
 
 After adding the ESM Chromium harness and the direct exported-function cases, [Ubuntu/Windows focused run 45081688573](https://github.com/FlareZ123/obfs/actions/runs/45081688573), exact source `c210089b60c180cbcabb2c7d0cf514ffdbabd951`, **passed** the existing `test/private-class-source-yield.test.js` positive control and both project and external JSDoc checks on each OS. This is the appropriate *separate green source pin* for the completed test-file set. The deliberately red 28-case CJS and ESM Chrome source parity tests remain independently documented at their own source pins; passing strict type checks does not imply those semantic regressions are fixed.
 
+## Latest full test-file JSDoc gate
+
+At exact source SHA `bfd01482d190bd093180d49e482653f45ff0a0d1`, [focused Ubuntu/Windows validation 45082044316](https://github.com/FlareZ123/obfs/actions/runs/45082044316) **passed** `test/private-class-source-yield.test.js` and both strict project/external JSDoc checks after adding pre-import intrinsic captures to both witness files. This is a compilation and private-positive control on the final captured-intrinsic test design. Both 28-case public CJS and real-Chromium ESM source-parity suites remain deliberately red at their separately frozen SHA `22947b020fe0b15e305f0f7873c52f8320c3db88`; the green gate does not run them.
+
 ## Proof obligation and bounded interpretation
 
 The current local owner alias proof in `src/properties.js` sees a class-method read of a private literal owner but cannot establish whether the method's **callable source text** is externally observable. A CommonJS module may export a class, an instance, a bound constructor, or another alias that exposes that body. An undeclared importer may use `Function.prototype.toString` without any `.toString` token inside the compiler's input set.
