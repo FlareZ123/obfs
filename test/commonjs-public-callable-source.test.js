@@ -75,6 +75,29 @@ for(const [label,code] of leaked) {
   });
 }
 
+for(const [label,reader] of /** @type {[string,string][]} */ ([
+  ['unique private function declaration','function reader(){return owner.secretField;}'],
+  ['unique private const arrow','const reader=()=>owner.secretField;'],
+  ['unique private const function expression','const reader=function(){return owner.secretField;};']
+])) {
+  test('direct-call-only pure private reader remains renamable: '+label,()=>{
+    const source=prefix+reader+'module.exports=[reader(),owner.otherField];';
+    const output=compile(source);
+    assert.equal(output.metrics.objects,1,output.code);
+    assert.equal(output.metrics.properties,2,output.code);
+    assert.equal(observe(output.code),observe(source));
+  });
+}
+
+test('a reader also observed through toString declines',()=>{
+  const source=prefix+
+    'function reader(){return owner.secretField;}'+
+    'module.exports=[reader(),reader.toString()];';
+  const output=compile(source);
+  assert.equal(output.metrics.objects,0,output.code);
+  assert.equal(observe(output.code),observe(source));
+});
+
 test('private top-level direct scalar owner read still renames',()=>{
   const source=prefix+'module.exports=[owner.secretField,owner.otherField];';
   const output=compile(source);
