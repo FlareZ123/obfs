@@ -245,7 +245,10 @@
     "test/factory-destructuring-crossfile-grid.test.js",
     "test/factory-destructuring-browser.js",
     "sims/factory-destructuring-paired-session.js",
-    "test/low-output-residual-cycle-independent.test.js"
+    "test/low-output-residual-cycle-independent.test.js",
+    "test/node-stack-private-callable-source-boundary.test.js",
+    "test/coo-stack-private-source-browser.test.js",
+    "test/coo-stack-source-admission-matrix.test.js"
   ],
   "exclude": [
     "node_modules"
