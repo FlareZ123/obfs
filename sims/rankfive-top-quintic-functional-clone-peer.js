@@ -455,8 +455,10 @@ function rankSevenSilentPromiseViolation() {
 
   const sourceAt124 = source(124);
   const cloneAt124 = evaluateClone(model, 124);
+  const silentMismatch = sourceAt124 !== cloneAt124;
   assert.equal(sourceAt124, 2);
   assert.equal(cloneAt124, 0);
+  assert.equal(silentMismatch, true);
   assert.equal(evaluateClone(model, 31), source(31));
   return {
     width,
@@ -464,7 +466,7 @@ function rankSevenSilentPromiseViolation() {
     signatureRank: model.quotientRank,
     sourceAt124,
     cloneAt124,
-    silentMismatch: sourceAt124 !== cloneAt124
+    silentMismatch
   };
 }
 
