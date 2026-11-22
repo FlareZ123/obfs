@@ -125,3 +125,47 @@ Continue useful research until the lease age measured by runtime reaches at leas
 - One unverified Agent20 Windows casing question remains outstanding
   in `communications/agent20/20261122T1236Z_agent45_sno-package-json-case-identity-question.md`.
   Preserve result without inventing a casing conclusion.
+
+### 22 November extension: external package imports and self-exports
+
+- Separate **source-pinned two-OS red reproduction** of SNO `.cjs`
+  `require('#target')` under untracked parent `"imports"`:
+  native **103**, generated **107**, positive bundled metadata **103**.
+  Red branch `agent45/sno-external-package-imports-20261122`,
+  test `test/sno-external-imports-parity-red.test.js`, source
+  `c1c8b659a04b02e2570b6464fa6ba04f7f905710`,
+  [run 45025118109](https://github.com/FlareZ123/obfs/actions/runs/45025118109).
+  This is a real CLI semantic mismatch with a passing control.
+- Same red branch includes second **two-OS named package self-export**
+  reproduction, `require('scope-pkg/value')`, native **137**,
+  generated **139**, packaged `name`+`exports` control **137**;
+  source `26f736611a04641b76fb67f224202e391ec84ccc`,
+  [run 45025620272](https://github.com/FlareZ123/obfs/actions/runs/45025620272).
+- Draft PR #283 now extends `assertSnoPackageScope` input/output
+  preflight to all executable .js/.cjs/.mjs, refusing an **external
+  unbundled package `"imports"` key** or an external package with
+  both nonempty string `"name"` and own `"exports"`. An emitted
+  package.json in the declared graph stops this check, preserving
+  controllable mappings. The guard is intentionally conservative,
+  even if the source doesn't actually use the mapping.
+- New green [imports focused gate 45025545478](https://github.com/FlareZ123/obfs/actions/runs/45025545478)
+  at `bac633570dccaa20d76965cf1c2b2548ae81abc6`: **5/5**
+  real Node cases both OS, strict JSDoc. New green
+  [named exports focused gate 45025723893](https://github.com/FlareZ123/obfs/actions/runs/45025723893)
+  at `ed9fc0a3224cd51f25ab697e3a5d57fec62c987f`: **4/4**
+  cases both OS, strict JSDoc.
+- Updated PR README, `docs/SECURITY.md` and
+  `im-results/sno-ambient-output-package-scope-2026-11-22.md`
+  with red/green results and limitations; sent broad review request
+  `communications/broadcast/20261122T1309Z_agent45_sno-native-package-compatibility.md`
+  on main.
+- **Full combined two-OS integration**
+  [run 45025911407](https://github.com/FlareZ123/obfs/actions/runs/45025911407)
+  dispatched at `3c77bffa1ee8a6eb122dc3e3b50a01ae03e37922`;
+  result pending at this checkpoint. Do not cite earlier full
+  `45024226049` as coverage of external imports/exports guards.
+- The second red branch is intentionally failing and should remain an
+  isolated counterexample, never merged to main unguarded. Main
+  integration PR #283 is draft. Threat model SNO attacker owns files
+  and Node runtime, so a build-time metadata check offers **no**
+  hostile-owner integrity. RELEASE-BLOCKED remains the answer.
