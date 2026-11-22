@@ -99,9 +99,10 @@ test('CommonJS default eager setup remains available for server initialization',
 });
 
 test('SNO group API and CLI retain eager initialization after runtime budget falsifier',()=>{
-  const source='function hot(x){return x^17;}function cold(x){return x&255;}'+
+  const source='function hotKernel(x){return x^17;}function coldKernel(x){return x&255;}'+
+    'function hot(x){return hotKernel(x);}function cold(x){return coldKernel(x);}'+
     'module.exports={hot,cold};';
-  const selected={'entry.cjs':['hot','cold']};
+  const selected={'entry.cjs':['hotKernel','coldKernel']};
   const emitted=obfuscateFiles([
     {path:'entry.cjs',sourceType:'commonjs',code:source}
   ],{
