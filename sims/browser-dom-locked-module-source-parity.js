@@ -51,13 +51,23 @@ function lock(code){
 /** @returns {Promise<void>} */
 async function main(){
   const lockedInert=lock(inert);
-  const lockedObserved=lock(observer);
+  /** @type {string|undefined} */
+  let lockedObserved;
+  try {
+    lockedObserved=lock(observer);
+  }catch(error){
+    // Explicit refusal is a sound outcome for a source-observing program:
+    // the authorized-host wrapper would change its observable bytes.
+    assert.ok(error instanceof TypeError);
+    assert.match(String(error),/Host locking cannot preserve observable source bytes/u);
+  }
   const routes=new Map([
     ['/inert-native',{type:'text/html',body:html(inert)}],
     ['/inert-locked',{type:'text/html',body:html(lockedInert)}],
-    ['/observed-native',{type:'text/html',body:html(observer)}],
-    ['/observed-locked',{type:'text/html',body:html(lockedObserved)}]
+    ['/observed-native',{type:'text/html',body:html(observer)}]
   ]);
+  if(lockedObserved!==undefined)
+    routes.set('/observed-locked',{type:'text/html',body:html(lockedObserved)});
   const server=http.createServer((request,response)=>{
     const pathname=new URL(request.url??'/', 'http://127.0.0.1').pathname;
     const item=routes.get(pathname);
@@ -76,6 +86,16 @@ async function main(){
     const inertNative=await browser(root+'/inert-native');
     const inertLocked=await browser(root+'/inert-locked');
     const observedNative=await browser(root+'/observed-native');
+    assert.deepEqual(inertNative,{value:8});
+    assert.deepEqual(inertLocked,inertNative,'Basic authorized host lock must preserve result');
+    assert.deepEqual(observedNative,{value:8,sourceLength:observer.length});
+    if(lockedObserved===undefined){
+      console.log('DOM_LOCKED_MODULE_SOURCE '+JSON.stringify({
+        inertNative,inertLocked,observedNative,refused:true,
+        allowedHost:'127.0.0.1'
+      }));
+      return;
+    }
     const observedLocked=await browser(root+'/observed-locked');
     const output={inertNative,inertLocked,observedNative,observedLocked,
       originalSourceBytes:Buffer.byteLength(observer),
