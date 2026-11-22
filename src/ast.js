@@ -2006,17 +2006,82 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       }
     });
   }while(domChanged);
+  /** @type {Map<string,number>} */
+  const domAttributeSetterAliases=new Map();
+  /**
+   * Maximum possible DOMString argument count of an identified native
+   * attribute setter. Monotone may-flow retains the greater count across
+   * assignments so a later setAttributeNS cannot evade the third value.
+   * @param {AstNode|null|undefined} candidate
+   * @returns {number}
+   */
+  function domSetterInputs(candidate) {
+    if(!candidate)return 0;
+    if(candidate.type==='Identifier')
+      return domAttributeSetterAliases.get(candidate.name)??0;
+    if(candidate.type==='SequenceExpression')
+      return domSetterInputs(candidate.expressions[candidate.expressions.length-1]);
+    if(candidate.type==='CallExpression'&&
+       candidate.callee.type==='MemberExpression'&&
+       memberName(candidate.callee)==='bind')
+      return domSetterInputs(candidate.callee.object);
+    if(candidate.type!=='MemberExpression'||!isDomElement(candidate.object))
+      return 0;
+    const method=memberName(candidate);
+    if(method==='setAttribute')return 2;
+    if(method==='setAttributeNS'||candidate.computed&&method===null)return 3;
+    return 0;
+  }
+  let domSetterChanged;
+  do {
+    domSetterChanged=false;
+    walk(ast,node=>{
+      const binding=node.type==='VariableDeclarator'&&node.id.type==='Identifier'?
+        node.id:node.type==='AssignmentExpression'&&node.operator==='='&&
+        node.left.type==='Identifier'?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(!binding||!value)return;
+      const arity=domSetterInputs(value);
+      if(arity>(domAttributeSetterAliases.get(binding.name)??0)) {
+        domAttributeSetterAliases.set(binding.name,arity);
+        domSetterChanged=true;
+      }
+    });
+  }while(domSetterChanged);
+  /**
+   * @param {Array<AstNode|null|undefined>} argumentsList
+   * @param {number} count
+   * @returns {boolean}
+   */
+  function mayConvertAttributeSource(argumentsList,count) {
+    return argumentsList.slice(0,count).some(arg=>
+      !arg||arg.type==='SpreadElement'||!isDefinitelyPrimitive(arg));
+  }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
   function domAttributeObservesSource(node) {
-    if(node?.type!=='CallExpression'||node.callee.type!=='MemberExpression'||
-       !isDomElement(node.callee.object))return false;
-    const method=memberName(node.callee);
-    if(method!=='setAttribute'&&method!=='setAttributeNS'&&
-       !(node.callee.computed&&method===null))return false;
-    const inputs=method==='setAttribute'?node.arguments.slice(0,2):
-      node.arguments.slice(0,3);
-    return inputs.some((/** @type {AstNode} */ input)=>
-      input.type==='SpreadElement'||!isDefinitelyPrimitive(input));
+    if(node?.type!=='CallExpression')return false;
+    const direct=domSetterInputs(node.callee);
+    if(direct && mayConvertAttributeSource(node.arguments,direct))return true;
+    if(node.callee.type==='MemberExpression') {
+      const wrapper=memberName(node.callee);
+      const count=domSetterInputs(node.callee.object);
+      if(count && ['call','bind'].includes(wrapper??'') &&
+         mayConvertAttributeSource(node.arguments.slice(1),count))return true;
+      if(count && wrapper==='apply') {
+        const supplied=node.arguments[1];
+        return supplied?.type==='ArrayExpression' ?
+          mayConvertAttributeSource(supplied.elements,count):Boolean(supplied);
+      }
+    }
+    if(isReflectApplyMethod(node.callee)) {
+      const count=domSetterInputs(node.arguments[0]);
+      if(!count)return false;
+      const supplied=node.arguments[2];
+      return supplied?.type==='ArrayExpression' ?
+        mayConvertAttributeSource(supplied.elements,count):Boolean(supplied);
+    }
+    return false;
   }
   /**
    * Object.groupBy converts each callback result to a property key, and a
