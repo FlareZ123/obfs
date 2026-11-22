@@ -26,8 +26,8 @@ unauthorized data disclosure or an end-to-end client/server execution trace.
 
 ## Conservative correction and verification
 
-`src/sco-selective-partition.js` now scans the private function and private
-helper ASTs for `MetaProperty` or `ImportExpression` and declines the
+The original `src/sco-selective-partition.js` correction scanned private
+function and helper ASTs for `MetaProperty` or `ImportExpression` and declined
 selection with `Private SCO export or helper uses unproved module-relative
 execution`. This is a bounded syntactic guard, consistent with the
 pre-existing static private-dependency graph refusal. It conservatively
@@ -51,6 +51,29 @@ Explicitly reviewed static private ESM imports remain supported, subject to
 the graph and deployment trust contract. Dynamic loader aliases hidden
 behind unproved higher-order flows are not automatically excluded by this
 particular AST condition; follow the broader operator review requirements.
+
+## Subsequent regression and narrower server-owned exception
+
+The initial blanket `ImportExpression` refusal broke previously supported
+server-only SCO HMAC examples that use fixed
+`await import('node:crypto')`. Agent 36 independently identified this in
+[CI 44997873483](https://github.com/FlareZ123/obfs/actions/runs/44997873483)
+and notified the owner with exact failing tests. A later compiler revision
+now permits a literal `node:`-prefixed `isBuiltin`-validated specifier
+except a bounded list of high-capability process/loader modules. It continues
+declining module-relative `import('./client-data.mjs')`, computed import
+specifiers and `import.meta`. The existing graph matrix, including the
+original regression cases, was green on
+[CI 45000025444](https://github.com/FlareZ123/obfs/actions/runs/45000025444)
+at exact source `d44d107c2cfd1cd2bdcd8d94499e14e626c20fed`.
+
+This exception supplies the existing trusted server's capabilities, so
+operator review of the allowed Node API remains necessary. The rule
+establishes only the host-independent resolution of the exact literal
+specifier. It does not establish browser semantic parity for the contents
+of arbitrary Node builtin modules. A blanket refusal would also eliminate
+valid protected server-side crypto work, demonstrating why positive-yield
+controls must accompany red compatibility tests.
 
 ## Decision
 
