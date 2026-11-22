@@ -24,7 +24,7 @@ The `refs` array contains the original descriptor entry. A bound `entry` therefo
 
 The test-only source `46d6b5f39d251ccbe953c7e6a52a1cba05c62d30` adds `test/decoder-object-create-named-array-alias.test.js`. Its 18 cases combine COO/SNO/SCO, three carrier expressions (direct named array, a further named alias, and assignment to an existing binding) and either String-sensitive or benign Number getter. Each checks original and transformed **separate Node process** stdout/status/stderr, followed by actual generated target literal counts.
 
-[Full run 45058298655](https://github.com/FlareZ123/obfs/actions/runs/45058298655) at that exact test-only source reported **nine String-sensitive native/emitted stdout mismatches on Ubuntu** and nine passing Number controls. Ubuntu behavioral summary: 4,531 tests, 4,521 passes, nine failures, one skip. Windows results must be recorded separately after completion.
+[Full run 45058298655](https://github.com/FlareZ123/obfs/actions/runs/45058298655) at that exact test-only source reported **nine String-sensitive native/emitted stdout mismatches on Ubuntu and the same nine on Windows**; all nine Number controls on both operating systems passed with eligible encoding. The Ubuntu behavioral suite reported 4,531 tests, 4,521 passes, nine failures, one skip; Windows reported 4,531 tests, 4,518 passes, nine failures, four skips. Every failure was a real native-versus-transformed process stdout mismatch, not a missing transformation-yield assertion.
 
 ## Candidate alias-graph closure
 
