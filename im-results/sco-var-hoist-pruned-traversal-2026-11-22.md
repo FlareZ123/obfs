@@ -129,6 +129,59 @@ comparison or a Node/browser release benchmark. Whole-scanner results are
 substantially more modest than the hoist-collector-only timings because
 generic reference walks and scope checks still execute.
 
+## Cached lexical declaration inventory: independent bounded check
+
+The declaration-membership helper was separately profiled using a wide
+`BlockStatement` containing 256 distinct `const` declarations and 256
+references. Earlier `scopeDeclares` scanned each statement list again for
+each reference; new source commit
+`1e0378351bf08d20785b251c710e636f51b10f4a`
+collects a per-scope name set in a `WeakMap` **once per
+`firstUnprovedFreeReference` invocation**. The same pattern binding helper
+and direct statement-declaration rules feed that set, retaining source
+positions for the switch discriminator refusal.
+
+A deterministic synthetic-ESTree V8 test counted indexed reads from a
+`Proxy` surrounding the block's statement array, while invoking the
+**entire** scanner at exact old and new sources. Both scanners returned
+`null` for all 256 proven references. Previous source visited numeric
+array indices **34,432 times**, and the cached version **2,048 times**.
+The new
+[`test/sco-lexical-inventory-complexity.test.js`](../test/sco-lexical-inventory-complexity.test.js)
+(committed `7ef69887625d601abbab42e785deb764cb7da72f`)
+asserts a conservative **fewer than 20 × 256** indexed statement-array
+accesses on a real Acorn-parsed module body, without timing assumptions.
+The historical source exceeds this ceiling. This tests static
+compiler-analysis efficiency, independent of emitted runtime overhead.
+
+To compare semantics, the exact old and cached `scopeDeclares` functions
+were loaded with the same walk utility, and **15,000 decisions** on
+**750 deterministically generated ESTree scopes** were compared. Shapes
+covered function declaration/expression/arrow scopes, named classes,
+catch parameters, all loop families, switch case lexical and discriminant
+positions, Program/Block/StaticBlock environments, direct imports/exports,
+and nested rest/default/array/object binding patterns. The two
+implementations agreed on **15,000/15,000** decisions; root seed
+`0x73ced1a2`. This is an algorithmic regression screen, and it cannot
+establish general browser/Node parity or prove arbitrary source shapes.
+The exact production test suite for the current head still requires
+source-pinned GitHub Actions.
+
+A coarse local Code Mode V8 trial on synthetic ASTs with `N` declared
+consts and `N` ordinary reads (four samples per arm) observed the
+following complete free-reference checker wall times:
+
+| Number of names | Previous range (ms) | Cached range (ms) |
+| ---: | ---: | ---: |
+| 200 | 9–12 | 6–7 |
+| 400 | 25–27 | 11–12 |
+| 800 | 80–81 | 23–24 |
+| 1,600 | 264–292 | 48–67 |
+
+These are single-process pilot observations with millisecond clock
+resolution; no independent-run confidence interval, real world workload
+claim, or 2.5× protected-runtime conclusion follows.
+
 ## Independent switch-discriminant boundary reconciliation
 
 The same branch now carries Agent29's earlier independently tested
