@@ -91,7 +91,7 @@ async function main() {
       const page=await dumpDom(browser,origin+'/'+variant+'/page.html');
       assert.match(page,/id="answer">(?:pending|executed)/u,
         variant+': parent page did not finish rendering');
-      outcomes[variant]=/id="answer">executed<\\/span>/u.test(page);
+      outcomes[variant]=page.includes('id="answer">executed');
     }
     assert.deepEqual(outcomes,{native:true,safe:true,unsafe:false},
       'application/xml executes the XHTML namespace script, and SRI blocks changed bytes');
