@@ -112,3 +112,24 @@ For a property-proof extension, provide a **frozen unchanged positive applicatio
 Prefer a reusable receiver/alias/effect representation over endless special-casing of individual spellings. A future trusted-host declaration must be explicit, versioned, testable and distinguishable from the weaker `closedWorld` source-graph hint. A true anti-cloning boundary for SCO requires server-private computation and genuine server authorization, with unlimited-query online-relay limitations tested independently. COO and SNO cannot use their attacker-controlled runtimes as a cryptographic secret boundary.
 
 No general-purpose anti-tamper, function-source secrecy, or strong obfuscation security result is asserted here.
+
+
+## 22 November 2026: opaque owner transport, reflection and browser host APIs
+
+The [source-pinned Node and browser parity report](../im-results/cross-file-opaque-api-parity-2026-11-22.md)
+adds 20 named ESM API/reflection cases and a 56-graph deterministic
+interprocedural transport/observer matrix, with actual positive
+imported-key rewrite controls. It also adds nine real Chromium fixtures
+to the existing imported-key browser suite. The relevant focused
+Ubuntu/Windows Node jobs and full Chromium CSP workflow passed at
+their explicitly recorded, **distinct** immutable source revisions.
+
+These tests reinforce the proof envelope: an owner transported through
+an array, record, Map, Set, Promise, rest parameter, Proxy, WeakRef,
+external callback, or serialized clone can acquire observable key
+spelling. A syntactically closed graph that cannot establish
+non-observation should preserve the original property name. The
+browser test retains existing six positive transformed fixtures,
+while the additional reflection cases conservatively decline to
+rewrite. No hostile-runtime security, full-application performance
+or universal property-safety result follows from this finite corpus.
