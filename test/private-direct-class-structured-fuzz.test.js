@@ -48,8 +48,7 @@ const values=['7','0','-11','true','false','null','"safe"','(3*4)'];
 const suffixes=[
   'module.exports=reader.read();',
   'module.exports=[reader.read(),reader.read()];',
-  'const value=reader.read();module.exports=value;',
-  'module.exports=String(reader.read());'
+  'const value=reader.read();module.exports=value;'
 ];
 const escaped=[
   'module.exports=reader;',
@@ -67,7 +66,8 @@ const escaped=[
   'module.exports=reader.read?.();',
   'module.exports=reader.read.call(reader);',
   'module.exports=[reader.read(),reader.read];',
-  'module.exports=Reflect.get(reader,"read").toString();'
+  'module.exports=Reflect.get(reader,"read").toString();',
+  'module.exports=String(reader.read());'
 ];
 
 for(const mode of /** @type {Mode[]} */ (['coo','sno'])){
@@ -90,7 +90,7 @@ for(const mode of /** @type {Mode[]} */ (['coo','sno'])){
     }
   });
 
-  test(mode+' 16 escaped class/method source negative controls',()=>{
+  test(mode+' 17 escaped or conservatively declined source controls',()=>{
     const prefix=[
       'const owner={hidden:7};',
       'class Reader{read(){return owner.hidden;}}',
