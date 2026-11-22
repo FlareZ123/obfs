@@ -278,7 +278,13 @@ exports and their server-only helpers also refuse `import.meta` and dynamic
 executing module's location and loader, which change when a client function
 moves to the trusted Node server. Use explicitly reviewed static private ESM
 imports for server-owned dependencies, and keep client module URL consumers
-on the client side. Review each
+on the client side. The compiler also declines first-class or static-method
+references to the global `URL` constructor in relocated private code:
+`URL.createObjectURL(new Blob(...))` returns a `blob:nodedata:` URL in Node,
+while browser object URLs are associated with their creator origin. Direct
+`new URL(...)` parsing remains admitted. This is a conservative syntactic
+boundary, including local URL name shadowing, and is not a general analysis
+of indirect constructor recovery. Review each
 server-private operation as an explicit server contract, ensure all
 cross-boundary inputs and outputs fit the JSON interface, and test
 the original versus split behavior under the intended browser and
