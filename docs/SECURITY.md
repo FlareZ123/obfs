@@ -189,6 +189,31 @@ internal module from an untracked consumer invalidates that scope and could
 observe its original keys. This compatibility design does not confer
 confidentiality, hostile-loader safety, or independent environment locking.
 
+### Bound callable targets and hostile-runtime extraction
+
+For a constructible target `function internal(){...}` exported only through
+`internal.bind(null)`, ordinary `hot.toString()` exposes a generic native
+bound-function string. A host can nevertheless execute
+`Reflect.construct(hot,[]).constructor.toString()` to recover the original
+target function source through its constructed instance. With field and
+identifier rewrites this changes an observable value. The exact two-platform
+counterexample and conservative-refusal control are documented in
+[bound export source reachability](../im-results/bound-export-source-reachability-2026-11-22.md).
+One bounded compatibility alternative uses a nonconstructible arrow target
+and asserts that `Reflect.construct` throws in both original and emitted code.
+
+Even that arrow cannot hide its source from a fully controlled client runtime.
+A host can patch `Function.prototype.bind` before dynamically importing the
+protected module, record the actual original function supplied to
+`bind`, and forward the normal binding call. This captures the transformed
+private function itself while preserving numeric behavior. The exact
+[Node and Chromium runtime-interception study](../im-results/bound-runtime-interception-2026-11-22.md)
+includes actual two-platform Node 22 execution and a real Chromium ESM test
+under `default-src 'none'; script-src 'self'; connect-src 'self'`.
+This specific attack extracts a target passed to a patchable method; it does
+not establish complete extraction of every arbitrary obfuscated application.
+All COO deployments remain within the full-control client attacker model.
+
 ## Distributed source-byte observation
 
 Source-byte reads are a separate semantic compatibility hazard from the familiar
