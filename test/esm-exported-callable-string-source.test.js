@@ -39,6 +39,7 @@ async function observe(files,observer) {
 for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   test('string encoding preserves external exported callable source: '+mode,async()=>{
     /** @type {SourceFile[]} */
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'export function read(){return "source-visible-secret-value";}'}];
     const observer='import {read} from "./private.mjs";console.log(JSON.stringify([read.toString(),read()]));';
@@ -59,6 +60,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   });
 
   test('string encoding preserves externally observed exported class source: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'export class Api{static label="source-visible-class-field";}'}];
     const observer='import {Api} from "./private.mjs";console.log(JSON.stringify([Function.prototype.toString.call(Api),Api.label]));';
@@ -79,6 +81,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
   });
 
   test('private nonescaping function retains string-encoding yield: '+mode,async()=>{
+    /** @type {SourceFile[]} */
     const files=[{path:'private.mjs',sourceType:'module',code:
       'function privateRead(){return "private-only-value";}const value=privateRead();export {value};'}];
     const observer='import {value} from "./private.mjs";console.log(String(value));';
