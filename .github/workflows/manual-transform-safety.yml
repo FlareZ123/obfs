@@ -23,6 +23,11 @@ jobs:
         run: npm install --no-package-lock --ignore-scripts
       - name: Source-ordered top-level primitive private owner proof
         run: node --test test/local-top-primitive-const-value.test.js
+      - name: Local top-level primitive private owner native versus real Chrome
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/local-top-primitive-browser.js
       - name: Probe rest and arguments ambient property integrity
         run: node --test test/closed-record-host-formal-provenance.test.js
       - name: Probe ambient thisArg reflection transfer and safe positive yield
