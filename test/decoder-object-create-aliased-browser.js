@@ -91,6 +91,22 @@ async function main() {
       mutation:'const descriptors={};const alias=descriptors;'+
         'alias.ref={get(){return Number.prototype}};'+
         'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'descriptor entry getter through member-read alias',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'entry.get=function(){return String.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor entry getter through member-read Number alias',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'entry.get=function(){return Number.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'descriptor entry Object.assign getter alias',safe:false,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.assign(entry,{get:function(){return String.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'descriptor entry Object.assign Number alias',safe:true,
+      mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
+        'Object.assign(entry,{get:function(){return Number.prototype}});'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
     {name:'prebound prototype with invocation-time descriptor map',safe:false,
       mutation:'const maker=Object.create.bind(null,null);'+
         'const box=maker({ref:{get(){return String.prototype}}});'+
