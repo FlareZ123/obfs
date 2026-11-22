@@ -1,0 +1,1403 @@
+{
+  "run_id": 45045429746,
+  "source_sha": "1c5cab5efa49138dce1add057c8c5cbea25df763",
+  "description": "Paired total-process CPU and hot-loop CPU; nine alternating source-pinned original/compiled Node ESM process pairs per mode/count/OS; scope limited to two proof-selected graphs.",
+  "runners": [
+    {
+      "job_id": 137278888736,
+      "node": "v22.23.4",
+      "platform": "win32",
+      "scope": "paired fresh Node ESM process CPU plus hot-loop CPU, local disk only",
+      "rows": [
+        {
+          "variant": "direct",
+          "iterations": 1,
+          "checksum": 41,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 31000,
+            "emittedMedianUs": 31000,
+            "emittedOverNativeRatio": 1,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 0,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": null,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              }
+            ]
+          }
+        },
+        {
+          "variant": "direct",
+          "iterations": 100000,
+          "checksum": 709082704,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 31000,
+            "emittedMedianUs": 31000,
+            "emittedOverNativeRatio": 1,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 0,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": null,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 31000,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 31000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 30000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              }
+            ]
+          }
+        },
+        {
+          "variant": "direct",
+          "iterations": 1000000,
+          "checksum": 1824293664,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 46000,
+            "emittedMedianUs": 46000,
+            "emittedOverNativeRatio": 1,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 15000,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": 0,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 32000,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 77000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 1,
+          "checksum": 41,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 31000,
+            "emittedMedianUs": 31000,
+            "emittedOverNativeRatio": 1,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 0,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": null,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 77000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 0,
+                "totalCpuUs": 77000
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 100000,
+          "checksum": 709082704,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 46000,
+            "emittedMedianUs": 31000,
+            "emittedOverNativeRatio": 0.6739130434782609,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 0,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": null,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 30000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 77000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 62000
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 0,
+                "totalCpuUs": 15000
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 1000000,
+          "checksum": 1824293664,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 46000,
+            "emittedMedianUs": 46000,
+            "emittedOverNativeRatio": 1,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 15000,
+            "emittedMedianUs": 0,
+            "emittedOverNativeRatio": 0,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 30000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 31000,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 31000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 77000
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 61000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 31000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 16000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 0,
+                "totalCpuUs": 30000
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15000,
+                "totalCpuUs": 46000
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "job_id": 137278888975,
+      "node": "v22.23.4",
+      "platform": "linux",
+      "scope": "paired fresh Node ESM process CPU plus hot-loop CPU, local disk only",
+      "rows": [
+        {
+          "variant": "direct",
+          "iterations": 1,
+          "checksum": 41,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 22632,
+            "emittedMedianUs": 23209,
+            "emittedOverNativeRatio": 1.0254948745139625,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 13,
+            "emittedMedianUs": 13,
+            "emittedOverNativeRatio": 1,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 21827
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 11,
+                "totalCpuUs": 22442
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23918
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 14,
+                "totalCpuUs": 22758
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 22061
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22632
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 11,
+                "totalCpuUs": 23120
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 17,
+                "totalCpuUs": 22615
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 24592
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 24384
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 24209
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22836
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 25317
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23692
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22305
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23209
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22418
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 21611
+              }
+            ]
+          }
+        },
+        {
+          "variant": "direct",
+          "iterations": 100000,
+          "checksum": 709082704,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 29504,
+            "emittedMedianUs": 28516,
+            "emittedOverNativeRatio": 0.9665130151843818,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 5973,
+            "emittedMedianUs": 5327,
+            "emittedOverNativeRatio": 0.8918466432278587,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8726,
+                "totalCpuUs": 33747
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5635,
+                "totalCpuUs": 29504
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7856,
+                "totalCpuUs": 30996
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5963,
+                "totalCpuUs": 30443
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8124,
+                "totalCpuUs": 33581
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6277,
+                "totalCpuUs": 29413
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5973,
+                "totalCpuUs": 28104
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5879,
+                "totalCpuUs": 28152
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5899,
+                "totalCpuUs": 27317
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 4995,
+                "totalCpuUs": 27368
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5933,
+                "totalCpuUs": 28516
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5054,
+                "totalCpuUs": 27435
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5677,
+                "totalCpuUs": 30488
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6448,
+                "totalCpuUs": 28017
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 4819,
+                "totalCpuUs": 26955
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5327,
+                "totalCpuUs": 29761
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 5406,
+                "totalCpuUs": 29512
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 4922,
+                "totalCpuUs": 29424
+              }
+            ]
+          }
+        },
+        {
+          "variant": "direct",
+          "iterations": 1000000,
+          "checksum": 1824293664,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 36995,
+            "emittedMedianUs": 36156,
+            "emittedOverNativeRatio": 0.9773212596296796,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 14042,
+            "emittedMedianUs": 13149,
+            "emittedOverNativeRatio": 0.9364050705027774,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14043,
+                "totalCpuUs": 36290
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14991,
+                "totalCpuUs": 38571
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13952,
+                "totalCpuUs": 37481
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13898,
+                "totalCpuUs": 36995
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13781,
+                "totalCpuUs": 36032
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13915,
+                "totalCpuUs": 37123
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15035,
+                "totalCpuUs": 36946
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14042,
+                "totalCpuUs": 38411
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14091,
+                "totalCpuUs": 36787
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13920,
+                "totalCpuUs": 36640
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12632,
+                "totalCpuUs": 34648
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12725,
+                "totalCpuUs": 34502
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12475,
+                "totalCpuUs": 34103
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13149,
+                "totalCpuUs": 36156
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13590,
+                "totalCpuUs": 37708
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12542,
+                "totalCpuUs": 36021
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13809,
+                "totalCpuUs": 36620
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13923,
+                "totalCpuUs": 36835
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 1,
+          "checksum": 41,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 23063,
+            "emittedMedianUs": 23339,
+            "emittedOverNativeRatio": 1.0119672202228678,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 13,
+            "emittedMedianUs": 13,
+            "emittedOverNativeRatio": 1,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23419
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22826
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 21913
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22821
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 23063
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 22797
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 24262
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23706
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 24292
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 25673
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 22866
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22566
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 22565
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 22473
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 23339
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 15,
+                "totalCpuUs": 28249
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 13,
+                "totalCpuUs": 24174
+              },
+              {
+                "checksum": 41,
+                "hotCpuUs": 12,
+                "totalCpuUs": 23806
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 100000,
+          "checksum": 709082704,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 32440,
+            "emittedMedianUs": 30660,
+            "emittedOverNativeRatio": 0.9451294697903823,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 8194,
+            "emittedMedianUs": 7000,
+            "emittedOverNativeRatio": 0.8542836221625579,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8658,
+                "totalCpuUs": 32419
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8194,
+                "totalCpuUs": 32322
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6805,
+                "totalCpuUs": 30463
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8150,
+                "totalCpuUs": 32561
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7994,
+                "totalCpuUs": 32440
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7961,
+                "totalCpuUs": 37572
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8582,
+                "totalCpuUs": 32545
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 8501,
+                "totalCpuUs": 32202
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 9236,
+                "totalCpuUs": 40121
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7761,
+                "totalCpuUs": 37797
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6702,
+                "totalCpuUs": 31651
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7004,
+                "totalCpuUs": 30103
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7000,
+                "totalCpuUs": 30028
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7622,
+                "totalCpuUs": 35893
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 7131,
+                "totalCpuUs": 30660
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6539,
+                "totalCpuUs": 29560
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 4942,
+                "totalCpuUs": 29729
+              },
+              {
+                "checksum": 709082704,
+                "hotCpuUs": 6975,
+                "totalCpuUs": 31387
+              }
+            ]
+          }
+        },
+        {
+          "variant": "reexported",
+          "iterations": 1000000,
+          "checksum": 1824293664,
+          "pairs": 9,
+          "propertiesRenamed": 2,
+          "totalCpu": {
+            "nativeMedianUs": 39173,
+            "emittedMedianUs": 36765,
+            "emittedOverNativeRatio": 0.9385290889132821,
+            "strictPairsAbove2point5": 0
+          },
+          "hotCpu": {
+            "nativeMedianUs": 14963,
+            "emittedMedianUs": 13177,
+            "emittedOverNativeRatio": 0.8806389093096304,
+            "measurementGranularity": "process.cpuUsage microseconds; zero ticks possible"
+          },
+          "raw": {
+            "native": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15036,
+                "totalCpuUs": 43119
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14281,
+                "totalCpuUs": 39173
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15834,
+                "totalCpuUs": 39907
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15633,
+                "totalCpuUs": 41680
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 15248,
+                "totalCpuUs": 41135
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13952,
+                "totalCpuUs": 38887
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14963,
+                "totalCpuUs": 38124
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13772,
+                "totalCpuUs": 36927
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14087,
+                "totalCpuUs": 36318
+              }
+            ],
+            "emitted": [
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13177,
+                "totalCpuUs": 36166
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13538,
+                "totalCpuUs": 41554
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14124,
+                "totalCpuUs": 38479
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 14361,
+                "totalCpuUs": 40482
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13131,
+                "totalCpuUs": 36756
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12678,
+                "totalCpuUs": 34330
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12895,
+                "totalCpuUs": 37623
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 13567,
+                "totalCpuUs": 36765
+              },
+              {
+                "checksum": 1824293664,
+                "hotCpuUs": 12598,
+                "totalCpuUs": 36155
+              }
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -64,6 +64,47 @@ Three merged proof guard increments, [PR #24](https://github.com/FlareZ123/obfs/
 
 No general JS side-effect analysis, complete alias lattice, or source/environment closure follows from these syntactic conditions. Runtime function returns, Proxy traps, altered prototypes, cross-realm globals, and external loaders can invalidate apparently unrelated reads. When their safety cannot be proved, the appropriate action is retaining the original property.
 
+## 4.1. Named ESM immutable-string relay: accepted only with acyclic provenance
+
+The immutable computed-key lane can now propagate a uniquely bound, top-level
+`const` string across explicit named ESM *source reexports* such as
+`export {key as lookup} from './keys.mjs'`. The fact propagated is the string
+value used by existing provenance and function-source-observation checks. The
+existing closed-world owner proof still controls whether a property may be
+renamed. Cross-module computed-key folding separately requires an acyclic
+static-import/reexport graph; source metadata alone never establishes runtime
+initialization order.
+
+The implementation in `src/cross-properties.js` reaches a monotone fixed
+point for multi-hop explicit named relays, regardless of input-file order.
+It excludes export-star, mutable `let` bindings, unknown origins, and
+noncanonical specifiers containing query, percent or escape notation. Cyclic
+early-TDZ graphs and keys that expose `Function#toString` remain negative
+cases. This is **one more supported behavior-preserving ESM shape** under the
+documented graph/host assumptions, with no claim of client secrecy or
+superiority to source-only reconstruction.
+
+Seven source-pinned tests in `test/imported-constant-computed-key.test.js`
+include one/two-hop real positive renames plus five conservative negative
+families. The [unmodified-main red control](https://github.com/FlareZ123/obfs/actions/runs/44982753767)
+at `ed201b96ee9fd9ca4ec3aa41cf50da8b41facece` failed **exactly
+the two positive rename-count assertions** (0 versus expected 1) on Ubuntu
+and Windows; 39 other tests in that file passed. The
+[rebased-main candidate](https://github.com/FlareZ123/obfs/actions/runs/44982712543)
+at `32b437967eac77e8b67cb92b250f6488a090311e` passed on both
+platforms with those actual renames, original/generated Node ESM stdout parity,
+the source-reader regression suite, and strict JSDoc checks. The production
+source at commit `ac4a81892bcb73370aff824058f0b5c95361664c` has
+the **same** compiler blob as the tested candidate. The seven tests entered
+main at `92373e29b315711ab9015f80fdd8d8ffd9740f6b`.
+
+These tests are intentionally small closed ESM graphs. General source-shape
+compatibility still requires independent application, browser and adversarial
+measurement; the baseline comparison establishes only newly admitted positive
+work and no proven reverse-engineering resistance. The full validation suite
+and current outcome are tracked in
+[the intermediate integration record](../im-results/immutable-string-reexport-integration-2026-11-22.md).
+
 ## 5. What qualifies as future progress
 
 For a property-proof extension, provide a **frozen unchanged positive application** with nonzero actual protected key rewrites and a **frozen hostile negative**, then demonstrate correct original/generated behavior on both, across Node and Chromium where applicable. Add a source-only attacker reproduction and measure protected operation overhead independently of any zero-transformation controls. Record exact SHA and run IDs.
@@ -71,3 +112,24 @@ For a property-proof extension, provide a **frozen unchanged positive applicatio
 Prefer a reusable receiver/alias/effect representation over endless special-casing of individual spellings. A future trusted-host declaration must be explicit, versioned, testable and distinguishable from the weaker `closedWorld` source-graph hint. A true anti-cloning boundary for SCO requires server-private computation and genuine server authorization, with unlimited-query online-relay limitations tested independently. COO and SNO cannot use their attacker-controlled runtimes as a cryptographic secret boundary.
 
 No general-purpose anti-tamper, function-source secrecy, or strong obfuscation security result is asserted here.
+
+
+## 22 November 2026: opaque owner transport, reflection and browser host APIs
+
+The [source-pinned Node and browser parity report](../im-results/cross-file-opaque-api-parity-2026-11-22.md)
+adds 20 named ESM API/reflection cases and a 56-graph deterministic
+interprocedural transport/observer matrix, with actual positive
+imported-key rewrite controls. It also adds nine real Chromium fixtures
+to the existing imported-key browser suite. The relevant focused
+Ubuntu/Windows Node jobs and full Chromium CSP workflow passed at
+their explicitly recorded, **distinct** immutable source revisions.
+
+These tests reinforce the proof envelope: an owner transported through
+an array, record, Map, Set, Promise, rest parameter, Proxy, WeakRef,
+external callback, or serialized clone can acquire observable key
+spelling. A syntactically closed graph that cannot establish
+non-observation should preserve the original property name. The
+browser test retains existing six positive transformed fixtures,
+while the additional reflection cases conservatively decline to
+rewrite. No hostile-runtime security, full-application performance
+or universal property-safety result follows from this finite corpus.

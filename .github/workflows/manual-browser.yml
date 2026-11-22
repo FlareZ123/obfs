@@ -8,6 +8,10 @@ permissions:
 
 jobs:
   chromium:
+    # Avoid duplicate expensive Chromium runs for the identical source revision.
+    concurrency:
+      group: obfs-browser-${{ github.sha }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -16,7 +20,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install dependencies
-        run: npm install --no-package-lock --ignore-scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check available Chromium installation
         run: |
           command -v google-chrome
@@ -73,6 +77,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Compare private factory imported-destructuring graph in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/factory-destructuring-browser.js
       - name: Check source-byte observer negative and performance.now positive
         run: node --test test/cross-file-source-byte-reader.test.js
       - name: Compare native and emitted ESM ResourceTiming decoded byte sizes
@@ -83,6 +91,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/clone-source-browser.js
+      - name: Demonstrate hostile browser interception of a bound private function target
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/bound-runtime-interception-browser.js
       - name: Verify executable XML document URL behavior in Chromium
         env:
           CHROMIUM_BIN: google-chrome
@@ -113,6 +125,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-spelling-mask-browser.js
+      - name: Verify external dynamic ESM intrinsic mutation and known-graph positive decoding
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-dynamic-data-esm-browser.js
       - name: Compare native and guarded large ESM strings after prototype index mutation in Chrome
         env:
           CHROMIUM_BIN: google-chrome

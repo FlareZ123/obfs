@@ -5,6 +5,7 @@ const {isBuiltin}=require('node:module');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
+const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -16,6 +17,136 @@ const {snapshotSelectedOptions}=require('./sco-selected-options');
 /** @typedef {ScoModulePartition & {publicNames:string[],privateNames:string[],publicHelperNames:string[],privateSourceDigests?:ScoPrivateSourceDigest[]}} ScoSelectivePartition */
 /** @type {WeakMap<ScoSelectivePartition,string>} */
 const generatedSelectiveSnapshots=new WeakMap();
+
+// A selected function and each audited static dependency are relocated to
+// the trusted Node server. Both paths must apply the same client-host global
+// admission boundary; otherwise a dependency can silently read browser state
+// that is absent or different in the relocated execution environment.
+const browserOnlyRoots=new Set(['window','document','navigator','location',
+  'localStorage','sessionStorage','indexedDB','self','history','screen',
+  'customElements','DOMParser','XMLHttpRequest',
+  // Web-exposed globals with no equivalent Node 22 document/window state.
+  'caches','origin','devicePixelRatio','isSecureContext',
+  'crossOriginIsolated','matchMedia','requestAnimationFrame',
+  'cancelAnimationFrame','requestIdleCallback','cancelIdleCallback',
+  'MutationObserver','ResizeObserver','IntersectionObserver',
+  'FileReader','FileList','Image','Audio','HTMLElement','Element','Node']);
+
+const standardRealmGlobals=new Set([
+  'Infinity','NaN','undefined','eval','isFinite','isNaN',
+  'parseFloat','parseInt','decodeURI','decodeURIComponent',
+  'encodeURI','encodeURIComponent','escape','unescape',
+  'Object','Function','Boolean','Symbol','Error','AggregateError',
+  'EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
+  'URIError','Number','BigInt','Math','Date','String','RegExp','Array',
+  'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
+  'Int32Array','Uint32Array','Float32Array','Float64Array',
+  'BigInt64Array','BigUint64Array','Map','Set','WeakMap','WeakSet',
+  'ArrayBuffer','SharedArrayBuffer','DataView','JSON','Promise',
+  'Reflect','Proxy','Intl','Atomics','WebAssembly',
+  'WeakRef','FinalizationRegistry'
+]);
+
+/**
+ * Whether an AST literal is an owned primitive whose typeof result does not
+ * depend on a host global. RegExp syntax carries an object, so exclude it.
+ * @param {import('./ast').AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function isProvedTypeofLiteral(node){
+  return Boolean(node&&node.type==='Literal'&&node.regex===undefined&&
+    (node.value===null||
+      ['string','number','boolean','bigint'].includes(typeof node.value)));
+}
+
+/**
+ * An explicitly pinned trusted Node builtin import has the same local
+ * server-side value regardless of the private module's source URL.
+ * @param {import('./ast').AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function isProvedTypeofLocalInitializer(node){
+  if(isProvedTypeofLiteral(node))return true;
+  if(node?.type!=='AwaitExpression'||node.argument?.type!=='ImportExpression')return false;
+  const specifier=node.argument.source;
+  return specifier?.type==='Literal'&&typeof specifier.value==='string'&&
+    specifier.value.startsWith('node:')&&isBuiltin(specifier.value)&&
+    !['node:module','node:vm','node:worker_threads',
+      'node:child_process','node:process'].includes(specifier.value);
+}
+
+/**
+ * Find the first unproved unqualified typeof read in a relocated source.
+ * A unique binding is necessary, but is not alone sufficient: a sibling
+ * function's declaration is not in lexical scope. Accept only the explicit
+ * module binding or a literal/parameter/function binding in an ancestor scope.
+ * Unknown host roots remain conservatively unproved, even when typeof would
+ * return "undefined" instead of throwing on one particular machine.
+ *
+ * @param {import('./ast').AstNode} root
+ * @param {Map<string,number>} bindings
+ * @param {Set<string>} moduleBindings
+ * @param {Set<string>} rootFormals
+ * @returns {string|null}
+ */
+function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
+  /** @type {string|null} */
+  let unproved=null;
+  walk(root,(node,_parent,_key,ancestors)=>{
+    if(unproved!==null||node.type!=='UnaryExpression'||node.operator!=='typeof')return;
+    // The operand is fully evaluated before typeof computes its final
+    // primitive tag. Sequence members, computed keys, object initializers,
+    // member roots and conditional branches may all read free host names.
+    // Function literals are lazy unless embedded in a call expression:
+    // merely creating one has a stable typeof result.
+    walk(node.argument,(read,parent,key,inside)=>{
+      if(unproved!==null||read.type!=='Identifier'||isStaticKey(parent,key)||
+         parent&&['FunctionDeclaration','FunctionExpression',
+           'ArrowFunctionExpression','ClassExpression'].includes(parent.type)&&
+           (key==='id'||key==='params'))return;
+      // An unevaluated function body cannot read host state. Only a function
+      // directly invoked as the callee or tag can execute inside this typeof
+      // operand. Calls unrelated to its own function node do not prove execution.
+      const enclosingFunction=inside.some((scope,index)=>{
+        if(!['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(scope.type))return false;
+        const containing=inside[index-1];
+        return !(containing&&(
+          (containing.type==='CallExpression'||containing.type==='NewExpression')&&
+            containing.callee===scope ||
+          containing.type==='TaggedTemplateExpression'&&containing.tag===scope
+        ));
+      });
+      if(enclosingFunction)return;
+      const name=read.name;
+      const bindingCount=bindings.get(name)??0;
+      if(bindingCount===0&&(name==='globalThis'||standardRealmGlobals.has(name)))return;
+      if(bindingCount!==1){unproved=name;return;}
+      if(moduleBindings.has(name)||rootFormals.has(name))return;
+      for(const scope of [...ancestors,...inside]){
+        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(scope.type)){
+          if(scope.id?.type==='Identifier'&&scope.id.name===name)return;
+          if(Array.isArray(scope.params)&&scope.params.some(
+            (/** @type {import('./ast').AstNode} */ parameter)=>
+              parameter.type==='Identifier'&&parameter.name===name))return;
+        }
+        if(scope.type!=='BlockStatement')continue;
+        for(const statement of scope.body){
+          if(statement.type==='FunctionDeclaration'&&
+             statement.id?.type==='Identifier'&&statement.id.name===name)return;
+          if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+          for(const declaration of statement.declarations){
+            if(declaration.id.type==='Identifier'&&declaration.id.name===name&&
+               declaration.start<read.start&&isProvedTypeofLocalInitializer(declaration.init))return;
+          }
+        }
+      }
+      unproved=name;
+    });
+  });
+  return unproved;
+}
 
 /**
  * Copy the declared numeric array slots without invoking caller-controlled
@@ -54,17 +185,64 @@ function isStaticKey(parent,key){
  * shadow globals. Inert object-property keys do not count as API references.
  *
  * @param {import('./ast').AstNode} body
+ * @param {Set<string>} [explicitServerBindings]
  * @returns {boolean}
  */
-function usesUnprovedCrossRealmHostApi(body){
+function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
   const hostApis=new Set([
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
-    'BroadcastChannel','MessageChannel'
+    'BroadcastChannel','MessageChannel',
+    'setTimeout','clearTimeout','setInterval','clearInterval',
+    'setImmediate','clearImmediate','queueMicrotask',
+    // Browser-only frame/idle APIs are handled by browserOnlyRoots below,
+    // preserving their established browser-ambient diagnostic.
+    'postMessage','addEventListener','removeEventListener','dispatchEvent',
+    'alert','confirm','prompt'
   ]);
+  // A uniquely declared function in this immediate source scope shadows
+  // the ambient host API name. Function declarations are mutable bindings;
+  // a later assignment or loop-target write destroys the local-function
+  // provenance. Track writes including destructuring before granting the
+  // bounded exemption, and decline ambiguous nested shadowing.
+  const bindingCounts=collectBindings(body);
+  const mutatedBindings=new Set();
+  walk(body,node=>{
+    const target=node.type==='AssignmentExpression'?node.left:
+      node.type==='UpdateExpression'?node.argument:
+      (node.type==='ForInStatement'||node.type==='ForOfStatement')?node.left:null;
+    if(!target)return;
+    walk(target,(part,parent,key)=>{
+      if(part.type==='Identifier'&&hostApis.has(part.name)&&
+         !isStaticKey(parent,key))mutatedBindings.add(part.name);
+    });
+  });
+  const ownedFunctions=new Set();
+  if(body.type==='BlockStatement'||body.type==='Program'){
+    for(const statement of body.body){
+      if(statement.type==='FunctionDeclaration'&&
+         statement.id?.type==='Identifier'&&
+         hostApis.has(statement.id.name)&&
+         bindingCounts.get(statement.id.name)===1&&
+         !mutatedBindings.has(statement.id.name)){
+        ownedFunctions.add(statement.id.name);
+      }
+      if(statement.type==='VariableDeclaration'&&statement.kind==='const'){
+        for(const declaration of statement.declarations){
+          if(declaration.id.type==='Identifier'&&hostApis.has(declaration.id.name)&&
+             bindingCounts.get(declaration.id.name)===1&&
+             !mutatedBindings.has(declaration.id.name)&&declaration.init&&
+             ['FunctionExpression','ArrowFunctionExpression'].includes(declaration.init.type)){
+            ownedFunctions.add(declaration.id.name);
+          }
+        }
+      }
+    }
+  }
   let observed=false;
   walk(body,(node,parent,key)=>{
     if(node.type==='DebuggerStatement')observed=true;
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
+       !ownedFunctions.has(node.name)&&!explicitServerBindings.has(node.name)&&
        !isStaticKey(parent,key)&&
        !['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier']
          .includes(parent?.type??'')&&
@@ -72,6 +250,170 @@ function usesUnprovedCrossRealmHostApi(body){
        !(parent?.type==='FunctionDeclaration'&&key==='id')){
       observed=true;
     }
+  });
+  return observed;
+}
+
+/**
+ * Legacy TextDecoder mappings depend on the Node and browser engine/ICU
+ * versions. Node 22.16.0 decodes windows-1252 0x80 differently from
+ * Chromium's WHATWG mapping, while later Node 22 patches agree. Only a
+ * directly constructed UTF-8 decoder has bounded cross-host provenance.
+ * First-class constructors, dynamic labels and global destructuring are
+ * conservatively left out of relocated private SCO source.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedTextDecoder(body){
+  const globals=new Set(['globalThis','window','self','global']);
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(binding?.type==='Identifier'&&initial?.type==='Identifier'&&
+         globals.has(initial.name)&&!globals.has(binding.name)){
+        globals.add(binding.name);
+        changed=true;
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function globalRoot(expression){
+    return expression.type==='Identifier'&&globals.has(expression.name);
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function decoderRoot(expression){
+    if(expression.type==='Identifier')return expression.name==='TextDecoder';
+    return expression.type==='MemberExpression'&&globalRoot(expression.object)&&
+      (expression.computed?staticString(expression.property):
+        expression.property.type==='Identifier'?expression.property.name:null)==='TextDecoder';
+  }
+  /** @param {import('./ast').AstNode|undefined} label @returns {boolean} */
+  function provedUtf8(label){
+    if(label===undefined)return true;
+    const value=staticString(label);
+    return value!==null&&['utf-8','utf8','unicode-1-1-utf-8'].includes(value.toLowerCase());
+  }
+  let unproved=false;
+  walk(body,(node,parent,key)=>{
+    const binding=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const source=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(binding?.type==='ObjectPattern'&&source&&globalRoot(source)){
+      for(const property of binding.properties){
+        if(property.type==='Property'&&
+           (property.computed?staticString(property.key):
+             property.key.type==='Identifier'?property.key.name:null)==='TextDecoder'){
+          unproved=true;
+        }
+      }
+    }
+    if(!decoderRoot(node)||node.type==='Identifier'&&(
+       isStaticKey(parent,key)||
+       parent?.type==='VariableDeclarator'&&key==='id'||
+       (parent?.type==='FunctionDeclaration'||parent?.type==='FunctionExpression')&&
+         key==='id'))return;
+    if(parent?.type==='NewExpression'&&parent.callee===node&&
+       parent.arguments.length<=2&&provedUtf8(parent.arguments[0]))return;
+    unproved=true;
+  });
+  return unproved;
+}
+
+/**
+ * The browser URL constructor and Node's URL constructor both support
+ * deterministic parsing, but their static object-URL registries belong to
+ * different runtimes. A browser-created blob: URL cannot be replaced by a
+ * Node blob:nodedata: URL without changing observable behavior.
+ *
+ * Allow direct `new URL(...)` constructor syntax, and conservatively decline
+ * other first-class URL references in relocated private functions. This
+ * includes static method extraction, constructor aliases and dynamic members;
+ * it does not prove behavior for all possible indirect constructor recovery.
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedUrlStatic(body){
+  /**
+   * A direct `new URL(...)` originates in the host URL constructor. The
+   * admitted subset contains only local scalar getters and direct toString/
+   * toJSON calls; returning or passing URL instances requires a provenance
+   * proof that this bounded compiler does not provide.
+   * @param {import('./ast').AstNode} node
+   * @returns {boolean}
+   */
+  function newUrl(node){
+    return node.type==='NewExpression'&&node.callee.type==='Identifier'&&
+      node.callee.name==='URL';
+  }
+  // Propagate simple local aliases without inferring container or call flows.
+  const urlInstances=new Set();
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const value=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(binding?.type!=='Identifier'||!value)return;
+      if((newUrl(value)||value.type==='Identifier'&&urlInstances.has(value.name))&&
+         !urlInstances.has(binding.name)){
+        urlInstances.add(binding.name);
+        changed=true;
+      }
+    });
+  }
+  const scalarMembers=new Set(['href','origin','protocol','username',
+    'password','host','hostname','port','pathname','search','hash']);
+  const invokedMethods=new Set(['toString','toJSON']);
+  /** @param {import('./ast').AstNode} node @returns {boolean} */
+  function urlInstance(node){
+    return newUrl(node)||node.type==='Identifier'&&urlInstances.has(node.name);
+  }
+  let observed=false;
+  walk(body,(node,parent,key)=>{
+    if(newUrl(node)){
+      const directMember=parent?.type==='MemberExpression'&&key==='object';
+      const localBinding=parent?.type==='VariableDeclarator'&&key==='init'&&
+        parent.id.type==='Identifier';
+      const directAssignment=parent?.type==='AssignmentExpression'&&key==='right'&&
+        parent.operator==='='&&parent.left.type==='Identifier';
+      if(!directMember&&!localBinding&&!directAssignment)observed=true;
+    }
+    if(node.type==='MemberExpression'&&urlInstance(node.object)){
+      const member=node.computed?staticString(node.property):
+        node.property.type==='Identifier'?node.property.name:null;
+      const scalar=scalarMembers.has(member??'');
+      const directInvocation=invokedMethods.has(member??'')&&
+        parent?.type==='CallExpression'&&key==='callee'&&
+        parent.arguments.length===0;
+      const write=parent?.type==='AssignmentExpression'&&key==='left'||
+        parent?.type==='UpdateExpression'&&key==='argument'||
+        parent?.type==='UnaryExpression'&&parent.operator==='delete';
+      if((!scalar&&!directInvocation)||write)observed=true;
+    }
+    if(node.type==='Identifier'&&urlInstances.has(node.name)&&!isStaticKey(parent,key)){
+      const declaration=parent?.type==='VariableDeclarator'&&key==='id';
+      const directMember=parent?.type==='MemberExpression'&&key==='object';
+      const localAlias=parent?.type==='VariableDeclarator'&&key==='init'&&
+        parent.id.type==='Identifier';
+      const assignmentAlias=parent?.type==='AssignmentExpression'&&key==='right'&&
+        parent.operator==='='&&parent.left.type==='Identifier';
+      if(!declaration&&!directMember&&!localAlias&&!assignmentAlias)observed=true;
+    }
+    if(node.type!=='Identifier'||node.name!=='URL'||isStaticKey(parent,key))return;
+    if(parent?.type==='NewExpression'&&key==='callee')return;
+    if(key==='id'&&['VariableDeclarator','FunctionDeclaration',
+      'FunctionExpression','ClassDeclaration','ClassExpression']
+      .includes(parent?.type??''))return;
+    observed=true;
   });
   return observed;
 }
@@ -110,7 +452,7 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const intrinsicNames=new Set(['Object','Array','Function','String','Number',
     'Boolean','Symbol','BigInt','RegExp','Date','Map','Set','WeakMap','WeakSet',
     'Promise','Error','AggregateError','EvalError','RangeError','ReferenceError',
-    'SyntaxError','TypeError','URIError','ArrayBuffer','SharedArrayBuffer',
+    'SyntaxError','TypeError','URIError','DOMException','ArrayBuffer','SharedArrayBuffer',
     'DataView','Reflect',
     'Math','JSON','Intl','Atomics','WebAssembly',
     'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
@@ -128,7 +470,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
   const immutableNumberValues=new Set(['EPSILON','MAX_SAFE_INTEGER','MIN_SAFE_INTEGER',
     'MAX_VALUE','MIN_VALUE','NaN','NEGATIVE_INFINITY','POSITIVE_INFINITY']);
   const errorConstructorKinds=new Set(['Error','AggregateError','EvalError',
-    'RangeError','ReferenceError','SyntaxError','TypeError','URIError']);
+    'RangeError','ReferenceError','SyntaxError','TypeError','URIError',
+    'DOMException','WebAssemblyError']);
+  const wasmErrorConstructorNames=new Set(['CompileError','LinkError','RuntimeError']);
   const regexpNames=new Set(['RegExp']);
   const regexpStatics=new Set(['input','$_','lastMatch','$&','lastParen',
     '$+','leftContext','$`','rightContext',"$'",'$1','$2','$3','$4',
@@ -144,6 +488,15 @@ function realmStateObservation(body,checkHostConfiguration=false){
         node.key.type==='Identifier'?node.key.name:staticString(node.key);
     }
     return null;
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function isWebAssemblyRoot(expression){
+    return expression.type==='Identifier'&&
+        intrinsicKinds.get(expression.name)==='WebAssembly' ||
+      expression.type==='MemberExpression'&&
+        expression.object.type==='Identifier'&&
+        globalNames.has(expression.object.name)&&
+        keyName(expression)==='WebAssembly';
   }
   /**
    * Recognize standard immutable numeric constants without assuming all
@@ -215,6 +568,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
           if(name!==null&&!isImmutableNumericProperty(node.init,name)){
             add(intrinsicNames,property.value.name);
           }
+          if(isWebAssemblyRoot(node.init)&&
+             wasmErrorConstructorNames.has(name??'')&&
+             !intrinsicKinds.has(property.value.name)){
+            intrinsicKinds.set(property.value.name,'WebAssemblyError');
+            changed=true;
+          }
         }
         return;
       }
@@ -235,6 +594,12 @@ function realmStateObservation(body,checkHostConfiguration=false){
       if(node.init.type==='MemberExpression'&&
          (keyName(node.init)==='constructor'||isIntrinsic(node.init.object)&&
           !isImmutableNumericMember(node.init)))add(intrinsicNames,node.id.name);
+      if(node.init.type==='MemberExpression'&&isWebAssemblyRoot(node.init.object)&&
+         wasmErrorConstructorNames.has(keyName(node.init)??'')&&
+         !intrinsicKinds.has(node.id.name)){
+        intrinsicKinds.set(node.id.name,'WebAssemblyError');
+        changed=true;
+      }
       const regexpDirect=node.init.type==='Identifier'&&regexpNames.has(node.init.name);
       const regexpGlobal=node.init.type==='MemberExpression'&&
         node.init.object.type==='Identifier'&&globalNames.has(node.init.object.name)&&
@@ -346,6 +711,9 @@ function realmStateObservation(body,checkHostConfiguration=false){
     if(expression.type==='Identifier'){
       return errorConstructorKinds.has(intrinsicKinds.get(expression.name)??'');
     }
+    if(expression.type==='MemberExpression'&&
+       isWebAssemblyRoot(expression.object)&&
+       wasmErrorConstructorNames.has(keyName(expression)??''))return true;
     return expression.type==='MemberExpression'&&
       expression.object.type==='Identifier'&&
       globalNames.has(expression.object.name)&&
@@ -493,6 +861,54 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return returnsError(expression)||
       expression.type==='Identifier'&&catchBindings.has(expression.name);
   }
+  // Abort APIs synthesize a native DOMException AbortError when no
+  // explicitly defined reason is supplied. Its stack captures this host's
+  // source filename, just like a directly constructed native DOMException.
+  // Carry only simple constructor and controller-instance aliases. Unknown
+  // first-class flows remain outside this bounded static proof.
+  const abortControllerConstructors=new Set(['AbortController']);
+  const abortSignalConstructors=new Set(['AbortSignal']);
+  const abortControllers=new Set();
+  /** @param {import('./ast').AstNode} receiver @param {Set<string>} aliases @returns {boolean} */
+  function isAbortConstructor(receiver,aliases){
+    return receiver.type==='Identifier'&&aliases.has(receiver.name)||
+      receiver.type==='MemberExpression'&&
+        receiver.object.type==='Identifier'&&
+        globalNames.has(receiver.object.name)&&
+        aliases.has(keyName(receiver)??'');
+  }
+  let abortAliasesChanged=true;
+  while(abortAliasesChanged){
+    abortAliasesChanged=false;
+    walk(body,node=>{
+      const target=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const source=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(target?.type!=='Identifier'||!source)return;
+      /** @param {Set<string>} names @returns {void} */
+      function add(names){
+        if(!names.has(target.name)){names.add(target.name);abortAliasesChanged=true;}
+      }
+      if(isAbortConstructor(source,abortControllerConstructors)){
+        add(abortControllerConstructors);
+      }
+      if(isAbortConstructor(source,abortSignalConstructors)){
+        add(abortSignalConstructors);
+      }
+      if(source.type==='Identifier'&&abortControllers.has(source.name)||
+         source.type==='NewExpression'&&
+         isAbortConstructor(source.callee,abortControllerConstructors)){
+        add(abortControllers);
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} value @returns {boolean} */
+  function provedAbortReason(value){
+    return value.type==='Literal'&&value.regex===undefined&&
+      (value.value===null||
+        ['string','number','boolean','bigint'].includes(typeof value.value));
+  }
   let stackTouched=false;
   let configurationTouched=false;
   let entropyTouched=false;
@@ -510,6 +926,33 @@ function realmStateObservation(body,checkHostConfiguration=false){
     return member.type==='MemberExpression'&&rootedInIntrinsic(member.object);
   }
   walk(body,(node,parent,key,ancestors)=>{
+    // Extracted host abort methods can later be invoked via .call/.apply,
+    // a local alias, or an opaque callback. Unlike a proven direct call with
+    // a primitive reason, their eventual default-reason behavior is unproved.
+    if(node.type==='MemberExpression'&&keyName(node)==='abort'&&
+       !(parent?.type==='CallExpression'&&parent.callee===node)){
+      const receiver=node.object;
+      if(isAbortConstructor(receiver,abortSignalConstructors)||
+         receiver.type==='Identifier'&&abortControllers.has(receiver.name)||
+         receiver.type==='NewExpression'&&
+         isAbortConstructor(receiver.callee,abortControllerConstructors)){
+        stackTouched=true;
+      }
+    }
+    // Both AbortController#abort and AbortSignal.abort can synthesize a
+    // source-location-bearing DOMException when no proven defined reason is
+    // supplied. Unknown argument expressions may evaluate to undefined.
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       keyName(node.callee)==='abort'&&
+       !(node.arguments.length===1&&provedAbortReason(node.arguments[0]))){
+      const receiver=node.callee.object;
+      if(isAbortConstructor(receiver,abortSignalConstructors)||
+         receiver.type==='Identifier'&&abortControllers.has(receiver.name)||
+         receiver.type==='NewExpression'&&
+         isAbortConstructor(receiver.callee,abortControllerConstructors)){
+        stackTouched=true;
+      }
+    }
     // Destructuring directly in a catch parameter reads the thrown Error's
     // realm-local stack without introducing an identifier receiver. The
     // computed-key case can resolve to "stack" at runtime.
@@ -863,12 +1306,43 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError(
         'SCO private static dependency contains unproved cross-realm host API: '+filename);
     }
+    if(usesUnprovedRelocatedTextDecoder(ast)){
+      throw new TypeError(
+        'SCO private static dependency contains unproved cross-realm text decoding: '+filename);
+    }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
     // Keep known ECMAScript global names outside this narrow host check;
     // realmStateObservation handles their mutable intrinsic hazards.
-    const browserOnlyGlobals=new Set(['window','self','document','navigator','location']);
+    const browserOnlyGlobals=browserOnlyRoots;
+    // A unique module-scope const literal supplies an owned primitive even
+    // when its spelling matches a browser global. Nested same-name bindings
+    // stay unproved: syntax-only name resolution cannot safely unify them.
+    const localBindings=collectBindings(ast);
+    const provenModuleOwnedBrowserNames=new Set();
+    const provenModuleTypeofNames=new Set();
+    for(const statement of ast.body){
+      if(statement.type==='ImportDeclaration'){
+        for(const specifier of statement.specifiers){
+          if(specifier.local?.type==='Identifier'&&
+             localBindings.get(specifier.local.name)===1){
+            provenModuleTypeofNames.add(specifier.local.name);
+          }
+        }
+      }
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'?statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations){
+        if(item.id.type!=='Identifier'||!isProvedTypeofLiteral(item.init)||
+           localBindings.get(item.id.name)!==1)continue;
+        provenModuleTypeofNames.add(item.id.name);
+        if(browserOnlyGlobals.has(item.id.name)){
+          provenModuleOwnedBrowserNames.add(item.id.name);
+        }
+      }
+    }
     const standardGlobalKeys=new Set([
       'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
       'parseFloat','parseInt','decodeURI','decodeURIComponent',
@@ -900,6 +1374,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     walk(ast,(node,parent,key)=>{
       if(node.type==='Identifier'&&browserOnlyGlobals.has(node.name)&&
+         !provenModuleOwnedBrowserNames.has(node.name)&&
          !isStaticKey(parent,key)&&
          !(parent?.type==='VariableDeclarator'&&key==='id')&&
          !(parent?.type==='FunctionDeclaration'&&key==='id')){
@@ -918,6 +1393,12 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
         }
       }
     });
+    const freeTypeof=firstUnprovedTypeofReference(ast,localBindings,
+      provenModuleTypeofNames,new Set());
+    if(freeTypeof!==null){
+      throw new TypeError('SCO private static dependency has unproved free typeof reference: '+
+        filename+':'+freeTypeof);
+    }
     walk(ast,node=>{
       // Destructuring can carry process.getBuiltinModule or a global root
       // into an untracked binding. Refuse these opaque first-class escapes.
@@ -1289,6 +1770,17 @@ function partitionScoSelectedAsyncExports(file,options) {
   const privateChunks=[];
   /** @type {import('./ast').AstNode[]} */
   const privateBodies=[];
+  /** @type {WeakMap<import('./ast').AstNode,Set<string>>} */
+  const privateFormals=new WeakMap();
+  /** @param {import('./ast').AstNode} fn @returns {void} */
+  function addPrivateBody(fn){
+    privateBodies.push(fn.body);
+    const parameters=new Set();
+    for(const parameter of fn.params){
+      if(parameter.type==='Identifier')parameters.add(parameter.name);
+    }
+    privateFormals.set(fn.body,parameters);
+  }
   const ambientRoots=new Set(['globalThis','window','self','document','navigator','location','process','global']);
   /**
    * Prove a literal-only object constructed independently within the function.
@@ -1439,7 +1931,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     }else{
       privateHelperNames.add(name);
       privateHelperChunks.push(helper.text);
-      privateBodies.push(fn.body);
+      addPrivateBody(fn);
       const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
@@ -1528,7 +2020,7 @@ function partitionScoSelectedAsyncExports(file,options) {
     if(selected.has(name)){
       if(!fn.async||fn.generator)throw new TypeError('Private SCO export must be async: '+name);
       privateChunks.push(text);
-      privateBodies.push(fn.body);
+      addPrivateBody(fn);
       const localAmbient=ownedLocalAmbientNames(fn.body);
       walk(fn.body,(node,parent,key)=>{
         if(node.type==='Identifier'&&!isStaticKey(parent,key)&&ambientRoots.has(node.name)&&
@@ -1545,35 +2037,51 @@ function partitionScoSelectedAsyncExports(file,options) {
   // Server and client load different function objects. Private code that reads
   // or mutates a public export can observe the wrong copy after partitioning.
   const publicBindings=new Set([...publicNames,...publicHelperNames]);
-  const browserOnlyRoots=new Set(['window','document','navigator','location',
-    'localStorage','sessionStorage','indexedDB','self','history','screen',
-    'customElements','DOMParser','XMLHttpRequest']);
   // ECMAScript permits host-defined properties on the global object. Values
   // such as globalThis.externalBridge cannot be migrated to an independent
   // server realm without an application-specific contract.
   // Even the standard globalThis property is a distinct mutable host object
   // in each realm. Refuse nested self-references rather than allowing aliases
   // such as globalThis.globalThis.externalBridge around this guard.
-  const standardRealmGlobals=new Set([
-    'Infinity','NaN','undefined','eval','isFinite','isNaN',
-    'parseFloat','parseInt','decodeURI','decodeURIComponent',
-    'encodeURI','encodeURIComponent','escape','unescape',
-    'Object','Function','Boolean','Symbol','Error','AggregateError',
-    'EvalError','RangeError','ReferenceError','SyntaxError','TypeError',
-    'URIError','Number','BigInt','Math','Date','String','RegExp','Array',
-    'Int8Array','Uint8Array','Uint8ClampedArray','Int16Array','Uint16Array',
-    'Int32Array','Uint32Array','Float32Array','Float64Array',
-    'BigInt64Array','BigUint64Array','Map','Set','WeakMap','WeakSet',
-    'ArrayBuffer','SharedArrayBuffer','DataView','JSON','Promise',
-    'Reflect','Proxy','Intl','Atomics','WebAssembly',
-    'WeakRef','FinalizationRegistry'
-  ]);
   // Preserve the previously established shared-state diagnostic when the
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
+  const allPrivateBindings=collectBindings(ast);
+  // Server imports and primitive constants were already admitted as explicit
+  // immutable private bindings. Exempt only globally unique lexical names;
+  // a shadowed formal or nested declaration cannot inherit their provenance.
+  const explicitServerHostNames=new Set([...serverConstants].filter(name=>
+    allPrivateBindings.get(name)===1));
   for(const body of privateBodies){
-    if(usesUnprovedCrossRealmHostApi(body)){
+    // The selected function and helpers execute in a different ESM module
+    // on a trusted Node server. Module metadata and dynamic import therefore
+    // resolve against the server-side module instead of the client module.
+    // Reject these operations until a true cross-host equivalence proof exists.
+    walk(body,node=>{
+      if(node.type==='MetaProperty'){
+        throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
+      }
+      if(node.type==='ImportExpression'){
+        // A fixed Node builtin module resolves independently of the current
+        // ESM module URL. Server-private crypto code historically relies on
+        // import('node:crypto'); computed, relative and loader-capability
+        // imports cannot use this exception.
+        const specifier=node.source.type==='Literal'?node.source.value:null;
+        if(typeof specifier==='string'&&specifier.startsWith('node:')&&
+           isBuiltin(specifier)&&
+           !['node:module','node:vm','node:worker_threads',
+             'node:child_process','node:process'].includes(specifier))return;
+        throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
+      }
+    });
+    if(usesUnprovedCrossRealmHostApi(body,explicitServerHostNames)){
       throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
+    }
+    if(usesUnprovedRelocatedUrlStatic(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
+    }
+    if(usesUnprovedRelocatedTextDecoder(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
     }
     const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {
@@ -1660,6 +2168,11 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export uses dynamic lexical execution: '+node.name);
       }
     });
+    const freeTypeof=firstUnprovedTypeofReference(body,allPrivateBindings,
+      serverConstants,privateFormals.get(body)??new Set());
+    if(freeTypeof!==null){
+      throw new TypeError('Private SCO export or helper uses unproved free typeof reference: '+freeTypeof);
+    }
   }
   // Global roots can alias across spellings, e.g. window versus globalThis.
   // Decline any cross-boundary ambient use rather than proving deep aliases.

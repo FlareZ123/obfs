@@ -268,12 +268,66 @@ all original code is otherwise valid. For example, mutating
 no longer refers to one shared prototype; a private `window` lookup may
 work before splitting and fail in Node.
 
+Unqualified `typeof someName` can observe an injected browser host global
+without throwing, then return a different value in the server's Node realm.
+Selected private exports/helpers and audited static ESM dependencies now
+refuse that expression unless its operand is a known standard global with
+no same-named local declaration, or has a single source binding proven
+visible from the reference. Supported local proofs include directly declared
+primitive `const` values, simple function parameters, function names and
+declared server constants/imports. This is a deliberately conservative
+lexical check; sibling-scope declarations and multiple same-spelled
+bindings do not establish proof. It leaves admitted client source bytes
+unchanged and does not analyze every arbitrary unqualified reference.
+See [the cross-realm `typeof` witness](../im-results/sco-unqualified-typeof-ambient-audit-2026-11-22.md).
+
+The same bounded audit also checks evaluated identifier references inside
+composite `typeof` operands such as `typeof (0, externalBridge)` and
+`typeof externalBridge.value`. It ignores uncomputed property labels and
+can decline complex local initializers whose ownership is unproved.
+A literal trusted `node:` builtin import remains eligible when its
+local binding is used for a type read. Function literal bodies and
+arbitrary indirect invocation still require separate review.
+See [composite host-state red/green evidence](../im-results/sco-composite-typeof-ambient-expression-2026-11-22.md).
+
 The compiler conservatively refuses tested forms of prototype reflection,
 legacy `RegExp` static reads, native constructor-object mutations and
 private browser-only ambient access, including simple aliases and global
 destructuring. It is a bounded syntax-level check, not a general proof
-that arbitrary JavaScript has no hidden shared state. Review each
-server-private operation as an explicit server contract, ensure all
+that arbitrary JavaScript has no hidden shared state. Selected private
+exports and their server-only helpers refuse `import.meta`, relative or
+computed dynamic `import()`, and runtime module-loader capabilities.
+Module metadata and module-relative resolution depend on the executing
+module's location and loader, which change when a client function moves to
+the trusted Node server. One narrowly checked exception permits a literal
+`import('node:crypto')` or another explicitly identified `node:`-prefixed
+Node builtin that is verified by `isBuiltin` and not a loader-capability
+module. This preserves the existing trusted server-side HMAC examples.
+Use explicitly reviewed static private ESM imports for server-owned
+dependencies, and keep client module URL consumers on the client side. The compiler also declines first-class or static-method
+references to the global `URL` constructor in relocated private code:
+`URL.createObjectURL(new Blob(...))` returns a `blob:nodedata:` URL in Node,
+while browser object URLs are associated with their creator origin. Direct
+`new URL(...)` parsing remains admitted. This is a conservative syntactic
+boundary, including local URL name shadowing. The selected compiler refuses
+URL instances that escape through unknown calls, destructuring or containers,
+while allowing proven local scalar URL properties and direct string
+serialization calls. This is a bounded provenance proof; opaque nested
+higher-order escapes remain outside its supported subset. Client timers
+and event-loop callbacks are also host-specific. In browsers, `setTimeout` and `setInterval` produce numeric
+timer IDs, while Node returns `Timeout` objects; relocating `queueMicrotask`,
+animation-frame, idle-callback, event-listener and similar host APIs changes
+the scheduling environment. The selected compiler refuses direct or extracted
+references to recognized host timer/event APIs, including those in audited
+private dependencies. Pure local records may retain the same property labels.
+Uniquely bound immediate-scope function declarations, immutable function
+constants, and uniquely bound explicitly server-owned imports or constants
+may use such names after unique-binding and no-write provenance checks. A
+function declaration reassigned by an assignment, update, destructuring or
+loop target loses this admission and is refused. A
+[real native-versus-generated SCO facade integration test](../test/sco-selected-handler.test.js)
+checks the retained private local helper over authorized loopback RPC.
+Review each server-private operation as an explicit server contract, ensure all
 cross-boundary inputs and outputs fit the JSON interface, and test
 the original versus split behavior under the intended browser and
 server environments. A function that requires browser-only state

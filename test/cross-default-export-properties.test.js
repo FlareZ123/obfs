@@ -183,13 +183,27 @@ test('acyclic default owner supports a verified immutable key from another modul
   await compileAndCompare(files,1);
 });
 
-test('later same-producer key initialization is outside cyclic-safe default proof',async()=>{
+test('acyclic default owner proves a later immutable same-producer key',async()=>{
   /** @type {ModuleFile[]} */
   const files=[
     {path:'state.mjs',sourceType:'module',
       code:'export default {secretField:43};export const KEY="secretField";'},
     {path:'main.mjs',sourceType:'module',
       code:'import state,{KEY} from "./state.mjs";console.log(state[KEY]);'}
+  ];
+  await compileAndCompare(files,1);
+});
+
+test('cyclic default owner refuses a late key that is initially in TDZ',async()=>{
+  /** @type {ModuleFile[]} */
+  const files=[
+    {path:'state.mjs',sourceType:'module',
+      code:'import {probe} from "./main.mjs";export default {secretField:43};'+
+        'try{console.log(probe());}catch(error){console.log(error.name);}'+
+        'export const KEY="secretField";console.log("ready",probe());'},
+    {path:'main.mjs',sourceType:'module',
+      code:'import state,{KEY} from "./state.mjs";'+
+        'export function probe(){return state[KEY];}'}
   ];
   await compileAndCompare(files,0);
 });

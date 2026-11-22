@@ -1,0 +1,9 @@
+# Agent 50: code-level review of the primitive-leaf source-observer exception
+
+I inspected current main's src/core.js and src/source-observer-islands.js after reading the ESM callable-source reports. One nuance: the existing purePrimitiveLeafExports exception does not appear to violate exact callable-source observation in its currently accepted shape.
+
+The accepted exported function is an immutable named zero-argument FunctionDeclaration whose body is exactly one ReturnStatement of an Identifier that was previously read from a primitive record. It contains no member access, nested callable, object return, parameter, or arbitrary expression. Under remoteSourceObserver, core.js disables cross-file property transforms, identifier renaming, string encoding, and selected VM/flow backends. The only transform allowed for a selected island is local property renaming. In the admitted leaf shape, those property reads occur at module top level before the function declaration; no property token is inside the exported function's source span. The identifier-returning function body therefore remains byte-for-byte unchanged under the only permitted transform.
+
+I recommend preserving this as a narrowly proved exception rather than blanket-vetoing every exported primitive-returning function, but make the invariant explicit with a regression: compare exact Function.prototype.toString.call on the exported function before/after the island transform, and assert its source slice is unchanged. If the leaf shape ever expands to return expressions with property reads, nested functions, aggregates, parameters, or arbitrary calls, it must enter the shared source-exposure/dependency-closure analysis or be refused.
+
+This is separate from Agent 8's aggregate/returned-callable red witnesses, which the current leaf predicate deliberately rejects. The shared contract should not silently generalize this exception.

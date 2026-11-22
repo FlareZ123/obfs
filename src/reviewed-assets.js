@@ -1,7 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
-const {createPathInventory,registerFilePath}=require('./portable-paths');
+const {createPathInventory,registerFilePath,safePath}=require('./portable-paths');
 
 /**
  * @typedef {{path:string,sha256:string}} ReviewedOpaqueAsset
@@ -45,6 +45,7 @@ function assertReviewedOpaqueAssets(files,approved) {
         typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256)){
       throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
+    safePath(path);
     registerFilePath(approvedPaths,path,'Duplicate reviewedOpaqueAssets path: ');
     const identity=path.toLowerCase();
     if(expected.has(identity)){
@@ -72,6 +73,7 @@ function assertReviewedOpaqueAssets(files,approved) {
     if(sourceType!=='asset')continue;
     const path=file.path;
     const code=file.code;
+    safePath(path);
     registerFilePath(publishedPaths,path,'Duplicate published opaque asset path: ');
     const identity=path.toLowerCase();
     if(matched.has(identity)){

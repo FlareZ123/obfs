@@ -355,7 +355,7 @@ function collectOwnedConstantKeys(ast,rootName,bindings,scopes) {
  * @param {Map<string,string>} [importedSourceKeys] Verified string imports used only to detect source observation; this may include keys unrelated to the owner's fields.
  * @param {Set<string>} [importedPrimitives] Verified immutable primitive results from the exact ESM graph.
  * @param {boolean} [allowDirectReflection] Allow a closed-world caller to rewrite a narrowly proved direct reflective key.
- * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
+ * @returns {{aliases:Set<string>,members:AstNode[],memberNames:Map<AstNode,string>,patterns:AstNode[],patternNames:Map<AstNode,string>,inChecks:AstNode[],reflections:{call:AstNode,key:AstNode,property:string}[],forwardedCalls:Set<AstNode>}|null}
  */
 function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new Map(), importedConsumers=new Map(), importedConstantKeys=new Map(), importedSourceKeys=importedConstantKeys, importedPrimitives=new Set(), allowDirectReflection=false) {
   if(observesFunctionSource(ast,importedSourceKeys,new Set(),new Set(),importedPrimitives)) return null;
@@ -784,6 +784,71 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const memberNames=new Map();
   /** @type {AstNode[]} */
   const patterns = [];
+  /** @type {Map<AstNode,string>} */
+  const patternNames=new Map();
+  /** @type {Map<string,{value:string,initializedAt:number}>|null} */
+  let laterTopLevelKeys=null;
+  /**
+   * A computed key read by an immediately evaluated top-level pattern may
+   * refer to an inert immutable string initialized *after* the object owner.
+   * A source-ordered top-level declaration cannot be called through a
+   * reentrant function before that string's initializer has run. Nested
+   * readers retain the stricter earlier-owner or verified-import proof.
+   *
+   * @param {AstNode} property
+   * @returns {string|null}
+   */
+  function initializedTopLevelPatternKey(property) {
+    if(!property.computed||property.key.type!=='Identifier')return null;
+    const pattern=parents.get(property);
+    if(pattern?.type!=='ObjectPattern')return null;
+    const consumer=parents.get(pattern);
+    let immediate=false;
+    if(consumer?.type==='VariableDeclarator'&&consumer.id===pattern){
+      const declaration=parents.get(consumer);
+      const outer=declaration?parents.get(declaration):null;
+      immediate=declaration?.type==='VariableDeclaration'&&
+        (outer===ast || outer?.type==='ExportNamedDeclaration'&&
+          parents.get(outer)===ast);
+    }else if(consumer?.type==='AssignmentExpression'&&consumer.left===pattern){
+      const statement=parents.get(consumer);
+      immediate=statement?.type==='ExpressionStatement'&&
+        parents.get(statement)===ast;
+    }
+    if(!immediate)return null;
+    if(laterTopLevelKeys===null) {
+      laterTopLevelKeys=new Map();
+      for(const statement of ast.body) {
+        const declaration=statement.type==='ExportNamedDeclaration' ?
+          statement.declaration : statement;
+        if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')
+          continue;
+        for(const decl of declaration.declarations) {
+          if(decl.id.type!=='Identifier'||!decl.init||
+             bindings.get(decl.id.name)!==1)continue;
+          const value=staticString(decl.init);
+          if(value!==null)laterTopLevelKeys.set(decl.id.name,{
+            value,initializedAt:decl.end
+          });
+        }
+      }
+    }
+    const fact=laterTopLevelKeys.get(property.key.name);
+    return fact&&fact.initializedAt<property.start ? fact.value : null;
+  }
+  /**
+   * Resolve a proven immutable computed-key binding in the same owner proof
+   * used for member reads. Ordinary literal keys need no imported proof.
+   * @param {AstNode} property
+   * @returns {string|null}
+   */
+  function provenPatternName(property) {
+    const known=ownPropertyName(property);
+    if(known!==null)return known;
+    if(!property.computed||property.key.type!=='Identifier')return null;
+    return getConstantKey(property.key.name) ??
+      initializedTopLevelPatternKey(property);
+  }
   /** @type {AstNode[]} */
   const inChecks = [];
   /** @type {{call:AstNode,key:AstNode,property:string}[]} */
@@ -835,7 +900,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       /** @type {AstNode[]} */
       const fields = parent.id.properties;
       if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
-          ownPropertyName(p) === null || !isSimplePatternBinding(p.value))) return null;
+          provenPatternName(p) === null || !isSimplePatternBinding(p.value))) return null;
+      for(const field of fields)patternNames.set(field,/** @type {string} */ (provenPatternName(field)));
       patterns.push(...fields);
       continue;
     }
@@ -849,7 +915,8 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       /** @type {AstNode[]} */
       const fields = parent.left.properties;
       if (fields.some(p => p.type !== 'Property' || p.kind !== 'init' ||
-          ownPropertyName(p) === null || !isSimplePatternBinding(p.value))) return null;
+          provenPatternName(p) === null || !isSimplePatternBinding(p.value))) return null;
+      for(const field of fields)patternNames.set(field,/** @type {string} */ (provenPatternName(field)));
       patterns.push(...fields);
       continue;
     }
@@ -913,8 +980,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       /** @type {AstNode[]} */
       const fields=objectPattern.properties;
       if(fields.some(field=>field.type!=='Property' || field.kind!=='init' ||
-          ownPropertyName(field)===null ||
+          provenPatternName(field)===null ||
           !isSimplePatternBinding(field.value))) return null;
+      for(const field of fields)patternNames.set(field,/** @type {string} */ (provenPatternName(field)));
       patterns.push(...fields);
       continue;
     }
@@ -1014,7 +1082,7 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
       if(resolves(call))forwardedCalls.add(call);
     }
   }
-  return {aliases,members,memberNames,patterns,inChecks,reflections,forwardedCalls};
+  return {aliases,members,memberNames,patterns,patternNames,inChecks,reflections,forwardedCalls};
 }
 
 /**
@@ -1023,13 +1091,14 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
  * @param {string} source
  * @param {AstNode[]} patterns
  * @param {Map<string,string>} mapping
+ * @param {Map<AstNode,string>} [patternNames] Proven computed-key names from the owner proof.
  * @returns {import('./ast').Edit[]}
  */
-function patternPropertyEdits(source,patterns,mapping) {
+function patternPropertyEdits(source,patterns,mapping,patternNames=new Map()) {
   /** @type {import('./ast').Edit[]} */
   const edits=[];
   for (const property of patterns) {
-    const old=ownPropertyName(property);
+    const old=patternNames.get(property)??ownPropertyName(property);
     if (old === null) continue;
     const replacement=mapping.get(old);
     if (!replacement) continue;
@@ -1170,7 +1239,8 @@ function renameLocalProperties(source, ast, options) {
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
     if (proof.members.some(member=>{const field=proof.memberNames.get(member);return typeof field!=='string'||!ownNames.has(field);}) ||
-        proof.patterns.some(property=>!ownNames.has(ownPropertyName(property))) ||
+        proof.patterns.some(property=>
+          !ownNames.has(proof.patternNames.get(property)??ownPropertyName(property))) ||
         proof.inChecks.some(check=>!ownNames.has(check.left.value))) continue;
     const mapping = new Map();
     for (const prop of candidate.properties) {
@@ -1194,7 +1264,7 @@ function renameLocalProperties(source, ast, options) {
       if (name!==undefined && mapping.has(name)) edits.push({start:member.property.start,end:member.property.end,
         text:member.computed ? JSON.stringify(mapping.get(name)) : mapping.get(name)});
     }
-    edits.push(...patternPropertyEdits(source,proof.patterns,mapping));
+    edits.push(...patternPropertyEdits(source,proof.patterns,mapping,proof.patternNames));
     edits.push(...inOperatorPropertyEdits(proof.inChecks,mapping));
     objects++;
     properties += mapping.size;

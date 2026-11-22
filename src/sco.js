@@ -38,7 +38,7 @@ const {collectBindings}=require('./properties');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
-const {canonicalAllowedHosts,routingHostname}=require('./hosts');
+const {canonicalAllowedHosts,createRoutingHostResolver}=require('./hosts');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
@@ -391,7 +391,10 @@ function createScoHandler(sourceFiles,options={}) {
   }
   // Compile an immutable routing lookup at server initialization rather than
   // allocating and lowercasing a complete allowlist on every HTTP request.
-  const routingHostnames=allowedHosts?.length ? new Set(canonicalAllowedHosts(allowedHosts)) : null;
+  const routingHostnames=allowedHosts===undefined ? null :
+    new Set(canonicalAllowedHosts(allowedHosts));
+  const admitRoutingHost=routingHostnames===null ? null :
+    createRoutingHostResolver(routingHostnames);
   if (!prefix.startsWith('/') || !prefix.endsWith('/')) throw new TypeError('routePrefix must start and end with /');
   if (remoteMethods && typeof authorizeRpc!=='function') {
     throw new TypeError('Remote operations require authorizeRpc');
@@ -627,12 +630,9 @@ function createScoHandler(sourceFiles,options={}) {
       response.writeHead(404).end();
       return;
     }
-    if (routingHostnames) {
-      const hostname=routingHostname(request.headers.host??'');
-      if(hostname===null || !routingHostnames.has(hostname)) {
-        response.writeHead(403).end();
-        return;
-      }
+    if (admitRoutingHost && !admitRoutingHost(request.headers.host??'')) {
+      response.writeHead(403).end();
+      return;
     }
     if (url.pathname===`${prefix}rpc` && request.method==='POST' && policy.remoteMethods && policy.authorizeRpc) {
       void handleRpc(request,response,{

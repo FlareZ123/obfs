@@ -37,8 +37,15 @@ async function browser(filename) {
  */
 async function page(directory,label,javascript) {
   const filename=path.join(directory,label+'.html');
+  // Keep result serialization outside the compiler's protected source:
+  // native btoa(JSON.stringify(...)) is a source observer under hostile
+  // JSON mutations, even when a given clean-run result is primitive.
   const html='<!doctype html><meta charset="utf-8">'+
-    '<pre id="result"></pre><script type="module">'+javascript+'</script>';
+    '<pre id="result"></pre><script type="module">'+javascript+'</script>'+
+    '<script>addEventListener("load",()=>{'+
+    'const value=JSON.stringify(globalThis.__cloneResult);'+
+    'document.getElementById("result").textContent=btoa(value);'+
+    '});</script>';
   await atomicWrite(filename,html);
   return filename;
 }
@@ -47,8 +54,7 @@ async function page(directory,label,javascript) {
 async function main() {
   const expression="const hidden={secretField:17};"+
     "function inspect(){const embedded='opaque-literal';return hidden.secretField+embedded.length;}";
-  const finish="document.getElementById('result').textContent="+
-    "btoa(JSON.stringify({value:inspect(),observed,clone}));";
+  const finish="globalThis.__cloneResult={value:inspect(),observed,clone};";
   const scenarios=[
     {
       name:'structured-clone-error',

@@ -232,3 +232,30 @@ test('reviewed manifest follows portable canonical path collision policy',()=>{
     {path:'λ.css',sha256:digest(other)}
   ]));
 });
+
+test('standalone asset review refuses compiler-unsafe paths in both input inventories',()=>{
+  const invalid=[
+    '../theme.css',
+    'assets/../theme.css',
+    '/theme.css',
+    'assets\\theme.css',
+    'CON.txt',
+    'assets/aux.css',
+    'public~1.css',
+    'assets//theme.css',
+    'assets/trailing ',
+    'bad\uD800.css'
+  ];
+  for(const name of invalid){
+    const approved=[{path:name,sha256:digest(safe)}];
+    assert.throws(()=>assertReviewedOpaqueAssets([safeFile],approved),
+      /Unsafe/, 'invalid reviewed path: '+name);
+    assert.throws(()=>assertReviewedOpaqueAssets([
+      {path:name,sourceType:/** @type {const} */('asset'),code:safe}
+    ],[{path:'theme.css',sha256:digest(safe)}]),
+    /Unsafe/, 'invalid published asset path: '+name);
+  }
+  assert.doesNotThrow(()=>assertReviewedOpaqueAssets([
+    {path:'assets/theme.css',sourceType:/** @type {const} */('asset'),code:safe}
+  ],[{path:'assets/theme.css',sha256:digest(safe)}]));
+});

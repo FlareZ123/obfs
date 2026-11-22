@@ -1,13 +1,14 @@
 'use strict';
 
 const path = require('node:path');
+const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
 const {symbolizeLocalProperties} = require('./symbol-properties');
 const {encodeStrings} = require('./strings');
 const {provenLocalReflectGetCaptures} = require('./decoder-safe-reads');
-const {createPathInventory,registerFilePath} = require('./portable-paths');
+const {createPathInventory,registerFilePath,safePath} = require('./portable-paths');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedPrimitives,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases,collectImportedFunctionArrays} = require('./cross-properties');
 const {renameLocalIdentifiers} = require('./identifiers');
 const {virtualizeRegisterChains} = require('./register-vm');
@@ -29,43 +30,6 @@ const {canonicalAllowedHosts}=require('./hosts');
 /**
  * @typedef {{mode?:ObfuscationMode,seed?:string,strings?:boolean,properties?:boolean,identifiers?:boolean,minimumStringLength?:number,experimentalFixedArityStrings?:boolean,allowedHosts?:string[],closedWorld?:boolean,experimentalRegisterVm?:Record<string,string[]>,experimentalExpressionVm?:Record<string,string[]>,experimentalNativeGraph?:Record<string,string[]>,experimentalBranchBlocks?:Record<string,string[]>,experimentalBranchStateBlinding?:boolean,experimentalStatementFlow?:Record<string,string[]>,experimentalStatementFlowCompact?:boolean,experimentalPolyvariantAffine?:Record<string,string[]>,experimentalPolyvariantCount?:2|4|8,experimentalPolyvariantCompact?:boolean,experimentalWasmI32?:Record<string,string[]>,experimentalSymbolKeys?:boolean,experimentalSourceObserverIslands?:string[],reviewedOpaqueAssets?:import('./reviewed-assets').ReviewedOpaqueAsset[]}} ObfuscationOptions
  */
-
-/**
- * Reject rooted, ambiguous and traversal paths before writing/serving files.
- * @param {string} file
- * @returns {string}
- */
-function safePath(file) {
-  if (typeof file !== 'string' || !file || file.includes('\\') || (/[<>:\x22|?*\x00-\x1f]/u.test(file)) ||
-      path.posix.isAbsolute(file)) throw new TypeError(`Unsafe file path: ${file}`);
-  // With Unicode mode this range matches lone surrogates, not valid pairs.
-  // Node UTF-8 paths encode lone surrogates as U+FFFD, aliasing a distinct name.
-  if (/[\uD800-\uDFFF]/u.test(file)) {
-    throw new TypeError(`Unsafe non-well-formed Unicode file path: ${file}`);
-  }
-  for (const segment of file.split('/')) {
-    // Windows treats these names as DOS devices, including console handles.
-    // Space before an extension can also leave a device stem. Conservative
-    // refusal is preferable to writing source bytes to a device endpoint.
-    if (/[. ]$/u.test(segment) ||
-        /^(?:con|prn|aux|nul|conin\$|conout\$|com[0-9¹²³]|lpt[0-9¹²³]) *(?:\.|$)/iu.test(segment)) {
-      throw new TypeError(`Unsafe Windows filename segment: ${segment}`);
-    }
-    // On NTFS, LONGNAME.MJS can also resolve through LONGNA~1.MJS.
-    // Deny common 8.3 alias spellings at build admission, including nested
-    // directory components, before Windows output writes or source routing.
-    // Short-name generation is volume-dependent, so this is a conservative
-    // policy rather than a complete filesystem-identity proof.
-    if (/~[0-9]+(?=\.|$)/u.test(segment)) {
-      throw new TypeError(`Unsafe Windows short-name alias segment: ${segment}`);
-    }
-  }
-  const normalized = path.posix.normalize(file);
-  if (normalized === '..' || normalized.startsWith('../') || normalized === '.' || normalized !== file) {
-    throw new TypeError(`Unsafe or noncanonical file path: ${file}`);
-  }
-  return normalized;
-}
 
 /**
  * A body-level ESM host guard can precede every executable module statement
@@ -201,6 +165,87 @@ function staticallyImportedEsmTargets(files) {
     }
   }
   return imported;
+}
+
+/**
+ * ESM dependencies execute before a later module's string decoder.
+ * This source-graph check accepts syntactically local import paths only
+ * under the ordinary unmodified host resolver. Browser import maps or
+ * custom Node loader hooks can redirect even supplied relative paths:
+ * their deployment provenance is outside this AST proof.
+ * Unlisted, computed and otherwise ambiguous imports refuse decoding.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
+  /**
+   * @param {import('./ast').AstNode|null|undefined} source
+   * @returns {boolean}
+   */
+  function resolvesInGraph(source) {
+    if(source?.type!=='Literal'||typeof source.value!=='string')return false;
+    const specifier=source.value;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier))return false;
+    const target=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    return knownJavaScript.has(target);
+  }
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type==='ImportExpression') {
+      if(node.options||!resolvesInGraph(node.source))unproved=true;
+      return;
+    }
+    if(node.type==='ImportDeclaration'||
+       (node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration')&&
+       node.source) {
+      if(node.attributes?.length||node.assertions?.length||
+         !resolvesInGraph(node.source))unproved=true;
+    }
+  });
+  return unproved;
+}
+
+/**
+ * A CommonJS require can load unlisted application code before a later
+ * module's ambient String decoder initializes. Accept exact in-group
+ * relative JavaScript modules and Node's ordinary native builtins.
+ * Other calls may have unknown source and side effects at runtime.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedCommonJsRequire(ast,filename,knownJavaScript) {
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type!=='CallExpression'||node.callee.type!=='Identifier'||
+       node.callee.name!=='require')return;
+    const specifier=node.arguments.length===1 ?
+      staticString(node.arguments[0]) : null;
+    if(specifier===null) {
+      unproved=true;
+      return;
+    }
+    if(isBuiltin(specifier))return;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier)) {
+      unproved=true;
+      return;
+    }
+    const base=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    const candidates=path.posix.extname(base)?[base]:
+      [base,base+'.js',base+'.cjs',base+'.mjs',
+       base+'/index.js',base+'/index.cjs',base+'/index.mjs'];
+    if(!candidates.some(candidate=>knownJavaScript.has(candidate)))unproved=true;
+  });
+  return unproved;
 }
 
 /**
@@ -1862,7 +1907,14 @@ function obfuscateFiles(files, options = {}) {
   if (!Array.isArray(files) || !files.length) throw new TypeError('Expected a nonempty array of source files');
   const mode = options.mode ?? 'coo';
   if (!['coo','sco','sno'].includes(mode)) throw new TypeError(`Unknown mode ${mode}`);
-  if (mode === 'sno' && options.allowedHosts?.length) throw new TypeError('Browser host locking does not apply to SNO');
+  // Read caller-controlled configuration once. Getter/proxy access may have
+  // side effects, and a later read must not silently remove a host policy.
+  const suppliedHosts=options.allowedHosts;
+  if (mode === 'sno' && suppliedHosts !== undefined) throw new TypeError('Browser host locking does not apply to SNO');
+  // An explicitly configured empty/invalid allowlist must not turn the
+  // execution guard off. Omission alone selects the unlocked build mode.
+  const allowedHosts=suppliedHosts===undefined ? undefined :
+    canonicalAllowedHosts(suppliedHosts);
   const seed = options.seed ?? randomBytes(24).toString('hex');
   const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
@@ -1928,7 +1980,7 @@ function obfuscateFiles(files, options = {}) {
   }
   // Validate the entire published static graph before permitting a host
   // guard below an ESM import. Each dependency is independently guarded.
-  const completeStaticHostGraph=Boolean(options.allowedHosts?.length && options.closedWorld &&
+  const completeStaticHostGraph=Boolean(allowedHosts?.length && options.closedWorld &&
     completeGuardedModuleGraph(prepared));
   // Fail before any output is generated: source maps can undo an entire
   // transformation by retaining original text and symbol mappings.
@@ -1963,7 +2015,7 @@ function obfuscateFiles(files, options = {}) {
   // wrapper itself has no later per-transform guard. Reuse the same broad
   // source-observer proof used for multi-file publication so Error.stack,
   // console/native stack formatting and related observers fail closed.
-  const hostLockSourceObserver=Boolean(options.allowedHosts?.length) &&
+  const hostLockSourceObserver=Boolean(allowedHosts?.length) &&
     prepared.some(file=>file.sourceType!=='asset' && typeof file.code==='string' &&
       observesFunctionSource(parse(file.code,file.sourceType),
         importedStringProof.get(file.path),importedCloneProof.get(file.path),
@@ -1986,7 +2038,7 @@ function obfuscateFiles(files, options = {}) {
   // A hostname wrapper prepends source bytes and source coordinates. Code
   // that observes either must reject the explicit host lock rather than
   // publishing a semantically different stack/source view.
-  if((remoteSourceObserver||hostLockSourceObserver) && options.allowedHosts?.length) {
+  if((remoteSourceObserver||hostLockSourceObserver) && allowedHosts?.length) {
     throw new TypeError('Host locking cannot preserve observable source bytes');
   }
   const cross = !remoteSourceObserver && options.closedWorld && options.properties !== false ?
@@ -2015,6 +2067,9 @@ function obfuscateFiles(files, options = {}) {
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
+          hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
+          input.sourceType==='commonjs' &&
+            hasUnprovedCommonJsRequire(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
@@ -2202,9 +2257,9 @@ function obfuscateFiles(files, options = {}) {
       literals = modified.count;
       ast = parse(code,sourceType);
     }
-    if (options.allowedHosts?.length) {
+    if (allowedHosts?.length) {
       if (sourceType === 'commonjs') throw new TypeError(`Host lock unavailable for CommonJS file ${filename}`);
-      code = injectHostLock(code,ast,options.allowedHosts,completeStaticHostGraph);
+      code = injectHostLock(code,ast,allowedHosts,completeStaticHostGraph);
       parse(code,sourceType);
     }
     /** @type {OutputFile['metrics']} */

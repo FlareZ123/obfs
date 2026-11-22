@@ -30,6 +30,10 @@ jobs:
         run: node --test test/cli-reviewed-opaque-assets.test.js
       - name: Executable independent-review CLI sample with native output parity
         run: node examples/reviewed-assets-cli/verify.cjs
+      # Diagnostic only: if a raw leading-space alias is observed on Windows,
+      # align the existing safePath policy and rerun this source-pinned gate.
+      - name: Observe Windows leading ASCII and Unicode whitespace file identities
+        run: node sims/path-alias-grid.js
       - name: Strict compiler type checking
         run: npm run typecheck
       - name: Strict external test JSDoc
