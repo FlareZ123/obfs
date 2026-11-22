@@ -8,6 +8,7 @@ const path=require('node:path');
 const {spawnSync}=require('node:child_process');
 const {transformSync}=require('esbuild');
 const {obfuscateFiles}=require('../src');
+const {familywiseBudgetBounds}=require('../sims/familywise-budget-bound');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} ModuleFile */
@@ -120,11 +121,14 @@ test('paired total-process CPU and behavioral parity for one proved imported-key
           maximumPairedRatio:maxRatio
         });
       }
+      const familywise=familywiseBudgetBounds(rows.map(row=>({
+        native:row.native,candidate:row.coo
+      })));
       console.log('IMPORTED_KEY_TOTAL_CPU '+JSON.stringify({
         source:'one three-module ESM graph',
         privateFields:output.crossFile.properties,
         measuredBoundary:'fresh child process startup + ESM imports + selected work',
-        rows
+        familywise,rows
       }));
     }finally{
       await fs.rm(root,{force:true,recursive:true});
