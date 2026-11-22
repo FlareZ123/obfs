@@ -9,7 +9,7 @@ const {obfuscateFiles}=require('../src/core');
 const runBrowser=promisify(execFile);
 
 /** @typedef {import('../src/core').SourceFile} SourceFile */
-/** @typedef {{name:string,files:SourceFile[],target:string,receiver:string,kind:'properties'|'bindings'}} Fixture */
+/** @typedef {{name:string,files:SourceFile[],target:string,receiver:string,kind:'properties'|'bindings',valueExpression?:string}} Fixture */
 
 /** @type {Fixture[]} */
 const fixtures=[
@@ -31,6 +31,21 @@ const fixtures=[
   {name:'array-held',files:[{path:'private.mjs',sourceType:'module',
     code:'const owner={secretField:37};export const api=[function read(){return owner.secretField;}];'}],
   target:'private.mjs',receiver:'m.api[0]',kind:'properties'},
+  {name:'nested-owner-literal',files:[{path:'private.mjs',sourceType:'module',
+    code:'function helper(record){return record.secretField;}'+
+      'function publicRead(){const owner={secretField:41};return helper(owner);}'+
+      'export {publicRead};'}],
+  target:'private.mjs',receiver:'m.publicRead',kind:'properties'},
+  {name:'class-static-property',files:[{path:'private.mjs',sourceType:'module',
+    code:'const owner={secretField:53};'+
+      'class PublicClass{static value=owner.secretField;}export {PublicClass};'}],
+  target:'private.mjs',receiver:'m.PublicClass',kind:'properties',
+  valueExpression:'m.PublicClass.value'},
+  {name:'class-static-identifier',files:[{path:'private.mjs',sourceType:'module',
+    code:'const secretValue=71;'+
+      'class PublicClass{static value=secretValue;}export {PublicClass};'}],
+  target:'private.mjs',receiver:'m.PublicClass',kind:'bindings',
+  valueExpression:'m.PublicClass.value'},
   {name:'named-parameter',files:[{path:'private.mjs',sourceType:'module',
     code:'function read(secretParam){return secretParam+1;}export {read as publicRead};'}],
   target:'private.mjs',receiver:'m.publicRead',kind:'bindings'}
@@ -46,9 +61,8 @@ function page(fixture) {
   return '<!doctype html><html><body><script type="module">'+
     'try { const m=await import('+JSON.stringify('./'+fixture.target)+');'+
     'const fn='+fixture.receiver+';'+
-    'const outcome={source:fn.toString(),value:fn('+(
-      fixture.kind==='bindings'?'9':''
-    )+')};'+
+    'const outcome={source:fn.toString(),value:'+
+    (fixture.valueExpression??('fn('+(fixture.kind==='bindings'?'9':'')+')'))+'};'+
     'const p=document.createElement("pre");p.id="result";'+
     'p.textContent=btoa(JSON.stringify(outcome));document.body.append(p);'+
     '} catch(error) { const p=document.createElement("pre");p.id="failure";'+
@@ -190,7 +204,7 @@ async function main() {
     await new Promise(resolve=>server.close(resolve));
   }
   const summary={cases:pairs.length,sourceMismatches,ordinaryValueMatches,positiveRewrites,declaredMatches};
-  assert.equal(summary.cases,18);
+  assert.equal(summary.cases,27);
   assert.equal(summary.ordinaryValueMatches,18,'Ordinary return values must be equal');
   assert.equal(summary.sourceMismatches,0,
     'Candidate must preserve external callable source in Chromium');
