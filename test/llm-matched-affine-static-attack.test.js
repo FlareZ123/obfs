@@ -55,7 +55,7 @@ test('symbolic static minified parser refuses unnormalized or nonaffine expressi
     'function n(x){const a=x|0;return a+2|0;}'
   ];
   for(const source of rejected){
-    assert.throws(()=>minifiedOffset(source),undefined,source);
+    assert.throws(()=>minifiedOffset(source),TypeError,source);
   }
   assert.equal(minifiedOffset('function n(x){return ((x|0)+17)-4|0;}'),13);
   assert.equal(minifiedOffset('x=>(((x|0)-7)+12)|0'),5);
