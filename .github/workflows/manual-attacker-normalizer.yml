@@ -54,6 +54,8 @@ jobs:
         run: node sims/mba-author-int32-encoded-heldout.js
       - name: Validate A2MBA Int32 component screens and source-only rotated-core recovery
         run: node --test test/a2mba-context-int32-pilot.test.js test/a2mba-rotated-core-int32-pilot.test.js test/a2mba-rotated-core-static-recover.test.js test/a2mba-rotated-core-heldout.test.js
+      - name: Source-matched A2MBA rank and frozen static recovery
+        run: node --test test/a2mba-rotated-core-rank-screen.test.js test/a2mba-rank-attacker-coincident.test.js
       - name: Recover A2MBA PureIR opcode with one post-freeze probe
         run: node --test test/a2mba-hybrid-opcode-heldout.test.js
       - name: Profile A2MBA rotated-core selected work
