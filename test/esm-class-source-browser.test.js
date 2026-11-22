@@ -156,15 +156,15 @@ test('external ESM class-instance source and private-primitive contrast in Node 
           await new Promise(resolve=>server.close(resolve));
         }
       }
-      for(const item of cases) {
+      for(const item of [...cases].reverse()) {
         const native=observations.find(v=>v.label===item.label && v.variant==='original');
         const emitted=observations.find(v=>v.label===item.label && v.variant==='emitted');
         assert.ok(native && emitted);
         assert.equal(/** @type {{value:number}} */ (native.value).value,7);
-        assert.equal(emitted.renamed,item.expectedRenames,
-          'External callable source requires stable field spelling; private result must still rename');
         assert.deepEqual(emitted.value,native.value,
           'An independent importer observed changed method or class source');
+        assert.equal(emitted.renamed,item.expectedRenames,
+          'External callable source requires stable field spelling; private result must still rename');
       }
     } finally {
       await fs.rm(directory,{recursive:true,force:true});
