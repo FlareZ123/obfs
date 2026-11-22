@@ -248,7 +248,10 @@
     "test/low-output-residual-cycle-independent.test.js",
     "test/node-stack-private-callable-source-boundary.test.js",
     "test/coo-stack-private-source-browser.test.js",
-    "test/coo-stack-source-admission-matrix.test.js"
+    "test/coo-stack-source-admission-matrix.test.js",
+    "test/entry-only-private-collapse-admission.test.js",
+    "workplace/private-leaf-collapse.js",
+    "test/private-leaf-collapse.test.js"
   ],
   "exclude": [
     "node_modules"
