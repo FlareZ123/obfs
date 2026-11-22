@@ -1907,11 +1907,14 @@ function obfuscateFiles(files, options = {}) {
   if (!Array.isArray(files) || !files.length) throw new TypeError('Expected a nonempty array of source files');
   const mode = options.mode ?? 'coo';
   if (!['coo','sco','sno'].includes(mode)) throw new TypeError(`Unknown mode ${mode}`);
-  if (mode === 'sno' && options.allowedHosts !== undefined) throw new TypeError('Browser host locking does not apply to SNO');
+  // Read caller-controlled configuration once. Getter/proxy access may have
+  // side effects, and a later read must not silently remove a host policy.
+  const suppliedHosts=options.allowedHosts;
+  if (mode === 'sno' && suppliedHosts !== undefined) throw new TypeError('Browser host locking does not apply to SNO');
   // An explicitly configured empty/invalid allowlist must not turn the
   // execution guard off. Omission alone selects the unlocked build mode.
-  const allowedHosts=options.allowedHosts===undefined ? undefined :
-    canonicalAllowedHosts(options.allowedHosts);
+  const allowedHosts=suppliedHosts===undefined ? undefined :
+    canonicalAllowedHosts(suppliedHosts);
   const seed = options.seed ?? randomBytes(24).toString('hex');
   const paths = createPathInventory();
   /** @type {(SourceFile & {sourceType:SourceType})[]} */
