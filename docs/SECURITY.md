@@ -205,6 +205,18 @@ only a recognized capability family, since arbitrary same-origin host markup
 or runtime-injected objects cannot be fully inferred from the declared file
 list.
 
+Browser `PerformanceResourceTiming` exposes a separate source-length observation
+without retrieving the source text: `performance.getEntriesByType('resource')`
+can report same-origin ESM responses through `decodedBodySize`. In the
+[real Chromium 37/42-byte differential](../im-results/resource-timing-esm-byte-size-observer-2026-11-21.md),
+a locally renamed module retained its numeric result but changed its
+ResourceTiming size. The bounded preflight now recognizes resource-entry
+methods, size fields and conservative Performance aliases. An unrelated
+`performance.now()` call retains the private-property renaming positive
+control. This improves observed byte-size compatibility only; it cannot
+authenticate a browser, hide source distribution, or prove semantic parity
+under unknown host capabilities.
+
 The bounded `observesDistributedSource` AST preflight now declines ordinary
 identifier, property and string transformations across a supplied group when
 it sees static Node `fs` module access or known browser file-reading APIs.

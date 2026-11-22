@@ -283,3 +283,27 @@ test('source-observer islands refuse undeclared same-origin Window.frames source
   assert.ok((allowed.files.find(f=>f.path==='independent.mjs')?.metrics.properties??0)>=1,
     'An unrelated pure ESM leaf must still undergo a genuine field rewrite');
 });
+
+test('source islands refuse browser ResourceTiming byte-size observers',()=>{
+  const probes=[
+    'const e=performance.getEntriesByType("resource");console.log(e.length);',
+    'const observer=new PerformanceObserver(()=>{});'+
+      'observer.observe({entryTypes:["resource"]});',
+    'let method="getEntriesByType";'+
+      'console.log(globalThis.performance[method]("resource"));'
+  ];
+  for(const probe of probes){
+    const observerEntry=entry(
+      'import {watched} from "./watched.mjs";'+
+      'import {unrelated} from "./independent.mjs";'+
+      'console.log(watched.toString(),unrelated());'+probe
+    );
+    for(const mode of /** @type {const} */ (['coo','sco','sno'])){
+      assert.throws(()=>obfuscateFiles([watched,independent,observerEntry],{
+        mode,closedWorld:true,strings:false,identifiers:false,
+        experimentalSourceObserverIslands:['independent.mjs']
+      }),/Source observer islands refuse distributed source-file readers/u,
+      'The selected ESM leaf exposes its emitted size through '+probe);
+    }
+  }
+});

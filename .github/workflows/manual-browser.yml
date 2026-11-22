@@ -29,6 +29,12 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Check source-byte observer negative and performance.now positive
+        run: node --test test/cross-file-source-byte-reader.test.js
+      - name: Compare native and emitted ESM ResourceTiming decoded byte sizes
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/resource-timing-observer-browser.js
       - name: Native-versus-COO function-source clone errors in Chromium
         env:
           CHROMIUM_BIN: google-chrome

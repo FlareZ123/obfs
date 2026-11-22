@@ -3357,8 +3357,18 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     // iframe; Window.frames exposes that child Document's exact source body.
     // Declared ESM can also create an iframe and read its Document through
     // HTMLIFrameElement.contentDocument or .contentWindow.
-    'frames','contentDocument','contentWindow']);
+    'frames','contentDocument','contentWindow',
+    // Browser ResourceTiming exposes the actual transfer and decoded byte
+    // length of same-origin fetched ESM files without exposing their text.
+    // A rewritten module can otherwise produce a different observed length.
+    // Do not veto ordinary performance.now() measurements.
+    'PerformanceObserver','PerformanceResourceTiming',
+    'getEntries','getEntriesByType','getEntriesByName',
+    'decodedBodySize','encodedBodySize','transferSize']);
   const globals=new Set(['globalThis','window','self','global']);
+  // Resource timing methods can be called through a mutable property name
+  // on performance itself, or a simple alias of globalThis.performance.
+  const performanceRoots=new Set(['performance']);
   // Module-registry objects can reach Node's internal source-file loader.
   // Follow simple aliases monotonically, conservatively accepting over-refusal.
   const requireRoots=new Set(['require']);
@@ -3384,7 +3394,7 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const initial=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
       if(binding?.type==='Identifier' && initial?.type==='Identifier') {
-        for(const roots of [globals,requireRoots,moduleRoots,processRoots]) {
+        for(const roots of [globals,requireRoots,moduleRoots,processRoots,performanceRoots]) {
           if(roots.has(initial.name) && !roots.has(binding.name)) {
             roots.add(binding.name);
             changed=true;
@@ -3420,14 +3430,19 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(pattern?.type==='ObjectPattern' && initial?.type==='Identifier' &&
          globals.has(initial.name)) {
         for(const prop of pattern.properties) {
-          if(prop.type!=='Property'||prop.value.type!=='Identifier')continue;
+          if(prop.type!=='Property')continue;
+          const alias=prop.value.type==='Identifier'?prop.value:
+            prop.value.type==='AssignmentPattern' &&
+              prop.value.left.type==='Identifier'?prop.value.left:null;
+          if(!alias)continue;
           const field=prop.computed ? staticString(prop.key) :
             prop.key.type==='Identifier'?prop.key.name:
             prop.key.type==='Literal'?prop.key.value:null;
           const roots=field==='process'?processRoots:
-            field==='require'?requireRoots:field==='module'?moduleRoots:null;
-          if(roots&&!roots.has(prop.value.name)){
-            roots.add(prop.value.name);
+            field==='require'?requireRoots:field==='module'?moduleRoots:
+              field==='performance'?performanceRoots:null;
+          if(roots&&!roots.has(alias.name)){
+            roots.add(alias.name);
             changed=true;
           }
         }
@@ -3439,7 +3454,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
         const name=initial.computed ? staticString(initial.property) :
           initial.property.type==='Identifier' ? initial.property.name : null;
         const roots=name==='process' ? processRoots :
-          name==='require' ? requireRoots : name==='module' ? moduleRoots : null;
+          name==='require' ? requireRoots : name==='module' ? moduleRoots :
+            name==='performance'?performanceRoots:null;
         if(roots && !roots.has(binding.name)) {
           roots.add(binding.name);
           changed=true;
@@ -3511,6 +3527,20 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
     if(literal!==null)return literal;
     return property.type==='Identifier'?verifiedKeys.get(property.name)??null:null;
   }
+  /**
+   * A simple ambient Performance root, including globalThis.performance,
+   * can expose ESM byte sizes through an unknown computed method selection.
+   * @param {AstNode} receiver
+   * @returns {boolean}
+   */
+  function canReadPerformanceRoot(receiver) {
+    if(receiver.type==='Identifier')return performanceRoots.has(receiver.name);
+    if(receiver.type!=='MemberExpression'||receiver.object.type!=='Identifier'||
+       !globals.has(receiver.object.name))return false;
+    const key=receiver.computed ? knownKey(receiver.property) :
+      receiver.property.type==='Identifier'?receiver.property.name:null;
+    return key==='performance';
+  }
   /** @param {string} receiver @param {string|null} key @returns {boolean} */
   function canReachLoader(receiver,key) {
     return requireRoots.has(receiver) &&
@@ -3542,12 +3572,39 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           node.left.type==='Identifier' ? node.left : null;
       const value=node.type==='VariableDeclarator' ? node.init :
         node.type==='AssignmentExpression' ? node.right : null;
+      // Verified computed strings can first resolve globalThis[key] into a
+      // Performance alias here. Propagate that alias to simple later bindings.
+      if(binding?.type==='Identifier' && value?.type==='Identifier' &&
+         performanceRoots.has(value.name) &&
+         !performanceRoots.has(binding.name)){
+        performanceRoots.add(binding.name);
+        loaderChanged=true;
+      }
+      const pattern=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      if(pattern?.type==='ObjectPattern' && value?.type==='Identifier' &&
+         globals.has(value.name)){
+        for(const property of pattern.properties){
+          if(property.type!=='Property')continue;
+          const alias=property.value.type==='Identifier'?property.value:
+            property.value.type==='AssignmentPattern' &&
+              property.value.left.type==='Identifier'?property.value.left:null;
+          if(!alias)continue;
+          const key=property.computed ? knownKey(property.key) :
+            property.key.type==='Identifier'?property.key.name:null;
+          if(key==='performance'&&!performanceRoots.has(alias.name)){
+            performanceRoots.add(alias.name);
+            loaderChanged=true;
+          }
+        }
+      }
       if(binding?.type!=='Identifier'||value?.type!=='MemberExpression'||
          value.object.type!=='Identifier'||!globals.has(value.object.name))return;
       const key=value.computed ? knownKey(value.property) :
         value.property.type==='Identifier' ? value.property.name : null;
       const roots=key==='process'?processRoots:
-        key==='require'?requireRoots:key==='module'?moduleRoots:null;
+        key==='require'?requireRoots:key==='module'?moduleRoots:
+          key==='performance'?performanceRoots:null;
       if(roots&&!roots.has(binding.name)){
         roots.add(binding.name);
         loaderChanged=true;
@@ -3673,7 +3730,8 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       if(key!==null && (browserReaders.has(key) ||
         ['getBuiltinModule','createRequire','require'].includes(key)) ||
          key===null && node.computed &&
-         node.object.type==='Identifier' && globals.has(node.object.name)) {
+           (node.object.type==='Identifier' && globals.has(node.object.name) ||
+            canReadPerformanceRoot(node.object))) {
         observed=true;
       }
       // Cached modules, parent/child links, and the process main module
@@ -3686,8 +3744,10 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
       const target=node.arguments[1] ? knownKey(node.arguments[1]) : null;
       if(root.type==='Identifier' && globals.has(root.name) &&
          (target===null||browserReaders.has(target)||
-          ['require','process','module','getBuiltinModule',
+          ['require','process','module','performance','getBuiltinModule',
             'createRequire'].includes(target)) ||
+         canReadPerformanceRoot(root) &&
+           (target===null||browserReaders.has(target)) ||
          canReadLoaderRoot(root,target) ||
          isProcessModuleRequire(root) && canReachLoader('process',target)) {
         observed=true;
