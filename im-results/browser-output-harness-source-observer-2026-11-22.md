@@ -20,6 +20,10 @@ Two real-Chromium test fixtures had embedded that same expression inside submitt
 
 The added Node test test/btoa-mutable-json-result.test.js checks that replacing JSON.stringify with a function returning a named local function does not let the compiler change the Base64-visible function source. A second fixture calls btoa with a literal primitive input and separately exports a safe private literal, requiring real string-transformation yield. The [two-platform Node 22 regression 45022465411](https://github.com/FlareZ123/obfs/actions/runs/45022465411) passed all six cases with strict JSDoc. This test is a guard against treating mutable native-call results as statically primitive.
 
+## Final expanded Chromium validation
+
+[Full real-Chromium browser workflow 45022761186](https://github.com/FlareZ123/obfs/actions/runs/45022761186) **passed** with exact tested executable source 01a5020e4be4aca6f2fcde872b23f752a73019db, including every scripted browser scenario, source-observation/refusal controls, external dynamic-data import poisoning, the now-positive local relative import, native/emitted parity, real TLS and SRI, browser type checks, and Chromium integration. The final source under test contains both harness changes and the new Node mutable-JSON regression. Later branch edits only add this report. This validates the test methodology fix while the compiler remains exactly unchanged.
+
 ## Interpretation
 
-Native source-observation soundness should be evaluated on submitted app code, while serialization and test reporting should live outside it. The corrected harness does not change the app's original semantic computation, runtime obfuscation algorithms, or the strict 2.5x performance requirement. Browser-specific validation must still pass before claiming the fixture correction complete. The core strong-security release status remains RELEASE-BLOCKED.
+Native source-observation soundness should be evaluated on submitted app code, while serialization and test reporting should live outside it. The corrected harness does not change the app's original semantic computation, runtime obfuscation algorithms, or the strict 2.5x performance requirement. Browser-specific validation passed at the fixed source pin above; future source changes still require independent replay. The core strong-security release status remains RELEASE-BLOCKED.
