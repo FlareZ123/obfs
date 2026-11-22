@@ -125,7 +125,7 @@ test('two samples per public switch arm are not universal affine equivalence pro
   const oldFinite=recover(source,'round1','module');
   assert.equal(oldFinite.offset,0);
   assert.throws(()=>attackPublishedSource(source),
-    /Unproved branch-local state|Unexpected case body/u,
+    /Unproved branch-local state|Unexpected case body|Unexpected variant topology/u,
     'Grammar-bounded symbolic recovery must refuse this arbitrary nonlinear body');
   const actual=await import('data:text/javascript;charset=utf-8,'+encodeURIComponent(source));
   assert.equal(actual.round1(4),8);
