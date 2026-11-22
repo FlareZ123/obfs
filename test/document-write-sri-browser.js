@@ -11,7 +11,7 @@ const execFileAsync=promisify(execFile);
 
 /** @typedef {{path:string,code:string|Buffer,sourceType:'script'|'asset'}} Source */
 
-/** @param {'argument'|'call'|'opaque'} split @returns {Source[]} */
+/** @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'} split @returns {Source[]} */
 function fixture(split){
   const client='document.documentElement.dataset.documentWriteSri="loaded";'+
     'globalThis.documentWriteSri="parser-written script bytes carry exact hash";';
@@ -25,8 +25,16 @@ function fixture(split){
     split==='call' ?
       'document.write('+JSON.stringify(first)+');'+
         'document.write('+JSON.stringify(second)+');' :
+    split==='opaque' ?
       'const method=globalThis.optionalWriteMethod||"write";'+
-        'document[method]('+JSON.stringify(first+second)+');';
+        'document[method]('+JSON.stringify(first+second)+');' :
+    split==='native-call' ?
+      'document.write.call(document,'+JSON.stringify(first+second)+');' :
+    split==='reflect-apply' ?
+      'Reflect.apply(document.write,document,['+
+        JSON.stringify(first+second)+']);' :
+      'const writer=document.write;writer.call(document,'+
+        JSON.stringify(first+second)+');';
   return [
     {path:'client.js',code:client,sourceType:'script'},
     {path:'bootstrap.js',code:loader,sourceType:'script'},
@@ -37,7 +45,7 @@ function fixture(split){
 /**
  * Real browser navigation verifies the SRI integrity check of parser-inserted
  * scripts and the necessity of conserving pinned source bytes.
- * @param {'argument'|'call'|'opaque'} split
+ * @param {'argument'|'call'|'opaque'|'native-call'|'reflect-apply'|'alias-call'} split
  * @returns {Promise<{nativeLoaded:true,protectedLoaded:true,unsafeBlocked:true}>}
  */
 async function runFixture(split){
@@ -119,6 +127,9 @@ async function main(){
   await runFixture('argument');
   await runFixture('call');
   await runFixture('opaque');
+  await runFixture('native-call');
+  await runFixture('reflect-apply');
+  await runFixture('alias-call');
 }
 
 if(require.main===module)main().catch(error=>{
