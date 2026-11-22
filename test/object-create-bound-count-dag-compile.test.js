@@ -47,7 +47,7 @@ function compile(source){
 test('first-class bound Object.create aliases retain native parity and profile compile time',()=>{
   const samples=[];
   compile(makeBoundDiamond(2));
-  for(const depth of [4,6,8,10,12]){
+  for(const depth of [4,8,12,16,18,20]){
     const source=makeBoundDiamond(depth);
     const started=performance.now();
     const emitted=compile(source);
