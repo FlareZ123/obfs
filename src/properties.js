@@ -1216,7 +1216,6 @@ function singleUseFactoryObject(ast,bindings,expression) {
  * may retain them as positive-yield targets.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
- * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
@@ -1259,6 +1258,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(bindings.get(name)!==1 || classNode.superClass)return null;
     const scope=scopes.get(name);
     if(!scope)return null;
+    /** @type {AstNode[]} */
     const elements=classNode.body?.body??[];
     if(!elements.length || !elements.every(element=>
       element.type==='MethodDefinition' &&
@@ -1286,11 +1286,11 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
          use.parent.callee!==use.node)return null;
       const construction=use.parent;
       const receiver=inventory.parents.get(construction);
-      const call=inventory.parents.get(receiver);
       if(receiver?.type!=='MemberExpression' ||
          receiver.object!==construction ||
-         receiver.optional ||
-         call?.type!=='CallExpression' ||
+         receiver.optional)return null;
+      const call=inventory.parents.get(receiver);
+      if(call?.type!=='CallExpression' ||
          call.callee!==receiver ||
          call.optional)return null;
       const methodName=staticName(receiver.property);
@@ -1391,6 +1391,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * also exposed when its enclosing callable source is exposed.
  * @param {AstNode} ast
  * @param {Map<string,number>} [bindings]
+ * @param {'script'|'module'|'commonjs'} [sourceType]
  * @returns {Set<AstNode>}
  */
 function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='module') {
