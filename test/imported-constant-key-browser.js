@@ -66,7 +66,8 @@ function fixtures() {
           'export const bag={secretField:23};',
         'import {bag,key} from "./state.mjs";'+
           'window.hostApi.accept(bag[key]+Number(window.hostApi.fieldKey===key));')},
-    {name:'named-owner-key-later',expectedFields:0,expectedText:'24',
+    // Acyclic importer evaluation sees all of the producer's const exports.
+    {name:'named-owner-key-later',expectedFields:1,expectedText:'24',
       files:graph('export const bag={secretField:23};'+
           'const hidden="secretField";export {hidden as key};',
         'import {bag,key} from "./state.mjs";'+
