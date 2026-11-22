@@ -529,3 +529,19 @@ for(const [name,prefix] of [
     assert.equal(compiled.crossFile.properties,0);
   });
 }
+
+
+test('inert local identifier actual preserves an independent private owner rename',async()=>{
+  const original=graph(
+    "const source={unrelated:7};"+
+    "function read({unrelated}){return unrelated;}void read(source);");
+  const compiled=obfuscateFiles(original,{
+    mode:'coo',closedWorld:true,seed:'host-formal-local-inert-identifier',
+    identifiers:false,strings:false,properties:true
+  });
+  assert.equal(compiled.crossFile.properties,1,
+    'Inert local records must not force a vacuous all-refusal graph');
+  const expected=await execute(original);
+  assert.deepEqual(expected,[41,'audit-v1',null]);
+  assert.deepEqual(await execute(compiled.files),expected);
+});
