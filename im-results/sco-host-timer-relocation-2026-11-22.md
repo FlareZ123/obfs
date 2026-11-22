@@ -60,6 +60,58 @@ at exact source `78734d570ceedd13aa056549b5ade28935474052`
 on both Ubuntu and Windows**. This report retains the actual red evidence
 rather than presenting the first attempt as fully compatible.
 
+## Recovering safe local protected work
+
+The initial timer-name refusal was overly broad for locally owned code.
+For example, a selected private body containing
+
+```js
+const setTimeout = value => value + 1;
+return setTimeout(41);
+```
+
+has a lexical function binding unrelated to browser timers. A red-first
+positive-yield regression at
+[source e794b6d576067c23ca1dbfcc3070e8a202cce3bf](https://github.com/FlareZ123/obfs/commit/e794b6d576067c23ca1dbfcc3070e8a202cce3bf)
+in [CI 44999001142](https://github.com/FlareZ123/obfs/actions/runs/44999001142)
+confirmed the previous compiler incorrectly refused this safe case on
+Ubuntu and Windows.
+
+The `usesUnprovedCrossRealmHostApi` proof now reuses
+[`collectBindings`](../src/properties.js) and admits one uniquely bound
+immediate-scope function declaration or `const` function expression under
+a host API spelling. Unknown, nested or multiply declared bindings are
+still declined, and accesses to actual ambient host APIs remain subject
+to the other source scans. A shared concurrent change temporarily
+introduced duplicate imports of `collectBindings`; the first follow-up
+[CI 44999092296](https://github.com/FlareZ123/obfs/actions/runs/44999092296)
+failed at startup with `SyntaxError: Identifier 'collectBindings' has already been declared`.
+The combined source now imports it exactly once.
+
+The next complete targeted graph
+[CI 44999206226](https://github.com/FlareZ123/obfs/actions/runs/44999206226)
+at `3cf66723001e868d65766fab341cbf44da60cd3a`
+passed **73/73 test cases on both platforms**, generated graph checks and
+strict JSDoc. It includes selected direct helpers, module-local helpers in a
+reviewed private static ESM dependency and conservative nested-shadow
+negative controls.
+
+A follow-up native-versus-generated positive fixture was added to
+[`test/sco-selected-handler.test.js`](../test/sco-selected-handler.test.js).
+It imports the actual original protected ESM module, starts the compiler-owned
+SCO handler, verifies that the protected local function body is absent
+from the served facade, checks denial without the session header and
+compares five native calls against the generated module's authenticated
+loopback-RPC results. The matching
+[CI 44999326745](https://github.com/FlareZ123/obfs/actions/runs/44999326745)
+at `817e010230e70fe9acde89bebaa807ad4d064a2f`
+passed **74/74 cases on Ubuntu and Windows**, generated graph checks
+and strict JSDoc.
+
+This is actual protected-work execution evidence in the Node integration
+harness. It does not establish the unchanged host's full browser execution
+contract, nor does a local renamed helper prove a security or speed gain.
+
 ## Scope and remaining proof obligations
 
 The scanner is deliberately syntactic and conservatively declines shadowed
