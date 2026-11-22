@@ -45,7 +45,13 @@ test('XHTML extensions refuse embedded executable source in all three publicatio
       xhtml('<script><![CDATA[globalThis.xhtmlSecret="xml-cdata-private-source";]]></script>'),
       xhtml('<button onclick="globalThis.xhtmlSecret=1">Click</button>'),
       xhtml('<h:script xmlns:h="http://www.w3.org/1999/xhtml">'+
-        'globalThis.xhtmlSecret="prefixed-script-plaintext";</h:script>')
+        'globalThis.xhtmlSecret="prefixed-script-plaintext";</h:script>'),
+      xhtml('<svg:svg xmlns:svg="http://www.w3.org/2000/svg">'+
+        '<svg:script><![CDATA[globalThis.xhtmlSecret="svg-xml-plaintext";]]></svg:script>'+ 
+        '</svg:svg>'),
+      xhtml('<svg:svg xmlns:svg="http://www.w3.org/2000/svg">'+
+        '<svg:animate attributeName="href" values="#safe;java&#x73;cript:alert(1)"></svg:animate>'+ 
+        '</svg:svg>')
     ];
     for(const asset of cases){
       for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
