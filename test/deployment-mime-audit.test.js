@@ -90,7 +90,7 @@ test('opaque JavaScript MIME, active HTML/XML/SVG and CSS disclosures are refuse
     ['image/svg+xml',
       '<svg xmlns="http://www.w3.org/2000/svg"><script>window.plain=9;</script></svg>',
       /SVG asset contains/],
-    ['text/css','body{background:url(data:text/css;base64,YQ==)}',
+    ['text/css','@import url("data:text/css;base64,YQ==");',
       /CSS data import/],
     ['application/pdf','%PDF-1.4'+String.fromCharCode(10),
       /Executable-capable PDF/],
