@@ -51,3 +51,10 @@ This closes the specifically enumerated exported-native-callable regression for 
 ## 22 November follow-up: bound prototype argument offsets
 
 A later adversarial test found that `Object.create.bind(null, null)` pre-binds the prototype argument, shifting a descriptor map supplied at invocation from index 1 to index 0. The old guard missed this and produced actual native/emitted long-string corruption on both OSes. This is distinct from binding only the `this` value or pre-binding the descriptor map itself. The full red/green record, including direct, `.call`, `.apply`, `Reflect.apply`, nested-bind and holder-field controls, is in [decoder-bound-object-create-argument-offset-2026-11-22.md](decoder-bound-object-create-argument-offset-2026-11-22.md). The final browser-extended two-platform validation is [run 44972512134](https://github.com/FlareZ123/obfs/actions/runs/44972512134), source `c2bebcd8bc3e022fee494ba57277aab2bb9b8bfe`.
+
+
+## 22 November follow-up: descriptor object identity across aliases
+
+Agent 42 found a separate soundness gap where a descriptor object was passed to `Object.create` under its original identifier but its sensitive getter was written through `alias = descriptors`. The original scanner indexed member writes by the alias name and did not join them back to the object identity at the sink. Independent all-mode red evidence is [run 44972082499](https://github.com/FlareZ123/obfs/actions/runs/44972082499); the imported test reproduced on this PR head in [44973223450](https://github.com/FlareZ123/obfs/actions/runs/44973223450).
+
+The fix adds a reverse identifier-alias graph and follows alias chains with cycle protection when checking descriptor member writes and `Object.assign` sources. The final browser-extended source passed full Ubuntu/Windows and Chromium validation in [44974089708](https://github.com/FlareZ123/obfs/actions/runs/44974089708), source `27c483e66e6ce2e0dda03f8d3b378e7061441796`. See [decoder-descriptor-object-alias-write-2026-11-22.md](decoder-descriptor-object-alias-write-2026-11-22.md) for the red/green and limitations.
