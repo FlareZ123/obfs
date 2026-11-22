@@ -8,6 +8,7 @@ const {obfuscateFiles,createSnoLauncher,createScoHandler} = require('./index');
 const {atomicWrite,withDirectoryLock} = require('./atomic');
 const {safePath} = require('./core');
 const {parse,walk}=require('./ast');
+const {portableKeys}=require('./portable-paths');
 
 /** @typedef {import('./core').SourceFile} SourceFile */
 
@@ -399,7 +400,9 @@ async function main(mode,argv) {
   const absOut = path.resolve(out);
   await assertOutputOutsideInput(absRoot,absOut);
   // Preflight all predictable errors before writing any output artifact.
-  if (mode === 'sno' && source.some(file => file.path.toLowerCase() === 'sno-entry.cjs')) {
+  const reservedLauncherKeys=new Set(portableKeys('sno-entry.cjs'));
+  if (mode === 'sno' && source.some(file =>
+    portableKeys(file.path).some(key=>reservedLauncherKeys.has(key)))) {
     throw new Error('SNO launcher filename collides with an input file');
   }
   const result = obfuscateFiles(source,{mode,seed,allowedHosts:hosts,closedWorld,reviewedOpaqueAssets,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys});
