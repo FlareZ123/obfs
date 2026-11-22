@@ -125,3 +125,33 @@ test('SCO audited graph declines unproved globals and preserves local/imported p
     assert.deepEqual(audited(body).privateNames,['protectedOp'],body);
   }
 });
+
+test('SCO ordinary functions own arguments but module-level arrows do not',()=>{
+  const arrow={
+    path:'mixed.mjs',sourceType:'module',code:
+      'export const protectedOp=async()=>{return arguments[0];};'+
+      'export function visible(){return 7;}'
+  };
+  assert.throws(()=>partitionScoSelectedAsyncExports(arrow,{
+    seed:'sco-no-arrow-arguments-20261122',privateNames:['protectedOp']
+  }),/unproved free global: arguments/u);
+
+  const privateHelper={
+    path:'mixed.mjs',sourceType:'module',code:
+      'const helper=()=>arguments[0];'+
+      'export async function protectedOp(){return helper(7);}'+
+      'export function visible(){return 7;}'
+  };
+  assert.throws(()=>partitionScoSelectedAsyncExports(privateHelper,{
+    seed:'sco-no-arrow-helper-arguments-20261122',privateNames:['protectedOp']
+  }),/unproved free global: arguments/u);
+
+  assert.equal(firstUnprovedFreeReference(
+    parse('const fn=()=>arguments[0];','module'),new Set(),new Set(),shared
+  ),'arguments');
+
+  assert.equal(firstUnprovedFreeReference(
+    parse('function fn(){return (()=>arguments[0])();}','module'),
+    new Set(),new Set(),shared
+  ),null);
+});
