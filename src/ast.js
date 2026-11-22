@@ -3871,6 +3871,7 @@ function collectExportedCallableNodes(ast) {
   }
   /** @param {AstNode} node @returns {void} */
   function markTree(node) {
+    if(isClass(node)&&node.superClass)markValue(node.superClass,0);
     /** @type {AstNode[]} */
     const callables=[];
     walk(node,(child,parent,key,ancestors)=>{
@@ -3938,7 +3939,8 @@ function collectExportedCallableNodes(ast) {
     }
     walk(fn.body,(node,parent,key,ancestors)=>{
       if(node.type!=='ReturnStatement'&&node.type!=='CallExpression'&&
-         node.type!=='AssignmentExpression')return;
+         node.type!=='AssignmentExpression'&&node.type!=='YieldExpression'&&
+         node.type!=='AwaitExpression')return;
       if(ancestors.some(ancestor=>ancestor!==fn&&isFunction(ancestor)))return;
       if(node.type==='ReturnStatement') {
         if(node.argument)markValue(node.argument,0);
@@ -3947,6 +3949,8 @@ function collectExportedCallableNodes(ast) {
           if(argument.type==='SpreadElement')markValue(argument.argument,0);
           else markValue(argument,0);
         }
+      } else if(node.type==='YieldExpression'||node.type==='AwaitExpression') {
+        if(node.argument)markValue(node.argument,0);
       } else if(node.left.type==='MemberExpression') {
         // A public method may publish a captured callback through this, a
         // caller-owned target, or another reachable object.
@@ -3959,6 +3963,10 @@ function collectExportedCallableNodes(ast) {
     if(depth>24)return;
     if(isFunction(node)||isClass(node)) {
       markTree(node);
+      return;
+    }
+    if(node.type==='AwaitExpression'||node.type==='YieldExpression') {
+      if(node.argument)markValue(node.argument,depth+1);
       return;
     }
     if(node.type==='Identifier') {
