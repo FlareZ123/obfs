@@ -15,6 +15,8 @@ test('nonlinear displacement rank detects known rank-one and rank-two shears',()
 test('rotated-core public 32-bit projection has full rank but preserves native semantics',()=>{
   const result=runScreen();
   assert.equal(result.baseline.rank,32);
+  assert.equal(result.fullBaseline.rank,32);
+  assert.equal(result.fullBaseline.observations,12224);
   assert.equal(result.degenerateSlice.rank,0);
   assert.deepEqual(result.rotations.map(record=>record.rotation),[1,8,16,31]);
   assert.ok(result.rotations.every(record=>record.rank===32&&record.checked===10000));
