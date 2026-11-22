@@ -37,7 +37,7 @@ function createSnoLauncher(files,entry) {
   }
   // Root launcher path cannot also be a protected input file.
   const reservedKeys=new Set(portableKeys('sno-entry.cjs'));
-  if (snapshots.some(file => portableKeys(file.path).some(key=>reservedKeys.has(key)))) {
+  if (snapshots.some(file => portableKeys(file.path.split('/',1)[0]).some(key=>reservedKeys.has(key)))) {
     throw new Error('SNO launcher path is reserved: sno-entry.cjs');
   }
   if (!snapshots.some(file => file.path === checkedEntry)) throw new Error(`Missing SNO entry ${entry}`);
