@@ -10,7 +10,7 @@ const {obfuscateFiles}=require('../src');
 const {atomicWrite}=require('../src/atomic');
 
 /** @typedef {{path:string,code:string,sourceType:'module'}} SourceFile */
-/** @typedef {'direct'|'readers'|'identity'} Style */
+/** @typedef {'direct'|'readers'|'identity'|'wrapped'} Style */
 /** @typedef {'literal'|'pure-expression'} ValueKind */
 /** @typedef {{style:Style,valueKind:ValueKind,properties:number,sourceBytes:number,emittedBytes:number,
  *    coldNativeMs:number,coldObfuscatedMs:number,nativeMedianMs:number,
@@ -25,7 +25,7 @@ function median(values) {
 }
 
 /**
- * Build one of three positive cross-module ESM property-flow workloads.
+ * Build a private-owner ESM workload; 'wrapped' preserves the public hot() source.
  * Both renames are observable through public hot() computations.
  * @param {Style} style
  * @param {ValueKind} [valueKind]
@@ -50,13 +50,16 @@ function generate(style,valueKind='literal') {
     (style==='identity'?'stable.hotWeight':'state.hotWeight');
   const worker=[
     imports,alias,
-    'export function hot(initial,iterations){',
+    style==='wrapped' ? 'function privateHot(initial,iterations){' :
+      'export function hot(initial,iterations){',
     'let value=initial|0;',
     'for(let i=0;i<iterations;i++){',
     'value=((value+',score,')^',weight,')|0;',
     '}',
     'return value;',
-    '}'
+    '}',
+    style==='wrapped' ?
+      'export function hot(initial,iterations){return privateHot(initial,iterations);}' : ''
   ].join('');
   /** @type {SourceFile[]} */
   const files=[
@@ -131,6 +134,10 @@ async function measure(style,iterations,trials,valueKind='literal') {
     assert.ok(loadedFunctions.native&&loadedFunctions.protected);
     const originalHot=loadedFunctions.native;
     const obfuscatedHot=loadedFunctions.protected;
+    if(style==='wrapped'){
+      assert.equal(obfuscatedHot.toString(),originalHot.toString(),
+        'wrapped benchmark must preserve the publicly exposed Function#toString');
+    }
     const coldNativeMs=median(coldNativeSamples);
     const coldObfuscatedMs=median(coldObfuscatedSamples);
     let matchingProbes=0;
