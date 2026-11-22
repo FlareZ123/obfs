@@ -72,6 +72,58 @@ actual generated SNO entry in a separate Node process.
 | Byte identity | Matched seeded outputs under no external package and an external CommonJS package are byte-for-byte identical, including `entry.js` and `sno-entry.cjs`, and both run with result 97 |
 | Exhaustive placement matrix | Root input package type × output ancestor type × stale nested output type, each chosen from absent/CommonJS/ESM: all 27 original-versus-generated cases completed, with 17 admitted/native-matching builds and 10 expected refusals |
 
+## External package-resolution red/green extension
+
+The `.cjs` and `.mjs` extensions fix module format but do **not**
+isolate a file from external Node `package.json` resolution contracts.
+Two separate real Node 22.23.4 Windows/Ubuntu counterexamples were
+produced on the then-current main baseline, with independently
+executed native and generated SNO sources:
+
+- **Private package alias:** The unbundled input host declared
+  `{"imports":{"#target":"./source/target.cjs"}}` and the output host
+  declared `{"imports":{"#target":"./foreign.cjs"}}`. The unmodified
+  native `require('#target')` returned **103** while generated SNO
+  returned **107**. The included-package control returned **103** in
+  both arms. Original source commit
+  `c1c8b659a04b02e2570b6464fa6ba04f7f905710`, both-OS
+  [red run 45025118109](https://github.com/FlareZ123/obfs/actions/runs/45025118109).
+- **Named self-reference:** The input host package
+  `{"name":"scope-pkg","exports":{"./value":"./source/value.cjs"}}`
+  and output host mapped the same package specifier to
+  `./foreign.cjs`. Native `require('scope-pkg/value')` returned
+  **137** and generated SNO returned **139**. A packaged
+  `name`/`exports` control returned **137** in both arms. Original
+  source commit `26f736611a04641b76fb67f224202e391ec84ccc`,
+  both-OS [red run 45025620272](https://github.com/FlareZ123/obfs/actions/runs/45025620272).
+
+For these finite classes, the SNO CLI now extends
+`assertSnoPackageScope` to executable `.js`, `.cjs`, and `.mjs`
+inputs and outputs. An external `package.json` containing an own
+`"imports"` field, or both a valid named package and an own `"exports"`
+field, causes a **build-time refusal** before executable output is
+published. The current build can safely include a `package.json`
+inside its declared input inventory; its explicit mappings are then
+emitted with the code. No source rewrite is needed.
+
+- [Five-case focused imports gate 45025545478](https://github.com/FlareZ123/obfs/actions/runs/45025545478)
+  at `bac633570dccaa20d76965cf1c2b2548ae81abc6` passed
+  both OSes, including positive included-package `#target`,
+  negative external source, external output and stale nested output,
+  plus a mixed CommonJS/ESM dependency case.
+- [Four-case focused named exports gate 45025723893](https://github.com/FlareZ123/obfs/actions/runs/45025723893)
+  at `ed9fc0a3224cd51f25ab697e3a5d57fec62c987f` passed
+  both OSes, including packaged self-reference, external source/output
+  refusal, and a compatible `exports`-without-`name` control.
+- Each green focused run also completed the strict in-repository and
+  external JSDoc typechecks on Ubuntu and Windows.
+
+These checks deliberately reject even a source that never uses a
+potentially reachable external mapping. They are a conservative
+admission contract, rather than static proof of every dynamic Node
+module resolution. A custom loader, later change to external metadata,
+or an uncaptured third-party dependency remains outside this contract.
+
 ## Validation and source pins
 
 The [16-test focused gate 45024526818](https://github.com/FlareZ123/obfs/actions/runs/45024526818)
@@ -100,8 +152,9 @@ passed **both Ubuntu and Windows** at frozen source
 `dfda4d67a6a59c356c987be601725064f94cb82e`, including the
 refined nested/input package implementation, behavioral suites,
 strict project/external JSDoc and the configured workload/browser
-checks. Later source commits changed only this scoped test file and
-documentation, leaving the executable implementation identical.
+checks. That full integration source predates the later external
+`imports` and named self-reference guards, so a fresh full run is
+required before claiming integration coverage of those guards.
 The earlier [full run 45022860316](https://github.com/FlareZ123/obfs/actions/runs/45022860316)
 also passed both platforms at older source
 `838a48462d563ac8a1e6168e9a4b31ee87ab00dc`;
@@ -110,13 +163,15 @@ it is historical coverage rather than the refined implementation pin.
 ## Constraints and release meaning
 
 This package preflight checks **module format and external package
-metadata validity**. Node package `imports`, `exports`, self-reference
-resolution and other dependency-environment differences remain outside
-its proof. In a separate native Node 22.16.0 reproduction, a CommonJS
-entry using a parent package's `{"imports":{"#target":"./source/target.cjs"}}`
-returned 103 in the source tree, while the same entry bytes copied to
-a package-free output failed to resolve `#target`. This is an explicit
-remaining relocation boundary, not a verified compiled-CLI counterexample.
+metadata admission**, including the identified external `"imports"`
+and named `"exports"` self-reference counterexamples. It does not
+prove arbitrary Node dependency graph closure, full functionality
+equivalence across loaders, or same-package dependency resolution when
+packages are deliberately modified after obfuscation. External bare
+package dependencies from `node_modules` and application-specific
+loader hooks require an independent integrator review. The red/green
+cases above establish bounded refusal against two real mis-resolutions,
+with a packaged-metadata positive control.
 
 The check assumes default Node symlink realpath resolution. A distinct
 Node 22.16.0 native reproduction loaded the same CommonJS `.js` file
