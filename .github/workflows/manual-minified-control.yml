@@ -13,7 +13,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +21,30 @@ jobs:
           node-version: '22'
       - name: Install exact declared minifier and project libraries
         run: npm install --no-package-lock --ignore-scripts
+      - name: Checkout pinned JSIMPLIFIER external attacker
+        uses: actions/checkout@v4
+        with:
+          repository: XingTuLab/JSIMPLIFIER
+          ref: eaa72ae63758957ac95b2f5e3391fefb96827987
+          path: external/JSIMPLIFIER
+          persist-credentials: false
+      - name: Record JSIMPLIFIER provenance and normalize temporary registry URLs
+        working-directory: external/JSIMPLIFIER
+        run: node -e 'const fs=require("node:fs");const crypto=require("node:crypto");const lock=fs.readFileSync("package-lock.json","utf8");fs.appendFileSync(process.env.GITHUB_ENV,"JSIMPLIFIER_LOCK_SHA256="+crypto.createHash("sha256").update(lock).digest("hex")+"\n");fs.writeFileSync("package-lock.json",lock.replaceAll("https://registry.npmmirror.com/","https://registry.npmjs.org/"));const pkg=JSON.parse(fs.readFileSync("package.json","utf8"));const lic=fs.readFileSync("LICENSE","utf8");console.log(JSON.stringify({packageLicense:pkg.license,licenseHeader:lic.split(/\r?\n/).slice(0,2).join(" ")}));'
+      - name: Install pinned JSIMPLIFIER dependencies without lifecycle scripts
+        working-directory: external/JSIMPLIFIER
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run LLM-disabled JSIMPLIFIER against minified and published math
+        env:
+          OBFS_JSIMPLIFIER_ROOT: \${{ github.workspace }}/external/JSIMPLIFIER
+          OBFS_JSIMPLIFIER_REPORT: jsimplifier-\${{ runner.os }}.json
+        run: node sims/jsimplifier-static-attacker.js
+      - name: Upload external deobfuscator attack report
+        uses: actions/upload-artifact@v4
+        with:
+          name: jsimplifier-\${{ runner.os }}
+          path: jsimplifier-\${{ runner.os }}.json
+          if-no-files-found: error
       - name: Verify public-byte minified function extraction
         run: node --test test/minified-control-static-attacker.test.js
       - name: Validate falsifiable candidate decision and strict sample veto
