@@ -60,6 +60,22 @@ function isProvedTypeofLiteral(node){
 }
 
 /**
+ * An explicitly pinned trusted Node builtin import has the same local
+ * server-side value regardless of the private module's source URL.
+ * @param {import('./ast').AstNode|null|undefined} node
+ * @returns {boolean}
+ */
+function isProvedTypeofLocalInitializer(node){
+  if(isProvedTypeofLiteral(node))return true;
+  if(node?.type!=='AwaitExpression'||node.argument?.type!=='ImportExpression')return false;
+  const specifier=node.argument.source;
+  return specifier?.type==='Literal'&&typeof specifier.value==='string'&&
+    specifier.value.startsWith('node:')&&isBuiltin(specifier.value)&&
+    !['node:module','node:vm','node:worker_threads',
+      'node:child_process','node:process'].includes(specifier.value);
+}
+
+/**
  * Find the first unproved unqualified typeof read in a relocated source.
  * A unique binding is necessary, but is not alone sufficient: a sibling
  * function's declaration is not in lexical scope. Accept only the explicit
@@ -77,33 +93,48 @@ function firstUnprovedTypeofReference(root,bindings,moduleBindings,rootFormals){
   /** @type {string|null} */
   let unproved=null;
   walk(root,(node,_parent,_key,ancestors)=>{
-    if(unproved!==null||node.type!=='UnaryExpression'||node.operator!=='typeof'||
-       node.argument?.type!=='Identifier')return;
-    const name=node.argument.name;
-    const bindingCount=bindings.get(name)??0;
-    if(bindingCount===0&&(name==='globalThis'||standardRealmGlobals.has(name)))return;
-    if(bindingCount!==1){unproved=name;return;}
-    if(moduleBindings.has(name)||rootFormals.has(name))return;
-    for(const scope of ancestors){
-      if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
-          .includes(scope.type)){
-        if(scope.id?.type==='Identifier'&&scope.id.name===name)return;
-        if(Array.isArray(scope.params)&&scope.params.some(
-          (/** @type {import('./ast').AstNode} */ parameter)=>
-            parameter.type==='Identifier'&&parameter.name===name))return;
-      }
-      if(scope.type!=='BlockStatement')continue;
-      for(const statement of scope.body){
-        if(statement.type==='FunctionDeclaration'&&
-           statement.id?.type==='Identifier'&&statement.id.name===name)return;
-        if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
-        for(const declaration of statement.declarations){
-          if(declaration.id.type==='Identifier'&&declaration.id.name===name&&
-             declaration.start<node.start&&isProvedTypeofLiteral(declaration.init))return;
+    if(unproved!==null||node.type!=='UnaryExpression'||node.operator!=='typeof')return;
+    // The operand is fully evaluated before typeof computes its final
+    // primitive tag. Sequence members, computed keys, object initializers,
+    // member roots and conditional branches may all read free host names.
+    // Function literals are lazy unless embedded in a call expression:
+    // merely creating one has a stable typeof result.
+    walk(node.argument,(read,parent,key,inside)=>{
+      if(unproved!==null||read.type!=='Identifier'||isStaticKey(parent,key)||
+         parent&&['FunctionDeclaration','FunctionExpression',
+           'ArrowFunctionExpression','ClassExpression'].includes(parent.type)&&
+           (key==='id'||key==='params'))return;
+      const enclosingFunction=inside.some((scope,index)=>
+        ['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+          .includes(scope.type) &&
+        !inside.slice(0,index).some(outer=>outer.type==='CallExpression'));
+      if(enclosingFunction)return;
+      const name=read.name;
+      const bindingCount=bindings.get(name)??0;
+      if(bindingCount===0&&(name==='globalThis'||standardRealmGlobals.has(name)))return;
+      if(bindingCount!==1){unproved=name;return;}
+      if(moduleBindings.has(name)||rootFormals.has(name))return;
+      for(const scope of [...ancestors,...inside]){
+        if(['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression']
+            .includes(scope.type)){
+          if(scope.id?.type==='Identifier'&&scope.id.name===name)return;
+          if(Array.isArray(scope.params)&&scope.params.some(
+            (/** @type {import('./ast').AstNode} */ parameter)=>
+              parameter.type==='Identifier'&&parameter.name===name))return;
+        }
+        if(scope.type!=='BlockStatement')continue;
+        for(const statement of scope.body){
+          if(statement.type==='FunctionDeclaration'&&
+             statement.id?.type==='Identifier'&&statement.id.name===name)return;
+          if(statement.type!=='VariableDeclaration'||statement.kind!=='const')continue;
+          for(const declaration of statement.declarations){
+            if(declaration.id.type==='Identifier'&&declaration.id.name===name&&
+               declaration.start<read.start&&isProvedTypeofLocalInitializer(declaration.init))return;
+          }
         }
       }
-    }
-    unproved=name;
+      unproved=name;
+    });
   });
   return unproved;
 }

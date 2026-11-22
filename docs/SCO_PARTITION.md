@@ -281,6 +281,15 @@ bindings do not establish proof. It leaves admitted client source bytes
 unchanged and does not analyze every arbitrary unqualified reference.
 See [the cross-realm `typeof` witness](../im-results/sco-unqualified-typeof-ambient-audit-2026-11-22.md).
 
+The same bounded audit also checks evaluated identifier references inside
+composite `typeof` operands such as `typeof (0, externalBridge)` and
+`typeof externalBridge.value`. It ignores uncomputed property labels and
+can decline complex local initializers whose ownership is unproved.
+A literal trusted `node:` builtin import remains eligible when its
+local binding is used for a type read. Function literal bodies and
+arbitrary indirect invocation still require separate review.
+See [composite host-state red/green evidence](../im-results/sco-composite-typeof-ambient-expression-2026-11-22.md).
+
 The compiler conservatively refuses tested forms of prototype reflection,
 legacy `RegExp` static reads, native constructor-object mutations and
 private browser-only ambient access, including simple aliases and global
