@@ -69,6 +69,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: npm run test:browser
+      - name: Compare private factory imported-destructuring graph in real Chromium
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/factory-destructuring-browser.js
       - name: Check source-byte observer negative and performance.now positive
         run: node --test test/cross-file-source-byte-reader.test.js
       - name: Compare native and emitted ESM ResourceTiming decoded byte sizes
