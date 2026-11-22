@@ -84,6 +84,22 @@ test('static source-only ESM reconstruction refuses a missing advertised export'
   ),/Unavailable static function export round2|Missing proved public Int32 translation/u);
 });
 
+test('source-only rebuilt ESM refuses unproved module-level mutations',()=>{
+  const declarations=['round1','round2','round3'].map((name,index)=>
+    'export function '+name+'(input){return (((input|0)+'+index+')|0);}'
+  ).join('\\n');
+  const unsafe=[
+    declarations+'\\nround1=function(input){return 42;}',
+    declarations+'\\nglobalThis.observedSideEffect=true;',
+    declarations+'\\nimport "./unknown-side-effect.mjs";',
+    declarations+'\\nexport let extra=1;'
+  ];
+  for(const source of unsafe){
+    assert.throws(()=>attackPublishedSource(source),
+      /Unproved module-time side effect or mutable binding/u,source);
+  }
+});
+
 test('two samples per public switch arm are not universal affine equivalence proofs',async()=>{
   // Every observed parity representative 0,1,2,3 has the same offset zero.
   // At input four, the additional AND term becomes nonzero. This module is
