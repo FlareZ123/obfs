@@ -1067,6 +1067,58 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
     }while(callableChanged);
     /** @type {{origin:string,binding:AstNode}[]} */
     const formalObjectPatterns=[];
+    /**
+     * A direct inline record actual can be proven non-ambient for a named
+     * destructuring formal only when every destructured property is supplied
+     * as an own inert primitive field. No prototype fallback, getter, magic
+     * __proto__ creation, dynamic key or nested receiver is accepted.
+     *
+     * @param {AstNode} formal
+     * @param {AstNode|null|undefined} actual
+     * @returns {boolean}
+     */
+    function closedLiteralFormalActual(formal,actual) {
+      /**
+       * @param {AstNode} node
+       * @param {number} depth
+       * @returns {boolean}
+       */
+      function inert(node,depth) {
+        if(depth>16)return false;
+        if(node.type==='ObjectExpression')return node.properties.every((/** @type {AstNode} */ property)=>{
+          if(property.type!=='Property'||property.kind!=='init'||
+             property.method||property.shorthand)return false;
+          const name=ownPropertyName(property);
+          return name!==null&&name!=='__proto__'&&
+            inert(property.value,depth+1);
+        });
+        if(node.type==='ArrayExpression')return node.elements.every((/** @type {AstNode|null} */ element)=>
+          element!==null&&element.type!=='SpreadElement'&&
+          inert(element,depth+1));
+        return isLiteralValue(node)&&
+          (node.type!=='Literal'||node.value===null||
+           ['number','string','boolean','bigint'].includes(typeof node.value));
+      }
+      if(formal.type!=='ObjectPattern'||actual?.type!=='ObjectExpression'||
+         !inert(actual,0))return false;
+      /** @type {Map<string,AstNode>} */
+      const fields=new Map();
+      for(const property of actual.properties) {
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.method||property.shorthand)return false;
+        const name=ownPropertyName(property);
+        if(name===null||name==='__proto__'||fields.has(name))return false;
+        fields.set(name,property.value);
+      }
+      for(const property of formal.properties) {
+        if(property.type!=='Property'||property.kind!=='init'||
+           property.value.type!=='Identifier')return false;
+        const name=ownPropertyName(property);
+        const value=name!==null?fields.get(name):undefined;
+        if(!value||!inert(value,0))return false;
+      }
+      return true;
+    }
     /** @type {(AstNode|null)[][]} */
     const unresolvedArgumentVectors=[];
     /**
@@ -1132,6 +1184,20 @@ function safeClosedCallerRecordRead(modules,module,member,ancestors) {
           if(formal.type==='AssignmentPattern') {
             actual??=formal.right;
             formal=formal.left;
+          }
+          if(formal.type==='ObjectPattern'&&actual?.type!=='Identifier') {
+            // Binding a function may capture only a prefix of its formals.
+            // The missing tail is analyzed when the bound adapter is called.
+            const boundCapture=node.type==='CallExpression'&&
+              node.callee.type==='MemberExpression'&&
+              (node.callee.computed?staticString(node.callee.property):
+               staticName(node.callee.property))==='bind';
+            if(actual===undefined&&boundCapture)continue;
+            // A returned or computed actual can be globalThis even though
+            // the callsite contains no syntactically explicit ambient root.
+            if(!closedLiteralFormalActual(formal,actual))
+              changedIntrinsic=true;
+            continue;
           }
           if(actual?.type!=='Identifier')continue;
           if(formal.type==='Identifier')aliasEdges.push([formal.name,actual.name]);
