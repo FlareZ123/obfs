@@ -10,9 +10,9 @@ const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {obfuscateFiles}=require('../src/core');
 
 const kernel='import "./peer.mjs";\n'+
-  'export function f(x){return ((x>>>1)^(x&255));}\n';
-const peer='import {f} from "./kernel.mjs";\n'+
-  'export const observed=[-2147483648,-1,0,1,2147483647].map(f);\n';
+  'function f(x){return ((x>>>1)^(x&255));}export function run(x){return f(x);}\n';
+const peer='import {run} from "./kernel.mjs";\n'+
+  'export const observed=[-2147483648,-1,0,1,2147483647].map(run);\n';
 
 /**
  * A peer in the same ESM strongly connected component executes first and
@@ -29,8 +29,8 @@ async function executeCycle(code) {
     const imported=await import(pathToFileURL(path.join(root,'kernel.mjs')).href);
     const neighbor=await import(pathToFileURL(path.join(root,'peer.mjs')).href);
     return {early:neighbor.observed,
-      later:[imported.f(-2147483648),imported.f(-1),
-        imported.f(0),imported.f(1),imported.f(2147483647)]};
+      later:[imported.run(-2147483648),imported.run(-1),
+        imported.run(0),imported.run(1),imported.run(2147483647)]};
   } finally {
     rmSync(root,{recursive:true,force:true});
   }
