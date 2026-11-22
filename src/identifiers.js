@@ -138,10 +138,13 @@ function renameLocalIdentifiers(source,ast,options) {
   if (dynamic) return {code:source,bindings:0};
   /** @type {Set<string>} */
   const sourceExposedNames=new Set();
+  /** @type {Set<AstNode>} */
+  const sourceExposedDeclarations=new Set();
   for(const item of identifiers) {
-    if(item.ancestors.some(ancestor=>sourceExposedBodies.has(ancestor))&&
-       classifyIdentifier(item.node,item.parent,item.key)!=='ignore')
-      sourceExposedNames.add(item.node.name);
+    if(!item.ancestors.some(ancestor=>sourceExposedBodies.has(ancestor)))continue;
+    if(classifyIdentifier(item.node,item.parent,item.key)==='ignore')
+      sourceExposedDeclarations.add(item.node);
+    else sourceExposedNames.add(item.node.name);
   }
   /** @type {import('./ast').Edit[]} */
   const edits=[];
@@ -151,7 +154,8 @@ function renameLocalIdentifiers(source,ast,options) {
   let bindings=0;
   for(const candidate of candidates) {
     const {name,scope,identifier}=candidate;
-    if (counts.get(name)!==1 || sourceExposedNames.has(name) || inferredNames.has(name) || errorSpellingNames.has(name) ||
+    if (counts.get(name)!==1 || sourceExposedNames.has(name) || sourceExposedDeclarations.has(identifier) ||
+        inferredNames.has(name) || errorSpellingNames.has(name) ||
         ['arguments','eval','require','module','exports','globalThis','window'].includes(name)) continue;
     // TDZ ReferenceError messages expose the original binding spelling.
     // Until a control-flow dominance proof exists, reject a candidate when a
