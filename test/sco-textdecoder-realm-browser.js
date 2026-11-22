@@ -43,6 +43,12 @@ async function main(){
     'Chromium baseline UTF-8 must preserve ASCII bytes');
   assert.deepEqual(nativeNode[2],[65,66],
     'Node baseline UTF-8 must preserve ASCII bytes');
+  if(process.version==='v22.16.0'){
+    assert.deepEqual(nativeNode[0],[0x80],
+      'Pinned Node 22.16.0 should preserve the legacy windows-1252 mismatch');
+    assert.notDeepEqual(nativeNode[0],browser[0],
+      'Pinned older Node decoder and Chromium have a source-visible mapping difference');
+  }
   const mismatch=samples.map((sample,index)=>({
     label:sample.label,
     bytes:sample.bytes,
