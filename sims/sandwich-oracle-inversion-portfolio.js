@@ -75,9 +75,11 @@ function main(){
   /** @type {{name:string,make:(index:number)=>OracleFixture}[]} */
   const families=[
     ...['rivest-degree-15','triangular-degree-3','triangular-degree-4',
-      'sparse-forced-top-bit'].map(name=>({
-      name,make:(index)=>hardFixture(name,index)
-    })),
+      'sparse-forced-top-bit'].map(name=>{
+      /** @param {number} index @returns {OracleFixture} */
+      const make=index=>hardFixture(name,index);
+      return {name,make};
+    }),
     {name:'nonlinear-triangular',make:index=>priorFixture({
       name:'nonlinear-triangular',make:makeTriangularCompatiblePermutation
     },index)},
