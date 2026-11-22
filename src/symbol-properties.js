@@ -30,7 +30,7 @@ const {staticString}=require('./ast');
 function symbolizeLocalProperties(source,ast,options) {
   if(typeof options?.seed!=='string')throw new TypeError('Expected a seed');
   const bindings=collectBindings(ast);
-  const exportedCallableSource=collectExportedCallableNodes(ast);
+  const exportedCallableSource=collectExportedCallableNodes(ast,options.propertySafeExports??null);
   /** @type {Set<string>} */
   const reserved=new Set();
   walk(ast,node=>{if(node.type==='Identifier')reserved.add(node.name);});
