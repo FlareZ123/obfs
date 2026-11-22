@@ -102,3 +102,12 @@ Current `src/core.js` sets `shouldEncodeStrings` from the explicit in-group `rem
 This is still a source-fidelity result, not a confidentiality or security result. The workflow is red by design because it asserts the strict external source contract; the private controls ensure the answer is not to disable string encoding globally.
 
 The same string-only test was copied to the isolated Agent 48 candidate review branch. [Run 44984879066](https://github.com/FlareZ123/obfs/actions/runs/44984879066), head `73e98b0115280d31ed13deae1aaf186d20b6b65e`, confirms the same result on both operating systems: 3/3 exported callable source cases fail across COO/SCO/SNO, and 3/3 private nonescaping controls pass. The candidate's direct-export matrix still passes 48/48 Node tests in that run, but this does not cover string encoding of an externally exported callable. The candidate review workflow remains failed by design on the added string/aggregate witnesses and also has the separate unresolved CacheStorage browser witness failure described above.
+
+## Precision control for private class methods
+
+To distinguish necessary source refusal from an overbroad class ban, I added `test/esm-private-class-positive-yield.test.js`. Its module-local class instance never escapes; only a primitive `value` is exported. The external importer cannot obtain the class, instance or method, and the test requires identifier renaming in the private method while preserving the exported value.
+
+- Mainline test branch [run 44985080284](https://github.com/FlareZ123/obfs/actions/runs/44985080284): the private-class positive-yield step passed on both Ubuntu and Windows (3/3 modes).
+- Candidate review branch [run 44985083819](https://github.com/FlareZ123/obfs/actions/runs/44985083819): the same step failed on both Ubuntu and Windows (0/3 modes). Its assertion requires `bindings > 0`; the candidate's blanket `ClassDeclaration`/`ClassExpression` ancestor veto leaves this private method untransformed.
+
+This confirms the candidate's public private-class-instance case passes by refusing class method rewrites broadly, not by distinguishing escaped from nonescaping classes. That is a safe correctness tradeoff, but it suppresses a genuinely private transformation opportunity. The integration gate should pair public class-source preservation with this private-class yield control so precision is measured rather than inferred from source parity alone.
