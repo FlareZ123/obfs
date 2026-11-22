@@ -103,7 +103,7 @@ test('source-only rebuilt ESM refuses unproved module-level mutations',()=>{
 test('source-only ESM synthesis refuses an unadvertised fourth export',()=>{
   const source=['round1','round2','round3'].map(name=>
     'export function '+name+'(x){return (((x|0)+1)|0);}'
-  ).join('\\n')+'\\nexport function extra(x){return x;}';
+  ).join('\n')+'\nexport function extra(x){return x;}';
   assert.throws(()=>attackPublishedSource(source),/Unproved public export set/u);
 });
 
