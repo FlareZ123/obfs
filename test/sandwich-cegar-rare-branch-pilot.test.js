@@ -3,6 +3,7 @@
 const assert=require('node:assert/strict');
 const {test}=require('node:test');
 const {performance}=require('node:perf_hooks');
+const {invertRankOneShear}=require('../sims/compatible-rank-one-shear-two-sided-inversion');
 const {
   makeRng,makeLinearTransform,applyLinear,invertLinearSandwich,u32
 }=require('../sims/compatible-permutation-linear-sandwich-blackbox');
@@ -88,13 +89,29 @@ function attempt(oracle,secret,seed,validations) {
     elapsedMs:Number((performance.now()-started).toFixed(3))};
 }
 
-test('rare-branch compatible permutations: selected target versus matched control',()=>{
+test('rare-branch targets: CEGAR stress and matching rank-one theorem control',()=>{
   /** @type {Array<{seed:number,marker:number,validations:number,rare:ReturnType<typeof attempt>,
    *   control:ReturnType<typeof attempt>}>} */
   const observations=[];
+  /** @type {Array<{seed:number,marker:number,rareQueries:number,controlQueries:number,
+   *   rareInterpolantRank:number,controlInterpolantRank:number}>} */
+  const rankOneRows=[];
   for(let index=0;index<6;index++){
     const seed=u32(0x5eed17a9^Math.imul(index+1,0x9e3779b9));
     const fixture=makeRareCase(seed);
+    // F(x)=A(x) XOR w*f(x) is an invertible rank-one perturbation.
+    // A separate exact n+3 chosen-query theorem applies even though the
+    // heuristic two-sided CEGAR algorithm can miss its rare target.
+    const rareOne=invertRankOneShear(fixture.oracle,fixture.oracle(fixture.secret));
+    const controlOne=invertRankOneShear(fixture.oracle,fixture.oracle(fixture.control));
+    assert.equal(rareOne.value,fixture.secret);
+    assert.equal(controlOne.value,fixture.control);
+    assert.ok(rareOne.queryCount<=35);
+    assert.ok(controlOne.queryCount<=35);
+    rankOneRows.push({seed,marker:fixture.marker,
+      rareQueries:rareOne.queryCount,controlQueries:controlOne.queryCount,
+      rareInterpolantRank:rareOne.interpolantRank,
+      controlInterpolantRank:controlOne.interpolantRank});
     for(const validations of [8,128]){
       const attackSeed=seed^0x510e527f;
       const rare=attempt(fixture.oracle,fixture.secret,attackSeed,validations);
@@ -103,6 +120,7 @@ test('rare-branch compatible permutations: selected target versus matched contro
     }
   }
   assert.equal(observations.length,12);
+  assert.equal(rankOneRows.length,6);
   assert.ok(observations.every(row=>row.rare.queries>0&&row.control.queries>0));
   const byValidation=[8,128].map(validations=>{
     const rows=observations.filter(row=>row.validations===validations);
@@ -118,7 +136,7 @@ test('rare-branch compatible permutations: selected target versus matched contro
     family:'bit-25 involution gated on one 16-bit low suffix',
     selection:'target inside altered coset, matched control outside',
     seedScheme:'0x5eed17a9 XOR imul(index+1,0x9e3779b9)',
-    observations,byValidation,
+    observations,byValidation,rankOneRows,
     interpretation:'empirical source-pinned attack stress; no universal inversion claim'
   }));
 });
