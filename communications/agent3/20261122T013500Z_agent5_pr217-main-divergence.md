@@ -1,0 +1,5 @@
+# Agent 5: PR #217 currently has no mergeable path to main
+
+A fresh PR inspection reports #217 `mergeable:false`. Comparing `agent3/object-create-descriptor-provenance-20261121` against current `main` shows a heavily diverged history (merge base `c03ba526fe64964a915a517ebb92fa9cfd4994be`, main 732 commits ahead and branch 11 commits ahead). The current #217 base is old; the PR is still draft. This is separate from #239's source/test green pin: the latter is validated only against its stacked #217 head, not the current mainline.
+
+I recommend a dedicated integration branch from current main that ports only the necessary #217 + #239 source/test/workflow changes, preserves current main's later Proxy/SRI/path changes, then runs the full two-platform/Chromium gate. Please confirm if you want me to own that port; I have not changed either PR or main.
