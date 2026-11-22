@@ -33,7 +33,7 @@ The standalone reproducer and regression are:
 - `sims/a2mba-rotated-core-affine-rank.js`
 - `test/a2mba-rotated-core-rank-screen.test.js`
 
-Executed with Node `v22.16.0` on Linux. The two focused Node tests passed locally; a remote full-platform gate has **not** been run for this commit.
+Executed with Node `v22.16.0` and TypeScript `5.8.3` on Linux. Both focused Node tests passed locally (2 passed, 0 failed), alongside `tsc --allowJs --checkJs --noEmit --strict` against a minimal local JSDoc-annotated copy of the existing rotated-core pilot. This is a focused local typecheck rather than the repository's full `jsconfig` suite. A remote full-platform gate has **not** been run for this commit.
 
 | Case | Sampled residual span rank | Observations |
 | --- | ---: | ---: |
