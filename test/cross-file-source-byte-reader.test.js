@@ -360,6 +360,18 @@ for(const [label,observer] of [
     'console.log(alias[method]("resource"));'],
   ['computed global destructuring Performance alias',
     'const field="performance";const {[field]:perf}=globalThis;'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['defaulted global destructuring Performance alias',
+    'const {performance:perf=performance}=globalThis;'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['computed defaulted global Performance alias',
+    'const field="performance";const {[field]:perf=performance}=globalThis;'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['reflective global Performance property',
+    'const perf=Reflect.get(globalThis,"performance");'+
+    'let method="getEntriesByType";console.log(perf[method]("resource"));'],
+  ['descriptor-reflective global Performance property',
+    'const perf=Object.getOwnPropertyDescriptor(globalThis,"performance").value;'+
     'let method="getEntriesByType";console.log(perf[method]("resource"));']
 ]) {
   test('browser ResourceTiming source-byte metadata veto: '+label,()=>{
