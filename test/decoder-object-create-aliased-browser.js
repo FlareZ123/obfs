@@ -123,6 +123,14 @@ async function main() {
       mutation:'const descriptors={ref:{}};const {ref:entry={}}=descriptors;'+
         'entry.get=function(){return Number.prototype};'+
         'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
+    {name:'array literal descriptor entry String getter',safe:false,
+      mutation:'const descriptors={ref:{}};const [entry]=[descriptors.ref];'+
+        'entry.get=function(){return String.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.charCodeAt=()=>0;'},
+    {name:'array literal descriptor entry Number getter',safe:true,
+      mutation:'const descriptors={ref:{}};const [entry]=[descriptors.ref];'+
+        'entry.get=function(){return Number.prototype};'+
+        'const box=Object.create(null,descriptors);box.ref.unrelated=1;'},
     {name:'factory-returned descriptor entry String getter',safe:false,
       mutation:'const descriptors={ref:{}};const entry=descriptors.ref;'+
         'function build(){return {get:function(){return String.prototype}};}'+
