@@ -83,6 +83,27 @@ test('opt-in SNO accepts one shared external dependency and preserves generated 
   });
 });
 
+test('same resolved bare module may still observe a different calling module',async()=>{
+  await fixture(async temp=>{
+    const root=path.join(temp,'project');
+    const source=path.join(root,'source');
+    const out=path.join(root,'out');
+    await atomicWrite(path.join(root,'node_modules','audit-parent','index.js'),
+      "const path=require('node:path');"+
+      "module.exports=path.basename(path.dirname(module.parent.filename));");
+    await atomicWrite(path.join(source,'entry.cjs'),
+      "module.exports=require('audit-parent');");
+    const native=run(path.join(source,'entry.cjs'));
+    assert.equal(native,'source');
+    await main('sno',['--root',source,'--entry','entry.cjs',
+      '--out',out,'--audit-bare-cjs']);
+    const emitted=run(path.join(out,'sno-entry.cjs'));
+    assert.equal(emitted,'out');
+    assert.notEqual(native,emitted,
+      'Identical bare-module targets cannot prove parent-sensitive package behavior');
+  });
+});
+
 test('opt-in audit refuses an external package missing from the intended output',async()=>{
   await fixture(async temp=>{
     const source=path.join(temp,'source');
