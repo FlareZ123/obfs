@@ -71,6 +71,35 @@ may behave differently. A fully controlled runtime can still pursue other
 instrumentation paths, but this one proof makes no assertion about them.
 It also says nothing about inaccessible SCO server-resident functions.
 
+### Identity-based selection without source-text signatures
+
+The matched esbuild/COO comparison now captures **both** the returned bound
+function object and its original target function at each intercepted bind:
+
+```js
+const bound=Reflect.apply(nativeBind,this,args);
+captured.push({bound,target:this});
+return bound;
+```
+
+After importing the module, the adversary selects the recorded pair by
+`pair.bound===app.hot`, an actual function-object identity comparison.
+This directly identifies the private target associated with the public
+export. It removes the attack's previous test-specific filter requiring
+the private function source to contain an arrow token or a bitwise-XOR
+operator. Source recovery proceeds through
+`Function.prototype.toString.call(pair.target)`. The assumption that
+the exported `hot` was bound using the intercepted method remains.
+
+The isolated branch `agent29/bind-return-identity-extraction-20261122`
+at `4de8df69f16f57efe65b0500d241d9f8d0ce6a1f`
+passed [Ubuntu and Windows focused tests and strict JSDoc in
+45001636807](https://github.com/FlareZ123/obfs/actions/runs/45001636807).
+That exact test was promoted onto main at
+`599e4419e1ed2992f8b4e6013e021d717433fe22`.
+This strengthens attribution of the captured function without claiming
+knowledge of arbitrary hidden callbacks or other unpublished exports.
+
 ## Reproduction and pinned Node evidence
 
 [`test/bound-runtime-interception.test.js`](../test/bound-runtime-interception.test.js)
