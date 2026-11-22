@@ -6,6 +6,7 @@ const http=require('node:http');
 const {execFile}=require('node:child_process');
 const {promisify}=require('node:util');
 const {obfuscateFiles}=require('../src');
+const {transformSync}=require('esbuild');
 
 const runBrowser=promisify(execFile);
 
@@ -53,6 +54,11 @@ async function main() {
   });
   const original=String(FILES[0].code);
   const changed=String(output.files[0].code);
+  const minified=transformSync(original,{
+    loader:'js',target:'es2022',minifyIdentifiers:true,
+    minifyWhitespace:true,minifySyntax:true
+  }).code;
+  assert.doesNotMatch(minified,/\bsecretLocal\b/u);
   const strictOriginal='"use strict";'+original;
   const strictOutput=obfuscateFiles([{
     path:'client.js',sourceType:'script',code:strictOriginal
@@ -67,6 +73,7 @@ async function main() {
     const route=request.url??'/';
     const sourceRoutes=new Map([
       ['/native/source.js',original],['/emitted/source.js',changed],
+      ['/minified/source.js',minified],
       ['/strict-native/source.js',strictOriginal],
       ['/strict-emitted/source.js',strictChanged]
     ]);
@@ -76,7 +83,7 @@ async function main() {
       response.end(source);
       return;
     }
-    if(['native','emitted','strict-native','strict-emitted'].some(
+    if(['native','emitted','minified','strict-native','strict-emitted'].some(
       prefix=>route==='/'+prefix+'/index.html')) {
       response.writeHead(200,{'Content-Type':'text/html; charset=utf-8'});
       response.end(page(route.replace('/index.html','/source.js')));
@@ -92,7 +99,7 @@ async function main() {
     const addr=server.address();
     assert.ok(addr&&typeof addr!=='string');
     const origin='http://127.0.0.1:'+addr.port;
-    /** @param {'native'|'emitted'|'strict-native'|'strict-emitted'} variant */
+    /** @param {'native'|'emitted'|'minified'|'strict-native'|'strict-emitted'} variant */
     async function run(variant) {
       const {stdout}=await runBrowser(process.env.CHROMIUM_BIN??'google-chrome',[
         '--headless','--no-sandbox','--disable-gpu','--disable-dev-shm-usage',
@@ -106,8 +113,11 @@ async function main() {
     }
     const native=await run('native');
     const emitted=await run('emitted');
+    const minifierControl=await run('minified');
     assert.equal(native.value,18);
     assert.equal(emitted.value,17);
+    assert.equal(minifierControl.value,17);
+    assert.doesNotMatch(minifierControl.helperSource,/\bsecretLocal\b/u);
     assert.match(native.helperSource,/\bsecretLocal\b/u);
     assert.doesNotMatch(emitted.helperSource,/\bsecretLocal\b/u);
     const strictNative=await run('strict-native');
@@ -121,7 +131,9 @@ async function main() {
         nativeSourceCaptured:true,emittedSourceCaptured:true,
         renamedBindings:output.files[0].metrics.bindings,
         strictNativeValue:strictNative.value,strictEmittedValue:strictEmitted.value,
-        strictSourceUnavailable:true})+'\n');
+        strictSourceUnavailable:true,
+        minifierValue:minifierControl.value,
+        minifierSourceCaptured:minifierControl.helperSource!=='unavailable'})+'\n');
   }finally{
     await new Promise(resolve=>server.close(resolve));
   }
