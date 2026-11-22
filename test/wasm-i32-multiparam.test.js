@@ -77,7 +77,7 @@ function extractPublicBinary(source){
 test('2-4 typed parameters preserve native signed/unsigned results and enable public binary cloning',()=>{
   let comparisons=0;
   for(const candidate of cases){
-    const source='function f('+candidate.parameters+'){return '+candidate.expression+';}module.exports=f;';
+    const source='function f('+candidate.parameters+'){return '+candidate.expression+';}function publicF('+candidate.parameters+'){return f('+candidate.parameters+');}module.exports=publicF;';
     const native=load(source);
     for(let seed=0;seed<12;seed++){
       const emitted=lowerWasmI32Functions(source,'commonjs',{
@@ -139,7 +139,7 @@ test('zero, five, duplicate, default, rest, destructured and effectful parameter
 });
 
 test('selected multi-parameter kernels integrate with COO ESM and SNO CommonJS',async()=>{
-  const original='export function mix(a,b,c){return ((a^b)&(c>>>2))|(b<<c);}';
+  const original='function mix(a,b,c){return ((a^b)&(c>>>2))|(b<<c);}export function run(a,b,c){return mix(a,b,c);}';
   const transformed=obfuscateFiles([
     {path:'mix.mjs',sourceType:'module',code:original}
   ],{
@@ -152,9 +152,9 @@ test('selected multi-parameter kernels integrate with COO ESM and SNO CommonJS',
     Buffer.from(String(transformed.files[0].code)).toString('base64'));
   for(let i=0;i<512;i++){
     const args=[randomI32(),randomI32(),randomI32()];
-    assert.equal(encoded.mix(...args),native.mix(...args));
+    assert.equal(encoded.run(...args),native.run(...args));
   }
-  const cjs='function f(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}module.exports=f;';
+  const cjs='function f(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const sno=obfuscateFiles([{path:'f.cjs',sourceType:'commonjs',code:cjs}],{
     mode:'sno',seed:'multi-sno',strings:false,properties:false,identifiers:false,
     experimentalWasmI32:{'f.cjs':['f']}
@@ -168,7 +168,7 @@ test('selected multi-parameter kernels integrate with COO ESM and SNO CommonJS',
 });
 
 test('multi-parameter Wasm warm and cold costs are workload evidence, not universal protection',()=>{
-  const source='function f(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}module.exports=f;';
+  const source='function f(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}function publicF(a,b,c,d){return f(a,b,c,d);}module.exports=publicF;';
   const native=load(source);
   const lowered=lowerWasmI32Functions(source,'commonjs',{
     seed:'multi-performance',names:['f']
