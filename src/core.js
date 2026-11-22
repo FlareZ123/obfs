@@ -19,7 +19,7 @@ const {lowerWasmI32Functions} = require('./wasm-i32');
 const {assertNoSourceMapDisclosure} = require('./source-maps');
 const {hasPinnedLocalJavaScriptIntegrity}=require('./html-assets');
 const {assertReviewedOpaqueAssets}=require('./reviewed-assets');
-const {proveSourceObserverIslands}=require('./source-observer-islands');
+const {proveSourceObserverIslands,purePrimitiveLeafExports}=require('./source-observer-islands');
 const {canonicalAllowedHosts}=require('./hosts');
 
 /** @typedef {'coo'|'sco'|'sno'} ObfuscationMode */
@@ -2140,9 +2140,14 @@ function obfuscateFiles(files, options = {}) {
     let symbolKeys = 0;
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
+      // The reviewed source-observer island permits only local property
+      // changes outside a zero-argument primitive-leaf export's source range.
+      const propertySafeExports=remoteSourceObserver&&sourceObserverIslands.has(filename)?
+        purePrimitiveLeafExports(ast):null;
+      const propertyOptions={seed:salt,propertySafeExports};
       const modified = options.experimentalSymbolKeys === true ?
-        symbolizeLocalProperties(code,ast,{seed:salt}) :
-        renameLocalProperties(code,ast,{seed:salt});
+        symbolizeLocalProperties(code,ast,propertyOptions) :
+        renameLocalProperties(code,ast,propertyOptions);
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
