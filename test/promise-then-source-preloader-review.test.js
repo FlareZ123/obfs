@@ -88,3 +88,31 @@ test('unrelated direct private owner remains renameable without Promise callback
   });
   assert.equal(compiled.files[0].metrics.properties,1);
 });
+
+
+for(const mode of /** @type {const} */ (['coo','sno','sco'])) {
+  test(mode+' combined property, identifier and string passes retain host-observed source',async()=>{
+    const source=[
+      'const owner={secretField:17};',
+      'const independent={privateCount:4};',
+      'const independentValue=independent.privateCount;',
+      'const privateText="confidential-literal";',
+      'const privateLength=privateText.length;',
+      'module.exports=Promise.resolve(5).then(function exposedParameter(parameterSpelling){',
+      '  return owner.secretField+parameterSpelling+independentValue+privateLength;',
+      '});'
+    ].join('\\n');
+    const native=await execute(source,'then');
+    assert.match(native.callbackSource,/parameterSpelling/u);
+    assert.match(native.callbackSource,/secretField/u);
+    const emitted=obfuscateFiles([{path:'all-passes.cjs',sourceType:'commonjs',code:source}],{
+      mode,seed:'preloaded-promise-all-passes-'+mode,
+      closedWorld:true,strings:true,identifiers:true,properties:true
+    });
+    assert.ok(emitted.files[0].metrics.properties>=1,
+      mode+': independent private record must remain renameable');
+    const transformed=await execute(String(emitted.files[0].code),'then');
+    assert.deepEqual(transformed,native);
+    console.log('PROMISE_ALL_PASSES '+JSON.stringify({mode,metrics:emitted.files[0].metrics}));
+  });
+}
