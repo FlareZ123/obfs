@@ -9,14 +9,14 @@ const {obfuscateFiles} = require('../src');
 const {atomicWrite} = require('../src/atomic');
 
 /** @typedef {{path:string,sourceType:'module',code:string}} Input */
-/** @typedef {{value:string,source:string,privateValue:number}} Observation */
+/** @typedef {{value:number,source:string,privateValue:number}} Observation */
 
 /** @type {Input[]} */
 const inputs = [
   {path:'owner.mjs', sourceType:'module', code:'export const owner={secretField:7};'},
   {path:'state.mjs', sourceType:'module', code:[
     "import {owner} from './owner.mjs';",
-    'class Reader {read(){const message="answer:";const longPrivateValue=owner.secretField;return message+longPrivateValue;}}',
+    'class Reader {read(){const message="answer:";const longPrivateValue=owner.secretField;return longPrivateValue;}}',
     'export const instance=new Reader();'
   ].join('\n')},
   {path:'private.mjs', sourceType:'module', code:[
@@ -60,7 +60,7 @@ async function main() {
   try {
     const native=await observe(path.join(root,'native'),inputs);
     assert.deepEqual(native,{
-      value:'answer:7',source:'read(){const message="answer:";const longPrivateValue=owner.secretField;return message+longPrivateValue;}',privateValue:13
+      value:7,source:'read(){const message="answer:";const longPrivateValue=owner.secretField;return longPrivateValue;}',privateValue:13
     });
     let diverged=false;
     for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
