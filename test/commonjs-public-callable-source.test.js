@@ -18,10 +18,10 @@ function observe(code) {
   vm.runInNewContext(code,sandbox,{timeout:2000});
   const pub=sandbox.module.exports;
   if(typeof pub==='function')
-    return JSON.stringify([pub.toString(),pub()]);
+    return JSON.stringify([Function.prototype.toString.call(pub),pub()]);
   if(pub&&typeof pub==='object'&&'read' in pub &&
      typeof pub.read==='function')
-    return JSON.stringify([pub.read.toString(),pub.read()]);
+    return JSON.stringify([Function.prototype.toString.call(pub.read),pub.read()]);
   return JSON.stringify(pub);
 }
 
