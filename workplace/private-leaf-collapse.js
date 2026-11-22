@@ -110,6 +110,21 @@ function collapsePrivateLeaf(leaf,entry,policy){
     fn.body.body[0].type!=='ReturnStatement'||
     !pureNumericExpression(fn.body.body[0].argument)))
     throw new TypeError('Only pure zero-argument numeric private readers are supported');
+  const readers=new Set(readerDeclarations.map(fn=>fn.id.name));
+  if(Array.from(importsByName).some(name=>!readers.has(name)))
+    throw new TypeError('Entry may import only private numeric readers');
+  // Imported private function objects must remain inside the private execution
+  // graph. Permit direct invocation; reject returning, aliasing, binding,
+  // reflecting, or storing those callable objects for later inspection.
+  let privateCallableEscape=false;
+  walk(entryAst,(node,parent,key)=>{
+    if(node.type!=='Identifier'||!importsByName.has(node.name)||
+       parent?.type==='ImportSpecifier')return;
+    if(parent?.type==='CallExpression'&&key==='callee'&&parent.callee===node)return;
+    privateCallableEscape=true;
+  });
+  if(privateCallableEscape)
+    throw new TypeError('Imported private callable may escape or be observed');
 
   // Reject private module meta, dynamic imports, and hidden module loaders.
   let unusual=false;
