@@ -41,14 +41,14 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/esm-public-source-browser.js
-      - name: CacheStorage browser source-byte observation counterfactual and admission
-        if: ${{ matrix.os == 'ubuntu-latest' }}
-        env:
-          CHROMIUM_BIN: google-chrome
-        run: node sims/source-island-cache-browser-witness.js
       - name: Paired observer-island CPU and cold-start budget profile
         run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
         run: npm run typecheck
       - name: Strict external proof and adversarial JSDoc
         run: npm run typecheck:external
+      - name: CacheStorage browser source-byte observation counterfactual and admission
+        if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/source-island-cache-browser-witness.js
