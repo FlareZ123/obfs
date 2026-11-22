@@ -403,3 +403,29 @@ test('foreign SVG base cannot hide a later HTML base from SRI source-byte protec
       ': SVG <base> is not an HTMLBaseElement, so the live HTML base pins the script');
   }
 });
+
+
+test('a script dynamically inserted with integrity must retain the pinned sibling bytes',()=>{
+  const source='globalThis.dynamicSRI="a dynamically created script preserves original source bytes";';
+  const digest=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const html='<html><head><script src="./bootstrap.js"></script></head><body></body></html>';
+  const originalLoader='const script=document.createElement("script");'+
+    'script.src="./client.js";script.integrity="sha256-'+digest+'";document.head.append(script);';
+  const unpinnedLoader='const script=document.createElement("script");'+
+    'script.src="./client.js";document.head.append(script);';
+  for(const mode of /** @type {const} */(['coo','sco','sno'])){
+    const opts={mode,seed:'dynamic-sri/'+mode,
+      strings:true,properties:false,identifiers:false};
+    const sourceFile={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+    const asset={path:'index.html',sourceType:/** @type {const} */('asset'),code:Buffer.from(html)};
+    const bootstrap={path:'bootstrap.js',sourceType:/** @type {const} */('script'),code:originalLoader};
+    const control=obfuscateFiles([
+      sourceFile,{...bootstrap,code:unpinnedLoader},asset
+    ],opts);
+    assert.notEqual(control.files[0].code,source,
+      'No-integrity dynamic loader must admit actual client rewriting in '+mode);
+    const result=obfuscateFiles([sourceFile,bootstrap,asset],opts);
+    assert.equal(result.files[0].code,source,
+      'DOM HTMLScriptElement.integrity pins original distributed script bytes in '+mode);
+  }
+});
