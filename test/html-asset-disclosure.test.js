@@ -317,3 +317,31 @@ test('ordinary local script without SRI retains explicit string obfuscation',()=
   assert.notEqual(compiled.files[0].code,source);
   assert.ok(compiled.files[0].metrics.literals>0);
 });
+
+test('SCO route-prefix-qualified SRI paths preserve the exact served script',async()=>{
+  const source='globalThis.sriOutput="an unchanged source-boundary canary string";';
+  const integrity=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  for(const prefix of ['/obfs/','/protected/scripts/']) {
+    const html='<script src="'+prefix+'client.js" '+
+      'integrity="sha256-'+integrity+'"></script>';
+    const handler=createScoHandler([
+      {path:'client.js',sourceType:'script',code:source},
+      {path:'index.html',sourceType:'asset',code:Buffer.from(html)}
+    ],{routePrefix:prefix});
+    const server=require('node:http').createServer(handler);
+    await new Promise((resolve,reject)=>{
+      server.once('error',reject);
+      server.listen(0,'127.0.0.1',()=>resolve(undefined));
+    });
+    try{
+      const address=server.address();
+      assert.ok(address&&typeof address==='object');
+      const response=await fetch('http://127.0.0.1:'+address.port+prefix+'client.js');
+      assert.equal(response.status,200);
+      assert.equal(await response.text(),source,'SRI pins the mounted SCO script at '+prefix);
+    }finally{
+      await new Promise((resolve,reject)=>
+        server.close(error=>error?reject(error):resolve(undefined)));
+    }
+  }
+});
