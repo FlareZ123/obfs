@@ -26,6 +26,34 @@ The source-observer scanner in `src/ast.js` already tracks standard native coerc
 
 The test is `test/btoa-function-source-observer.test.js`. Each case uses a fresh Node `vm` context with native `btoa` injection. It executes both the unmodified and compiler-emitted CommonJS and compares the visible exported Base64 string. The three modes are exercised through `obfuscateFiles`, with `identifiers:false`, `properties:false` to isolate the literal rewrite. Seeds differ across mode and case to avoid accidental frozen-output assumptions.
 
+## Node built-in buffer export aliases and ESM import boundary
+
+Node's `node:buffer` module also exports `btoa`, so the same implicit
+source coercion is observable through `require('node:buffer').btoa`,
+destructured CommonJS aliases, namespace aliases, and ESM named/default/
+namespace imports. The bare-global coercer guard alone cannot prove these
+module-member invocation paths.
+
+- [**CommonJS module-alias RED 45020745218**](https://github.com/FlareZ123/obfs/actions/runs/45020745218) at exact test-only source `c0a9f1527ca481541fc3a9e67487862d84d25dac`: all four added `node:buffer` call forms failed native/emitted source parity in all three modes on Ubuntu and Windows.
+- [**CommonJS module-alias GREEN 45020907509**](https://github.com/FlareZ123/obfs/actions/runs/45020907509) at exact compiler source `6295c56f72e018ebcdf66e2eb8e7dd9f6026cd99`: Node 22 Ubuntu/Windows focused suite and both strict JSDoc gates passed after native `require` namespace/alias tracking.
+- [**ESM import RED 45020980815**](https://github.com/FlareZ123/obfs/actions/runs/45020980815) at exact test-only source `c76132fee95d0e771f0ffc873f9422c339c4bb14`: named, namespace, default and const-alias import pathways failed the source-observation proof gate in the targeted regression, on both platforms.
+- [**ESM import GREEN 45021061760**](https://github.com/FlareZ123/obfs/actions/runs/45021061760) at exact compiler source `b7e68ff913c14d1bebf3a31efac04d73362c338c`: Node 22 Ubuntu/Windows ESM native/emitted execution parity and both strict JSDoc gates passed after ESM named/default/namespace import classification.
+
+The implementation extends the existing conservative native-coercer summary:
+one builtin name for the global form, a Node buffer namespace may-flow set
+for direct `require` and aliases, and an ESM import prepass for the
+immutable Node built-in module. The scanner declines transformations when
+`btoa` receives a function or unknown operand, preserving exact source
+bytes in the protected scopes. Primitive-string arguments and unrelated
+private literals retain real protected-work yield.
+
+The expanded CommonJS matrix contains **33** per-mode source observations
+and **six** positive controls. The additional ESM matrix contributes
+**12** real native/emitted source comparisons plus **one** positive test
+that covers all three modes. These counts cover the scoped fixtures only.
+Cross-platform focused runs validate compiler JSDoc; they do not replace
+the separate full integration and browser validation suites.
+
 ## Interpretation
 
 This is a compatibility repair to the already-implemented source observer, bounded to listed native `btoa` syntax/alias forms under Node 22. It does not establish comprehensive runtime source transparency, a defense against external observer injection, or stronger obfuscation. The full mainline Node/browser integration and all optional transforms require separate frozen-source validation. It adds no runtime instructions to the ordinary positive-yield fixture; it declines potentially observable rewrites in the scoped bad cases. No universal 2.5× time claim follows.
