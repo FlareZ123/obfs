@@ -51,6 +51,20 @@ const cases=[
         'let value;({[key]:value}=owner);console.log(value);'}]
   },
   {
+    name:'later top-level key precedes an exported binding pattern',kind:'local',positive:true,
+    files:[{path:'main.mjs',sourceType:'module',
+      code:'const owner={secretField:41};const key="secretField";'+
+        'export const {[key]:value}=owner;console.log(value);'}]
+  },
+  {
+    name:'nested reader called before key initializer preserves TDZ',kind:'local',positive:false,
+    files:[{path:'main.mjs',sourceType:'module',
+      code:'const owner={secretField:41};function read(){'+
+        'const {[key]:value}=owner;return value;}'+
+        'let result;try{result=read()}catch(error){result=error.name;}'+
+        'const key="secretField";console.log(result);'}]
+  },
+  {
     name:'later key in a nested reader remains unproved',kind:'local',positive:false,
     files:[{path:'main.mjs',sourceType:'module',
       code:'const owner={secretField:41};function read(){'+
