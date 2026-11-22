@@ -1,6 +1,6 @@
 # HTML SRI original bytes under URL-encoded document filenames
 
-**Status:** Reproduced with a source-pinned negative control; conservative compiler fix and real Chromium parity fixture under review.
+**Status:** Source-pinned red/green fix; full Ubuntu/Windows validation and Chromium triad passed.
 **Affected modes:** COO/SNO/SCO source-byte preservation.
 **Scope:** Static path-to-URL translation, not source secrecy.
 
@@ -21,8 +21,8 @@ The page declares `<script src="../client.js" integrity="sha256-<original-digest
 
 - **Red:** [workflow 44976876670](https://github.com/FlareZ123/obfs/actions/runs/44976876670) at `94dea15c12bb840bb7bc8fa9b5fb6995ab5bbbd8`. Fifteen pre-existing HTML tests passed; the new source-byte fixture failed because COO rewrote the `pages/client.js` source. The test independently establishes a positive transformation when SRI is removed.
 - **Fix:** construct the document base using `filename.split('/').map(encodeURIComponent).join('/')`, preserving actual path separators while escaping every filesystem segment as URL data. Apply this to the HTML and XHTML/XML SRI readers; let the ordinary WHATWG URL parser resolve relative script references after this translation.
-- **Green:** [manual browser workflow 44976967924](https://github.com/FlareZ123/obfs/actions/runs/44976967924) (candidate SHA `9d642fbaf2a2609001f8b2614e0e53bbd871811b`) includes the same three-mode regression and a separate real-Chromium native/protected/intentionally-mutated fixture. Record completed status separately when verified.
-- **Full validation:** pending an exact-source Linux/Windows gate; do not extrapolate from focused Chromium.
+- **Green:** [manual browser workflow 44977300302](https://github.com/FlareZ123/obfs/actions/runs/44977300302) **passed** at executable SHA `eed4a06100d14b76bce4dcab68158836640bc413` with the new three-mode, literal-percent and XHTML cases, a native/protected/intentionally-mutated real-Chromium fixture, existing browser checks, and strict external JSDoc.
+- **Full validation:** [two-platform manual validation 44977307434](https://github.com/FlareZ123/obfs/actions/runs/44977307434) **passed** at the same source SHA `eed4a06100d14b76bce4dcab68158836640bc413`, covering Node 22 Ubuntu and Windows test suites, strict JSDoc, profiles, and Ubuntu Chromium.
 
 ## Reproduction
 
