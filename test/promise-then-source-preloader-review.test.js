@@ -42,7 +42,7 @@ function sourceFor(method) {
   const expression=method==='then'
     ? 'Promise.resolve(5).then('+callback+')'
     : method==='catch'
-      ? 'Promise.resolve(5).then(()=>{throw Error("test")}).catch('+callback+')'
+      ? 'Promise.resolve(5).then(()=>Promise.reject(1)).catch('+callback+')'
       : 'Promise.resolve(5).finally('+callback+')';
   return [
     'const owner={secretField:17};',
