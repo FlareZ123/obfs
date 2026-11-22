@@ -193,6 +193,22 @@ test('audit scope is direct bare CJS calls and refuses lexical require shadowing
   }]),/cannot prove direct lexical require/u);
 });
 
+test('opt-in audit refuses opaque or unreviewed-case JavaScript instead of skipping it',()=>{
+  assert.throws(()=>directBareRequires([{
+    path:'opaque.cjs',sourceType:'commonjs',
+    code:Buffer.from("module.exports=require('audit-example');")
+  }]),/cannot inspect opaque JavaScript/u);
+  assert.throws(()=>directBareRequires([{
+    path:'opaque.js',sourceType:'asset',
+    code:Buffer.from("module.exports=require('audit-example');")
+  }]),/cannot inspect opaque JavaScript/u);
+  const control=directBareRequires([{
+    path:'ENTRY.CJS',sourceType:'commonjs',
+    code:"module.exports=require('audit-example');"
+  }]);
+  assert.deepEqual([...control],[['ENTRY.CJS',['audit-example']]]);
+});
+
 test('SNO-only audit flag is refused by COO and SCO',async()=>{
   await fixture(async temp=>{
     const source=path.join(temp,'source');
