@@ -118,6 +118,7 @@ function assertStaticMinifiedModule(source){
         ['FunctionExpression','ArrowFunctionExpression'].includes(item.init.type)
       );
   }
+  /** @type {Set<string>} */
   const published=new Set();
   for(const statement of program.body){
     if(statement.type==='ExportNamedDeclaration'&&!statement.source){
