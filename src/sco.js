@@ -33,7 +33,7 @@ const assetMediaTypes=new Map([
 const {isUtf8} = require('node:buffer');
 const {parse,walk,applyEdits,observesFunctionSource,observesDistributedSource} = require('./ast');
 const {obfuscateFiles,safePath} = require('./core');
-const {createPathInventory,registerFilePath} = require('./portable-paths');
+const {createPathInventory,registerFilePath,portableKeys} = require('./portable-paths');
 const {renameCrossFileProperties,collectVerifiedImportedStrings,collectVerifiedImportedCloneAliases,collectVerifiedImportedUrlStaticAliases} = require('./cross-properties');
 const {getScoBatchCalls,isScoBatchMethod} = require('./rpc-batch');
 const {ScoIsolationBusyError} = require('./rpc-keyed-isolation');
@@ -492,7 +492,9 @@ function createScoHandler(sourceFiles,options={}) {
         throw new TypeError('SCO privateModulePaths must be an array');
       }
       paths=snapshotMetadataEntries(providedPaths).map(safePath);
-      for(const privatePath of paths)forbidden.add(privatePath.normalize('NFC').toLowerCase());
+      for(const privatePath of paths){
+        for(const key of portableKeys(privatePath))forbidden.add(key);
+      }
     }
     return {paths,digests};
   });
@@ -503,11 +505,11 @@ function createScoHandler(sourceFiles,options={}) {
   /** @type {import('./cross-properties').SourceFile[]} */
   const normalized=files.map((file,index)=>{
     const filename=safePath(file.path);
-    const collisionKey=filename.normalize('NFC').toLowerCase();
+    const collidesWithPrivate=portableKeys(filename).some(key=>forbidden.has(key));
     if(publicAllowlist&&!publicAllowlist.has(filename)){
       throw new TypeError('SCO source is not in publicPaths: '+filename);
     }
-    if(forbidden.has(collisionKey))throw new TypeError('SCO must not serve private source: '+filename);
+    if(collidesWithPrivate)throw new TypeError('SCO must not serve private source: '+filename);
     registerFilePath(paths,filename);
     // Snapshot caller-controlled source exactly once before publication
     // policy checks and source scanning. This prevents a getter that returns
