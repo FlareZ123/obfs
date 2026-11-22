@@ -10,7 +10,8 @@ const {lowerWasmI32Functions}=require('../src/wasm-i32');
 const {obfuscateFiles}=require('../src/core');
 
 const kernel='import "./peer.mjs";\n'+
-  'export function f(x){return ((x>>>1)^(x&255));}\n';
+  'function fKernel(x){return ((x>>>1)^(x&255));}\n'+
+  'export function f(x){return fKernel(x);}\n';
 const peer='import {f} from "./kernel.mjs";\n'+
   'export const observed=[-2147483648,-1,0,1,2147483647].map(f);\n';
 
@@ -39,7 +40,7 @@ async function executeCycle(code) {
 test('experimental Wasm i32 backend preserves early ESM cyclic-import calls',async()=>{
   const native=await executeCycle(kernel);
   const lowered=lowerWasmI32Functions(kernel,'module',{
-    seed:'hoisted-esm-cycle',names:['f']});
+    seed:'hoisted-esm-cycle',names:['fKernel']});
   assert.equal(lowered.functions,1);
   assert.match(lowered.code,/function _wi_[0-9a-f]+\(input\)\{/u);
   assert.ok(lowered.code.includes('WebAssembly.Module('));
@@ -51,7 +52,7 @@ test('experimental Wasm i32 backend preserves early ESM cyclic-import calls',asy
   ],{
     mode:'coo',seed:'hoisted-esm-cycle-pipeline',
     strings:false,properties:false,identifiers:false,
-    experimentalWasmI32:{'kernel.mjs':['f']}
+    experimentalWasmI32:{'kernel.mjs':['fKernel']}
   });
   assert.equal(pipeline.files[0].metrics.wasmI32Functions,1);
   assert.deepEqual(await executeCycle(String(pipeline.files[0].code)),native);
