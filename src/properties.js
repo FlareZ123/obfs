@@ -1168,9 +1168,40 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     }
     return true;
   }
+  /**
+   * @param {AstNode} fn
+   * @returns {boolean}
+   */
+  function hasSelfSourceObserver(fn) {
+    let observed=false;
+    const functionTypes=new Set([
+      'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'
+    ]);
+    walk(fn,(node,parent,key,ancestors)=>{
+      if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
+      if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
+         node.object.name==='arguments'&&staticName(node.property)==='callee')
+        observed=true;
+      if(node.type==='MemberExpression'&&node.object?.type==='ThisExpression'&&
+         staticName(node.property)==='toString')observed=true;
+      if(node.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&
+         ['call','apply'].includes(staticName(node.callee.property)??'')) {
+        const toString=node.callee.object;
+        const prototype=toString?.type==='MemberExpression'?toString.object:null;
+        if(toString?.type==='MemberExpression'&&staticName(toString.property)==='toString'&&
+           prototype?.type==='MemberExpression'&&staticName(prototype.property)==='prototype'&&
+           prototype.object?.type==='Identifier'&&prototype.object.name==='Function'&&
+           node.arguments.some(argument=>argument.type==='ThisExpression'||
+             (argument.type==='MemberExpression'&&argument.object?.type==='Identifier'&&
+              argument.object.name==='arguments'&&staticName(argument.property)==='callee')))
+          observed=true;
+      }
+    });
+    return observed;
+  }
   for(const fn of inventory.functionDeclarations) {
     if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
-       !directCallOnly(fn.id.name,fn.id)||
+       !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn)||
        /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
     directCallables.add(fn);
   }
@@ -1179,7 +1210,7 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
        decl.id.type!=='Identifier'||!decl.init||
        !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
-       !directCallOnly(decl.id.name,decl.id)||
+       !directCallOnly(decl.id.name,decl.id)||hasSelfSourceObserver(decl.init)||
        /^Export/.test(inventory.parents.get(container)?.type??''))continue;
     directCallables.add(decl.init);
   }
