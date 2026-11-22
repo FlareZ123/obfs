@@ -273,6 +273,53 @@ test('Selected SCO refuses timer APIs whose handles and callbacks belong to the 
   assert.deepEqual(owned.privateNames,['protectedOp']);
 });
 
+
+test('Immutable locally owned timer-spelled helpers remain selectable',()=>{
+  const selectedBodies=[
+    'const setTimeout=value=>value+1;return setTimeout(41);',
+    'function setInterval(value){return value+1;}return setInterval(41);',
+    'const clearTimeout=function(value){return value+1;};return clearTimeout(41);'
+  ];
+  for(const body of selectedBodies){
+    const partition=partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-local-host-shadow-positive-20261122',privateNames:['protectedOp']}
+    );
+    assert.deepEqual(partition.privateNames,['protectedOp'],body);
+  }
+  const selected=partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',sourceType:'module',
+      code:'import {compute} from "./private/engine.mjs";'+
+        'export async function protectedOp(){return compute();}'+
+        'export function visible(){return 7;}'},
+    {seed:'sco-static-local-host-shadow-positive-20261122',
+      privateNames:['protectedOp'],
+      privateModuleImports:['./private/engine.mjs'],
+      privateModuleSources:[{path:'private/engine.mjs',
+        code:'const setTimeout=v=>v+1;export function compute(){return setTimeout(41);}'}]}
+  );
+  assert.deepEqual(selected.privateNames,['protectedOp']);
+});
+
+test('Unknown or nested timer-spelled bindings remain conservatively refused',()=>{
+  const cases=[
+    'const setTimeout=globalThis.setTimeout;return setTimeout(()=>0,1);',
+    'const setTimeout=()=>41;function inner(setTimeout){return setTimeout();}'+
+      'return inner(()=>42);',
+    'function inner(){const setTimeout=()=>42;return setTimeout();}return inner();'
+  ];
+  for(const body of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-local-host-shadow-negative-20261122',privateNames:['protectedOp']}
+    ),/unproved cross-realm host API|unproved host-global state/u,body);
+  }
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
@@ -430,7 +477,6 @@ test('SCO preserves fixed server Node builtin import and refuses module-dependen
     ),/Private SCO export or helper uses unproved module-relative execution/u,body);
   }
 });
-
 
 test('SCO refuses free typeof names whose browser and Node host bindings can differ',()=>{
   const names=['externalBridge','applicationSettings','extensionRuntime'];
