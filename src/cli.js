@@ -371,6 +371,66 @@ async function readReviewedAssets(sourceRoot,filename) {
   return /** @type {import('./reviewed-assets').ReviewedOpaqueAsset[]} */ (parsed);
 }
 
+/**
+ * Refuse a SNO output whose unscoped .js files would inherit an external
+ * ESM package type. The compiler classifies .js files using the input tree,
+ * but Node uses the nearest package.json around the deployed output.
+ * This checks the present build location; relocation requires a new check.
+ * @param {SourceFile[]} files
+ * @param {string} output
+ * @returns {Promise<void>}
+ */
+async function assertSnoOutputPackageScope(files,output) {
+  const emitted=new Set(files.map(file=>file.path));
+  const inherited=files.some(file=>{
+    if(!file.path.endsWith('.js'))return false;
+    let directory=path.posix.dirname(file.path);
+    for(;;) {
+      if(emitted.has(path.posix.join(directory,'package.json')))return false;
+      if(directory==='.')return true;
+      directory=path.posix.dirname(directory);
+    }
+  });
+  if(!inherited)return;
+
+  // Node resolves filesystem aliases before loading files. Resolve the
+  // nearest existing ancestor so a symlinked output does not hide its scope.
+  let canonical=path.resolve(output);
+  let ancestor=canonical;
+  for(;;) {
+    try {
+      canonical=path.resolve(await fs.realpath(ancestor),path.relative(ancestor,canonical));
+      break;
+    } catch(error) {
+      if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+      const parent=path.dirname(ancestor);
+      if(parent===ancestor)throw error;
+      ancestor=parent;
+    }
+  }
+
+  for(let directory=canonical;;) {
+    if(path.basename(directory)==='node_modules')return;
+    /** @type {string|undefined} */
+    let content;
+    try { content=await fs.readFile(path.join(directory,'package.json'),'utf8'); }
+    catch(error) {
+      if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+    }
+    if(content!==undefined) {
+      const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
+      if(JSON.parse(json).type==='module') {
+        throw new Error('SNO output .js inherits external ESM package scope: '+
+          path.join(directory,'package.json'));
+      }
+      return;
+    }
+    const parent=path.dirname(directory);
+    if(parent===directory)return;
+    directory=parent;
+  }
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
   const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
@@ -416,6 +476,7 @@ async function main(mode,argv) {
     if (!entrySource) throw new Error(`Missing obfuscated entry ${entry}`);
     if (entrySource.sourceType==='module') throw new Error('SNO entry must be CommonJS');
     launcher = createSnoLauncher(result.files,entry);
+    await assertSnoOutputPackageScope(result.files,absOut);
   }
   // Cooperating builds publish each output tree under one exclusive lock,
   // preventing concurrent compilers from interleaving distinct generations.
