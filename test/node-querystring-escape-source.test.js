@@ -35,14 +35,14 @@ for(const mode of /** @type {const} */(['sno','coo','sco'])) {
   for(const [label,suffix] of cases) {
     test(mode+' preserves native querystring.escape function source via '+label,()=>{
       const source="'use strict';"+callable+suffix;
-      assert.equal(observesFunctionSource(parse(source,'commonjs')),true,
-        'querystring.escape invokes String(function), exposing its source');
       const result=obfuscateFiles([{
         path:'querystring-source.cjs',sourceType:'commonjs',code:source
       }],{mode,seed:'querystring-native-source/'+mode+'/'+label,
         strings:true,identifiers:false,properties:false}).files[0];
       assert.equal(execute(String(result.code)),execute(source),
         'The escaped function source must not change');
+      assert.equal(observesFunctionSource(parse(source,'commonjs')),true,
+        'querystring.escape invokes String(function), exposing its source');
     });
   }
 
