@@ -1898,6 +1898,29 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       visited.delete(expression.name);
       return found;
     }
+    if(expression.type==='SpreadElement') {
+      return objectCreateMayExposeDecoder(expression.argument,visited);
+    }
+    if(expression.type==='ArrayExpression') {
+      return expression.elements.some(
+        (/** @type {import('./ast').AstNode|null} */ element)=>
+          element!==null&&objectCreateMayExposeDecoder(element,visited));
+    }
+    if(expression.type==='SequenceExpression') {
+      const value=expression.expressions[expression.expressions.length-1];
+      return value?objectCreateMayExposeDecoder(value,visited):false;
+    }
+    if(expression.type==='ConditionalExpression') {
+      return objectCreateMayExposeDecoder(expression.consequent,visited)||
+        objectCreateMayExposeDecoder(expression.alternate,visited);
+    }
+    if(expression.type==='LogicalExpression') {
+      return objectCreateMayExposeDecoder(expression.left,visited)||
+        objectCreateMayExposeDecoder(expression.right,visited);
+    }
+    if(expression.type==='ChainExpression') {
+      return objectCreateMayExposeDecoder(expression.expression,visited);
+    }
     if(expression.type==='CallExpression'&&
        expression.callee.type==='MemberExpression'&&
        isObjectIntrinsic(expression.callee.object)&&
@@ -1912,7 +1935,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         if(property.type==='SpreadElement')return objectCreateMayExposeDecoder(
           property.argument,visited);
         return property.type==='Property'&&
-          descriptorHasSensitiveGetter(property.value);
+          (descriptorHasSensitiveGetter(property.value)||
+           objectCreateMayExposeDecoder(property.value,visited));
       });
   }
   // First-class calls through unmodeled method hooks can install arbitrary
@@ -2097,14 +2121,22 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
       mutated=true;
       return;
     }
-    // A source-visible descriptor map may cross a module boundary as the
-    // second argument to an imported or otherwise opaque callable. The
-    // native target could be Object.create or Object.defineProperties;
-    // refuse eager decoding unless the destination is proved harmless.
-    // A harmless Number.prototype descriptor remains independently eligible.
-    if(node.type==='CallExpression'&&node.arguments[1]&&
-       (objectCreateMayExposeDecoder(node.arguments[1])||
-        isDecoderGetterMap(node.arguments[1]))) {
+    // A source-visible descriptor map may cross a module boundary at any
+    // argument offset of an imported or opaque callable. In particular, a
+    // separately exported Object.create.bind(null, null) has its prototype
+    // argument pre-bound, so the properties map becomes argument zero.
+    // Reflect.apply, .apply and spread can place that map inside an array.
+    // Inspect every opaque call argument recursively; do not guess the
+    // original native parameter offset across a module boundary. A harmless
+    // Number.prototype descriptor remains independently eligible.
+    const nativeCreateBind=node.type==='CallExpression'&&
+      node.callee.type==='MemberExpression'&&
+      memberName(node.callee)==='bind'&&
+      isObjectCreateCallable(node.callee.object);
+    if(node.type==='CallExpression'&&!nativeCreateBind&&
+       node.arguments.some(
+         (/** @type {import('./ast').AstNode} */ argument)=>
+           objectCreateMayExposeDecoder(argument)||isDecoderGetterMap(argument))) {
       mutated=true;
       return;
     }
