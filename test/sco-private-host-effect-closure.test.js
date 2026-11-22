@@ -576,7 +576,6 @@ test('Unrelated sibling binding cannot disguise a free typeof host reference',()
   }
 });
 
-
 test('Relocated composite typeof expressions refuse evaluated free host references',()=>{
   const cases=[
     'return typeof (0,externalBridge);',
