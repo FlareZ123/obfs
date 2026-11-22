@@ -34,6 +34,43 @@ The original function object is passed to `Function.prototype.bind` as `this`. T
 
 This threat is explicitly in the prompt's COO/SNO full-control environment models: attackers can instrument or replace native intrinsics before code runs. In SCO, server-side isolated private code would not pass its private target function through the client runtime's `bind`, so this particular client-side interception cannot disclose such server-only source; the public client stub remains observable.
 
+## Conditional native-method interception lemma
+
+**Claim (conditional JavaScript operational argument).** Suppose an attacker can
+replace the host realm's `Function.prototype.bind` property before an
+application evaluates an expression of the form `F.bind(...args)`, where
+`F` is a JavaScript function created by that application, and suppose the
+application has not captured a separate original bind reference. The
+attacker can obtain an actual reference to `F` and preserve the call's
+normal returned bound function by installing:
+
+```js
+const original=Function.prototype.bind;
+const seen=[];
+Function.prototype.bind=function(...args){
+  seen.push(this);
+  return Reflect.apply(original,this,args);
+};
+```
+
+**Argument.** Ordinary method-call evaluation supplies the receiver `F`
+as `this` to the substituted method. Saving `this` reveals that
+function object. Forwarding the same receiver and argument list to the
+original intrinsic yields the ordinary binding result for that call.
+For a user-authored function with source text available to the realm,
+`Function.prototype.toString.call(F)` then exposes its current executable
+source representation. These consequences follow from call semantics;
+the Node and Chromium runs above establish that the assumed receiver and
+host-mutability conditions actually occur in the tested builds.
+
+This is an **exact conditional interception**, rather than a theorem about
+all JavaScript program behavior. Replacing a builtin changes the ambient
+environment; code that checks builtin identity, captures a safe reference
+earlier, installs realm protections, or observes intermediate side effects
+may behave differently. A fully controlled runtime can still pursue other
+instrumentation paths, but this one proof makes no assertion about them.
+It also says nothing about inaccessible SCO server-resident functions.
+
 ## Reproduction and pinned Node evidence
 
 [`test/bound-runtime-interception.test.js`](../test/bound-runtime-interception.test.js)
