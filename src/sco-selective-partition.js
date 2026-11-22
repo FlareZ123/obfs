@@ -255,6 +255,78 @@ function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
 }
 
 /**
+ * Legacy TextDecoder mappings depend on the Node and browser engine/ICU
+ * versions. Node 22.16.0 decodes windows-1252 0x80 differently from
+ * Chromium's WHATWG mapping, while later Node 22 patches agree. Only a
+ * directly constructed UTF-8 decoder has bounded cross-host provenance.
+ * First-class constructors, dynamic labels and global destructuring are
+ * conservatively left out of relocated private SCO source.
+ *
+ * @param {import('./ast').AstNode} body
+ * @returns {boolean}
+ */
+function usesUnprovedRelocatedTextDecoder(body){
+  const globals=new Set(['globalThis','window','self','global']);
+  let changed=true;
+  while(changed){
+    changed=false;
+    walk(body,node=>{
+      const binding=node.type==='VariableDeclarator'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+      const initial=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+      if(binding?.type==='Identifier'&&initial?.type==='Identifier'&&
+         globals.has(initial.name)&&!globals.has(binding.name)){
+        globals.add(binding.name);
+        changed=true;
+      }
+    });
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function globalRoot(expression){
+    return expression.type==='Identifier'&&globals.has(expression.name);
+  }
+  /** @param {import('./ast').AstNode} expression @returns {boolean} */
+  function decoderRoot(expression){
+    if(expression.type==='Identifier')return expression.name==='TextDecoder';
+    return expression.type==='MemberExpression'&&globalRoot(expression.object)&&
+      (expression.computed?staticString(expression.property):
+        expression.property.type==='Identifier'?expression.property.name:null)==='TextDecoder';
+  }
+  /** @param {import('./ast').AstNode|undefined} label @returns {boolean} */
+  function provedUtf8(label){
+    if(label===undefined)return true;
+    const value=staticString(label);
+    return value!==null&&['utf-8','utf8','unicode-1-1-utf-8'].includes(value.toLowerCase());
+  }
+  let unproved=false;
+  walk(body,(node,parent,key)=>{
+    const binding=node.type==='VariableDeclarator'?node.id:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.left:null;
+    const source=node.type==='VariableDeclarator'?node.init:
+      node.type==='AssignmentExpression'&&node.operator==='='?node.right:null;
+    if(binding?.type==='ObjectPattern'&&source&&globalRoot(source)){
+      for(const property of binding.properties){
+        if(property.type==='Property'&&
+           (property.computed?staticString(property.key):
+             property.key.type==='Identifier'?property.key.name:null)==='TextDecoder'){
+          unproved=true;
+        }
+      }
+    }
+    if(!decoderRoot(node)||node.type==='Identifier'&&(
+       isStaticKey(parent,key)||
+       parent?.type==='VariableDeclarator'&&key==='id'||
+       (parent?.type==='FunctionDeclaration'||parent?.type==='FunctionExpression')&&
+         key==='id'))return;
+    if(parent?.type==='NewExpression'&&parent.callee===node&&
+       parent.arguments.length<=2&&provedUtf8(parent.arguments[0]))return;
+    unproved=true;
+  });
+  return unproved;
+}
+
+/**
  * The browser URL constructor and Node's URL constructor both support
  * deterministic parsing, but their static object-URL registries belong to
  * different runtimes. A browser-created blob: URL cannot be replaced by a
@@ -1234,6 +1306,10 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
       throw new TypeError(
         'SCO private static dependency contains unproved cross-realm host API: '+filename);
     }
+    if(usesUnprovedRelocatedTextDecoder(ast)){
+      throw new TypeError(
+        'SCO private static dependency contains unproved cross-realm text decoding: '+filename);
+    }
     // Browser-owned values may differ or be absent in the trusted Node
     // process. Only the original caller can establish its own window,
     // document, navigation and application-level global state.
@@ -2003,6 +2079,9 @@ function partitionScoSelectedAsyncExports(file,options) {
     }
     if(usesUnprovedRelocatedUrlStatic(body)){
       throw new TypeError('Private SCO export or helper uses unproved cross-realm object URL API');
+    }
+    if(usesUnprovedRelocatedTextDecoder(body)){
+      throw new TypeError('Private SCO export or helper uses unproved cross-realm text decoding');
     }
     const realmEffect=realmStateObservation(body,true);
     if(realmEffect) {

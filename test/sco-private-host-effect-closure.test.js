@@ -814,3 +814,46 @@ test('SCO refuses implicit AbortError stack origins after realm relocation',()=>
     }
   }
 });
+
+test('SCO refuses legacy TextDecoder results with unproved host mapping tables',()=>{
+  const unsafe=[
+    "return new TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "return new TextDecoder('gbk').decode(Uint8Array.of(0xff));",
+    "const Decoder=TextDecoder;return new Decoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "return new globalThis.TextDecoder('windows-1252').decode(Uint8Array.of(0x80));",
+    "const {TextDecoder:Decoder}=globalThis;return new Decoder('gbk').decode(Uint8Array.of(0xff));",
+    "const root=globalThis;return new root['TextDecoder']('gbk').decode(Uint8Array.of(0xff));",
+    "const label='windows-1252';return new TextDecoder(label).decode(Uint8Array.of(0x80));"
+  ];
+  for(const body of unsafe){
+    const code='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code,sourceType:'module'},
+      {seed:'sco-crosshost-textdecoder-20261122',privateNames:['protectedOp']}
+    ),/unproved cross-realm text decoding/u,body);
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /unproved cross-realm text decoding/u,
+        body+' transitive='+transitive);
+    }
+  }
+  const safe=[
+    "return new TextDecoder().decode(Uint8Array.of(65,66));",
+    "return new TextDecoder('utf-8').decode(Uint8Array.of(65,66));",
+    "return new TextDecoder('UTF8',{fatal:true}).decode(Uint8Array.of(65));",
+    "return new TextDecoder('utf-8',{ignoreBOM:true}).decode(Uint8Array.of(65));",
+    "const record={TextDecoder:41};return record.TextDecoder;"
+  ];
+  for(const body of safe){
+    const code='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code,sourceType:'module'},
+      {seed:'sco-utf8-textdecoder-20261122',privateNames:['protectedOp']}
+    ),body);
+    for(const transitive of [false,true]){
+      assert.deepEqual(partitionGraph(body,transitive).privateNames,['protectedOp']);
+    }
+  }
+});
