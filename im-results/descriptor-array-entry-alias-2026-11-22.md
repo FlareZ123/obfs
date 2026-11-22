@@ -32,7 +32,9 @@ Compiler SHA `4fa1f362c2d9d1b2cacc844063b879cc0c8cc168` additionally recognizes 
 
 The proof only recognizes a small grammar. It does **not** establish soundness for arbitrary iterators, spread elements, unknown array aliases, runtime getter changes or host instrumentation. Under an overridden array iterator, positional syntax can bind a different object; the new edge remains a conservative may-alias rather than an assertion of equality. Preserving eligible Number controls is necessary positive-yield evidence, but does not establish broad decoder safety.
 
-The post-fix full source-pinned two-platform workflow is in progress at this report revision; its precise green run, typechecking and Chromium status must be filled in before recommending integration.
+Post-fix [full two-platform run 45057986902](https://github.com/FlareZ123/obfs/actions/runs/45057986902) at `4fa1f362c2d9d1b2cacc844063b879cc0c8cc168` completed **SUCCESS on Ubuntu and Windows**: the 18 new Node matrix cases passed, along with the existing behavioral/adversarial tests, strict project and external JSDoc, the standard benchmark/profile steps and existing real Ubuntu Chromium. The direct-array behavior remains source-pinned to this exact version.
+
+A later browser-fixture change `a7b2bc8da763a1da2360cd5956c2c113b3f2e0d9` adds two real Chromium parity cases (String-sensitive refusal and harmless Number positive encoding) for an array literal carried descriptor entry. Its new full two-platform run must pass at that source before the extra browser coverage can be called verified.
 
 ## Deliverable status
 
