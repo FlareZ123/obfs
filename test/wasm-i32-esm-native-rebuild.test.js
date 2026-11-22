@@ -18,8 +18,8 @@ const files=[
   {path:'kernel.mjs',sourceType:'module',
     code:'function scramble(a,b,c,d){return (((a^b)&(c|d))^((a>>>d)|(c<<b)));}'+
       'function mask(x){return x?((x^137)&255):((~x)|7);}'+
-      'export function publicScramble(a,b,c,d){return scramble(a,b,c,d);}'+
-      'export function publicMask(x){return mask(x);}'},
+      'export function publicScramble(a,b,c,d){\\n  /* stable public wrapper source */\\n  return scramble(a,b,c,d);\\n}'+
+      'export function publicMask(x){\\n  /* stable mask wrapper source */\\n  return mask(x);\\n}'},
   {path:'bridge.mjs',sourceType:'module',
     code:'export function forward(value,label){return globalThis.externalBridge.deliver(value,label);}'},
   {path:'entry.mjs',sourceType:'module',
@@ -36,6 +36,11 @@ async function writeGraph(folder,graph){
 async function loadGraph(folder){
   return /** @type {{run:(a:number,b:number,c:number,d:number,label:string)=>string}} */ (
     await import(pathToFileURL(path.join(folder,'entry.mjs')).href));
+}
+
+/** @param {string} folder */
+async function loadKernel(folder){
+  return await import(pathToFileURL(path.join(folder,'kernel.mjs')).href);
 }
 
 let state=0x9bf34621;
@@ -70,6 +75,11 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
     const originalFolder=path.join(root,'native');
     await writeGraph(originalFolder,files);
     const native=await loadGraph(originalFolder);
+    const nativeKernel=await loadKernel(originalFolder);
+    const nativeWrapperSources=[
+      Function.prototype.toString.call(nativeKernel.publicScramble),
+      Function.prototype.toString.call(nativeKernel.publicMask)
+    ];
     let comparisons=0;
     for(let seed=0;seed<4;seed++){
       const compiled=obfuscateFiles(files,{
@@ -99,6 +109,16 @@ test('offline ESM native rebuild replaces both published Wasm functions across a
       await writeGraph(attackerFolder,rebuilt);
       const protectedApp=await loadGraph(compiledFolder);
       const reconstructedApp=await loadGraph(attackerFolder);
+      const protectedKernel=await loadKernel(compiledFolder);
+      const reconstructedKernel=await loadKernel(attackerFolder);
+      assert.deepEqual([
+        Function.prototype.toString.call(protectedKernel.publicScramble),
+        Function.prototype.toString.call(protectedKernel.publicMask)
+      ],nativeWrapperSources,'Wasm backend must not reprint public wrapper source');
+      assert.deepEqual([
+        Function.prototype.toString.call(reconstructedKernel.publicScramble),
+        Function.prototype.toString.call(reconstructedKernel.publicMask)
+      ],nativeWrapperSources,'native reconstruction must preserve public wrapper source');
       /** @type {Array<{value:number,label:string}>} */
       const callbackTrace=[];
       (/** @type {any} */(globalThis)).externalBridge={
