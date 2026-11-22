@@ -112,6 +112,33 @@ This is actual protected-work execution evidence in the Node integration
 harness. It does not establish the unchanged host's full browser execution
 contract, nor does a local renamed helper prove a security or speed gain.
 
+## Explicit server-owned imports and primitive constants
+
+The host-name check also originally refused intentionally server-owned,
+lexically unambiguous bindings such as
+`import {setTimeout} from 'node:timers/promises'` with
+`allowServerImports:true`. This import returns a Promise and is deliberately
+different from the browser-global callback timer. Likewise, a primitive
+top-level `const setInterval=42` is a scalar server constant, with no
+timer side effect. Both proved positive admission cases were red on
+Ubuntu and Windows in
+[CI 44999946196](https://github.com/FlareZ123/obfs/actions/runs/44999946196)
+at exact source `84bbc411af69555d3cea343c5e6a6342b456f463`.
+
+The scanner now accepts only names in the already validated immutable
+server-owned binding set with a single declaration across the parsed module,
+using `collectBindings(ast)`. The explicit Node builtin import still
+requires the existing `allowServerImports:true` policy, while local
+primitive constant admissions use the established compiler rules.
+Nested or duplicated binding names do not inherit the exemption. A
+negative control confirms omission of the server-import opt-in is refused.
+
+The focused [CI 45000025444](https://github.com/FlareZ123/obfs/actions/runs/45000025444)
+at exact source `d44d107c2cfd1cd2bdcd8d94499e14e626c20fed`
+passed **79/79 tests**, generated graph checks and strict JSDoc
+on both Ubuntu and Windows. This improves the selected compiler's
+supported source subset under an explicit server-trust boundary.
+
 ## Scope and remaining proof obligations
 
 The scanner is deliberately syntactic and conservatively declines shadowed
