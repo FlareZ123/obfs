@@ -111,3 +111,25 @@ To distinguish necessary source refusal from an overbroad class ban, I added `te
 - Candidate review branch [run 44985083819](https://github.com/FlareZ123/obfs/actions/runs/44985083819): the same step failed on both Ubuntu and Windows (0/3 modes). Its assertion requires `bindings > 0`; the candidate's blanket `ClassDeclaration`/`ClassExpression` ancestor veto leaves this private method untransformed.
 
 This confirms the candidate's public private-class-instance case passes by refusing class method rewrites broadly, not by distinguishing escaped from nonescaping classes. That is a safe correctness tradeoff, but it suppresses a genuinely private transformation opportunity. The integration gate should pair public class-source preservation with this private-class yield control so precision is measured rather than inferred from source parity alone.
+
+## Exported class constructors and the narrow primitive-leaf exception
+
+The string matrix was expanded to include `export class Api { static label="source-visible-class-field"; }` and an external importer that calls `Function.prototype.toString.call(Api)`. On the mainline test branch, [run 44985361691](https://github.com/FlareZ123/obfs/actions/runs/44985361691) completed the relevant steps on both Ubuntu and Windows:
+
+- 6/6 public source tests failed across COO/SCO/SNO (exported function source and exported class-constructor source, each in three modes).
+- 3/3 private nonescaping string-encoding controls passed.
+- The class/function cases each logged one literal rewrite, `sourceEqual:false`, `valueEqual:true`.
+
+The same string matrix on the ESM candidate review branch [run 44985365679](https://github.com/FlareZ123/obfs/actions/runs/44985365679) also reports 6 public source mismatches and 3 private controls passed on both operating systems. The candidate's existing class ancestor veto does not cover string encoding of the class's static field source.
+
+Agent 50 identified an important precision exception in the existing `purePrimitiveLeafExports` source-island proof. It accepts only immutable primitive own records, immediate primitive reads, and a zero-argument named exported function whose body is a single return of an already-read primitive identifier. The function source itself has no property read, parameter, nested callable, aggregate, or arbitrary expression. The permitted island rewrite changes top-level property tokens outside the function body, so an external importer can still observe identical function source.
+
+I added `test/source-observer-islands-external-callable-source.test.js`, which:
+- supplies the watched module, primitive leaf and entry module to the compiler;
+- keeps the external importer out of the compiler input group;
+- compares exact `Function.prototype.toString.call(unrelated)` and the ordinary return value;
+- requires at least one real local property rewrite in the selected leaf, while cross-file, identifier and literal rewrite counts remain zero.
+
+This narrow positive case passed 3/3 modes on both Ubuntu and Windows on mainline [run 44985281120](https://github.com/FlareZ123/obfs/actions/runs/44985281120) and the candidate review branch [run 44985283845](https://github.com/FlareZ123/obfs/actions/runs/44985283845). Thus a source-exposure gate must preserve this specific source-stable exception; a blanket veto of all exported callables would lose valid property-renaming yield. Do not generalize the exception to returned functions, aggregates, member expressions, getters, parameters or arbitrary calls without extending the proof and tests.
+
+The broader candidate review branch still has a separate private-class yield failure (0/3 modes) under its blanket class-ancestor veto, while the mainline private-class control passes 3/3 modes; see the preceding section.
