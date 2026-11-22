@@ -1873,7 +1873,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         (descriptorMemberWrites.get(expression.name)??[]).some(
           write=>(write.key===null||write.key==='get')&&
             proxyGetMayReturnDecoderIntrinsic(write.value));
-      visited.delete(expression.name);
+      // This is a monotonic reachability query. Retain the visited set for
+      // the current query so shared alias subgraphs are explored only once.
       return found;
     }
     if(expression.type!=='ObjectExpression')return false;
@@ -1916,7 +1917,8 @@ function mutatesDecoderIntrinsic(ast,rejectCommonJsExportEscape=false,rejectEsmE
         source=>objectCreateMayExposeDecoder(source,visited))||
       [...(descriptorAliases.get(name)??[])].some(
         alias=>objectCreateMayExposeDecoderIdentifier(alias,visited));
-    visited.delete(name);
+    // The caller provides a fresh set per root query. Retaining completed
+    // names prevents exponential revisits through diamond-shaped aliases.
     return found;
   }
   /**
