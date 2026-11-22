@@ -741,7 +741,11 @@ test('A nested call inside a lazy typeof closure does not execute its free read'
 test('SCO relocation refuses source-observable native DOMException stacks',()=>{
   const unsafe=[
     "return new DOMException('tag','InvalidStateError').stack;",
-    "const error=new DOMException('tag','InvalidStateError');return error['stack'];"
+    "const error=new DOMException('tag','InvalidStateError');return error['stack'];",
+    "return new WebAssembly.CompileError('tag').stack;",
+    "return new WebAssembly.RuntimeError('tag')['stack'];",
+    "const W=WebAssembly;const E=W.LinkError;return new E('tag').stack;",
+    "const {RuntimeError:ErrorKind}=WebAssembly;return new ErrorKind('tag').stack;"
   ];
   for(const body of unsafe){
     const source='export async function protectedOp(){'+body+'}'+
