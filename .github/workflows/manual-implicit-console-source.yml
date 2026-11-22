@@ -59,6 +59,9 @@ jobs:
       - name: Structured positive and escaped-source class fuzz matrix
         if: ${{ !cancelled() }}
         run: node --test test/private-direct-class-structured-fuzz.test.js
+      - name: Combined passes retain external ESM prototype method exact source
+        if: ${{ !cancelled() }}
+        run: node --test test/public-instance-allpass-source.test.js
       - name: Validate strict project JSDoc
         if: ${{ !cancelled() }}
         run: npm run typecheck
