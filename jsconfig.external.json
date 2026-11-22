@@ -231,7 +231,8 @@
     "test/sco-atomics-canblock.test.js",
     "test/sco-free-lexical-grid.test.js",
     "test/sco-switch-discriminant-lexical.test.js",
-    "test/sco-free-lexical-vm-differential.test.js"
+    "test/sco-free-lexical-vm-differential.test.js",
+    "test/sco-blob-native-newlines.test.js"
   ],
   "exclude": [
     "node_modules"
