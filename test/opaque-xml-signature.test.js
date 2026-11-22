@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const {test}=require('node:test');
-const {obfuscateFiles}=require('../src');
+const {obfuscateFiles,createScoHandler}=require('../src');
 
 /** @typedef {'coo'|'sno'|'sco'} Mode */
 
@@ -36,6 +36,10 @@ test('XML declaration in opaque extension refuses executable XML and HTML markup
     for(const sample of samples){
       assert.throws(()=>compile(sample,mode),/HTML asset contains/,
         mode+': executable XML-prolog document under arbitrary suffix');
+      assert.throws(()=>createScoHandler([
+        {path:'document.blob',sourceType:/** @type {const} */('asset'),code:sample}
+      ]),/HTML asset contains/,
+      'Trusted SCO server must reject opaque executable XML declaration');
     }
   }
 });
@@ -73,4 +77,18 @@ test('unrelated XML data and ordinary binary assets preserve transformation yiel
         mode+': published opaque asset bytes remain exact');
     }
   }
+});
+
+test('SVG declaration remains covered by SVG-specific diagnostic and parser',()=>{
+  const svg='<?xml version="1.0" encoding="UTF-16"?>'+
+    '<svg xmlns="http://www.w3.org/2000/svg"/>';
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+    assert.throws(()=>obfuscateFiles([
+      {path:'icon.svg',sourceType:/** @type {const} */('asset'),code:svg}
+    ],{mode}),/SVG asset contains/,
+    mode+': preserve SVG-specific XML encoding mismatch rejection');
+  }
+  assert.throws(()=>createScoHandler([
+    {path:'icon.svg',sourceType:/** @type {const} */('asset'),code:svg}
+  ]),/SVG asset contains/);
 });
