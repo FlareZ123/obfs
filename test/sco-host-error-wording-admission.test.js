@@ -29,6 +29,12 @@ test('SCO refuses caught invalid-atob native error wording',()=>{
   assert.throws(()=>compile(source),TypeError);
 });
 
+test('SCO refuses caught invalid-btoa native error wording',()=>{
+  const source="try{btoa('Ā');return 'unexpected';}"+
+    "catch(error){return error.message;}";
+  assert.throws(()=>compile(source),TypeError);
+});
+
 test('SCO already refuses invalid TextDecoder label error wording',()=>{
   const source="try{new TextDecoder('not-a-charset');return 'unexpected';}"+
     "catch(error){return error.message;}";
@@ -38,6 +44,8 @@ test('SCO already refuses invalid TextDecoder label error wording',()=>{
 test('SCO retains constant known-valid host API primitive positives',()=>{
   const cases=[
     "return atob('QQ==');",
+    "return btoa('A');",
+    "return btoa('ÿ');",
     "return new URL('https://example.com/a').pathname;",
     "return new TextDecoder('utf-8').decode(new Uint8Array([65]));"
   ];
