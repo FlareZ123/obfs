@@ -1,6 +1,7 @@
 'use strict';
 
 const {createHash}=require('node:crypto');
+const {createPathInventory,registerFilePath}=require('./portable-paths');
 
 /**
  * @typedef {{path:string,sha256:string}} ReviewedOpaqueAsset
@@ -28,6 +29,7 @@ function assertReviewedOpaqueAssets(files,approved) {
   }
   /** @type {Map<string,{path:string,sha256:string}>} */
   const expected=new Map();
+  const approvedPaths=createPathInventory();
   // The approval authority is the indexed array of reviewed records, not
   // caller-defined iteration or accessors that can change between checks.
   // Capture the initial length and each record's fields exactly once.
@@ -43,6 +45,7 @@ function assertReviewedOpaqueAssets(files,approved) {
         typeof sha256!=='string'||!/^[0-9a-f]{64}$/u.test(sha256)){
       throw new TypeError('reviewedOpaqueAssets entries need an exact path and lowercase SHA-256');
     }
+    registerFilePath(approvedPaths,path,'Duplicate reviewedOpaqueAssets path: ');
     const identity=path.toLowerCase();
     if(expected.has(identity)){
       throw new TypeError('Duplicate reviewedOpaqueAssets path: '+path);
@@ -58,6 +61,7 @@ function assertReviewedOpaqueAssets(files,approved) {
   // are sampled once per entry; the publisher must emit those same bytes.
   /** @type {Set<string>} */
   const matched=new Set();
+  const publishedPaths=createPathInventory();
   const fileCount=files.length;
   for(let index=0;index<fileCount;index++){
     const file=files[index];
@@ -68,6 +72,7 @@ function assertReviewedOpaqueAssets(files,approved) {
     if(sourceType!=='asset')continue;
     const path=file.path;
     const code=file.code;
+    registerFilePath(publishedPaths,path,'Duplicate published opaque asset path: ');
     const identity=path.toLowerCase();
     if(matched.has(identity)){
       throw new TypeError('Duplicate published opaque asset path: '+path);
