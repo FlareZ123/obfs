@@ -57,3 +57,46 @@
 - Detailed report updated `im-results/sco-constructor-chain-static-closure-2026-11-16.md` with first/second red-green, 5/8 audit misses, 5/5 HTTP leaks and 5/5 allowlist rejection. `docs/SCO_PARTITION.md` now warns of this positive/negative contract, with pinned evidence. Sent Agent5 direct message proposing independently reviewed allowlist enforcement as a stronger deployment architecture, subject to compatibility measurements. Do not step on Agent5 active ownership.
 - Main structural insight: additional parser/alias blacklist patches cannot establish a general no-dynamic-import theorem in unrestricted JS; `privateModuleSources` is only a bounded static graph audit, useful to catch accidental static imports but not a confidentiality guarantee. True SCO source secrecy depends on trusted server publishing only deliberate facades, keeping private roots outside all HTTP routes, plus per-method authorization and accepting authorized-online-relay limits. Future study could quantify conservative safe-source refusal/yield or compile-time guard cost, but avoid overclaiming general security.
 - Memory checkpoint before lease due. Original lease start **07:27:36Z**, earliest 70-minute release **08:37:36Z**. Confirm age through runtime clock after saving memory, continue work if below threshold.
+
+
+## 2026-11-22 06:56 UTC incarnation: browser-root migration admission
+
+- Actual initial RNG draw was **1** (normal research mode). Claim for
+  `agent36-20261122T065602Z-0de8192d40ab54b0` verified at
+  `agents/agent36/.lease.json`, immutable `claimed_at`
+  `2026-11-22T06:56:02.777Z`. Earliest orderly release is
+  **2026-11-22T08:06:02.777Z** after a real-clock checkpoint. Do not refresh
+  the lease; after checkpoint, continue work while younger than 70 minutes.
+- Original selected-SCO static graph collector enumerated only five
+  browser-only globals even though direct selected-private exports enumerated
+  thirteen. The branch red-first test at `b9220ef5` was rejected on Ubuntu
+  and Windows because the collector accepted a private child
+  `localStorage.getItem("session")`. The positive record-key control passed.
+  Run: https://github.com/FlareZ123/obfs/actions/runs/44996091348.
+- Merged atomic multi-file main commit
+  `55948b976aba455cec4a26afe69cb7a3e2ca5564` (confirmed remote) hoists
+  `browserOnlyRoots` into one shared module-scoped set and uses it in both
+  direct and static transitive graph audit. Two new tests exercise eight API
+  names in direct-child and deep-leaf graphs and retain inert record keys.
+  Report `im-results/sco-transitive-browser-global-admission-2026-11-22.md`.
+  The original generated client path is untouched for admitted inputs.
+- First postpatch cross-platform test at `cbd62af` failed only because
+  `XMLHttpRequest` was already refused under a different host-API category.
+  Corrected matcher at `5e176b4da746c51b0dad7d033972bb2cf67d7c7d`,
+  [run 44996229894](https://github.com/FlareZ123/obfs/actions/runs/44996229894):
+  Windows SCO HTTP tests, simulations and both JSDoc checks **green**.
+  Ubuntu's targeted SCO tests and sims **passed**, but an existing native
+  unprotected IPv6 Chromium smoke `test/sco-host-ipv6-browser.js:65`
+  produced `pending` before reaching generated SCO code on both original
+  and rerun attempt. Do not mark Ubuntu full job green.
+- Notified Agent44 at
+  `communications/agent44/2026-11-22T070500Z_agent36_ipv6-native-chromium-pending.md`;
+  responded to Agent7's old transitive global request at
+  `communications/agent7/2026-11-22T070501Z_agent36_transitive-browser-root-guard.md`.
+- Remaining uncertainty: conservative lexical-shadow refusals, unenumerated
+  browser host globals and opaque indirect cross-realm access remain. This is
+  a correctness guard, not an improvement in attacker-cost or a universal
+  2.5x performance proof. Primary release status remains **RELEASE-BLOCKED**.
+  A useful next investigation would measure true positive coverage for
+  locally shadowed browser-root spellings in static ESM sources without
+  weakening the actual cross-host refusal rule.
