@@ -568,3 +568,38 @@ test('document-write SRI guard follows proven document aliases and opaque markup
       'A known unrelated literal document.write must keep transformation yield in '+mode);
   }
 });
+
+
+test('unknown computed DOM script integrity keys conservatively pin sibling source',()=>{
+  const source='globalThis.computedScriptSRI="opaque property names may be integrity";';
+  const hash=require('node:crypto').createHash('sha256').update(source).digest('base64');
+  const prefix='const script=document.createElement("script");'+
+    'script.src="./client.js";const attr=globalThis.optionalAttr||"integrity";';
+  const cases=[
+    ['computed write','script[attr]="sha256-'+hash+'";'],
+    ['setAttribute','script.setAttribute(attr,"sha256-'+hash+'");'],
+    ['Reflect.set','Reflect.set(script,attr,"sha256-'+hash+'");'],
+    ['Object.assign','Object.assign(script,{[attr]:"sha256-'+hash+'"});']
+  ];
+  const html={path:'index.html',sourceType:/** @type {const} */('asset'),
+    code:Buffer.from('<script src="./bootstrap.js"></script>')};
+  const client={path:'client.js',sourceType:/** @type {const} */('script'),code:source};
+  for(const mode of /** @type {const} */(['coo','sno','sco'])){
+    const options={mode,seed:'computed-script-integrity/'+mode,
+      strings:true,identifiers:false,properties:false};
+    const control=obfuscateFiles([
+      client,{path:'bootstrap.js',sourceType:'script',
+        code:prefix+'document.head.append(script);'},html
+    ],options);
+    assert.notEqual(control.files[0].code,source,
+      'No-SRI computed-key control must transform in '+mode);
+    for(const [name,setter] of cases){
+      const result=obfuscateFiles([
+        client,{path:'bootstrap.js',sourceType:'script',
+          code:prefix+setter+'document.head.append(script);'},html
+      ],options);
+      assert.equal(result.files[0].code,source,
+        name+' on a known DOM script with an opaque key may set integrity in '+mode);
+    }
+  }
+});
