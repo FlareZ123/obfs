@@ -3,9 +3,16 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm');
+const fs=require('node:fs/promises');
+const http=require('node:http');
+const os=require('node:os');
+const path=require('node:path');
+const {pathToFileURL}=require('node:url');
+const {atomicWrite}=require('../src/atomic');
 const {parse}=require('../src/ast');
 const {firstUnprovedFreeReference}=require('../src/sco-free-references');
-const {partitionScoSelectedAsyncExports}=require('../src');
+const {partitionScoSelectedAsyncExports,
+  bindScoModuleExports,createScoHandler}=require('../src');
 
 const shared=new Set(['Object','Array','undefined']);
 
@@ -143,4 +150,50 @@ test('outer function var can feed inner parameter defaults while its own body va
     new Set(),shared,true),'v',invalid);
   await assert.rejects(vm.runInNewContext('"use strict";(async function(){'+
     invalid+'})()',{}),/v is not defined/u,invalid);
+});
+
+test('real selected SCO HTTP facade returns the same hoisted-var result as native ESM',async()=>{
+  const body=[
+    'let score=0;',
+    'if(true){var a=41;}score+=a;',
+    'for(var b=0;b<3;b++){}score+=b;',
+    'switch(0){case 1:var c=7;}score+=c===undefined?5:c;',
+    'return score;'
+  ].join('');
+  const code='export async function protectedOp(){'+body+
+    '}export function visible(){return 7;}';
+  const selected=compile(body);
+  const directory=await fs.mkdtemp(path.join(os.tmpdir(),'obfs-sco-var-'));
+  const previousFetch=globalThis.fetch;
+  /** @type {import('node:http').Server|undefined} */
+  let server;
+  try{
+    const originalPath=path.join(directory,'original.mjs');
+    const emittedPath=path.join(directory,'emitted.mjs');
+    await atomicWrite(originalPath,code);
+    await atomicWrite(emittedPath,selected.clientFile.code);
+    const original=await import(pathToFileURL(originalPath).href);
+    const methods=bindScoModuleExports(selected,original);
+    server=http.createServer(createScoHandler([selected.clientFile],{
+      remoteMethods:methods,
+      authorizeRead:()=>true,
+      authorizeRpc:()=>true
+    }));
+    await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+    const address=server.address();
+    assert.ok(address&&typeof address!=='string');
+    const origin='http://127.0.0.1:'+address.port;
+    globalThis.fetch=(input,init)=>previousFetch(new URL(String(input),origin),init);
+    const client=await import(pathToFileURL(emittedPath).href);
+    assert.equal(await original.protectedOp(),49,'Native strict-ESM var bindings');
+    assert.equal(await client.protectedOp(),await original.protectedOp(),
+      'Published RPC facade returns exactly native result');
+    assert.equal(client.visible(),original.visible(),
+      'Retained public callable remains source-compatible');
+  }finally{
+    globalThis.fetch=previousFetch;
+    if(server)await new Promise((resolve,reject)=>server.close(error=>
+      error?reject(error):resolve()));
+    await fs.rm(directory,{recursive:true,force:true});
+  }
 });
