@@ -21,7 +21,11 @@ const pairs=[
   ['turkish-dotted-i','i̇','İ'],
   ['combining-accent','é','é'],
   ['deseret','𐐀','𐐨'],
-  ['german-expansion','SS','ß']
+  ['german-expansion','SS','ß'],
+  // Raw file names test Windows-documented leading-space normalization.
+  ['raw-leading-ascii-space',' probe.js','probe.js'],
+  ['raw-leading-space-dot',' .probe.js','.probe.js'],
+  ['raw-leading-ideographic-space','\u3000probe.js','probe.js']
 ];
 
 /**
@@ -38,8 +42,9 @@ async function main(){
     for(const [id,first,second] of pairs){
       const dir=path.join(root,id);
       await fs.mkdir(dir);
-      const firstName='probe-'+first+'.js';
-      const secondName='probe-'+second+'.js';
+      const raw=id.startsWith('raw-');
+      const firstName=raw?first:'probe-'+first+'.js';
+      const secondName=raw?second:'probe-'+second+'.js';
       await fs.writeFile(path.join(dir,firstName),'first',{flag:'wx'});
       let secondExists=true;
       try{
