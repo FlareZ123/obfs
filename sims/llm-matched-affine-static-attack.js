@@ -121,8 +121,15 @@ function attackPublishedSource(source){
   }else{
     kind='esbuild-minified';
     const parsed=recoverMinifiedPublicMath(source);
-    for(const fn of parsed.functions)offsets[fn.name]=minifiedOffset(fn.source);
+    for(const fn of parsed.functions){
+      if(!targetNames.includes(fn.name)||Object.hasOwn(offsets,fn.name))
+        throw new TypeError('Unexpected or duplicate public export');
+      offsets[fn.name]=minifiedOffset(fn.source);
+    }
   }
+  if(!targetNames.every(name=>Object.hasOwn(offsets,name)&&
+     Number.isInteger(offsets[name])))
+    throw new TypeError('Missing proved public Int32 translation');
   // Synthesize a standalone public-API-compatible ESM module using only
   // recovered offsets, never the original hidden source or runtime oracle.
   const reconstructedSource=targetNames.map(name=>
