@@ -135,6 +135,18 @@ test('identifier preservation follows aggregate aliases, private classes, and re
     {
       source:'const api={};const alias=api;function read(secretParam){return secretParam;}alias.read=read;export {api};',
       expression:'[Function.prototype.toString.call(m.api.read),m.api.read(4)]'
+    },
+    {
+      source:'function hidden(secretParam){return secretParam;}class Api{handler=hidden;}export const instance=new Api();',
+      expression:'[Function.prototype.toString.call(m.instance.handler),m.instance.handler(4)]'
+    },
+    {
+      source:'function hidden(secretParam){return secretParam;}class Api{}Api.handler=hidden;export {Api};',
+      expression:'[Function.prototype.toString.call(m.Api.handler),m.Api.handler(4)]'
+    },
+    {
+      source:'function read(secretParam){return secretParam;}const api={};export {api};Object.assign(api,{read});',
+      expression:'[Function.prototype.toString.call(m.api.read),m.api.read(4)]'
     }
   ];
   for(const [index,entry] of cases.entries()) {
