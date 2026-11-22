@@ -79,6 +79,29 @@ for (const mode of /** @type {Array<'coo'|'sno'>} */ (['coo', 'sno'])) {
       }
     );
   }
+  for (const fixture of [
+    {name: 'instance', assignment: 'module.exports=new Reader();', selector: 'entry'},
+    {name: 'instance record', assignment: 'module.exports={reader:new Reader()};', selector: 'entry.reader'}
+  ]) {
+    test(mode + ' exported CommonJS class instance retains constructor/method source: ' +
+      fixture.name, async () => {
+      const original = classBody + fixture.assignment;
+      const transformed = compile(original, mode);
+      const importer = 'const entry=require(process.argv[1]);' +
+        'const instance=' + fixture.selector + ';' +
+        'process.stdout.write(JSON.stringify({' +
+        'result:instance.value(),classSource:instance.constructor.toString(),' +
+        'methodSource:instance.value.toString()}));';
+      const native = await loadFromOutside(original, importer);
+      const emitted = await loadFromOutside(transformed.code, importer);
+      assert.equal(JSON.parse(native).result, 7);
+      assert.equal(emitted, native,
+        'External importer observed changed class instance constructor/method source: ' +
+        JSON.stringify({mode, fixture: fixture.name, renamed: transformed.renamed}));
+      assert.equal(transformed.renamed, 0,
+        'An exported instance exposes class source through its constructor');
+    });
+  }
   test(mode + ' genuinely private CommonJS class retains positive own-key renaming',
     async () => {
       const original = classBody + 'module.exports=new Reader().value();';
