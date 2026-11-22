@@ -21,6 +21,8 @@ jobs:
           node-version: '22'
       - name: Install declared dependencies
         run: npm install --no-package-lock --ignore-scripts
+      - name: Preserve exported ESM identifier source while retaining private helper yield
+        run: node --test --test-name-pattern="parameter names|private helper" test/esm-public-callable-source.test.js
       - name: Preserve source of exported ESM callables before owner-key rewriting
         run: node --test test/esm-public-callable-source.test.js
       - name: Preserve public CommonJS callable source when renaming local owners
