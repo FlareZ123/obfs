@@ -192,8 +192,8 @@ test('combined property, identifier, and string passes preserve public source an
 });
 
 test('advanced control-flow passes reject exported callable source but accept private direct-call-only helpers',async()=>{
-  const source='function privateHelper(flag){if(flag){return 4;}else{return 5;}}'+
-    'export function publicRead(flag){if(flag){return 1;}else{return 0;}}'+
+  const source='function privateHelper(flag){return flag?4:5;}'+
+    'export function publicRead(flag){return flag?1:0;}'+
     'export const privateResult=privateHelper(true);';
   const files=[{path:'entry.mjs',sourceType:'module',code:source}];
   assert.throws(()=>obfuscateFiles(files,{
