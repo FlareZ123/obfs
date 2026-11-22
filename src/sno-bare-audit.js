@@ -54,11 +54,13 @@ function directBareRequires(files) {
     walk(ast,node=>{
       if(node.type!=='CallExpression'||node.callee?.type!=='Identifier'||
           node.callee.name!=='require')return;
-      if(node.arguments?.length!==1 ||
+      if(!node.arguments?.length ||
          node.arguments[0]?.type!=='Literal'||
          typeof node.arguments[0].value!=='string')return;
       const specifier=/** @type {string} */(node.arguments[0].value);
-      if(specifier.startsWith('.')||specifier.startsWith('/')||
+      if(specifier==='.'||specifier==='..'||
+          specifier.startsWith('./')||specifier.startsWith('../')||
+          specifier.startsWith('/')||
           specifier.startsWith('#')||path.isAbsolute(specifier)||
           isBuiltin(specifier))return;
       refs.add(specifier);
