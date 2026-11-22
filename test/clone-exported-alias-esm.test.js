@@ -84,8 +84,13 @@ test('unrelated imported function preserves an eligible ESM private owner',async
     "import {helper} from './utility.mjs';"+
       "const observed=helper(19);export {observed};"
   );
+  const direct="export function inspect(){const marker='opaque-literal';return hidden.secretField+marker.length;}";
+  const privateReader="function internalInspect(){const marker='opaque-literal';return hidden.secretField+marker.length;}"+
+    "export function inspect(){return internalInspect();}";
+  assert.ok(source[1].code.includes(direct));
+  source[1].code=source[1].code.replace(direct,privateReader);
   const transformed=obfuscateFiles(source,{
-    mode:'sno',seed:'imported-clone-safe-other',strings:false,closedWorld:true
+    mode:'sno',seed:'imported-clone-safe-other',strings:false,closedWorld:true,preservePublicCallableSource:true
   });
   // The ESM graph can be rewritten by the cross-file prepass before local
   // per-file property metrics are computed.
