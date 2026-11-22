@@ -2418,16 +2418,74 @@ function renameCrossFileProperties(files,seed,options={}) {
         ? fn.body.body.length===1 && fn.body.body[0].type==='ReturnStatement'
           ? fn.body.body[0].argument : null
         : fn.body;
-      if(returned?.type!=='MemberExpression'||returned.object.type!=='Identifier')return;
-      const argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>param.name===returned.object.name);
-      if(argIndex<0)return;
-      const property=returned.computed ? staticString(returned.property) : staticName(returned.property);
+      /** @type {AstNode|null} */
+      let member=returned?.type==='MemberExpression'?returned:null;
+      let argIndex=-1;
+      if(member?.object.type==='Identifier') {
+        argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>
+          param.name===member.object.name);
+      } else if(returned?.type==='CallExpression' &&
+          returned.callee.type==='Identifier' && !returned.optional) {
+        // An exported reader may delegate exactly once to a local, unexported
+        // direct-call-only reader. This retains the exported function's
+        // original observable source while the hidden member spelling changes.
+        const helperName=returned.callee.name;
+        if(helperName===name || module.bindings.get(helperName)!==1)return;
+        /** @type {AstNode|null} */
+        let helperFn=null;
+        /** @type {AstNode|null} */
+        let helperBinding=null;
+        for(const statement of module.ast.body) {
+          if(statement.type==='FunctionDeclaration' &&
+             statement.id?.type==='Identifier'&&statement.id.name===helperName){
+            helperFn=statement;
+            helperBinding=statement.id;
+          }
+          if(statement.type==='VariableDeclaration' && statement.kind==='const'){
+            for(const decl of statement.declarations) {
+              if(decl.id.type==='Identifier'&&decl.id.name===helperName&&decl.init) {
+                helperFn=decl.init;
+                helperBinding=decl.id;
+              }
+            }
+          }
+        }
+        if(!helperFn||!helperBinding || helperFn.async || helperFn.generator ||
+           !['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(helperFn.type) ||
+           !helperFn.params.length ||
+           helperFn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier') ||
+           returned.arguments.length!==helperFn.params.length ||
+           returned.arguments.some((/** @type {AstNode} */ arg)=>arg.type==='SpreadElement'))return;
+        const hiddenReturn=helperFn.body.type==='BlockStatement'
+          ? helperFn.body.body.length===1 && helperFn.body.body[0].type==='ReturnStatement'
+            ? helperFn.body.body[0].argument : null
+          : helperFn.body;
+        if(hiddenReturn?.type!=='MemberExpression' ||
+           hiddenReturn.object.type!=='Identifier')return;
+        const localIndex=helperFn.params.findIndex((/** @type {AstNode} */ param)=>
+          param.name===hiddenReturn.object.name);
+        if(localIndex<0)return;
+        const forwarded=returned.arguments[localIndex];
+        if(forwarded?.type!=='Identifier')return;
+        argIndex=fn.params.findIndex((/** @type {AstNode} */ param)=>
+          param.name===forwarded.name);
+        if(argIndex<0)return;
+        let unprovedHelperUse=false;
+        walk(module.ast,node=>{
+          if(node.type==='Identifier' && node.name===helperName &&
+             node!==helperBinding && node!==returned.callee)unprovedHelperUse=true;
+        });
+        if(unprovedHelperUse)return;
+        member=hiddenReturn;
+      } else return;
+      if(!member || argIndex<0)return;
+      const property=member.computed ? staticString(member.property) : staticName(member.property);
       if(property===null)return;
       let usedInExporter=false;
       walk(module.ast,node=>{
         if(node.type==='Identifier' && node.name===name && node!==binding)usedInExporter=true;
       });
-      if(!usedInExporter)readers.set(name,{member:returned,property,argIndex});
+      if(!usedInExporter)readers.set(name,{member,property,argIndex});
     }
     for(const statement of module.ast.body) {
       if(statement.type!=='ExportNamedDeclaration'||statement.source)continue;
