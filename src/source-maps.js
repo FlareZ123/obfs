@@ -152,7 +152,7 @@ function hasWasmSourceMapDirective(code) {
  * the public asset contract, so refuse recognized containers instead of
  * copying their unaudited payload bytes into a protected distribution.
  *
- * Magic bytes catch mislabeled gzip/ZIP/zstd/XZ/7z/bzip2 and ustar archives.
+ * Magic bytes catch mislabeled gzip/ZIP/zstd/XZ/7z/bzip2/RAR and ustar archives.
  * Brotli has no reliable universal signature, so its filename is checked.
  * This does not claim to detect all compressed or encoded source.
  * @param {string} filename
@@ -160,7 +160,7 @@ function hasWasmSourceMapDirective(code) {
  * @returns {boolean}
  */
 function isUnauditedArchiveAsset(filename,code) {
-  if(/\.(?:gz|br|zip|tar|tgz|7z|zst|xz|bz2)$/iu.test(filename))return true;
+  if(/\.(?:gz|br|zip|tar|tgz|7z|zst|xz|bz2|rar)$/iu.test(filename))return true;
   if(!Buffer.isBuffer(code))return false;
   if(code.length>=2 && code[0]===0x1f && code[1]===0x8b)return true;
   if(code.length>=4 && code[0]===0x50 && code[1]===0x4b &&
@@ -174,6 +174,11 @@ function isUnauditedArchiveAsset(filename,code) {
   if(code.length>=6 && code[0]===0x37 && code[1]===0x7a &&
      code[2]===0xbc && code[3]===0xaf && code[4]===0x27 && code[5]===0x1c)return true;
   if(code.length>=3 && code[0]===0x42 && code[1]===0x5a && code[2]===0x68)return true;
+  // RAR4 and RAR5 marker blocks have distinct 7- and 8-byte signatures.
+  if(code.length>=7 && code[0]===0x52 && code[1]===0x61 &&
+     code[2]===0x72 && code[3]===0x21 && code[4]===0x1a &&
+     code[5]===0x07 && (code[6]===0x00 ||
+       code[6]===0x01 && code.length>=8 && code[7]===0x00))return true;
   if(code.length>=262 && code.toString('ascii',257,262)==='ustar')return true;
   return false;
 }
