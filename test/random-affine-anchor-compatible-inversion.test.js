@@ -11,7 +11,7 @@ test('random affine reanchoring recovers forced rare targets after canonical bas
   assert.equal(evidence.controlRecovered,6);
   assert.equal(evidence.heldouts,384);
   assert.ok(evidence.rows.every(row=>row.canonicalMismatches===32));
-  assert.ok(evidence.rows.every(row=>row.rare.queries<=264&&row.control.queries<=264));
+  assert.ok(evidence.rows.every(row=>row.rare.queries<=260&&row.control.queries<=260));
   assert.equal(evidence.dense.length,3);
   assert.ok(evidence.dense.every(row=>row.sources===8&&row.exact+row.failures===8));
   console.log('SPARSE_REANCHOR '+JSON.stringify(evidence));
