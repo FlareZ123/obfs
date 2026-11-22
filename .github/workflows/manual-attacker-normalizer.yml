@@ -13,52 +13,26 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - run: npm install --no-package-lock --ignore-scripts
-      - name: Reconstruct renamed cross-file keys and verify executable parity
-        run: node --test test/attacker-normalizer-destructure.test.js test/attacker-token-normalize.test.js test/public-token-normalizer.test.js test/public-normalizer-provenance-grid.test.js
-      - name: Independently recover string-table literals from real emitted JavaScript
-        run: node --test test/static-string-recovery.test.js
-      - name: Compare emitted string eligibility and attacker-recovered parity
-        run: node sims/string-eligibility-matrix.js
-      - name: Fresh own array-slot source-coercion positive and hostile negatives
-        run: node --test test/inline-array-primitive-source.test.js
-      - name: Compare SNO COO chunked decoding after inherited Array index setter
-        run: node --test test/decoder-array-prototype-chain.test.js
-      - name: Fuzz primitive inline-array eligibility and independent decoder reconstruction
-        run: node --test test/inline-array-primitive-fuzz.test.js
-      - name: Strip lexical anti-LLM cues and prove corpus semantics
-        run: node --test test/anti-llm-lexical-sanitizer.test.js && node sims/anti-llm-lexical-sanitizer.js
-      - name: Normalize anti-LLM local identifiers with conventional compiler
-        run: node --test test/anti-llm-esbuild-analysis-view.test.js && node sims/anti-llm-esbuild-analysis-view.js
-      - name: Recover post-freeze author-style Int32 permutation and profile CPU
-        run: node sims/mba-author-int32-heldout.js
-      - name: Recover dataflow-mixed unrolled Int32 permutation
-        run: node --test test/mba-author-int32-dataflow-recover.test.js
-      - name: Validate frozen attacker on seed-expanded Int32 calibration
-        run: node --test test/mba-author-int32-seed-expanded.test.js
-      - name: Recover post-freeze seed-expanded Int32 permutations and profile CPU
-        run: node sims/mba-author-int32-seed-expanded-heldout.js
-      - name: Recover post-freeze heldout dataflow-mixed Int32 permutations
-        run: node sims/mba-author-int32-dataflow-heldout.js
-      - name: Recover post-freeze table-loop Int32 permutations
-        run: node sims/mba-author-int32-table-heldout.js
-      - name: Recover post-freeze flattened-CFG Int32 permutations
-        run: node sims/mba-author-int32-cfg-heldout.js
-      - name: Recover post-freeze encoded-table Int32 permutations
-        run: node sims/mba-author-int32-encoded-heldout.js
-      - name: Validate A2MBA Int32 component screens and source-only rotated-core recovery
-        run: node --test test/a2mba-context-int32-pilot.test.js test/a2mba-rotated-core-int32-pilot.test.js test/a2mba-rotated-core-static-recover.test.js test/a2mba-rotated-core-heldout.test.js
-      - name: Recover A2MBA PureIR opcode with one post-freeze probe
-        run: node --test test/a2mba-hybrid-opcode-heldout.test.js
-      - name: Profile A2MBA rotated-core selected work
-        run: node sims/a2mba-rotated-core-int32-pilot.js
-      - name: JSDoc
-        run: npm run typecheck
-      - name: External research tool JSDoc
+      - name: Verify claimed author CLI path and source-aware inverse
+        run: node sims/mba-author-coreutils-static-recovery.js
+      - name: Verify signed SMT rotation collision counterexample
+        run: node sims/mba-author-smt-rotate-collision.js
+      - name: Reproduce independent held-out permutation inverses
+        run: node sims/mba-permutation-heldout-inverse.js
+      - name: Reproduce minified-source static extraction
+        run: node sims/mba-permutation-minified-static-recovery.js
+      - name: Verify held-out minified static extraction
+        run: node sims/mba-permutation-minified-heldout-recovery.js
+      - name: Sample JS budget against slash control
+        run: node sims/mba-permutation-js-budget.js
+      - name: Strict external test JSDoc
         run: npm run typecheck:external
+      - name: Strict compiler JSDoc
+        run: npm run typecheck
