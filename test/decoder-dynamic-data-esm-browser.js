@@ -22,7 +22,8 @@ function graph(external) {
       'const {default:value}=await import("./target.mjs");'+
       // The Browser test harness serializes outside the code under test:
       // a generic btoa(value) can observe function source in other programs.
-      'globalThis.__result=value;'},
+      'globalThis.__result=value;'+
+      'dispatchEvent(new Event("obfs-result-ready"));'},
     {path:'target.mjs',sourceType:'module',
       code:"export default 'protected-literal-value';"}
   ];
@@ -64,7 +65,9 @@ async function main() {
       resources.set(root+'index.html',
         '<!doctype html><html><meta charset="utf-8">'+
         '<pre id="result"></pre><script type="module" src="./entry.mjs"></script>'+
-        '<script>addEventListener("load",()=>{'+
+        // A top-level awaited dynamic import may settle after window load.
+        // A completion event comes strictly after the imported value exists.
+        '<script>addEventListener("obfs-result-ready",()=>{'+
         'document.getElementById("result").textContent=btoa(globalThis.__result);'+
         '});</script></html>');
     }
