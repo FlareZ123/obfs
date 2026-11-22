@@ -34,9 +34,10 @@ async function run(){
     rebuilt:attacks[revealed.arms.indexOf('generated')].reconstructedSource
   });
   const serverFiles=new Map([
-    ['/index.html','<!doctype html><meta charset="utf-8"><title>Affine public ESM comparison</title>'],
-    ...Object.entries(codes).map(([name,source])=>['/'+name+'.mjs',source])
+    ['/index.html','<!doctype html><meta charset="utf-8"><title>Affine public ESM comparison</title>']
   ]);
+  for(const [name,source] of Object.entries(codes))
+    serverFiles.set('/'+name+'.mjs',source);
   /** @type {Record<string,number>} */
   const requests={};
   const server=http.createServer((request,response)=>{
@@ -58,7 +59,7 @@ async function run(){
   try{
     await new Promise((resolve,reject)=>{
       server.once('error',reject);
-      server.listen(0,'127.0.0.1',resolve);
+      server.listen(0,'127.0.0.1',()=>resolve());
     });
     const address=server.address();
     assert.ok(address&&typeof address!=='string');
