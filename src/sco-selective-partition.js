@@ -5,6 +5,7 @@ const {isBuiltin}=require('node:module');
 const {createHash}=require('node:crypto');
 const path=require('node:path');
 const {safePath}=require('./core');
+const {collectBindings}=require('./properties');
 const {partitionScoAsyncModule,bindScoModuleExports}=require('./sco-partition');
 const {createScoHandler}=require('./sco');
 const {snapshotSelectedOptions}=require('./sco-selected-options');
@@ -23,7 +24,13 @@ const generatedSelectiveSnapshots=new WeakMap();
 // that is absent or different in the relocated execution environment.
 const browserOnlyRoots=new Set(['window','document','navigator','location',
   'localStorage','sessionStorage','indexedDB','self','history','screen',
-  'customElements','DOMParser','XMLHttpRequest']);
+  'customElements','DOMParser','XMLHttpRequest',
+  // Web-exposed globals with no equivalent Node 22 document/window state.
+  'caches','origin','devicePixelRatio','isSecureContext',
+  'crossOriginIsolated','matchMedia','requestAnimationFrame',
+  'cancelAnimationFrame','requestIdleCallback','cancelIdleCallback',
+  'MutationObserver','ResizeObserver','IntersectionObserver',
+  'FileReader','FileList','Image','Audio','HTMLElement','Element','Node']);
 
 /**
  * Copy the declared numeric array slots without invoking caller-controlled
@@ -934,6 +941,26 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     // Keep known ECMAScript global names outside this narrow host check;
     // realmStateObservation handles their mutable intrinsic hazards.
     const browserOnlyGlobals=browserOnlyRoots;
+    // A unique module-scope const literal supplies an owned primitive even
+    // when its spelling matches a browser global. Nested same-name bindings
+    // stay unproved: syntax-only name resolution cannot safely unify them.
+    const localBindings=collectBindings(ast);
+    const provenModuleOwnedBrowserNames=new Set();
+    for(const statement of ast.body){
+      const declaration=statement.type==='VariableDeclaration'?statement:
+        statement.type==='ExportNamedDeclaration'?statement.declaration:null;
+      if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')continue;
+      for(const item of declaration.declarations){
+        if(item.id.type!=='Identifier'||!item.init||
+           item.init.type!=='Literal'||item.init.regex!==undefined||
+           !browserOnlyGlobals.has(item.id.name)||
+           localBindings.get(item.id.name)!==1)continue;
+        if(item.init.value===null||
+           ['string','number','boolean','bigint'].includes(typeof item.init.value)){
+          provenModuleOwnedBrowserNames.add(item.id.name);
+        }
+      }
+    }
     const standardGlobalKeys=new Set([
       'Infinity','NaN','undefined','eval','isFinite','isNaN','process',
       'parseFloat','parseInt','decodeURI','decodeURIComponent',
@@ -965,6 +992,7 @@ function collectPrivateStaticImportClosure(directPaths,sources) {
     }
     walk(ast,(node,parent,key)=>{
       if(node.type==='Identifier'&&browserOnlyGlobals.has(node.name)&&
+         !provenModuleOwnedBrowserNames.has(node.name)&&
          !isStaticKey(parent,key)&&
          !(parent?.type==='VariableDeclarator'&&key==='id')&&
          !(parent?.type==='FunctionDeclaration'&&key==='id')){
@@ -1639,7 +1667,19 @@ function partitionScoSelectedAsyncExports(file,options) {
     // resolve against the server-side module instead of the client module.
     // Reject these operations until a true cross-host equivalence proof exists.
     walk(body,node=>{
-      if(node.type==='MetaProperty'||node.type==='ImportExpression'){
+      if(node.type==='MetaProperty'){
+        throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
+      }
+      if(node.type==='ImportExpression'){
+        // A fixed Node builtin module resolves independently of the current
+        // ESM module URL. Server-private crypto code historically relies on
+        // import('node:crypto'); computed, relative and loader-capability
+        // imports cannot use this exception.
+        const specifier=node.source.type==='Literal'?node.source.value:null;
+        if(typeof specifier==='string'&&specifier.startsWith('node:')&&
+           isBuiltin(specifier)&&
+           !['node:module','node:vm','node:worker_threads',
+             'node:child_process','node:process'].includes(specifier))return;
         throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
       }
     });

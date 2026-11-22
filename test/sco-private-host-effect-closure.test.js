@@ -303,3 +303,130 @@ test('Private source audit keeps browser API spellings in inert record keys elig
     assert.deepEqual(partition.privateNames,['protectedOp']);
   }
 });
+
+test('SCO selected direct and static private ESM sources decline browser-only Window globals',()=>{
+  const names=[
+    'caches','origin','devicePixelRatio','isSecureContext',
+    'crossOriginIsolated','matchMedia','requestAnimationFrame',
+    'cancelAnimationFrame','requestIdleCallback','cancelIdleCallback',
+    'MutationObserver','ResizeObserver','IntersectionObserver',
+    'FileReader','FileList','Image','Audio','HTMLElement','Element','Node'
+  ];
+  for(const name of names){
+    const body='return typeof '+name+';';
+    for(const transitive of [false,true]){
+      assert.throws(()=>partitionGraph(body,transitive),
+        /SCO private static dependency has unproved client host state/u,
+        name+' in static graph / transitive='+transitive);
+    }
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-browser-only-window-roots-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export uses browser-only ambient state/u,
+    name+' in selected private export');
+  }
+});
+
+test('New browser Window roots stay valid in inert object field labels',()=>{
+  const body='const record={caches:1,origin:2,devicePixelRatio:3,'+
+    'isSecureContext:4,crossOriginIsolated:5,matchMedia:6,'+
+    'MutationObserver:7,FileReader:8,HTMLElement:9};'+
+    'return record.caches+record.origin+record.devicePixelRatio+'+
+    'record.isSecureContext+record.crossOriginIsolated+record.matchMedia+'+
+    'record.MutationObserver+record.FileReader+record.HTMLElement;';
+  for(const transitive of [false,true]){
+    const generated=partitionGraph(body,transitive);
+    assert.deepEqual(generated.privateNames,['protectedOp']);
+  }
+});
+
+
+test('Static private graph admits uniquely bound literal module-local Window spellings',()=>{
+  const names=['caches','origin','devicePixelRatio','isSecureContext',
+    'matchMedia','FileReader','Image'];
+  for(const name of names){
+    for(const transitive of [false,true]){
+      const code='const '+name+'=41;'+
+        'export function '+(transitive?'leaf':'compute')+'(){return '+name+'+1;}';
+      /** @type {ModuleSource[]} */
+      const graph=[{
+        path:'private/engine.mjs',
+        code:transitive?
+          'import {leaf} from "./deep/leaf.mjs";export function compute(){return leaf();}':
+          code
+      }];
+      if(transitive)graph.push({path:'private/deep/leaf.mjs',code});
+      const partition=partitionScoSelectedAsyncExports(
+        {path:'mixed.mjs',code:entry,sourceType:'module'},
+        {
+          seed:'sco-static-local-browser-name-20261122',
+          privateNames:['protectedOp'],
+          privateModuleImports:['./private/engine.mjs'],
+          privateModuleSources:graph
+        }
+      );
+      assert.deepEqual(partition.privateNames,['protectedOp']);
+      const direct=partitionScoSelectedAsyncExports(
+        {path:'mixed.mjs',code:entry,sourceType:'module'},
+        {seed:'sco-static-local-browser-name-20261122',
+          privateNames:['protectedOp'],privateModuleImports:['./private/engine.mjs']}
+      );
+      assert.equal(partition.clientFile.code,direct.clientFile.code,
+        'Static source admission must leave the emitted client code unchanged');
+    }
+  }
+});
+
+test('Static source refuses a same-named nested shadow when literal owner is ambiguous',()=>{
+  const body='const caches=41;export function leaf(){'+
+    'function inner(caches){return caches;}return caches+inner(1);}';
+  const graph=[
+    {path:'private/engine.mjs',
+      code:'import {leaf} from "./deep/leaf.mjs";export function compute(){return leaf();}'},
+    {path:'private/deep/leaf.mjs',code:body}
+  ];
+  assert.throws(()=>partitionScoSelectedAsyncExports(
+    {path:'mixed.mjs',code:entry,sourceType:'module'},
+    {seed:'sco-local-browser-name-ambiguous-20261122',privateNames:['protectedOp'],
+      privateModuleImports:['./private/engine.mjs'],privateModuleSources:graph}),
+  /SCO private static dependency has unproved client host state/u);
+});
+
+
+test('SCO preserves fixed server Node builtin import and refuses module-dependent imports',()=>{
+  const accepted=[
+    'const {createHash}=await import("node:crypto");'+
+      'return createHash("sha256").update("stable").digest("hex").length;',
+    'const modules=await import("node:assert/strict");'+
+      'return typeof modules.equal;'
+  ];
+  for(const body of accepted){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.doesNotThrow(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-server-builtin-exception-20261122',privateNames:['protectedOp']}
+    ),body);
+  }
+  const rejected=[
+    'return import.meta.url;',
+    'return await import("./private.mjs");',
+    'const path="./private.mjs";return await import(path);',
+    'return await import("node:module");',
+    'return await import("node:vm");',
+    'return await import("node:worker_threads");',
+    'return await import("node:child_process");',
+    'return await import("node:process");',
+    'return await import("some-package");'
+  ];
+  for(const body of rejected){
+    const source='export async function protectedOp(){'+body+'}'+
+      'export function visible(){return 7;}';
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',code:source,sourceType:'module'},
+      {seed:'sco-module-relative-private-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved module-relative execution/u,body);
+  }
+});
