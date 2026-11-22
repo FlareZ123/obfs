@@ -786,6 +786,56 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   const patterns = [];
   /** @type {Map<AstNode,string>} */
   const patternNames=new Map();
+  /** @type {Map<string,{value:string,initializedAt:number}>|null} */
+  let laterTopLevelKeys=null;
+  /**
+   * A computed key read by an immediately evaluated top-level pattern may
+   * refer to an inert immutable string initialized *after* the object owner.
+   * A source-ordered top-level declaration cannot be called through a
+   * reentrant function before that string's initializer has run. Nested
+   * readers retain the stricter earlier-owner or verified-import proof.
+   *
+   * @param {AstNode} property
+   * @returns {string|null}
+   */
+  function initializedTopLevelPatternKey(property) {
+    if(!property.computed||property.key.type!=='Identifier')return null;
+    const pattern=parents.get(property);
+    if(pattern?.type!=='ObjectPattern')return null;
+    const consumer=parents.get(pattern);
+    let immediate=false;
+    if(consumer?.type==='VariableDeclarator'&&consumer.id===pattern){
+      const declaration=parents.get(consumer);
+      const outer=parents.get(declaration);
+      immediate=declaration?.type==='VariableDeclaration'&&
+        (outer===ast || outer?.type==='ExportNamedDeclaration'&&
+          parents.get(outer)===ast);
+    }else if(consumer?.type==='AssignmentExpression'&&consumer.left===pattern){
+      const statement=parents.get(consumer);
+      immediate=statement?.type==='ExpressionStatement'&&
+        parents.get(statement)===ast;
+    }
+    if(!immediate)return null;
+    if(laterTopLevelKeys===null) {
+      laterTopLevelKeys=new Map();
+      for(const statement of ast.body) {
+        const declaration=statement.type==='ExportNamedDeclaration' ?
+          statement.declaration : statement;
+        if(declaration?.type!=='VariableDeclaration'||declaration.kind!=='const')
+          continue;
+        for(const decl of declaration.declarations) {
+          if(decl.id.type!=='Identifier'||!decl.init||
+             bindings.get(decl.id.name)!==1)continue;
+          const value=staticString(decl.init);
+          if(value!==null)laterTopLevelKeys.set(decl.id.name,{
+            value,initializedAt:decl.end
+          });
+        }
+      }
+    }
+    const fact=laterTopLevelKeys.get(property.key.name);
+    return fact&&fact.initializedAt<property.start ? fact.value : null;
+  }
   /**
    * Resolve a proven immutable computed-key binding in the same owner proof
    * used for member reads. Ordinary literal keys need no imported proof.
@@ -795,8 +845,9 @@ function proveLocalObject(ast, rootName, bindings, importedIdentityFunctions=new
   function provenPatternName(property) {
     const known=ownPropertyName(property);
     if(known!==null)return known;
-    return property.computed && property.key.type==='Identifier' ?
-      getConstantKey(property.key.name) : null;
+    if(!property.computed||property.key.type!=='Identifier')return null;
+    return getConstantKey(property.key.name) ??
+      initializedTopLevelPatternKey(property);
   }
   /** @type {AstNode[]} */
   const inChecks = [];
