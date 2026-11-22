@@ -113,7 +113,7 @@ for(const mode of /** @type {const} */ (['coo','sco','sno'])) {
     const native=await observe(files,observer);
     const transformed=obfuscateFiles(files,{
       mode,closedWorld:true,seed:'exported-callable-private-helper-'+mode,
-      strings:false,properties:false,controlFlow:false,identifiers:true
+      strings:false,properties:false,identifiers:true
     });
     const bindings=transformed.files.reduce((sum,file)=>sum+file.metrics.bindings,0);
     assert.ok(bindings>0,'private nonescaping helper should remain eligible');
