@@ -4071,6 +4071,97 @@ function collectExportedCallableNodes(ast) {
     if(statement.type==='ExportDefaultDeclaration'&&
        statement.declaration.type!=='Identifier')markValue(statement.declaration,0);
   }
+
+  // CommonJS has no static export declarations. Recognize direct public
+  // assignments and common Object.assign/defineProperty publication forms.
+  // This protects callable source exposed by require() just as ESM exports
+  // are protected for importers.
+  /** @param {AstNode} node @returns {boolean} */
+  function isModuleExports(node) {
+    if(node.type!=='MemberExpression')return false;
+    const key=node.computed?staticString(node.property):
+      node.property.type==='Identifier'?node.property.name:null;
+    return node.object.type==='Identifier'&&node.object.name==='module'&&key==='exports';
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function isCjsExportObject(node) {
+    return node.type==='Identifier'&&node.name==='exports'||isModuleExports(node);
+  }
+  /** @param {AstNode} node @returns {boolean} */
+  function isCjsExportTarget(node) {
+    return isModuleExports(node)||
+      node.type==='MemberExpression'&&isCjsExportObject(node.object);
+  }
+  /** @type {Set<string>} */
+  const exportedObjectBindings=new Set();
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='=') {
+      if(isCjsExportTarget(node.left)) {
+        if(isModuleExports(node.left)&&node.right.type==='Identifier') {
+          exportedObjectBindings.add(node.right.name);
+        }
+        markValue(node.right,0);
+      }
+      if(node.left.type==='MemberExpression'&&
+         node.left.object.type==='Identifier'&&
+         exportedObjectBindings.has(node.left.object.name)) {
+        markValue(node.right,0);
+      }
+    }
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&node.callee.object.name==='Object') {
+      const method=node.callee.computed?staticString(node.callee.property):
+        node.callee.property.type==='Identifier'?node.callee.property.name:null;
+      if(method==='assign'&&node.arguments[0]&&
+         (isCjsExportObject(node.arguments[0])||
+          node.arguments[0].type==='Identifier'&&
+            exportedObjectBindings.has(node.arguments[0].name))) {
+        for(const argument of node.arguments.slice(1))markValue(argument,0);
+      }
+      if((method==='defineProperty'||method==='defineProperties')&&
+         node.arguments[0]&&
+         (isCjsExportObject(node.arguments[0])||
+          node.arguments[0].type==='Identifier'&&
+            exportedObjectBindings.has(node.arguments[0].name))) {
+        const descriptor=node.arguments[method==='defineProperty'?2:1];
+        if(descriptor)markValue(descriptor,0);
+      }
+    }
+  });
+  // Follow simple aliases to an exported CommonJS object before considering
+  // later member assignments or descriptor mutations.
+  let aliasChanged;
+  do {
+    aliasChanged=false;
+    walk(ast,node=>{
+      if(node.type==='VariableDeclarator'&&node.id.type==='Identifier'&&
+         node.init?.type==='Identifier'&&exportedObjectBindings.has(node.init.name)&&
+         !exportedObjectBindings.has(node.id.name)) {
+        exportedObjectBindings.add(node.id.name);
+        aliasChanged=true;
+      }
+    });
+  } while(aliasChanged);
+  walk(ast,node=>{
+    if(node.type==='AssignmentExpression'&&node.operator==='='&&
+       node.left.type==='MemberExpression'&&node.left.object.type==='Identifier'&&
+       exportedObjectBindings.has(node.left.object.name))markValue(node.right,0);
+    if(node.type==='CallExpression'&&node.callee.type==='MemberExpression'&&
+       node.callee.object.type==='Identifier'&&node.callee.object.name==='Object') {
+      const method=node.callee.computed?staticString(node.callee.property):
+        node.callee.property.type==='Identifier'?node.callee.property.name:null;
+      if(method==='assign'&&node.arguments[0]?.type==='Identifier'&&
+         exportedObjectBindings.has(node.arguments[0].name)) {
+        for(const argument of node.arguments.slice(1))markValue(argument,0);
+      }
+      if((method==='defineProperty'||method==='defineProperties')&&
+         node.arguments[0]?.type==='Identifier'&&
+         exportedObjectBindings.has(node.arguments[0].name)) {
+        const descriptor=node.arguments[method==='defineProperty'?2:1];
+        if(descriptor)markValue(descriptor,0);
+      }
+    }
+  });
   return exposed;
 }
 
