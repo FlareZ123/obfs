@@ -294,8 +294,8 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   /**
    * XML-namespaced elements may be written as <h:script>, which HTML parsing
    * reads as a different tag. Resolve recognized script/link SRI with an XML
-   * namespace parser. Any xml:base makes the deployment path uncertain, so
-   * such a pinned XHTML document conservatively preserves all JS input bytes.
+   * namespace parser. XML base affects only a descendant pinned element or
+   * an actual HTML base; URL candidates include all declared base tags.
    * @param {string} xml
    * @param {string} filename
    * @returns {boolean}
@@ -304,39 +304,59 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
     const parser=new SaxesParser({xmlns:true});
     /** @type {string[]} */
     const pinnedUrls=[];
-    /** @type {string|null} */
-    let baseHref=null;
-    let hasXmlBase=false;
+    /** @type {string[]} */
+    const declaredBases=[];
+    /** @type {boolean[]} */
+    const xmlBaseStack=[];
+    let activeXmlBase=0;
+    let ambiguousBase=false;
+    let xmlBaseAffectsPin=false;
     parser.on('opentag',tag=>{
       const attributes=Object.values(tag.attributes);
-      if(attributes.some(attr=>attr.uri==='http://www.w3.org/XML/1998/namespace'&&
-          attr.local==='base'))hasXmlBase=true;
+      const localXmlBase=attributes.some(attr=>
+        attr.uri==='http://www.w3.org/XML/1998/namespace'&&attr.local==='base');
+      xmlBaseStack.push(localXmlBase);
+      if(localXmlBase)activeXmlBase++;
       if(tag.uri!==xhtmlNamespace)return;
       const name=tag.local.toLowerCase();
       /** @param {string} key @returns {string|undefined} */
       const attr=key=>attributes.find(item=>item.uri===''&&item.local.toLowerCase()===key)?.value;
-      if(name==='base'&&baseHref===null&&attr('href')!==undefined)
-        baseHref=/** @type {string} */(attr('href'));
+      if(name==='base'&&attr('href')!==undefined) {
+        declaredBases.push(/** @type {string} */(attr('href')));
+        if(activeXmlBase)ambiguousBase=true;
+      }
       const integrity=attr('integrity');
       if(!integrity?.trim())return;
       const rel=(attr('rel')??'').toLowerCase().split(/\s+/u);
       const linked=name==='link'&&(rel.includes('modulepreload')||
         rel.includes('preload')&&(attr('as')??'').toLowerCase()==='script');
       const address=name==='script'?attr('src'):linked?attr('href'):null;
-      if(address)pinnedUrls.push(address);
+      if(address) {
+        pinnedUrls.push(address);
+        if(activeXmlBase)xmlBaseAffectsPin=true;
+      }
+    });
+    parser.on('closetag',()=>{
+      if(xmlBaseStack.pop())activeXmlBase--;
     });
     parser.on('error',error=>{throw new TypeError('Malformed XHTML XML: '+error.message);});
     parser.write(xml).close();
     if(!pinnedUrls.length)return false;
-    if(hasXmlBase)return true;
+    // XML base changes URI resolution only for its own element/subtree.
+    // A base tag with that feature needs a separate XML URI proof.
+    if(xmlBaseAffectsPin||ambiguousBase)return true;
     const documentBase=new URL('/'+filename,'https://obfs.invalid/');
-    /** @type {URL} */
-    let base=documentBase;
-    if(baseHref!==null){
-      try{base=new URL(baseHref,documentBase);}catch(error){base=documentBase;}
+    /** @type {URL[]} */
+    const bases=[documentBase];
+    // All candidate <base href> elements, including those inside an inert
+    // template, are considered. A later live base must never be hidden by an
+    // earlier inert one that the XML parser cannot classify without a DOM.
+    for(const href of declaredBases) {
+      try {bases.push(new URL(href,documentBase));}
+      catch(error){/* An invalid base cannot add a resolvable local URL. */}
     }
     for(const address of pinnedUrls) {
-      for(const candidateBase of [documentBase,base]) {
+      for(const candidateBase of bases) {
         const target=targetPath(address,candidateBase);
         if(target!==null&&(javascriptPaths.has(target)||
             mountedPrefix&&target.startsWith(mountedPrefix)&&
