@@ -14,22 +14,35 @@ const {obfuscateFiles}=require('../src');
  * @returns {string}
  */
 function source(primitive) {
-  if(primitive)return [
-    'const state={secretField:31};const value=state.secretField;',
-    'const element=document.createElement("div");',
-    'element.setAttribute("data-observed","literal");',
-    'element.setAttributeNS(null,"data-observed-ns","literal");',
-    'export const observed={text:element.getAttribute("data-observed"),',
-    'nsText:element.getAttribute("data-observed-ns"),value};'
-  ].join('\n');
+  const value=primitive?'"literal"':'inspect';
+  const owner=primitive?
+    'const state={secretField:31};const value=state.secretField;':
+    'function inspect(){const state={secretField:31};return state.secretField;}';
   return [
-    'function inspect(){const state={secretField:31};return state.secretField;}',
+    owner,
     'const element=document.createElement("div");',
-    'element.setAttribute("data-observed",inspect);',
-    'element.setAttributeNS(null,"data-observed-ns",inspect);',
-    'export const observed={text:element.getAttribute("data-observed"),',
-    'nsText:element.getAttribute("data-observed-ns"),value:inspect()};'
-  ].join('\n');
+    'const setter=element.setAttribute.bind(element);',
+    'const detached=element.setAttribute;',
+    'const nsSetter=element.setAttributeNS.bind(element);',
+    'element.setAttribute("data-observed",'+value+');',
+    'element.setAttributeNS(null,"data-observed-ns",'+value+');',
+    'setter("data-bound",'+value+');',
+    'element.setAttribute.call(element,"data-call",'+value+');',
+    'element.setAttribute.apply(element,["data-applied",'+value+']);',
+    'Reflect.apply(element.setAttribute,element,["data-reflect",'+value+']);',
+    'Reflect.apply(detached,element,["data-detached",'+value+']);',
+    'nsSetter(null,"data-nsbound",'+value+');',
+    'export const observed={',
+    'text:element.getAttribute("data-observed"),',
+    'nsText:element.getAttribute("data-observed-ns"),',
+    'boundText:element.getAttribute("data-bound"),',
+    'callText:element.getAttribute("data-call"),',
+    'applyText:element.getAttribute("data-applied"),',
+    'reflectText:element.getAttribute("data-reflect"),',
+    'detachedText:element.getAttribute("data-detached"),',
+    'nsBoundText:element.getAttribute("data-nsbound"),',
+    'value:'+(primitive?'value':'inspect()')+'};'
+  ].join('\\n');
 }
 
 /**
@@ -54,6 +67,8 @@ async function main() {
     negative:negative.metrics,positive:positive.metrics,
     negativeContainsSecret:negative.code.includes('secretField')
   })+'\n');
+  assert.equal(negative.metrics.properties,0,
+    'Source-bearing native attributes must protect the private function body');
   assert.equal(positive.metrics.properties,1,
     'Primitive DOMString positive must still rename a safe private property');
   assert.ok(!positive.code.includes('secretField'),
@@ -69,9 +84,10 @@ async function main() {
     'const a=an.observed,b=bn.observed,c=ap.observed,d=bp.observed;',
     'if(JSON.stringify(a)!==JSON.stringify(b)||JSON.stringify(c)!==JSON.stringify(d))',
     'throw Error("setAttribute DOMString parity mismatch "+JSON.stringify({a,b,c,d}));',
-    'if(!a.text.includes("secretField")||',
-    '!a.nsText.includes("secretField")||a.value!==31||',
-    'c.text!=="literal"||c.nsText!=="literal"||c.value!==31)',
+    'const keys=["text","nsText","boundText","callText","applyText",',
+    '"reflectText","detachedText","nsBoundText"];',
+    'if(keys.some(key=>!a[key].includes("secretField")||c[key]!=="literal")||',
+    'a.value!==31||c.value!==31)',
     'throw Error("Browser witness invalid: "+JSON.stringify({a,c}));',
     'document.getElementById("result").textContent="PASS setAttribute DOMString";',
     '}catch(error){document.getElementById("result").textContent=',
