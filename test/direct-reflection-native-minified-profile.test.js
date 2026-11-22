@@ -9,12 +9,14 @@ test('reflected private-owner ESM retains wrapper source and reports matched CPU
   assert.equal(result.mode,'COO');
   assert.equal(result.sourceFields,2);
   assert.equal(result.rewrittenFields,2);
+  assert.equal(result.normalizedFields,2);
   assert.equal(result.trials,7);
   assert.equal(result.rows.length,7);
   for(const row of result.rows) {
     assert.ok(row.native.cpuUs>0);
     assert.equal(row.native.value,row.protected.value);
     assert.equal(row.native.value,row.minified.value);
+    assert.equal(row.native.value,row.normalizedMinified.value);
   }
   console.log(JSON.stringify(result));
 });
