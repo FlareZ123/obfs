@@ -1,6 +1,9 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "sims/public-instance-source-probe.js",
+    "test/public-instance-prototype-source.test.js",
+    "test/public-instance-prototype-browser.js",
     "test/crossfile-mixed-property-matrix.test.js",
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
