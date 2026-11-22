@@ -72,7 +72,8 @@ test('primitive indirect-bound constructors allow provable private-key rewrites'
   const original='const owner={hiddenCount:41,secretDelta:2};'+
     'const Make=RegExp.bind.call(RegExp,null,"abc");new Make("i");'+
     'new (Blob.bind.apply(Blob,[null,[]]))({type:"text/plain"});'+
-    'module.exports=()=>owner.hiddenCount+owner.secretDelta;';
+    'function privateCompute(){return owner.hiddenCount+owner.secretDelta;}'+
+    'module.exports=()=>privateCompute();';
   assert.equal(observesFunctionSource(parse(original,'commonjs')),false);
   for(const mode of /** @type {('coo'|'sno')[]} */(['coo','sno'])) {
     const compiled=obfuscateFiles([{
