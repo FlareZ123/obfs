@@ -98,6 +98,33 @@ under the first contract or an overly broad proof under the second. The
 observed count alone does not distinguish those possibilities. The
 intermediate report explicitly does not claim its source proof is wrong.
 
+## Bounded paired runtime result for the source-stable wrapper
+
+The existing paired CPU harness
+[`sims/property-hotpath-closedworld.js`](../sims/property-hotpath-closedworld.js)
+now accepts a fourth optional `wrapped` style without altering the prior
+three-style default profile. Its real-Node fixture keeps the public wrapper
+source equal and requires **two actual rewritten fields** before timing.
+The reproducible [focused profile test](../test/property-private-wrapper-profile.test.js)
+uses 7,000,000 hot iterations, nine timed trials, six native/emitted
+arithmetic probes, and balanced fresh ESM cold imports.
+
+At exact source `d94e9aa694daba37a74b9d580f76e9711e34b3b3`,
+[CI 44998385104](https://github.com/FlareZ123/obfs/actions/runs/44998385104)
+passed on both Node 22 platforms and recorded:
+
+| Platform | Native hot median | Emitted hot median | Hot compute ratio | Whole sampled ratio |
+| --- | ---: | ---: | ---: | ---: |
+| Ubuntu | 3.109 ms | 3.137 ms | **1.0092×** | 1.0160× |
+| Windows | 3.837 ms | 3.831 ms | **0.9984×** | 0.9835× |
+
+The sampled whole ratio includes the benchmark's cold module-import median
+and one hot computation. The hot ratio excludes build time and supports only
+this particular native numeric workload. Neither the best nor the median
+alone guarantees a universal worst-case 2.5× cap. The cross-pass branch
+whose exported parameter names change remains semantically invalid under
+an exact public-source contract despite its private hot arithmetic work.
+
 ## Recommended integration gate
 
 First choose and document the allowable host-import interface. Then run
