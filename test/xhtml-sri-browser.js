@@ -55,15 +55,30 @@ async function main() {
   assert.notEqual(unsafe.files[0].code,original[0].code);
 
   const markup=Buffer.from(original[1].code).toString('utf8');
+  const prefixedMarkup=markup.replace('<script src=',
+    '<h:script xmlns:h="http://www.w3.org/1999/xhtml" src=').replace('</script>','</h:script>');
+  const prefixedSafe=obfuscateFiles([
+    original[0],{path:'index.xhtml',sourceType:/** @type {const} */('asset'),
+      code:Buffer.from(prefixedMarkup)}
+  ],{mode:'coo',seed:'xhtml-browser-prefixed-complete-graph',
+    strings:true,identifiers:false,properties:false});
+  assert.equal(prefixedSafe.files[0].code,original[0].code);
   const inline='<?xml version="1.0" encoding="UTF-8"?>'+
     '<html xmlns="http://www.w3.org/1999/xhtml"><head>'+
     '<script><![CDATA[document.documentElement.setAttribute("data-inline","executed");]]></script>'+
     '</head><body><p>XHTML inline script</p></body></html>';
+  const inlinePrefixed=inline.replace('<script>',
+    '<h:script xmlns:h="http://www.w3.org/1999/xhtml">').replace('</script>','</h:script>');
   /** @type {Map<string,Map<string,string>>} */
   const variants=new Map([
     ['native',new Map([['client.js',/** @type {string} */(original[0].code)],['index.xhtml',markup]])],
     ['safe',new Map([['client.js',/** @type {string} */(safe.files[0].code)],['index.xhtml',markup]])],
     ['unsafe',new Map([['client.js',/** @type {string} */(unsafe.files[0].code)],['index.xhtml',markup]])],
+    ['prefixed',new Map([['client.js',/** @type {string} */(prefixedSafe.files[0].code)],
+      ['index.xhtml',prefixedMarkup]])],
+    ['prefixed-unsafe',new Map([['client.js',/** @type {string} */(unsafe.files[0].code)],
+      ['index.xhtml',prefixedMarkup]])],
+    ['inline-prefixed',new Map([['index.xhtml',inlinePrefixed]])],
     ['inline',new Map([['index.xhtml',inline]])]
   ]);
   const server=http.createServer((request,response)=>{
@@ -86,14 +101,15 @@ async function main() {
     const browser=process.env.CHROMIUM_BIN??'google-chrome';
     /** @type {Record<string,boolean>} */
     const outcomes={};
-    for(const variant of ['native','safe','unsafe','inline']) {
+    for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed']) {
       const page=await readBrowser(browser,origin+'/'+variant+'/index.xhtml');
       assert.match(page,/XHTML (?:SRI browser|inline script)/u);
-      outcomes[variant]=variant==='inline'?
+      outcomes[variant]=variant.startsWith('inline')?
         /data-inline="executed"/u.test(page):/data-xhtml-sri="loaded"/u.test(page);
     }
     assert.deepEqual(outcomes,{
-      native:true,safe:true,unsafe:false,inline:true
+      native:true,safe:true,unsafe:false,prefixed:true,
+      'prefixed-unsafe':false,inline:true,'inline-prefixed':true
     },'XHTML executes inline script and rejects integrity-invalid external scripts');
     process.stdout.write('XHTML_SRI_BROWSER '+JSON.stringify(outcomes)+'\n');
   } finally {
