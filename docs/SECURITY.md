@@ -354,6 +354,14 @@ documented in the [bounded report](../im-results/sno-ambient-output-package-scop
 The programmatic `createSnoLauncher(files,entry)` API receives no
 deployment path and does not perform these checks.
 
+Node 22 can syntax-detect an ambiguous typeless `.js` file as ESM
+when it contains static `export` or other module-only syntax. The SNO
+CLI requires explicit `{"type":"module"}` metadata or the `.mjs`
+extension for its ESM dependency path; a two-platform control shows that
+native Node runs a typeless ESM `.js` while the compiler conservatively
+rejects its grammar before publication. This is a feature-support
+boundary, with no silently changed generated output.
+
 The check is bound to the current filesystem state and default Node
 module resolution. Node's `--preserve-symlinks` flag can use the lexical
 symlink path for dependency loading instead of the realpath used by the
