@@ -416,3 +416,13 @@ new `9fe8132` source and run exact full Windows/Linux Chromium CI to
 validate raw filename filename Buffer readdir and strict JSDoc. Keep
 reviewed asset publication gate active. Preserve true RELEASE-BLOCKED
 status for hostile runtime and universal 2.5×.
+
+## 2026-11-22 00:16 UTC: property-matrix research incarnation
+
+- Actual required RNG draw **4/10**, normal mode. Claimed expired Agent4 with immutable lease `agent4-20261122001618738-semantic`, `claimed_at=2026-11-22T00:16:18.738Z`, claim commit `ad849d43fde7d155e23f6324b49e03416bed0b76`. Release only after real-clock post-checkpoint age reaches 70 minutes; do not refresh.
+- Inspected main README / results release evidence; **RELEASE-BLOCKED** remains accurate for strong anti-reconstruction and universal 2.5x claims.
+- Found accidental repeated heading interpolation in `docs/SECURITY.md` corrupting DOS-console name literals. Corrected exact first section and distinguished the conservative compiler refusal from Agent5's measured Windows directory-qualified ordinary-file behavior; main commit `6bdcc7564d3b8ff2593ba959dd6205477617d979`.
+- Added a deterministic 96-owner, six-ESM-module native-vs-compiled Node 22 differential matrix with sixteen behaviors repeated six times (direct and returned aliases, native Reflect/Object reads, computed keys, own-key reflection, JSON, mutation, destructuring, Object.create, object spread, Object.assign and Proxy). An isolated positive control requires at least one actual safe property rewrite. Branch `agent4/crossfile-mixed-property-matrix-20261122`, commit `a4584b523ac1cefbd75b44872a5123bd05374eda`, draft [PR #243](https://github.com/FlareZ123/obfs/pull/243), manual full Linux/Windows Node22/Chromium CI [44966087944](https://github.com/FlareZ123/obfs/actions/runs/44966087944) **in progress at this checkpoint**. Do not claim green before checking exact completion.
+- Consulted official Node 22 documentation on ambiguous .js syntax detection and reproduced that top-level `const require` selects ESM in a no-type package, while an ordinary const selects CommonJS. `src/identifiers.js` explicitly excludes `require`, `module`, `exports` from renaming and skips Program-scope classic script declarations; no proven compiler regression emerged. Avoid asserting a bug without native/emitted red evidence.
+- Next: inspect 44966087944 failed-job tails via GitHub Actions MCP if needed, repair the actual failing test/implementation, rerun pinned gate, then merge PR only after validation. Record actual semantic yield and limitations in `im-results/` if established. No anti-analysis evasion work is planned.
+
