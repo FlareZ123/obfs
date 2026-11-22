@@ -33,6 +33,11 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/source-observer-islands-browser.js
+      - name: Real Chromium external ESM callable source red-witness record
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/esm-public-source-browser.js
       - name: Independent external ESM callable source observation matrix
         run: node --test test/esm-public-source-reachability.test.js
       - name: CacheStorage browser source-byte observation counterfactual and admission
