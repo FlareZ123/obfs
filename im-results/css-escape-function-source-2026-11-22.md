@@ -39,9 +39,21 @@ did not explicitly recognize `CSS.escape`.
   primitive-only positive must still rename one private object. Triggered by
   `.github/workflows/manual-browser.yml` at
   `1a5cb304c9a6784086d90b9412e8acc4439d16e3`.
-  The complete native Chromium browser workflow passed at exact\n  `1a5cb304c9a6784086d90b9412e8acc4439d16e3`,\n  [run 45081997792](https://github.com/FlareZ123/obfs/actions/runs/45081997792).\n  That pin predates the alias extension, which must be checked separately.
+  The complete native Chromium browser workflow passed at exact
+  `1a5cb304c9a6784086d90b9412e8acc4439d16e3`,
+  [run 45081997792](https://github.com/FlareZ123/obfs/actions/runs/45081997792).
+  That pin predates the alias extension, which must be checked separately.
 
-An expanded test at exact `b8efe8e965f49b1c994f1a27ab9dc5511d4c649f`\nreproduced four additional false-negative cases on both Node 22 runners:\nsequence wrapper, transitive immutable alias, direct bound call and object\ndestructuring alias. The [red focused run 45082280292](https://github.com/FlareZ123/obfs/actions/runs/45082280292)\npassed 8/12 cases and failed the other four. A new fixed-point, conservative\nmay-flow proof tracks named and destructured CSS.escape aliases and direct\n`.bind()` wrappers, with no generated hot-loop operations. New validation\nis pending at `7761e83ba8da05a3aa93aef3575f9dbdd34be054`.\n\nThe change adds a predicate for directly addressed `CSS.escape` and
+An expanded test at exact `b8efe8e965f49b1c994f1a27ab9dc5511d4c649f`
+reproduced four additional false-negative cases on both Node 22 runners:
+sequence wrapper, transitive immutable alias, direct bound call and object
+destructuring alias. The [red focused run 45082280292](https://github.com/FlareZ123/obfs/actions/runs/45082280292)
+passed 8/12 cases and failed the other four. A new fixed-point, conservative
+may-flow proof tracks named and destructured CSS.escape aliases and direct
+`.bind()` wrappers, with no generated hot-loop operations. New validation
+is pending at `7761e83ba8da05a3aa93aef3575f9dbdd34be054`.
+
+The change adds a predicate for directly addressed `CSS.escape` and
 `globalThis.CSS.escape`, `window.CSS.escape`, `self.CSS.escape`. It also
 conservatively flags `.call`, `.apply`, `.bind`, and `Reflect.apply`
 on recognized methods where source-bearing arguments may be passed.
