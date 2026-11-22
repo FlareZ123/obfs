@@ -210,19 +210,34 @@ async function main(){
   // Private tuple and record carriers hold the same object without exposing
   // their shapes. Verify the new fixed-slot ownership proof in actual
   // Chromium and preserve a host-provided global API member unchanged.
+  // The direct exported calculate() source remains externally observable.
+  // Its own-key spellings cannot be changed in a source-preserving build.
+  // An equivalent *separate input program* delegates to a private helper,
+  // allowing local own-key renaming without mutating exported source.
+  const containerSource='const vault={hiddenCount:17,secretDelta:3};'+
+    'const tuple=[false,vault];const fromTuple=tuple[1];'+
+    'const record={tag:"private",privateOwner:vault};'+
+    'const fromRecord=record.privateOwner;'+
+    'export function calculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}';
+  const directContainerSet=obfuscateFiles([
+    {path:'container-direct.mjs',sourceType:'module',code:containerSource}
+  ],{mode:'coo',closedWorld:true,seed:'chrome-container-source-exposed',
+    identifiers:false,strings:false,preservePublicCallableSource:true});
+  assert.equal(directContainerSet.files[0].metrics.properties,0,
+    'Direct public callable source must prevent its private-field spelling from changing');
+  const privateContainerSource=containerSource.replace(
+    'export function calculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}',
+    'function calculatePrivate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'+
+    'export function calculate(n){return calculatePrivate(n);}');
   const containerSet=obfuscateFiles([
-    {path:'container-state.mjs',sourceType:'module',
-      code:'const vault={hiddenCount:17,secretDelta:3};'+
-        'const tuple=[false,vault];const fromTuple=tuple[1];'+
-        'const record={tag:"private",privateOwner:vault};'+
-        'const fromRecord=record.privateOwner;'+
-        'export function calculate(n){return fromTuple.hiddenCount*n+fromRecord.secretDelta;}'},
+    {path:'container-state.mjs',sourceType:'module',code:privateContainerSource},
     {path:'container-entry.mjs',sourceType:'module',
       code:'import {calculate} from "./container-state.mjs";'+
         'window.hostApi.accept(calculate(2));'}
   ],{mode:'coo',closedWorld:true,seed:'chrome-private-containers',
-    identifiers:false,strings:false});
-  assert.equal(containerSet.files.reduce((total,file)=>total+file.metrics.properties,0),2);
+    identifiers:false,strings:false,preservePublicCallableSource:true});
+  assert.equal(containerSet.files.reduce((total,file)=>total+file.metrics.properties,0),2,
+    'Hidden local helper must retain the genuine two-field protection');
   assert.ok(String(containerSet.files.find(file=>file.path==='container-entry.mjs')?.code)
     .includes('window.hostApi.accept('));
 
