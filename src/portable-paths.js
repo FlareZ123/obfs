@@ -76,4 +76,4 @@ function registerFilePath(inventory,filename,duplicateLabel='Duplicate file ') {
   for(const key of keys)inventory.files.add(key);
 }
 
-module.exports={createPathInventory,registerFilePath};
+module.exports={createPathInventory,registerFilePath,portableKeys};
