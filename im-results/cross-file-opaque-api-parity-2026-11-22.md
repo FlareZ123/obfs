@@ -64,3 +64,32 @@ in this focused suite; those remain independent release gates.
 The top-level release decision stays **RELEASE-BLOCKED**.
 See [closed-world proof contract](../docs/CLOSED_WORLD_PROPERTY_PROOF.md)
 and [release decision index](../results/README.md).
+
+
+## Follow-on real Chromium CSP observation matrix
+
+At distinct exact source 888bc9b6ffc651e40e22e3932678c474aec81296,
+the existing test/imported-constant-key-browser.js fixture matrix was
+extended with nine independently observable owner cases: Proxy get-key
+logging, JSON serialization, Map-returned owner reflection, WeakRef,
+Promise callback, Array.of identity forwarding, ambient window.hostApi
+method callback, Object.assign copied keys, and a separate ESM module's
+read-only own-keys callback. Every new case requires zero unsafe
+cross-file property rewrites and exact equality of native and obfuscated
+values in a real browser, under
+Content-Security-Policy: default-src 'none'; script-src 'self';
+connect-src 'self'.
+
+The unchanged earlier browser controls include six genuine positive
+transformations and eight separate conservative refusals. The full
+[Chromium run 45027258476](https://github.com/FlareZ123/obfs/actions/runs/45027258476)
+passed *all steps* at the exact source SHA above. The imported-key
+step's actual structured output was 23 cases, 6 positive,
+17 refused, and 23 native-vs-generated comparisons, with success.
+The overall browser workflow also executed its other existing SCO,
+SRI, resource timing, decoder, runtime-interception and JSDoc checks.
+This verifies that one source version only.
+
+Browser CSP checks add a real-engine and ambient API boundary to the
+Node-only corpus, but do not imply an instrumented hostile browser is
+restricted or that attacker-cost resistance improved.
