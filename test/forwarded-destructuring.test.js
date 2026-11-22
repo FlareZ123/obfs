@@ -77,8 +77,13 @@ test('destructuring rest key exposure must decline',()=>{
     'module.exports=[secretField,Object.keys(rest)];',0);
 });
 
-test('dynamic destructuring key must decline',()=>{
+test('immutable computed key in forwarded destructuring is rewritten',()=>{
   preserve(own+'const identity=value=>value;const key="secretField";'+
+    'const {[key]:read}=identity(root);module.exports=read;',1);
+});
+
+test('mutable computed key in forwarded destructuring is refused',()=>{
+  preserve(own+'const identity=value=>value;let key="secretField";'+
     'const {[key]:read}=identity(root);module.exports=read;',0);
 });
 
