@@ -1,6 +1,7 @@
 {
   "extends": "./jsconfig.json",
   "include": [
+    "test/crossfile-mixed-property-matrix.test.js",
     "sims/source-island-public-normalizer.js",
     "sims/source-island-session-profile.js",
     "sims/source-island-cache-browser-witness.js",
