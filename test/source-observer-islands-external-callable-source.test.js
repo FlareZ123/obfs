@@ -22,7 +22,7 @@ const another={path:'another.mjs',sourceType:'module',
 /** @type {SourceFile} */
 const entry={path:'entry.mjs',sourceType:'module',code:
   'import {watched} from "./watched.mjs";import {unrelated} from "./independent.mjs";'+
-  'import {third} from "./another.mjs";console.log(JSON.stringify({source:watched.toString(),a:unrelated(),b:third()}));'};
+  'import {third} from "./another.mjs";console.log(JSON.stringify({source:Function.prototype.toString.call(watched),a:unrelated(),b:third()}));'};
 const outside='import {unrelated} from "./independent.mjs";'+
   'console.log(JSON.stringify([Function.prototype.toString.call(unrelated),unrelated()]));';
 
