@@ -150,7 +150,7 @@ test('real COO protected private string and Symbol keys preserve behavior and re
       for(const fn of extra)assert.equal(fn(x),expected);
     }
 
-    const warm=1000000;
+    const warm=15000000;
     const hot=25000000;
     const pairs=7;
     const variants=[
@@ -161,6 +161,11 @@ test('real COO protected private string and Symbol keys preserve behavior and re
       {name:'ordinary-esbuild-minified',code:minified,fields:0},
       {name:'same-code-control',code:original,fields:0}
     ];
+    // The first native/alternate call previously changed the shared work()
+    // inline cache from monomorphic to polymorphic, confounding first-pair
+    // ratios. Prime every distinct callable shape before the paired clock.
+    // These precondition calls are explicitly outside each timed interval.
+    for(const variant of variants)work(load(variant.code),2000000);
     /** @type {Array<{variant:string,fields:number,emitted:{sha256:string,bytes:number},pairs:Pair[],medianWallRatio:number,medianCpuRatio:number|null,strictWallBreaches:number,strictCpuBreaches:number,zeroCpuPairs:number}>} */
     const results=[];
     for(const variant of variants) {
