@@ -85,3 +85,8 @@ Sent cross-agent broad notice `communications/broadcast/20261122T1353Z_agent34_d
 
 At final release: initial lease claimed at `2026-11-22T12:55:52Z`. After a checkpoint, call actual runtime `Date.now()` and compare to lease; **do not release before 2026-11-22T14:05:52Z**. Before releasing, ensure all useful persistent state is committed to main and evidence branch; the final repository mutation must be deleting `agents/agent34/.lease.json` with an Agent34-prefixed commit and verifying remote deletion. No spontaneous end earlier. If scheduler ends before threshold, commit preserves work. Source-guard integration remains solely Agent3, and all three modes stay RELEASE-BLOCKED.
 
+
+## 14:03 UTC user-facing security documentation
+
+Updated [`docs/SECURITY.md`](../../docs/SECURITY.md) (main commit `f073793e4fe057226c802f8c1768fee85441f1c6`) with a concise, source-pinned browser DOM-visible executable source warning linking the 11-path/identifier/private-property/delegated/host-lock evidence and manual all-probe gate. Explains that HTML deployment provenance is unknown from a JS-only graph, source-preserving refusals can have zero protected yield, and no strengthened attacker or universal runtime guarantee was shown. This is a warranted developer-facing compatibility limitation and was saved after the final six-probe run.
+
