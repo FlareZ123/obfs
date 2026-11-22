@@ -77,3 +77,27 @@ test('native isolated strict function execution distinguishes owned and unowned 
     await assert.rejects(result,/v is not defined/u,name);
   }
 });
+
+test('function-body var does not prove a free default-parameter initializer',async()=>{
+  const reads=[
+    'function local(x=v){var v=1;return x;}return local();',
+    'const local=(x=v)=>{var v=1;return x;};return local();',
+    'const local=({p=v}={})=>{var v=1;return p;};return local();',
+    'function local(x=()=>v){var v=1;return x();}return local();'
+  ];
+  for(const body of reads){
+    assert.equal(firstUnprovedFreeReference(sourceBody(body),new Set(),
+      new Set(),shared,true),'v',body);
+    assert.throws(()=>compile(body),/unproved free global: v/u,body);
+    const absent=vm.runInNewContext('"use strict";(async function(){'+body+'})()',{});
+    await assert.rejects(absent,/v is not defined/u,body);
+    const present=vm.runInNewContext('"use strict";(async function(){'+body+'})()',
+      {v:73});
+    assert.equal(await present,73,body);
+  }
+  const bound='const v=41;function local(x=v){var v=1;return x;}return local();';
+  assert.equal(firstUnprovedFreeReference(sourceBody(bound),new Set(),
+    new Set(),shared,true),null);
+  assert.equal(await vm.runInNewContext('"use strict";(async function(){'+
+    bound+'})()',{}),41);
+});
