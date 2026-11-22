@@ -598,3 +598,9 @@ Supporting reproducibility: [HTML/SRI study](../im-results/html-sri-public-scrip
 [namespace-aware XHTML and direct XML source regression](https://github.com/FlareZ123/obfs/pull/248),
 [portable URL alias browser regression](https://github.com/FlareZ123/obfs/pull/247),
 and [Win32-style trailing-dot and space alias regression](https://github.com/FlareZ123/obfs/pull/249).
+
+## SNO ambient package and external dependency resolution
+
+Node resolves the format of `.js` files using the nearest package metadata; package `imports` and named self-reference `exports` also depend on location. The SNO CLI's conservative build-time package-context preflight checks declared inputs and actual output parents and refuses unsupported inherited metadata before publishing bytes. It retains explicit packaged metadata, and the output check participates in the cooperating publication lock. The [source-pinned SNO package-scope evidence](../im-results/sno-ambient-output-package-scope-2026-11-22.md) includes accepted controls and refusal tests on Node 22 Linux and Windows.
+
+The current preflight does not inspect or pin ordinary bare-name dependencies in `node_modules`. The [real Node 22 two-platform regression](../test/sno-external-bare-module-resolution.test.js) demonstrates a native result of 116 versus a generated result of 120 when a relocated program resolves different external package bytes; a shared-ancestor positive control returns 116 in both cases. Reusing the same package name does not imply equivalent dependencies. Deployment must separately review and freeze the dependency tree and Node resolution options. These checks remain compatibility and packaging diagnostics; the SNO threat model gives the attacker full filesystem and runtime control. Local hashes cannot enforce hostile-owner integrity or source secrecy.

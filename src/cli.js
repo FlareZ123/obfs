@@ -371,6 +371,106 @@ async function readReviewedAssets(sourceRoot,filename) {
   return /** @type {import('./reviewed-assets').ReviewedOpaqueAsset[]} */ (parsed);
 }
 
+/**
+ * Refuse a SNO executable whose external package context is not included
+ * in its declared source tree. For .js, compare the actual Node module kind
+ * with its declared source type. For .js/.cjs/.mjs, refuse an untracked
+ * package imports mapping or named package self-reference exports that
+ * could change relative to the emitted tree. Node may read ancestor and
+ * stale nested package metadata.
+ * This checks the current filesystem; relocation requires a new check.
+ * @param {SourceFile[]} files
+ * @param {string} root
+ * @param {'input'|'output'} context
+ * @returns {Promise<void>}
+ */
+async function assertSnoPackageScope(files,root,context) {
+  const emitted=new Set(files.map(file=>file.path));
+  // Every .js may encounter a stale package.json in a reused output tree,
+  // including beneath an emitted package.json that would otherwise govern it.
+  const scripts=files.filter(file=>/\.(?:[cm]?js)$/.test(file.path));
+  if(scripts.length===0)return;
+
+  // Node resolves filesystem aliases before loading files. Resolve the
+  // nearest existing ancestor so a symlinked output does not hide its scope.
+  let canonical=path.resolve(root);
+  let ancestor=canonical;
+  for(;;) {
+    try {
+      canonical=path.resolve(await fs.realpath(ancestor),path.relative(ancestor,canonical));
+      break;
+    } catch(error) {
+      if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+      const parent=path.dirname(ancestor);
+      if(parent===ancestor)throw error;
+      ancestor=parent;
+    }
+  }
+
+  /** @type {Map<string,{type:'module'|'other',hasImports:boolean,hasSelfExports:boolean}|'missing'>} */
+  const scopes=new Map();
+  for(const file of scripts) {
+    const expectedModule=file.sourceType==='module';
+    const jsFile=file.path.endsWith('.js');
+    let relative=path.posix.dirname(file.path);
+    let directory=path.dirname(path.join(canonical,file.path));
+    for(;;) {
+      // A file that the build will publish controls this scope after the
+      // write. Only untracked packages between it and the .js can override.
+      if(emitted.has(path.posix.join(relative,'package.json')))break;
+      if(path.basename(directory)==='node_modules')break;
+      let type=scopes.get(directory);
+      if(type===undefined) {
+        /** @type {string|undefined} */
+        let content;
+        try { content=await fs.readFile(path.join(directory,'package.json'),'utf8'); }
+        catch(error) {
+          if(/** @type {NodeJS.ErrnoException} */(error).code!=='ENOENT')throw error;
+        }
+        if(content!==undefined) {
+          const json=content.charCodeAt(0)===0xfeff?content.slice(1):content;
+          const metadata=JSON.parse(json);
+          const ownsType=metadata && typeof metadata==='object' &&
+            !Array.isArray(metadata) && Object.hasOwn(metadata,'type');
+          if(!metadata || typeof metadata!=='object' || Array.isArray(metadata) ||
+              ownsType && typeof metadata.type!=='string') {
+            throw new TypeError('Invalid SNO '+context+' external package metadata: '+
+              path.join(directory,'package.json'));
+          }
+          type={
+            type:ownsType && metadata.type==='module'?'module':'other',
+            hasImports:Object.hasOwn(metadata,'imports'),
+            hasSelfExports:Object.hasOwn(metadata,'exports') &&
+              Object.hasOwn(metadata,'name') &&
+              typeof metadata.name==='string' && metadata.name.length>0
+          };
+        } else type='missing';
+        scopes.set(directory,type);
+      }
+      if(type!=='missing') {
+        if(jsFile && (type.type==='module')!==expectedModule) {
+          throw new Error('SNO '+context+' .js inherits external '+
+            (type.type==='module'?'ESM':'CommonJS')+' package scope: '+
+            path.join(directory,'package.json'));
+        }
+        if(type.hasImports) {
+          throw new Error('SNO '+context+' executable inherits external package imports: '+
+            path.join(directory,'package.json'));
+        }
+        if(type.hasSelfExports) {
+          throw new Error('SNO '+context+' executable inherits external package self-reference: '+
+            path.join(directory,'package.json'));
+        }
+        break;
+      }
+      const parent=path.dirname(directory);
+      if(parent===directory)break;
+      directory=parent;
+      relative=relative==='.'?'.':path.posix.dirname(relative);
+    }
+  }
+}
+
 /** @param {'coo'|'sco'|'sno'} mode @param {string[]} argv @returns {Promise<void>} */
 async function main(mode,argv) {
   const {root,out,entry,port,hosts,seed,closedWorld,jsModule,publicAssets,publicScripts,reviewedAssetsPath,experimentalRegisterVm,experimentalExpressionVm,experimentalNativeGraph,experimentalStatementFlow,experimentalStatementFlowCompact,experimentalPolyvariantAffine,experimentalPolyvariantCount,experimentalWasmI32,experimentalSymbolKeys} = readArgs(argv);
@@ -386,6 +486,7 @@ async function main(mode,argv) {
     file.path.endsWith('.js') && (jsModule || mode === 'sno' && entryUsesEsmPackage(sourceTree,file.path)) ?
       {...file,sourceType:/** @type {'module'} */ ('module')} : file);
   if (!source.some(file=>file.path===entry)) throw new Error(`Entry ${entry} not found under ${root}`);
+  if (mode==='sno') await assertSnoPackageScope(source,absRoot,'input');
   if (mode === 'sco') {
     // Server-only .js/.mjs/.cjs files under --root are private by default.
     const clientFiles=selectScoPublicFiles(source,entry,publicScripts,publicAssets);
@@ -430,6 +531,7 @@ async function main(mode,argv) {
     if(launcher!==undefined){
       await assertNoOutputJunctions(absOut,'sno-entry.cjs');
       await assertOutputOutsideInput(absRoot,path.join(absOut,'sno-entry.cjs'));
+      await assertSnoPackageScope(result.files,absOut,'output');
     }
     for (const file of result.files) await atomicWrite(path.join(absOut,file.path),file.code);
     if (launcher !== undefined) await atomicWrite(path.join(absOut,'sno-entry.cjs'),launcher);

@@ -106,6 +106,12 @@ attacker, can bypass this cooperative protocol.
 Reproduction and limitations:
 [output publication interleaving and alias record](im-results/coo-sno-output-publication-lock-2026-11-22.md).
 
+## SNO package context and external module resolution
+
+The SNO CLI checks actual input and output build locations before publishing .js/.cjs/.mjs applications. It refuses externally inherited package metadata that can silently change .js module type, package `imports` mappings or named self-reference `exports`. A stale nested output `package.json` is also considered before any generated file is written. Included package metadata remains supported; source and output checks are build-location-specific and cannot secure later relocation or a hostile Node runtime. See the [two-platform package-scope report](im-results/sno-ambient-output-package-scope-2026-11-22.md).
+
+A separate [native/compiled bare dependency resolution regression](test/sno-external-bare-module-resolution.test.js) demonstrates that an unbundled `require('package')` may resolve to different `node_modules` bytes across the source and output trees. Supply and verify production dependencies in their actual deployment context; the SNO integrity manifest covers emitted files, not arbitrary external packages.
+
 ## Entrypoints
 
 `bin/coo.js` transforms a directory into static browser files, preserving relative ESM import paths and non-JavaScript assets. Example:
