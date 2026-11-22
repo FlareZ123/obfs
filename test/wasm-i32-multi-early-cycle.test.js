@@ -14,7 +14,8 @@ const {recoverPublicWasmExpression}=require('../sims/wasm-i32-static-recover');
 const heavy='((((b^c)^(d<<5))&((b|d)^(c>>>3)))^'+
   '((((d^b)&(c|7))<<(b&7))|((c^d)>>>2)))';
 const kernel='import "./peer.mjs";\n'+
-  'export function f(a,b,c,d){return (a?'+heavy+':d);}\n';
+  'function fKernel(a,b,c,d){return (a?'+heavy+':d);}\n'+
+  'export function f(a,b,c,d){return fKernel(a,b,c,d);}\n';
 const peer='import {f} from "./kernel.mjs";\n'+
   'export const observed=['+
   '[0,-2147483648,0,1],'+
@@ -55,7 +56,7 @@ test('four-parameter Wasm structured-if survives a real early ESM cyclic import'
   const baseline=await cycle(kernel);
   for(let seed=0;seed<4;seed++){
     const emitted=lowerWasmI32Functions(kernel,'module',{
-      seed:'multi-if-cycle-'+seed,names:['f']
+      seed:'multi-if-cycle-'+seed,names:['fKernel']
     });
     assert.equal(emitted.functions,1);
     assert.match(emitted.code,/function _wi_[0-9a-f]+\(input0,input1,input2,input3\)\{/u);
@@ -70,7 +71,7 @@ test('four-parameter Wasm structured-if survives a real early ESM cyclic import'
   ],{
     mode:'coo',seed:'multi-if-cycle-coo',strings:false,
     properties:false,identifiers:false,
-    experimentalWasmI32:{'kernel.mjs':['f']}
+    experimentalWasmI32:{'kernel.mjs':['fKernel']}
   });
   assert.equal(built.files.find(file=>file.path==='kernel.mjs')?.metrics.wasmI32Functions,1);
   const compiledOwner=built.files.find(file=>file.path==='kernel.mjs');
