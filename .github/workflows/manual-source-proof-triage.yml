@@ -60,8 +60,10 @@ jobs:
       - name: Paired observer-island CPU and cold-start budget profile
         run: node sims/source-island-session-profile.js
       - name: Strict JSDoc proof implementation
+        if: ${{ !cancelled() }}
         run: npm run typecheck
       - name: Strict external proof and adversarial JSDoc
+        if: ${{ !cancelled() }}
         run: npm run typecheck:external
       - name: CacheStorage browser source-byte observation counterfactual and admission
         if: ${{ matrix.os == 'ubuntu-latest' && !cancelled() }}
