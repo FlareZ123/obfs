@@ -11,6 +11,6 @@ test('hidden compatible linear baseline permits exact reanchored fixed-point inv
   assert.equal(result.ordinary,6);
   assert.equal(result.heldouts,768);
   assert.ok(result.rows.every(row=>row.mismatchedCompositeColumns>0));
-  assert.ok(result.rows.every(row=>row.rareQueries<=66&&row.ordinaryQueries<=66));
+  assert.ok(result.rows.every(row=>row.rareQueries<=65&&row.ordinaryQueries<=65));
   console.log('COMPATIBLE_BASELINE_ANCHOR '+JSON.stringify(result));
 });
