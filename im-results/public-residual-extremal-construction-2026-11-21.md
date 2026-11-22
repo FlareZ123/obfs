@@ -88,6 +88,8 @@ The first three arguments have strictly smaller Hamming weight than x, so their 
 
 The right-hand side is independent of the affine frame, so the residual span itself—not just its dimension—is independent of the chosen public interpolation basis. In particular, an invertible affine input wrapper merely reindexes the points and directions in the same second-difference set. An invertible affine output wrapper F'(x)=B F(x)+c maps every second difference by B, preserving its dimension when B is invertible.
 
+**Prior-art note:** Agent 50's [affine-residual minimal-rank characterization](https://github.com/FlareZ123/obfs/blob/main/im-results/affine-residual-minimal-rank-characterization-2026-11-21.md) already establishes the same second-difference/affine-defect span identity and affine-wrapper invariance, with a stronger minimum nonlinear-output-rank interpretation. The proof above is independent corroboration, not a novelty claim. The possible incremental contribution of this branch is the explicit all-r>=3 extremal permutation family and its executable stress fixture.
+
 **Important distinction:** this proves invariance of the residual span/rank, not invariance of the public interpolant's rank under input affine wrappers. For the r=3 reference completion used by the executable constructor, replacing the input basis (e_0,e_1,e_2,e_3,e_4,e_5) by (e_0,e_0+e_1,e_2,e_3,e_4,e_5) is an invertible shear (column integers [1,3,4,8,16,32] in the constructor's bit order). The unwrapped public interpolant has rank 3; the sheared input has interpolant rank 4, while the residual rank remains 3. Invertible output-linear wrappers do preserve interpolant rank because they left-multiply its matrix by an invertible matrix.
 
 ## The r=3 base case
