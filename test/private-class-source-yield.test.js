@@ -62,8 +62,8 @@ test('class source proof conservatively refuses escaped, mutable and observable 
       'const reader=new Reader();module.exports=reader.read()+reader.read();'],
     ['instance alias',basic+'const reader=new Reader();const alias=reader;'+
       'module.exports=alias.read();'],
-    ['computed method dispatch',basic+
-      'const reader=new Reader();module.exports=reader["read"]();'],
+    ['dynamic computed method dispatch',basic+
+      'const reader=new Reader();const key="read";module.exports=reader[key]();'],
     ['mutable instance',basic+
       'let reader=new Reader();module.exports=reader.read();'],
     ['class constructor arguments',basic+
@@ -86,5 +86,20 @@ test('class source proof conservatively refuses escaped, mutable and observable 
         mode+' '+name+' must retain public/ambiguous method field spelling');
       assert.match(String(result.files[0].code),/privateField/u,name);
     }
+  }
+});
+
+test('source-private class permits fixed computed string method invocation',()=>{
+  const source="'use strict';const owner={privateField:7};"+
+    'class Reader{read(){return owner.privateField;}}'+
+    'const reader=new Reader();module.exports=reader["read"]();';
+  for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])) {
+    const result=obfuscateFiles([{
+      path:'class-computed.cjs',sourceType:'commonjs',code:source
+    }],{mode,seed:'class-fixed-computed/'+mode,
+      properties:true,identifiers:false,strings:false});
+    assert.equal(result.files[0].metrics.properties,1,
+      mode+' fixed method key is independent of the private owner property');
+    assert.equal(evaluate(String(result.files[0].code)),evaluate(source));
   }
 });
