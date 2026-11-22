@@ -8,4 +8,5 @@ function calculate(x) {
   return ((internal[key]+globalThis[key])*x)^internal.mask;
 }
 
-module.exports={calculate};
+function exportedCalculate(x){return calculate(x);}
+module.exports={calculate:exportedCalculate};
