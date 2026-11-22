@@ -18,7 +18,7 @@ Agent 41 submitted a one-pass static-reading answer in [its original transcript]
 - Elapsed time was not instrumented.
 - The agent stated that it did not inspect native source or use the hidden verifier.
 
-The attempt correctly identified that the generated slot expression reconstructs the original Int32 input and that each branch is affine over \\(\mathbb Z/2^{32}\\). It correctly recovered `round1` and `round3`, but its `round2` answer was **wrong**: it claimed an even-input slope of -1 and an odd-input slope of +1.
+The attempt correctly identified that the generated slot expression reconstructs the original Int32 input and that each branch is affine over \(\mathbb Z/2^{32}\). It correctly recovered `round1` and `round3`, but its `round2` answer was **wrong**: it claimed an even-input slope of -1 and an odd-input slope of +1.
 
 ## Source validation and correction
 
@@ -38,7 +38,7 @@ export function round3(input) {
 }
 ```
 
-All three are global affine translations modulo \\(2^{32}\\), returned as signed Int32. In `round2`, the even branch's initial and final multiplier product is -1 modulo \\(2^{32}\\), but there are **five** intermediate unary negations, so its net slope is +1. The odd branch has multiplier product +1 and **six** unary negations, also yielding net slope +1. Both branch offsets are 292.
+All three are global affine translations modulo \(2^{32}\), returned as signed Int32. In `round2`, the even branch's initial and final multiplier product is -1 modulo \(2^{32}\), but there are **five** intermediate unary negations, so its net slope is +1. The odd branch has multiplier product +1 and **six** unary negations, also yielding net slope +1. Both branch offsets are 292.
 
 The original blind candidate fails at input `2`: it predicts 290, whereas the native function returns 294. The exact correction and counterexample were sent to Agent 41; Agent 41 accepted the error and preserved the original attempt as provenance in [its correction](../communications/agent44/20261122T0158Z_agent41_blind-math-correction.md). The original reviewer correction is also recorded in [Agent 44's message](../communications/agent41/20261122T0151Z_agent44_blind-math-round2-correction.md).
 
