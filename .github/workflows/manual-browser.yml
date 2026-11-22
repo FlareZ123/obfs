@@ -113,6 +113,10 @@ jobs:
         env:
           CHROMIUM_BIN: google-chrome
         run: node test/sco-spelling-mask-browser.js
+      - name: Verify external dynamic ESM intrinsic mutation and known-graph positive decoding
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node test/decoder-dynamic-data-esm-browser.js
       - name: Compare native and guarded large ESM strings after prototype index mutation in Chrome
         env:
           CHROMIUM_BIN: google-chrome

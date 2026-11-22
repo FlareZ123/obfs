@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {isBuiltin}=require('node:module');
 const {randomBytes, createHash} = require('node:crypto');
 const {parse,walk,observesFunctionSource,observesDistributedSource,staticString} = require('./ast');
 const {renameLocalProperties,collectBindings} = require('./properties');
@@ -164,6 +165,86 @@ function staticallyImportedEsmTargets(files) {
     }
   }
   return imported;
+}
+
+/**
+ * ESM dependencies execute user code before a later module's decoder
+ * initialization. Dynamic imports and static imports/reexports must be
+ * proven to resolve to JavaScript files included in the supplied group.
+ * An unlisted dependency, external URL, computed import, import options,
+ * or an ambiguous URL spelling makes the ambient decoder unsafe.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedModuleImport(ast,filename,knownJavaScript) {
+  /**
+   * @param {import('./ast').AstNode|null|undefined} source
+   * @returns {boolean}
+   */
+  function resolvesInGraph(source) {
+    if(source?.type!=='Literal'||typeof source.value!=='string')return false;
+    const specifier=source.value;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier))return false;
+    const target=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    return knownJavaScript.has(target);
+  }
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type==='ImportExpression') {
+      if(node.options||!resolvesInGraph(node.source))unproved=true;
+      return;
+    }
+    if(node.type==='ImportDeclaration'||
+       (node.type==='ExportNamedDeclaration'||node.type==='ExportAllDeclaration')&&
+       node.source) {
+      if(node.attributes?.length||node.assertions?.length||
+         !resolvesInGraph(node.source))unproved=true;
+    }
+  });
+  return unproved;
+}
+
+/**
+ * A CommonJS require can load unlisted application code before a later
+ * module's ambient String decoder initializes. Accept exact in-group
+ * relative JavaScript modules and Node's ordinary native builtins.
+ * Other calls may have unknown source and side effects at runtime.
+ *
+ * @param {import('./ast').AstNode} ast
+ * @param {string} filename
+ * @param {Set<string>} knownJavaScript
+ * @returns {boolean}
+ */
+function hasUnprovedCommonJsRequire(ast,filename,knownJavaScript) {
+  let unproved=false;
+  walk(ast,node=>{
+    if(node.type!=='CallExpression'||node.callee.type!=='Identifier'||
+       node.callee.name!=='require')return;
+    const specifier=node.arguments.length===1 ?
+      staticString(node.arguments[0]) : null;
+    if(specifier===null) {
+      unproved=true;
+      return;
+    }
+    if(isBuiltin(specifier))return;
+    if((!specifier.startsWith('./')&&!specifier.startsWith('../'))||
+       /[?#%\\]/u.test(specifier)) {
+      unproved=true;
+      return;
+    }
+    const base=path.posix.normalize(
+      path.posix.join(path.posix.dirname(filename),specifier));
+    const candidates=path.posix.extname(base)?[base]:
+      [base,base+'.js',base+'.cjs',base+'.mjs',
+       base+'/index.js',base+'/index.cjs',base+'/index.mjs'];
+    if(!candidates.some(candidate=>knownJavaScript.has(candidate)))unproved=true;
+  });
+  return unproved;
 }
 
 /**
@@ -1978,6 +2059,9 @@ function obfuscateFiles(files, options = {}) {
       reservedSources.push(input.code);
       if (mutatesDecoderIntrinsic(inputAst,requiredCommonJsTargets.has(input.path),
             importedEsmTargets.has(input.path)) ||
+          hasUnprovedModuleImport(inputAst,input.path,knownJavaScript) ||
+          input.sourceType==='commonjs' &&
+            hasUnprovedCommonJsRequire(inputAst,input.path,knownJavaScript) ||
           input.sourceType==='script' && collectBindings(inputAst).has('String')) {
         unsafeDecoderIntrinsic=true;
       }
