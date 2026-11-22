@@ -3781,7 +3781,11 @@ function observesDistributedSource(ast,importedStrings=new Map()) {
           globals.has(receiver.object.name) &&
           (receiver.computed ? knownKey(receiver.property) :
             receiver.property.type==='Identifier'?receiver.property.name:null)==='document';
-      if(isDocument && (method==='write'||method==='writeln')) {
+      // An opaque computed method on a proven Document may resolve to write
+      // or writeln at runtime. Treat its HTML-bearing arguments as parser
+      // writes while retaining yield for proved benign static markup.
+      if(isDocument && (method==='write'||method==='writeln'||
+         node.callee.computed && method===null)) {
         // The HTML parser receives all arguments as a single concatenated
         // character stream. A split "integ" + "rity=" is still an SRI attribute.
         // A dangling start-tag prefix can also be completed by a later
