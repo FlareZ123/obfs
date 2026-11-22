@@ -179,6 +179,43 @@ test('Selected SCO refuses relocated module URLs and dynamic imports in private 
   }
 });
 
+
+test('Selected SCO refuses host-specific object URL creation and extraction',()=>{
+  const cases=[
+    'export async function protectedOp(){return URL.createObjectURL(new Blob(["x"]));}',
+    'export async function protectedOp(){return URL["createObjectURL"](new Blob(["x"]));}',
+    'export async function protectedOp(){const make=URL.createObjectURL;return make(new Blob(["x"]));}',
+    'export async function protectedOp(){const U=URL;return U.createObjectURL(new Blob(["x"]));}',
+    'export async function protectedOp(){const {createObjectURL:make}=URL;return make(new Blob(["x"]));}',
+    'function makeUrl(){return URL.createObjectURL(new Blob(["x"]));}'+
+      'export async function protectedOp(){return makeUrl();}'
+  ];
+  for(const source of cases){
+    assert.throws(()=>partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:source+'export function visible(){return 7;}'},
+      {seed:'sco-host-object-url-20261122',privateNames:['protectedOp']}
+    ),/Private SCO export or helper uses unproved cross-realm object URL API/u,source);
+  }
+});
+
+test('Selected SCO still accepts deterministic URL parsing and inert object URL labels',()=>{
+  const cases=[
+    'return new URL("https://example.org/a").pathname;',
+    'const record={createObjectURL:41,revokeObjectURL:1};'+
+      'return record.createObjectURL+record.revokeObjectURL;'
+  ];
+  for(const body of cases){
+    const result=partitionScoSelectedAsyncExports(
+      {path:'mixed.mjs',sourceType:'module',
+        code:'export async function protectedOp(){'+body+'}'+
+          'export function visible(){return 7;}'},
+      {seed:'sco-host-object-url-positive-20261122',privateNames:['protectedOp']}
+    );
+    assert.deepEqual(result.privateNames,['protectedOp']);
+  }
+});
+
 test('Private static ESM graph refuses browser-only ambient objects in direct and transitive leaves',()=>{
   const sensitive=[
     'return localStorage.getItem("session");',
