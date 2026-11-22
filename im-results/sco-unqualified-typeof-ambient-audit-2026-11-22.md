@@ -86,6 +86,15 @@ facade source and request-time behavior unchanged.
   Source tests cover three unknown names × three migration surfaces,
   five selected local/standard positive programs and three graph-local
   positive programs at two depths.
+- [Integrated final graph run 44999417994](https://github.com/FlareZ123/obfs/actions/runs/44999417994),
+  exact SHA `e4b9bd6c39eaaad5b865e13a58bd7b957a1ac0f0`:
+  **Ubuntu and Windows passed** with concurrent private host timer/URL
+  guards retained. It additionally proves that a single same-named
+  declaration in a sibling function does not authorize a free host read
+  in its parent function, in both direct and transitive graph shapes.
+  The [SCO deployment guide](../docs/SCO_PARTITION.md) describes the
+  bounded admission contract and the separately retained fixed
+  `node:` builtin import exception.
 
 ## Remaining limits
 
