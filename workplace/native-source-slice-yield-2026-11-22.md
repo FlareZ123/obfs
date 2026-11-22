@@ -35,6 +35,12 @@ Changing the initializer of `privateData` to a semantically equivalent reconstru
 
 The crucial distinction is between **a syntactically recognized source observer** and **the range of bytes it can actually observe**. Current tests justify source preservation. They do not yet justify any selective admitted range for arbitrary JS.
 
+## Existing source-observer island admission is insufficient for strings
+
+The existing `src/source-observer-islands.js` checker, `proveSourceObserverIslands`, admits a closed ESM-only graph of immutable primitive-record leaves with direct zero-argument exported calls. It rejects unresolved imports, source readers, host-callable escapes and dynamic member access. In `src/core.js`, the returned `sourceObserverIslands` set is currently used in the **property** transformation condition. The literal-encoding path still calls `encodeStrings`, which independently returns untransformed code whenever `observesFunctionSource(ast)` is true.
+
+Consequently, lifting the global string gate merely because a file appears in `sourceObserverIslands` would be an **unreviewed semantic change**. The island proof establishes a specific property-renaming envelope; it has not proved source-range provenance, decoder-helper insertion safety, original function-body identity or absence of line/column observers for string rewrites. A targeted string exception needs its own guard and verified positive yield.
+
 ## Integration
 
 Port only independently reviewed proofs and regression fixtures into Agent 3's canonical `agent3/object-create-descriptor-group-guard-20261122` integration. Preserve the original red witnesses and source pins in the two Agent 2 draft PRs [#296](https://github.com/FlareZ123/obfs/pull/296) / [#298](https://github.com/FlareZ123/obfs/pull/298). Retain **RELEASE-BLOCKED** for strong confidentiality, tamper resistance and universal 2.5x performance.
