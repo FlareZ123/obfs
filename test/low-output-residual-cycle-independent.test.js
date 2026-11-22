@@ -193,6 +193,42 @@ function verify() {
     violations,byWidthRank};
 }
 
+/**
+ * A worst-case full-length rank-r cycle whose entire active coset avoids
+ * the n+1 interpolation input points 0,e_0,...,e_(n-1).
+ * This saturates the stated algorithm's distinct-query bound exactly.
+ * @param {number} rank
+ * @returns {{table:number[],width:number,target:number}}
+ */
+function maximalCycle(rank) {
+  if(!Number.isInteger(rank)||rank<1||rank>5)
+    throw new RangeError('Expected construction rank 1 through 5');
+  const width=rank===1?3:rank*2;
+  const directions=Array.from({length:rank},(_,bit)=>
+    (1<<(2*bit))^(1<<(2*bit+1)));
+  const origin=rank===1?((1<<0)^(1<<2)):
+    Array.from({length:rank},(_,bit)=>1<<(2*bit))
+      .reduce((sum,bit)=>sum^bit,0);
+  const coset=Array.from({length:1<<rank},(_,x)=>
+    origin^linear(directions,x));
+  const interpolation=new Set([0,...Array.from({length:width},(_,bit)=>1<<bit)]);
+  assert.ok(coset.every(x=>!interpolation.has(x)));
+  const table=Array.from({length:1<<width},(_,x)=>x);
+  coset.forEach((x,index)=>{table[x]=coset[(index+1)%coset.length];});
+  return {table,width,target:coset[0]};
+}
+
+test('the stated traversal procedure attains n+2^r distinct queries on full cycles',()=>{
+  for(let rank=1;rank<=5;rank++){
+    const {table,width,target}=maximalCycle(rank);
+    const outcome=invert(table,width,rank,target);
+    assert.equal(outcome.eligible,true);
+    assert.equal(outcome.residualDimension,rank);
+    assert.equal(outcome.preimage,target);
+    assert.equal(outcome.queries,width+(1<<rank));
+  }
+});
+
 test('independent finite-table coset-cycle inversion, all small widths and ranks',()=>{
   const result=verify();
   assert.ok(result.eligible>0);
