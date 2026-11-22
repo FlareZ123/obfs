@@ -85,6 +85,8 @@ jobs:
         run: node sims/rankfive-top-quartic-functional-clone.js
       - name: Arbitrary nonlinear rank-four-to-six source-independent offline coset clone
         run: node --test test/projected-affine-coset-profile-clone.test.js
+      - name: Matched authenticated SCO and native HTTP clone of hidden arbitrary rank-five table
+        run: node sims/sco-rankfive-arbitrary-table-real-http.js
       - name: Rank-three quadratic bilinear early clone and fallback
         run: node sims/rankthree-quadratic-bilinear-shortcut.js
       - name: Random-basis low-rank quadratic clone negative control
