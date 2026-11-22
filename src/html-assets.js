@@ -151,7 +151,7 @@ function decodeMarkup(path,code,kind) {
 }
 
 /**
- * Audit HTML assets before their bytes are copied to an output directory
+ * Audit HTML and XHTML assets before their bytes are copied to an output directory
  * or offered by SCO. A detected inline execution path is rejected rather
  * than silently stripped, which could change program behavior.
  * @param {string} path
@@ -159,14 +159,14 @@ function decodeMarkup(path,code,kind) {
  * @returns {void}
  */
 function assertNoInlineHtmlSource(path,code) {
-  if(!/\.html?$/iu.test(path))return;
+  if(!/\.(?:html?|xhtml|xht)$/iu.test(path))return;
   const html=decodeMarkup(path,code,'HTML');
   const issue=findInlineHtmlSource(html);
   if(issue)throw new TypeError('HTML asset contains '+issue+': '+path);
 }
 
 /**
- * Declared HTML can pin fetched JavaScript response bytes using SRI. Changing
+ * Declared HTML and XHTML can pin fetched JavaScript response bytes using SRI. Changing
  * the JS bytes while leaving the HTML unchanged makes that script fail its
  * browser integrity check, even when all JS expression results are identical.
  *
@@ -207,7 +207,7 @@ function hasPinnedLocalJavaScriptIntegrity(files,routePrefix='') {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\.html?$/iu.test(file.path))continue;
+    if(file.sourceType!=='asset'||!/\.(?:html?|xhtml|xht)$/iu.test(file.path))continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
     /** @type {string|null} */
