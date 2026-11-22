@@ -1144,7 +1144,7 @@ function privateDirectMemberReaders(ast,bindings) {
   /** @param {AstNode} fn @returns {boolean} */
   function pureMemberReturn(fn) {
     if(fn.async||fn.generator||fn.params.length>1||
-        fn.params.some(param=>param.type!=='Identifier'))return false;
+        fn.params.some((/** @type {AstNode} */ param)=>param.type!=='Identifier'))return false;
     /** @type {AstNode|null} */
     let expression=fn.body;
     if(fn.body.type==='BlockStatement') {
