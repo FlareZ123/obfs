@@ -4077,11 +4077,26 @@ function collectExportedCallableNodes(ast,propertySafeExports=null) {
               node.callee.property.type==='Identifier'?node.callee.property.name:null)) {
         if(node.arguments[0])markValue(node.arguments[0],depth+1);
       }
-      // A host or unknown callee can retain a local callback argument and
-      // inspect its source after this exported callable returns.
+      // Native Promise handlers are retained by the Promise machinery but
+      // are not exposed as values. Inspect their return values for escaped
+      // callables without freezing the private handler's own source.
+      const callCallee=node.callee;
+      const receiver=callCallee.type==='MemberExpression'?callCallee.object:null;
+      const method=callCallee.type==='MemberExpression'&&!callCallee.computed&&
+        callCallee.property.type==='Identifier'?callCallee.property.name:null;
+      const nativePromiseHandler=!bindings.has('Promise')&&
+        ['then','catch','finally'].includes(method??'')&&
+        receiver?.type==='CallExpression'&&
+        receiver.callee.type==='MemberExpression'&&!receiver.callee.computed&&
+        receiver.callee.object.type==='Identifier'&&
+        receiver.callee.object.name==='Promise'&&
+        receiver.callee.property.type==='Identifier'&&
+        receiver.callee.property.name==='resolve';
+      // Unknown callees can retain callbacks and inspect their source.
       for(const argument of node.arguments??[]) {
-        if(argument.type==='SpreadElement')markValue(argument.argument,depth+1);
-        else markValue(argument,depth+1);
+        const value=argument.type==='SpreadElement'?argument.argument:argument;
+        if(nativePromiseHandler&&isFunction(value))inspectCallable(value);
+        else markValue(value,depth+1);
       }
       return;
     }
