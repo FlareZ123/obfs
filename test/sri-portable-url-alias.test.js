@@ -98,3 +98,40 @@ test('nonmatching trailing-dot and space URLs preserve positive transformation y
       mode+': unrelated trailing-dot SRI must not disable source transforms');
   }
 });
+
+
+test('reserved and Unicode filesystem document segments are URL-encoded before SRI lookup',()=>{
+  const segments=[
+    'hash#inside','percent%23inside','percent%','encodedslash%2F',
+    'encoded-dot%2e%2e','double%2523','space inside','plus+inside',
+    'semi;inside','amp&inside','braces{inside}','square[inside]',
+    'quote\u0027inside','café','combining-e\u0301','emoji-🛡'
+  ];
+  const source='globalThis.reservedDocumentSRI="original bytes survive exotic document names";';
+  for(const mode of /** @type {Mode[]} */(['coo','sno','sco'])){
+    for(const extension of ['html','xhtml']){
+      for(const segment of segments){
+        const prefix='nested/'+segment+'/';
+        const scriptPath=prefix+'client.js';
+        const htmlPath=prefix+'index.'+extension;
+        const original=[
+          {path:scriptPath,sourceType:/** @type {const} */('script'),code:source},
+          {path:htmlPath,sourceType:/** @type {const} */('asset'),
+            code:page(source,'./client.js',extension==='xhtml')}
+        ];
+        const options={mode,seed:'sri-reserved/'+mode+'/'+extension+'/'+segment,
+          strings:true,identifiers:false,properties:false};
+        const protectedFiles=obfuscateFiles(original,options);
+        assert.equal(protectedFiles.files[0].code,source,
+          mode+' '+extension+': pinned script under '+JSON.stringify(segment));
+        const control=[
+          original[0],
+          {...original[1],code:Buffer.from('<script src="./client.js"></script>')}
+        ];
+        const unpinned=obfuscateFiles(control,options);
+        assert.notEqual(unpinned.files[0].code,source,
+          mode+' '+extension+': positive no-SRI rewrite under '+JSON.stringify(segment));
+      }
+    }
+  }
+});
