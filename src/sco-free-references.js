@@ -152,6 +152,15 @@ function firstUnprovedFreeReference(root,moduleBindings,rootFormals,realmGlobals
         'ExportSpecifier','MetaProperty'].includes(parent.type) ||
       ['LabeledStatement','BreakStatement','ContinueStatement'].includes(parent.type)&&
         key==='label'))return;
+    // Creating an immediate function literal as a typeof operand never
+    // evaluates its body or defaults and exposes only the string "function".
+    // The literal cannot escape, so unresolved names inside it are inert.
+    const inertTypeofFunction=ancestors.some((scope,index)=>
+      ['FunctionExpression','ArrowFunctionExpression'].includes(scope.type)&&
+      ancestors[index-1]?.type==='UnaryExpression'&&
+      ancestors[index-1].operator==='typeof'&&
+      ancestors[index-1].argument===scope);
+    if(inertTypeofFunction)return;
     const name=node.name;
     if(rootFormals.has(name)||ancestors.some(scope=>scopeDeclares(scope,name))||
       moduleBindings.has(name)||realmGlobals.has(name))return;
