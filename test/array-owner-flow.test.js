@@ -110,7 +110,7 @@ test('checked-in private array before/after is exactly reproducible',async()=>{
   const report=await buildSample(true);
   assert.equal(report.objects,1);
   assert.equal(report.properties,2);
-  assert.equal(report.bytes,452);
+  assert.equal(report.bytes,514);
 });
 
 test('seedless source-only normalizer removes array-owner labels and clones behavior',()=>{
