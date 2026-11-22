@@ -63,6 +63,15 @@ async function main() {
   ],{mode:'coo',seed:'xhtml-browser-prefixed-complete-graph',
     strings:true,identifiers:false,properties:false});
   assert.equal(prefixedSafe.files[0].code,original[0].code);
+  const nestedMarkup=markup.replace('<script src=',
+    '<template><base href="/unused-template-path/"/></template>'+ 
+    '<base href="../"/><script src=');
+  const nestedSafe=obfuscateFiles([
+    original[0],{path:'pages/index.xhtml',sourceType:/** @type {const} */('asset'),
+      code:Buffer.from(nestedMarkup)}
+  ],{mode:'coo',seed:'xhtml-browser-multiple-base-complete-graph',
+    strings:true,identifiers:false,properties:false});
+  assert.equal(nestedSafe.files[0].code,original[0].code);
   const inline='<?xml version="1.0" encoding="UTF-8"?>'+
     '<html xmlns="http://www.w3.org/1999/xhtml"><head>'+
     '<script><![CDATA[document.documentElement.setAttribute("data-inline","executed");]]></script>'+
@@ -85,14 +94,21 @@ async function main() {
       ['index.xhtml',prefixedMarkup]])],
     ['inline-prefixed',new Map([['index.xhtml',inlinePrefixed]])],
     ['inline-svg',new Map([['index.xhtml',inlineSvg]])],
+    ['nested-native',new Map([
+      ['client.js',/** @type {string} */(original[0].code)],['pages/index.xhtml',nestedMarkup]])],
+    ['nested-safe',new Map([
+      ['client.js',/** @type {string} */(nestedSafe.files[0].code)],['pages/index.xhtml',nestedMarkup]])],
+    ['nested-unsafe',new Map([
+      ['client.js',/** @type {string} */(unsafe.files[0].code)],['pages/index.xhtml',nestedMarkup]])],
     ['inline',new Map([['index.xhtml',inline]])]
   ]);
   const server=http.createServer((request,response)=>{
     const parts=(new URL(request.url??'/','http://127.0.0.1')).pathname
       .split('/').filter(Boolean);
-    const contents=parts.length===2?variants.get(parts[0])?.get(parts[1]):undefined;
+    const relative=parts.slice(1).join('/');
+    const contents=parts.length>=2?variants.get(parts[0])?.get(relative):undefined;
     if(contents===undefined){response.writeHead(404).end();return;}
-    response.writeHead(200,{'content-type':parts[1].endsWith('.xhtml')?
+    response.writeHead(200,{'content-type':relative.endsWith('.xhtml')?
       'application/xhtml+xml; charset=utf-8':'text/javascript; charset=utf-8'});
     response.end(contents);
   });
@@ -107,8 +123,10 @@ async function main() {
     const browser=process.env.CHROMIUM_BIN??'google-chrome';
     /** @type {Record<string,boolean>} */
     const outcomes={};
-    for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed','inline-svg']) {
-      const page=await readBrowser(browser,origin+'/'+variant+'/index.xhtml');
+    for(const variant of ['native','safe','unsafe','prefixed','prefixed-unsafe','inline','inline-prefixed','inline-svg',
+      'nested-native','nested-safe','nested-unsafe']) {
+      const page=await readBrowser(browser,origin+'/'+variant+'/'+
+        (variant.startsWith('nested')?'pages/index.xhtml':'index.xhtml'));
       assert.match(page,/XHTML (?:SRI browser|inline script|SVG inline script)/u);
       outcomes[variant]=variant==='inline-svg'?
         /data-svg-inline="executed"/u.test(page):variant.startsWith('inline')?
@@ -117,7 +135,7 @@ async function main() {
     assert.deepEqual(outcomes,{
       native:true,safe:true,unsafe:false,prefixed:true,
       'prefixed-unsafe':false,inline:true,'inline-prefixed':true,
-      'inline-svg':true
+      'inline-svg':true,'nested-native':true,'nested-safe':true,'nested-unsafe':false
     },'XHTML executes inline script and rejects integrity-invalid external scripts');
     process.stdout.write('XHTML_SRI_BROWSER '+JSON.stringify(outcomes)+'\n');
   } finally {
