@@ -145,9 +145,10 @@ function isStaticKey(parent,key){
  * shadow globals. Inert object-property keys do not count as API references.
  *
  * @param {import('./ast').AstNode} body
+ * @param {Set<string>} [explicitServerBindings]
  * @returns {boolean}
  */
-function usesUnprovedCrossRealmHostApi(body){
+function usesUnprovedCrossRealmHostApi(body,explicitServerBindings=new Set()){
   const hostApis=new Set([
     'console','fetch','Request','Worker','WebSocket','XMLHttpRequest','EventSource',
     'BroadcastChannel','MessageChannel',
@@ -187,7 +188,7 @@ function usesUnprovedCrossRealmHostApi(body){
   walk(body,(node,parent,key)=>{
     if(node.type==='DebuggerStatement')observed=true;
     if(node.type==='Identifier'&&hostApis.has(node.name)&&
-       !ownedFunctions.has(node.name)&&
+       !ownedFunctions.has(node.name)&&!explicitServerBindings.has(node.name)&&
        !isStaticKey(parent,key)&&
        !['ImportSpecifier','ImportDefaultSpecifier','ImportNamespaceSpecifier']
          .includes(parent?.type??'')&&
@@ -1815,6 +1816,11 @@ function partitionScoSelectedAsyncExports(file,options) {
   // same ambient root is consumed on both sides of the partition.
   const sharedAmbient=privateAmbient.size>0&&publicAmbient.size>0;
   const allPrivateBindings=collectBindings(ast);
+  // Server imports and primitive constants were already admitted as explicit
+  // immutable private bindings. Exempt only globally unique lexical names;
+  // a shadowed formal or nested declaration cannot inherit their provenance.
+  const explicitServerHostNames=new Set([...serverConstants].filter(name=>
+    allPrivateBindings.get(name)===1));
   for(const body of privateBodies){
     // The selected function and helpers execute in a different ESM module
     // on a trusted Node server. Module metadata and dynamic import therefore
@@ -1837,7 +1843,7 @@ function partitionScoSelectedAsyncExports(file,options) {
         throw new TypeError('Private SCO export or helper uses unproved module-relative execution');
       }
     });
-    if(usesUnprovedCrossRealmHostApi(body)){
+    if(usesUnprovedCrossRealmHostApi(body,explicitServerHostNames)){
       throw new TypeError('Private SCO export or helper contains unproved cross-realm host API');
     }
     if(usesUnprovedRelocatedUrlStatic(body)){
