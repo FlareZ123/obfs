@@ -102,6 +102,58 @@ function fixtures() {
       files:graph('export const key="stack";export const bag={secretField:8};',
         'import {bag,key} from "./state.mjs";const error=new Error("test");'+
         'window.hostApi.accept(error[key].includes("main.mjs")+":"+bag.secretField);')}
+  ,
+    {name:'opaque-owner-proxy-key-log',expectedFields:0,expectedText:'41|secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'const seen=[];const owner=new Proxy(bag,{get(target,key,receiver){'+
+        'seen.push(String(key));return Reflect.get(target,key,receiver);}});'+
+        'window.hostApi.accept(owner.secretField+"|"+seen.join(","));')},
+    {name:'opaque-owner-json-serialization',expectedFields:0,
+      expectedText:'{"secretField":41}',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'window.hostApi.accept(JSON.stringify(bag));')},
+    {name:'opaque-owner-map-reflection',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'const owned=new Map([["key",bag]]);'+
+        'window.hostApi.accept(Object.keys(owned.get("key")).join(","));')},
+    {name:'opaque-owner-weakref-reflection',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'const weak=new WeakRef(bag);'+
+        'window.hostApi.accept(Reflect.ownKeys(weak.deref()).join(","));')},
+    {name:'opaque-owner-promise-observation',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'Promise.resolve(bag).then(value=>'+
+        'window.hostApi.accept(Object.keys(value).join(",")));')},
+    {name:'opaque-owner-array-of-observation',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'const holder=Array.of(bag);'+
+        'window.hostApi.accept(Reflect.ownKeys(holder[0]).join(","));')},
+    {name:'opaque-owner-host-method-observation',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'window.hostApi.audit=value=>Reflect.ownKeys(value).join(",");'+
+        'window.hostApi.accept(window.hostApi.audit(bag));')},
+    {name:'opaque-owner-object-assign',expectedFields:0,expectedText:'secretField',
+      files:graph('export const bag={secretField:41};',
+        'import {bag} from "./state.mjs";'+
+        'const copy=Object.assign({},bag);'+
+        'window.hostApi.accept(Object.keys(copy).join(","));')},
+    {name:'opaque-owner-cross-module-reader',expectedFields:0,expectedText:'secretField',
+      files:[
+        {path:'state.mjs',sourceType:'module',code:
+          'export const bag={secretField:41};'},
+        {path:'bridge.mjs',sourceType:'module',code:
+          'export const read=value=>Reflect.ownKeys(value).join(",");'},
+        {path:'main.mjs',sourceType:'module',code:
+          'import {bag} from "./state.mjs";import {read} from "./bridge.mjs";'+
+          'window.hostApi.accept(read(bag));'}
+      ]}
   ];
 }
 
