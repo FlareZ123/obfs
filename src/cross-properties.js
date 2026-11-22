@@ -2561,8 +2561,16 @@ function renameCrossFileProperties(files,seed) {
                 if(spec.type!=='ImportSpecifier')continue;
                 const exportedName=spec.imported.name ?? spec.imported.value;
                 if(exportedName===exportName)importedAliases.push(spec.local.name);
-                const key=earlierKeyExports.get(exportedName);
-                if(key!==undefined&&importer.bindings.get(spec.local.name)===1) {
+                // Cyclic evaluation permits only keys initialized before
+                // this owner. In an acyclic graph, the imported module has
+                // finished evaluation before the consumer body starts, so a
+                // uniquely proved later exported const string is safe too.
+                const key=earlierKeyExports.get(exportedName) ??
+                  (acyclicImports ?
+                    verifiedStrings.get(importerName)?.get(spec.local.name) :
+                    undefined);
+                if(key!==undefined&&names.includes(key)&&
+                   importer.bindings.get(spec.local.name)===1) {
                   importedKeys.set(spec.local.name,key);
                 }
               }
@@ -2800,9 +2808,16 @@ function renameCrossFileProperties(files,seed) {
           }
           if(spec.type==='ImportSpecifier') {
             const exposed=spec.imported.name??spec.imported.value;
+            // Same acyclic pre-initialization proof as named objects:
+            // a later const export becomes available after the producer's
+            // complete module body, while cycles retain earlier-key gating.
             const key=typeof exposed==='string' ?
-              earlierKeyExports.get(exposed) : undefined;
-            if(key!==undefined && importer.bindings.get(spec.local.name)===1) {
+              (earlierKeyExports.get(exposed) ??
+                (acyclicImports ?
+                  verifiedStrings.get(importerName)?.get(spec.local.name) :
+                  undefined)) : undefined;
+            if(key!==undefined && names.includes(key) &&
+               importer.bindings.get(spec.local.name)===1) {
               importedKeys.set(spec.local.name,key);
             }
           }
