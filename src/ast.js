@@ -2340,6 +2340,18 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       return nodeUtilMethod(node.callee.object,depth+1);
     return null;
   }
+  /**
+   * Unknown computed selectors on the trusted native util namespace can
+   * select toUSVString at runtime. Protect only when they receive an
+   * unproved argument that may be a function.
+   * @param {AstNode|null|undefined} node
+   * @returns {boolean}
+   */
+  function isNodeUtilSourceCoercer(node) {
+    return nodeUtilMethod(node)==='toUSVString' ||
+      Boolean(node?.type==='MemberExpression' && node.computed &&
+        sourceStringKey(node.property)===null && isNodeUtilNamespace(node.object));
+  }
   walk(ast,node=>{
     if(node.type!=='ImportDeclaration' ||
        !['node:util','util'].includes(String(node.source?.value??'')))return;
@@ -2364,12 +2376,16 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(!id||!value)return;
       if(id.type==='ObjectPattern'&&isNodeUtilNamespace(value)) {
         for(const property of id.properties) {
-          if(property.type!=='Property'||property.value.type!=='Identifier')continue;
+          if(property.type!=='Property')continue;
           const name=property.computed?sourceStringKey(property.key):
             property.key.type==='Identifier'?property.key.name:staticString(property.key);
-          if(name!==null&&inspectedUtilMethods.has(name)&&
-             !nodeUtilMethods.has(property.value.name)) {
-            nodeUtilMethods.set(property.value.name,name);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if(bound.type==='Identifier' &&
+             (name!==null&&inspectedUtilMethods.has(name) ||
+              property.computed&&name===null) &&
+             !nodeUtilMethods.has(bound.name)) {
+            nodeUtilMethods.set(bound.name,name??'toUSVString');
             changedNodeUtil=true;
           }
         }
@@ -2736,25 +2752,29 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       const utilMethod=nodeUtilMethod(callee);
       // Node util.getCallSites returns the live caller's source columns.
       if(utilMethod==='getCallSites'||utilMethod==='getCallSite')observed=true;
-      if(utilMethod==='toUSVString' && node.arguments[0] &&
+      if(isNodeUtilSourceCoercer(callee) && node.arguments[0] &&
          !isDefinitelyPrimitive(node.arguments[0]))observed=true;
       if(callee.type==='MemberExpression' &&
-         memberName(callee)==='bind' &&
-         nodeUtilMethod(callee.object)==='toUSVString' &&
-         node.arguments[1]&&!isDefinitelyPrimitive(node.arguments[1]))
-        observed=true;
-      if(callee.type==='MemberExpression' &&
-         nodeUtilMethod(callee.object)==='toUSVString' &&
-         ['call','apply'].includes(memberName(callee)??'')) {
-        const input=memberName(callee)==='call'?node.arguments[1]:node.arguments[1];
-        if(memberName(callee)==='call' && input &&
-           !isDefinitelyPrimitive(input))observed=true;
-        if(memberName(callee)==='apply' && input) {
-          if(input.type==='ArrayExpression') {
-            if(input.elements[0] && !isDefinitelyPrimitive(input.elements[0]))
+         isNodeUtilSourceCoercer(callee.object)) {
+        const invocation=memberName(callee);
+        if(['bind','call'].includes(invocation??'') &&
+           node.arguments[1]&&!isDefinitelyPrimitive(node.arguments[1]))
+          observed=true;
+        if(invocation==='apply' && node.arguments[1]) {
+          const args=node.arguments[1];
+          if(args.type==='ArrayExpression') {
+            if(args.elements[0]&&!isDefinitelyPrimitive(args.elements[0]))
               observed=true;
           } else observed=true;
         }
+      }
+      if(isReflectApplyMethod(callee) &&
+         isNodeUtilSourceCoercer(node.arguments[0]) && node.arguments[2]) {
+        const args=node.arguments[2];
+        if(args.type==='ArrayExpression') {
+          if(args.elements[0]&&!isDefinitelyPrimitive(args.elements[0]))
+            observed=true;
+        } else observed=true;
       }
       if(utilMethod==='inspect' && node.arguments[0] &&
          !isDefinitelyPrimitive(node.arguments[0]) ||
