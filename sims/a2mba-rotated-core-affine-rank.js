@@ -215,6 +215,7 @@ function runScreen() {
     const measured=nonlinearResidualRank(candidate);
     assert.deepEqual(measured,baseline);
     let fullChecked=0;
+    /** @type {(a:number,b:number,c:number,d:number)=>number} */
     const verified=(a,b,c,d)=>{
       const output=rotated(a,b,c,d);
       assert.equal(output,nativeRegion32(a,b,c,d));
