@@ -48,6 +48,11 @@ jobs:
       # This is an evidence branch, not a new release gate.
       - name: Strict JSDoc for DOM source-observation evidence probes
         run: npx tsc -p jsconfig.dom-source-evidence.json
+      - name: Verify private-property DOM source-observation parity with positive key yield
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        env:
+          CHROMIUM_BIN: google-chrome
+        run: node sims/browser-dom-property-source-parity.js
       - name: Browser DOM serialization source-observer native/emitted parity
         if: ${{ matrix.os == 'ubuntu-latest' }}
         env:
