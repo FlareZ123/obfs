@@ -55,7 +55,7 @@ function mayAppearInFailedOperand(node,ancestors) {
  * All JS UTF-16 code units are retained, including isolated surrogates.
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean,preserveCallableSource?:boolean}} options
+ * @param {{seed:string, minimumLength?:number, reservedNames?:Set<string>, reservedSources?:string[], fixedArity?:boolean,preserveCallableSource?:boolean,sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string, count:number}}
  */
 function encodeStrings(source, ast, options) {
@@ -64,7 +64,7 @@ function encodeStrings(source, ast, options) {
   // lexical binding with this name can shadow it, including before TDZ init.
   if (collectBindings(ast).has('String')) return {code:source,count:0};
   const sourceExposedBodies=options.preserveCallableSource===true ?
-    collectSourceExposedBodies(ast) : new Set();
+    collectSourceExposedBodies(ast,undefined,options.sourceType) : new Set();
   const values = new Map();
   /** @type {{start:number,end:number,text:string}[]} */
   const edits = [];

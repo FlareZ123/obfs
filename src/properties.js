@@ -1217,10 +1217,10 @@ function singleUseFactoryObject(ast,bindings,expression) {
 function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   const inventory=collectProofInventory(ast);
   const scopes=collectBindingScopes(ast);
-  /** @type {Set<AstNode>} */
   const directCallables=new Set();
-  if(inventory.dynamicScope)return new Set();
   /**
+   * A callable is private only when its binding has no dynamic/reflection
+   * escape and every reference is a direct call in the same lexical scope.
    * @param {string} name
    * @param {AstNode} definition
    * @returns {boolean}
@@ -1229,92 +1229,149 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
     if(bindings.get(name)!==1)return false;
     const scope=scopes.get(name);
     if(!scope)return false;
-    for(const use of inventory.identifierUses.get(name)??[]) {
+    const uses=inventory.identifierUses.get(name)??[];
+    for(const use of uses) {
       if(use.node===definition)continue;
-      if(!use.ancestors.includes(scope)||
-         use.parent?.type!=='CallExpression'||use.key!=='callee'||
+      if(!use.ancestors.includes(scope) ||
+         use.parent?.type!=='CallExpression' ||
+         use.key!=='callee' ||
+         use.parent.callee!==use.node ||
          use.parent.optional)return false;
     }
     return true;
   }
   /**
+   * A private class is accepted only for a deliberately narrow pattern:
+   * a stable local binding used exclusively as the receiver of direct
+   * instance-method calls on fresh instances, with no this/super escape,
+   * inheritance, static members, accessors, fields, or computed methods.
+   * @param {string} name
+   * @param {AstNode} definition
+   * @param {AstNode} classNode
+   * @returns {AstNode[]|null}
+   */
+  function privateClassMethods(name,definition,classNode) {
+    if(bindings.get(name)!==1 || classNode.superClass)return null;
+    const scope=scopes.get(name);
+    if(!scope)return null;
+    const elements=classNode.body?.body??[];
+    if(!elements.length || !elements.every(element=>
+      element.type==='MethodDefinition' &&
+      element.kind==='method' &&
+      !element.static &&
+      !element.computed &&
+      element.value?.type==='FunctionExpression' &&
+      !element.value.async &&
+      !element.value.generator))return null;
+    let instanceEscape=false;
+    walk(classNode,node=>{
+      if(node.type==='ThisExpression'||node.type==='Super'||
+         node.type==='PrivateIdentifier')instanceEscape=true;
+    });
+    if(instanceEscape)return null;
+    const uses=inventory.identifierUses.get(name)??[];
+    let useCount=0;
+    const methods=new Set();
+    for(const use of uses) {
+      if(use.node===definition)continue;
+      useCount++;
+      if(!use.ancestors.includes(scope) ||
+         use.parent?.type!=='NewExpression' ||
+         use.key!=='callee' ||
+         use.parent.callee!==use.node)return null;
+      const construction=use.parent;
+      const receiver=inventory.parents.get(construction);
+      const call=inventory.parents.get(receiver);
+      if(receiver?.type!=='MemberExpression' ||
+         receiver.object!==construction ||
+         receiver.optional ||
+         call?.type!=='CallExpression' ||
+         call.callee!==receiver ||
+         call.optional)return null;
+      const methodName=staticName(receiver.property);
+      if(!methodName)return null;
+      const method=elements.find(element=>staticName(element.key)===methodName);
+      if(!method || hasSelfSourceObserver(method.value))return null;
+      methods.add(method.value);
+    }
+    if(!useCount || !methods.size)return null;
+    return elements.map(element=>element.value);
+  }
+  /**
+   * Reject function bodies that inspect their own source through the
+   * conventional Function#toString / caller / arguments.callee paths.
    * @param {AstNode} fn
    * @returns {boolean}
    */
   function hasSelfSourceObserver(fn) {
     let observed=false;
-    const functionTypes=new Set([
-      'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'
-    ]);
-    walk(fn,(node,parent,key,ancestors)=>{
-      if(ancestors.some(ancestor=>ancestor!==fn&&functionTypes.has(ancestor.type)))return;
-      if(node.type==='MemberExpression'&&node.object?.type==='Identifier'&&
-         node.object.name==='arguments'&&staticName(node.property)==='callee')
-        observed=true;
-      if(node.type==='MemberExpression'&&node.object?.type==='ThisExpression'&&
+    walk(fn,(node,parent,key)=>{
+      if(node.type==='MemberExpression' && node.object?.type==='ThisExpression' &&
          staticName(node.property)==='toString')observed=true;
-      if(node.type==='CallExpression'&&node.callee?.type==='MemberExpression'&&
-         ['call','apply'].includes(staticName(node.callee.property)??'')) {
-        const toString=node.callee.object;
-        const prototype=toString?.type==='MemberExpression'?toString.object:null;
-        if(toString?.type==='MemberExpression'&&staticName(toString.property)==='toString'&&
-           prototype?.type==='MemberExpression'&&staticName(prototype.property)==='prototype'&&
-           prototype.object?.type==='Identifier'&&prototype.object.name==='Function'&&
-           node.arguments.some((/** @type {AstNode} */ argument)=>argument.type==='ThisExpression'||
-             (argument.type==='MemberExpression'&&argument.object?.type==='Identifier'&&
-              argument.object.name==='arguments'&&staticName(argument.property)==='callee')))
-          observed=true;
-      }
+      if(node.type==='MemberExpression' && node.object?.type==='Identifier' &&
+         node.object.name==='arguments' && staticName(node.property)==='callee')observed=true;
+      if(node.type==='MemberExpression' && node.object?.type==='Identifier' &&
+         node.object.name==='arguments' && staticName(node.property)==='caller')observed=true;
+      if(node.type==='MemberExpression' && node.object?.type==='Identifier' &&
+         node.object.name==='Function' && staticName(node.property)==='prototype')observed=true;
+      if(node.type==='CallExpression' && node.callee?.type==='MemberExpression' &&
+         staticName(node.callee.property)==='toString' &&
+         node.callee.object?.type==='Identifier' &&
+         node.callee.object.name==='Function')observed=true;
+      if(node.type==='CallExpression' && node.callee?.type==='MemberExpression' &&
+         staticName(node.callee.property)==='toString' &&
+         node.callee.object?.type==='MemberExpression' &&
+         node.callee.object.object?.type==='Identifier' &&
+         node.callee.object.object.name==='Function' &&
+         staticName(node.callee.object.property)==='prototype')observed=true;
     });
     return observed;
   }
   for(const fn of inventory.functionDeclarations) {
-    if(fn.type!=='FunctionDeclaration'||fn.id?.type!=='Identifier'||
-       !directCallOnly(fn.id.name,fn.id)||hasSelfSourceObserver(fn)||
-       /^Export/.test(inventory.parents.get(fn)?.type??''))continue;
-    directCallables.add(fn);
+    if(fn.id?.type==='Identifier' && directCallOnly(fn.id.name,fn.id) &&
+       !hasSelfSourceObserver(fn))directCallables.add(fn);
   }
-  for(const decl of inventory.callableDeclarators) {
-    const container=inventory.parents.get(decl);
-    if(container?.type!=='VariableDeclaration'||container.kind!=='const'||
-       decl.id.type!=='Identifier'||!decl.init||
-       !['ArrowFunctionExpression','FunctionExpression'].includes(decl.init.type)||
-       !directCallOnly(decl.id.name,decl.id)||hasSelfSourceObserver(decl.init)||
-       /^Export/.test(inventory.parents.get(container)?.type??''))continue;
-    directCallables.add(decl.init);
+  for(const declarator of inventory.callableDeclarators) {
+    if(declarator.id?.type==='Identifier' &&
+       directCallOnly(declarator.id.name,declarator.id) &&
+       !hasSelfSourceObserver(declarator.init))directCallables.add(declarator.init);
   }
-  /**
-   * Promise's native continuation methods do not inspect callback source.
-   * Restrict this exception to an unshadowed Promise.resolve() chain; arbitrary
-   * user callbacks remain source-exposed unless their binding is direct-call-only.
-   * @param {AstNode} expression
-   * @returns {boolean}
-   */
-  function isKnownPromiseExpression(expression) {
-    if(expression.type!=='CallExpression'||expression.callee?.type!=='MemberExpression')return false;
-    const method=staticName(expression.callee.property);
-    if(method==='resolve'&&expression.callee.object?.type==='Identifier'&&
-       expression.callee.object.name==='Promise'&&(bindings.get('Promise')??0)===0)return true;
-    return ['then','catch','finally'].includes(method??'')&&
-      isKnownPromiseExpression(expression.callee.object);
-  }
-  walk(ast,(node,parent,key)=>{
-    if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
-       parent?.type==='CallExpression'&&key==='callee'&&parent.callee===node&&
-       !parent.optional)directCallables.add(node);
-    if(['FunctionExpression','ArrowFunctionExpression'].includes(node.type)&&
-       parent?.type==='CallExpression'&&key==='arguments'&&
-       parent.arguments.includes(node)&&parent.callee?.type==='MemberExpression'&&
-       ['then','catch','finally'].includes(staticName(parent.callee.property)??'')&&
-       !parent.callee.optional&&isKnownPromiseExpression(parent.callee.object))
-      directCallables.add(node);
+  // A class is not private merely because it has no lexical export. Require
+  // every use to construct a fresh instance and immediately call a known
+  // ordinary method; an exported class or escaping instance fails closed.
+  walk(ast,(node,parent)=>{
+    if(node.type!=='ClassDeclaration' && node.type!=='ClassExpression')return;
+    let name=null,definition=null;
+    if(node.type==='ClassDeclaration' && node.id?.type==='Identifier') {
+      name=node.id.name;
+      definition=node.id;
+      if(/^Export/.test(inventory.parents.get(node)?.type??''))return;
+    } else if(node.type==='ClassExpression' && !node.id &&
+              parent?.type==='VariableDeclarator' &&
+              parent.id?.type==='Identifier') {
+      const declaration=inventory.parents.get(parent);
+      if(declaration?.type!=='VariableDeclaration' || declaration.kind!=='const' ||
+         /^Export/.test(inventory.parents.get(declaration)?.type??''))return;
+      name=parent.id.name;
+      definition=parent.id;
+    }
+    if(!name||!definition)return;
+    const methods=privateClassMethods(name,definition,node);
+    if(!methods)return;
+    directCallables.add(node);
+    for(const method of methods)directCallables.add(method);
   });
-  /** @type {Set<AstNode>} */
+  // An immediately-invoked function expression is private because its
+  // function value is not passed to a mutable host callback API.
+  walk(ast,(node,parent,key)=>{
+    if((node.type==='FunctionExpression'||node.type==='ArrowFunctionExpression') &&
+       parent?.type==='CallExpression' && key==='callee' &&
+       parent.callee===node && !parent.optional &&
+       !hasSelfSourceObserver(node))directCallables.add(node);
+  });
+  const sourceBodies=new Set(['FunctionDeclaration','FunctionExpression',
+    'ArrowFunctionExpression','ClassDeclaration','ClassExpression']);
   const permitted=new Set();
-  const sourceBodies=new Set([
-    'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
-    'ClassDeclaration','ClassExpression'
-  ]);
   walk(ast,(node,parent,key,ancestors)=>{
     if(!directCallables.has(node))return;
     if(ancestors.some(ancestor=>sourceBodies.has(ancestor.type)&&
@@ -1323,7 +1380,6 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
   });
   return permitted;
 }
-
 /**
  * Function/class source that may escape the supplied graph is observable
  * through Function#toString or class source formatting. A nested function is
@@ -1332,23 +1388,40 @@ function collectPrivateDirectCallables(ast,bindings=collectBindings(ast)) {
  * @param {Map<string,number>} [bindings]
  * @returns {Set<AstNode>}
  */
-function collectSourceExposedBodies(ast,bindings=collectBindings(ast)) {
+function collectSourceExposedBodies(ast,bindings=collectBindings(ast),sourceType='module') {
   const privateCallables=collectPrivateDirectCallables(ast,bindings);
-  const sourceBodies=new Set([
-    'FunctionDeclaration','FunctionExpression','ArrowFunctionExpression',
-    'ClassDeclaration','ClassExpression'
-  ]);
-  /** @type {Set<AstNode>} */
+  const sourceBodies=new Set(['FunctionDeclaration','FunctionExpression',
+    'ArrowFunctionExpression','ClassDeclaration','ClassExpression']);
   const exposed=new Set();
+  /** @type {Set<AstNode>} */
+  const globalScriptCallables=new Set();
+  if(sourceType==='script') {
+    walk(ast,(node,parent,key,ancestors)=>{
+      const insideCallable=ancestors.some(ancestor=>sourceBodies.has(ancestor.type));
+      if(node.type==='FunctionDeclaration' && !insideCallable)
+        globalScriptCallables.add(node);
+      if(node.type==='ClassDeclaration' && parent?.type==='Program')
+        globalScriptCallables.add(node);
+      if(node.type==='VariableDeclarator' &&
+         parent?.type==='VariableDeclaration' &&
+         node.init && sourceBodies.has(node.init.type)) {
+        const globalVar=parent.kind==='var' && !insideCallable;
+        const globalLexical=(parent.kind==='let'||parent.kind==='const') &&
+          ancestors[ancestors.length-1]?.type==='Program';
+        if(globalVar||globalLexical)globalScriptCallables.add(node);
+      }
+    });
+    for(const node of globalScriptCallables)exposed.add(node);
+  }
   walk(ast,(node,parent,key,ancestors)=>{
     if(!sourceBodies.has(node.type))return;
-    if(node.type==='ClassDeclaration'||node.type==='ClassExpression'||
-       ancestors.some(ancestor=>exposed.has(ancestor))||
+    if(globalScriptCallables.has(node) ||
+       ancestors.some(ancestor=>globalScriptCallables.has(ancestor)) ||
+       ancestors.some(ancestor=>exposed.has(ancestor)) ||
        !privateCallables.has(node))exposed.add(node);
   });
   return exposed;
 }
-
 /**
  * Rename selected object-literal own keys only when a closed-world use proof succeeds.
  * A conservative proof failure leaves the complete file unchanged for that object.
@@ -1380,7 +1453,7 @@ function renameLocalProperties(source, ast, options) {
     candidates.push({node:literal,name:parent.id.name,properties});
   });
 
-  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings,options.sourceType);
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{

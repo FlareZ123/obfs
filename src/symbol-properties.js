@@ -23,13 +23,13 @@ const {staticString}=require('./ast');
  *
  * @param {string} source
  * @param {AstNode} ast
- * @param {{seed:string,preserveCallableSource?:boolean,sourceType?:'script'|'module'|'commonjs'}} options
+ * @param {{seed:string,preserveCallableSource?:boolean,sourceType?:'script'|'module'|'commonjs',sourceType?:'script'|'module'|'commonjs'}} options
  * @returns {{code:string,objects:number,properties:number}}
  */
 function symbolizeLocalProperties(source,ast,options) {
   if(typeof options?.seed!=='string')throw new TypeError('Expected a seed');
   const bindings=collectBindings(ast);
-  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings);
+  const sourceExposedBodies=collectSourceExposedBodies(ast,bindings,options.sourceType);
   /** @type {WeakSet<AstNode>} */
   const sourceExposedEdits=new WeakSet();
   walk(ast,(node,parent,key,ancestors)=>{

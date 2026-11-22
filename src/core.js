@@ -2767,11 +2767,12 @@ function obfuscateFiles(files, options = {}) {
     const privateDirectCallables=options.preservePublicCallableSource===true ?
       collectPrivateDirectCallables(ast,lexicalBindings) : new Set();
     const sourceExposedBodies=options.preservePublicCallableSource===true ?
-      collectSourceExposedBodies(ast,lexicalBindings) : new Set();
+      collectSourceExposedBodies(ast,lexicalBindings,sourceType) : new Set();
     /** @type {Set<import('./ast').AstNode>} */
     const unsafePrivateTargets=new Set();
     walk(ast,(node,parent,key,ancestors)=>{
       if(sourceExposedBodies.has(node)) {
+        if(privateDirectCallables.has(node))unsafePrivateTargets.add(node);
         for(const ancestor of ancestors)
           if(privateDirectCallables.has(ancestor))unsafePrivateTargets.add(ancestor);
       }
@@ -2943,8 +2944,8 @@ function obfuscateFiles(files, options = {}) {
     if ((!remoteSourceObserver || sourceObserverIslands.has(filename)) &&
         options.properties !== false && sourceType !== 'script') {
       const modified = options.experimentalSymbolKeys === true ?
-        symbolizeLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true}) :
-        renameLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true});
+        symbolizeLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true,sourceType}) :
+        renameLocalProperties(code,ast,{seed:salt,preserveCallableSource:options.preservePublicCallableSource===true,sourceType});
       code = modified.code;
       objects = modified.objects;
       properties = modified.properties;
@@ -2962,7 +2963,7 @@ function obfuscateFiles(files, options = {}) {
     // Startup decoding counts toward SCO/COO client runtime. These modes
     // require explicit opt-in for eager string encoding; SNO can amortize init.
     if (shouldEncodeStrings && !unsafeDecoderIntrinsic) {
-      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true});
+      const modified = encodeStrings(code,ast,{seed:salt,minimumLength:options.minimumStringLength,reservedNames,reservedSources,fixedArity:options.experimentalFixedArityStrings===true,preserveCallableSource:options.preservePublicCallableSource===true,sourceType});
       code = modified.code;
       literals = modified.count;
       ast = parse(code,sourceType);
