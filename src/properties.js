@@ -1,7 +1,8 @@
 'use strict';
 
 const {createHash} = require('node:crypto');
-const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand} = require('./ast');
+const {parse, walk, applyEdits, observesFunctionSource, staticString, sourceSpelledErrorOperand,
+  collectExportedCallableNodes,isWithinExportedCallableSource} = require('./ast');
 
 /** @typedef {import('./ast').AstNode} AstNode */
 
@@ -1138,6 +1139,7 @@ function singleUseFactoryObject(ast,bindings,expression) {
  */
 function renameLocalProperties(source, ast, options) {
   const bindings = collectBindings(ast);
+  const exportedCallableSource=collectExportedCallableNodes(ast);
   /** @type {{node:AstNode,name:string,properties:AstNode[]}[]} */
   const candidates = [];
   walk(ast,(node,parent,key,ancestors) => {
@@ -1166,6 +1168,17 @@ function renameLocalProperties(source, ast, options) {
   for (const candidate of candidates) {
     const proof = proveLocalObject(ast, candidate.name, bindings);
     if (!proof || (!proof.members.length && !proof.patterns.length && !proof.inChecks.length)) continue;
+    // Property edits inside an exported callable alter the exact source
+    // returned by Function#toString. A captured owner declaration may sit
+    // outside the callable, so inspect every source token the proof will edit.
+    const sourceEdits=[
+      ...candidate.properties.map(property=>property.key),
+      ...proof.members.map(member=>member.property),
+      ...proof.patterns.map(property=>property.key),
+      ...proof.inChecks.map(check=>check.left),
+      ...proof.reflections.map(reflection=>reflection.key)
+    ];
+    if(sourceEdits.some(node=>isWithinExportedCallableSource(node,exportedCallableSource)))continue;
     // An unowned field may invoke an inherited getter with this=object. That
     // getter can enumerate own keys, making otherwise private renaming visible.
     const ownNames=new Set(candidate.properties.map(ownPropertyName));
