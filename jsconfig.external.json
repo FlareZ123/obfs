@@ -4,6 +4,8 @@
     "sims/a2mba-rotated-core-affine-rank.js",
     "sims/a2mba-rank-attacker-coincident.js",
     "sims/a2mba-heldout-source-paired-cpu.js",
+    "sims/a2mba-opcode-residual-rank.js",
+    "test/a2mba-opcode-residual-rank.test.js",
     "test/a2mba-rotated-core-rank-screen.test.js",
     "test/a2mba-rank-attacker-coincident.test.js",
     "test/property-reflection.test.js",
