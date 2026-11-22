@@ -4207,6 +4207,20 @@ function collectExportedCallableNodes(ast) {
           aliasChanged=true;
         }
       }
+      if(node.type==='AssignmentExpression'&&node.operator==='='&&
+         node.left.type==='Identifier') {
+        const root=rootBinding(node.right);
+        if(root&&exportedObjectBindings.has(root)&&
+           !exportedObjectBindings.has(node.left.name)) {
+          exportedObjectBindings.add(node.left.name);
+          aliasChanged=true;
+        }
+        if(exportedObjectBindings.has(node.left.name)&&root&&
+           !exportedObjectBindings.has(root)) {
+          exportedObjectBindings.add(root);
+          aliasChanged=true;
+        }
+      }
     });
   } while(aliasChanged);
   walk(ast,node=>{
