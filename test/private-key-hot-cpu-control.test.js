@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const {createHash} = require('node:crypto');
+const {transformSync} = require('esbuild');
 const {obfuscateFiles} = require('../src');
 
 /**
@@ -128,12 +129,36 @@ test('real COO protected private string and Symbol keys preserve behavior and re
       assert.equal(quick[2](x),expected);
     }
 
+    const handwrittenSymbol="'use strict';" +
+      'const keyAcc=Symbol(),keyStep=Symbol();' +
+      'const owner={[keyAcc]:5,[keyStep]:3};' +
+      'function hidden(x){owner[keyAcc]+=((x&7)+owner[keyStep]);return owner[keyAcc]|0;}' +
+      'module.exports=function compute(x){return hidden(x);};';
+    const handwrittenComputedString="'use strict';" +
+      'const keyAcc="_acc",keyStep="_step";' +
+      'const owner={[keyAcc]:5,[keyStep]:3};' +
+      'function hidden(x){owner[keyAcc]+=((x&7)+owner[keyStep]);return owner[keyAcc]|0;}' +
+      'module.exports=function compute(x){return hidden(x);};';
+    const minified=transformSync(original,{
+      loader:'js',platform:'node',target:'node22',minify:true
+    }).code;
+    const extra=[handwrittenSymbol,handwrittenComputedString,minified].map(load);
+    const native=load(original);
+    for(let i=0;i<10000;i++) {
+      const x=((i*73)^(i>>>2))|0;
+      const expected=native(x);
+      for(const fn of extra)assert.equal(fn(x),expected);
+    }
+
     const warm=1000000;
     const hot=25000000;
     const pairs=7;
     const variants=[
       {name:'hashed-string',code:hashedCode,fields:hashed.metrics.properties},
       {name:'unregistered-symbol',code:symbolCode,fields:symbol.metrics.symbolKeys},
+      {name:'handwritten-symbol',code:handwrittenSymbol,fields:0},
+      {name:'handwritten-computed-string',code:handwrittenComputedString,fields:0},
+      {name:'ordinary-esbuild-minified',code:minified,fields:0},
       {name:'same-code-control',code:original,fields:0}
     ];
     /** @type {Array<{variant:string,fields:number,emitted:{sha256:string,bytes:number},pairs:Pair[],medianWallRatio:number,medianCpuRatio:number|null,strictWallBreaches:number,strictCpuBreaches:number,zeroCpuPairs:number}>} */
@@ -159,6 +184,6 @@ test('real COO protected private string and Symbol keys preserve behavior and re
       warmCallsPerArm:warm,hotCallsPerArm:hot,pairedSamplesPerVariant:pairs,
       protectionSelected:true,results
     }));
-    assert.equal(results.length,3);
+    assert.equal(results.length,6);
   }
 );
