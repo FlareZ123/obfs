@@ -41,3 +41,10 @@ This is a compatibility/provenance control, not a protection claim, a security-p
 - Existing inline property-key regression: \`sims/browser-dom-property-source-parity.js\` and \`im-results/browser-dom-source-serialization-parity-2026-11-22.md\`
 - Node HTTP test server API: https://nodejs.org/download/release/v22.11.0/docs/api/http.html
 - Chrome headless DOM capture: https://developer.chrome.com/docs/automation-and-testing/headless-cli
+
+
+## Follow-up: real Chromium Blob-module check, 13:59 UTC
+
+**New bounded browser observation:** A separate local Python Playwright harness launched Chromium 144.0.7559.96 and executed the **exact same program strings** exported by `sims/browser-dom-external-module-source-parity.js` in fresh pages. The harness used `page.set_content` for inline ESM and `URL.createObjectURL(new Blob([program],{type:'text/javascript'}))` as a module `src` for externally sourced ESM. All **12/12** expected native outputs matched the table above, including the exact `internalSecret` versus `k` string check: both DOM-serialization readers saw `8/true` for original inline, `8/false` for renamed inline, and `8/false` in both Blob-module variants; `document.title` gave `8/false` in all four variants. This is real browser differential evidence for **inline versus Blob-backed module** embedding. Chromium was reached through page content injection; direct `about:blank`/local-network navigation remained blocked by the sandbox administrator.
+
+**Do not conflate the backends:** The committed main reproducer uses a genuine HTTP `src="/entry.mjs"` route and the Chrome command-line `--dump-dom`. Those HTTP executions remain unverified. Blob URLs and HTTP URLs have different origin and CSP properties, even though the tested DOM serialization distinction is the same. The local check also used manually renamed JavaScript and did not invoke `obfuscateFiles`, so it provides no compiler coverage, held-out security resistance, or independent CI source pin. Preserve the proposed HTTP matrix for normal Chromium CI instead of claiming it green from the Blob observation.
