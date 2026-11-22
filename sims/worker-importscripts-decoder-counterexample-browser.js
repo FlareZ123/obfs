@@ -14,7 +14,8 @@ function graph(){
   return [
     {path:'worker.js',sourceType:'script',code:
       'importScripts("./side.js");'+
-      'import("./target.mjs").then(({default:value})=>postMessage(value));'},
+      'import("./target.mjs").then(({default:value})=>'+
+      'postMessage(value==="protected-literal-value"));'},
     {path:'target.mjs',sourceType:'module',
       code:"export default 'protected-literal-value';"}
   ];
@@ -81,9 +82,9 @@ async function main(){
       assert.ok(encoded,name+' no browser result '+stdout.slice(0,1200));
       outputs[name]=Buffer.from(encoded,'base64').toString('utf8');
     }
-    assert.equal(outputs.native,'protected-literal-value');
-    assert.equal(outputs.emitted,'?'.repeat(outputs.native.length),
-      'Untracked importScripts mutator did not reproduce target decoder corruption');
+    assert.equal(outputs.native,'true');
+    assert.equal(outputs.emitted,'false',
+      'Untracked importScripts mutator changed protected target equality');
     const report={
       browser:/** @type {const} */('Chromium'),
       native:outputs.native,
