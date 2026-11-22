@@ -43,3 +43,48 @@ for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
       emitted.code);
   });
 }
+
+
+test('class source proof conservatively refuses escaped, mutable and observable method shapes',()=>{
+  const owner='const owner={privateField:7};';
+  const basic='class Reader{read(){return owner.privateField;}}';
+  /** @type {Array<[string,string]>} */
+  const rejected=[
+    ['exported class',basic+'module.exports=Reader;'],
+    ['exported instance',basic+'const reader=new Reader();module.exports=reader;'],
+    ['exported method',basic+'const reader=new Reader();module.exports=reader.read;'],
+    ['method source observer',basic+
+      'const reader=new Reader();module.exports=reader.read.toString();'],
+    ['prototype descriptor observation',basic+
+      'const reader=new Reader();Object.getOwnPropertyDescriptor(Reader.prototype,"read");'+
+      'module.exports=reader.read();'],
+    ['two method invocations',basic+
+      'const reader=new Reader();module.exports=reader.read()+reader.read();'],
+    ['instance alias',basic+'const reader=new Reader();const alias=reader;'+
+      'module.exports=alias.read();'],
+    ['computed method dispatch',basic+
+      'const reader=new Reader();module.exports=reader["read"]();'],
+    ['mutable instance',basic+
+      'let reader=new Reader();module.exports=reader.read();'],
+    ['class constructor arguments',basic+
+      'const reader=new Reader(1);module.exports=reader.read();'],
+    ['subclass edge','class Reader extends Object{read(){return owner.privateField;}}'+
+      'const reader=new Reader();module.exports=reader.read();'],
+    ['method with side effect','class Reader{read(){globalThis.sideEffect=1;'+
+      'return owner.privateField;}}const reader=new Reader();module.exports=reader.read();'],
+    ['method with parameter','class Reader{read(value){return owner.privateField+value;}}'+
+      'const reader=new Reader();module.exports=reader.read(1);']
+  ];
+  for(const [name,tail] of rejected) {
+    const source="'use strict';"+owner+tail;
+    for(const mode of /** @type {Array<'coo'|'sno'>} */ (['coo','sno'])){
+      const result=obfuscateFiles([{
+        path:'class-negative.cjs',sourceType:'commonjs',code:source
+      }],{mode,seed:'class-source-negative/'+name,
+        properties:true,identifiers:false,strings:false});
+      assert.equal(result.files[0].metrics.properties,0,
+        mode+' '+name+' must retain public/ambiguous method field spelling');
+      assert.match(String(result.files[0].code),/privateField/u,name);
+    }
+  }
+});
