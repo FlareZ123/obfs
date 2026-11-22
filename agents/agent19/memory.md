@@ -71,3 +71,61 @@ Red/green two-OS proof:
 Behavioral qualification: these guards are compile-time checks and do not add hot runtime work. Four inert native/emitted examples preserve original output with 1/1 private field rename; negative source-observer examples decline. None of the evidence demonstrates attacker-cost increase or generic 2.5x runtime compliance. COO/SNO code remains public/owner-controlled. Keep this in `im-results/`; do not promote to academically established strong obfuscation.
 
 Next useful actions: verify corrected real-Chromium browser run, inspect complete Node 22+Chromium full validation and exact pinned SHA, broaden ESM graph differential if justified, and test indirect postMessage provenance without wiping meaningful positive owner-field coverage. Communicate the source-sink hazard to the agents through `communications/broadcast/`. Before releasing lease at measured 70 minutes: finalize report and memory, push all changes, delete lease as **final repo mutation**.
+
+
+## Incarnation of 2026-11-22: CSS.escape native function-source contract
+
+Claimed identity at `2026-11-22T23:06:18.859Z`, run ID
+`agent19-20261122-correctness-20261122T230618859Z`, on main at
+`e2e0e7795aaeb3cab5ca37ed61bf13b82ba5e3f6`. The original claim must
+never be refreshed. Release threshold: `2026-11-23T00:16:18.859Z`;
+read actual clock at each persistence checkpoint and delete lease **last** only
+after that threshold and durable work.
+
+Current branch: `agent19/css-escape-source-observer-20261122`.
+Draft PR #308: https://github.com/FlareZ123/obfs/pull/308.
+Agent 3, canonical source-observer integrator, was notified via
+`communications/agent3/20261122T231400Z_agent19_css-escape-source-observer.md`.
+Keep PR draft as independently reproducible evidence or port its minimal slice
+into Agent 3's canonical current-main integration; do not extend stacked PRs.
+
+Discovery: CSSOM CSS.escape takes a CSSOMString; Web IDL coerces a function
+argument to its exact source, serialized as CSS identifier text. Before patch,
+`src/ast.js::observesFunctionSource` missed direct and Reflect.apply forms.
+New guard tracks direct CSS.escape, globalThis/window/self, sequence
+wrappers, .call/.apply/.bind, transitive aliases, and destructuring through
+the existing may-flow pass. It refuses incompatible source rewriting at
+compile time; generated runtime has no new instructions.
+
+- Direct source red CI 45081766566 at `70cb53ed0`, fixed green
+  45081865621 at `ab7c3e6` (Ubuntu/Windows targeted tests + JSDoc).
+- Expanded alias red CI 45082280292 at `b8efe8e`: 8/12 passed,
+  four false-negative analyzer regressions on both systems (sequence wrapper,
+  transitive alias, direct bound call, destructuring). Guard green CI
+  45082324122 at `7761e83`: both systems successful.
+- Real Chromium CSS.escape direct native/emitted parity and primitive
+  owner-positive case passed full browser run 45081997792 at `1a5cb30`.
+- Browser run 45082435227 at `18d6266` includes detached, destructured,
+  and bound source cases, pending at this checkpoint.
+- Full Node validation 45082444152 at `18d6266` is pending at checkpoint.
+- Cross-file native ESM source and safe positive fixture
+  `test/css-escape-interfile-source.test.js`: initial CI
+  45082516132 red in positive only, because host CSS mock was mistakenly
+  *inside* the analyzed module and its own String(value) triggered a
+  syntactic source observer. Moved mock into test harness outside protected
+  bytes in commit `1c77a84`; focused CI 45082599712 pending final
+  Windows status (Ubuntu passed). Do not misrepresent first red as a
+  compiler defect.
+
+Primary files: `src/ast.js`, `test/css-escape-function-source.test.js`,
+`test/css-escape-source-browser.js`,
+`test/css-escape-interfile-source.test.js`,
+`.github/workflows/manual-browser.yml`,
+`im-results/css-escape-function-source-2026-11-22.md`.
+
+No claimed static attacker-cost gain, full-control COO/SNO secrecy,
+universal environment locking, or 2.5× budget result. Continue robust
+source-pinned native parity with a transformed positive, keep
+`results/README.md` decision RELEASE-BLOCKED. Finish report with final
+CI pins, seek Agent3 integration, and only release identity by the
+measured 70-minute rule.
