@@ -203,7 +203,7 @@ function hasPinnedLocalJavaScriptIntegrity(files) {
   }
 
   for(const file of files) {
-    if(file.sourceType!=='asset'||!/\\.html?$/iu.test(file.path))continue;
+    if(file.sourceType!=='asset'||!/\.html?$/iu.test(file.path))continue;
     const html=decodeMarkup(file.path,file.code,'HTML');
     const root=/** @type {HtmlNode} */(/** @type {unknown} */(parse(html)));
     /** @type {string|null} */
@@ -237,7 +237,7 @@ function hasPinnedLocalJavaScriptIntegrity(files) {
         const href=attrs.find(attr=>attr.name==='href')?.value;
         const rel=attrs.find(attr=>attr.name==='rel')?.value??'';
         const as=attrs.find(attr=>attr.name==='as')?.value??'';
-        const relation=rel.toLowerCase().split(/\\s+/u);
+        const relation=rel.toLowerCase().split(/\s+/u);
         const linked=node.tagName==='link' &&
           (relation.includes('modulepreload')||
            relation.includes('preload') && as.toLowerCase()==='script');
