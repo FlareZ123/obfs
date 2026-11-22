@@ -75,7 +75,8 @@ function invertByReanchoring(oracle,target,randomSeed,maxBases=4) {
  * @param {number} seed
  * @returns {{seed:number,sourceSeed:number,secret:number,control:number,
  *   oracle:(x:number)=>number,
- *   canonicalMismatches:number,poisonMarker:number}}
+ *   canonicalMismatches:number,poisonMarker:number,
+ *   cleanAt:(anchor:number)=>boolean}}
  */
 function poisonCanonicalAnchor(seed) {
   for(let rejection=0;rejection<128;rejection++) {
@@ -91,6 +92,22 @@ function poisonCanonicalAnchor(seed) {
     const oracle=x=>u32(applyLinear(outer,
       poisonPermutation(u32(applyLinear(fixture.inner,x)^fixture.innerOffset)))^
       fixture.outputOffset);
+    /**
+     * Source-private proof oracle, unavailable to the chosen-query inverter.
+     * A basis at r is clean iff each P-difference equals the input linear
+     * column; cancellations at a dirty basis are admitted when true.
+     * @param {number} anchor
+     * @returns {boolean}
+     */
+    function cleanAt(anchor) {
+      const center=u32(applyLinear(fixture.inner,anchor)^fixture.innerOffset);
+      const baseline=poisonPermutation(center);
+      for(let bit=0;bit<32;bit++) {
+        const column=fixture.inner[bit];
+        if(u32(poisonPermutation(u32(center^column))^baseline)!==column)return false;
+      }
+      return true;
+    }
     // Selection excludes a basis collision or a changed target, solely
     // using the private source model. Inversion never sees these checks.
     if(oracle(fixture.secret)!==fixture.oracle(fixture.secret))continue;
@@ -112,9 +129,10 @@ function poisonCanonicalAnchor(seed) {
       if(actual!==Acolumns[bit])mismatches++;
     }
     assert.equal(mismatches,32,'Every base-zero difference must be contaminated');
+    assert.equal(cleanAt(0),false,'Poisoned canonical anchor must fail source proof');
     return {seed,sourceSeed:fixture.sourceSeed,secret:fixture.secret,
       control:fixture.control,oracle,canonicalMismatches:mismatches,
-      poisonMarker:marker};
+      poisonMarker:marker,cleanAt};
   }
   throw new Error('Unable to poison only the canonical affine anchor');
 }
