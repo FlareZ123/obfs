@@ -139,7 +139,7 @@ test('symbolic generated-case proof recovers the frozen two-path CJS output',asy
   const exact=recoverSymbolicAffine(source,'guardedTotal','commonjs');
   assert.equal(exact.cases,2);
   assert.equal(exact.offset,262);
-  const original=recover(source,'guardedTotal','commonjs');
+  const original=recover(source,'guardedTotal','script');
   assert.equal(exact.offset,original.offset);
 });
 
