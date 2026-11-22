@@ -134,3 +134,24 @@ test('external imports metadata under an ESM dependency refuses SNO',async()=>{
     await assert.rejects(fs.stat(path.join(output,'modern','value.mjs')),{code:'ENOENT'});
   });
 });
+
+test('explicit packaged root shields SNO source and output from outer imports',async()=>{
+  await withFixture(async root=>{
+    const sourceHost=path.join(root,'source-host');
+    const source=path.join(sourceHost,'source');
+    const outputHost=path.join(root,'output-host');
+    const output=path.join(outputHost,'distribution');
+    await atomicWrite(path.join(sourceHost,'package.json'),JSON.stringify({
+      type:'commonjs',imports:{'#target':'./foreign.cjs'}
+    }));
+    await atomicWrite(path.join(outputHost,'package.json'),JSON.stringify({
+      type:'commonjs',imports:{'#target':'./foreign.cjs'}
+    }));
+    await atomicWrite(path.join(source,'package.json'),'{"type":"commonjs"}');
+    await atomicWrite(path.join(source,'entry.cjs'),'module.exports=157;');
+    await main('sno',['--root',source,'--entry','entry.cjs','--out',output]);
+    const compiled=run(path.join(output,'sno-entry.cjs'));
+    assert.equal(compiled.status,0,compiled.stderr);
+    assert.equal(compiled.stdout,'157');
+  });
+});
