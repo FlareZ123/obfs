@@ -1,0 +1,51 @@
+# Native Node querystring source observation (22 November 2026)
+
+## Scope and decision
+
+Node.js `node:querystring.escape` and `node:querystring.unescape` can convert a callable to its exact `Function.prototype.toString` representation. An AST rewrite inside that callable is observable through the returned string. Before this change, the obfuscator's source-observer admission check did not recognize these Node-module methods even when the source used a direct literal `require('node:querystring')`.
+
+The repair is a **conservative clean-runtime semantic-parity gate**. It does not improve hostile-client secrecy, preclude source reconstruction, establish server locking, or establish the universal 2.5x CPU budget.
+
+## Source-pinned red evidence
+
+- [Node 22 two-platform run 45058121215](https://github.com/FlareZ123/obfs/actions/runs/45058121215) at `2fbab98525fa9de255c91951c5492a559cadaf62` failed direct, nested, destructured and detached `querystring.escape` function-source cases in SNO/COO/SCO. For example, the expected percent-encoded callable body contained `'SOURCE_LITERAL_20261122_QS'`; the generated output's native `escape` returned a percent-encoded body containing `_o83108b295c68[0]` instead. Both Ubuntu and Windows reported the mismatch.
+- A prior source-observer classification-only run [45058030100](https://github.com/FlareZ123/obfs/actions/runs/45058030100) at `fd91d815a2dc814d77cafb0971f167ea9bd07841` failed the required `observesFunctionSource(...)=true` invariant on both operating systems.
+
+These are executable behavior differences on the tested fixture, independent of any attacker model.
+
+## Conservative source admission
+
+The branch `agent2-querystring-escape-source-parity-20261122` recognizes:
+
+- native `node:querystring` or `querystring` CommonJS literal `require()` namespaces and simple aliases;
+- direct `.escape` and `.unescape` calls, detached methods, and destructured named aliases;
+- Node ESM named `escape`/`unescape` imports and default/namespace module bindings;
+- bound `.call`, `.apply`, `.bind` coercer forms through the existing native-coercer path.
+
+The implementation reuses the existing conservative `isCoercer` source-observation logic and fixed-point alias propagation rather than adding runtime instrumentation. Syntactically proven primitive-only inputs remain eligible for encoding.
+
+## Source-pinned green evidence
+
+- [Focused Node 22 Ubuntu/Windows run 45058235640](https://github.com/FlareZ123/obfs/actions/runs/45058235640) at `4c7c006e9db20723ec14da71ba6363f3aacd01b2` passed the original CommonJS source-parity matrix, primitive positive controls, and strict project/external JSDoc.
+- [Expanded focused Node 22 Ubuntu/Windows run 45058345572](https://github.com/FlareZ123/obfs/actions/runs/45058345572) at `52a214903b59a0d5e0c82651a076586cd05c70ba` passed the additional `unescape` and native dynamic-data-URL ESM import variants plus strict project/external JSDoc.
+- [Second adversarial two-platform run 45058825800](https://github.com/FlareZ123/obfs/actions/runs/45058825800) at `8840e6ef6b30359b0b284148fb093de19f46eae5` revealed a remaining source-observer gap for computed native method selectors `namespace[method]` and computed destructuring. Both operating systems observed a changed string result after a function literal rewrite.
+- [Computed-key repair focused Node 22 Ubuntu/Windows run 45058918686](https://github.com/FlareZ123/obfs/actions/runs/45058918686) at `3aad66daa1c3379e52810b4f47ac79afcefcd235` passed CommonJS, ESM, bound method, `Reflect.apply`, dynamically selected native method, and primitive positive controls with both strict JSDoc gates.
+- [Structural alias two-platform RED 45059131427](https://github.com/FlareZ123/obfs/actions/runs/45059131427) at `f1390315264458961933554c4eb42af96b10346d`: assignment destructuring `({escape:enc}=ns)`, computed-key assignment destructuring and default-initializer destructuring still changed the exact escaped callable body. This was a new actual-output counterexample on both Ubuntu and Windows.
+- [Focused structural-alias GREEN 45059292345](https://github.com/FlareZ123/obfs/actions/runs/45059292345) at `bccdbd2a367804b4f7e7a7bedc4778949d371352`: both Node 22 platforms passed all expanded tests and strict project and external JSDoc after extending bounded destructuring pattern propagation.
+- A full Node/Chromium integration replay at earlier source `52a214903` [45058396066](https://github.com/FlareZ123/obfs/actions/runs/45058396066) passed Linux and Windows. That success predates computed-method and assignment-destructuring repairs. Independent full integration at exact final source `bccdbd2a` was dispatched as [run 45059372129](https://github.com/FlareZ123/obfs/actions/runs/45059372129); its result must be checked before asserting full-source compatibility.
+
+## Boundaries
+
+This fix is deliberately scoped to provenance visible through specific native Node modules and stable literal import spellings. Arbitrary monkey-patching, external capability forwarding, computed module specifiers, and dynamic alias provenance remain outside these tests. The project-wide hostile-runtime and 2.5x release decision remains **RELEASE-BLOCKED**.
+
+## Same-file private-literal yield limit
+
+A separate actual-runtime fixture places a direct native `querystring.escape` function-source observer and an unrelated immutable private string literal **in the same CJS file**. It asserts native-versus-emitted output parity and prints the number of rewritten literals for each mode.
+
+[Source-pinned Node 22 Ubuntu/Windows focused run 45060995323](https://github.com/FlareZ123/obfs/actions/runs/45060995323) at `55e0c1e72a4429c63561bf758f584f95a373a3f3` passed and emitted `QUERYSTRING_SAMEFILE_YIELD` with `rewrittenLiterals:0` for **SNO, COO and SCO**. The external observer and private literal remain semantically correct, but the conservative file-wide source observer gate disables literal rewriting even when the local private string is unrelated to the callable's source. This is a meaningful protection-yield loss. It is a separate issue for Agent 3's canonical shared source-observer integration; relaxing the guard safely requires a cross-pass proof of exact source-visible ranges, no unmodeled source observers, and an actual private-positive rewrite.
+
+## Constructive bounded same-file selective rewrite
+
+A separate executable **counterfactual** is appended to `test/node-querystring-escape-source.test.js`. It preserves the exact lexical body of `nativeObserved`, replaces only an unrelated private top-level literal with a runtime reconstruction expression, and executes the original and manually rewritten CommonJS files against Node's native `querystring.escape`. The comparison includes ordinary exported values and the encoded source text. It verifies the literal no longer occurs verbatim in the manual source and that the encoded public callable source remains unchanged.
+
+[Node22 Ubuntu/Windows focused **GREEN** 45062630523](https://github.com/FlareZ123/obfs/actions/runs/45062630523), source `658e105e5809401f3cca2e1965b3e0eec15265fa`, confirms this one small selective rewrite can preserve the observer result. The test is a manually constructed witness and **does not modify the production obfuscator**. Its relevance is limited to the bounded grammar and trusted runtime of the fixture. It supports pursuing a source-range proof rather than assuming zero same-file private work is mathematically necessary; it supplies no confidentiality or universal 2.5x claim. See `workplace/native-source-slice-yield-2026-11-22.md` for the proof obligations.

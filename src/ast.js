@@ -535,6 +535,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     'URIError','EvalError']);
   const coercers=new Set(builtinCoercers);
   const nodeBufferNamespaces=new Set();
+  const nodeQuerystringNamespaces=new Set();
   // Node's built-in buffer module re-exports the native btoa coercer.
   // Recognize named and namespace/default ESM imports before scanning
   // calls, including local const aliases of those namespace imports.
@@ -548,6 +549,19 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       if(spec.type==='ImportNamespaceSpecifier'||
          spec.type==='ImportDefaultSpecifier')
         nodeBufferNamespaces.add(spec.local.name);
+    }
+  });
+  // Node's querystring escape/unescape functions string-coerce their input.
+  // Track ESM named methods and the two native namespace-import forms.
+  walk(ast,node=>{
+    if(node.type!=='ImportDeclaration' ||
+       !['querystring','node:querystring'].includes(String(node.source?.value??'')))return;
+    for(const spec of node.specifiers) {
+      if(spec.type==='ImportSpecifier' &&
+         ['escape','unescape'].includes(String(spec.imported.name??spec.imported.value)))
+        coercers.add(spec.local.name);
+      if(spec.type==='ImportNamespaceSpecifier'||spec.type==='ImportDefaultSpecifier')
+        nodeQuerystringNamespaces.add(spec.local.name);
     }
   });
   // JSON.parse and JSON.rawJSON call ToString on their text input.
@@ -713,6 +727,13 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
       ['buffer','node:buffer'].includes(staticString(node.arguments[0])??'')));
   }
   /** @param {AstNode|null|undefined} node @returns {boolean} */
+  function isNodeQuerystringNamespace(node) {
+    return Boolean(node && (node.type==='Identifier' &&
+      nodeQuerystringNamespaces.has(node.name) || isRequireCall(node) &&
+      node.arguments.length===1 &&
+      ['querystring','node:querystring'].includes(staticString(node.arguments[0])??'')));
+  }
+  /** @param {AstNode|null|undefined} node @returns {boolean} */
   function isCoercer(node) {
     if(!node)return false;
     if(node.type==='Identifier')return coercers.has(node.name);
@@ -720,6 +741,8 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
     const name=memberName(node);
     return isGlobal(node.object) && name!==null && builtinCoercers.has(name) ||
       name==='btoa' && isNodeBufferNamespace(node.object) ||
+      isNodeQuerystringNamespace(node.object) &&
+      (['escape','unescape'].includes(name??'') || node.computed && name===null) ||
       name==='for' && isSymbolConstructor(node.object) ||
       isJsonNamespace(node.object) &&
       (['parse','rawJSON'].includes(name??'')||node.computed&&name===null);
@@ -1003,6 +1026,24 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
   do {
     changed=false;
     walk(ast,node=>{
+      const querystringPattern=node.type==='VariableDeclarator'&&
+        node.id.type==='ObjectPattern'?node.id:
+        node.type==='AssignmentExpression'&&node.operator==='='&&
+          node.left.type==='ObjectPattern'?node.left:null;
+      const querystringSource=node.type==='VariableDeclarator'?node.init:
+        node.type==='AssignmentExpression'?node.right:null;
+      if(querystringPattern && isNodeQuerystringNamespace(querystringSource)) {
+        for(const property of querystringPattern.properties) {
+          if(property.type!=='Property')continue;
+          const name=property.computed?staticString(property.key):
+            property.key.type==='Identifier'?property.key.name:staticString(property.key);
+          const bound=property.value.type==='AssignmentPattern'?
+            property.value.left:property.value;
+          if((['escape','unescape'].includes(name??'') ||
+              property.computed && name===null) &&bound.type==='Identifier')
+            changed=add(coercers,bound.name)||changed;
+        }
+      }
       if(node.type==='VariableDeclarator' && node.id.type==='Identifier' ||
          node.type==='AssignmentExpression' && node.operator==='=' &&
          node.left.type==='Identifier') {
@@ -1011,6 +1052,7 @@ function observesFunctionSource(ast,importedStrings=new Map(),importedCloneFunct
         if(isStringValue(value))changed=add(strings,name)||changed;
         if(isJsonNamespace(value))changed=add(jsonNamespaces,name)||changed;
         if(isNodeBufferNamespace(value))changed=add(nodeBufferNamespaces,name)||changed;
+        if(isNodeQuerystringNamespace(value))changed=add(nodeQuerystringNamespaces,name)||changed;
         if(isCoercer(value) || value?.type==='CallExpression' &&
            value.callee.type==='MemberExpression' &&
            memberName(value.callee)==='bind' &&
